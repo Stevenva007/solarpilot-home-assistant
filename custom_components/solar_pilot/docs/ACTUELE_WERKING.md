@@ -1,8 +1,8 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.20
-**Bijgewerkt:** 2026-09-26
-**Regel-hash:** `2932fd5b243960a0`
+**Versie:** 1.0.0-beta.21
+**Bijgewerkt:** 2026-09-27
+**Regel-hash:** `50e0e44935418409`
 
 Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en leerdata blijven lokaal in Home Assistant en worden bij gewone HACS-updates niet vervangen door programmabestanden.
 

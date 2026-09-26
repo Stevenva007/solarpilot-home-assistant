@@ -24,14 +24,15 @@ def _read_seed(path: Path) -> dict:
     return data if isinstance(data, dict) and data.get("format") == SEED_FORMAT else {}
 
 
-def load_bundled_seed() -> dict:
+def load_bundled_seed(bundle: dict | None = None) -> dict:
     """Load a private persistent seed when present, otherwise an optional bundle.
 
     The function name is kept for backwards compatibility with the runtime.
     """
     # Preferred beta.20+ path: a single private bundle contains both entity
     # mappings and the aggregated historical bootstrap.
-    data = bundle_historical_seed(load_private_bundle())
+    source_bundle = bundle if bundle is not None else load_private_bundle()
+    data = bundle_historical_seed(source_bundle)
     if data:
         return data
     base = Path(__file__).parent

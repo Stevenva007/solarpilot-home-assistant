@@ -9,8 +9,8 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = "1.0.0-beta.20"
-GUIDE_UPDATED = "2026-09-26"
+GUIDE_VERSION = "1.0.0-beta.21"
+GUIDE_UPDATED = "2026-09-27"
 
 CURRENT_GUIDE = {
     "title": "SolarPilot · Actuele werking",

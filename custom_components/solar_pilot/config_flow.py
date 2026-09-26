@@ -201,6 +201,7 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
         rt = self._runtime()
         opts = self.config_entry.options
         site = self._site()
+        bundle = await self.hass.async_add_executor_job(load_private_bundle)
         ems = rt.ems_overview() if rt else {}
         conflicts = ems.get("legacy_conflicts", [])
         placeholders = {
@@ -213,7 +214,7 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
             "wallbox": "monitor actief" if opts.get("wallbox", {}).get("enabled") else "uit",
             "batteries": str(len(opts.get("batteries", []))),
             "conflicts": "geen" if not conflicts else ", ".join(x.get("name", "onbekend") for x in conflicts[:3]),
-            "private_bundle": private_bundle_overview(opts),
+            "private_bundle": private_bundle_overview(opts, bundle=bundle),
         }
         return self.async_show_form(step_id="overview", data_schema=vol.Schema({}), description_placeholders=placeholders)
 
@@ -237,18 +238,18 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
 
     async def async_step_private_bundle(self, user_input=None):
         """Apply/reload a private profile + historical bootstrap from userfiles."""
-        bundle = load_private_bundle()
+        bundle = await self.hass.async_add_executor_job(load_private_bundle)
         history = bundle_historical_seed(bundle)
         if user_input is not None and user_input.get("apply_now"):
             opts, result = build_private_import(
-                self.hass, dict(self.config_entry.data), dict(self.config_entry.options), force=True
+                self.hass, dict(self.config_entry.data), dict(self.config_entry.options), force=True, bundle=bundle
             )
             if result.get("changed"):
                 return await self._save(opts)
         meta = self.config_entry.options.get("_private_bundle", {})
         missing = meta.get("missing_groups", []) if isinstance(meta, dict) else []
         placeholders = {
-            "status": private_bundle_overview(self.config_entry.options),
+            "status": private_bundle_overview(self.config_entry.options, bundle=bundle),
             "history": (
                 f"aanwezig · {history.get('source', {}).get('homewizard_start', '?')} → "
                 f"{history.get('source', {}).get('homewizard_end', '?')}" if history else "niet aanwezig"

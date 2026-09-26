@@ -39,7 +39,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class SolarRuntime:
-    def __init__(self, hass, entry):
+    def __init__(self, hass, entry, historical_seed=None):
         self.hass, self.entry = hass, entry
         self.settings = {**DEFAULTS, **entry.data, **entry.options.get("settings", {})}
         self.capacity_settings = {**CAPACITY_DEFAULTS, **entry.options.get("capacity", {})}
@@ -49,7 +49,7 @@ class SolarRuntime:
         self.phase_settings = {**PHASE_DEFAULTS, **entry.options.get("phase", {})}
         self.local_pv_settings = {**LOCAL_PV_DEFAULTS, **entry.options.get("local_pv", {})}
         self.battery_analysis_settings = {**BATTERY_ANALYSIS_DEFAULTS, **entry.options.get("battery_analysis", {})}
-        self.historical_seed = load_bundled_seed()
+        self.historical_seed = historical_seed if isinstance(historical_seed, dict) else load_bundled_seed()
         self.local_pv = LocalPVModel(self.local_pv_settings, self.historical_seed)
         self.phase_learning = PhaseLearning(self.phase_settings)
         self.battery_analysis = BatteryOpportunitySimulator(self.battery_analysis_settings, self.historical_seed)
@@ -1607,7 +1607,7 @@ class SolarRuntime:
                 "forecast_deferrable": bool(cfg.get("forecast_deferrable", False)),
                 "planner_hold": s.planner_hold, "planner_reason": s.planner_reason,
                 "planner_grid_force": s.planner_grid_force,
-                "cycle_learning": self.cycle_learning.estimate(i,self._cycle_program(cfg),fallback_energy_kwh=cfg.get("cycle_energy_kwh",0),fallback_duration_min=cfg.get("cycle_duration_min",0),fallback_peak_w=d.nominal_w).as_dict(),
+                "cycle_learning": self.cycle_learning.estimate(d.id,self._cycle_program(cfg),fallback_energy_kwh=cfg.get("cycle_energy_kwh",0),fallback_duration_min=cfg.get("cycle_duration_min",0),fallback_peak_w=d.nominal_w).as_dict(),
                 "configured_nominal_w": cfg.get("nominal_w"), "effective_nominal_w": d.nominal_w,
                 "learning": profiles.get(d.id, {}),
                 "phase": {**self.phase_learning.profile(d.id), "hint": cfg.get("phase_hint", "auto")},

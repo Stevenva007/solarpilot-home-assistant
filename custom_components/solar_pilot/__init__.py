@@ -9,7 +9,8 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.storage import Store
 
 from .frontend import async_register_frontend, async_unregister_frontend
-from .private_bundle import build_private_import, delete_private_files_if_requested
+from .private_bundle import build_private_import, delete_private_files_if_requested, load_private_bundle
+from .historical import load_bundled_seed
 
 from .const import DOMAIN, PLATFORMS
 from .runtime import SolarRuntime
@@ -42,10 +43,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Importing it only fills still-empty settings and enables safe monitoring /
     # advisory modules. Physical control permissions remain off and the runtime
     # always starts in Observatie.
-    imported_options, import_result = build_private_import(hass, dict(entry.data), dict(entry.options))
+    private_bundle = await hass.async_add_executor_job(load_private_bundle)
+    imported_options, import_result = build_private_import(
+        hass, dict(entry.data), dict(entry.options), bundle=private_bundle
+    )
     if import_result.get("changed"):
         hass.config_entries.async_update_entry(entry, options=imported_options)
-    runtime = SolarRuntime(hass, entry)
+    historical_seed = await hass.async_add_executor_job(load_bundled_seed, private_bundle)
+    runtime = SolarRuntime(hass, entry, historical_seed=historical_seed)
     runtime.private_bundle_import = import_result
     entry.runtime_data = runtime
     # Remove only SolarPilot's orphaned virtual entities, never underlying devices.
@@ -131,7 +136,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     # Remove SolarPilot-owned optional private profile/bootstrap when the private
     # bundle opted into deletion. Underlying Home Assistant integrations and
     # devices are never touched.
-    delete_private_files_if_requested()
+    await hass.async_add_executor_job(delete_private_files_if_requested)
     if hass.services.has_service("persistent_notification", "dismiss"):
         await hass.services.async_call(
             "persistent_notification", "dismiss",

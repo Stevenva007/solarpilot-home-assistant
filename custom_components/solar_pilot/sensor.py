@@ -79,10 +79,14 @@ class SolarSensor(SolarEntity, SensorEntity):
             self._attr_native_unit_of_measurement = "kWh"
             self._attr_device_class = SensorDeviceClass.ENERGY
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
-        elif suffix in ("ems_solar_today", "battery_10_5_avoided"):
+        elif suffix == "ems_solar_today":
             self._attr_native_unit_of_measurement = "kWh"
             self._attr_device_class = SensorDeviceClass.ENERGY
-            self._attr_state_class = SensorStateClass.MEASUREMENT
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        elif suffix == "battery_10_5_avoided":
+            self._attr_native_unit_of_measurement = "kWh"
+            self._attr_device_class = SensorDeviceClass.ENERGY
+            self._attr_state_class = SensorStateClass.TOTAL
         elif suffix == "ems_value_today":
             self._attr_native_unit_of_measurement = "EUR"
             self._attr_state_class = SensorStateClass.MEASUREMENT

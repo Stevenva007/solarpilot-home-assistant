@@ -190,14 +190,14 @@ def _required_present(group: str, values: dict[str, Any]) -> bool:
     return True
 
 
-def build_private_import(hass, entry_data: dict[str, Any], current_options: dict[str, Any], *, force: bool = False) -> tuple[dict[str, Any], dict[str, Any]]:
+def build_private_import(hass, entry_data: dict[str, Any], current_options: dict[str, Any], *, force: bool = False, bundle: dict[str, Any] | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
     """Build options after a conservative private-bundle import.
 
     The returned options may be passed to ``async_update_entry``. Existing
     non-empty choices are preserved. ``force`` only re-evaluates a known bundle;
     it still does not overwrite configured values.
     """
-    bundle = load_private_bundle()
+    bundle = bundle if bundle is not None else load_private_bundle()
     if not bundle:
         return deepcopy(current_options or {}), {"status": "missing", "changed": False}
     fingerprint = bundle_fingerprint(bundle)
@@ -274,9 +274,9 @@ def build_private_import(hass, entry_data: dict[str, Any], current_options: dict
     return options, {"status": "applied", "changed": changed, "applied": applied, "missing": missing, **meta}
 
 
-def private_bundle_overview(options: dict[str, Any] | None = None) -> str:
+def private_bundle_overview(options: dict[str, Any] | None = None, *, bundle: dict[str, Any] | None = None) -> str:
     """Human-readable status for the options overview."""
-    bundle = load_private_bundle()
+    bundle = bundle if bundle is not None else load_private_bundle()
     if not bundle:
         return "geen privébundel gevonden"
     fp = bundle_fingerprint(bundle)

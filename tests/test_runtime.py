@@ -448,3 +448,12 @@ def test_planner_prices_use_timestamped_blocks_when_available():
     assert imports[:2] == pytest.approx([0.11, 0.11])
     assert imports[2:6] == pytest.approx([0.31, 0.31, 0.31, 0.31])
     assert r.planner_price_sources["import"] == "tijdgestempelde prijsreeks"
+
+
+def test_overview_with_configured_device_uses_real_device_id_for_cycle_learning():
+    """Regression: adding the first flex load must not break sensor.solarpilot_status."""
+    r, _ = build(device={"non_interruptible": False, "cycle_program": "standaard"})
+    rows = r.overview()
+    assert len(rows) == 1
+    assert rows[0]["id"] == "a"
+    assert rows[0]["cycle_learning"]["program"] == "standaard"
