@@ -1,0 +1,27 @@
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'CHANGELOG.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'IMPORT_PRIVATE_SEED.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'LICENSE', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'LICENSE_OPTIONS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'PUBLISH_TO_GITHUB.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'START_HIER.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'custom_components/solar_pilot/__init__.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'custom_components/solar_pilot/config_flow.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'custom_components/solar_pilot/const.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'custom_components/solar_pilot/current_guide.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'custom_components/solar_pilot/docs/ACTUELE_WERKING.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'custom_components/solar_pilot/docs/CONFIGURATIESTRUCTUUR.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'custom_components/solar_pilot/first_install.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'custom_components/solar_pilot/frontend/solar-pilot-card.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'custom_components/solar_pilot/historical.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'custom_components/solar_pilot/manifest.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'custom_components/solar_pilot/translations/en.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'custom_components/solar_pilot/translations/nl.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/ACTUELE_WERKING.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/CONFIGURATIESTRUCTUUR.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tools/publish_github_windows.ps1', LF will be replaced by CRLF the next time Git touches it
+custom_components/solar_pilot/docs/ACTUELE_WERKING.md:3: trailing whitespace.
+[32m+[m[32m**Versie:** 1.0.0-beta.20[m[41m  [m
+docs/ACTUELE_WERKING.md:3: trailing whitespace.
+[32m+[m[32m**Versie:** 1.0.0-beta.20[m[41m  [m

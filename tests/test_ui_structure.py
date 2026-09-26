@@ -2,9 +2,9 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FLOW = (ROOT / "custom_components" / "solar_pilot" / "config_flow.py").read_text()
-CARD = (ROOT / "custom_components" / "solar_pilot" / "frontend" / "solar-pilot-card.js").read_text()
-STRINGS = json.loads((ROOT / "custom_components" / "solar_pilot" / "translations" / "en.json").read_text())
+FLOW = (ROOT / "custom_components" / "solar_pilot" / "config_flow.py").read_text(encoding="utf-8")
+CARD = (ROOT / "custom_components" / "solar_pilot" / "frontend" / "solar-pilot-card.js").read_text(encoding="utf-8")
+STRINGS = json.loads((ROOT / "custom_components" / "solar_pilot" / "translations" / "en.json").read_text(encoding="utf-8"))
 
 
 def test_root_options_are_grouped_into_seven_hubs():
@@ -53,7 +53,7 @@ def test_package_has_one_current_rules_doc_and_one_navigation_doc():
 
 
 def test_climate_dashboard_exposes_all_settings_with_advice_and_consequences():
-    text=(ROOT/'custom_components'/'solar_pilot'/'frontend'/'solar-pilot-card.js').read_text()
+    text=(ROOT/'custom_components'/'solar_pilot'/'frontend'/'solar-pilot-card.js').read_text(encoding="utf-8")
     assert 'settings_catalog' in text
     assert 'Advies:' in text
     assert 'Lager:' in text and 'Hoger:' in text

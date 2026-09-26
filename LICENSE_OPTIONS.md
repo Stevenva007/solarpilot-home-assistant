@@ -1,11 +1,5 @@
-# Kies vóór publicatie een softwarelicentie
+# Licentie
 
-De GitHub/HACS-validator verwacht een herkenbare repositorylicentie. SolarPilot kiest die juridische toestemming niet automatisch voor de eigenaar. Voeg vóór de eerste publieke release één licentiebestand toe als `LICENSE`, `LICENSE.txt` of `LICENSE.md`.
+De publieke SolarPilot-repository gebruikt vanaf de eerste GitHub/HACS-release de **MIT License**. Zie `LICENSE`.
 
-Veelgebruikte opties zijn:
-
-- **MIT** — permissief: hergebruik en commerciële afgeleiden zijn toegestaan met behoud van copyright/licentietekst.
-- **Apache-2.0** — eveneens permissief, met expliciete patentbepalingen.
-- **GPL-3.0** — copyleft: wanneer afgeleide software wordt verspreid, moet de bron onder de GPL-voorwaarden beschikbaar blijven.
-
-Kies de licentie bewust op GitHub of vanuit een officiële licentietekst. Publiceer geen release zolang `tools/check_public_repository.py` nog over een ontbrekende licentie klaagt.
+Een toekomstige licentiewijziging is een bewuste juridische keuze van de repository-eigenaar en hoort niet automatisch door een build- of publicatiescript te gebeuren.

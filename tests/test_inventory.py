@@ -13,7 +13,7 @@ def test_inventory_exports_only_allowlisted_attributes():
       SimpleNamespace(entity_id='image.roomba',name='Boiler camerakaart',state='x',attributes={'access_token':'SECRET'}),
       SimpleNamespace(entity_id='switch.powerful',name='Krachtige modus',state='off',attributes={}),
       SimpleNamespace(entity_id='switch.roomba_eco_charge',name='Roomba opladen',state='off',attributes={})]
-    out=SandboxedEnvironment().from_string(template.read_text()).render(states=items)
+    out=SandboxedEnvironment().from_string(template.read_text(encoding="utf-8")).render(states=items)
     for text in ('water_heater.tank','climate.salon','cooling','3456','switch.powerful'):
         assert text in out
     for text in ('SECRET','TOKEN_URL','image.roomba','switch.roomba_eco_charge'):

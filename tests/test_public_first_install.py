@@ -7,14 +7,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_public_first_install_has_no_household_specific_entity_ids():
     path = ROOT / "custom_components" / "solar_pilot" / "first_install.py"
-    tree = ast.parse(path.read_text())
+    tree = ast.parse(path.read_text(encoding="utf-8"))
     pattern = re.compile(r"^(?:sensor|binary_sensor|climate|water_heater|select|switch|input_number|number|weather|script|automation)\.[a-z0-9_]+$")
     found = [node.value for node in ast.walk(tree) if isinstance(node, ast.Constant) and isinstance(node.value, str) and pattern.fullmatch(node.value)]
     assert found == []
 
 
 def test_public_first_install_keeps_safe_sun_suggestion():
-    text = (ROOT / "custom_components" / "solar_pilot" / "first_install.py").read_text()
+    text = (ROOT / "custom_components" / "solar_pilot" / "first_install.py").read_text(encoding="utf-8")
     assert '"sun_entity": "sun.sun"' in text
 
 

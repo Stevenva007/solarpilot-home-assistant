@@ -1,6 +1,6 @@
 # SolarPilot · Configuratiestructuur
 
-**Geldig voor 1.0.0-beta.19.** Dit document beschrijft waar instellingen staan. Voor de inhoudelijke EMS-regels geldt uitsluitend `ACTUELE_WERKING.md`.
+**Geldig voor 1.0.0-beta.20.** Dit document beschrijft waar instellingen staan. Voor de inhoudelijke EMS-regels geldt uitsluitend `ACTUELE_WERKING.md`.
 
 ## Configuratiecentrum
 
@@ -47,13 +47,16 @@ Er zijn dus geen verborgen klimaat-tuningwaarden zonder gebruikersuitleg. De fys
 
 ### Klimaatleerlagen
 
-**Zonnewinst in de woning**  
+**Zonnewinst in de woning**
+
 Werkelijk PV-vermogen dient als lokale instralingsproxy. SolarPilot leert per zone hoeveel extra natuurlijke opwarming daarmee samenhangt. Dit is begrensd en wordt alleen bij voldoende leerkwaliteit gebruikt.
 
-**Lokale weerscorrectie**  
+**Lokale weerscorrectie**
+
 SolarPilot bewaart de fout tussen de eerdere uurforecast en de later werkelijk gemeten buitentemperatuur. Correctie wordt afzonderlijk geleerd rond 6, 12, 24 en 48 uur vooruit, met minimumsamples, minimum verschillende dagen, confidence en een maximumcorrectie.
 
-**Coast-evaluatie**  
+**Coast-evaluatie**
+
 Een door SolarPilot gestarte OFF/coastperiode wordt achteraf als **correct**, **te lang** of **te voorzichtig** beoordeeld. Alleen het minimum nuttige coastvenster mag daarna stap voor stap binnen jouw ingestelde onder-/bovengrens verschuiven. Comfortbanden, Panasonic-doel en HEAT/COOL worden nooit door deze feedback aangepast.
 
 **Niet geïmplementeerd:** raam- en deurcontacten hebben geen invloed op het klimaatmodel of AUTO/coast-beslissingen.
@@ -68,7 +71,7 @@ Forecast.Solar, lokaal PV-/schaduwmodel en planner. Actuele meters blijven altij
 
 ### Geavanceerd & systeem
 
-Technische engine-timing, meetkwaliteit, faseherkenning, Wallbox-herkenning en systeeminformatie. Dit zijn geen dagelijkse instellingen.
+Technische engine-timing, meetkwaliteit, faseherkenning, Wallbox-herkenning, privéprofiel/historiek en systeeminformatie. Dit zijn geen dagelijkse instellingen. **Privéprofiel & historiek** leest uitsluitend het lokale `userfiles/private_bundle.json`, toont welke bron-groepen ontbreken en kan de bundel opnieuw conservatief toepassen zonder fysieke regeltoestemmingen te activeren.
 
 ## Dashboardstructuur
 

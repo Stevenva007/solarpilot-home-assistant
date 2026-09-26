@@ -9,6 +9,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.storage import Store
 
 from .frontend import async_register_frontend, async_unregister_frontend
+from .private_bundle import build_private_import, delete_private_files_if_requested
 
 from .const import DOMAIN, PLATFORMS
 from .runtime import SolarRuntime
@@ -37,7 +38,15 @@ async def _handle_set_planner_setting(hass: HomeAssistant, call) -> None:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    # Optional installation-specific data lives outside the public repository.
+    # Importing it only fills still-empty settings and enables safe monitoring /
+    # advisory modules. Physical control permissions remain off and the runtime
+    # always starts in Observatie.
+    imported_options, import_result = build_private_import(hass, dict(entry.data), dict(entry.options))
+    if import_result.get("changed"):
+        hass.config_entries.async_update_entry(entry, options=imported_options)
     runtime = SolarRuntime(hass, entry)
+    runtime.private_bundle_import = import_result
     entry.runtime_data = runtime
     # Remove only SolarPilot's orphaned virtual entities, never underlying devices.
     valid_prefixes = [f"{entry.entry_id}_{i}_" for i in runtime.configs]
@@ -119,14 +128,10 @@ async def async_unload_entry(hass, entry):
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Remove SolarPilot-owned persistent data after the config entry is deleted."""
     await Store(hass, 1, f"{DOMAIN}.{entry.entry_id}").async_remove()
-    # Remove SolarPilot-owned optional private historical bootstrap. HACS manages
-    # the integration code itself; only this user-data file is deleted here.
-    try:
-        from pathlib import Path
-        seed_path = Path(__file__).parent / "userfiles" / "historical_seed.json"
-        seed_path.unlink(missing_ok=True)
-    except OSError:
-        pass
+    # Remove SolarPilot-owned optional private profile/bootstrap when the private
+    # bundle opted into deletion. Underlying Home Assistant integrations and
+    # devices are never touched.
+    delete_private_files_if_requested()
     if hass.services.has_service("persistent_notification", "dismiss"):
         await hass.services.async_call(
             "persistent_notification", "dismiss",

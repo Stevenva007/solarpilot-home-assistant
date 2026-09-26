@@ -18,6 +18,7 @@ from .battery_analysis import BATTERY_ANALYSIS_DEFAULTS
 from .battery_fleet import BATTERY_DEFAULTS, BATTERY_FLEET_DEFAULTS
 from .thermal_climate import SMART_CLIMATE_DEFAULTS
 from .first_install import apply_first_install_suggestions
+from .private_bundle import build_private_import, private_bundle_overview, load_private_bundle, bundle_historical_seed
 
 
 def entity(domains):
@@ -212,6 +213,7 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
             "wallbox": "monitor actief" if opts.get("wallbox", {}).get("enabled") else "uit",
             "batteries": str(len(opts.get("batteries", []))),
             "conflicts": "geen" if not conflicts else ", ".join(x.get("name", "onbekend") for x in conflicts[:3]),
+            "private_bundle": private_bundle_overview(opts),
         }
         return self.async_show_form(step_id="overview", data_schema=vol.Schema({}), description_placeholders=placeholders)
 
@@ -231,7 +233,32 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
         return self.async_show_menu(step_id="intelligence_hub", menu_options=["forecast", "local_pv", "planner"])
 
     async def async_step_advanced_hub(self, user_input=None):
-        return self.async_show_menu(step_id="advanced_hub", menu_options=["timing", "phase_learning", "wallbox_advanced", "system_info"])
+        return self.async_show_menu(step_id="advanced_hub", menu_options=["timing", "phase_learning", "wallbox_advanced", "private_bundle", "system_info"])
+
+    async def async_step_private_bundle(self, user_input=None):
+        """Apply/reload a private profile + historical bootstrap from userfiles."""
+        bundle = load_private_bundle()
+        history = bundle_historical_seed(bundle)
+        if user_input is not None and user_input.get("apply_now"):
+            opts, result = build_private_import(
+                self.hass, dict(self.config_entry.data), dict(self.config_entry.options), force=True
+            )
+            if result.get("changed"):
+                return await self._save(opts)
+        meta = self.config_entry.options.get("_private_bundle", {})
+        missing = meta.get("missing_groups", []) if isinstance(meta, dict) else []
+        placeholders = {
+            "status": private_bundle_overview(self.config_entry.options),
+            "history": (
+                f"aanwezig · {history.get('source', {}).get('homewizard_start', '?')} → "
+                f"{history.get('source', {}).get('homewizard_end', '?')}" if history else "niet aanwezig"
+            ),
+            "missing": ", ".join(missing) if missing else "geen",
+        }
+        schema = vol.Schema({vol.Required("apply_now", default=False): selector.BooleanSelector()})
+        return self.async_show_form(
+            step_id="private_bundle", data_schema=schema, description_placeholders=placeholders
+        )
 
     async def async_step_system_info(self, user_input=None):
         if user_input is not None:

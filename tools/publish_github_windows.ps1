@@ -8,7 +8,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Version = "1.0.0-beta.19"
+$Version = "1.0.0-beta.20"
 $Description = "SolarPilot - local Home Assistant EMS for PV surplus, flexible loads, heat pumps, EV charging coexistence and batteries."
 $Topics = @("home-assistant", "hacs", "energy-management", "ems", "solar", "photovoltaics", "heat-pump", "battery")
 
@@ -42,8 +42,9 @@ if (-not $LicenseExists) {
     Write-Host "Licentie toegevoegd: $License" -ForegroundColor Cyan
 }
 
-& $Python tools/check_current_explanation.py
+$env:PYTHONDONTWRITEBYTECODE = "1"
 & $Python tools/check_public_repository.py
+& $Python tools/check_current_explanation.py
 
 if (-not (Test-Path ".git")) {
     git init
@@ -58,9 +59,15 @@ if ($status) {
 git branch -M main
 
 $repoFull = "$GitHubOwner/$Repository"
-$repoExists = $true
-gh repo view $repoFull *> $null
-if ($LASTEXITCODE -ne 0) { $repoExists = $false }
+$repoExists = $false
+try {
+    # A missing repository is a normal first-publish state. Do not let
+    # ErrorActionPreference=Stop abort before gh repo create can run.
+    gh repo view $repoFull *> $null
+    $repoExists = ($LASTEXITCODE -eq 0)
+} catch {
+    $repoExists = $false
+}
 
 if (-not $repoExists) {
     gh repo create $repoFull --public --source . --remote origin --push --description $Description

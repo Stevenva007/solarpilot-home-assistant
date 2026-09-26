@@ -8,6 +8,8 @@ user in Home Assistant and are never enabled merely by being suggested.
 from __future__ import annotations
 from copy import deepcopy
 
+from .private_bundle import private_group_suggestions
+
 # Keep this mapping intentionally small. ``sun.sun`` is a Home Assistant core
 # entity when the Sun integration is present; the Wallbox name is only a label.
 PUBLIC_FIRST_INSTALL = {
@@ -34,5 +36,11 @@ def apply_first_install_suggestions(hass, values: dict, group: str) -> dict:
         if key == "name":
             out[key] = candidate
         elif _exists(hass, candidate):
+            out[key] = candidate
+    # Installation-specific candidates may live in HACS' persistent userfiles
+    # directory. They are never part of the public repository and only appear
+    # when the referenced entity currently exists in Home Assistant.
+    for key, candidate in private_group_suggestions(hass, group).items():
+        if not out.get(key):
             out[key] = candidate
     return out

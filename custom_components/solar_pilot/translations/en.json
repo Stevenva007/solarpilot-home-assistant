@@ -393,7 +393,7 @@
       },
       "overview": {
         "title": "Overzicht & controle",
-        "description": "Modus: {mode}\nNetmeting: {grid} · PV: {pv}\nVerbruikers: {devices}\nBoiler: {dhw} · Slim klimaat: {climate}\nWallbox: {wallbox} · Batterijen: {batteries}\nConcurrerende oude regelaars: {conflicts}\n\nGebruik het dashboard voor dagelijkse bediening. Kies Terug om instellingen te wijzigen.",
+        "description": "Modus: {mode}\nNetmeting: {grid} · PV: {pv}\nVerbruikers: {devices}\nBoiler: {dhw} · Slim klimaat: {climate}\nWallbox: {wallbox} · Batterijen: {batteries}\nConcurrerende oude regelaars: {conflicts}\nPrivéprofiel: {private_bundle}\n\nGebruik het dashboard voor dagelijkse bediening. Kies Terug om instellingen te wijzigen.",
         "data": {}
       },
       "energy_hub": {
@@ -450,7 +450,8 @@
           "timing": "Algemene timing & meetkwaliteit",
           "phase_learning": "Faseherkenning · leren",
           "wallbox_advanced": "Wallbox · geavanceerde herkenning",
-          "system_info": "Versie & actuele uitleg"
+          "system_info": "Versie & actuele uitleg",
+          "private_bundle": "Privéprofiel & historiek"
         }
       },
       "system_info": {
@@ -589,6 +590,13 @@
           "cycle_duration_min": "Verwachte cyclusduur (min, 0 = leren)",
           "cycle_program": "Programmanaam fallback",
           "cycle_program_entity": "Optionele programma-entiteit (select/sensor)"
+        }
+      },
+      "private_bundle": {
+        "title": "Privéprofiel & historiek",
+        "description": "Status: {status}\nHistorische bootstrap: {history}\nOntbrekende bron-groepen: {missing}\n\nPlaats één privébestand als `/config/custom_components/solar_pilot/userfiles/private_bundle.json`. Het bestand blijft buiten GitHub en wordt door HACS bij gewone updates behouden. Import vult alleen lege koppelingen in. Fysieke klimaatbediening, fase-ingrepen en boilerregeling worden niet automatisch vrijgegeven. SolarPilot blijft na herladen in Observatie.",
+        "data": {
+          "apply_now": "Privéprofiel en historiek nu importeren / herladen"
         }
       }
     },

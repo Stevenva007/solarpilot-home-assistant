@@ -12,11 +12,11 @@ guide = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
 spec.loader.exec_module(guide)
 
-manifest = json.loads((ROOT / "custom_components" / "solar_pilot" / "manifest.json").read_text())
-const_text = (ROOT / "custom_components" / "solar_pilot" / "const.py").read_text()
-card_text = (ROOT / "custom_components" / "solar_pilot" / "frontend" / "solar-pilot-card.js").read_text()
-actual_md = (ROOT / "docs" / "ACTUELE_WERKING.md").read_text()
-embedded_md = (ROOT / "custom_components" / "solar_pilot" / "docs" / "ACTUELE_WERKING.md").read_text()
+manifest = json.loads((ROOT / "custom_components" / "solar_pilot" / "manifest.json").read_text(encoding="utf-8"))
+const_text = (ROOT / "custom_components" / "solar_pilot" / "const.py").read_text(encoding="utf-8")
+card_text = (ROOT / "custom_components" / "solar_pilot" / "frontend" / "solar-pilot-card.js").read_text(encoding="utf-8")
+actual_md = (ROOT / "docs" / "ACTUELE_WERKING.md").read_text(encoding="utf-8")
+embedded_md = (ROOT / "custom_components" / "solar_pilot" / "docs" / "ACTUELE_WERKING.md").read_text(encoding="utf-8")
 expected_md = guide.render_markdown()
 
 errors = []

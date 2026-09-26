@@ -1,8 +1,8 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.19  
-**Bijgewerkt:** 2026-09-26  
-**Regel-hash:** `0485265d8b3dbd22`
+**Versie:** 1.0.0-beta.20
+**Bijgewerkt:** 2026-09-26
+**Regel-hash:** `2932fd5b243960a0`
 
 Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en leerdata blijven lokaal in Home Assistant en worden bij gewone HACS-updates niet vervangen door programmabestanden.
 
@@ -69,7 +69,7 @@ De 50 °C-regel is op PV-productie gebaseerd en kan dus netstroom aanvullen. De 
 
 SolarPilot vergelijkt werkelijk gemeten PV-vermogen met Forecast.Solar en leert een lokaal correctieprofiel. Het model koppelt terugkerende afwijkingen aan zonnestand en seizoenscontext; het leert dus niet simpelweg dat er op een vast uur schaduw is.
 
-Wanneer de optionele privé-bootstrap lokaal is geplaatst, gebruikt SolarPilot de historische data vanaf de plaatsing van de zonnepanelen als voorzichtige start. Die privédata staat niet in de publieke HACS-repository. Zonder bootstrap start het model gewoon leeg en leert het live. Nieuwe waarnemingen op verschillende dagen verhogen het vertrouwen. Willekeurige bewolking moet minder gewicht krijgen dan een terugkerende dip bij vergelijkbare zonnestand.
+Wanneer de optionele privébundel lokaal is geplaatst, gebruikt SolarPilot de geaggregeerde historische bootstrap vanaf de plaatsing van de zonnepanelen als voorzichtige start. Dezelfde bundel kan ook installatie-specifieke entity-koppelingen bevatten. Die privédata staat nooit in de publieke HACS-repository. Zonder bootstrap start het model gewoon leeg en leert het live. Nieuwe waarnemingen op verschillende dagen verhogen het vertrouwen. Willekeurige bewolking moet minder gewicht krijgen dan een terugkerende dip bij vergelijkbare zonnestand.
 
 Het model probeert ook herstel na lokale schaduw te leren. Zo kan de planner een geschikte last eerder laten starten vóór een verwachte dip of kort laten wachten wanneer bruikbaar herstel waarschijnlijk is.
 
@@ -160,7 +160,7 @@ De eerste ingebruikname gebeurt gecontroleerd: eerst SolarPilot in Observatie co
 
 SolarPilot gebruikt één Configuratiecentrum in plaats van een lange lijst losse functies. De instellingen zijn gegroepeerd als Overzicht, Energie & net, Verbruikers & prioriteiten, Comfort & warmtepomp, Opslag & laden, Voorspellen & optimaliseren en Geavanceerd & systeem.
 
-De publieke HACS-release bevat bewust geen woning- of installatie-specifieke entity_id's. Bij de eerste installatie kiest de gebruiker de net- en optionele PV-bron zelf via Home Assistant. Alleen universele, onschuldige suggesties zoals sun.sun kunnen automatisch worden voorgesteld wanneer ze bestaan; overige P1-, fase-, Forecast.Solar-, Panasonic-, Wallbox-, tarief- en weerbronnen worden expliciet gekozen. Een selectie activeert of bedient nooit zelfstandig een functie en hoofdschakelaars blijven veilig uit waar dat hoort.
+De publieke HACS-release bevat bewust geen woning- of installatie-specifieke entity_id's. Wie geen privébundel gebruikt, kiest de net- en optionele PV-bron en overige koppelingen expliciet via Home Assistant. Wie wel een privébundel gebruikt, plaatst één lokaal bestand in de door HACS bewaarde userfiles-map; SolarPilot vult daarmee alleen nog lege, bestaande bronkoppelingen in. Ontbrekende entiteiten worden overgeslagen en later opnieuw geprobeerd. Dezelfde bundel kan de geaggregeerde historische bootstrap bevatten. Import schakelt nooit fysieke klimaatbediening, fase-afbouw of boilerregeling vrij en de runtime start altijd in Observatie.
 
 De basispagina's tonen alleen de instellingen die je normaal nodig hebt. Timing, faseherkenning en Wallbox-herkenningsdetails staan bewust onder Geavanceerd. De onderliggende option-keys en regelalgoritmen blijven compatibel met bestaande instellingen.
 
@@ -168,7 +168,7 @@ De dashboardkaart gebruikt dezelfde mentale structuur met zeven tabbladen: Overz
 
 De tab Comfort bevat voor slim klimaat nu vier samenhangende delen: instellingen, bevindingen/leerresultaten, meldingen en uitleg. Iedere klimaatinstelling uit het regelmodel is rechtstreeks wijzigbaar in Home Assistant. Bij elk veld staat een korte uitleg, een aanbevolen uitgangspunt en in gewone taal wat een lagere/hogere waarde of Aan/Uit betekent. Voor het opslaan toont SolarPilot nogmaals het advies en de verwachte gevolgen.
 
-- Eerste installatie vraagt alleen de essentiële net- en PV-bronnen; veilige standaardwaarden gelden voor de overige timing.
+- Eerste installatie vraagt alleen de essentiële net- en PV-bronnen; een optionele lokale privébundel kan daarna de overige bronkoppelingen en historische bootstrap in één keer veilig invullen.
 - Verbruikers worden toegevoegd via een duidelijke vierstappenwizard: basis, koppeling, gedrag & bescherming, planning & energie.
 - Batterijprofiel en batterijbediening zijn gescheiden zodat read-only gebruik geen bedieningsvelden toont.
 - Slim klimaat, fasebewaking en Wallbox hebben een korte basispagina en een aparte geavanceerde pagina.
@@ -177,13 +177,13 @@ De tab Comfort bevat voor slim klimaat nu vier samenhangende delen: instellingen
 
 ## 13. Eenvoudige installatie en volledige verwijdering
 
-Vanaf de publieke HACS-release is HACS de aanbevolen installatiemethode. Voeg de publieke SolarPilot-repository één keer als HACS Custom Repository van het type Integration toe, download SolarPilot en herstart Home Assistant. Daarna voeg je SolarPilot toe via Apparaten & diensten. De frontend zit in dezelfde integratie en verschijnt automatisch in de Home Assistant-zijbalk; een losse www-map, Lovelace-resource of handmatig dashboard-YAML is niet nodig.
+Vanaf de publieke HACS-release is HACS de aanbevolen installatiemethode. Voeg de publieke SolarPilot-repository één keer als HACS Custom Repository van het type Integration toe, download SolarPilot en herstart Home Assistant. Daarna voeg je SolarPilot toe via Apparaten & diensten. Voor een installatie-specifieke snelle start kan één privébestand als `custom_components/solar_pilot/userfiles/private_bundle.json` lokaal worden geplaatst; HACS bewaart die map bij gewone updates. Via Geavanceerd & systeem → Privéprofiel & historiek kan de bundel opnieuw worden ingelezen. De frontend zit in dezelfde integratie en verschijnt automatisch in de Home Assistant-zijbalk; een losse www-map, Lovelace-resource of handmatig dashboard-YAML is niet nodig.
 
 Voor verwijderen bestaat een veilige voorbereidingsactie. SolarPilot gaat naar Pauze, stopt nieuwe starts, laat eigen onderbreekbare lasten volgens hun beveiligingen vrijgeven, brengt een door SolarPilot veroorzaakte klimaat-coast terug naar Panasonic AUTO en laat een door SolarPilot beheerd boilerdoel terugvallen naar het normale basisregime. Beschermde cycli en onzekere fysieke toestanden worden nooit hard afgebroken alleen om sneller te kunnen verwijderen.
 
 Wanneer SolarPilot 'Verwijderen gereed' meldt, verwijder je eerst de SolarPilot-configuratie-entry via Apparaten & diensten. Daarbij wist SolarPilot zijn eigen leer-/runtime-opslag, services, melding en zijbalkpaneel. Onderliggende P1-, Panasonic-, Wallbox-, Shelly- en andere Home Assistant-entiteiten worden nooit verwijderd. Verwijder daarna SolarPilot in HACS en herstart Home Assistant; HACS beheert dan ook de programmabestanden onder custom_components.
 
-- Installatie via HACS: repository één keer toevoegen, SolarPilot downloaden, herstarten en daarna via de Home Assistant-UI configureren.
+- Installatie via HACS: repository één keer toevoegen, SolarPilot downloaden, herstarten en daarna via de Home Assistant-UI configureren; een lokale privébundel is optioneel en wordt nooit via GitHub verspreid.
 - Geen aparte /config/www/solar-pilot-card.js of dashboardresource nodig.
 - Verwijderen voorbereiden is veilig en weigert 'gereed' te melden zolang SolarPilot nog een toestel, boiler, batterijopdracht of coasttoestand bezit.
 - De verwijderactie wist uitsluitend SolarPilot-eigen data en raakt de gekoppelde apparaten/integraties niet aan.

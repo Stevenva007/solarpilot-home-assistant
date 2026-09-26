@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0-beta.19 — Public HACS/GitHub release
+## 1.0.0-beta.20 — Public HACS/GitHub release
 
 - Publieke HACS-build opgeschoond: geen woning- of installatie-specifieke entity-ID's meer in first-install defaults.
 - Eerste installatie laat de gebruiker net/PV en overige bronentiteiten expliciet kiezen; alleen universele `sun.sun` mag veilig worden voorgesteld.

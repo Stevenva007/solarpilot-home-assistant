@@ -10,7 +10,7 @@ with sync_playwright() as p:
     browser = p.chromium.launch(executable_path=browser_path, headless=True, args=["--no-sandbox"])
     page = browser.new_page(viewport={"width":390,"height":844}, device_scale_factor=1)
     page.on("pageerror", lambda error: errors.append(str(error)))
-    page.set_content((root/"SolarPilot-voorbeeld.html").read_text(), wait_until="load")
+    page.set_content((root/"SolarPilot-voorbeeld.html").read_text(encoding="utf-8"), wait_until="load")
     page.wait_for_selector("solar-pilot-card >> h1")
 
     assert page.locator("solar-pilot-card >> .nav button").count() == 7

@@ -2,7 +2,7 @@
 
 SolarPilot is a local Home Assistant Energy Management System (EMS) for PV surplus, flexible loads, Panasonic Aquarea hot-water policy, Wallbox Full Solar coexistence, phase analysis, capacity-tariff awareness, local PV/shade learning, slow thermal-climate learning, future home batteries and a unified rolling-horizon planner.
 
-> **Status:** beta.19 · public HACS beta. Start in **Observatie**. Do not enable physical control for several devices at once.
+> **Status:** beta.20 · public HACS beta. Start in **Observatie**. Do not enable physical control for several devices at once.
 
 ## Install via HACS
 
@@ -23,7 +23,18 @@ HACS manages the integration files. A normal update is:
 
 **HACS → SolarPilot → Update → Restart Home Assistant**
 
-SolarPilot configuration and learned runtime data are stored in Home Assistant, not in the program files replaced by HACS.
+SolarPilot configuration and learned runtime data are stored in Home Assistant, not in the program files replaced by HACS. The optional `userfiles` directory is marked persistent so a local private bundle survives ordinary HACS updates.
+
+
+## Optional private profile + history
+
+A private bundle is optional. Place exactly one local file at:
+
+```text
+/config/custom_components/solar_pilot/userfiles/private_bundle.json
+```
+
+Then open **SolarPilot → Configure → Advanced & system → Private profile & history** and apply/reload it. The importer only fills still-empty links to Home Assistant entities that actually exist. Monitoring/advisory modules may be enabled with safe defaults, but physical climate control, phase shedding and DHW control remain explicitly protected. SolarPilot still starts in **Observatie**. See `IMPORT_PRIVATE_BUNDLE.md`.
 
 ## Safe removal
 
@@ -49,11 +60,4 @@ The canonical current explanation is [docs/ACTUELE_WERKING.md](docs/ACTUELE_WERK
 
 ## Repository privacy
 
-This repository may be public because HACS requires public GitHub repositories. Do not commit Home Assistant backups, access tokens, raw energy-history exports, addresses or other private files. The public repository contains no household-specific entity IDs and does not contain your private historical bootstrap. SolarPilot can learn live without it. An optional private seed can be placed locally in `custom_components/solar_pilot/userfiles/historical_seed.json`; HACS preserves that directory across upgrades.
-
-## Open direct in HACS
-
-[![Open your Home Assistant instance and open SolarPilot in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=StevenVa007&repository=solarpilot-home-assistant&category=integration)
-
-Repository: `https://github.com/StevenVa007/solarpilot-home-assistant`
-
+This repository may be public because HACS requires public GitHub repositories. Do not commit Home Assistant backups, access tokens, raw energy-history exports, addresses or other private files. The public repository contains no household-specific entity IDs. SolarPilot can learn live without private data. For a faster installation-specific start, one local `custom_components/solar_pilot/userfiles/private_bundle.json` may contain entity mappings plus an aggregated historical bootstrap. HACS preserves `userfiles` across ordinary upgrades, and the private bundle must never be committed to GitHub.

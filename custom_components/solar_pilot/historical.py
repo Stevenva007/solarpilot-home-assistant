@@ -1,14 +1,17 @@
 """Historical bootstrap helpers for SolarPilot.
 
-For HACS installs, personal bootstrap data lives in ``userfiles/historical_seed.json``.
-HACS preserves that directory across upgrades. The public repository deliberately
-does not include the user's private historical bootstrap. Runtime control never
-depends on a seed; it only accelerates advisory learning and what-if analysis.
+For HACS installs, the preferred source is ``userfiles/private_bundle.json``, which
+may contain both installation-specific mappings and an aggregated historical seed.
+The older ``userfiles/historical_seed.json`` remains supported. HACS preserves the
+userfiles directory across upgrades. Runtime control never depends on a seed; it
+only accelerates advisory learning and what-if analysis.
 """
 from __future__ import annotations
 
 import json
 from pathlib import Path
+
+from .private_bundle import bundle_historical_seed, load_private_bundle
 
 SEED_FORMAT = "solarpilot-historical-analysis-v1"
 
@@ -26,7 +29,13 @@ def load_bundled_seed() -> dict:
 
     The function name is kept for backwards compatibility with the runtime.
     """
+    # Preferred beta.20+ path: a single private bundle contains both entity
+    # mappings and the aggregated historical bootstrap.
+    data = bundle_historical_seed(load_private_bundle())
+    if data:
+        return data
     base = Path(__file__).parent
+    # Backwards-compatible single seed file for earlier HACS/private installs.
     private_seed = base / "userfiles" / "historical_seed.json"
     data = _read_seed(private_seed)
     if data:

@@ -19,16 +19,27 @@ Dit is de aanbevolen eerste installatie.
 
 Daarna verschijnt de SolarPilot-interface automatisch. Er is geen aparte Lovelace-resource nodig.
 
-## 3. Eerste controle
+
+## 3. Optioneel: privéprofiel + historiek in één bestand
+
+Heb je een installatie-specifieke privébundel, plaats dan `private_bundle.json` in:
+
+```text
+/config/custom_components/solar_pilot/userfiles/private_bundle.json
+```
+
+Ga daarna naar **SolarPilot → Configureren → Geavanceerd & systeem → Privéprofiel & historiek** en kies importeren/herladen. De bundel vult alleen lege koppelingen in en gebruikt uitsluitend entiteiten die op dat moment werkelijk bestaan. Historische aggregaten worden als bootstrap gebruikt. Fysieke klimaatbediening, fase-afbouw en boilerregeling worden niet automatisch vrijgegeven; SolarPilot blijft in Observatie.
+
+## 4. Eerste controle
 
 Controleer in Observatie achtereenvolgens P1/PV, Forecast.Solar/lokale schaduw, L1/L2/L3, Panasonic warm water, slim klimaat, Wallbox read-only en de Planning-tab.
 
 Zet PV Excess Control en de twee oude boilerautomatiseringen pas uit wanneer SolarPilot daadwerkelijk klaar is om over te nemen.
 
-## 4. Eerste fysieke test
+## 5. Eerste fysieke test
 
 Activeer eerst één niet-kritieke, goed meetbare flexlast. Breid pas daarna toestel per toestel uit.
 
-## 5. Uitleg
+## 6. Uitleg
 
 De enige actuele regelbeschrijving is `docs/ACTUELE_WERKING.md` en dezelfde inhoud staat in Home Assistant onder SolarPilot → Uitleg.

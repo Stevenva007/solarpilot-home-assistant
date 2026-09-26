@@ -1,11 +1,11 @@
-# Optionele privé historische bootstrap
+# Verouderde losse historische seed
 
-SolarPilot werkt volledig zonder historisch bootstrapbestand; het leert na installatie live verder.
+Vanaf SolarPilot 1.0.0-beta.20 is één privébundel aanbevolen. Zie `IMPORT_PRIVATE_BUNDLE.md`.
 
-Wil je eigen historische data als voorzichtige startkennis gebruiken, genereer lokaal een geaggregeerde seed met `tools/build_historical_seed.py` en plaats die daarna als:
+Voor compatibiliteit blijft een bestaand bestand op dit pad ondersteund:
 
 ```text
 /config/custom_components/solar_pilot/userfiles/historical_seed.json
 ```
 
-Herstart Home Assistant daarna. HACS bewaart `userfiles` bij gewone updates. Ruwe exports en jouw gegenereerde `historical_seed.json` horen niet in de publieke GitHub-repository.
+Nieuwe installaties gebruiken bij voorkeur `userfiles/private_bundle.json`, waarin profielkoppelingen en de geaggregeerde historiek samen kunnen staan.

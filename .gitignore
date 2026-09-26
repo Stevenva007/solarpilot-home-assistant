@@ -9,3 +9,7 @@ __pycache__/
 *.csv
 *.sqlite*
 secrets.yaml
+
+# SolarPilot private persistent data — never commit
+custom_components/solar_pilot/userfiles/*
+!custom_components/solar_pilot/userfiles/.gitkeep

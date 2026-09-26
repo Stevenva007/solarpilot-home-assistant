@@ -1,4 +1,4 @@
-/* SolarPilot 1.0.0-beta.19. Learning solar gains, weather bias and coast feedback; Panasonic AUTO-first; no external dependencies. */
+/* SolarPilot 1.0.0-beta.20. Learning solar gains, weather bias and coast feedback; Panasonic AUTO-first; no external dependencies. */
 const spEscape = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const spPower = value => value == null || !Number.isFinite(Number(value)) ? "—" : Math.abs(Number(value)) >= 1000 ? `${(Number(value)/1000).toLocaleString("nl-BE",{maximumFractionDigits:2})} kW` : `${Math.round(Number(value))} W`;
 const spTemp = value => value == null || !Number.isFinite(Number(value)) ? "—" : `${Number(value).toLocaleString("nl-BE",{maximumFractionDigits:1})} °C`;
