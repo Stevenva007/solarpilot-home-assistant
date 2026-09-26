@@ -1,0 +1,21 @@
+{# Plak in Ontwikkelaarstools → Sjabloon. Alleen lezen; verandert niets. #}
+HOME ASSISTANT — KANDIDAAT-ENTITEITEN VOOR SOLARPILOT
+VERMOGEN / ENERGIE / BATTERIJ / TEMPERATUUR
+{% for e in states.sensor | sort(attribute='entity_id') %}
+{% if e.attributes.get('device_class') in ['power','energy','battery','temperature','current','voltage'] or e.attributes.get('unit_of_measurement') in ['W','kW'] %}
+{{ e.entity_id }} | {{ e.name }} | {{ e.state }} {{ e.attributes.get('unit_of_measurement','') }}
+{% endif %}{% endfor %}
+SCHAKELAARS
+{% for e in states.switch | sort(attribute='entity_id') %}{{ e.entity_id }} | {{ e.name }} | {{ e.state }}
+{% endfor %}
+REGELBARE WAARDEN
+{% for e in states.number | sort(attribute='entity_id') %}{{ e.entity_id }} | {{ e.name }} | {{ e.state }} {{ e.attributes.get('unit_of_measurement','') }} | min={{ e.attributes.get('min') }} max={{ e.attributes.get('max') }} stap={{ e.attributes.get('step') }}
+{% endfor %}
+VERWARMING EN WARM WATER
+{% for e in states.climate | sort(attribute='entity_id') %}{{ e.entity_id }} | {{ e.name }} | {{ e.state }} | doel={{ e.attributes.get('temperature') }} | actueel={{ e.attributes.get('current_temperature') }}
+{% endfor %}
+{% for e in states.water_heater | sort(attribute='entity_id') %}{{ e.entity_id }} | {{ e.name }} | {{ e.state }} | doel={{ e.attributes.get('temperature') }} | actueel={{ e.attributes.get('current_temperature') }}
+{% endfor %}
+BESTAANDE SCRIPTS
+{% for e in states.script | sort(attribute='entity_id') %}{{ e.entity_id }} | {{ e.name }}
+{% endfor %}

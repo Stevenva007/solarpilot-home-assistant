@@ -1,0 +1,46 @@
+{
+  "planner_settings": {
+    "pv_reserve_w": 150,
+    "capacity_penalty_enabled": true,
+    "capacity_penalty_eur_kwh": 0.5,
+    "price_optimisation": true
+  },
+  "devices": [
+    {
+      "id": "flex_load_example",
+      "name": "Flexlast · voorbeeldprofiel",
+      "priority": 20,
+      "enabled": true,
+      "forecast_deferrable": true,
+      "daily_energy_goal_kwh": 1.2,
+      "power_w": 550,
+      "time_window_enabled": true,
+      "time_window_start": "09:00:00",
+      "time_window_end": "18:00:00",
+      "daily_deadline": "18:00:00",
+      "cheap_grid_allowed": false,
+      "deadline_grid_allowed": false
+    },
+    {
+      "id": "vaatwasser_demo",
+      "name": "Vaatwasser · beschermd voorbeeld",
+      "priority": 30,
+      "enabled": true,
+      "forecast_deferrable": true,
+      "power_w": 1800,
+      "daily_energy_goal_kwh": 0,
+      "contiguous_cycle": true,
+      "cycle_program": "Eco",
+      "cycle_energy_kwh": 0.82,
+      "cycle_duration_min": 90,
+      "cycle_average_w": 547,
+      "cycle_peak_w": 1900,
+      "time_window_enabled": true,
+      "time_window_start": "08:00:00",
+      "time_window_end": "20:00:00",
+      "daily_deadline": "20:00:00",
+      "cheap_grid_allowed": false,
+      "deadline_grid_allowed": false
+    }
+  ]
+}

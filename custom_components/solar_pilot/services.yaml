@@ -1,0 +1,42 @@
+set_climate_setting:
+  name: Klimaatinstelling wijzigen
+  description: Wijzig één SolarPilot-klimaatinstelling vanuit Home Assistant. De waarde wordt gevalideerd, direct toegepast en blijvend opgeslagen.
+  fields:
+    config_entry_id:
+      name: Configuratie-ID
+      description: SolarPilot config entry. Mag leeg blijven als er maar één SolarPilot-configuratie is.
+      required: false
+      selector:
+        text:
+    setting:
+      name: Instelling
+      description: Interne sleutel van de klimaatinstelling. Gebruik normaal het SolarPilot-dashboard.
+      required: true
+      selector:
+        text:
+    value:
+      name: Nieuwe waarde
+      description: Nieuwe waarde. Het dashboard toont vóór opslaan uitleg, advies en gevolgen.
+      required: true
+      selector:
+        object:
+
+set_planner_setting:
+  name: Plannerinstelling wijzigen
+  description: Wijzig één Unified Planner-instelling. Het dashboard toont uitleg, advies en gevolgen vóór opslaan.
+  fields:
+    config_entry_id:
+      name: Configuratie-ID
+      required: false
+      selector:
+        text:
+    setting:
+      name: Instelling
+      required: true
+      selector:
+        text:
+    value:
+      name: Nieuwe waarde
+      required: true
+      selector:
+        object:

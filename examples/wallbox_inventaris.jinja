@@ -1,0 +1,12 @@
+{# Ontwikkelaarstools → Sjabloon. Alleen lezen. Geen tokens, wachtwoorden of wijzigingsacties. #}
+WALLBOX — BESTAANDE HOME ASSISTANT ENTITEITEN
+{% set ids = integration_entities('wallbox') | sort %}
+{% if not ids %}
+Geen entiteiten van de officiële Wallbox-integratie gevonden.
+Open je gebruikte laadpaalkoppeling en deel de entiteitsnamen voor laadvermogen, status en zonnelaadmodus.
+{% endif %}
+{% for id in ids %}
+{% if id.split('.')[0] in ['sensor', 'select', 'binary_sensor'] %}
+{{ id }} | {{ state_attr(id, 'friendly_name') or id }} | {{ states(id) }} {{ state_attr(id, 'unit_of_measurement') or '' }}{% if id.startswith('select.') %} | opties={{ state_attr(id, 'options') }}{% endif %}
+{% endif %}
+{% endfor %}

@@ -1,0 +1,6 @@
+{
+  "name": "SolarPilot",
+  "homeassistant": "2026.9.0",
+  "persistent_directory": "userfiles",
+  "render_readme": true
+}

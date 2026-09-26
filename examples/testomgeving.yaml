@@ -1,0 +1,43 @@
+# OPTIONEEL: virtuele testhelpers, GEEN verbinding met fysieke apparaten.
+# NIET rechtstreeks bij bestaande configuration.yaml-sleutels dubbel plakken.
+# Gebruik als package alleen wanneer HA-packages al correct zijn ingesteld,
+# of maak gelijkwaardige helpers aan via de Home Assistant-interface.
+# Dit bestand is syntactisch gecontroleerd, niet geladen in echte HA.
+input_number:
+  solarpilot_test_net:
+    name: SolarPilot test netvermogen
+    min: -6000
+    max: 6000
+    step: 10
+    initial: 0
+    unit_of_measurement: W
+    mode: box
+  solarpilot_test_load:
+    name: SolarPilot test toestelvermogen
+    min: 0
+    max: 4000
+    step: 10
+    initial: 0
+    unit_of_measurement: W
+    mode: box
+input_boolean:
+  solarpilot_test_device:
+    name: SolarPilot virtuele testlast
+    initial: false
+  solarpilot_test_demand:
+    name: SolarPilot virtuele vraag
+    initial: false
+
+# Instellen in SolarPilot:
+# Hoofdmeter: input_number.solarpilot_test_net (positief = afname)
+# Aan/uit-toestel: input_boolean.solarpilot_test_device
+# Vermogensmeter: input_number.solarpilot_test_load
+# Vraag: input_boolean.solarpilot_test_demand
+# Nominaal vermogen: 1000 W; alle overige tijden bewust controleren.
+# Zet de virtuele vraag aan, het toestel op Auto en globale modus Observatie.
+# Net op -2000 W laat advies bij voldoende overschot zien.
+# Daarna kan je Zonnestroom testen: alleen een virtuele helper schakelt.
+# Na een virtuele start stel je toestelvermogen zelf op 1000 W en net op -1000 W.
+# Dit is GEEN automatische fysische simulatie; updates/feedback gebeuren manueel.
+# Onveranderde helpers worden terecht als te oude meting gezien na stale_s.
+# Raak nooit echte controle-entiteiten aan tijdens deze virtuele test.

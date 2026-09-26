@@ -1,0 +1,11 @@
+title: SolarPilot
+views:
+  - title: EMS
+    path: solarpilot
+    icon: mdi:solar-power
+    type: masonry
+    cards:
+      - type: custom:solar-pilot-card
+        title: SolarPilot
+        # De kaart bevat Overzicht, Verbruikers, Comfort, Energie, Opslag en Uitleg.
+        # Een aparte guide-card is alleen nodig als je bewust een losse uitlegpagina wilt.

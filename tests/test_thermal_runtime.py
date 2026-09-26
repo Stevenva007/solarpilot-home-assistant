@@ -1,0 +1,162 @@
+from datetime import datetime
+from types import SimpleNamespace
+import pytest
+from custom_components.solar_pilot.thermal_runtime import SmartClimateManager
+from custom_components.solar_pilot.thermal_climate import SMART_CLIMATE_DEFAULTS, ThermalProfile
+from test_runtime import build, Services
+
+
+class ClimateServices(Services):
+    def __init__(self,states):
+        super().__init__(states)
+        self.forecast=[{'datetime':f'2026-09-22T{h%24:02d}:00:00+02:00','temperature':21,'condition':'partlycloudy','humidity':60} for h in range(48)]
+    async def async_call(self,domain,action,data=None,blocking=False,target=None,return_response=False,**kwargs):
+        data=data or {}
+        if domain=='weather' and action=='get_forecasts':
+            self.calls.append((domain,action,{'data':data,'target':target}))
+            entity=(target or {}).get('entity_id')
+            return {entity:{'forecast':self.forecast}}
+        if domain=='climate' and action=='set_hvac_mode':
+            self.calls.append((domain,action,data))
+            obj=self.states.get(data['entity_id'])
+            attrs=dict(obj.attributes)
+            self.states.set(data['entity_id'],data['hvac_mode'],attrs)
+            return None
+        return await super().async_call(domain,action,data,blocking)
+
+
+def setup_climate(*, control=False, temp=21, target=21, mode='auto'):
+    r,h=build()
+    h.config=SimpleNamespace(time_zone='Europe/Brussels',units=SimpleNamespace(temperature_unit='°C'))
+    h.services=ClimateServices(h.states)
+    attrs={'current_temperature':temp,'temperature':target,'temperature_unit':'°C',
+           'hvac_action':'idle','hvac_modes':['heat','off','cool','auto']}
+    h.states.set('climate.home',mode,attrs)
+    h.states.set('climate.salon',mode,attrs)
+    h.states.set('sensor.outdoor',21,{'unit_of_measurement':'°C'})
+    h.states.set('weather.home','partlycloudy',{'temperature':21,'temperature_unit':'°C'})
+    r.entry.options['smart_climate']={**SMART_CLIMATE_DEFAULTS,'enabled':True,'control_enabled':control,
+        'zone_entities':['climate.home','climate.salon'],'weather_entity':'weather.home',
+        'outside_temp_entity':'sensor.outdoor','decision_interval_h':12,'forecast_horizon_h':48}
+    r.smart_climate=SmartClimateManager(r)
+    return r,h
+
+
+def mature(manager):
+    for entity_id in ('climate.home','climate.salon'):
+        p=ThermalProfile(); p.samples=100; p.days={str(x) for x in range(10)}; p.passive_k=[0.01]*20; p.heat_gain=[0.2]*20; p.cool_gain=[0.2]*20; p.response_delays_h=[2]*10
+        manager.state.profiles[entity_id]=p
+
+
+@pytest.mark.asyncio
+async def test_smart_climate_fetches_hourly_forecast_but_advisory_mode_does_not_control():
+    r,h=setup_climate(control=False)
+    await r.smart_climate.tick(local_now=datetime(2026,9,22,8),allow_command=True)
+    assert len(r.smart_climate.state.forecast)==48
+    assert not any(c[0]=='climate' for c in h.services.calls)
+
+
+@pytest.mark.asyncio
+async def test_hard_comfort_breach_releases_auto_not_heat_or_cool_and_keeps_target():
+    r,h=setup_climate(control=True,temp=19.5,target=21,mode='off')
+    await r.smart_climate.tick(local_now=datetime(2026,9,22,8),allow_command=True)
+    climate_calls=[c for c in h.services.calls if c[0]=='climate']
+    assert len(climate_calls)==2
+    assert all(c[2]['hvac_mode']=='auto' for c in climate_calls)
+    assert not any(c[2]['hvac_mode'] in ('heat','cool') for c in climate_calls)
+    assert all('temperature' not in c[2] for c in climate_calls)
+    assert h.states.get('climate.home').attributes['temperature']==21
+
+
+@pytest.mark.asyncio
+async def test_mature_shoulder_model_can_put_zones_in_off_coast():
+    r,h=setup_climate(control=True,temp=21,target=21,mode='auto')
+    mature(r.smart_climate)
+    await r.smart_climate.tick(local_now=datetime(2026,9,22,8),allow_command=True)
+    climate_calls=[c for c in h.services.calls if c[0]=='climate']
+    assert climate_calls
+    assert all(c[2]['hvac_mode']=='off' for c in climate_calls)
+
+
+@pytest.mark.asyncio
+async def test_manual_fixed_heat_mode_is_never_overridden_even_with_hard_breach():
+    r,h=setup_climate(control=True,temp=23,target=21,mode='heat')
+    mature(r.smart_climate)
+    await r.smart_climate.tick(local_now=datetime(2026,9,22,8),allow_command=True)
+    assert not any(c[0]=='climate' for c in h.services.calls)
+    assert 'nooit' in r.smart_climate.overview()['decision']['reason'].lower()
+
+
+@pytest.mark.asyncio
+async def test_manual_thermostat_target_is_taken_as_new_reference():
+    r,h=setup_climate(control=False,temp=21,target=22)
+    await r.smart_climate.tick(local_now=datetime(2026,9,22,8),allow_command=False)
+    assert r.smart_climate.overview()['zones'][0]['target']==22
+
+
+@pytest.mark.asyncio
+async def test_missing_selected_zone_blocks_physical_climate_control():
+    r,h=setup_climate(control=True,temp=19.5,target=21,mode='off')
+    h.states.set('climate.salon','unavailable',{})
+    await r.smart_climate.tick(local_now=datetime(2026,9,22,8),allow_command=True)
+    assert not any(c[0]=='climate' for c in h.services.calls)
+    assert r.smart_climate.state.fault
+
+
+@pytest.mark.asyncio
+async def test_send_mode_has_hard_invariant_against_heat_cool():
+    r,h=setup_climate(control=True)
+    zones=r.smart_climate._zones()
+    assert await r.smart_climate._send_mode('heat',zones) is False
+    assert await r.smart_climate._send_mode('cool',zones) is False
+    assert not any(c[0]=='climate' for c in h.services.calls)
+
+
+@pytest.mark.asyncio
+async def test_dashboard_setting_update_applies_immediately_and_persists_to_options_without_reload_stub():
+    r,h=setup_climate(control=False)
+    await r.smart_climate.async_set_setting('soft_band_c',0.7)
+    assert r.smart_climate.settings['soft_band_c']==0.7
+    assert r.entry.options['smart_climate']['soft_band_c']==0.7
+
+
+@pytest.mark.asyncio
+async def test_dashboard_setting_rejects_hard_band_below_soft_band():
+    r,h=setup_climate(control=False)
+    from homeassistant.exceptions import HomeAssistantError
+    await r.smart_climate.async_set_setting('hard_band_c',1.5)
+    await r.smart_climate.async_set_setting('soft_band_c',1.2)
+    with pytest.raises(HomeAssistantError):
+        await r.smart_climate.async_set_setting('hard_band_c',0.8)
+
+
+@pytest.mark.asyncio
+async def test_forecast_refresh_queues_weather_bias_training_points():
+    r,h=setup_climate(control=False)
+    now=datetime.now().astimezone()
+    h.services.forecast=[{'datetime':(now.replace(minute=0,second=0,microsecond=0)+__import__('datetime').timedelta(hours=i)).isoformat(),'temperature':20+i*.01,'condition':'partlycloudy'} for i in range(1,55)]
+    await r.smart_climate._refresh_forecast()
+    assert r.smart_climate.state.weather_bias.pending
+
+
+def test_climate_overview_contains_settings_findings_alerts_and_explanation():
+    r,h=setup_climate(control=False)
+    ov=r.smart_climate.overview()
+    assert len(ov['settings_catalog']) == len(SMART_CLIMATE_DEFAULTS)
+    assert 'weather_bias' in ov and 'solar_gain' in ov and 'coast_feedback' in ov
+    assert isinstance(ov['alerts'],list)
+    assert any('Open ramen' in x for x in ov['explanation'])
+
+
+@pytest.mark.asyncio
+async def test_changing_outside_temperature_source_resets_dependent_learned_models():
+    r,h=setup_climate(control=False)
+    h.states.set('sensor.outdoor2',20.5,{'unit_of_measurement':'°C'})
+    mature(r.smart_climate)
+    r.smart_climate.state.weather_bias.errors['12']=[1.0]*12
+    r.smart_climate.state.weather_bias.days['12']={'d1','d2','d3','d4'}
+    assert r.smart_climate.state.profiles
+    await r.smart_climate.async_set_setting('outside_temp_entity','sensor.outdoor2')
+    assert r.smart_climate.state.profiles == {}
+    assert r.smart_climate.state.weather_bias.errors['12'] == []
+    assert 'leren veilig opnieuw' in r.smart_climate.last_forecast_error

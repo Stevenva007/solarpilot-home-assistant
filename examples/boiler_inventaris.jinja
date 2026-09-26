@@ -1,0 +1,24 @@
+{# SolarPilot beta.4 — alleen lezen. Plak in Ontwikkelaarstools → Sjabloon.
+   Selecteert energie/verwarming en uitsluitend de hieronder toegestane attributen.
+   Geen toegangstokens, camera-/afbeeldings-URL's, kaartdata of volledige attributendumps.
+   Controleer de uitvoer vóór je ze deelt; zelfgekozen namen blijven zichtbaar. #}
+{% set allowed = ['unit_of_measurement','temperature_unit','device_class','state_class','current_temperature','temperature','min_temp','max_temp','target_temp_step','hvac_action','hvac_modes','preset_mode','preset_modes','operation_mode','operation_list','supported_features','min','max','step','options'] %}
+{% set keywords = ['boiler','water','sanitair','dhw','warmtepomp','heat','cool','koel','wallbox','solar','zonne','vermogen','power','p1','dsmr','inverter','omvormer','legionella','hygiene','hygiëne','disinfect','krachtig','powerful','boost'] %}
+SOLARPILOT — BRONNEN VOOR BOILER, KOELING, ZON EN NETMETING
+Dit zijn kandidaat-entiteiten, geen automatisch goedgekeurde koppelingen.
+{% for e in states | sort(attribute='entity_id') %}
+{% set domain = e.entity_id.split('.')[0] %}
+{% set match = namespace(found=false) %}
+{% set label = (e.entity_id ~ ' ' ~ e.name) | lower %}
+{% for word in keywords %}{% if word in label %}{% set match.found=true %}{% endif %}{% endfor %}
+{% set relevant = domain in ['climate','water_heater'] or (domain in ['sensor','number','input_number'] and (e.attributes.get('device_class') in ['power','energy','temperature'] or e.attributes.get('unit_of_measurement') in ['W','kW','°C','°F'] or match.found)) or (domain in ['binary_sensor','switch','input_boolean','select','schedule','script'] and match.found) %}
+{% if relevant and not e.entity_id.startswith(('sensor.solarpilot_', 'number.solarpilot_', 'switch.solarpilot_', 'sensor.solar_pilot_', 'number.solar_pilot_', 'switch.solar_pilot_')) %}
+{% set attrs = namespace(data={}) %}
+{% for key in allowed %}{% if key in e.attributes %}{% set attrs.data=dict(attrs.data, **{key:e.attributes[key]}) %}{% endif %}{% endfor %}
+{{ e.entity_id }}
+Naam: {{ e.name }}
+Status: {{ e.state }}
+Attributen: {{ attrs.data | tojson }}
+---
+{% endif %}{% endfor %}
+EINDE. Vul bij je antwoord ook je Home Assistant-versie, warmtepomp/boilermodel en gebruikte hygiëneprogramma in.

@@ -1,0 +1,655 @@
+{
+  "title": "SolarPilot",
+  "config": {
+    "step": {
+      "user": {
+        "title": "SolarPilot · basis instellen",
+        "description": "Koppel eerst alleen de netmeting en, indien beschikbaar, het actuele PV-vermogen. SolarPilot start daarna altijd in Observatie. Alle verdere instellingen zijn logisch gegroepeerd onder Configureren.",
+        "data": {
+          "grid_entity": "Netvermogen (W of kW)",
+          "grid_sign": "Betekenis van de netmeting",
+          "export_entity": "Aparte injectiemeter — alleen bij twee meters",
+          "pv_entity": "Actueel zonnepanelenvermogen — aanbevolen"
+        }
+      }
+    },
+    "error": {
+      "power_unit": "Kies een bestaande vermogensentiteit met eenheid W of kW; kWh is niet geschikt.",
+      "soc_unit": "Kies een bestaande entiteit met eenheid %.",
+      "required": "Dit veld is nodig voor de gekozen meetmethode.",
+      "duplicate": "Deze bedieningsentiteit wordt al gebruikt of beide velden verwijzen naar hetzelfde toestel.",
+      "entity_missing": "Een geselecteerde bedieningsentiteit bestaat niet.",
+      "battery_power_required": "Selecteer ook het actuele batterijvermogen; alleen laadniveau beschermt niet tegen ongewenste ontlading.",
+      "timing": "Deze tijdsinstellingen zijn niet verenigbaar. Controleer de minimum- en maximumwaarden.",
+      "number_range": "Het ingestelde bereik of de stap past niet op de gekozen number-entiteit.",
+      "cycle_requires_ready": "Een niet-onderbreekbare cyclus vereist het type Script en een vraag-/klaarsignaal.",
+      "number_unit": "Kies een vermogens-/stroomregelaar met eenheid W, kW, A of %. Geen temperatuur of andere grootheid. Bij W moet de wattfactor 1 zijn; bij kW 1000.",
+      "dhw_range": "Ongeldige waarde of hysterese groter dan de inschakeldrempel.",
+      "dhw_step": "De waarde past niet bij de instelbare stapgrootte.",
+      "dhw_order": "Minimum + differentie + buffer moet ≤ zonnedoel ≤ overschotdoel blijven; controleer ook de koellimiet en sterilisatietemperatuur.",
+      "dhw_night": "Gebruik verschillende begin- en eindtijden, met seconden op 00.",
+      "dhw_safety": "Controleer eerst met de fabrikant/installateur of deze lage doelen en 60°C geschikt zijn. Hygiëne moet onafhankelijk gewaarborgd blijven.",
+      "dhw_pv_required": "Koppel eerst het actuele zonnepanelenvermogen in de algemene SolarPilot-instellingen (W/kW).",
+      "dhw_target_invalid": "De doelbediening is niet bruikbaar: controleer verse °C-terugmelding, bereik, stap, ondersteunde doeltemperatuur en dubbele koppeling.",
+      "dhw_temperature_invalid": "Een verse werkelijke watertemperatuur in °C ontbreekt. Koppel de juiste sensor.",
+      "energy_unit": "Kies een energiesensor met eenheid kWh.",
+      "range": "Waarden liggen buiten het toegestane bereik."
+    },
+    "abort": {
+      "already_configured": "Er is al een SolarPilot-regelaar. Voeg toestellen toe via Configureren."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "SolarPilot · Configuratiecentrum",
+        "description": "Alles is gegroepeerd per functie. Begin bij Overzicht. Veelgebruikte bediening gebeurt op het SolarPilot-dashboard; hier beheer je koppelingen en regels.",
+        "menu_options": {
+          "overview": "Overzicht & controle",
+          "energy_hub": "Energie & net",
+          "loads_hub": "Verbruikers & prioriteiten",
+          "comfort_hub": "Comfort & warmtepomp",
+          "storage_hub": "Opslag & laden",
+          "intelligence_hub": "Voorspellen & optimaliseren",
+          "advanced_hub": "Geavanceerd & systeem"
+        }
+      },
+      "settings": {
+        "title": "Meetbronnen",
+        "description": "Koppel hier alleen de fysieke energiemetingen. Gebruik W/kW, niet kWh. De netmeter is de belangrijkste realtime bron; PV en batterijmetingen vullen de energiebalans aan.",
+        "data": {
+          "grid_entity": "Netvermogen / afnamevermogen (W of kW)",
+          "grid_sign": "Betekenis van de netmeting",
+          "export_entity": "Injectievermogen — alleen bij twee aparte meters",
+          "pv_entity": "Actueel zonnepanelenvermogen",
+          "battery_power_entity": "Optioneel generiek batterijvermogen",
+          "battery_sign": "Betekenis batterijvermogen",
+          "battery_soc_entity": "Optioneel generiek batterij-SoC (%)"
+        }
+      },
+      "device": {
+        "title": "Verbruiker · 1/4 Basis",
+        "description": "De koppeling gebruikt bestaande Home Assistant-entiteiten. Er wordt geen nieuw apparaat of merkintegratie geïnstalleerd. Nieuwe toestellen staan standaard uitgesloten.",
+        "data": {
+          "name": "Naam toestel",
+          "kind": "Bedieningstype",
+          "priority": "Prioriteit — 1 is hoogste, 100 is laagste"
+        }
+      },
+      "connection": {
+        "title": "Verbruiker · 2/4 Koppeling",
+        "description": "Gebruik geen slimme stekker om een warmtepomp of een lopend huishoudprogramma hard te onderbreken. Scripts moeten kort en idempotent zijn; stoppen betekent terug naar de veilige normale stand. Een helper die zichzelf bevestigt is geen fysieke terugmelding.",
+        "data": {
+          "control_entity": "Expliciete aan/uit- of laad-vrijgaveschakelaar",
+          "number_entity": "Regelwaarde in W, kW, A of % — geen temperatuur",
+          "start_script": "Script voor starten / zonnestand",
+          "stop_script": "Script voor stoppen / normale stand herstellen",
+          "active_entity": "Echte terugmelding dat de geregelde stand actief is",
+          "power_entity": "Werkelijk elektrisch vermogen van dit toestel (W of kW)",
+          "condition_entity": "Vraag / tijdvenster — aan betekent dat het toestel mag werken",
+          "interlock_entity": "Extra vrijgave — aan betekent dat bediening toegestaan is"
+        }
+      },
+      "limits": {
+        "title": "Vermogen en bescherming",
+        "description": "Vul elektrisch vermogen in, niet thermisch vermogen. Neem minimumlooptijd en rusttijd over uit de toestelspecificaties. Bij laadstroom moet de wattfactor overeenkomen met het vaste aantal actieve fasen. Faseomschakeling is niet ingebouwd. Niet-onderbreekbare cycli blijven lopen bij tekort en Pauze. Overname van Wallbox staat per toestel UIT totdat je dit bewust vrijgeeft. Geen beveiliging of minimumtijd omzeilen. Daily minimum/maximum runtime is based on observed ON time; a daily minimum prefers solar and only uses grid near the deadline when explicitly enabled. A native time window can replace simple time automations. Forecast deferral and cheap-grid fallback are opt-in per device.",
+        "data": {
+          "nominal_w": "Vast / conservatief maximaal elektrisch vermogen (W)",
+          "min_units": "Laagste toegestane regelwaarde tijdens bedrijf",
+          "max_units": "Hoogste toegestane regelwaarde",
+          "step_units": "Stapgrootte van de regelwaarde",
+          "watts_per_unit": "Watt per eenheid (W: 1; kW: 1000; A: spanning × vaste fasen; %: maximum W / 100)",
+          "start_delay_s": "Benodigd stabiel overschot vóór starten (seconden)",
+          "stop_delay_s": "Tekort / lagere toewijzing vóór terugregelen (seconden)",
+          "min_on_s": "Minimale looptijd volgens toestelvereisten (seconden)",
+          "min_off_s": "Minimale rusttijd volgens toestelvereisten (seconden)",
+          "start_margin_w": "Extra vermogen boven minimum om te starten (W)",
+          "ack_timeout_s": "Wachten op echte opdrachtbevestiging (seconden)",
+          "manual_hold_s": "Rust na externe bediening / taakvoltooiing (seconden)",
+          "max_on_s": "Maximale looptijd (seconden; 0 = geen limiet)",
+          "non_interruptible": "Gestarte cyclus niet onderbreken — vereist een vraagsignaal"
+        }
+      },
+      "edit": {
+        "title": "Toestel aanpassen",
+        "description": "De interne toestel-ID blijft behouden. Je kunt hier ook een vervangend apparaat koppelen.",
+        "data": {
+          "device_id": "Toestel"
+        }
+      },
+      "remove": {
+        "title": "Toestel verwijderen",
+        "description": "Alleen de SolarPilot-koppeling wordt verwijderd; de oorspronkelijke Home Assistant-entiteiten blijven bestaan.",
+        "data": {
+          "device_id": "Toestel"
+        }
+      },
+      "confirm_remove": {
+        "title": "Verwijderen bevestigen",
+        "description": "Dit verwijdert het geselecteerde toestel uit SolarPilot. Het oorspronkelijke apparaat wordt niet uit Home Assistant verwijderd en er wordt geen fysieke opdracht verstuurd.",
+        "data": {}
+      },
+      "wallbox": {
+        "title": "Wallbox · koppeling",
+        "description": "SolarPilot leest de Wallbox alleen. Koppel hier de basisbronnen; statusherkenning en overnametiming staan apart onder Geavanceerd.",
+        "data": {
+          "enabled": "Wallbox-monitor inschakelen",
+          "name": "Naam",
+          "power_entity": "Werkelijk laadvermogen (W of kW)",
+          "status_entity": "Status description",
+          "demand_entity": "Optionele expliciete laadvraagsensor",
+          "mode_entity": "Zonnelaadmodus — alleen uitlezen",
+          "charging_threshold_w": "Drempel om werkelijk laden te herkennen (W)"
+        }
+      },
+      "dhw": {
+        "title": "Sanitair warm water · koppelingen",
+        "description": "SolarPilot schrijft alleen het tapwaterdoel. De Panasonic sterilisatie blijft autonoom. Minimum 43°C is een gewenste praktische ondergrens; de setpointberekening houdt rekening met de fysieke tankdifferentie.",
+        "data": {
+          "enabled": "Boilerregeling inschakelen (begint in Observatie)",
+          "target_entity": "Boilerdoel bedienen (niet de ruimtethermostaat)",
+          "temperature_entity": "Werkelijke watertemperatuur (optioneel bij water_heater/climate)",
+          "power_entity": "Optioneel: uitsluitend het elektrische boilervermogen",
+          "cooling_entities": "Gekoppelde koelzones",
+          "hygiene_entity": "Hygiënecyclus actief: on = alle boileropdrachten blokkeren",
+          "manual_entity": "Legacy single manual/powerful signal (optional)",
+          "safety_confirmed": "Bevestigd: fabrikantregeling, onafhankelijke hygiëne en verbrandingsbeveiliging gecontroleerd",
+          "manual_active_states": "Waarden die handmatige/krachtige modus betekenen (komma-gescheiden)",
+          "manual_entities": "Manual/powerful signals (select e.g. Powerful mode and Force DHW)"
+        }
+      },
+      "dhw_rules": {
+        "title": "Sanitair warm water · temperatuurregels",
+        "description": "Minimumregime gebruikt minimumtemperatuur + tankdifferentie + buffer. Voor jouw Panasonic is 43°C minimum, -5°C differentie en 1°C buffer standaard een setpoint van 49°C. Vanaf 1000W PV mag 50°C; boven 3500W echte injectie 60°C zolang er niet gekoeld wordt.",
+        "data": {
+          "minimum_c": "Minimum gewenste gemeten watertemperatuur (°C)",
+          "tank_differential_c": "Fysieke tank-schakeldifferentie (°C; Panasonic nu -5)",
+          "minimum_buffer_c": "Extra buffer boven de theoretische herstartgrens (°C)",
+          "solar_c": "Doel bij voldoende zonneopbrengst (°C)",
+          "surplus_c": "Doel bij ruim zonneoverschot (°C)",
+          "cooling_cap_c": "Maximum bij actieve/onzekere koeling (°C)",
+          "pv_threshold_w": "Zonneopbrengst vanaf (W) — niet het overschot",
+          "surplus_threshold_w": "Zonneoverschot strikt groter dan (W)",
+          "estimated_heat_power_w": "Geschat elektrisch vermogen voor piekbewaking (W)",
+          "night_enabled": "Nachtbeperking actief",
+          "night_start": "Nacht vanaf",
+          "night_end": "Nacht tot",
+          "hygiene_schedule_enabled": "Fabriekssterilisatievenster beschermen",
+          "hygiene_weekdays": "Sterilisatiedagen, maandag=0 … zondag=6 (komma-gescheiden)",
+          "hygiene_start": "Starttijd fabrikantsterilisatie",
+          "hygiene_target_c": "Ingestelde fabrikantsterilisatietemperatuur (°C)",
+          "hygiene_guard_before_s": "Geen SolarPilot-opdrachten vanaf zoveel seconden vóór start",
+          "hygiene_guard_after_s": "Geen SolarPilot-opdrachten tot zoveel seconden na start"
+        }
+      },
+      "dhw_stability": {
+        "title": "Sanitair warm water · terugmelding en stabiliteit",
+        "description": "Nacht en koeling verlagen het aangevraagde doel zonder zonneterugvalvertraging. De temperatuur zelf daalt niet direct en de compressor volgt zijn eigen beveiligingen. Eigen vermogen mag alleen het boilerdeel meten, niet de hele warmtepomp. Handmatige of hygiënemodus wordt niet overschreven; daarna kan boilercontrole nodig zijn. Leren verandert deze regels nooit.",
+        "data": {
+          "rise_delay_s": "Voldoende zon/overschot gedurende (s)",
+          "fall_delay_s": "Wachten bij wegvallende zon/overschot (s)",
+          "pv_hysteresis_w": "Terugvalmarge zonneopbrengst (W)",
+          "surplus_hysteresis_w": "Terugvalmarge overschot (W)",
+          "cooling_clear_s": "Na koeling/onzekere koelstatus nog blokkeren (s)",
+          "stale_s": "Maximum leeftijd temperatuur- en klimaatrapport (s)",
+          "ack_timeout_s": "Maximum wachten op doelbevestiging (s)",
+          "max_surplus_import_w": "Bij meer netafname de 60°C-fase verlaten (W; geen elektrische beveiliging)",
+          "cooling_detection": "Herkenning actieve koeling",
+          "compensate_own_power": "Eigen gemeten boilerverbruik meetellen bij vasthouden 60°C-fase (niet bij starten)"
+        }
+      },
+      "capacity": {
+        "title": "Kwartierpiekbewaking",
+        "description": "Monitors the running quarter-hour average and monthly peak. The optional billing floor is explicit. The calculated ceiling only applies to flexible loads managed by SolarPilot and is not electrical protection.",
+        "data": {
+          "enabled": "Kwartierpiekbewaking inschakelen",
+          "average_demand_entity": "Gemiddeld vermogen lopend kwartier (W/kW)",
+          "monthly_peak_entity": "Hoogste kwartierpiek huidige maand (W/kW)",
+          "target_peak_w": "Gewenste maandpiek (W)",
+          "adaptive_to_month_peak": "Na reeds hogere maandpiek niet onnodig lager blijven knijpen",
+          "margin_w": "Veiligheidsmarge onder doel (W)",
+          "minimum_elapsed_s": "Eerste deel van kwartier alleen conservatief bewaken (s)",
+          "stale_s": "Meting te oud na (s)",
+          "respect_optional_dhw": "Optionele 50°C-boilerfase uitstellen bij te weinig piekruimte",
+          "respect_billing_floor": "Do not optimise below the configured billing floor",
+          "billing_floor_w": "Billing floor / minimum relevant monthly peak (W)"
+        }
+      },
+      "economy": {
+        "title": "Energieprijzen",
+        "description": "Used for cost reporting and optional cheap-grid fallback for daily minimums. Fallback requires both global planner enablement and per-device permission and still obeys grid/capacity limits.",
+        "data": {
+          "enabled": "Prijsinformatie gebruiken",
+          "import_price_entity": "Actuele aankoopprijs €/kWh — optioneel",
+          "export_price_entity": "Actuele injectievergoeding €/kWh — optioneel",
+          "fixed_import_eur_kwh": "Vaste aankoopprijs €/kWh",
+          "fixed_export_eur_kwh": "Vaste injectievergoeding €/kWh"
+        }
+      },
+      "forecast": {
+        "title": "Zonnevoorspelling",
+        "description": "Forecast.Solar hourly/daily forecasts may briefly defer opted-in flexible new starts. Realtime safety and actual surplus always rely on live measurements.",
+        "data": {
+          "enabled": "Voorspellingen gebruiken",
+          "current_hour_entity": "Verwachte productie dit uur (kWh)",
+          "next_hour_entity": "Verwachte productie volgend uur (kWh)",
+          "remaining_today_entity": "Resterende productie vandaag (kWh)",
+          "tomorrow_entity": "Productie morgen (kWh)",
+          "stale_s": "Voorspelling te oud na (s)"
+        }
+      },
+      "planner": {
+        "title": "Unified Planner · 24–48 uur",
+        "description": "Plant flexibele dagdoelen gezamenlijk in rolling-horizonblokken. Actuele meters en veiligheidsregels blijven altijd leidend.",
+        "data": {
+          "enabled": "Enable EMS planner",
+          "early_grid_enabled": "Allow cheap-grid fallback for daily minimum — global",
+          "cheap_grid_limit_eur_kwh": "Grid price considered cheap (€/kWh)",
+          "early_grid_requires_forecast_shortfall": "Only use cheap-grid fallback on forecast solar shortfall",
+          "adaptive_power_guard": "Use measured consumption to make planning more conservative",
+          "adaptive_power_min_samples": "Minimum valid power samples before adapting",
+          "adaptive_power_max_multiplier": "Maximum increase over configured power (factor)",
+          "horizon_h": "Planningshorizon (uur)",
+          "slot_min": "Planblokgrootte (min)",
+          "replan_min": "Plan opnieuw berekenen elke (min)",
+          "pv_reserve_w": "PV-reserve die niet wordt ingepland (W)",
+          "base_load_learning": "Basislast lokaal bijleren",
+          "base_load_min_days": "Minimum verschillende dagen vóór live basislastprofiel",
+          "price_optimisation": "Prijs meenemen in planning",
+          "capacity_penalty_enabled": "Kwartierpiek meewegen in planning",
+          "capacity_penalty_eur_kwh": "Virtuele kost bij piekoverschrijding (€/kWh)",
+          "battery_advisory": "Toekomstige batterij adviserend meeplannen",
+          "quality_tracking": "Plannerkwaliteit achteraf meten",
+          "quality_retention_days": "Kwaliteitshistorie bewaren (dagen)",
+          "replay_enabled": "Plannerreplay / what-if inschakelen",
+          "replay_retention_days": "Replayperiode (dagen)"
+        }
+      },
+      "phase": {
+        "title": "Fasebewaking L1/L2/L3",
+        "description": "Koppel de drie P1-fasen en stel de technische softwaregrens in. Faseherkenning van apparaten staat apart onder Geavanceerd; automatische fase-ingrepen blijven opt-in.",
+        "data": {
+          "enabled": "Fasebewaking inschakelen",
+          "phase_1_entity": "L1 vermogen",
+          "phase_2_entity": "L2 vermogen",
+          "phase_3_entity": "L3 vermogen",
+          "limit_w": "Softwaregrens per fase (W)",
+          "margin_w": "Marge onder grens (W)",
+          "start_headroom_w": "Benodigde vrije faseruimte voor nieuwe start (W)",
+          "control_starts": "Nieuwe starts op fasegrens blokkeren",
+          "shed_on_overlimit": "Eigen flexlasten afbouwen bij overschrijding"
+        }
+      },
+      "local_pv": {
+        "title": "Local PV correction and shade learning",
+        "description": "Learns how actual PV differs from Forecast.Solar for local sun positions. No hard 16:00 rule: azimuth/elevation, distinct days and confidence drive the correction. Advisory only; live grid/PV remains authoritative.",
+        "data": {
+          "enabled": "Enable local PV model",
+          "forecast_power_entity": "Forecast.Solar expected power now (W/kW)",
+          "sun_entity": "Sun entity with azimuth/elevation",
+          "seed_enabled": "Use historical bootstrap",
+          "sample_interval_s": "Minimum time between learning samples (s)",
+          "min_forecast_w": "Do not learn below forecast power (W)",
+          "min_elevation_deg": "Do not learn below sun elevation (°)",
+          "azimuth_bin_deg": "Azimuth bin width (°)",
+          "elevation_bin_deg": "Elevation bin width (°)",
+          "min_days": "Minimum distinct days before live profile",
+          "min_confidence": "Minimum confidence before planner correction",
+          "shadow_factor": "Factor below which local shade is indicated",
+          "shadow_drop": "Minimum predicted factor drop for shade warning",
+          "recovery_delta": "Minimum factor rise for recovery warning",
+          "horizon_min": "Shade/recovery projection horizon (min)",
+          "projection_step_min": "Projection step (min)"
+        }
+      },
+      "battery_analysis": {
+        "title": "Battery what-if analysis",
+        "description": "Locally simulates battery sizes against actual import/export data. Analysis only: SolarPilot does not control a battery and does not make a purchase recommendation. Historical bootstrap is spring/summer data and is extended with live data.",
+        "data": {
+          "enabled": "Calculate battery scenarios",
+          "seed_enabled": "Use historical 15-minute analysis as bootstrap",
+          "roundtrip_efficiency": "Round-trip efficiency (0–1)",
+          "reserve_pct": "Virtual minimum SoC reserve (%)",
+          "capacities_kwh": "Usable capacities to compare (kWh, comma separated)",
+          "powers_kw": "Charge/discharge powers to compare (kW, comma separated)"
+        }
+      },
+      "smart_climate": {
+        "title": "Ruimteklimaat · Panasonic AUTO & coast",
+        "description": "SolarPilot kiest nooit HEAT of COOL. Panasonic AUTO blijft eigenaar van die keuze. SolarPilot kan vooral in het tussenseizoen langdurig AUTO vrijgeven of de ruimteverwarming/-koeling laten coasten via OFF.",
+        "data": {
+          "enabled": "Thermisch model en advies inschakelen",
+          "control_enabled": "AUTO/coast-programmering daadwerkelijk laten toepassen",
+          "zone_entities": "Panasonic-zones (moeten AUTO en OFF ondersteunen)",
+          "weather_entity": "Weerentiteit voor uurvoorspelling",
+          "outside_temp_entity": "Actuele buitentemperatuur (optioneel)",
+          "soft_band_c": "Gewenste comfortband rond thermostaatdoel (±°C)",
+          "hard_band_c": "Harde comfortgrens (±°C)",
+          "decision_interval_h": "Normale planningsbeslissing om de (uren)",
+          "forecast_horizon_h": "Voorspellingshorizon (uren)"
+        }
+      },
+      "battery": {
+        "title": "Home batteries",
+        "description": "Batteries are modeled as separate energy resources. Monitoring/advice is available now; physical control remains off by default and later requires two explicit permissions.",
+        "menu_options": {
+          "battery_settings": "Fleet strategy and global permission",
+          "battery_add": "Add battery",
+          "battery_edit": "Edit battery",
+          "battery_remove": "Remove battery"
+        }
+      },
+      "battery_settings": {
+        "title": "Battery fleet strategy",
+        "description": "Read-only by default. SolarPilot only writes when both global and per-battery control are enabled and exclusive ownership is confirmed.",
+        "data": {
+          "enabled": "Monitor battery fleet",
+          "control_enabled": "Allow global battery control",
+          "strategy": "Strategy",
+          "grid_target_w": "Grid power target (W; positive = import)",
+          "charge_reserve_w": "Export margin before charging (W)",
+          "discharge_reserve_w": "Import margin before discharging (W)",
+          "allow_grid_charge": "Allow grid charging",
+          "allow_export_discharge": "Allow export by discharging",
+          "command_min_interval_s": "Minimum interval between battery commands (s)",
+          "settle_s": "Settling time after battery command (s)",
+          "ack_timeout_s": "Command confirmation timeout (s)",
+          "target_tolerance_w": "Confirmation tolerance (W)"
+        }
+      },
+      "battery_add": {
+        "title": "Add battery"
+      },
+      "battery_edit": {
+        "title": "Edit battery",
+        "data": {
+          "battery_id": "Battery"
+        }
+      },
+      "battery_remove": {
+        "title": "Remove battery",
+        "data": {
+          "battery_id": "Battery"
+        }
+      },
+      "battery_profile": {
+        "title": "Batterij · profiel & metingen",
+        "description": "Eerst alleen de batterij zelf: capaciteit, SoC, werkelijk vermogen, grenzen en fase. Kies “Alleen uitlezen” zolang er nog geen veilige bedieningsadapter is.",
+        "data": {
+          "name": "Naam",
+          "enabled": "Profiel actief",
+          "capacity_kwh": "Bruikbare capaciteit (kWh)",
+          "soc_entity": "Laadniveau / SoC (%)",
+          "power_entity": "Actueel batterijvermogen (W/kW)",
+          "power_sign": "Tekenrichting gemeten vermogen",
+          "min_soc_pct": "Absolute minimum-SoC (%)",
+          "reserve_soc_pct": "Normale reserve-SoC (%)",
+          "max_soc_pct": "Maximale SoC (%)",
+          "max_charge_w": "Max laadvermogen (W)",
+          "max_discharge_w": "Max ontlaadvermogen (W)",
+          "phase_hint": "Fase-aansluiting",
+          "control_kind": "Bedieningsniveau"
+        }
+      },
+      "overview": {
+        "title": "Overzicht & controle",
+        "description": "Modus: {mode}\nNetmeting: {grid} · PV: {pv}\nVerbruikers: {devices}\nBoiler: {dhw} · Slim klimaat: {climate}\nWallbox: {wallbox} · Batterijen: {batteries}\nConcurrerende oude regelaars: {conflicts}\n\nGebruik het dashboard voor dagelijkse bediening. Kies Terug om instellingen te wijzigen.",
+        "data": {}
+      },
+      "energy_hub": {
+        "title": "Energie & net",
+        "description": "Meetbronnen en netgrenzen staan samen. Fasebewaking en capaciteitstarief zijn aparte functies, maar gebruiken dezelfde netmetingen.",
+        "menu_options": {
+          "settings": "Meetbronnen",
+          "power_policy": "Vermogensbeleid",
+          "capacity": "Kwartierpiek / capaciteitstarief",
+          "phase": "Fasebewaking L1/L2/L3",
+          "economy": "Energieprijzen & waarde"
+        }
+      },
+      "loads_hub": {
+        "title": "Verbruikers & prioriteiten",
+        "description": "Voeg alleen apparaten toe die SolarPilot werkelijk mag regelen. Prioriteit en Auto/Uitgesloten wijzig je nadien eenvoudig op het dashboard.",
+        "menu_options": {
+          "add": "Verbruiker toevoegen",
+          "edit": "Verbruiker aanpassen",
+          "remove": "Verbruiker verwijderen"
+        }
+      },
+      "comfort_hub": {
+        "title": "Comfort & warmtepomp",
+        "description": "Warm water en ruimteklimaat gebruiken dezelfde Panasonic-installatie maar blijven aparte regelblokken met duidelijke voorrangsregels.",
+        "menu_options": {
+          "dhw": "Sanitair warm water",
+          "smart_climate": "Ruimteklimaat · basis",
+          "smart_climate_advanced": "Ruimteklimaat · leren & geavanceerd"
+        }
+      },
+      "storage_hub": {
+        "title": "Opslag & laden",
+        "description": "De Wallbox blijft autonoom en read-only. Thuisbatterijen kunnen worden geanalyseerd en later, na expliciete toestemming, als vloot worden aangestuurd.",
+        "menu_options": {
+          "wallbox": "Wallbox · koppeling",
+          "battery": "Thuisbatterijen",
+          "battery_analysis": "Batterijscenario’s / what-if"
+        }
+      },
+      "intelligence_hub": {
+        "title": "Voorspellen & optimaliseren",
+        "description": "Externe zonnevoorspelling, het lokaal geleerde PV-/schaduwmodel en de planner staan hier samen. Actuele meters blijven altijd leidend.",
+        "menu_options": {
+          "forecast": "Zonnevoorspelling",
+          "local_pv": "Lokaal PV- & schaduwmodel",
+          "planner": "Planner & uitstelregels"
+        }
+      },
+      "advanced_hub": {
+        "title": "Geavanceerd & systeem",
+        "description": "Deze instellingen hoef je normaal niet dagelijks te wijzigen. Pas timing en leerparameters alleen aan wanneer je weet waarom.",
+        "menu_options": {
+          "timing": "Algemene timing & meetkwaliteit",
+          "phase_learning": "Faseherkenning · leren",
+          "wallbox_advanced": "Wallbox · geavanceerde herkenning",
+          "system_info": "Versie & actuele uitleg"
+        }
+      },
+      "system_info": {
+        "title": "Versie & actuele uitleg",
+        "description": "Geïnstalleerde release: {version}\nActuele uitleg bijgewerkt: {updated}\n\nDe volledige geldende uitleg staat in Home Assistant op de SolarPilot-kaart onder Uitleg en in sensor “Actuele uitleg”. De changelog is alleen releasegeschiedenis.",
+        "data": {}
+      },
+      "power_policy": {
+        "title": "Vermogensbeleid",
+        "description": "Dit zijn de belangrijkste globale grenzen. De netafnamegrens is een softwarematige EMS-grens en geen zekering of elektrische beveiliging.",
+        "data": {
+          "reserve_w": "Gewenste injectiemarge (W)",
+          "max_import_w": "Maximale softwarematige netafname (W)",
+          "battery_min_soc": "Generieke batterij voorrang tot (%)"
+        }
+      },
+      "timing": {
+        "title": "Algemene timing & meetkwaliteit",
+        "description": "Geavanceerd. De standaardwaarden voorkomen onrustig schakelen en reageren op verouderde metingen. Wijzig dit alleen als je de meetfrequenties van je installatie kent.",
+        "data": {
+          "interval_s": "Regelinterval (s)",
+          "settle_s": "Wachttijd na een opdracht (s)",
+          "stale_s": "Meting te oud na (s)",
+          "filter_s": "Demping meetfluctuaties (s)",
+          "fault_grace_s": "Overbrugging bij meetuitval (s)"
+        }
+      },
+      "phase_learning": {
+        "title": "Faseherkenning · leren",
+        "description": "SolarPilot leert uit geïsoleerde vermogenssprongen op welke fase een toestel waarschijnlijk zit. Laat “geleerde fasekaart gebruiken” uit totdat de resultaten gecontroleerd zijn.",
+        "data": {
+          "learning_enabled": "Faseherkenning leren",
+          "monitor_power_entities": "Extra read-only apparaatvermogens",
+          "learning_min_delta_w": "Minimale bruikbare vermogenssprong (W)",
+          "learning_settle_s": "Wachten na verandering (s)",
+          "learning_max_window_s": "Maximaal observatievenster (s)",
+          "learning_min_samples": "Minimum aantal bruikbare events",
+          "learning_min_confidence": "Minimum vertrouwen",
+          "use_learned_device_map": "Geleerde fasekaart voor regeling gebruiken",
+          "stale_s": "Fasemeting te oud na (s)"
+        }
+      },
+      "smart_climate_advanced": {
+        "title": "Ruimteklimaat · tussenseizoen, leren & geavanceerd",
+        "description": "Tuning voor langzame vloer/bouwschilregeling. In duidelijke zomer/winter blijft Panasonic AUTO standaard gewoon actief; de energiebesparende coastlogica is vooral voor het tussenseizoen.",
+        "data": {
+          "forecast_refresh_s": "Weersvoorspelling vernieuwen om de (s)",
+          "shoulder_band_c": "Tussenseizoen-band rond binnendoel (±°C)",
+          "season_extreme_delta_c": "Duidelijke zomer/winter vanaf gemiddeld verschil (°C)",
+          "allow_winter_summer_coast": "Ook in duidelijke zomer/winter coasten toestaan",
+          "min_coast_window_h": "Minimum nuttige coastperiode (uren)",
+          "min_state_hold_h": "Minimum AUTO/OFF-vasthoudtijd (uren)",
+          "thermal_start_margin_h": "Extra herstartmarge boven geleerde vloerreactie (uren)",
+          "manual_hold_h": "Rust na handmatige modewijziging (uren)",
+          "sample_interval_s": "Thermisch leersample om de (s)",
+          "learning_min_samples": "Minimum leersamples",
+          "learning_min_days": "Minimum verschillende leerdagen",
+          "model_confidence_min": "Minimum modelzekerheid voor automatische coast",
+          "solar_preconditioning_enabled": "PV mag noodzakelijke AUTO-herstart vervroegen",
+          "precondition_min_pv_w": "Minimum PV voor vervroegde AUTO-vrijgave (W)",
+          "solar_precondition_extra_lead_h": "Extra voorsprong met PV (uren)",
+          "max_commands_per_day": "Max gewone AUTO/OFF-opdrachten per dag",
+          "stale_s": "Klimaatmeting te oud na (s)"
+        }
+      },
+      "wallbox_advanced": {
+        "title": "Wallbox · geavanceerde herkenning",
+        "description": "Geavanceerd. Deze instellingen bepalen hoe SolarPilot laadvraag, Full Solar, rapportvertraging en gecontroleerde vermogensovername herkent. De Wallbox zelf blijft read-only.",
+        "data": {
+          "stale_s": "Wallboxmeting te oud na (s)",
+          "stable_s": "Stabiele reactietijd (s)",
+          "cooldown_s": "Rusttijd na mogelijke wisselwerking (s)",
+          "fault_grace_s": "Wachttijd bij meetfout (s)",
+          "drop_tolerance_w": "Duidelijke verandering laadvermogen (W)",
+          "demand_states": "Statuswaarden met laadvraag (puntkomma)",
+          "idle_states": "Statuswaarden zonder laadvraag (puntkomma)",
+          "full_solar_states": "Statuswaarden Full Solar (puntkomma)",
+          "handover_s": "Uiterlijke overnamebevestiging (s)",
+          "handover_confirm_s": "Stabiele netmeting voor bevestiging (s)",
+          "handover_import_w": "Kleine afnametolerantie (W)",
+          "reclaim_max_age_s": "Max rapportleeftijd voor overname (s)",
+          "max_takeover_w": "Max over te nemen vermogen per stap (W)"
+        }
+      },
+      "battery_control": {
+        "title": "Batterij · bediening & eigenaarschap",
+        "description": "Deze stap verschijnt alleen voor een bestuurbare adapter. Fysieke bediening vereist expliciete toestemming én bevestiging dat geen andere regelaar hetzelfde setpoint schrijft.",
+        "data": {
+          "control_enabled": "Deze batterij fysiek laten aansturen",
+          "exclusive_control_confirmed": "Bevestigd: SolarPilot is exclusieve externe setpoint-eigenaar",
+          "number_entity": "Bidirectioneel vermogenssetpoint",
+          "number_sign": "Tekenrichting setpoint",
+          "charge_script": "Script laden",
+          "discharge_script": "Script ontladen",
+          "idle_script": "Script idle / batterij vrijgeven"
+        }
+      },
+      "device_behavior": {
+        "title": "Verbruiker · 3/4 Gedrag & bescherming",
+        "description": "Elektrisch vermogen, reactie en minimale looptijden. Gebruik toestelspecificaties voor minimum aan/uit-tijden. Deze pagina bepaalt hoe SolarPilot veilig mag schakelen.",
+        "data": {
+          "nominal_w": "Vast / conservatief maximaal elektrisch vermogen (W)",
+          "min_units": "Laagste toegestane regelwaarde tijdens bedrijf",
+          "max_units": "Hoogste toegestane regelwaarde",
+          "step_units": "Stapgrootte van de regelwaarde",
+          "watts_per_unit": "Watt per eenheid (W: 1; kW: 1000; A: spanning × vaste fasen; %: maximum W / 100)",
+          "start_delay_s": "Benodigd stabiel overschot vóór starten (seconden)",
+          "stop_delay_s": "Tekort / lagere toewijzing vóór terugregelen (seconden)",
+          "min_on_s": "Minimale looptijd volgens toestelvereisten (seconden)",
+          "min_off_s": "Minimale rusttijd volgens toestelvereisten (seconden)",
+          "start_margin_w": "Extra vermogen boven minimum om te starten (W)",
+          "ack_timeout_s": "Wachten op echte opdrachtbevestiging (seconden)",
+          "manual_hold_s": "Rust na externe bediening / taakvoltooiing (seconden)",
+          "max_on_s": "Maximale looptijd (seconden; 0 = geen limiet)",
+          "non_interruptible": "Gestarte cyclus niet onderbreken — vereist een vraagsignaal"
+        }
+      },
+      "device_schedule": {
+        "title": "Verbruiker · 4/4 Planning & energie",
+        "description": "Optioneel: dagdoel, tijdvenster, deadline, cyclusprofiel, voorspelling, fasehint en gecontroleerde Wallbox-overname. Beschermde cycli worden aaneengesloten gepland.",
+        "data": {
+          "min_daily_runtime_s": "Minimum looptijd per dag (s)",
+          "max_daily_runtime_s": "Maximum looptijd per dag (s)",
+          "daily_deadline": "Deadline dagminimum",
+          "deadline_grid_allowed": "Netstroom toestaan om dagminimum te halen",
+          "time_window_enabled": "Eigen tijdvenster gebruiken",
+          "time_window_start": "Mag starten vanaf",
+          "time_window_end": "Mag werken tot",
+          "forecast_deferrable": "Start mag kort wachten op betere zon",
+          "cheap_grid_allowed": "Goedkope netfallback toegestaan",
+          "phase_hint": "Fase-aansluiting",
+          "allow_wallbox_reclaim": "Mag gecontroleerd vermogen van Wallbox overnemen",
+          "daily_energy_goal_kwh": "Dagdoel energie (kWh, 0 = uit)",
+          "cycle_learning_enabled": "Cyclusenergie automatisch bijleren",
+          "cycle_energy_kwh": "Cyclusenergie fallback (kWh, 0 = leren)",
+          "cycle_duration_min": "Verwachte cyclusduur (min, 0 = leren)",
+          "cycle_program": "Programmanaam fallback",
+          "cycle_program_entity": "Optionele programma-entiteit (select/sensor)"
+        }
+      }
+    },
+    "error": {
+      "power_unit": "Kies een bestaande vermogensentiteit met eenheid W of kW; kWh is niet geschikt.",
+      "soc_unit": "Kies een bestaande entiteit met eenheid %.",
+      "required": "Dit veld is nodig voor de gekozen meetmethode.",
+      "duplicate": "Deze bedieningsentiteit wordt al gebruikt of beide velden verwijzen naar hetzelfde toestel.",
+      "entity_missing": "Een geselecteerde bedieningsentiteit bestaat niet.",
+      "battery_power_required": "Selecteer ook het actuele batterijvermogen; alleen laadniveau beschermt niet tegen ongewenste ontlading.",
+      "timing": "Deze tijdsinstellingen zijn niet verenigbaar. Controleer de minimum- en maximumwaarden.",
+      "number_range": "Het ingestelde bereik of de stap past niet op de gekozen number-entiteit.",
+      "cycle_requires_ready": "Een niet-onderbreekbare cyclus vereist het type Script en een vraag-/klaarsignaal.",
+      "number_unit": "Kies een vermogens-/stroomregelaar met eenheid W, kW, A of %. Geen temperatuur of andere grootheid. Bij W moet de wattfactor 1 zijn; bij kW 1000.",
+      "wallbox_demand_required": "Koppel Status description of een expliciete laadvraagsensor. 0 W alleen bewijst niet dat de auto klaar is.",
+      "wallbox_state_overlap": "Een status mag niet tegelijk als laadvraag en als geen laadvraag zijn opgenomen.",
+      "wallbox_duplicate": "De Wallbox staat ook als bestuurbaar toestel gekoppeld. Verwijder eerst die koppeling; één regelaar per laadpaal.",
+      "reclaim_requirements": "Overname vereist een eigen vermogensmeter, een onderbreekbaar toestel en een minimale looptijd niet langer dan de overnametermijn. Gebruik dit alleen bij direct voorspelbaar elektrisch verbruik.",
+      "wallbox_meter_duplicate": "Kies de afzonderlijke laadvermogensmeter, niet de net-, PV- of batterijmeter.",
+      "dedicated_meter": "Kies een eigen vermogensmeter voor dit toestel, niet de net-, PV-, batterijmeter of die van een ander toestel.",
+      "dhw_range": "Ongeldige waarde of hysterese groter dan de inschakeldrempel.",
+      "dhw_step": "De waarde past niet bij de instelbare stapgrootte.",
+      "dhw_order": "Minimum + differentie + buffer moet ≤ zonnedoel ≤ overschotdoel blijven; controleer ook de koellimiet en sterilisatietemperatuur.",
+      "dhw_night": "Gebruik verschillende begin- en eindtijden, met seconden op 00.",
+      "dhw_safety": "Controleer eerst met de fabrikant/installateur of deze lage doelen en 60°C geschikt zijn. Hygiëne moet onafhankelijk gewaarborgd blijven.",
+      "dhw_pv_required": "Koppel eerst het actuele zonnepanelenvermogen in de algemene SolarPilot-instellingen (W/kW).",
+      "dhw_target_invalid": "De doelbediening is niet bruikbaar: controleer °C-terugmelding, bereik, stap, ondersteunde doeltemperatuur en dubbele koppeling.",
+      "dhw_temperature_invalid": "Een verse werkelijke watertemperatuur in °C ontbreekt. Koppel de juiste sensor.",
+      "energy_unit": "Kies een energiesensor met eenheid kWh.",
+      "range": "Waarden liggen buiten het toegestane bereik.",
+      "daily_runtime": "Daily maximum runtime must be 0 or at least the daily minimum runtime.",
+      "time": "Enter a valid time.",
+      "climate_modes": "Elke gekozen klimaatzone moet AUTO en OFF ondersteunen. SolarPilot stuurt nooit HEAT of COOL.",
+      "temperature_unit": "Select a °C temperature sensor.",
+      "exclusive_control_required": "Confirm exclusive ownership before enabling physical battery control.",
+      "cycle_learning_requires_meter": "Cyclusleren vereist een beschermde cyclus met een exclusieve vermogensmeter.",
+      "cycle_duration_required": "Geef een verwachte cyclusduur op of schakel cyclusleren in."
+    },
+    "abort": {
+      "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",
+      "no_devices": "Er zijn nog geen toestellen. Kies Toestel toevoegen.",
+      "no_batteries": "No batteries are configured yet."
+    }
+  },
+  "entity": {
+    "select": {
+      "mode": {
+        "name": "Modus",
+        "state": {
+          "observe": "Observatie",
+          "solar": "Zonnestroom",
+          "paused": "Pauze"
+        }
+      },
+      "device_mode": {
+        "name": "Deelname",
+        "state": {
+          "auto": "Automatisch",
+          "disabled": "Uitgesloten"
+        }
+      }
+    }
+  }
+}
