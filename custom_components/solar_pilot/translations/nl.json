@@ -131,7 +131,7 @@
       },
       "wallbox": {
         "title": "Wallbox · koppeling",
-        "description": "SolarPilot leest de Wallbox alleen. Koppel hier de basisbronnen; statusherkenning en overnametiming staan apart onder Geavanceerd.",
+        "description": "SolarPilot leest de Wallbox alleen. Koppel hier de basisbronnen; statusherkenning en overnametiming staan apart onder Geavanceerd. Voor voorrang per verbruiker: vul het bevestigde minimum zonnelaadvermogen in (1 fase vaak 1380 W, 3 fasen vaak 4140 W). 0 betekent nog niet ingesteld; de huisaansluiting bewijst het aantal laadfasen niet. Een aansluitsensor is optioneel: de Wallbox-status kan laadvraag bevestigen. Selecteer uitsluitend een sensor voor deze laadpaal.",
         "data": {
           "enabled": "Wallbox-monitor inschakelen",
           "name": "Naam",
@@ -139,7 +139,10 @@
           "status_entity": "Status description",
           "demand_entity": "Optionele expliciete laadvraagsensor",
           "mode_entity": "Zonnelaadmodus — alleen uitlezen",
-          "charging_threshold_w": "Drempel om werkelijk laden te herkennen (W)"
+          "charging_threshold_w": "Drempel om werkelijk laden te herkennen (W)",
+          "connected_entity": "Optioneel: auto aangesloten op deze Wallbox — alleen uitlezen",
+          "priority_min_power_w": "Minimum voor autonome zonnelaadstart (W; huidig 1-fase uitgangspunt 1380 W)",
+          "priority_start_margin_w": "Extra stabiele marge voor Wallbox-voorrang (W)"
         }
       },
       "dhw": {
@@ -304,11 +307,11 @@
       },
       "battery_analysis": {
         "title": "Batterij what-if analyse",
-        "description": "Simuleert lokaal verschillende batterijgroottes op echte import/exportdata. Alleen analyse: SolarPilot stuurt geen batterij aan en geeft geen koopadvies. Historische bootstrap bevat lente/zomerdata en wordt aangevuld met nieuwe live data.",
+        "description": "Simuleert lokaal verschillende batterijgroottes op echte import/exportdata. Alleen analyse: SolarPilot stuurt geen batterij aan en geeft geen koopadvies. Standaard wordt 20% totaal round-trip batterij-/omvormerverlies meegerekend (80% efficiëntie). Historische bootstrap wordt conservatief naar dezelfde efficiëntie omgerekend en aangevuld met live data.",
         "data": {
           "enabled": "Batterijscenario’s berekenen",
           "seed_enabled": "Historische 15-minutenanalyse als bootstrap gebruiken",
-          "roundtrip_efficiency": "Round-trip efficiëntie (0–1)",
+          "roundtrip_efficiency": "Round-trip efficiëntie (0–1; 0,80 = 20% totaalverlies)",
           "reserve_pct": "Virtuele minimum-SoC reserve (%)",
           "capacities_kwh": "Te vergelijken bruikbare capaciteiten (kWh, komma-gescheiden)",
           "powers_kw": "Te vergelijken laad/ontlaadvermogens (kW, komma-gescheiden)"
@@ -534,7 +537,12 @@
           "handover_confirm_s": "Stabiele netmeting voor bevestiging (s)",
           "handover_import_w": "Kleine afnametolerantie (W)",
           "reclaim_max_age_s": "Max rapportleeftijd voor overname (s)",
-          "max_takeover_w": "Max over te nemen vermogen per stap (W)"
+          "max_takeover_w": "Max over te nemen vermogen per stap (W)",
+          "priority_stable_s": "Voldoende vermogen voor Wallbox gedurende (s)",
+          "priority_release_s": "Langdurig onder minimum voor terugval (s)",
+          "priority_hysteresis_w": "Marge onder Wallbox-minimum voor terugval (W)",
+          "priority_start_timeout_s": "Wacht na vrijgave maximaal op autostart (s)",
+          "priority_retry_s": "Rust voor nieuwe poging als auto niet start (s)"
         }
       },
       "battery_control": {
@@ -572,7 +580,7 @@
       },
       "device_schedule": {
         "title": "Verbruiker · 4/4 Planning & energie",
-        "description": "Optioneel: dagdoel, tijdvenster, deadline, cyclusprofiel, voorspelling, fasehint en gecontroleerde Wallbox-overname. Beschermde cycli worden aaneengesloten gepland.",
+        "description": "Optioneel: dagdoel, tijdvenster, deadline, cyclusprofiel, voorspelling, fasehint en gecontroleerde Wallbox-overname. Beschermde cycli worden aaneengesloten gepland. Wallbox eerst laat klein overschot toe zolang de auto niet kan zonneladen; minimumlooptijden blijven gelden. Kies dan niet ook vermogen van de Wallbox overnemen.",
         "data": {
           "min_daily_runtime_s": "Minimum looptijd per dag (s)",
           "max_daily_runtime_s": "Maximum looptijd per dag (s)",
@@ -590,7 +598,8 @@
           "cycle_energy_kwh": "Cyclusenergie fallback (kWh, 0 = leren)",
           "cycle_duration_min": "Verwachte cyclusduur (min, 0 = leren)",
           "cycle_program": "Programmanaam fallback",
-          "cycle_program_entity": "Optionele programma-entiteit (select/sensor)"
+          "cycle_program_entity": "Optionele programma-entiteit (select/sensor)",
+          "wallbox_precedence": "Voorrang ten opzichte van de Wallbox"
         }
       },
       "private_bundle": {
@@ -635,7 +644,9 @@
       "exclusive_control_required": "Bevestig exclusief eigenaarschap voordat fysieke batterijbediening kan worden ingeschakeld.",
       "no_batteries": "Er zijn nog geen batterijen gekoppeld.",
       "cycle_learning_requires_meter": "Cyclusleren vereist een beschermde cyclus met een exclusieve vermogensmeter.",
-      "cycle_duration_required": "Geef een verwachte cyclusduur op of schakel cyclusleren in."
+      "cycle_duration_required": "Geef een verwachte cyclusduur op of schakel cyclusleren in.",
+      "invalid_precedence": "Kies een geldige Wallbox-voorrang.",
+      "priority_reclaim_conflict": "Een toestel dat de Wallbox voorrang geeft mag niet tegelijk laadvermogen overnemen."
     },
     "abort": {
       "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",

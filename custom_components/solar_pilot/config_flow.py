@@ -9,6 +9,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 from .const import DEFAULTS, DEVICE_DEFAULTS, DOMAIN, NAME
 from .wallbox import WALLBOX_DEFAULTS, READ_KEYS, state_set, conflicting_devices
+from .consumer_wallbox import PRIORITY_DEFAULTS
 from .house_first import HOUSE_DEFAULTS
 from .dhw_config import DHWOptionsMixin
 from .ems import CAPACITY_DEFAULTS, ECONOMY_DEFAULTS, FORECAST_DEFAULTS, PHASE_DEFAULTS
@@ -549,7 +550,7 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
         schema = vol.Schema({
             vol.Required("enabled", default=display.get("enabled", True)): selector.BooleanSelector(),
             vol.Required("seed_enabled", default=display.get("seed_enabled", True)): selector.BooleanSelector(),
-            vol.Required("roundtrip_efficiency", default=display.get("roundtrip_efficiency", .9)): num(.5, 1.0, .01),
+            vol.Required("roundtrip_efficiency", default=display.get("roundtrip_efficiency", .8)): num(.5, 1.0, .01),
             vol.Required("reserve_pct", default=display.get("reserve_pct", 0)): num(0, 90, 1),
             vol.Required("capacities_kwh", default=display.get("capacities_kwh", "5,10,15,20")): selector.TextSelector(),
             vol.Required("powers_kw", default=display.get("powers_kw", "3,5,10")): selector.TextSelector(),
@@ -794,7 +795,7 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
 
     async def async_step_wallbox(self, user_input=None):
         """Basic Wallbox monitoring. Fine tuning lives in Advanced."""
-        current = {**WALLBOX_DEFAULTS, **HOUSE_DEFAULTS, **self.config_entry.options.get("wallbox", {})}
+        current = {**WALLBOX_DEFAULTS, **HOUSE_DEFAULTS, **PRIORITY_DEFAULTS, **self.config_entry.options.get("wallbox", {})}
         if not self.config_entry.options.get("wallbox"):
             current = apply_first_install_suggestions(self.hass, current, "wallbox")
         c = {**current, **(user_input or {})}
@@ -811,13 +812,16 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
             optional("power_entity", c): entity(["sensor", "input_number"]),
             optional("status_entity", c): entity(["sensor"]),
             optional("demand_entity", c): entity(["binary_sensor", "input_boolean"]),
+            optional("connected_entity", c): entity(["binary_sensor"]),
             optional("mode_entity", c): entity(["select", "sensor", "input_select"]),
             vol.Required("charging_threshold_w", default=c["charging_threshold_w"]): num(10, 1000, 10),
+            vol.Required("priority_min_power_w", default=c["priority_min_power_w"]): num(0, 22000, 10),
+            vol.Required("priority_start_margin_w", default=c["priority_start_margin_w"]): num(0, 2000, 10),
         })
         return self.async_show_form(step_id="wallbox", data_schema=schema, errors=errors)
 
     async def async_step_wallbox_advanced(self, user_input=None):
-        current = {**WALLBOX_DEFAULTS, **HOUSE_DEFAULTS, **self.config_entry.options.get("wallbox", {})}
+        current = {**WALLBOX_DEFAULTS, **HOUSE_DEFAULTS, **PRIORITY_DEFAULTS, **self.config_entry.options.get("wallbox", {})}
         c = {**current, **(user_input or {})}
         errors = {}
         if user_input is not None:
@@ -835,6 +839,11 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
             vol.Required("demand_states", default=c["demand_states"]): selector.TextSelector(),
             vol.Required("idle_states", default=c["idle_states"]): selector.TextSelector(),
             vol.Required("full_solar_states", default=c["full_solar_states"]): selector.TextSelector(),
+            vol.Required("priority_stable_s", default=c["priority_stable_s"]): num(30, 1800, 10),
+            vol.Required("priority_release_s", default=c["priority_release_s"]): num(60, 3600, 10),
+            vol.Required("priority_hysteresis_w", default=c["priority_hysteresis_w"]): num(50, 2000, 10),
+            vol.Required("priority_start_timeout_s", default=c["priority_start_timeout_s"]): num(180, 1800, 30),
+            vol.Required("priority_retry_s", default=c["priority_retry_s"]): num(300, 7200, 60),
             vol.Required("handover_s", default=c["handover_s"]): num(60, 600),
             vol.Required("handover_confirm_s", default=c["handover_confirm_s"]): num(5, 60),
             vol.Required("handover_import_w", default=c["handover_import_w"]): num(0, 300, 10),
@@ -1018,6 +1027,10 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
                         raise ValueError(time_key)
             except (TypeError, ValueError) as err:
                 errors[str(err) if str(err) in ("daily_deadline", "time_window_start", "time_window_end") else "daily_deadline"] = "time"
+            if d.get("wallbox_precedence", "global") not in ("global", "consumer_first", "wallbox_first"):
+                errors["wallbox_precedence"] = "invalid_precedence"
+            if d.get("wallbox_precedence") == "wallbox_first" and d.get("allow_wallbox_reclaim"):
+                errors["allow_wallbox_reclaim"] = "priority_reclaim_conflict"
             if d.get("allow_wallbox_reclaim"):
                 max_wait = self.config_entry.options.get("wallbox", {}).get("handover_s", HOUSE_DEFAULTS["handover_s"])
                 if not d.get("power_entity") or d["non_interruptible"] or d["min_on_s"] > max_wait:
@@ -1054,6 +1067,10 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
                 {"value":"l1","label":"L1"},{"value":"l2","label":"L2"},{"value":"l3","label":"L3"},
                 {"value":"three_phase","label":"3-fase"},{"value":"l1_l2","label":"L1 + L2"},
                 {"value":"l1_l3","label":"L1 + L3"},{"value":"l2_l3","label":"L2 + L3"}]}),
+            vol.Required("wallbox_precedence", default=d.get("wallbox_precedence", "global")): selector.SelectSelector({"options": [
+                {"value": "global", "label": "Globale voorkeur volgen"},
+                {"value": "consumer_first", "label": "Dit toestel eerst"},
+                {"value": "wallbox_first", "label": "Wallbox eerst; klein restoverschot benutten"}]}),
             vol.Required("allow_wallbox_reclaim", default=d["allow_wallbox_reclaim"]): selector.BooleanSelector(),
         }
         if d.get("non_interruptible"):

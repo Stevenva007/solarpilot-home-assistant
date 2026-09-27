@@ -7,3 +7,5 @@
 5. Herstart Home Assistant.
 
 De verwijdering wist SolarPilot-eigen runtime-/leerdata en programmabestanden, maar verwijdert of ontkoppelt geen onderliggende apparaten/integraties zoals netmeter-, warmtepomp-, laadpaal-, omvormer- of smart-plug-integraties.
+
+Bij het definitief verwijderen van de configuratie-entry wordt ook de eigen, afzonderlijke dag-/sessiehistoriek gewist. Een gewone herstart of HACS-update wist die historiek niet.

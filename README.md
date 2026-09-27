@@ -2,7 +2,10 @@
 
 SolarPilot is a local Home Assistant Energy Management System (EMS) for PV surplus, flexible loads, Panasonic Aquarea hot-water policy, Wallbox Full Solar coexistence, phase analysis, capacity-tariff awareness, local PV/shade learning, slow thermal-climate learning, future home batteries and a unified rolling-horizon planner.
 
-> **Status:** beta.20 · public HACS beta. Start in **Observatie**. Do not enable physical control for several devices at once.
+> **Status:** beta.25 · public HACS beta. Start in **Observatie**. Do not enable physical control for several devices at once.
+
+
+> **Updates zijn cumulatief.** Je hoeft tussenliggende beta-versies niet één voor één te installeren of publiceren. Installeer de nieuwste release over je bestaande SolarPilot-installatie; Home Assistant-configuratie en lokale leerdata blijven behouden.
 
 ## Install via HACS
 
@@ -61,3 +64,15 @@ The canonical current explanation is [docs/ACTUELE_WERKING.md](docs/ACTUELE_WERK
 ## Repository privacy
 
 This repository may be public because HACS requires public GitHub repositories. Do not commit Home Assistant backups, access tokens, raw energy-history exports, addresses or other private files. The public repository contains no household-specific entity IDs. SolarPilot can learn live without private data. For a faster installation-specific start, one local `custom_components/solar_pilot/userfiles/private_bundle.json` may contain entity mappings plus an aggregated historical bootstrap. HACS preserves `userfiles` across ordinary upgrades, and the private bundle must never be committed to GitHub.
+
+## Inbegrepen: dagkosten en Wallbox-voorrang
+
+Afzonderlijke elektriciteitskost vandaag met netto afname/injectie en directe PV, naast de behouden 36-uurskostprognose. Wallbox-voorrang is per verbruiker instelbaar, met klein-overschotfallback en behoud van minimumlooptijden. De nieuwe voorkeur is opt-in. Lees `docs/KOSTEN_EN_WALLBOXVOORRANG.md`. Deze volledige update omvat ook de niet-gepubliceerde beta.22- en beta.23-correcties.
+
+## Nieuw in beta.25: Dagoverzicht per verbruiker
+
+Open **SolarPilot → Verbruikers → Dagoverzicht**. De popup toont geregistreerde draaitijd per dag, start-/stoptijden, sessieduur en de bevestigde start-/stopreden. Kies een datum of vergelijk de laatste 7/30 dagen. De popup blijft open tijdens live telemetrie.
+
+Draaitijd volgt de gekoppelde aan-/actiefstatus: een ingeschakelde slimme stekker bewijst niet dat een compressor continu draait. Externe bediening, onbekende begintijd, meetgaten en herstarts worden apart gemarkeerd. Historiek begint na deze update; eerdere redenen worden niet verzonnen. De opslag blijft lokaal, is begrensd en overleeft gewone updates. De volledige historie wordt alleen opgevraagd wanneer de popup wordt gebruikt.
+
+Deze release is cumulatief en bevat ook alle correcties en uitbreidingen uit beta.22, beta.23 en beta.24. Tussenliggende releases hoeven niet apart gepubliceerd of geïnstalleerd te worden. De volledige actuele uitleg staat in `docs/ACTUELE_WERKING.md` en in het Home Assistant-tabblad **Uitleg**.

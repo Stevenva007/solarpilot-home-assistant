@@ -192,14 +192,16 @@ async def test_beta2_preferences_migrate_once_to_new_default_on(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_restart_with_pending_lease_requires_manual_recovery(monkeypatch):
+async def test_restart_with_known_lease_reconciles_without_manual_recovery(monkeypatch):
     r,h,c=setup(monkeypatch)
-    r.store.data={'others_first':True,'leases':{'a':{'watts':1000,'name':'Toestel'}}}
+    h.states.set('switch.load','on')
+    r.store.data={'mode':'solar','others_first':True,'leases':{'a':{'watts':1000,'name':'Toestel'}},'device_modes':{'a':'auto'}}
     r.mode='observe'
     await tick(r,h,c,0)
     await r.start()
-    assert r.recovery and not r.handover
-    assert all(call[0]=='persistent_notification' for call in h.services.calls)
+    assert not r.recovery and not r.handover and r.mode=='solar'
+    assert r.states['a'].owned and r.states['a'].on
+    assert not [call for call in h.services.calls if call[0]=='switch']
 
 
 @pytest.mark.asyncio

@@ -29,6 +29,16 @@ async def test_read_only_or_missing_double_permission_never_sends_battery_comman
 
 
 @pytest.mark.asyncio
+async def test_first_battery_command_is_not_blocked_by_low_system_uptime(monkeypatch):
+    import sys
+    r,h=setup_battery(global_control=True,profile_control=True,exclusive=True)
+    battery_runtime=sys.modules['custom_components.solar_pilot.battery_runtime']
+    monkeypatch.setattr(battery_runtime.time, 'monotonic', lambda: 5.0)
+    sent=await r.battery_fleet.tick(grid_w=-1800,allow_command=True)
+    assert sent
+
+
+@pytest.mark.asyncio
 async def test_signed_number_battery_command_requires_all_permissions_and_is_serialized():
     r,h=setup_battery(global_control=True,profile_control=True,exclusive=True)
     sent=await r.battery_fleet.tick(grid_w=-1800,allow_command=True)

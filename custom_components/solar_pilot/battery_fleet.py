@@ -211,7 +211,7 @@ def recommend(settings, readings, grid_w, capacity_allowed_grid_w=None):
 class BatteryFleetState:
     """Small persisted command journal used by the runtime adapter."""
     def __init__(self):
-        self.last_command_mono = 0.0
+        self.last_command_mono = None
         self.pending = None
         self.faults = {}
         self.last_recommendation = None

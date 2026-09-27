@@ -67,7 +67,7 @@ def ha_profiles(path, pv_entity, forecast_entity, tz_name="Europe/Brussels", sun
     }
 
 
-def battery_sim(intervals, capacity, power, rte=.90):
+def battery_sim(intervals, capacity, power, rte=.80):
     eta=math.sqrt(max(.5,min(1.0,rte))); soc=avoided=used=0.0
     for imp,exp,hours in intervals:
         limit=power*hours
@@ -76,7 +76,7 @@ def battery_sim(intervals, capacity, power, rte=.90):
     return avoided,used
 
 
-def homewizard(path, rte=.90):
+def homewizard(path, rte=.80):
     rows=[]
     with open(path,newline="",encoding="utf-8-sig") as f:
         for r in csv.DictReader(f):
@@ -132,7 +132,7 @@ def build(ha_path, hw_path, pv_entity, forecast_entity):
                 "avg_export_kwh_day":round(hw["export_kwh"]/hw["days"],2) if hw["days"] else None},
         "phases":{"stats":hw["phase_stats"],"intervals_over_3kw_while_other_phases_under_1kw":hw["heavy"],
                   "note":"HomeWizard Lx max W is a 15-minute phase peak, not phase energy or average power."},
-        "battery_upper_bound":{"round_trip_efficiency":.90,"scenarios":hw["scenarios"],
+        "battery_upper_bound":{"round_trip_efficiency":.80,"scenarios":hw["scenarios"],
                                "note":"Technical what-if based on measured import/export; no financial or annual-return guarantee."}
     }
 

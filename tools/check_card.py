@@ -21,9 +21,9 @@ with sync_playwright() as p:
     # Managed loads + Wallbox are grouped together; Wallbox remains read-only.
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="loads"]').click()
     assert page.locator("solar-pilot-card >> .device").count() == 3
-    assert page.locator("solar-pilot-card >> .external").count() == 1
+    assert page.locator("solar-pilot-card >> .external").count() == 2
     assert page.locator("solar-pilot-card >> .external button").count() == 0
-    assert "ALLEEN LEZEN" in page.locator("solar-pilot-card >> .external").inner_text()
+    assert "ALLEEN LEZEN" in page.locator("solar-pilot-card >> .external:not(.wallbox-priority)").inner_text()
     assert page.locator("solar-pilot-card >> .phasepill").count() == 2
 
     # Comfort is one logical page containing DHW + the complete climate Control Center.
@@ -61,6 +61,34 @@ with sync_playwright() as p:
     assert "82%" in planning_text and "92%" in planning_text
     assert "beschermde cyclus" in planning_text.lower() and "Eco" in planning_text
 
+    # Daily cost is separate from forecast and own PV is not subtracted twice.
+    cost = page.locator("solar-pilot-card >> .electricity-today")
+    assert "2,82" in cost.inner_text()
+    assert "1,50" in cost.inner_text()
+    assert "6 kWh" in cost.inner_text()
+    assert "niet nogmaals aftrekken" in cost.inner_text()
+    horizon = page.locator("solar-pilot-card >> .planned-cost")
+    if horizon.count():
+        horizon.locator("summary").click()
+    # Keep open sections stable across ordinary 5-second telemetry deliveries.
+    page.evaluate("""() => { const c=document.querySelector('solar-pilot-card');
+      c.shadowRoot.querySelectorAll('details').forEach(d=>d.open=true);
+      window.openBefore=Array.from(c.shadowRoot.querySelectorAll('details')).map(d=>d.open);
+      const a=JSON.parse(JSON.stringify(c._last.attributes));a.grid_w=-1234;
+      c.hass={...c._hass,states:{...c._hass.states,'sensor.solarpilot_status':{state:'Zonnestroom',attributes:a}}};
+    }""")
+    assert page.evaluate("""() => JSON.stringify(window.openBefore) === JSON.stringify(
+        Array.from(document.querySelector('solar-pilot-card').shadowRoot.querySelectorAll('details')).map(d=>d.open))""")
+    # No clipped cost tiles at mobile widths or desktop width.
+    for width in (320,390,768,1440):
+        page.set_viewport_size({"width":width,"height":1000})
+        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), width
+    page.set_viewport_size({"width":1440,"height":1050})
+    page.evaluate("document.body.style.maxWidth='none'")
+    page.screenshot(path=str(root/"SolarPilot-kosten-beta24-desktop.png"),full_page=True)
+    page.set_viewport_size({"width":390,"height":844})
+    cost.screenshot(path=str(root/"SolarPilot-kosten-beta24-mobiel.png"))
+
     # Energy page groups forecast, phase, capacity and learning; planner summary remains compact.
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="energy"]').click()
     energy_text = page.locator("solar-pilot-card >> .ems").inner_text()
@@ -76,7 +104,7 @@ with sync_playwright() as p:
     # Canonical guide has its own tab and the dedicated card still exists.
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="guide"]').click()
     guide_text = page.locator("solar-pilot-card >> .guide").text_content()
-    assert "Panasonic warm water" in guide_text and "Logische interface" in guide_text and "Migratie" in guide_text
+    assert "Panasonic warm water" in guide_text and "Logische interface" in guide_text and "migratie" in guide_text.lower()
     page.evaluate("""() => {const main=document.querySelector('solar-pilot-card');const guide=document.createElement('solar-pilot-guide-card');guide.setConfig({});guide.hass=main._hass;document.body.appendChild(guide);}""")
     assert "Actuele werking" in page.locator("solar-pilot-guide-card >> ha-card").inner_text()
 
@@ -86,6 +114,8 @@ with sync_playwright() as p:
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), width
     page.set_viewport_size({"width":390,"height":844})
 
+    page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');
+      c.shadowRoot.querySelectorAll('details').forEach(d=>d.open=false); c._uiState={};}""")
     # Action routing: policy toggle and learning only touch SolarPilot virtual entities.
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="loads"]').click()
     page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');window.calls=[];c._hass.callService=async(domain,service,data)=>window.calls.push({domain,service,data});}""")
@@ -137,6 +167,12 @@ with sync_playwright() as p:
     page.evaluate("document.querySelectorAll('solar-pilot-guide-card').forEach(el => el.remove())")
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="overview"]').click()
     page.screenshot(path=str(root/"SolarPilot-EMS-voorbeeld.png"), full_page=True)
+
+    page.locator('solar-pilot-card >> button[data-action="view"][data-value="loads"]').click()
+    assert "Wallbox-voorrang per verbruiker" in page.locator("solar-pilot-card >> .wallbox-priority").inner_text()
+    assert "Wallbox eerst" in page.locator("solar-pilot-card >> .device").first.inner_text()
+    page.set_viewport_size({"width":1440,"height":1000})
+    page.screenshot(path=str(root/"SolarPilot-wallbox-beta24-desktop.png"),full_page=True)
 
     # Untrusted strings remain text after switching to the loads view.
     page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');const a=JSON.parse(JSON.stringify(c._last.attributes));const bad='<img src=x onerror="window.injected=true">';a.devices[0].name=bad;a.wallbox.name=bad;a.wallbox.reason=bad;a.dhw.status=bad;a.dhw.reason=bad;c.hass={states:{'sensor.solarpilot_status':{state:'x',attributes:a},'sensor.solarpilot_actuele_uitleg':c._hass.states['sensor.solarpilot_actuele_uitleg']},callService:async()=>{}};}""")

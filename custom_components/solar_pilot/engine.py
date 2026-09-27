@@ -67,6 +67,8 @@ class State:
     stop_since: float | None = None
     manual_until: float = 0.0
     boost_until: float = 0.0
+    manual_forced: bool = False
+    manual_stop_requested: bool = False
     fault: str = ""
     cycle_armed: bool = True
     daily_runtime_s: float = 0.0
@@ -98,6 +100,10 @@ class Site:
     increase_reason: str = ""
     max_increase_w: float | None = None
     device_increase_limits: dict[str, float] = field(default_factory=dict)
+    device_holds: dict[str, str] = field(default_factory=dict)
+    device_start_blocks: dict[str, str] = field(default_factory=dict)
+    no_reclaim_ids: set[str] = field(default_factory=set)
+    subordinate_ids: set[str] = field(default_factory=set)
     reclaimable_w: float = 0.0
     max_takeover_w: float = 2500.0
     handover_s: float = 240.0
@@ -149,7 +155,7 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
     remaining_solar, remaining_cap = solar_budget, cap_budget
     locked: set[str] = set()
     sorted_devices = sorted(devices, key=lambda d: (
-        0 if (states[d.id].boost_until > site.now or states[d.id].deadline_urgent) else d.priority, d.id))
+        0 if (states[d.id].manual_forced or states[d.id].boost_until > site.now or states[d.id].deadline_urgent) else (1000 if d.id in site.subordinate_ids else 0) + d.priority, d.id))
 
     for d in sorted_devices:
         s = states[d.id]
@@ -157,7 +163,8 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
         handover_lock = (site.handover_device == d.id and s.owned and s.on
                          and site.valid and not emergency and not blocked_site
                          and s.enabled and s.demand and s.interlock and not s.fault)
-        if s.owned and s.on and (d.non_interruptible or site.now - s.last_on < d.min_on_s or handover_lock):
+        manual_lock = s.manual_forced and site.valid and not emergency and site.mode != "paused"
+        if s.owned and s.on and (manual_lock or d.non_interruptible or site.now - s.last_on < d.min_on_s or handover_lock):
             # A number load may be reduced to its valid minimum while running.
             amount = (site.handover_target_w if handover_lock else
                       d.minimum if d.kind == "number" and not d.non_interruptible else max(d.minimum, s.target_w))
@@ -165,8 +172,10 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
             remaining_solar -= amount
             remaining_cap -= amount
             locked.add(d.id)
-            out.reasons[d.id] = ("Gecontroleerde overname: Wallbox krijgt reactietijd" if handover_lock else
-                                 "Cyclus laten afwerken" if d.non_interruptible else "Minimale looptijd")
+            out.reasons[d.id] = ("Manueel actief" if s.manual_forced else
+                                 "Gecontroleerde overname: Wallbox krijgt reactietijd" if handover_lock else
+                                 "Cyclus laten afwerken" if d.non_interruptible else
+                                 "Wallbox krijgt voorrang na minimale looptijd" if d.id in site.device_holds else "Minimale looptijd")
 
     for d in sorted_devices:
         s = states[d.id]
@@ -176,9 +185,11 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
             # order while preserving its minimum already reserved above.
             if (d.kind == "number" and d.id != site.handover_device and not d.non_interruptible and not blocked_site
                     and s.available and s.enabled and s.demand and s.interlock
-                    and not s.fault and s.manual_until <= site.now):
+                    and not s.fault and s.manual_until <= site.now
+                    and d.id not in site.device_holds and d.id not in site.device_start_blocks):
                 boost = s.boost_until > site.now
-                extra = remaining_cap if boost else min(remaining_solar, remaining_cap)
+                extra_solar = remaining_solar - (credit if d.id in site.no_reclaim_ids else 0)
+                extra = remaining_cap if boost else min(extra_solar, remaining_cap)
                 previous = out.targets[d.id]
                 amount = d.quantize(previous + max(0, extra))
                 out.targets[d.id] = amount
@@ -191,11 +202,11 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
             reason = s.fault
         elif not s.available:
             reason = "Toestel of meting onbeschikbaar"
-        elif not s.enabled:
+        elif not s.enabled and not s.manual_forced:
             reason = "Uitgesloten van regeling"
         elif not s.interlock:
             reason = "Vrijgave ontbreekt"
-        elif not s.demand:
+        elif not s.demand and not s.manual_forced:
             reason = "Geen vraag / buiten tijdvenster"
         elif not site.valid:
             reason = "Geen betrouwbare energiemeting"
@@ -207,14 +218,20 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
             reason = "Thuisbatterij heeft voorrang"
         elif s.manual_until > site.now:
             reason = "Handmatige bediening: tijdelijk met rust laten"
-        elif s.on and not s.owned:
+        elif s.on and not s.owned and not s.manual_forced:
             reason = "Extern actief: niet overnemen"
+        elif d.id in site.device_holds:
+            reason = site.device_holds[d.id]
+        elif not s.on and d.id in site.device_start_blocks:
+            reason = site.device_start_blocks[d.id]
         elif s.planner_hold and not s.on:
             reason = s.planner_reason or "EMS-planner stelt optionele start uit"
         elif not s.on and site.now - s.last_off < d.min_off_s:
             reason = "Minimale rusttijd"
         elif d.non_interruptible and not s.on and not s.cycle_armed:
             reason = "Cyclus voltooid: nieuwe vrijgave nodig"
+        elif s.manual_stop_requested:
+            reason = "Manuele stop gevraagd"
         elif d.max_daily_runtime_s > 0 and s.daily_runtime_s >= d.max_daily_runtime_s:
             # Running non-interruptible cycles are already locked above and may finish.
             # A new cycle may not start once the configured daily maximum is reached.
@@ -226,12 +243,13 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
             s.start_since = None
             continue
         manual_boost = s.boost_until > site.now
+        manual_force = s.manual_forced
         deadline_boost = s.deadline_force
         planner_grid = s.planner_grid_force
-        boost = manual_boost or deadline_boost or planner_grid
+        boost = manual_force or manual_boost or deadline_boost or planner_grid
         available = remaining_cap if boost else min(remaining_solar, remaining_cap)
         eligible = (d.allow_wallbox_reclaim and not d.non_interruptible and d.min_on_s <= site.handover_s)
-        if not s.owned and not eligible and not boost:
+        if (not s.owned and not eligible or d.id in site.no_reclaim_ids) and not boost:
             available = min(available, remaining_solar-credit)
         needed = d.minimum + (d.start_margin_w if not s.on and not boost else 0)
         target = d.quantize(available) if available >= needed else 0.0
@@ -246,11 +264,13 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
                 out.reasons[d.id] = (f"Startvertraging: {math.ceil(left)} s" if left else
                                      "Dagminimum: deadline nadert, netstroom toegestaan" if deadline_boost else
                                      "Goedkope netfallback voor dagminimum" if planner_grid else
+                                     "Manuele start door gebruiker" if manual_force else
                                      "Boost gereed" if manual_boost else
                                      "Dagminimum: deadline nadert, zonnestroom eerst" if s.deadline_urgent else
                                      "Voldoende overschot")
             else:
-                out.reasons[d.id] = ("Dagminimum vóór deadline" if s.deadline_urgent else
+                out.reasons[d.id] = ("Manueel actief" if manual_force else
+                                     "Dagminimum vóór deadline" if s.deadline_urgent else
                                      "Goedkope netfallback voor dagminimum" if planner_grid else
                                      "Tijdelijke boost" if manual_boost else "Gebruikt zonnestroom")
         else:
@@ -289,7 +309,7 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
             continue
         if s.stop_since is None:
             s.stop_since = site.now
-        immediate = blocked_site or not s.enabled or not s.interlock or not s.demand or bool(s.fault) or emergency or d.id == site.rollback_device
+        immediate = blocked_site or not s.enabled or not s.interlock or not s.demand or bool(s.fault) or emergency or d.id == site.rollback_device or d.id in site.device_holds or s.manual_stop_requested
         if not immediate and site.now - s.stop_since < d.stop_delay_s:
             out.reasons[d.id] = "Stopvertraging / wolkenbuffer"
             continue
@@ -317,14 +337,17 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
             continue
         if not s.on and (s.start_since is None or site.now - s.start_since < d.start_delay_s):
             continue
+        if d.id in site.device_start_blocks:
+            out.reasons[d.id] = site.device_start_blocks[d.id]
+            continue
         current = s.measured_w if s.owned and s.on else 0.0
         own_commitment = max(0.0, s.target_w - current) if s.owned and s.on else 0.0
         other_commitment = committed - own_commitment
         cap_free = site.max_import_w - site.grid_w - other_commitment
         solar_free = -site.grid_w - site.battery_discharge_w - site.reserve_w - other_commitment
         actual_solar_free = solar_free
-        grid_boost = s.boost_until > site.now or s.deadline_force or s.planner_grid_force
-        eligible = (d.allow_wallbox_reclaim and not d.non_interruptible
+        grid_boost = s.manual_forced or s.boost_until > site.now or s.deadline_force or s.planner_grid_force
+        eligible = (d.allow_wallbox_reclaim and d.id not in site.no_reclaim_ids and not d.non_interruptible
                     and d.min_on_s <= site.handover_s and not grid_boost)
         usable_credit = min(max(0, site.reclaimable_w), max(0, site.max_takeover_w)) if eligible else 0
         solar_free += usable_credit

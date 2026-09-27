@@ -1,6 +1,6 @@
 # SolarPilot eenmalig publiceren op GitHub voor HACS
 
-Deze map is de publieke **SolarPilot 1.0.0-beta.21** repositorybron en kan zowel voor een eerste publicatie als voor een update van `StevenVa007/solarpilot-home-assistant` worden gebruikt. Persoonlijke historische data, woning-specifieke entity-ID-defaults, Python-cachebestanden en Home Assistant-opslag horen er niet in.
+Deze map is de publieke **SolarPilot 1.0.0-beta.25** repositorybron en kan zowel voor een eerste publicatie als voor een update van `StevenVa007/solarpilot-home-assistant` worden gebruikt. Persoonlijke historische data, woning-specifieke entity-ID-defaults, Python-cachebestanden en Home Assistant-opslag horen er niet in.
 
 ## Aanbevolen repository
 
@@ -67,8 +67,8 @@ De HACS-validator kan daarnaast GitHub-metadata controleren die pas na publicati
 Maak pas na groene Actions de tag en push hem:
 
 ```powershell
-git tag -a v1.0.0-beta.21 -m "SolarPilot 1.0.0-beta.21"
-git push origin v1.0.0-beta.21
+git tag -a v1.0.0-beta.25 -m "SolarPilot 1.0.0-beta.25"
+git push origin v1.0.0-beta.25
 ```
 
 De meegeleverde `.github/workflows/release.yml` maakt van de gepushte tag automatisch een GitHub Release en markeert beta/alpha/rc-tags automatisch als **prerelease**.

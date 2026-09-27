@@ -1,6 +1,6 @@
 # SolarPilot · Configuratiestructuur
 
-**Geldig voor 1.0.0-beta.21.** Dit document beschrijft waar instellingen staan. Voor de inhoudelijke EMS-regels geldt uitsluitend `ACTUELE_WERKING.md`.
+**Geldig voor 1.0.0-beta.25.** Dit document beschrijft waar instellingen staan. Voor de inhoudelijke EMS-regels geldt uitsluitend `ACTUELE_WERKING.md`.
 
 ## Configuratiecentrum
 
@@ -16,7 +16,7 @@ Hier staan de P1-/PV-bronnen, tekenrichting, injectiereserve, maximale softwarem
 
 ### Verbruikers & prioriteiten
 
-Flexibele lasten worden via vier stappen beheerd: **Basis → Koppeling → Gedrag & bescherming → Planning & energie**. Nieuwe apparaten blijven standaard **Uitgesloten** totdat je ze bewust op Auto zet.
+Flexibele lasten worden via vier stappen beheerd: **Basis → Koppeling → Gedrag & bescherming → Planning & energie**. Nieuwe apparaten blijven standaard **Uitgesloten** totdat je ze bewust op Auto zet. In **4/4 Planning & energie → Voorrang ten opzichte van de Wallbox** kies je per toestel de globale voorkeur, dit toestel eerst of Wallbox eerst met klein-overschotfallback. Minimumlooptijden blijven beschermd.
 
 ### Comfort & warmtepomp
 
@@ -63,7 +63,7 @@ Een door SolarPilot gestarte OFF/coastperiode wordt achteraf als **correct**, **
 
 ### Opslag & laden
 
-Wallbox blijft alleen-lezen. Toekomstige thuisbatterijen kunnen read-only of expliciet bestuurbaar worden gekoppeld; fysieke batterijbediening vereist meerdere toestemmingen. Batterij-what-if blijft adviserend zonder hardware.
+Wallbox blijft alleen-lezen. Onder **Wallbox · koppeling** stel je het werkelijke minimum zonnelaadvermogen in (0 = nog niet bevestigd) en optioneel een specifiek aansluitingssignaal van deze laadpaal. Onder de geavanceerde Wallbox-instellingen staan stabiliteit, terugvalmarge, maximale wachttijd en herbeoordeling. Een aangesloten maar volle, gepauzeerde of niet-vragende auto houdt geen onnodige reserve vast. Toekomstige thuisbatterijen kunnen read-only of expliciet bestuurbaar worden gekoppeld; fysieke batterijbediening vereist meerdere toestemmingen. Batterij-what-if blijft adviserend zonder hardware.
 
 ### Voorspellen & optimaliseren
 
@@ -95,3 +95,13 @@ Nieuwe functies horen in een bestaande logische categorie tenzij dat echt niet k
 ## Planning-tab
 
 De Planning-tab hoort bij **Voorspellen & optimaliseren → Unified Planner**. Hier staan horizon, planblokken, dagdoelen, beschermde cycli, voorspelde import/export/kost, 7/30-dagen plannerkwaliteit, recente what-if-replay en alle actieve plannerinstellingen. Wijzigingen vanuit het dashboard tonen eerst een korte uitleg, advies en de gevolgen. Beschermde cycli worden per programma geconfigureerd bij **Verbruikers & prioriteiten → Planning & energie**.
+
+### Elektriciteitskost vandaag
+
+**Overzicht** toont de netto kost vandaag. **Planning** en **Energie** tonen daarnaast afnamekost, injectievergoeding, rechtstreeks zonneverbruik en vermeden aankoop. De kost over de planhorizon blijft een afzonderlijke voorspelling. Bedragen gebruiken de ingestelde afname-/injectieprijs; ontbrekende meetperioden worden expliciet gemeld. Eigen zon wordt niet tweemaal afgetrokken.
+
+### Dagoverzicht per verbruiker
+
+**Verbruikers → Dagoverzicht** opent een aparte popup voor het gekozen toestel. Bovenaan staan de dagtotalen; eronder de aan-perioden op een tijdlijn, 7/30-dagenbalkjes en de sessies met de geregistreerde redenen. De datumkiezer, Vandaag en Vorige/Volgende dag veranderen alleen wat je bekijkt. Een actieve sessie wordt als lopend gemarkeerd. De popup blijft open tijdens de gewone dashboardupdates.
+
+De registratie is alleen-lezen en respecteert Home Assistant-leesrechten. Historische redenen van vóór de installatie worden niet ingevuld. Een onbeschikbare status of herstart is een meetgat, geen bewezen stop. Bij een slimme stekker is de draaitijd de ingeschakelde tijd; voor echte compressorlooptijd is een bijpassende actieve-statusbron nodig. De complete begrenzing en opslagregels staan in `ACTUELE_WERKING.md`.

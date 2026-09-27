@@ -25,7 +25,7 @@ WALLBOX_DEFAULTS = {
     "idle_states": "Ready;Paused;Scheduled;Waiting for car demand;Locked;Locked, car connected",
     "full_solar_states": "full_solar;Full solar;Full green",
 }
-READ_KEYS = ("power_entity", "status_entity", "demand_entity", "mode_entity")
+READ_KEYS = ("power_entity", "status_entity", "demand_entity", "mode_entity", "connected_entity")
 CONTROL_KEYS = ("control_entity", "number_entity", "start_script", "stop_script")
 
 
@@ -72,6 +72,7 @@ class Reading:
     valid: bool = False
     issue: str = ""
     age_s: float = 0.0
+    connected: bool | None = None
 
 
 @dataclass(frozen=True)

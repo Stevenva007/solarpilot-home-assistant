@@ -245,20 +245,36 @@ async def test_old_separate_export_meter_blocks():
 
 
 @pytest.mark.asyncio
-async def test_restart_journal_does_not_replay_commands():
+async def test_restart_reconciles_known_on_device_and_resumes_previous_solar_mode_without_replay():
     r, h = build()
     h.states.set("switch.load", "on")
-    r.store.data = {"leases": {"a": {"watts": 1000, "name": "Testtoestel"}}, "device_modes": {"a": "auto"}}
+    r.store.data = {"mode": "solar", "leases": {"a": {"watts": 1000, "name": "Testtoestel"}}, "device_modes": {"a": "auto"}}
+    await r.start()
+    assert not r.recovery and r.mode == "solar"
+    assert r.states["a"].owned and r.states["a"].on and r.states["a"].target_w == 1000
+    assert not [call for call in h.services.calls if call[0] == "switch"]
+
+
+@pytest.mark.asyncio
+async def test_restart_reconciles_known_off_device_and_normal_rules_may_continue():
+    r, h = build()
+    h.states.set("sensor.grid", 500, {"unit_of_measurement": "W"})
+    h.states.set("switch.load", "off")
+    r.store.data = {"mode": "solar", "leases": {"a": {"watts": 1000, "name": "Testtoestel"}}, "device_modes": {"a": "auto"}}
+    await r.start()
+    assert not r.recovery and r.mode == "solar"
+    assert not r.states["a"].owned and not r.states["a"].on
+    assert not [call for call in h.services.calls if call[0] == "switch"]
+
+
+@pytest.mark.asyncio
+async def test_restart_unknown_device_still_requires_review_without_forcing_off():
+    r, h = build()
+    h.states.set("switch.load", "unavailable")
+    r.store.data = {"mode": "solar", "leases": {"a": {"watts": 1000, "name": "Testtoestel"}}, "device_modes": {"a": "auto"}}
     await r.start()
     assert r.recovery and r.mode == "observe"
-    assert all(domain == "persistent_notification" for domain, _, _ in h.services.calls)
-    with pytest.raises(HomeAssistantError):
-        await r.set_mode("solar")
-    with pytest.raises(HomeAssistantError):
-        await r.reset()
-    h.states.set("switch.load", "off")
-    await r.reset()
-    assert not r.recovery
+    assert not [call for call in h.services.calls if call[0] == "switch"]
 
 
 @pytest.mark.asyncio
@@ -457,3 +473,27 @@ def test_overview_with_configured_device_uses_real_device_id_for_cycle_learning(
     assert len(rows) == 1
     assert rows[0]["id"] == "a"
     assert rows[0]["cycle_learning"]["program"] == "standaard"
+
+
+@pytest.mark.asyncio
+async def test_manual_start_and_stop_are_explicit_and_confirmed():
+    r, h = build()
+    r.mode = "solar"
+    await r.manual_start("a")
+    assert r.states["a"].manual_forced
+    assert h.states.get("switch.load").state == "on"
+    await r.tick()  # confirm the start
+    assert r.states["a"].owned and r.states["a"].on
+    r.last_issued -= 10
+    await r.manual_stop("a")
+    assert r.states["a"].manual_stop_requested
+    assert h.states.get("switch.load").state == "off"
+    await r.tick()  # confirm the stop
+    assert not r.states["a"].owned and not r.states["a"].manual_forced and not r.states["a"].manual_stop_requested
+
+
+@pytest.mark.asyncio
+async def test_manual_start_is_rejected_outside_solar_mode():
+    r, _h = build()
+    with pytest.raises(HomeAssistantError):
+        await r.manual_start("a")

@@ -190,7 +190,18 @@ class UnifiedPlan:
         return False, False, dp.reason
 
     def overview(self, max_slots=24):
+        duration = self.slot_min / 60 / 1000
+        import_cost = sum(max(0.0, s.net_after_plan_w)*duration*s.import_price for s in self.slots)
+        export_revenue = sum(max(0.0, -s.net_after_plan_w)*duration*s.export_price for s in self.slots)
+        has_storage = any(abs(s.battery_w) > .01 for s in self.slots)
+        avoided = sum(max(0.0, min(s.pv_w, s.base_w+s.planned_load_w))*duration*s.import_price for s in self.slots)
         return {
+            "cost_breakdown": {"import_cost_eur": round(import_cost, 6),
+                "export_revenue_eur": round(export_revenue, 6),
+                "net_cost_eur": round(import_cost-export_revenue, 6),
+                "direct_pv_avoided_eur": None if has_storage else round(avoided, 6),
+                "storage_advisory": has_storage,
+                "note": "Komende planhorizon: PV verlaagt de netafname; injectievergoeding is al afgetrokken."},
             "generated_at": self.generated_at.isoformat(), "horizon_h": self.horizon_h, "slot_min": self.slot_min,
             "confidence": round(self.confidence, 3), "predicted_import_kwh": round(self.predicted_import_kwh, 3),
             "predicted_export_kwh": round(self.predicted_export_kwh, 3), "predicted_cost_eur": round(self.predicted_cost_eur, 3),

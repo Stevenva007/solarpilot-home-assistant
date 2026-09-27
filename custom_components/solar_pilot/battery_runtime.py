@@ -154,7 +154,7 @@ class BatteryFleetManager:
                 or not self.recommendation or not self.recommendation.valid):
             return False
         min_interval = max(float(self.settings.get("command_min_interval_s", 30)), float(self.settings.get("settle_s", 30)))
-        if time.monotonic() - self.state.last_command_mono < min_interval:
+        if self.state.last_command_mono is not None and time.monotonic() - self.state.last_command_mono < min_interval:
             return False
         for bid, target in (self.recommendation.control_allocations or {}).items():
             if bid in self.state.faults:

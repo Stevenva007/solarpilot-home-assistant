@@ -13,6 +13,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
     for i in r.configs:
         buttons += [SolarButton(r, "boost", "Boost 30 min — netstroom toegestaan", i),
                     SolarButton(r, "cancel_boost", "Boost annuleren", i),
+                    SolarButton(r, "manual_start", "Manueel starten", i),
+                    SolarButton(r, "manual_stop", "Manueel stoppen / vrijgeven", i),
                     SolarButton(r, "takeover", "Handmatig overnemen — schakelt NIET uit", i)]
     async_add_entities(buttons)
 
@@ -35,5 +37,9 @@ class SolarButton(SolarEntity, ButtonEntity):
             await self.runtime.takeover(self.key)
         elif self.suffix == "boost":
             await self.runtime.boost(self.key)
+        elif self.suffix == "manual_start":
+            await self.runtime.manual_start(self.key)
+        elif self.suffix == "manual_stop":
+            await self.runtime.manual_stop(self.key)
         else:
             await self.runtime.cancel_boost(self.key)

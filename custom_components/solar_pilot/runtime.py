@@ -19,6 +19,9 @@ from .engine import Action, Device, Plan, Site, State, plan
 from .wallbox import (WALLBOX_DEFAULTS, Reading, WallboxGuard, state_set,
                       protected_entity, conflicting_devices)
 
+from .consumer_wallbox import PRIORITY_DEFAULTS, ConsumerWallboxPriority, follows_wallbox
+from .electricity_cost import DailyElectricityCost
+from .consumer_history_runtime import ConsumerHistoryRecorder
 from .house_first import HOUSE_DEFAULTS, HouseFirstGuard, Handover
 from .learning import LocalLearning
 from .historical import load_bundled_seed
@@ -58,12 +61,14 @@ class SolarRuntime:
         self.capacity = capacity_decision(datetime.now().astimezone(), None, None, None, {"enabled": False})
         self.phase = phase_decision((None, None, None), {"enabled": False})
         self.ems_stats = fresh_daily_stats()
+        self.electricity_cost = DailyElectricityCost()
         self.planner_hold_since = {}
         self.unified_planner = UnifiedPlanner(self.planner_settings, self.historical_seed)
         self.cycle_learning = CycleEnergyModel()
         self.unified_plan = None
-        self.wallbox_settings = {**WALLBOX_DEFAULTS, **HOUSE_DEFAULTS, **entry.options.get("wallbox", {})}
+        self.wallbox_settings = {**WALLBOX_DEFAULTS, **HOUSE_DEFAULTS, **PRIORITY_DEFAULTS, **entry.options.get("wallbox", {})}
         self.others_first = True
+        self.consumer_wallbox = ConsumerWallboxPriority(self.wallbox_settings)
         self.learning = LocalLearning()
         self.handover = None
         self.last_handover = {}
@@ -72,6 +77,7 @@ class SolarRuntime:
         self.wallbox_guard = self._make_wallbox_guard()
         self.configs = {d["id"]: {**DEVICE_DEFAULTS, **d} for d in entry.options.get("devices", [])}
         self.states = {key: State(last_off=time.monotonic()) for key in self.configs}
+        self.consumer_history = ConsumerHistoryRecorder(hass, entry, self.configs, self.settings["interval_s"])
         self.mode = "observe"
         self.priorities = {}
         self.device_modes = {}
@@ -104,12 +110,20 @@ class SolarRuntime:
         self.store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
         self.dhw = DHWManager(self)
 
+    def _per_device_wallbox_enabled(self):
+        # The configured Wallbox solar-start threshold is harmless by itself.
+        # Activate per-device precedence only when at least one consumer explicitly
+        # deviates from the global preference, preserving legacy global behaviour.
+        return any(c.get("wallbox_precedence", "global") != "global"
+                   for c in self.entry.options.get("devices", []))
+
     def _make_wallbox_guard(self):
+        per_device = self._per_device_wallbox_enabled()
         c = {**self.wallbox_settings,
              "policy": "house_first" if self.others_first else "priority",
              "stable_s": self.learning.effective_stable_s(self.wallbox_settings["stable_s"]),
              "sample_gap_s": max(30, self.settings["interval_s"] * 2)}
-        return HouseFirstGuard(c) if self.others_first else WallboxGuard(c)
+        return HouseFirstGuard(c) if self.others_first or per_device else WallboxGuard(c)
 
     @property
     def editable(self):
@@ -118,6 +132,7 @@ class SolarRuntime:
 
     def _snapshot(self):
         return {
+            "mode": self.mode,
             "dhw": self.dhw.snapshot(),
             "priorities": self.priorities, "device_modes": self.device_modes,
             "others_first": self.others_first, "learning": self.learning.snapshot(),
@@ -129,7 +144,10 @@ class SolarRuntime:
             "reclaim_blocks": self.reclaim_blocks,
             "handover": self.handover.overview(time.monotonic()) if self.handover else None,
             "cycle_armed": {i: s.cycle_armed for i, s in self.states.items()},
+            "manual_forced": {i: bool(s.manual_forced) for i, s in self.states.items() if s.manual_forced},
+            "manual_stop_requested": {i: bool(s.manual_stop_requested) for i, s in self.states.items() if s.manual_stop_requested},
             "energy_kwh": self.energy_kwh, "ems_stats": self.ems_stats,
+            "electricity_cost": self.electricity_cost.snapshot(),
             "daily_runtime": {i: {"date": self.runtime_day, "seconds": round(s.daily_runtime_s, 3), "energy_kwh": round(s.daily_energy_kwh, 6)} for i, s in self.states.items()},
             "leases": {**self.recovery, **{i: {"watts": s.target_w, "name": self.configs[i]["name"]}
                        for i, s in self.states.items() if s.owned}},
@@ -137,7 +155,9 @@ class SolarRuntime:
 
     async def start(self):
         data = await self.store.async_load() or {}
+        await self.consumer_history.start()
         self.dhw.restore(data.get("dhw", {}))
+        self.electricity_cost.restore(data.get("electricity_cost", {}))
         self.others_first = data.get("others_first", True) is True
         self.learning.restore(data.get("learning", {}), self.configs)
         self.local_pv.restore(data.get("local_pv", {}))
@@ -164,14 +184,64 @@ class SolarRuntime:
                     self.states[i].daily_energy_kwh = max(0.0, float(value.get("energy_kwh", 0)))
                 except (TypeError, ValueError):
                     pass
-        self.recovery = data.get("leases", {})
+        leases = data.get("leases", {}) if isinstance(data.get("leases", {}), dict) else {}
+        self.recovery = {}
         self.data_loaded = True
         for i, armed in data.get("cycle_armed", {}).items():
             if i in self.states:
                 self.states[i].cycle_armed = bool(armed)
+        for i, forced in (data.get("manual_forced", {}) or {}).items():
+            if i in self.states:
+                self.states[i].manual_forced = bool(forced)
+        for i, requested in (data.get("manual_stop_requested", {}) or {}).items():
+            if i in self.states:
+                self.states[i].manual_stop_requested = bool(requested)
+
+        # Reconcile durable leases against the real Home Assistant state. A restart
+        # is not an instruction to turn equipment off and no old command is replayed.
+        # Known ON/OFF states resume from reality; only an unavailable/ambiguous
+        # endpoint still needs manual review. Minimum on/off times restart
+        # conservatively from this observation rather than inventing downtime.
+        reconcile_now = time.monotonic()
+        for i, lease in leases.items():
+            if i not in self.configs:
+                continue
+            cfg, st = self.configs[i], self.states[i]
+            active = self._active(cfg)
+            if active is True:
+                try:
+                    target = max(float(lease.get("watts", 0) or 0), float(cfg.get("nominal_w", 0) or 0))
+                except (TypeError, ValueError):
+                    target = float(cfg.get("nominal_w", 0) or 0)
+                st.owned, st.on, st.available = True, True, True
+                st.target_w = target
+                st.last_on = reconcile_now
+                st.observed_once = True
+                self.note(f'{cfg["name"]}: herstartcontrole automatisch — toestel staat aan; beheer hervat zonder schakelopdracht.')
+            elif active is False:
+                st.owned, st.on, st.available = False, False, True
+                st.target_w = 0
+                st.last_off = reconcile_now
+                st.manual_forced = False
+                st.manual_stop_requested = False
+                st.observed_once = True
+                self.note(f'{cfg["name"]}: herstartcontrole automatisch — toestel staat uit; normale regeling hervat.')
+            else:
+                self.recovery[i] = lease
+                self.note(f'{cfg["name"]}: herstartcontrole niet automatisch mogelijk; toestelstatus is onbekend of onbeschikbaar.')
+
+        requested_mode = str(data.get("mode", "observe"))
+        if requested_mode not in ("observe", "solar", "paused"):
+            requested_mode = "observe"
         if self.recovery:
-            self.note("Herstartcontrole nodig: eerdere opdrachten worden niet automatisch hervat of teruggedraaid.")
-            await self.notify("Controleer de eerder geregelde toestellen na de herstart. Schakel ze zo nodig via hun normale bediening veilig uit. Rond daarna de herstartcontrole af in SolarPilot. Er worden geen nieuwe opdrachten verzonden.")
+            self.mode = "observe"
+            await self.notify("SolarPilot kon na de herstart niet alle eerder beheerde toestelstatussen betrouwbaar uitlezen. Alleen de betrokken onzekere toestand vereist controle; er is geen automatische uitschakelopdracht verzonden.")
+        elif requested_mode == "solar" and not self.dhw.needs_review and not self.legacy_conflicts():
+            self.mode = "solar"
+            self.note("Herstartcontrole automatisch afgerond; Zonnestroommodus hervat op basis van actuele toestelstatussen.")
+        else:
+            self.mode = requested_mode if requested_mode != "solar" else "observe"
+            self.note(f"Herstartcontrole automatisch afgerond; modus {self.mode} hervat.")
         await self.tick()
         self._remove_timer = async_track_time_interval(self.hass, self.tick, timedelta(seconds=self.settings["interval_s"]))
 
@@ -180,6 +250,7 @@ class SolarRuntime:
         if self._remove_timer:
             self._remove_timer()
         async with self._lock:
+            await self.consumer_history.close()
             await self.store.async_save(self._snapshot())
 
     @callback
@@ -495,6 +566,7 @@ class SolarRuntime:
                         "price_sources": dict(getattr(self, "planner_price_sources", {"import":"vaste prijs","export":"vaste prijs"})),
                         "adaptive_power_guard": self.planner_settings.get("adaptive_power_guard", True)},
             "today": stats,
+            "electricity_today": dict(self.electricity_cost.cached),
         }
 
     def _bool(self, entity_id):
@@ -572,7 +644,16 @@ class SolarRuntime:
             issue = "Wallbox-laadvraag onbekend: controleer statuskoppeling of vraagsensor"
         if conflicting_devices(self.hass, c, list(self.configs.values())):
             issue = "Wallbox is ook als bestuurbaar toestel gekoppeld; verwijder die dubbele koppeling"
-        return Reading(power, stamp, demand, status, mode, not bool(issue), issue, max(0, time.time()-stamp) if stamp else math.inf)
+        connected = None
+        if c.get("connected_entity"):
+            text = self._wallbox_text(c["connected_entity"])
+            connected = {"on": True, "off": False}.get(text)
+            if connected is None:
+                issue = issue or "Wallbox-aansluitsignaal onbekend of te oud"
+        elif demand is True or (power or 0) >= c["charging_threshold_w"]:
+            connected = True  # Waiting/charging status is evidence at this charger.
+        return Reading(power, stamp, demand, status, mode, not bool(issue), issue,
+                       max(0, time.time()-stamp) if stamp else math.inf, connected)
 
     def wallbox_overview(self):
         c, g = self.wallbox_settings, self.wallbox_guard
@@ -580,6 +661,10 @@ class SolarRuntime:
         age = max(0, int(time.time() - r.stamp)) if r.stamp else None
         return {"enabled": c["enabled"], "name": c["name"], "policy": "house_first" if self.others_first else "priority",
                 "others_first": self.others_first,
+                "per_device_priority": self._per_device_wallbox_enabled(),
+                "consumer_priority": self.consumer_wallbox.result.__dict__,
+                "connected": r.connected,
+                "priority_min_power_w": c["priority_min_power_w"],
                 "priority_switch": self.entity_id("switch", "others_first"),
                 "reclaimable_w": round(getattr(g, "reclaimable_w", 0), 1),
                 "handover": self.handover.overview(time.monotonic()) if self.handover else self.last_handover,
@@ -655,10 +740,31 @@ class SolarRuntime:
                     i, c, self.planner_settings.get("adaptive_power_min_samples", 10),
                     self.planner_settings.get("adaptive_power_max_multiplier", 2.0))
             kwargs["allow_wallbox_reclaim"] = (c.get("allow_wallbox_reclaim", False)
+                                                and not (self._per_device_wallbox_enabled() and follows_wallbox(c, self.others_first))
                                                 and self._dedicated_meter(i)
                                                 and i not in self.reclaim_blocks)
             result.append(Device(**kwargs))
         return result
+
+    def _wallbox_device_constraints(self, now, reading, grid, valid, discharge):
+        if not self._per_device_wallbox_enabled() or not self.wallbox_settings.get("enabled"):
+            return {}, {}, set()
+        lower = {i for i, cfg in self.configs.items() if follows_wallbox(cfg, self.others_first)}
+        # Explicit user boosts and hard day-minimum grid permissions remain higher
+        # precedence. A Wallbox preference is never permission to override them.
+        controlled = {i for i in lower if self.states[i].boost_until <= now
+                      and not self.states[i].deadline_force and not self.states[i].planner_grid_force}
+        owned = {i: (max(0.0, self.states[i].measured_w) if self._dedicated_meter(i) else 0.0)
+                 for i in controlled if self.states[i].owned and self.states[i].on
+                 and self.states[i].available and not self.states[i].fault}
+        p = self.consumer_wallbox.update(
+            now=now, reading=reading, grid_w=grid if valid else None,
+            filtered_grid_w=self.filtered if valid else None, discharge_w=discharge,
+            owned_lower=owned, has_lower=bool(controlled),
+            sample_gap_s=max(30, 2*self.settings["interval_s"]))
+        holds = {i: p.reason for i in controlled} if p.yield_loads else {}
+        blocks = {i: p.reason for i in controlled} if p.block_starts else {}
+        return holds, blocks, lower
 
     @staticmethod
     def _time_window_active(local_now, cfg):
@@ -992,7 +1098,10 @@ class SolarRuntime:
         plan=self.unified_plan
         for i,cfg in self.configs.items():
             st=self.states[i]
-            if not cfg.get("forecast_deferrable",False) or plan is None:
+            has_goal = (float(cfg.get("min_daily_runtime_s", 0) or 0) > 0
+                        or float(cfg.get("daily_energy_goal_kwh", 0) or 0) > 0
+                        or cfg.get("non_interruptible", False))
+            if not cfg.get("forecast_deferrable",False) or plan is None or not has_goal:
                 st.planner_hold=False; st.planner_grid_force=False; st.planner_reason="Niet door rolling planner uitgesteld"; continue
             run,grid,reason=plan.current_device_state(i,local_now)
             # Planning can only hold a new optional start. It never stops a running load or overrides urgent/manual behaviour.
@@ -1062,11 +1171,14 @@ class SolarRuntime:
         i = p["id"]
         cfg, s = self.configs[i], self.states[i]
         if self._target_matches(cfg, p["watts"]):
+            self.consumer_history.confirm(i)
             if p["watts"] == 0:
                 s.owned = False
                 s.target_w = 0
                 s.last_off = now
                 s.boost_until = 0
+                s.manual_forced = False
+                s.manual_stop_requested = False
                 if p.get("max_runtime"):
                     self.faults[i] = "Maximale looptijd bereikt: controleer en wis de melding"
             else:
@@ -1078,6 +1190,7 @@ class SolarRuntime:
             await self.store.async_save(self._snapshot())
         elif now - p["issued"] >= cfg["ack_timeout_s"]:
             self.faults[i] = "Geen opdrachtbevestiging: handmatige controle nodig"
+            self.consumer_history.failure(i, self.faults[i])
             self.pending = None
             self.note(f'{cfg["name"]}: bevestiging ontbreekt. Nieuwe starts geblokkeerd.')
             await self.notify(f'{cfg["name"]}: een opdracht werd niet bevestigd. Controleer de fysieke toestand en de gekoppelde entiteiten. SolarPilot neemt niet aan dat het toestel geschakeld is.')
@@ -1120,6 +1233,8 @@ class SolarRuntime:
                             self.cycle_learning.begin(i, self._cycle_program(cfg), time.time(), (local_now or datetime.now().astimezone()).date().isoformat())
                     else:
                         s.last_off = now
+                        s.manual_forced = False
+                        s.manual_stop_requested = False
                         if had_observation and cfg.get("cycle_learning_enabled") and cfg.get("power_entity"):
                             learned = self.cycle_learning.finish(i, time.time())
                             if learned:
@@ -1150,6 +1265,9 @@ class SolarRuntime:
                     s.measured_w = max(0.0, watts) if s.on else 0.0
             else:
                 s.measured_w = (s.target_w if s.owned and s.target_w else cfg["nominal_w"]) if s.on else 0.0
+            # Record observed state, not allocated watts or an unconfirmed request.
+            # This read-only path also includes external/manual activity in Observatie.
+            self.consumer_history.observe(i, active, local_now or datetime.now(timezone.utc))
         if changed:
             self.store.async_delay_save(self._snapshot, 1)
 
@@ -1237,6 +1355,7 @@ class SolarRuntime:
             wb = replace(wb, block_increase=True, release_flexible=True, max_increase_w=0,
                          reason="Voorrang gewijzigd: eigen lasten veilig vrijgeven voor Wallbox")
             self.wallbox_guard.result = wb
+        device_holds, device_start_blocks, subordinate_ids = self._wallbox_device_constraints(now, wallbox_reading, grid, valid, discharge)
         dhw_sent = await self.dhw.tick(now, grid, valid, discharge,
             allow_command=(not self.pending and not self.handover and
                            now - self.last_issued >= self.settings["settle_s"]),
@@ -1282,6 +1401,8 @@ class SolarRuntime:
                     external_hold=external_hold, external_reason=external_reason,
                     increase_reason=increase_reason,
                     max_increase_w=max_increase, device_increase_limits=phase_device_limits,
+                    device_holds=device_holds, device_start_blocks=device_start_blocks,
+                    no_reclaim_ids=subordinate_ids, subordinate_ids=subordinate_ids,
                     reclaimable_w=getattr(self.wallbox_guard, "reclaimable_w", 0),
                     max_takeover_w=self.wallbox_settings["max_takeover_w"],
                     handover_s=self.wallbox_settings["handover_s"],
@@ -1307,6 +1428,11 @@ class SolarRuntime:
         if valid and 0 < dt <= max(30, self.settings["interval_s"] * 2) and not self.pending:
             self.energy_kwh += max(0, self.managed_w) * dt / 3_600_000
         imp_price, exp_price = self._economy_prices()
+        storage_present = bool(self.settings.get("battery_power_entity") or self.battery_fleet.configured)
+        self.electricity_cost.seed_legacy(self.ems_stats, local_now, imp_price, exp_price, storage_present)
+        self.electricity_cost.update(now=local_now, grid_w=grid if valid else None, pv_w=self.pv_w,
+            import_price=imp_price, export_price=exp_price, storage_present=storage_present,
+            max_gap_s=max(30, self.settings["interval_s"]*2))
         self.ems_stats = accounting_step(
             self.ems_stats, day=local_now.date().isoformat(), dt_s=dt,
             grid_w=grid if valid else None, pv_w=self.pv_w, managed_w=self.managed_w,
@@ -1395,8 +1521,12 @@ class SolarRuntime:
                                      self.last_issued_wall, self.wallbox_settings["handover_s"])
             self.note(f'{cfg["name"]}: gecontroleerd {action.reclaimed_w:.0f} W van autonoom laden overnemen; geen Wallbox-opdracht.')
         self.wallbox_guard.note_action(now, self.last_issued_wall, old_target, action.watts)
+        if self._per_device_wallbox_enabled() and follows_wallbox(cfg, self.others_first):
+            self.consumer_wallbox.note_action(now, self.last_issued_wall, i, old_target, action.watts, self.wallbox_guard.reading)
         self.pending = {"id": i, "watts": action.watts, "issued": now,
+                        "reason": action.reason,
                         "max_runtime": action.reason.startswith("Maximale looptijd")}
+        self.consumer_history.command(i, action.watts, action.reason)
         # Durable intent BEFORE any physical command, including an uncertain result.
         await self.store.async_save(self._snapshot())
         self.note(f'{cfg["name"]}: {action.watts:.0f} W aangevraagd — {action.reason}.')
@@ -1420,6 +1550,7 @@ class SolarRuntime:
                     await self._call(cfg["control_entity"], "turn_on" if action.watts else "turn_off")
         except (HomeAssistantError, TimeoutError, ValueError) as err:
             self.faults[i] = f"Opdrachtfout: {type(err).__name__}; controleer het toestel"
+            self.consumer_history.failure(i, self.faults[i])
             self.pending = None
             self.note(f'{cfg["name"]}: opdrachtuitkomst onzeker.')
             _LOGGER.warning("Command failed for %s: %s", cfg["name"], err)
@@ -1486,6 +1617,7 @@ class SolarRuntime:
                     s.start_since = None
                     if mode != "solar":
                         s.boost_until = 0
+                        s.manual_forced = False
             self.mode = mode
             self.note(f"Modus: {mode}.")
         await self.tick()
@@ -1521,6 +1653,42 @@ class SolarRuntime:
             self.note(f'{self.configs[device_id]["name"]}: boost {minutes} min aangevraagd; netverbruik toegestaan binnen de ingestelde grens.')
         await self.tick()
 
+    async def manual_start(self, device_id):
+        """Explicitly keep a consumer on until the user releases it or safety wins."""
+        async with self._lock:
+            if self.mode != "solar" or self.recovery:
+                raise HomeAssistantError("Manuele start vereist Zonnestroommodus en een afgeronde herstartcontrole")
+            if self.pending or self.handover:
+                raise HomeAssistantError("Wacht eerst tot de lopende SolarPilot-opdracht is afgerond")
+            cfg, st = self.configs[device_id], self.states[device_id]
+            active = self._active(cfg)
+            if active is None or st.fault or not st.interlock:
+                raise HomeAssistantError("Toestel kan niet veilig manueel worden gestart; controleer beschikbaarheid, vrijgave en fouten")
+            st.manual_forced = True
+            st.manual_stop_requested = False
+            st.manual_until = 0
+            # Explicit user confirmation replaces the normal solar start-delay,
+            # while min-off and software import limits remain enforced by engine.
+            st.start_since = time.monotonic() - float(cfg.get("start_delay_s", 0))
+            self.consumer_history.event(device_id, "Manuele start door gebruiker bevestigd")
+            self.note(f'{cfg["name"]}: manuele start bevestigd; normale veiligheids- en vermogensgrenzen blijven gelden.')
+            self.store.async_delay_save(self._snapshot, 1)
+        await self.tick()
+
+    async def manual_stop(self, device_id):
+        """Request release/off after the configured minimum run time."""
+        async with self._lock:
+            if self.pending or self.handover:
+                raise HomeAssistantError("Wacht eerst tot de lopende SolarPilot-opdracht is afgerond")
+            cfg, st = self.configs[device_id], self.states[device_id]
+            st.manual_forced = False
+            st.manual_stop_requested = bool(st.on and st.owned)
+            st.boost_until = 0
+            self.consumer_history.event(device_id, "Manuele stop/vrijgave door gebruiker bevestigd")
+            self.note(f'{cfg["name"]}: manuele stop/vrijgave bevestigd; minimale looptijd blijft gerespecteerd.')
+            self.store.async_delay_save(self._snapshot, 1)
+        await self.tick()
+
     async def cancel_boost(self, device_id):
         async with self._lock:
             self.states[device_id].boost_until = 0
@@ -1541,10 +1709,13 @@ class SolarRuntime:
             s.owned = False
             s.target_w = 0
             s.boost_until = 0
+            s.manual_forced = False
+            s.manual_stop_requested = False
             s.fault = ""
             s.manual_until = time.monotonic() + self.configs[device_id]["manual_hold_s"]
             self.device_modes[device_id] = "disabled"
             await self.store.async_save(self._snapshot())
+            self.consumer_history.event(device_id, "Expliciet handmatig overgenomen; GEEN uitschakelopdracht verzonden")
             self.note(f'{self.configs[device_id]["name"]}: expliciet handmatig overgenomen; GEEN uitschakelopdracht verzonden.')
         await self.tick()
 
@@ -1563,6 +1734,8 @@ class SolarRuntime:
                     self.states[i].target_w = 0
                     self.states[i].last_off = time.monotonic()
                     self.states[i].fault = ""
+                    self.states[i].manual_forced = False
+                    self.states[i].manual_stop_requested = False
             self.faults.clear()
             self.recovery.clear()
             self.reclaim_blocks.clear()
@@ -1590,9 +1763,12 @@ class SolarRuntime:
                 "target_w": round(self.result.targets.get(d.id, 0), 1),
                 "reason": self.result.reasons.get(d.id, "Initialiseren"),
                 "boost_seconds": max(0, int(s.boost_until - now)),
+                "manual_forced": bool(s.manual_forced),
+                "manual_stop_requested": bool(s.manual_stop_requested),
                 "manual_seconds": max(0, int(s.manual_until - now)),
                 "non_interruptible": d.non_interruptible,
                 "daily_runtime_s": round(s.daily_runtime_s, 1),
+                "history": self.consumer_history.brief(d.id),
                 "daily_energy_kwh": round(s.daily_energy_kwh, 4),
                 "min_daily_runtime_s": d.min_daily_runtime_s,
                 "max_daily_runtime_s": d.max_daily_runtime_s,
@@ -1600,6 +1776,8 @@ class SolarRuntime:
                 "deadline_urgent": s.deadline_urgent,
                 "deadline_grid_allowed": d.deadline_grid_allowed,
                 "allow_wallbox_reclaim": d.allow_wallbox_reclaim,
+                "wallbox_precedence": cfg.get("wallbox_precedence", "global"),
+                "wallbox_first": follows_wallbox(cfg, self.others_first),
                 "reclaim_block": self.reclaim_blocks.get(d.id, ""),
                 "time_window_enabled": bool(cfg.get("time_window_enabled", False)),
                 "time_window_start": cfg.get("time_window_start", "00:00:00"),
@@ -1615,6 +1793,8 @@ class SolarRuntime:
                 "mode_entity": self.entity_id("select", "mode", d.id),
                 "boost_entity": self.entity_id("button", "boost", d.id),
                 "cancel_entity": self.entity_id("button", "cancel_boost", d.id),
+                "manual_start_entity": self.entity_id("button", "manual_start", d.id),
+                "manual_stop_entity": self.entity_id("button", "manual_stop", d.id),
                 "status_entity": self.entity_id("sensor", "status", d.id),
                 "takeover_entity": self.entity_id("button", "takeover", d.id),
             })
@@ -1627,7 +1807,9 @@ class SolarRuntime:
             return
         s, cfg = self.states[t.device_id], self.configs[t.device_id]
         watts, stamp = self._power(cfg.get("power_entity"))
-        allowed = (self.mode == "solar" and self.others_first and s.enabled and s.demand and s.interlock
+        has_precedence = (self.others_first if not self._per_device_wallbox_enabled()
+                          else not follows_wallbox(cfg, self.others_first))
+        allowed = (self.mode == "solar" and has_precedence and s.enabled and s.demand and s.interlock
                    and battery_ready and reading.mode is not None
                    and reading.mode.casefold() in state_set(self.wallbox_settings["full_solar_states"])
                    and reading.age_s <= self.wallbox_settings["reclaim_max_age_s"])
@@ -1670,14 +1852,16 @@ class SolarRuntime:
                 return
             self.others_first = enabled
             self.wallbox_guard = self._make_wallbox_guard()
-            self._yield_to_wallbox = (not enabled and self.wallbox_settings["enabled"]
+            self._yield_to_wallbox = (not self._per_device_wallbox_enabled() and not enabled and self.wallbox_settings["enabled"]
                                       and any(s.owned for s in self.states.values()))
             for state in self.states.values():
                 state.start_since = None
             if self.handover:
                 self.handover.fail("Voorrang gewijzigd tijdens overname: eigen verhoging terugnemen")
             await self.store.async_save(self._snapshot())
-            self.note("Andere toestellen eerst; Wallbox neemt de rest." if enabled else
+            self.note(("Globale voorkeur bijgewerkt; afzonderlijke toestelkeuzes blijven leidend.")
+                      if self._per_device_wallbox_enabled() else
+                      "Andere toestellen eerst; Wallbox neemt de rest." if enabled else
                       "Wallbox eerst; eigen lasten worden veilig vrijgegeven.")
         await self.tick()
 

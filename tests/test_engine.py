@@ -298,3 +298,27 @@ def test_planner_cheap_grid_force_still_respects_grid_cap():
     assert p.action and p.action.watts==1000
     p=plan(site(700,max_import_w=1500),[dev()],{'a':State(planner_grid_force=True)})
     assert p.action is None
+
+
+def test_manual_force_can_start_with_grid_within_software_limit_even_when_excluded():
+    s = State(enabled=False, manual_forced=True)
+    p = plan(site(500, max_import_w=3500), [dev()], {"a": s})
+    assert p.action is not None and p.action.id == "a" and p.action.watts == 1000
+    assert "Manuele start" in p.action.reason
+
+
+def test_manual_force_keeps_running_during_normal_shortage_but_not_pause():
+    s = owned(manual_forced=True)
+    p = plan(site(500, max_import_w=3500), [dev()], {"a": s})
+    assert p.action is None and p.targets["a"] == 1000 and p.reasons["a"] == "Manueel actief"
+    p = plan(site(500, mode="paused", max_import_w=3500), [dev()], {"a": s})
+    assert p.action is not None and p.action.watts == 0
+
+
+def test_manual_stop_request_respects_minimum_runtime_then_stops_without_cloud_delay():
+    d = replace(dev(), min_on_s=300, stop_delay_s=900)
+    s = replace(owned(), manual_stop_requested=True, last_on=900)
+    assert plan(site(-3000), [d], {"a": s}).action is None
+    p = plan(replace(site(-3000), now=1301), [d], {"a": s})
+    assert p.action is not None and p.action.watts == 0
+    assert p.action.reason == "Manuele stop gevraagd"

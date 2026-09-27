@@ -1,8 +1,8 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.21
+**Versie:** 1.0.0-beta.26
 **Bijgewerkt:** 2026-09-27
-**Regel-hash:** `50e0e44935418409`
+**Regel-hash:** `94841a10284a82cc`
 
 Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en leerdata blijven lokaal in Home Assistant en worden bij gewone HACS-updates niet vervangen door programmabestanden.
 
@@ -17,7 +17,7 @@ Er wordt maximaal één gewone fysieke wijziging tegelijk uitgevoerd en daarna o
 - Eén actuator heeft maar één eigenaar.
 - Een EMS-berekening is geen elektrische beveiliging.
 - Onzekere opdrachten worden niet eindeloos herhaald.
-- Na een herstart begint SolarPilot conservatief en reconcilieert het de echte toesteltoestand.
+- Na een herstart leest SolarPilot eerst de echte toestelstatussen. Bekende aan/uit-toestanden worden automatisch gereconcilieerd en de eerder opgeslagen modus wordt hervat zonder oude schakelopdrachten te herhalen. Alleen een onbeschikbare of onzekere status vraagt nog handmatige controle.
 
 ## 2. Overschot, prioriteiten en planner
 
@@ -31,6 +31,8 @@ Per toestel kan naast minimumlooptijd een dagdoel in kWh worden ingesteld. Als e
 
 Voor beschermde niet-onderbreekbare cycli kan SolarPilot energie, duur en piekvermogen per programma lokaal bijleren wanneer een exclusieve vermogensmeter beschikbaar is. De planner plant zo'n cyclus als één aaneengesloten blok in plaats van losse kwartieren. Tot er voldoende complete cycli geleerd zijn, kan een expliciete fallback in kWh en minuten worden ingesteld. Zonder betrouwbaar duurprofiel wordt geen optimistische duur uit piekvermogen gegokt. De realtime regelaar controleert bij de echte start nog altijd actuele vermogensruimte en laat een gestarte beschermde cyclus afwerken. Zodra zo'n cyclus loopt, reserveert de planner het geschatte resterende cyclusverbruik in de horizon zodat andere flexlasten niet op reeds toegezegd vermogen worden gepland.
 
+Een vrijgegeven last zonder dagdoel, dagminimum of beschermde cyclus wordt niet door een leeg plannerdoel geblokkeerd, ook niet wanneer forecastuitstel is aangevinkt. De normale realtime overschotregeling blijft dan leidend.
+
 - Goedkope netfallback is dubbele opt-in en standaard UIT. Dynamische prijzen worden alleen gebruikt wanneer een bruikbare prijsreeks beschikbaar is. Tijdgestempelde reeksen worden op het echte planmoment uitgelijnd; gangbare today/tomorrow-profielen worden op het lokale uur of kwartier gelegd. Bij ontbrekende of ongeldige gegevens geldt de vaste prijsfallback.
 - Capaciteitstarief- en fasegrenzen blijven van toepassing als netstroom wordt toegestaan.
 - Aangeleerd toestelvermogen mag de planningsschatting alleen conservatiever, dus hoger, maken.
@@ -42,15 +44,30 @@ Voor beschermde niet-onderbreekbare cycli kan SolarPilot energie, duur en piekve
 
 ## 3. Wallbox Pulsar Max
 
-De Wallbox blijft volledig autonoom Full Solar regelen. SolarPilot leest laadvermogen, status en zonnemodus, maar schrijft geen laadstroom, zonnemodus, pauze, resume of start/stop naar de laadpaal.
+De Wallbox blijft volledig autonoom Full Solar regelen. SolarPilot leest laadvermogen, status, optioneel een aansluitsignaal en zonnemodus, maar schrijft geen laadstroom, laadfasen, zonnemodus, pauze, resume of start/stop naar de laadpaal.
 
-Andere toestellen voorrang staat standaard AAN. Geschikte SolarPilot-lasten mogen dan zonnevermogen gebruiken; de Wallbox ziet minder overschot en regelt zichzelf terug. Alleen een snel reagerende, onderbreekbare last met eigen actuele vermogensmeting mag bewust voor gecontroleerde Wallbox-overname worden vrijgegeven.
+Per verbruiker kies je Globale voorkeur volgen, Dit toestel eerst of Wallbox eerst; klein restoverschot benutten. Bestaande toestellen behouden Globale voorkeur volgen en de bestaande globale schakelaar. Afzonderlijke keuzes overschrijven die standaard. Numerieke prioriteiten rangschikken de toestellen binnen dezelfde groep.
 
-Wallbox-laadvermogen wordt nooit zomaar bij echte injectie opgeteld. Voor de 60 °C-boilerregel telt uitsluitend werkelijk gemeten injectie.
+Voor de slimme Wallbox-voorrang moet het werkelijke minimum zonnelaadvermogen bevestigd worden: bij Full Solar is dat vaak circa 1380 W voor eenfasig laden en 4140 W voor driefasig laden. Voor deze installatie staat de voorlopig bevestigde eenfasige Full Solar-drempel op 1380 W. De waarde blijft instelbaar wanneer de laadconfiguratie verandert; de huisaansluiting zegt niet hoeveel laadfasen de auto werkelijk gebruikt.
 
-- Wallbox blijft read-only vanuit SolarPilot.
-- Tijdelijke netafname tijdens Wallbox-terugregeling kan niet volledig worden uitgesloten.
-- Dezelfde Wallbox mag niet ook als generiek bestuurbaar SolarPilot-toestel worden toegevoegd.
+Zonder bevestigde laadvraag, bij afgekoppelde auto of een gemelde pauze, planning, blokkering of volle auto wordt geen zonnestartvermogen gereserveerd. Een aangesloten kabel alleen is geen laadvraag. Onbekende of te oude metingen worden niet als afwezigheid uitgelegd: nieuwe lagere starts wachten, bestaande compressorbeveiligingen blijven gelden.
+
+Zolang het overschot onder het laadminimum blijft, mogen lagere verbruikers gewone zonnestroom gebruiken. Om te bepalen of laden mogelijk wordt, kijkt SolarPilot naar netto-injectie plus huidig EV-verbruik en werkelijk gemeten vermogen van eigen lagere lasten dat door stoppen vrij kan komen, verminderd met batterijontlading. Dat denkbeeldig vrij te maken vermogen geeft nooit toestemming om een toestel te starten en verhoogt geen elektrische netgrens.
+
+Vanaf minimum plus standaard 150 W marge gedurende 120 seconden worden nieuwe lagere starts tegengehouden en krijgen eigen lagere lasten een veilige stop. Beschermde cycli en minimumlooptijd blijven voorgaan. Een compressor met 30 minuten minimumlooptijd mag dus eerst afwerken; de Wallbox kan hierdoor later starten. Na die bescherming hoeft niet nog de gewone 15-minuten-wolkenbuffer te worden afgewacht: die buffer geldt voor energietekort, niet voor deze stabiel bevestigde voorrangsoverdracht.
+
+Na werkelijk vrijgeven krijgt de Wallbox standaard maximaal 10 minuten om autonoom te starten. Start de auto niet, dan komen de lagere lasten weer in aanmerking en volgt pas na 30 minuten een nieuwe poging. Bij langdurig minder dan het minimum minus 300 W gedurende 5 minuten wordt de startreserve eveneens vrijgegeven. De eigen startvertraging en minimumrust blijven altijd van toepassing.
+
+Tijdens laden mogen lagere lasten alleen stabiel daadwerkelijk restoverschot benutten. Een mogelijke vermogensdaling van de EV na een lagere inschakeling leidt tot veilige terugname van die lagere last; dit signaal bewijst geen causaliteit. Cloudvertraging en bewolking kunnen de reactie vertragen. Er worden geen extra cloudaanvragen gedaan.
+
+Een lagere last mag geen Wallbox-vermogen terugnemen. Voor toestellen die zelf voorrang hebben blijft gecontroleerde vermogensovername apart opt-in en alleen bedoeld voor snel reagerende, gemeten, onderbreekbare lasten. Handmatige boost en expliciete urgente comfort-/dagminimumtoestemming zijn geen gewone zonneprioriteit; de elektrische en toestelgrenzen blijven gelden.
+
+Voor de 60 graden-boilerregel telt uitsluitend werkelijk gemeten injectie. Deze nieuwe voorkeur per gewone verbruiker verandert geen Panasonic-doelen, sterilisatie of batterijregeling.
+
+- Wallbox en actieve laadfasen blijven uitsluitend-lezen vanuit SolarPilot.
+- Vrij overschot wordt nooit kunstmatig verhoogd met EV-watts.
+- Automatische voorrang garandeert geen nul netafname of onmiddellijke laadstart.
+- Een eigen exclusieve vermogensmeter is nodig om lager toestelvermogen als vrij te geven vermogen mee te rekenen.
 
 ## 4. Panasonic warm water
 
@@ -95,12 +112,15 @@ SolarPilot kan nu batterijscenario's analyseren en is voorbereid op één of mee
 
 Per batterij zijn capaciteit, SoC, werkelijk batterijvermogen, reserve-SoC, laad-/ontlaadlimieten, fasehint en adaptertype voorzien. Fysieke bediening vereist globale toestemming én individuele toestemming én bevestiging dat SolarPilot de exclusieve externe setpoint-eigenaar is.
 
-Standaard is laden uit het net UIT en ontladen naar het net UIT. Een batterijopdracht moet door gemeten batterijvermogen worden bevestigd; bij ontbrekende bevestiging wordt het profiel geblokkeerd voor controle.
+Standaard is laden uit het net UIT en ontladen naar het net UIT. Een batterijopdracht moet door gemeten batterijvermogen worden bevestigd; bij ontbrekende bevestiging wordt het profiel geblokkeerd voor controle. De minimale tijd tussen batterijopdrachten geldt pas nadat werkelijk een eerdere batterijopdracht is verzonden; een verse runtime wordt dus niet afhankelijk van systeem-uptime kunstmatig geblokkeerd.
+
+De batterij-what-if rekent standaard met 80% round-trip efficiëntie, dus 20% totaal batterij-/omvormerverlies over laden en later terugleveren aan de woning. De simulator verdeelt dit verlies symmetrisch over laden en ontladen. Historische bootstrapresultaten die oorspronkelijk met een andere efficiëntie zijn opgebouwd, worden conservatief naar de ingestelde efficiëntie omgerekend; voor een exacte historische herberekening zouden de private 15-minutenbronnen nodig zijn.
 
 - Loads first is de standaardstrategie voor deze installatie.
 - Read-only, peak shaving en hybrid zijn ook voorzien.
 - Bij meerdere batterijen wordt standaard bij laden de laagste SoC en bij ontladen de hoogste SoC eerst gebruikt.
 - De historische batterijsimulatie is een technische what-if en geen aankoop- of terugverdiengarantie.
+- Standaardverlies in de what-if: 20% totaal round-trip (80% efficiëntie); dit blijft instelbaar.
 
 ## 8. Slim verwarmen en koelen: Panasonic beslist HEAT/COOL
 
@@ -135,6 +155,16 @@ Dag-KPI's voor import, export, PV, zelfconsumptie, geregeld verbruik en indicati
 
 Een toekomstige batterij kan naast zelfconsumptie ook voor peak shaving worden geëvalueerd, maar fabrikantbeveiligingen, zekeringen en de echte netaansluiting blijven leidend.
 
+De bestaande Geschatte energiekost op Planning blijft de netto raming voor de komende ingestelde horizon (standaard 36 uur), niet de kost van vandaag. Per planblok wordt netafname na aftrek van lokale PV berekend; injectievergoeding wordt al van de afnamekost afgetrokken. De aparte uitsplitsing toont verwachte netafnamekost, injectievergoeding en lokale zon.
+
+Elektriciteitskost vandaag is een apart gemeten-tot-nu-toe-overzicht op Overzicht, Planning en Energie: netafname in kWh en euro, injectie in kWh en vergoeding, rechtstreeks gebruikte PV in kWh en vermeden netaankoop, en de netto dagkost. De formule is uitsluitend netafnamekost min injectievergoeding. Eigen PV verlaagt al de netafname en wordt niet nogmaals als korting van dat resultaat afgetrokken.
+
+Dagkosten worden opgebouwd uit geldige P1/PV-vermogenmetingen en de dan ingestelde import- en exportprijs. Negatieve prijzen en netto negatieve dagkosten blijven zichtbaar. Tariefwijzigingen prijzen eerder gemeten energie niet opnieuw. De teller gebruikt de lokale datum en behoudt dagtotalen over herstarts; uitgevallen of onbekende meetperioden worden niet verzonnen en staan als onvolledige meetdekking vermeld.
+
+Bij de eerste update worden bestaande SolarPilot-dagtotalen eenmalig overgenomen en gewaardeerd tegen de op dat moment ingestelde tarieven. Die voorhistorie krijgt een expliciet schattingslabel; daarna worden prijzen per meetinterval verwerkt. Zonder ingeschakelde prijskoppeling wordt geen fictieve kost van nul euro getoond.
+
+Rechtstreeks PV-verbruik kan zonder batterij uit productie en export worden geschat. Bij een gekoppelde thuisbatterij wordt dit niet ten onrechte als bewezen direct zonneverbruik getoond; netkosten blijven wel bruikbaar. De eurobedragen zijn variabele energiekosten volgens de ingestelde tarieven, exclusief vaste kosten, het capaciteitstarief, aanschaf en onderhoud; geen factuurgarantie.
+
 ## 10. Leren: wat wel en niet automatisch verandert
 
 SolarPilot leert lokaal en verklaarbaar. Het herschrijft zijn eigen code niet en gebruikt geen externe AI-dienst voor de regeling.
@@ -160,11 +190,15 @@ De eerste ingebruikname gebeurt gecontroleerd: eerst SolarPilot in Observatie co
 
 SolarPilot gebruikt één Configuratiecentrum in plaats van een lange lijst losse functies. De instellingen zijn gegroepeerd als Overzicht, Energie & net, Verbruikers & prioriteiten, Comfort & warmtepomp, Opslag & laden, Voorspellen & optimaliseren en Geavanceerd & systeem.
 
-De publieke HACS-release bevat bewust geen woning- of installatie-specifieke entity_id's. Wie geen privébundel gebruikt, kiest de net- en optionele PV-bron en overige koppelingen expliciet via Home Assistant. Wie wel een privébundel gebruikt, plaatst één lokaal bestand in de door HACS bewaarde userfiles-map; SolarPilot vult daarmee alleen nog lege, bestaande bronkoppelingen in. Ontbrekende entiteiten worden overgeslagen en later opnieuw geprobeerd. Dezelfde bundel kan de geaggregeerde historische bootstrap bevatten. Import schakelt nooit fysieke klimaatbediening, fase-afbouw of boilerregeling vrij en de runtime start altijd in Observatie.
+De publieke HACS-release bevat bewust geen woning- of installatie-specifieke entity_id's. Wie geen privébundel gebruikt, kiest de net- en optionele PV-bron en overige koppelingen expliciet via Home Assistant. Wie wel een privébundel gebruikt, plaatst één lokaal bestand in de door HACS bewaarde userfiles-map; SolarPilot vult daarmee alleen nog lege, bestaande bronkoppelingen in. Ontbrekende entiteiten worden overgeslagen en later opnieuw geprobeerd. Dezelfde bundel kan de geaggregeerde historische bootstrap bevatten. Import schakelt nooit fysieke klimaatbediening, fase-afbouw of boilerregeling vrij. Een eerste installatie begint veilig in Observatie; na latere Home Assistant-herstarts wordt de opgeslagen modus alleen hervat nadat de actuele toestelstatussen automatisch zijn gereconcilieerd.
 
 De basispagina's tonen alleen de instellingen die je normaal nodig hebt. Timing, faseherkenning en Wallbox-herkenningsdetails staan bewust onder Geavanceerd. De onderliggende option-keys en regelalgoritmen blijven compatibel met bestaande instellingen.
 
 De dashboardkaart gebruikt dezelfde mentale structuur met zeven tabbladen: Overzicht, Verbruikers, Comfort, Planning, Energie, Opslag en Uitleg. Moduskeuze en belangrijke waarschuwingen blijven altijd bovenaan zichtbaar. In Planning staan nu naast de horizon ook planfouten, uitvoeringstreffer, beschermde cyclusprofielen en recente what-if-replay. Daardoor hoeft niet alle telemetrie tegelijk in één lange kaart te staan.
+
+Op mobiele schermen bevat het SolarPilot-paneel een eigen menuknop die het normale Home Assistant-zijmenu opent; op desktop blijft de bestaande Home Assistant-navigatie ongewijzigd.
+
+Een verbruiker die fysiek aan staat krijgt een duidelijke AAN-status en visueel accent. SolarPilot onderscheidt daarbij eigen beheer, externe activiteit en een expliciete manuele start. Via Manueel starten kan de gebruiker na bevestiging bewust netstroom gebruiken binnen de softwaregrenzen; de manuele toestand kan daarna weer worden vrijgegeven zonder minimale looptijd of andere beveiligingen te omzeilen.
 
 De tab Comfort bevat voor slim klimaat nu vier samenhangende delen: instellingen, bevindingen/leerresultaten, meldingen en uitleg. Iedere klimaatinstelling uit het regelmodel is rechtstreeks wijzigbaar in Home Assistant. Bij elk veld staat een korte uitleg, een aanbevolen uitgangspunt en in gewone taal wat een lagere/hogere waarde of Aan/Uit betekent. Voor het opslaan toont SolarPilot nogmaals het advies en de verwachte gevolgen.
 
@@ -173,7 +207,10 @@ De tab Comfort bevat voor slim klimaat nu vier samenhangende delen: instellingen
 - Batterijprofiel en batterijbediening zijn gescheiden zodat read-only gebruik geen bedieningsvelden toont.
 - Slim klimaat, fasebewaking en Wallbox hebben een korte basispagina en een aparte geavanceerde pagina.
 - Dagelijkse bediening en klimaatfijnafstemming blijven op het dashboard; Configureren is vooral bedoeld voor koppelingen en hoofdregels.
+- De dashboardkaart bewaart opengeklapte secties tijdens live telemetrie-updates. De Uitleg-weergave wordt niet opnieuw opgebouwd wanneer alleen niet-zichtbare realtime meetwaarden wijzigen, zodat lezen en scrollen niet om de paar seconden worden onderbroken.
 - Er bestaan geen verborgen klimaat-tuningwaarden zonder dashboarduitleg: iedere SMART_CLIMATE-instelling heeft één catalogusitem met betekenis, advies, gevolg en aanbevolen standaard.
+- Iedere flexlast heeft in de tab Verbruikers een Dagoverzicht-popup voor de eigen draaitijd, sessies en beslisredenen; de popup blijft open tijdens live telemetrie-updates.
+- Manuele start is een expliciete gebruikersoverride met bevestiging. Pauze en harde veiligheids-/vermogensgrenzen blijven hoger staan; een manuele stop/vrijgave respecteert de ingestelde minimale looptijd.
 
 ## 13. Eenvoudige installatie en volledige verwijdering
 
@@ -184,12 +221,34 @@ Voor verwijderen bestaat een veilige voorbereidingsactie. SolarPilot gaat naar P
 Wanneer SolarPilot 'Verwijderen gereed' meldt, verwijder je eerst de SolarPilot-configuratie-entry via Apparaten & diensten. Daarbij wist SolarPilot zijn eigen leer-/runtime-opslag, services, melding en zijbalkpaneel. Onderliggende P1-, Panasonic-, Wallbox-, Shelly- en andere Home Assistant-entiteiten worden nooit verwijderd. Verwijder daarna SolarPilot in HACS en herstart Home Assistant; HACS beheert dan ook de programmabestanden onder custom_components.
 
 - Installatie via HACS: repository één keer toevoegen, SolarPilot downloaden, herstarten en daarna via de Home Assistant-UI configureren; een lokale privébundel is optioneel en wordt nooit via GitHub verspreid.
+- Updates zijn cumulatief: tussenliggende beta-versies hoeven niet één voor één geïnstalleerd of gepubliceerd te worden. De nieuwste release bevat de voorgaande codefixes; Home Assistant-configuratie, userfiles en lokale leerdata blijven bij een gewone HACS-update behouden.
 - Geen aparte /config/www/solar-pilot-card.js of dashboardresource nodig.
 - Verwijderen voorbereiden is veilig en weigert 'gereed' te melden zolang SolarPilot nog een toestel, boiler, batterijopdracht of coasttoestand bezit.
 - De verwijderactie wist uitsluitend SolarPilot-eigen data en raakt de gekoppelde apparaten/integraties niet aan.
 - Bij HACS-installatie beheert HACS ook updates en het verwijderen van de programmabestanden; een handmatige mapverwijdering is normaal niet nodig.
+- De eigen dag-/sessiehistoriek van verbruikers wordt eveneens behouden bij gewone updates en verwijderd bij definitieve verwijdering van de SolarPilot-configuratie-entry.
 
-## 14. Release- en documentatieregel
+## 14. Dagoverzicht en draaitijd per verbruiker
+
+Open het SolarPilot-dashboard → Verbruikers en klik bij een toestel op Dagoverzicht. De knop toont ook de geregistreerde draaitijd van vandaag. De aparte, uitsluitend uitlezende popup toont per gekozen dag de totale aan-/actieve tijd, het aantal bevestigde starts en stops, een tijdlijn en de afzonderlijke sessies. Met de datumkiezer of de balkjes van 7/30 dagen kies je een eerdere dag.
+
+Per sessie worden begin, einde, duur, startreden en stopreden bijgehouden. Een bevestigde SolarPilot-opdracht krijgt de werkelijk geregistreerde beslisreden, bijvoorbeeld voldoende overschot, aanhoudend tekort, Pauze, een taaklimiet of Wallbox-voorrang. Een aangevraagde of mislukte opdracht alleen is geen succesvolle start. Externe wijzigingen worden apart gemarkeerd; zonder verdere broninformatie wordt geen specifieke gebruiker of automatisering als oorzaak verzonnen.
+
+Draaitijd betekent hier de waargenomen aan-/actiefstatus van de geconfigureerde statusbron. Bij een slimme stekker is dat de tijd dat de stekker aan staat, niet noodzakelijk de tijd dat de compressor ononderbroken draait. Het tijdstip volgt het meetritme (standaard 5 seconden) en is geen milliseconde-nauwkeurige fysieke startmeting. Deze registratie verandert geen compressor-minimumtijden, prioriteiten of schakeltoestemmingen.
+
+Een al ingeschakeld toestel bij het begin van registratie krijgt begin onbekend. Herladen, herstarten, onbeschikbare status of een te groot meetgat beëindigen alleen de waarnemingsperiode, niet het fysieke toestel. De popup markeert die onderbreking en telt onbekende tijd niet mee. Een sessie over middernacht wordt per lokale kalenderdag opgesplitst; zomer-/wintertijd kan een dag 23 of 25 uur maken.
+
+De registratie begint na installatie van de versie met deze functie. Eerdere start-/stopredenen worden niet uit forecasts, algemene leerdata of oude dagtotalen gereconstrueerd. Een eerste of onvolledig gemeten dag wordt expliciet als onvolledig getoond. De geregistreerde sessies blijven bewaard bij gewone updates en herstarts; ontbrekende tijd tijdens stilstand blijft onbekend.
+
+De popup blijft open tijdens live dashboardupdates en bewaart de gekozen dag, scrollpositie en open details. De volledige sessielijst wordt pas opgevraagd bij openen, datumwissel of vernieuwen, en periodiek zolang de popup open is. In de gewone vijfsecondenstatus staat alleen een compacte dagsamenvatting; er komen geen extra cloudverzoeken of apparaatopdrachten bij.
+
+- Historiek blijft lokaal in eigen Home Assistant-opslag, per verbruiker maximaal 30 kalenderdagen. Per verbruiker worden maximaal 2000 sessies en 300 aanvullende gebeurtenissen bewaard. Wanneer de detailgrens is bereikt, blijven de dagtotalen staan en wordt de onvolledigheid van de sessiedetails gemeld.
+- Schrijven naar opslag gebeurt gebundeld: bij veranderingen en ongeveer iedere minuut tijdens doorlopende registratie, niet bij elke vijfsecondenmeting. Bij een abrupte stroomuitval kan het nog niet opgeslagen laatste stukje ontbreken; dat wordt niet achteraf als zekere draaitijd aangevuld.
+- De historiek wordt ook uitlezend bijgehouden in Observatie of bij externe bediening, zolang de gekoppelde statusbron beschikbaar is. Dit neemt een extern gestart toestel niet over.
+- De popup gebruikt de bestaande Home Assistant-verbinding en leesrechten. Het openen, kiezen van een dag en verversen kan geen toestel schakelen. Na sluiten stopt de aparte popup-verversing.
+- Normale HACS-updates behouden de nieuwe historiek. Bij definitief verwijderen van de SolarPilot-configuratie-entry wordt uitsluitend de eigen historieopslag samen met de andere SolarPilot-data gewist; de gekoppelde apparaten blijven bestaan.
+
+## 15. Release- en documentatieregel
 
 Deze actuele uitleg is onderdeel van de release zelf. Dezelfde inhoud wordt als Markdown meegeleverd én in Home Assistant getoond. Een releasecontrole faalt wanneer versie of gegenereerde uitleg niet overeenkomt met de integratieversie.
 

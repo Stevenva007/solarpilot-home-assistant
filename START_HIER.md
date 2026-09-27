@@ -2,6 +2,9 @@
 
 Dit is de aanbevolen eerste installatie.
 
+
+> **Updates zijn cumulatief.** Je hoeft tussenliggende beta-versies niet één voor één te installeren of publiceren. Installeer de nieuwste release over je bestaande SolarPilot-installatie; Home Assistant-configuratie en lokale leerdata blijven behouden.
+
 ## 1. Vooraf
 
 - Maak een volledige Home Assistant-back-up.
@@ -43,3 +46,7 @@ Activeer eerst één niet-kritieke, goed meetbare flexlast. Breid pas daarna toe
 ## 6. Uitleg
 
 De enige actuele regelbeschrijving is `docs/ACTUELE_WERKING.md` en dezelfde inhoud staat in Home Assistant onder SolarPilot → Uitleg.
+
+## Dagoverzicht bekijken
+
+In **SolarPilot → Verbruikers** staat bij ieder toestel **Dagoverzicht**. De popup toont geregistreerde draaitijd per dag, begin/einde per sessie en de bevestigde SolarPilot-redenen of een expliciete melding van externe/onbekende bediening. De registratie begint na installatie van deze functie; gewone updates behouden de gegevens. Een slimme stekker registreert ingeschakelde tijd, niet vanzelf afzonderlijke compressorcycli. Zie `docs/ACTUELE_WERKING.md` voor meetdekking, opslaggrenzen en details.

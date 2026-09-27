@@ -128,13 +128,13 @@ attributes = {
             "L1 max W":{"p95_import_w":1223,"max_import_w":3271},
             "L2 max W":{"p95_import_w":1192,"max_import_w":6238},
             "L3 max W":{"p95_import_w":2876.55,"max_import_w":6498}}},
-        "battery_analysis": {"enabled": True, "advisory_only": True, "roundtrip_efficiency": .90, "reserve_pct": 0,
+        "battery_analysis": {"enabled": True, "advisory_only": True, "roundtrip_efficiency": .80, "reserve_pct": 0,
             "seed_period":{"start":"2026-05-01T00:00:00","end":"2026-09-20T23:45:00","days":142.99},
             "scenarios":[
-                {"capacity_kwh":5,"power_kw":5,"avoided_import_kwh":813.1,"used_export_kwh":903.4},
-                {"capacity_kwh":10,"power_kw":5,"avoided_import_kwh":1262.0,"used_export_kwh":1402.2},
-                {"capacity_kwh":15,"power_kw":5,"avoided_import_kwh":1522.2,"used_export_kwh":1691.3},
-                {"capacity_kwh":20,"power_kw":5,"avoided_import_kwh":1663.4,"used_export_kwh":1848.2}],
+                {"capacity_kwh":5,"power_kw":5,"avoided_import_kwh":722.8,"used_export_kwh":903.4},
+                {"capacity_kwh":10,"power_kw":5,"avoided_import_kwh":1121.8,"used_export_kwh":1402.2},
+                {"capacity_kwh":15,"power_kw":5,"avoided_import_kwh":1353.1,"used_export_kwh":1691.3},
+                {"capacity_kwh":20,"power_kw":5,"avoided_import_kwh":1478.6,"used_export_kwh":1848.2}],
             "note":"What-if op werkelijk gemeten import/export. Geen batterijbediening, degradatie-, financierings- of wintergarantie."},
         "battery_fleet": {
             "enabled": True, "control_enabled": False, "strategy": "loads_first",
@@ -436,6 +436,29 @@ attributes = {
         },
     },
 }
+
+# Fictitious beta.24 display fixtures; not read from household data.
+attributes["ems"]["electricity_today"] = {
+    "date": "2026-09-27", "basis": "gemeten tot nu toe", "partial": False,
+    "import_kwh": 10, "export_kwh": 6, "pv_kwh": 11, "direct_pv_kwh": 5,
+    "import_cost_eur": 3, "export_revenue_eur": .18, "net_cost_eur": 2.82,
+    "pv_avoided_cost_eur": 1.5, "coverage_pct": 100,
+    "coverage_note": "Vandaag tot nu toe; fictieve voorbeeldmetingen",
+    "solar_note": "Directe zon is al verwerkt in de lagere netafname.",
+    "note": "Netafnamekost min injectievergoeding; eigen zon niet nogmaals aftrekken. Exclusief vaste kosten en capaciteitstarief.",
+}
+attributes["ems"]["planner"]["cost_breakdown"] = {
+    "import_cost_eur": 1.56, "export_revenue_eur": .38, "net_cost_eur": 1.18,
+    "includes_pv_and_export": True,
+}
+attributes["wallbox"]["per_device_priority"] = True
+attributes["wallbox"]["priority_min_power_w"] = 4140
+attributes["wallbox"]["consumer_priority"] = {
+    "state": "yield", "reason": "Genoeg voor Wallbox: lagere lasten vrijgeven na hun minimumlooptijd",
+    "minimum_w": 4140, "potential_w": 4350, "block_starts": True, "yield_loads": True,
+}
+attributes["devices"][0]["wallbox_first"] = True
+attributes["devices"][0]["wallbox_precedence"] = "wallbox_first"
 
 html = f'''<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SolarPilot {guide_mod.GUIDE_VERSION} Control Center voorbeeld</title><style>body{{margin:0;padding:18px;background:#f3f5f7;max-width:520px;margin-inline:auto}}solar-pilot-card{{display:block}}</style></head><body><solar-pilot-card></solar-pilot-card><script>{card}</script><script>
 const attributes = {json.dumps(attributes, ensure_ascii=False)};

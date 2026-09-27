@@ -9,6 +9,8 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.storage import Store
 
 from .frontend import async_register_frontend, async_unregister_frontend
+from .consumer_history_api import async_register_history_api
+from .consumer_history_runtime import history_storage_key
 from .private_bundle import build_private_import, delete_private_files_if_requested, load_private_bundle
 from .historical import load_bundled_seed
 
@@ -72,6 +74,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             registry.async_remove(ent.entity_id)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await runtime.start()
+    async_register_history_api(hass)
     try:
         await async_register_frontend(hass)
     except Exception:  # Frontend convenience must never disable the EMS core.
@@ -133,6 +136,7 @@ async def async_unload_entry(hass, entry):
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Remove SolarPilot-owned persistent data after the config entry is deleted."""
     await Store(hass, 1, f"{DOMAIN}.{entry.entry_id}").async_remove()
+    await Store(hass, 1, history_storage_key(entry.entry_id)).async_remove()
     # Remove SolarPilot-owned optional private profile/bootstrap when the private
     # bundle opted into deletion. Underlying Home Assistant integrations and
     # devices are never touched.

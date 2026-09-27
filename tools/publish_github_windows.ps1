@@ -8,7 +8,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Version = "1.0.0-beta.21"
+$Version = "1.0.0-beta.24"
 $Description = "SolarPilot - local Home Assistant EMS for PV surplus, flexible loads, heat pumps, EV charging coexistence and batteries."
 $Topics = @("home-assistant", "hacs", "energy-management", "ems", "solar", "photovoltaics", "heat-pump", "battery")
 

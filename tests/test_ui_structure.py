@@ -61,3 +61,32 @@ def test_climate_dashboard_exposes_all_settings_with_advice_and_consequences():
     assert 'Bevindingen & leren' in text
     assert 'Meldingen' in text
     assert 'hoe SolarPilot deze klimaatbeslissing maakt' in text
+
+
+def test_live_dashboard_refresh_preserves_open_sections_and_avoids_guide_churn():
+    assert '_captureUiState' in CARD
+    assert '_restoreUiState' in CARD
+    assert '_viewRenderSignature' in CARD
+    assert 'this._view!=="guide"' in CARD
+    assert '.view{animation:' not in CARD
+
+
+def test_beta26_mobile_menu_and_manual_consumer_controls_are_visible():
+    assert "hass-toggle-menu" in CARD
+    assert "mobile-menu" in CARD
+    assert "Home Assistant-menu openen" in CARD
+    assert "Manueel starten" in CARD
+    assert "Manueel stoppen" in CARD
+    assert "manual_start_entity" in CARD and "manual_stop_entity" in CARD
+
+
+def test_beta26_active_consumers_have_clear_visual_state_badges():
+    for text in ("AAN · SOLARPILOT", "AAN · EXTERN", "MANUEEL", "VERBRUIKT"):
+        assert text in CARD
+    assert ".device.on" in CARD
+    assert ".runstate.active" in CARD
+
+
+def test_beta26_battery_what_if_shows_roundtrip_loss_assumption():
+    assert "roundtrip_loss_pct" in CARD
+    assert "% totaal round-trip verlies" in CARD

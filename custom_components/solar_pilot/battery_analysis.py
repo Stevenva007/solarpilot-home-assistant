@@ -11,7 +11,7 @@ import math
 BATTERY_ANALYSIS_DEFAULTS = {
     "enabled": True,
     "seed_enabled": True,
-    "roundtrip_efficiency": 0.90,
+    "roundtrip_efficiency": 0.80,
     "reserve_pct": 0.0,
     "capacities_kwh": [5.0, 10.0, 15.0, 20.0],
     "powers_kw": [3.0, 5.0, 10.0],
@@ -45,6 +45,16 @@ class BatteryOpportunitySimulator:
         old = self.scenarios
         self.scenarios = {}
         seed_rows = {}
+        target_rte = max(0.50, min(1.0, float(self.settings.get("roundtrip_efficiency", 0.80))))
+        seed_rte = _finite(self.seed.get("battery_upper_bound", {}).get("round_trip_efficiency"))
+        if seed_rte is None or not 0.50 <= seed_rte <= 1.0:
+            seed_rte = target_rte
+        # Historical bundles contain aggregate scenario results rather than raw
+        # 15-minute intervals. When their original efficiency differs, scale the
+        # delivered AC energy conservatively so the configured round-trip loss is
+        # also reflected in the historical part of the what-if. Exact re-simulation
+        # would require the private high-resolution source data.
+        historical_delivery_scale = min(1.0, target_rte / seed_rte)
         if self.settings.get("seed_enabled", True):
             for row in self.seed.get("battery_upper_bound", {}).get("scenarios", []):
                 try:
@@ -66,7 +76,7 @@ class BatteryOpportunitySimulator:
                     "soc_kwh": min(c, max(0.0, float(prior.get("soc_kwh", 0) or 0))),
                     "live_avoided_import_kwh": max(0.0, float(prior.get("live_avoided_import_kwh", 0) or 0)),
                     "live_used_export_kwh": max(0.0, float(prior.get("live_used_export_kwh", 0) or 0)),
-                    "historical_avoided_import_kwh": max(0.0, float(seed.get("avoided_import_kwh", 0) or 0)),
+                    "historical_avoided_import_kwh": max(0.0, float(seed.get("avoided_import_kwh", 0) or 0)) * historical_delivery_scale,
                     "historical_used_export_kwh": max(0.0, float(seed.get("used_export_kwh", 0) or 0)),
                 }
 
@@ -166,6 +176,8 @@ class BatteryOpportunitySimulator:
             "enabled": bool(self.settings.get("enabled", True)), "advisory_only": True,
             "existing_battery_detected": bool(existing_battery),
             "roundtrip_efficiency": float(self.settings["roundtrip_efficiency"]),
+            "roundtrip_loss_pct": round((1.0 - float(self.settings["roundtrip_efficiency"])) * 100.0, 1),
+            "seed_roundtrip_efficiency": _finite(self.seed.get("battery_upper_bound", {}).get("round_trip_efficiency")),
             "reserve_pct": float(self.settings.get("reserve_pct", 0)),
             "seed_period": {"start": source.get("homewizard_start"), "end": source.get("homewizard_end"),
                             "days": self.seed.get("grid", {}).get("period_days"),
@@ -174,5 +186,5 @@ class BatteryOpportunitySimulator:
             "live_import_kwh": round(self.live_import_kwh, 3), "live_export_kwh": round(self.live_export_kwh, 3),
             "scenarios": scenarios, "capacity_increment_5kw": increments,
             "note": ("Bestaande batterij gedetecteerd: de simulatie beschrijft alleen een extra batterij bovenop het actuele netprofiel."
-                     if existing_battery else "What-if op werkelijk gemeten import/export. Geen batterijbediening, degradatie-, financierings- of wintergarantie."),
+                     if existing_battery else "What-if op werkelijk gemeten import/export. De ingestelde round-trip efficiëntie verwerkt laad/ontlaad- en omvormerverliezen; geen batterijbediening, degradatie-, financierings- of wintergarantie."),
         }

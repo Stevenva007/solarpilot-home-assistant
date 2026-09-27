@@ -1,7 +1,7 @@
 """SolarPilot constants. No network or third-party Python dependencies."""
 DOMAIN = "solar_pilot"
 NAME = "SolarPilot"
-VERSION = "1.0.0-beta.21"
+VERSION = "1.0.0-beta.26"
 PLATFORMS = ["sensor", "binary_sensor", "select", "number", "button", "switch"]
 MODES = ["observe", "solar", "paused"]
 DEVICE_MODES = ["auto", "disabled"]
@@ -30,4 +30,5 @@ DEVICE_DEFAULTS = {
     "cycle_duration_min": 0.0, "cycle_program": "standaard",
     "cycle_program_entity": "",
     "phase_hint": "auto",
+    "wallbox_precedence": "global",
 }

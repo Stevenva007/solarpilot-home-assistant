@@ -13,3 +13,7 @@ secrets.yaml
 # SolarPilot private persistent data — never commit
 custom_components/solar_pilot/userfiles/*
 !custom_components/solar_pilot/userfiles/.gitkeep
+
+# Offline browser-preview output (rebuild with tools/build_example.py)
+/SolarPilot-voorbeeld.html
+/SolarPilot-*.png

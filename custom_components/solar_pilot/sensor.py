@@ -1,8 +1,17 @@
 """Native telemetry and human-readable SolarPilot decisions."""
+from datetime import datetime, timezone
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 from homeassistant.helpers.entity import EntityCategory
 from .entity import SolarEntity
 from .current_guide import CURRENT_GUIDE, GUIDE_HASH, GUIDE_VERSION, GUIDE_UPDATED
+
+
+COST_SENSORS = {
+    "electricity_cost_today": ("Elektriciteitskost vandaag netto", "net_cost_eur"),
+    "electricity_import_cost_today": ("Netafnamekost vandaag", "import_cost_eur"),
+    "electricity_export_revenue_today": ("Injectievergoeding vandaag", "export_revenue_eur"),
+    "electricity_pv_avoided_today": ("Vermeden netaankoop door zon vandaag", "pv_avoided_cost_eur"),
+}
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -12,6 +21,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         ("managed", "Geregeld vermogen"), ("energy", "Geregeld verbruik indicatief"), ("learning", "Leerstatus"),
         ("ems_status", "EMS status"), ("guide", "Actuele uitleg"), ("ems_solar_today", "EMS zonne-energie vandaag"),
         ("ems_value_today", "EMS geschatte waarde vandaag"), ("ems_self_consumption", "Zelfconsumptie vandaag")]]
+    entities += [SolarSensor(r, key, name) for key, (name, _) in COST_SENSORS.items()]
     if r.capacity_settings["enabled"]:
         entities += [SolarSensor(r, "capacity_status", "Kwartierpiek regeling"),
                      SolarSensor(r, "capacity_limit", "Kwartierpiek toegestane netafname"),
@@ -67,7 +77,12 @@ class SolarSensor(SolarEntity, SensorEntity):
             "local_pv_corrected_power", "phase_l1_known", "phase_l2_known", "phase_l3_known",
             "phase_l1_residual", "phase_l2_residual", "phase_l3_residual", "battery_fleet_power",
         }
-        if suffix in power_suffixes:
+        if suffix in COST_SENSORS:
+            self._attr_native_unit_of_measurement = "EUR"
+            self._attr_device_class = SensorDeviceClass.MONETARY
+            self._attr_state_class = SensorStateClass.TOTAL
+            self._attr_suggested_display_precision = 2
+        elif suffix in power_suffixes:
             self._attr_native_unit_of_measurement = "W"
             self._attr_device_class = SensorDeviceClass.POWER
             self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -97,12 +112,21 @@ class SolarSensor(SolarEntity, SensorEntity):
         if suffix == "guide":
             self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
+    @property
+    def last_reset(self):
+        if self.suffix not in COST_SENSORS or self.native_value is None:
+            return None
+        stamp = self.runtime.electricity_cost.cached.get("reset_timestamp")
+        return datetime.fromtimestamp(stamp, timezone.utc) if stamp is not None else None
+
     def _ems(self):
         return self.runtime.ems_overview()
 
     @property
     def native_value(self):
         r = self.runtime
+        if self.suffix in COST_SENSORS:
+            return r.electricity_cost.cached.get(COST_SENSORS[self.suffix][1])
         if self.suffix == "guide":
             return GUIDE_VERSION
         if self.suffix == "energy" and not r.data_loaded:
@@ -193,6 +217,10 @@ class SolarSensor(SolarEntity, SensorEntity):
     @property
     def extra_state_attributes(self):
         r = self.runtime
+        if self.suffix in COST_SENSORS:
+            data = r.electricity_cost.cached
+            return {"date": data.get("date"), "partial": data.get("partial", True),
+                    "description": "Variabele elektriciteitskost; vaste kosten en capaciteitstarief niet inbegrepen. Eigen zon niet dubbel aftrekken."}
         if self.suffix == "guide":
             return {
                 "solar_pilot_guide": True,
