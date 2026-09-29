@@ -41,6 +41,7 @@ def websocket_consumer_history(hass, connection, msg):
         return
     cfg = runtime.configs[device_id]
     entities = {cfg.get("control_entity"), cfg.get("active_entity"), cfg.get("power_entity"),
+                cfg.get("dishwasher_state_entity"), cfg.get("cycle_program_entity"),
                 runtime.entity_id("sensor", "status", device_id)} - {None, ""}
     user = connection.user
     if user is None or (not user.is_admin and (not entities or any(

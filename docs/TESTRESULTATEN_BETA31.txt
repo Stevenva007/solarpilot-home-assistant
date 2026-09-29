@@ -1,0 +1,69 @@
+SolarPilot 1.0.0-beta.31 — lokaal testverslag
+Datum: 29 september 2026
+Python: 3.13.5
+Basis: de daadwerkelijk aangeleverde volledige beta.30-archive.
+Basis SHA-256: 2e148cf8a40cb8bee4f0352441383de979f0b30c5a2cb6f354bdd4f429debc25
+
+RESULTAAT
+Volledige testsuite: 1027 passed; 71 nieuwe APP/deadline/einde-tests.
+OK: actuele uitleg 1.0.0-beta.31 · df364c2d55ba052e
+Repositorystructuur OK
+OK: public repository preflight
+AST: 50 integratie-Pythonbestanden geldig; alle component-JSON geldig.
+JavaScript: node --check voor solar-pilot-card.js en option-help.js geslaagd.
+git diff --no-index --check tegenover de ongewijzigde beta.30-archive: geen whitespacefouten.
+
+GETESTE NIEUWE GEDRAGINGEN
+- Voor/na/op 13:00, volgende dag standaard; instelbare dezelfde-dag-keuze.
+- Nachtelijke belading vóór 13:00 plant de daaropvolgende zon van dezelfde kalenderdag.
+- Vaste deadline blijft over herstart; zomer-/wintertijd en jaarwissel in Europe/Brussels.
+- Bewolkte geplande dag: netfallback bij deadline, geen verdere dagverschuiving.
+- Vijf minuten zonnestabiliteit; alleen die timer vervalt bij nettoegestane deadline.
+- Deur/remote/verbinding/mapping/Pauze/Uitgesloten/fout/netactualiteit/importlimiet/fasebewaking blijven startblokkeringen.
+- Deadline kan EV-zonnevoorkeur voorbijgaan maar rekent geen EV-watts als extra netcapaciteit.
+- Andere eigen toegezegde maar tijdelijk niet verbruikte vermogens blijven gereserveerd.
+- Eén APP-aanvraag, geen herstart bij gelijkblijvend Enabled of reconnect.
+- Eerste installatie met APP al aan en onbekende eerste verbinding: geen nieuwe belading verzonnen.
+- Handmatig Running verbruikt klaarzetaanvraag; geen tweede start op deadline.
+- Een nieuwe Running na START is bevestiging; Paused alleen is dat niet.
+- Onzekere START over herstart heen geblokkeerd, nooit blind herhalen.
+- Kort End Of Cycle vastgelegd ondanks bezette runtime-lock, daarna Off en Disconnected.
+- Exacte eindtijd gebruikt in historie en bewaard over herstart; geen succesvolle voltooiing op alleen Off.
+- AirDry met geopende deur blijft bezig; geen remote-herbewapening tijdens drogen.
+- Bronbinding wijzigt: bestaande aanvraag wordt niet op andere actuator hergebruikt.
+- Echte Cycle phase voor het profiel; AEG-alarmvlaggen in plaats van alleen een tellertje.
+- Nieuwe APP-informatie opgenomen in analyse-snapshot/export.
+
+BROWSERTESTS — ACTUELE FRONTEND MET FICTIEVE HA-ANTWOORDEN
+
+browser31.log
+OK: actual APP card, no extra prepare button, tomorrow date + deadline, AirDry busy, end latch visible while offline, unknown end, 80 updates, responsive 320/390/768/1440, new field help, escaping, zero device calls. Fictitious HA telemetry only.
+
+browser29.log
+OK: actual AEG card, confirmed one-load preparation, no pause/stop/plug controls, running at low W, unknown phase, measured profile, export download payload, pseudonyms default, 80 updates, 320/390/768/1440 layout, Esc, HTML escaping. All HA responses fictitious.
+
+options_ui.log
+OK: beta.30 opties + uitleg, 80 updates, mobiele/desktop-breedtes, payloads, foutafhandeling, geen actuatoraanroepen. HA API getest met fixtures, niet een echte server.
+
+learning_ui.log
+OK: echte Leren & vragen-popup, 7 modules, antwoorden en revisies, 3 vraagtekens, expliciete beleidsopslag, foutafhandeling, 80 telemetrieupdates, scroll/details/invoer behouden, XSS, 320/390/768/1440 px, Esc/polling-opruiming, nul actuatoraanroepen. Alleen fictieve API/apparaten.
+
+dhw_ui.log
+OK: beta.30 normal 50 / monitored 46 / native 45, no buffer field, warnings, 80 updates, help, 320/390/768/1440 layout, zero device calls. Fictitious data only.
+
+history_ui.log
+History popup browser checks passed: actual native dialog survives 80 telemetry renders; scrolling/date/details retained; 7/30 day navigation; racing responses; no control writes; 320/390/768/1440 layouts; XSS; Esc/close/poll cleanup and focus return. All demo readings are fictitious.
+
+card_ui.log
+Browser checks passed: unified Control Center + Planning tab, editable climate/planner settings with advice/consequences, read-only Wallbox, responsive 320/390/768/1280, safe action routing and HTML escaping.
+
+BEPERKINGEN
+- Geen echte Home Assistant-server of fysieke AEG/Wallbox/warmtepomp bediend.
+- Backendtests gebruiken expliciete HA-doubles; browsertests gebruiken nagebootste API-antwoorden.
+- Geen nieuwe GitHub Actions/hassfest/HACS-validatie uitgevoerd; die volgt na publicatie door de gebruiker.
+- Geen gegarandeerde fysieke start om precies 13:00 bij cloudvertraging, uitval, open deur of elektrische blokkering.
+- Geen wattprofiel uit screenshots afgeleid; nieuwe exclusieve Shelly-meter nog door gebruiker te koppelen.
+- Bestaande rechten en handmatige AEG-profielen blijven behouden; APP-modus bewust selecteren.
+- De globale Zonnestroommodus en Auto-deelname zijn nodig. Geen timerinstelling of relaissturing.
+- Einde wordt vastgelegd zodra HA het event levert; een nooit ontvangen/mist event wordt niet als zeker gereconstrueerd.
+- Dit rapport meet niet de CPU-belasting of fysieke veiligheid van de installatie.

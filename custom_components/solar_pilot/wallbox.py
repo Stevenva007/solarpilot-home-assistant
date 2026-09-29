@@ -25,7 +25,7 @@ WALLBOX_DEFAULTS = {
     "idle_states": "Ready;Paused;Scheduled;Waiting for car demand;Locked;Locked, car connected",
     "full_solar_states": "full_solar;Full solar;Full green",
 }
-READ_KEYS = ("power_entity", "status_entity", "demand_entity", "mode_entity", "connected_entity")
+READ_KEYS = ("power_entity", "status_entity", "demand_entity", "mode_entity", "connected_entity", "max_current_entity", "phases_entity", "session_mode_entity")
 CONTROL_KEYS = ("control_entity", "number_entity", "start_script", "stop_script")
 
 
@@ -73,6 +73,9 @@ class Reading:
     issue: str = ""
     age_s: float = 0.0
     connected: bool | None = None
+    raw_mode: str | None = None
+    session_reason: str = ""
+    session_confirmed: bool = False
 
 
 @dataclass(frozen=True)
@@ -145,6 +148,10 @@ class WallboxGuard:
                                priority, priority and release, 0.0 if priority else None,
                                r.issue or "Wallbox-metingen onbetrouwbaar")
         self.invalid_since = None
+        if r.mode in ("manual", "unknown", "stopped"):
+            self.history.clear(); self.watch = None; self.phase = None
+            self.cooldown_until = 0.0
+            return GuardResult(r.mode, r.session_reason or "Geen autonome zonnelaadsessie: alleen echte injectie", warning=r.session_reason if r.mode == "unknown" else "")
         charging = (r.power_w or 0) >= c["charging_threshold_w"]
         phase = "charging" if charging else "waiting" if r.demand else "idle"
         if not priority:

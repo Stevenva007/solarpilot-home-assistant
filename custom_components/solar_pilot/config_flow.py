@@ -10,8 +10,13 @@ from homeassistant.helpers import selector
 from .const import DEFAULTS, DEVICE_DEFAULTS, DOMAIN, NAME
 from .wallbox import WALLBOX_DEFAULTS, READ_KEYS, state_set, conflicting_devices
 from .consumer_wallbox import PRIORITY_DEFAULTS
+from .wallbox_profile import PROFILE_DEFAULTS, validate_profile
+from .wallbox_policy import SESSION_DEFAULTS, RECLAIM_POLICIES
+from .pv_forecast_source import PV_FORECAST_DEFAULTS, ENTITY_ROLES, finite
 from .house_first import HOUSE_DEFAULTS
 from .dhw_config import DHWOptionsMixin
+from .dishwasher_config import DishwasherOptionsMixin
+from .dishwasher import normalize_config as normalize_dishwasher, config_errors as dishwasher_errors, REFERENCE_KEYS as DISHWASHER_KEYS
 from .ems import CAPACITY_DEFAULTS, ECONOMY_DEFAULTS, FORECAST_DEFAULTS, PHASE_DEFAULTS
 from .unified_planner import UNIFIED_PLANNER_DEFAULTS
 from .pv_model import LOCAL_PV_DEFAULTS
@@ -130,6 +135,9 @@ def wallbox_errors_for(hass, c, site, devices):
     for key in READ_KEYS:
         if c.get(key) and hass.states.get(c[key]) is None:
             errors[key] = "entity_missing"
+    groups = [state_set(c.get(k, SESSION_DEFAULTS[k])) for k in ("session_solar_states", "session_manual_states", "session_stopped_states")]
+    if any(groups[i] & groups[j] for i in range(3) for j in range(i+1,3)):
+        errors["base"] = "wallbox_state_overlap"
     if state_set(c.get("demand_states", "")) & state_set(c.get("idle_states", "")):
         errors["base"] = "wallbox_state_overlap"
     if conflicting_devices(hass, c, devices):
@@ -162,7 +170,7 @@ class SolarPilotFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return SolarPilotOptions()
 
 
-class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
+class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.OptionsFlow):
     def __init__(self):
         self._device = {}
         self._editing = None
@@ -232,10 +240,10 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
         return self.async_show_menu(step_id="storage_hub", menu_options=["wallbox", "battery", "battery_analysis"])
 
     async def async_step_intelligence_hub(self, user_input=None):
-        return self.async_show_menu(step_id="intelligence_hub", menu_options=["forecast", "local_pv", "planner"])
+        return self.async_show_menu(step_id="intelligence_hub", menu_options=["pv_forecast", "forecast", "local_pv", "planner"])
 
     async def async_step_advanced_hub(self, user_input=None):
-        return self.async_show_menu(step_id="advanced_hub", menu_options=["timing", "phase_learning", "wallbox_advanced", "private_bundle", "system_info"])
+        return self.async_show_menu(step_id="advanced_hub", menu_options=["timing", "phase_learning", "wallbox_advanced", "analysis", "private_bundle", "system_info"])
 
     async def async_step_private_bundle(self, user_input=None):
         """Apply/reload a private profile + historical bootstrap from userfiles."""
@@ -366,6 +374,43 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
         })
         return self.async_show_form(step_id="economy", data_schema=schema, errors=errors)
 
+    async def async_step_pv_forecast(self, user_input=None):
+        c = {**PV_FORECAST_DEFAULTS, **self.config_entry.options.get("pv_forecast", {}), **(user_input or {})}
+        errors = {}
+        if user_input is not None:
+            for key in ("enabled","auto_discover","calibration_enabled","shadow_enabled","show_raw"):
+                if type(c.get(key)) is not bool:
+                    errors[key]="invalid_pv_setting"
+            if c.get("learning_preset") not in ("normal", "slow", "responsive"):
+                errors["learning_preset"] = "invalid_pv_setting"
+            for key, lower, upper in (("inverter_limit_w",100,1000000),("panel_peak_wp",100,1000000),("tilt_deg",0,90),("azimuth_deg",0,360),("minimum_days",5,30),("history_days",1,30),("stale_s",300,21600)):
+                v=finite(c.get(key))
+                if v is None or not lower<=v<=upper or (key in ("minimum_days","history_days","stale_s") and v != int(v)):
+                    errors[key]="invalid_pv_setting"
+                else:
+                    c[key]=int(v) if key in ("minimum_days","history_days","stale_s") else v
+            for role, (_,kind) in ENTITY_ROLES.items():
+                if c.get(role):
+                    obj=self.hass.states.get(c[role])
+                    if obj is None or obj.attributes.get("unit_of_measurement") not in (("W","kW") if kind=="power" else ("Wh","kWh")):
+                        errors[role]="power_unit" if kind=="power" else "energy_unit"
+            if not errors:
+                opts=deepcopy(dict(self.config_entry.options));opts["pv_forecast"]=c
+                return await self._save(opts)
+        schema={}
+        for key in ("enabled","auto_discover","calibration_enabled","shadow_enabled","show_raw"):
+            schema[vol.Required(key,default=c[key])]=selector.BooleanSelector()
+        schema[vol.Required("learning_preset",default=c["learning_preset"])]=selector.SelectSelector({"options":[
+            {"value":"normal","label":"Normaal — geleidelijk leren"},
+            {"value":"slow","label":"Rustig — extra dagen bevestiging"},
+            {"value":"responsive","label":"Vlotter — nog steeds begrensd"}]})
+        schema[vol.Optional("forecast_entry_id",description={"suggested_value":c.get("forecast_entry_id","")})]=selector.TextSelector()
+        for role in ENTITY_ROLES:
+            schema[optional(role,c)]=entity(["sensor"])
+        for key,lo,hi,step in (("panel_peak_wp",100,1000000,100),("inverter_limit_w",100,1000000,100),("tilt_deg",0,90,1),("azimuth_deg",0,360,1),("minimum_days",5,30,1),("history_days",1,30,1),("stale_s",300,21600,300)):
+            schema[vol.Required(key,default=c[key])]=num(lo,hi,step)
+        return self.async_show_form(step_id="pv_forecast",data_schema=vol.Schema(schema),errors=errors)
+
     async def async_step_forecast(self, user_input=None):
         c = {**FORECAST_DEFAULTS, **self.config_entry.options.get("forecast", {})}
         if not self.config_entry.options.get("forecast"):
@@ -377,7 +422,7 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
                 for key in ("current_hour_entity", "next_hour_entity", "remaining_today_entity", "tomorrow_entity"):
                     if c.get(key):
                         obj = self.hass.states.get(c[key])
-                        if obj is None or obj.attributes.get("unit_of_measurement") != "kWh":
+                        if obj is None or obj.attributes.get("unit_of_measurement") not in ("Wh", "kWh"):
                             errors[key] = "energy_unit"
             if not errors:
                 opts = deepcopy(dict(self.config_entry.options))
@@ -795,13 +840,13 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
 
     async def async_step_wallbox(self, user_input=None):
         """Basic Wallbox monitoring. Fine tuning lives in Advanced."""
-        current = {**WALLBOX_DEFAULTS, **HOUSE_DEFAULTS, **PRIORITY_DEFAULTS, **self.config_entry.options.get("wallbox", {})}
+        current = {**WALLBOX_DEFAULTS, **HOUSE_DEFAULTS, **PRIORITY_DEFAULTS, **PROFILE_DEFAULTS, **SESSION_DEFAULTS, **self.config_entry.options.get("wallbox", {})}
         if not self.config_entry.options.get("wallbox"):
             current = apply_first_install_suggestions(self.hass, current, "wallbox")
         c = {**current, **(user_input or {})}
         errors = {}
         if user_input is not None:
-            errors = wallbox_errors_for(self.hass, c, self._site(), self.config_entry.options.get("devices", []))
+            errors = {**wallbox_errors_for(self.hass, c, self._site(), self.config_entry.options.get("devices", [])), **validate_profile(c)}
             if not errors:
                 opts = deepcopy(dict(self.config_entry.options))
                 opts["wallbox"] = {**current, **user_input}
@@ -814,18 +859,30 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
             optional("demand_entity", c): entity(["binary_sensor", "input_boolean"]),
             optional("connected_entity", c): entity(["binary_sensor"]),
             optional("mode_entity", c): entity(["select", "sensor", "input_select"]),
+            optional("session_mode_entity", c): entity(["sensor", "select", "input_select"]),
+            vol.Required("trust_solar_setting", default=c["trust_solar_setting"]): selector.BooleanSelector(),
+            vol.Required("manual_suspend_extra_dhw", default=c["manual_suspend_extra_dhw"]): selector.BooleanSelector(),
             vol.Required("charging_threshold_w", default=c["charging_threshold_w"]): num(10, 1000, 10),
             vol.Required("priority_min_power_w", default=c["priority_min_power_w"]): num(0, 22000, 10),
             vol.Required("priority_start_margin_w", default=c["priority_start_margin_w"]): num(0, 2000, 10),
+            vol.Required("profile_auto", default=c["profile_auto"]): selector.BooleanSelector(),
+            optional("max_current_entity", c): entity(["number", "sensor"]),
+            optional("phases_entity", c): entity(["sensor", "number"]),
+            vol.Required("charging_phases", default=str(c["charging_phases"])): selector.SelectSelector({"options": [
+                {"value": "1", "label": "1 fase (bevestigd)"}, {"value": "3", "label": "3 fasen (bevestigd)"}]}),
+            vol.Required("max_current_a", default=c["max_current_a"]): num(6, 80, 1),
+            vol.Required("voltage_v", default=c["voltage_v"]): num(207, 253, 1),
+            vol.Required("minimum_current_a", default=c["minimum_current_a"]): num(6, 16, 1),
+            vol.Required("minimum_from_profile", default=c["minimum_from_profile"]): selector.BooleanSelector(),
         })
         return self.async_show_form(step_id="wallbox", data_schema=schema, errors=errors)
 
     async def async_step_wallbox_advanced(self, user_input=None):
-        current = {**WALLBOX_DEFAULTS, **HOUSE_DEFAULTS, **PRIORITY_DEFAULTS, **self.config_entry.options.get("wallbox", {})}
+        current = {**WALLBOX_DEFAULTS, **HOUSE_DEFAULTS, **PRIORITY_DEFAULTS, **PROFILE_DEFAULTS, **SESSION_DEFAULTS, **self.config_entry.options.get("wallbox", {})}
         c = {**current, **(user_input or {})}
         errors = {}
         if user_input is not None:
-            errors = wallbox_errors_for(self.hass, c, self._site(), self.config_entry.options.get("devices", []))
+            errors = {**wallbox_errors_for(self.hass, c, self._site(), self.config_entry.options.get("devices", [])), **validate_profile(c)}
             if not errors:
                 opts = deepcopy(dict(self.config_entry.options))
                 opts["wallbox"] = {**current, **user_input}
@@ -839,6 +896,9 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
             vol.Required("demand_states", default=c["demand_states"]): selector.TextSelector(),
             vol.Required("idle_states", default=c["idle_states"]): selector.TextSelector(),
             vol.Required("full_solar_states", default=c["full_solar_states"]): selector.TextSelector(),
+            vol.Required("session_solar_states", default=c["session_solar_states"]): selector.TextSelector(),
+            vol.Required("session_manual_states", default=c["session_manual_states"]): selector.TextSelector(),
+            vol.Required("session_stopped_states", default=c["session_stopped_states"]): selector.TextSelector(),
             vol.Required("priority_stable_s", default=c["priority_stable_s"]): num(30, 1800, 10),
             vol.Required("priority_release_s", default=c["priority_release_s"]): num(60, 3600, 10),
             vol.Required("priority_hysteresis_w", default=c["priority_hysteresis_w"]): num(50, 2000, 10),
@@ -896,8 +956,16 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
             if old_kind != user_input["kind"]:
                 for k in ("control_entity", "active_entity", "number_entity", "start_script", "stop_script"):
                     self._device.pop(k, None)
-            if user_input["kind"] != "script":
+            if user_input["kind"] not in ("script", "dishwasher"):
                 self._device["non_interruptible"] = False
+            if user_input["kind"] == "dishwasher":
+                self._device = normalize_dishwasher(self._device)
+                if old_kind != "dishwasher":
+                    self._device.update(priority=10, wallbox_precedence="consumer_first", nominal_w=2000, start_delay_s=300, ack_timeout_s=300, max_on_s=21600, dishwasher_arming_mode="app", dishwasher_remote_states="Enabled", dishwasher_ready_states="Ready To Start", dishwasher_running_states="Running;Paused", dishwasher_finished_states="End Of Cycle", dishwasher_alert_mode="aeg_attributes")
+            elif old_kind == "dishwasher":
+                for key in list(self._device):
+                    if key.startswith("dishwasher_") or key == "start_button":
+                        self._device.pop(key, None)
             return await self.async_step_connection()
         d = {**DEVICE_DEFAULTS, **self._device}
         return self.async_show_form(step_id="device", data_schema=vol.Schema({
@@ -905,11 +973,14 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
             vol.Required("kind", default=d["kind"]): selector.SelectSelector({"options": [
                 {"value": "switch", "label": "Aan/uit-toestel"},
                 {"value": "number", "label": "Regelbaar vermogen of laadstroom"},
-                {"value": "script", "label": "Start-/stop-script met terugmelding"}]}),
+                {"value": "script", "label": "Start-/stop-script met terugmelding"},
+                {"value": "dishwasher", "label": "AEG/Electrolux afwasmachine — alleen starten"}]}),
             vol.Required("priority", default=d["priority"]): num(1, 100),
         }))
 
     async def async_step_connection(self, user_input=None):
+        if self._device.get("kind") == "dishwasher":
+            return await self.async_step_dishwasher_connection(user_input)
         d = self._device
         errors = {}
         if user_input is not None:
@@ -991,7 +1062,7 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
                         errors["min_units"] = "number_range"
                 except (AttributeError, KeyError, TypeError, ValueError, ZeroDivisionError):
                     errors["min_units"] = "number_range"
-            if d["non_interruptible"] and (d["kind"] != "script" or not d.get("condition_entity")):
+            if d["non_interruptible"] and d["kind"] != "dishwasher" and (d["kind"] != "script" or not d.get("condition_entity")):
                 errors["non_interruptible"] = "cycle_requires_ready"
             if d["max_on_s"] and d["max_on_s"] < d["min_on_s"]:
                 errors["max_on_s"] = "timing"
@@ -1031,7 +1102,9 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
                 errors["wallbox_precedence"] = "invalid_precedence"
             if d.get("wallbox_precedence") == "wallbox_first" and d.get("allow_wallbox_reclaim"):
                 errors["allow_wallbox_reclaim"] = "priority_reclaim_conflict"
-            if d.get("allow_wallbox_reclaim"):
+            if d.get("wallbox_power_policy", "priority") not in RECLAIM_POLICIES:
+                errors["wallbox_power_policy"] = "invalid_precedence"
+            if d.get("allow_wallbox_reclaim") and d.get("wallbox_power_policy", "priority") == "legacy":
                 max_wait = self.config_entry.options.get("wallbox", {}).get("handover_s", HOUSE_DEFAULTS["handover_s"])
                 if not d.get("power_entity") or d["non_interruptible"] or d["min_on_s"] > max_wait:
                     errors["allow_wallbox_reclaim"] = "reclaim_requirements"
@@ -1042,6 +1115,9 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
                 errors["cycle_program_entity"] = "entity_missing"
             if d.get("cycle_energy_kwh",0) and not d.get("cycle_duration_min",0) and not d.get("cycle_learning_enabled"):
                 errors["cycle_duration_min"] = "cycle_duration_required"
+            if d.get("kind") == "dishwasher":
+                d = normalize_dishwasher(d)
+                errors.update(dishwasher_errors(self.hass, d))
             if not errors:
                 opts = deepcopy(dict(self.config_entry.options))
                 devices = [x for x in opts.get("devices", []) if x["id"] != d["id"]]
@@ -1071,6 +1147,10 @@ class SolarPilotOptions(DHWOptionsMixin, config_entries.OptionsFlow):
                 {"value": "global", "label": "Globale voorkeur volgen"},
                 {"value": "consumer_first", "label": "Dit toestel eerst"},
                 {"value": "wallbox_first", "label": "Wallbox eerst; klein restoverschot benutten"}]}),
+            vol.Required("wallbox_power_policy", default=d.get("wallbox_power_policy", "priority")): selector.SelectSelector({"options": [
+                {"value": "priority", "label": "Voorrang volgen: zonnestroom van Wallbox standaard benutten"},
+                {"value": "never", "label": "Nooit overnemen; alleen echte restinjectie"},
+                {"value": "legacy", "label": "Oude expliciete overnamekeuze gebruiken"}]}),
             vol.Required("allow_wallbox_reclaim", default=d["allow_wallbox_reclaim"]): selector.BooleanSelector(),
         }
         if d.get("non_interruptible"):

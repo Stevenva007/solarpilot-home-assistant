@@ -1,6 +1,6 @@
 # SolarPilot · Configuratiestructuur
 
-**Geldig voor 1.0.0-beta.25.** Dit document beschrijft waar instellingen staan. Voor de inhoudelijke EMS-regels geldt uitsluitend `ACTUELE_WERKING.md`.
+**Geldig voor 1.0.0-beta.27.** Dit document beschrijft waar instellingen staan. Voor de inhoudelijke EMS-regels geldt uitsluitend `ACTUELE_WERKING.md`.
 
 ## Configuratiecentrum
 
@@ -105,3 +105,11 @@ De Planning-tab hoort bij **Voorspellen & optimaliseren → Unified Planner**. H
 **Verbruikers → Dagoverzicht** opent een aparte popup voor het gekozen toestel. Bovenaan staan de dagtotalen; eronder de aan-perioden op een tijdlijn, 7/30-dagenbalkjes en de sessies met de geregistreerde redenen. De datumkiezer, Vandaag en Vorige/Volgende dag veranderen alleen wat je bekijkt. Een actieve sessie wordt als lopend gemarkeerd. De popup blijft open tijdens de gewone dashboardupdates.
 
 De registratie is alleen-lezen en respecteert Home Assistant-leesrechten. Historische redenen van vóór de installatie worden niet ingevuld. Een onbeschikbare status of herstart is een meetgat, geen bewezen stop. Bij een slimme stekker is de draaitijd de ingeschakelde tijd; voor echte compressorlooptijd is een bijpassende actieve-statusbron nodig. De complete begrenzing en opslagregels staan in `ACTUELE_WERKING.md`.
+
+## Geïntegreerde opties met vraagtekens
+
+Open onderaan het SolarPilot-dashboard **Configureren met uitleg ?**. De wizard gebruikt de bestaande Home Assistant-optiesflow en voegt per veld een hover-/klikbare uitleg toe. De oorspronkelijke HA-instellingen blijven beschikbaar.
+
+**Sanitair warm water** bestaat nu uit Koppelingen → Temperatuurregels → Nacht, ochtend en avondvoorraad → Terugmelding en stabiliteit. In de nieuwe derde stap staan het nachtbeleid, ochtenddoel/tijd/buffers, avondreserve/zonnehorizon en de optionele voorspellende koelblokkering.
+
+**Wallbox** bevat ook automatisch laadprofiel, optionele laadstroom-/fasebron, handmatig fase-/stroomprofiel en afgeleid zonnelaadminimum. ICP is niet de laadlimiet.

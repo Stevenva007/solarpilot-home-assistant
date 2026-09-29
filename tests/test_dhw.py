@@ -25,30 +25,31 @@ BASE = effective_base_target(DHW_DEFAULTS)
 
 
 @pytest.mark.parametrize('pv,export,hour,cooling,target',[
-    (0,0,2,False,49),(800,0,12,False,49),(999,0,12,False,49),
+    (0,0,2,False,50),(800,0,12,False,50),(999,0,12,False,50),
     (1000,0,12,False,50),(1600,0,12,True,50),(5000,3500,12,False,50),
     (5000,3500.1,12,False,60),(6000,5000,12,True,50),
-    (6000,5000,12,None,50),(6000,5000,2,False,49),
-    (0,0,12,True,49),(0,0,2,True,49),
-    (None,None,12,False,49),(2000,None,12,False,50),
+    (6000,5000,12,None,50),(6000,5000,2,False,50),
+    (0,0,12,True,50),(0,0,2,True,50),
+    (None,None,12,False,50),(2000,None,12,False,50),
 ])
 def test_requested_matrix(pv,export,hour,cooling,target):
     assert evaluate(pv=pv,export=export,hour=hour,cooling=cooling).target_c == target
 
 
-def test_minimum_semantics_accounts_for_physical_deadband():
-    assert BASE == 49
-    assert BASE + DHW_DEFAULTS["tank_differential_c"] == 44
-    assert DHW_DEFAULTS["minimum_c"] == 43
+def test_normal_setpoint_is_independent_of_monitored_comfort_floor():
+    assert BASE == 50
+    assert BASE + DHW_DEFAULTS["tank_differential_c"] == 45
+    assert DHW_DEFAULTS["minimum_c"] == 46
+    assert effective_base_target({**DHW_DEFAULTS, "minimum_c":48, "minimum_buffer_c":4}) == 50
 
 
 def test_solar_rule_is_production_not_export_and_may_import():
     assert evaluate(pv=1000,grid=2500).target_c == 50
 
 
-def test_below_minimum_forces_minimum_regime_but_not_high_goal():
+def test_below_minimum_keeps_normal_target_without_compensation():
     d=evaluate(temp=41, hour=2)
-    assert d.target_c == 49 and d.low_temperature and d.night
+    assert d.target_c == 50 and d.low_temperature and d.night
 
 
 def test_no_cooling_does_not_mean_forced_60():
@@ -56,26 +57,26 @@ def test_no_cooling_does_not_mean_forced_60():
 
 
 def test_rise_must_be_continuous():
-    p=make(rise_delay_s=60)
-    assert evaluate(p,now=0,pv=2000).target_c == 49
-    assert evaluate(p,now=20,pv=2000).target_c == 49
-    assert evaluate(p,now=30,pv=0).target_c == 49
+    p=make(rise_delay_s=60,solar_c=55)
+    assert evaluate(p,now=0,pv=2000).target_c == 50
+    assert evaluate(p,now=20,pv=2000).target_c == 50
+    assert evaluate(p,now=30,pv=0).target_c == 50
     assert evaluate(p,now=40,pv=2000).remaining_s == 60
     for t in (60,80): evaluate(p,now=t,pv=2000)
-    assert evaluate(p,now=100,pv=2000).target_c == 50
+    assert evaluate(p,now=100,pv=2000).target_c == 55
 
 
 def test_gap_does_not_count_as_sunshine():
-    p=make(rise_delay_s=60)
+    p=make(rise_delay_s=60,solar_c=55)
     evaluate(p,now=0,pv=2000)
-    assert evaluate(p,now=100,pv=2000).target_c == 49
+    assert evaluate(p,now=100,pv=2000).target_c == 50
 
 
 def test_night_and_cooling_bypass_long_solar_fall_delay():
     p=make(fall_delay_s=1000)
     assert evaluate(p,pv=5000,export=4000).target_c == 60
     assert evaluate(p,now=105,pv=5000,export=4000,cooling=True).target_c == 50
-    assert evaluate(p,now=110,hour=2,pv=5000,export=4000).target_c == 49
+    assert evaluate(p,now=110,hour=2,pv=5000,export=4000).target_c == 50
 
 
 def test_cooling_clear_hold():
@@ -135,19 +136,19 @@ def test_compensation_can_be_disabled():
 
 
 def test_pv_hysteresis_only_after_entering_solar_stage():
-    p=make()
-    assert evaluate(p,pv=950).target_c == 49
-    assert evaluate(p,now=105,pv=1000).target_c == 50
-    assert evaluate(p,now=110,pv=950).target_c == 50
-    assert evaluate(p,now=115,pv=899).target_c == 49
+    p=make(solar_c=55)
+    assert evaluate(p,pv=950).target_c == 50
+    assert evaluate(p,now=105,pv=1000).target_c == 55
+    assert evaluate(p,now=110,pv=950).target_c == 55
+    assert evaluate(p,now=115,pv=899).target_c == 50
 
 
 def test_capacity_guard_delays_optional_50_but_never_minimum_recovery():
-    p=make()
+    p=make(normal_c=49,minimum_c=43)
     r=DHWReading(46,49,2000,0,None,1500,False,False,"",500)
     d=p.update(100,datetime(2026,9,22,12),r)
     assert d.target_c==49 and d.capacity_block
-    p=make()
+    p=make(normal_c=49,minimum_c=43)
     r=DHWReading(42,49,2000,0,None,1500,False,False,"",500)
     d=p.update(100,datetime(2026,9,22,12),r)
     assert d.target_c==50 and d.low_temperature and not d.capacity_block
@@ -195,7 +196,7 @@ def test_invalid_settings_rejected(patch):
 
 
 def test_all_requested_values_adjustable():
-    c={**DHW_DEFAULTS,'minimum_c':42,'tank_differential_c':-5,'minimum_buffer_c':1,
+    c={**DHW_DEFAULTS,'normal_c':48,'minimum_c':42,'tank_differential_c':-5,'minimum_buffer_c':1,
        'solar_c':52,'surplus_c':58,'cooling_cap_c':51,
        'pv_threshold_w':1200,'surplus_threshold_w':4000,'rise_delay_s':0,'fall_delay_s':0,'cooling_clear_s':0}
     p=make(**c)

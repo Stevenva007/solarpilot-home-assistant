@@ -52,6 +52,8 @@ for path in ROOT.rglob("*"):
     rel = path.relative_to(ROOT)
     if path.is_dir() and path.name in {"__pycache__", ".pytest_cache"}:
         errors.append(f"cache directory present: {rel}")
+    if path.is_file() and path.name.lower().startswith("solarpilot-analyse-") and path.suffix.lower() in {".json", ".zip"}:
+        errors.append(f"private analysis export present: {rel}")
     if path.is_file() and path.suffix == ".pyc":
         errors.append(f"compiled Python file present: {rel}")
 

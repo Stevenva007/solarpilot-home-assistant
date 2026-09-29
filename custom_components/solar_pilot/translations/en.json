@@ -131,7 +131,7 @@
       },
       "wallbox": {
         "title": "Wallbox · koppeling",
-        "description": "SolarPilot leest de Wallbox alleen. Koppel hier de basisbronnen; statusherkenning en overnametiming staan apart onder Geavanceerd. For per-consumer priority, confirm minimum solar-start power (often 1380 W single phase or 4140 W three phase). 0 means not configured; the home connection does not prove the active charging phases. Only select a connection sensor for this charger.",
+        "description": "Alleen uitlezen. Onderscheid de ingestelde zonnelaadmodus van de werkelijk actieve sessie. Geen wijziging van stroom, start/stop of laadfasen. Bij onbekende sessie alleen echt restoverschot.",
         "data": {
           "enabled": "Wallbox-monitor inschakelen",
           "name": "Naam",
@@ -142,18 +142,29 @@
           "charging_threshold_w": "Drempel om werkelijk laden te herkennen (W)",
           "connected_entity": "Optional: vehicle connected to this Wallbox — read-only",
           "priority_min_power_w": "Minimum autonomous solar-start power (W; current 1-phase baseline 1380 W)",
-          "priority_start_margin_w": "Additional stable margin for Wallbox priority (W)"
+          "priority_start_margin_w": "Additional stable margin for Wallbox priority (W)",
+          "profile_auto": "Read charging profile automatically",
+          "max_current_entity": "Maximum charging current source (optional)",
+          "phases_entity": "Explicit number-of-phases source (optional)",
+          "charging_phases": "Manually confirmed charging phases",
+          "max_current_a": "Fallback maximum charging current (A)",
+          "voltage_v": "Assumed voltage per phase (V)",
+          "minimum_current_a": "Minimum solar charging current (A)",
+          "minimum_from_profile": "Derive solar-start minimum from profile",
+          "session_mode_entity": "Effectieve laadsessie — bevestigde bron (aanbevolen)",
+          "trust_solar_setting": "Alleen Full Solar-instelling vertrouwen zonder sessiebron",
+          "manual_suspend_extra_dhw": "Extra 60 °C uitstellen bij manueel/onzeker laden"
         }
       },
       "dhw": {
         "title": "Sanitair warm water · koppelingen",
-        "description": "SolarPilot schrijft alleen het tapwaterdoel. De Panasonic sterilisatie blijft autonoom. Minimum 43°C is een gewenste praktische ondergrens; de setpointberekening houdt rekening met de fysieke tankdifferentie.",
+        "description": "Only the DHW setpoint is controlled. Normal target and monitored comfort floor are independent. No Force DHW and no deadband-compensating boost; Panasonic retains compressor, hygiene and task allocation.",
         "data": {
-          "enabled": "Boilerregeling inschakelen (begint in Observatie)",
+          "enabled": "Boilerregeling vrijgeven (actief alleen in Zonnestroom)",
           "target_entity": "Boilerdoel bedienen (niet de ruimtethermostaat)",
           "temperature_entity": "Werkelijke watertemperatuur (optioneel bij water_heater/climate)",
           "power_entity": "Optioneel: uitsluitend het elektrische boilervermogen",
-          "cooling_entities": "Gekoppelde koelzones",
+          "cooling_entities": "Ruimteklimaatzones voor verwarmings- en koelbewaking",
           "hygiene_entity": "Hygiënecyclus actief: on = alle boileropdrachten blokkeren",
           "manual_entity": "Legacy single manual/powerful signal (optional)",
           "safety_confirmed": "Bevestigd: fabrikantregeling, onafhankelijke hygiëne en verbrandingsbeveiliging gecontroleerd",
@@ -162,12 +173,12 @@
         }
       },
       "dhw_rules": {
-        "title": "Sanitair warm water · temperatuurregels",
-        "description": "Minimumregime gebruikt minimumtemperatuur + tankdifferentie + buffer. Voor jouw Panasonic is 43°C minimum, -5°C differentie en 1°C buffer standaard een setpoint van 49°C. Vanaf 1000W PV mag 50°C; boven 3500W echte injectie 60°C zolang er niet gekoeld wordt.",
+        "title": "Domestic hot water · temperature policy",
+        "description": "Normal target 50 °C, monitored comfort floor 46 °C. The native differential does not change the target: -5 °C allows a nominal restart around 45 °C. Only separately permitted solar reserves may request a higher target.",
         "data": {
-          "minimum_c": "Minimum gewenste gemeten watertemperatuur (°C)",
-          "tank_differential_c": "Fysieke tank-schakeldifferentie (°C; Panasonic nu -5)",
-          "minimum_buffer_c": "Extra buffer boven de theoretische herstartgrens (°C)",
+          "normal_c": "Normal tank setpoint (°C)",
+          "minimum_c": "Monitored comfort floor (°C; not a guaranteed minimum)",
+          "tank_differential_c": "Native tank differential (°C; information and forecast only)",
           "solar_c": "Doel bij voldoende zonneopbrengst (°C)",
           "surplus_c": "Doel bij ruim zonneoverschot (°C)",
           "cooling_cap_c": "Maximum bij actieve/onzekere koeling (°C)",
@@ -187,7 +198,7 @@
       },
       "dhw_stability": {
         "title": "Sanitair warm water · terugmelding en stabiliteit",
-        "description": "Nacht en koeling verlagen het aangevraagde doel zonder zonneterugvalvertraging. De temperatuur zelf daalt niet direct en de compressor volgt zijn eigen beveiligingen. Eigen vermogen mag alleen het boilerdeel meten, niet de hele warmtepomp. Handmatige of hygiënemodus wordt niet overschreven; daarna kan boilercontrole nodig zijn. Leren verandert deze regels nooit.",
+        "description": "Solar stability and time between optional increases reduce setpoint churn. New extra heating waits while space climate is busy or unknown; the normal target remains available. Hygiene, manual controls and existing protections stay authoritative.",
         "data": {
           "rise_delay_s": "Voldoende zon/overschot gedurende (s)",
           "fall_delay_s": "Wachten bij wegvallende zon/overschot (s)",
@@ -198,7 +209,9 @@
           "ack_timeout_s": "Maximum wachten op doelbevestiging (s)",
           "max_surplus_import_w": "Bij meer netafname de 60°C-fase verlaten (W; geen elektrische beveiliging)",
           "cooling_detection": "Herkenning actieve koeling",
-          "compensate_own_power": "Eigen gemeten boilerverbruik meetellen bij vasthouden 60°C-fase (niet bij starten)"
+          "compensate_own_power": "Eigen gemeten boilerverbruik meetellen bij vasthouden 60°C-fase (niet bij starten)",
+          "optional_raise_interval_s": "Minimum time between optional setpoint increases (s)",
+          "respect_space_climate": "Defer extra solar heating while space heating/cooling is active"
         }
       },
       "capacity": {
@@ -285,7 +298,7 @@
       },
       "local_pv": {
         "title": "Local PV correction and shade learning",
-        "description": "Learns how actual PV differs from Forecast.Solar for local sun positions. No hard 16:00 rule: azimuth/elevation, distinct days and confidence drive the correction. Advisory only; live grid/PV remains authoritative.",
+        "description": "Oud historisch/live model als terugval. De nieuwe PV-voorspelling & lokale kalibratie is de primaire laag wanneer beschikbaar; factoren worden niet dubbel toegepast. Deze pagina is geen tweede actieve kalibratielaag.",
         "data": {
           "enabled": "Enable local PV model",
           "forecast_power_entity": "Forecast.Solar expected power now (W/kW)",
@@ -441,9 +454,10 @@
         "title": "Voorspellen & optimaliseren",
         "description": "Externe zonnevoorspelling, het lokaal geleerde PV-/schaduwmodel en de planner staan hier samen. Actuele meters blijven altijd leidend.",
         "menu_options": {
-          "forecast": "Zonnevoorspelling",
-          "local_pv": "Lokaal PV- & schaduwmodel",
-          "planner": "Planner & uitstelregels"
+          "forecast": "Handmatige fallback-forecastbronnen",
+          "local_pv": "Historisch PV-profiel · geavanceerde terugval",
+          "planner": "Planner & uitstelregels",
+          "pv_forecast": "PV-voorspelling & lokale kalibratie"
         }
       },
       "advanced_hub": {
@@ -454,7 +468,8 @@
           "phase_learning": "Faseherkenning · leren",
           "wallbox_advanced": "Wallbox · geavanceerde herkenning",
           "system_info": "Versie & actuele uitleg",
-          "private_bundle": "Privéprofiel & historiek"
+          "private_bundle": "Privéprofiel & historiek",
+          "analysis": "Analysis export & local recording"
         }
       },
       "system_info": {
@@ -541,7 +556,10 @@
           "priority_release_s": "Below minimum before fallback (s)",
           "priority_hysteresis_w": "Hysteresis below Wallbox minimum (W)",
           "priority_start_timeout_s": "Maximum wait for car after yielding power (s)",
-          "priority_retry_s": "Retry cooldown when car does not start (s)"
+          "priority_retry_s": "Retry cooldown when car does not start (s)",
+          "session_solar_states": "Effectieve sessiestaten: autonome zonneregeling",
+          "session_manual_states": "Effectieve sessiestaten: manueel laden",
+          "session_stopped_states": "Effectieve sessiestaten: laden gestopt"
         }
       },
       "battery_control": {
@@ -591,14 +609,15 @@
           "forecast_deferrable": "Start mag kort wachten op betere zon",
           "cheap_grid_allowed": "Goedkope netfallback toegestaan",
           "phase_hint": "Fase-aansluiting",
-          "allow_wallbox_reclaim": "Mag gecontroleerd vermogen van Wallbox overnemen",
+          "allow_wallbox_reclaim": "Oude expliciete Wallbox-overname (alleen bij oude keuze)",
           "daily_energy_goal_kwh": "Dagdoel energie (kWh, 0 = uit)",
           "cycle_learning_enabled": "Cyclusenergie automatisch bijleren",
           "cycle_energy_kwh": "Cyclusenergie fallback (kWh, 0 = leren)",
           "cycle_duration_min": "Verwachte cyclusduur (min, 0 = leren)",
           "cycle_program": "Programmanaam fallback",
           "cycle_program_entity": "Optionele programma-entiteit (select/sensor)",
-          "wallbox_precedence": "Priority relative to the Wallbox"
+          "wallbox_precedence": "Priority relative to the Wallbox",
+          "wallbox_power_policy": "Zonnevermogen dat de Wallbox al gebruikt"
         }
       },
       "private_bundle": {
@@ -606,6 +625,112 @@
         "description": "Status: {status}\nHistorische bootstrap: {history}\nOntbrekende bron-groepen: {missing}\n\nPlaats één privébestand als `/config/custom_components/solar_pilot/userfiles/private_bundle.json`. Het bestand blijft buiten GitHub en wordt door HACS bij gewone updates behouden. Import vult alleen lege koppelingen in. Fysieke klimaatbediening, fase-ingrepen en boilerregeling worden niet automatisch vrijgegeven. SolarPilot blijft na herladen in Observatie.",
         "data": {
           "apply_now": "Privéprofiel en historiek nu importeren / herladen"
+        }
+      },
+      "dhw_comfort": {
+        "title": "Domestic hot water · night, morning and evening reserve",
+        "description": "Morning monitoring can restore the normal setpoint but never boosts it. One bounded evening solar reserve is considered per day. The clock or a low temperature does not force a compressor start.",
+        "data": {
+          "night_policy": "Night policy",
+          "morning_enabled": "Monitor morning supply (normal target only, no boost)",
+          "morning_time": "Assess supply at",
+          "morning_c": "Morning measured goal (at least the comfort floor)",
+          "morning_margin_c": "Forecast and evening reserve margin (°C)",
+          "morning_max_lead_min": "Maximum morning assessment lead (minutes)",
+          "morning_extra_lead_min": "Additional warm-up margin (minutes)",
+          "morning_hold_min": "Monitor goal after deadline (minutes)",
+          "tank_loss_fallback_c_h": "Fallback tank loss (°C/hour)",
+          "tank_heat_fallback_c_h": "Fallback warming rate (°C/hour)",
+          "evening_enabled": "Evening reserve on last useful solar",
+          "evening_cap_c": "Maximum evening setpoint (°C)",
+          "evening_lookahead_h": "Window before last useful solar (hours)",
+          "evening_fallback_start": "Start time without usable forecast",
+          "evening_draw_buffer_c": "Evening/night water-draw reserve (°C)",
+          "evening_margin_w": "Evening power margin (W)",
+          "predictive_cooling_enabled": "Defer extra heating for predicted cooling",
+          "predictive_cooling_horizon_h": "Cooling look-ahead (hours)"
+        }
+      },
+      "dishwasher_connection": {
+        "title": "Dishwasher · connections",
+        "description": "Koppel de oorspronkelijke AEG START-knop, Appliance state, remote-vrijgave, deur, verbinding en programma van hetzelfde apparaat. Cycle phase is alleen aanvullende informatie; Unavailable in de wachtstand blokkeert niet. Shelly is uitsluitend een meter.",
+        "data": {
+          "start_button": "AEG/Electrolux START button — not a smart plug",
+          "dishwasher_state_entity": "Actual program/cycle state",
+          "dishwasher_connection_entity": "Dishwasher connectivity state",
+          "dishwasher_remote_entity": "Remote START permission",
+          "dishwasher_door_entity": "Dishwasher door state",
+          "cycle_program_entity": "Selected dishwasher program — read only",
+          "power_entity": "Optional: exclusive power meter (Shelly, W/kW)",
+          "dishwasher_alert_entity": "Optional: dishwasher alert status",
+          "dishwasher_delay_entity": "Optional: native delayed-start time",
+          "dishwasher_phase_entity": "Programmafase (optioneel; voorwas, wassen, drogen, AirDry)"
+        }
+      },
+      "dishwasher_states": {
+        "title": "Dishwasher · readiness and feedback",
+        "description": "APP-modus gebruikt uitsluitend exact Enabled als éénmalige toestemming. Standaard: vóór 13:00 vandaag; vanaf 13:00 de volgende kalenderdag. Ook op een bewolkte geplande dag geldt de deadline met netstroom indien toegestaan. Bestaande handmatige profielen blijven handmatig totdat je dit bewust wijzigt.",
+        "data": {
+          "dishwasher_ready_states": "Raw ready-before-start states (semicolon-separated)",
+          "dishwasher_running_states": "Raw active-cycle states, including drying/paused",
+          "dishwasher_finished_states": "Raw completed-cycle states",
+          "dishwasher_connected_states": "Raw online/connected states",
+          "dishwasher_remote_states": "Raw states explicitly allowing remote START",
+          "dishwasher_closed_states": "Raw closed-door states",
+          "dishwasher_safe_states": "Raw states with no blocking alarm",
+          "dishwasher_stale_s": "Feedback maximum age (s)",
+          "dishwasher_ticket_hours": "One-cycle preparation valid for (hours)",
+          "dishwasher_mapping_confirmed": "Confirmed: correct START button, raw feedback and remote start tested",
+          "dishwasher_arming_mode": "Toestemming voor één afwasbeurt",
+          "dishwasher_start_deadline": "Uiterlijk starten op de geplande dag",
+          "dishwasher_after_deadline": "Na deze starttijd klaargezet",
+          "dishwasher_deadline_grid_allowed": "Netstroom toestaan bij de startdeadline",
+          "dishwasher_deadline_grace_min": "Nog proberen na geblokkeerde deadline (minuten)",
+          "dishwasher_alert_mode": "Herkenning van storingen en verbruiksmateriaal",
+          "dishwasher_priority_enabled": "Priority profile: heat-pump comfort, then dishwasher, before EV/lower loads/extra 60 C",
+          "dishwasher_ev_solar_priority": "Prefer dishwasher over current solar EV power — temporary grid use is possible"
+        },
+        "data_description": {
+          "dishwasher_priority_enabled": "Preset on. Normal hot water and space heating are never switched off for a dishwasher. The dishwasher wins over lower automatic loads and the optional 60 C buffer. Existing compressor runtimes and running programmes remain protected. Disable to return to ordinary consumer ranking.",
+          "dishwasher_ev_solar_priority": "Preset on for this requested profile. With fresh Full Solar, actual PV and stable power readings, a protected cycle may start using solar power currently consumed by the EV. Full Solar must reduce itself; no EV command is sent. Immediate grid, peak and phase limits still apply as if the EV did not react. Temporary or later grid use cannot be excluded. The cycle is not aborted on failed reaction; a warning blocks future EV-based starts until review. Off uses only real remaining export before the deadline."
+        }
+      },
+      "analysis": {
+        "title": "Analysis export · local recording",
+        "description": "Local recording for manual dashboard export. No automatic upload or actuator commands. Default five-minute snapshots up to seven days; up to two hours of fast detail in memory. Shorter intervals reduce coverage under fixed record caps. Disabling recording does not disable control.",
+        "data": {
+          "enabled": "Enable local analysis recording",
+          "include_related_entities": "Include relevant entities of linked devices",
+          "retention_days": "Detailed retention (days)",
+          "sample_interval_s": "Detailed sampling interval (s)",
+          "extra_entities": "Additional relevant entities (maximum 50)"
+        }
+      },
+      "pv_forecast": {
+        "title": "PV-voorspelling & lokale kalibratie",
+        "description": "Eén plaats voor Forecast.Solar, installatiegrenzen en kwartierkalibratie. Actuele metingen blijven leidend. Reset en detailhistorie: PV-diagnose. Deze instellingen veranderen geen fysieke bediening.",
+        "data": {
+          "enabled": "Forecast.Solar als voorspellende laag gebruiken",
+          "auto_discover": "Eén Forecast.Solar-bron automatisch vinden",
+          "calibration_enabled": "Voorspelling automatisch lokaal kalibreren",
+          "shadow_enabled": "Correctie per zonnestand en seizoen leren",
+          "show_raw": "Ruwe én gecorrigeerde waarden tonen",
+          "learning_preset": "Leersnelheid en stabiliteit",
+          "forecast_entry_id": "Forecast.Solar-configuratie-ID (leeg bij één automatische bron)",
+          "now_entity": "Ruw verwacht PV-vermogen nu (W/kW)",
+          "next_hour_power_entity": "Ruw verwacht PV-vermogen +1 uur (optioneel)",
+          "remaining_entity": "Ruwe resterende productie vandaag (Wh/kWh)",
+          "today_entity": "Ruwe totale voorspelling vandaag (Wh/kWh)",
+          "tomorrow_entity": "Ruwe productievoorspelling morgen (Wh/kWh)",
+          "current_hour_entity": "Ruwe energie in huidig kalenderuur (Wh/kWh)",
+          "next_hour_entity": "Ruwe energie in volgend kalenderuur (Wh/kWh)",
+          "panel_peak_wp": "Totaal paneelvermogen (Wp)",
+          "inverter_limit_w": "AC-omvormerlimiet (W)",
+          "tilt_deg": "Bevestigde paneelhelling (graden)",
+          "azimuth_deg": "Paneelrichting: 180° is zuid",
+          "minimum_days": "Minimaal verschillende vergelijkbare leerdagen",
+          "history_days": "Dagen PV-diagnose bewaren",
+          "stale_s": "Forecast te oud na (seconden)"
         }
       }
     },
@@ -628,7 +753,7 @@
       "dedicated_meter": "Kies een eigen vermogensmeter voor dit toestel, niet de net-, PV-, batterijmeter of die van een ander toestel.",
       "dhw_range": "Ongeldige waarde of hysterese groter dan de inschakeldrempel.",
       "dhw_step": "De waarde past niet bij de instelbare stapgrootte.",
-      "dhw_order": "Minimum + differentie + buffer moet ≤ zonnedoel ≤ overschotdoel blijven; controleer ook de koellimiet en sterilisatietemperatuur.",
+      "dhw_order": "Choose comfort floor ≤ normal target ≤ solar target ≤ surplus target; cooling cap must be at least the normal target.",
       "dhw_night": "Gebruik verschillende begin- en eindtijden, met seconden op 00.",
       "dhw_safety": "Controleer eerst met de fabrikant/installateur of deze lage doelen en 60°C geschikt zijn. Hygiëne moet onafhankelijk gewaarborgd blijven.",
       "dhw_pv_required": "Koppel eerst het actuele zonnepanelenvermogen in de algemene SolarPilot-instellingen (W/kW).",
@@ -644,7 +769,18 @@
       "cycle_learning_requires_meter": "Cyclusleren vereist een beschermde cyclus met een exclusieve vermogensmeter.",
       "cycle_duration_required": "Geef een verwachte cyclusduur op of schakel cyclusleren in.",
       "invalid_precedence": "Choose a valid Wallbox priority.",
-      "priority_reclaim_conflict": "A device yielding to the Wallbox cannot also reclaim charging power."
+      "priority_reclaim_conflict": "A device yielding to the Wallbox cannot also reclaim charging power.",
+      "dhw_morning_required": "Enable the morning objective before scheduling an evening reserve.",
+      "invalid_current_source": "Use the charging-current limit, not the ICP/main fuse.",
+      "invalid_number": "Enter a valid number within the allowed range.",
+      "dishwasher_restored": "This is a restored old button. Select the current START button of the linked device.",
+      "dishwasher_state_overlap": "Ready, running and completed mappings must be nonempty and disjoint.",
+      "dishwasher_unknown_state": "Unknown, offline or unavailable must never count as permission or confirmation.",
+      "dishwasher_same_device": "All six AEG sources must belong to the same registered dishwasher device.",
+      "analysis_too_many": "Select no more than 50 extra source entities.",
+      "dishwasher_exact_remote": "Gebruik voor fysieke APP-vrijgave uitsluitend de volledige waarde Enabled.",
+      "invalid_selection": "Ongeldige keuze; selecteer een aangeboden optie.",
+      "invalid_pv_setting": "Ongeldige PV-instelling: controleer type, eenheid en bereik."
     },
     "abort": {
       "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",

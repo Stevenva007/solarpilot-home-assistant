@@ -1,0 +1,77 @@
+SolarPilot 1.0.0-beta.30 — lokaal testverslag
+Datum: 29 september 2026
+Bronbasis: het volledige beta.29 GitHub/HACS-pakket uit deze conversatie.
+Reikwijdte: cumulatieve broncode-update, geen wijziging van live Home Assistant of GitHub.
+
+RESULTATEN
+- Volledige Python-suite: 956 passed (99 meer dan de 857 van bronbasis beta.29).
+- Testomgeving Python: 3.13.5.
+- Actuele uitleg: 1.0.0-beta.30; regel-hash cf39d8970d2aef3c.
+- Repositorystructuur: OK.
+- Public repository preflight: OK; geen Python-cache in het releasepakket.
+- AST-controle: 109 Pythonbestanden geldig.
+- Component-JSON: 4 bestanden geldig.
+- node --check: solar-pilot-card.js en option-help.js geslaagd.
+- git diff --no-index --check tegenover uitgepakte beta.29: geen whitespace-foutmeldingen.
+  (No-index geeft status 1 omdat bronbestanden verschillen; niet geïnterpreteerd als een testfout.)
+
+NIEUWE REGRESSIES
+- Alleen actuele, fysieke W/kW-bronnen voor basislastleren: dubbele, geschatte,
+  herstelde, ongeldige, negatieve/implausibele of verouderde balansen geweigerd.
+- Leren tijdens gemeten EV/eigen lasten; geen nominale schatting als gemeten aftrek.
+- Bronouderdom, onderlinge tijdsafstemming, tijdelijke meetrust en ontbrekende bron.
+- Ondersteunde enkele batterijtekenrichting; ongevalideerde vloot niet gedeeltelijk aftrekken.
+- Beschermde DHW-context wel beoordeeld, niet als gewone restlast geleerd.
+- Vier verschillende leerdagen per uur/dagtype; een dag met veel punten telt niet dubbel.
+- Recente kandidaat getoetst met training van vóór de te beoordelen dag.
+- Minimaal vier recente vergelijkingsdagen; verbetering minstens 10% EN 20 W.
+- Correctie beperkt tot ±25%; zonder toestemming niet toegepast; bij onvoldoende
+  bewijs terug naar het gewone profiel. Geen nieuwe comfort-/actuatorrechten.
+- Oude data verlopen naar kalenderdatum; geen toekomstige training uit vervuilde dagen.
+- Nieuwe daglicht-PV-fouten en dekking worden niet verzonnen voor historische rijen.
+- Hiaten en herstartonderbrekingen tellen niet als continue meetdekking.
+- Admin-only API; expliciete en getypeerde beleidskeuzes, actuele vraagrevisies.
+- Oude/dubbele antwoordpogingen en willekeurige regel-/servicewijzigingen geweigerd.
+- Bij een opslagfout wordt de vorige leerkeuze hersteld.
+- Een fout in de aanvullende meetanalyse onderbreekt de gewone EMS-regeling niet.
+- Optionele HA-melding: eigen ID, begrensde frequentie, alleen eigen melding intrekken.
+- Analyse-export omvat leerbeleid, modellen, meetkeuring, vragen, antwoorden en audit.
+
+BROWSER — ECHTE FRONTENDCODE, FICTIEVE HOME ASSISTANT-ANTWOORDEN
+--- check_card ---
+Browser checks passed: unified Control Center + Planning tab, editable climate/planner settings with advice/consequences, read-only Wallbox, responsive 320/390/768/1280, safe action routing and HTML escaping.
+--- check_options_ui ---
+OK: beta.30 opties + uitleg, 80 updates, mobiele/desktop-breedtes, payloads, foutafhandeling, geen actuatoraanroepen. HA API getest met fixtures, niet een echte server.
+--- check_consumer_history_ui ---
+History popup browser checks passed: actual native dialog survives 80 telemetry renders; scrolling/date/details retained; 7/30 day navigation; racing responses; no control writes; 320/390/768/1440 layouts; XSS; Esc/close/poll cleanup and focus return. All demo readings are fictitious.
+--- check_dhw_gentle_ui ---
+OK: beta.30 normal 50 / monitored 46 / native 45, no buffer field, warnings, 80 updates, help, 320/390/768/1440 layout, zero device calls. Fictitious data only.
+--- check_dishwasher_analysis_ui ---
+OK: actual AEG card, confirmed one-load preparation, no pause/stop/plug controls, running at low W, unknown phase, measured profile, export download payload, pseudonyms default, 80 updates, 320/390/768/1440 layout, Esc, HTML escaping. All HA responses fictitious.
+--- check_learning_ui ---
+OK: echte Leren & vragen-popup, 7 modules, antwoorden en revisies, 3 vraagtekens, expliciete beleidsopslag, foutafhandeling, 80 telemetrieupdates, scroll/details/invoer behouden, XSS, 320/390/768/1440 px, Esc/polling-opruiming, nul actuatoraanroepen. Alleen fictieve API/apparaten.
+
+
+UITPAKCONTROLE
+Na het maken van de uiteindelijke ZIP worden de volledige Python-tests en release-
+controles nogmaals op de uitgepakte ZIP-inhoud uitgevoerd. De externe aanvulling
+bij dit verslag vermeldt het werkelijk behaalde resultaat en de archiefhash.
+
+GRENZEN
+- Geen echte Home Assistant-server of fysieke Panasonic/AEG/Wallbox gebruikt.
+- Geen nieuwe GitHub Actions-, hassfest- of HACS-run; die volgt bij publicatie.
+- Geen bewezen besparing, perfecte huiskennis of gekalibreerde kans op juiste bediening.
+- Historische rolling-origin modelvergelijking, geen volledige onafhankelijke
+  validatie van de toekomstige 36-uursplanning en geen causaal effectonderzoek.
+- Nieuwe meetdekking/PV-bij-zon begint na installatie; oudere statistiek blijft bewaard.
+- Koppelingen moeten fysiek correct zijn; unieke namen bewijzen geen meter-overlap.
+- Gewone modellen behouden hun eigen aan/uit-instellingen; de nieuwe automatische
+  toestemming geldt alleen voor de getoetste recente basislastvariant.
+- Vragen zijn op waarnemingen gebaseerde, geprogrammeerde keuzes; geen vrije AI-chat.
+- Notificaties zijn Home Assistant-meldingen, geen telefoonpush of ChatGPT-herinnering.
+- AEG APP/DelayStart-arming + 13:00-deadline is NIET toegevoegd in deze leerupdate.
+  Bestaande beta.29-start-only/manual-arming en alle overige cumulatieve functies blijven.
+
+INSTALLATIE
+Lees docs/BETA30_INSTELLEN.md en de actuele uitleg in SolarPilot.
+Bewaar bestaande configuratie/leerdata. Geen analyse-exporten in de publieke repository.

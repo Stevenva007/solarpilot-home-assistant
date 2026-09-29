@@ -65,6 +65,15 @@
           "battery_power_entity": "Optioneel generiek batterijvermogen",
           "battery_sign": "Betekenis batterijvermogen",
           "battery_soc_entity": "Optioneel generiek batterij-SoC (%)"
+        },
+        "data_description": {
+          "grid_entity": "Netvermogen van de volledige aansluiting in W of kW.",
+          "grid_sign": "Bepaalt of een positieve waarde van de netmeter import of injectie betekent.",
+          "export_entity": "Optionele afzonderlijke exportvermogenssensor.",
+          "pv_entity": "De werkelijk gemeten totale zonnepanelenproductie, in W of kW.",
+          "battery_power_entity": "Werkelijk batterijvermogen.",
+          "battery_sign": "Tekenafspraak van de batterijvermogensmeter: laden en ontladen moeten juist onderscheiden worden.",
+          "battery_soc_entity": "Actuele laadtoestand van een echte thuisbatterij, in procent."
         }
       },
       "device": {
@@ -74,6 +83,11 @@
           "name": "Naam toestel",
           "kind": "Bedieningstype",
           "priority": "Prioriteit — 1 is hoogste, 100 is laagste"
+        },
+        "data_description": {
+          "name": "De herkenbare naam van deze koppeling in SolarPilot.",
+          "kind": "Kies de werkelijk ondersteunde actuator.",
+          "priority": "Rangorde tussen gewone SolarPilot-verbruikers: 1 is het belangrijkst, 100 het minst belangrijk."
         }
       },
       "connection": {
@@ -88,6 +102,16 @@
           "power_entity": "Werkelijk elektrisch vermogen van dit toestel (W of kW)",
           "condition_entity": "Vraag / tijdvenster — aan betekent dat het toestel mag werken",
           "interlock_entity": "Extra vrijgave — aan betekent dat bediening toegestaan is"
+        },
+        "data_description": {
+          "control_entity": "De echte aan/uit-actuator.",
+          "number_entity": "Numerieke actuator waarmee een ondersteund toestel werkelijk wordt aangestuurd.",
+          "start_script": "Bestaand Home Assistant-script dat het toestel veilig start.",
+          "stop_script": "Bestaand script dat het toestel veilig stopt.",
+          "active_entity": "Werkelijke aan/actief-terugmelding voor een scriptgestuurd toestel.",
+          "power_entity": "Werkelijk actueel vermogen van dit ene apparaat, in W of kW.",
+          "condition_entity": "Optionele vraag/startklaar-bron.",
+          "interlock_entity": "Extra vrijgave voor veilige bediening."
         }
       },
       "limits": {
@@ -108,6 +132,22 @@
           "manual_hold_s": "Rust na externe bediening / taakvoltooiing (seconden)",
           "max_on_s": "Maximale looptijd (seconden; 0 = geen limiet)",
           "non_interruptible": "Gestarte cyclus niet onderbreken — vereist een vraagsignaal"
+        },
+        "data_description": {
+          "nominal_w": "Realistische conservatieve planningswaarde voor het toestel.",
+          "min_units": "Kleinste bruikbare actieve instelling van de numerieke actuator.",
+          "max_units": "Hoogste toegestane actuatorinstelling binnen het fysieke apparaatbereik.",
+          "step_units": "Grootte van elke regelstap op de numerieke actuator.",
+          "watts_per_unit": "Omrekening van één actuator-eenheid naar geschat elektrisch vermogen.",
+          "start_delay_s": "Zolang moeten de startvoorwaarden stabiel geldig blijven vóór een nieuwe start.",
+          "stop_delay_s": "Zolang mag een gewoon energietekort aanhouden voordat een eigen onderbreekbare last wordt teruggenomen.",
+          "min_on_s": "Minimale looptijd na een bevestigde start.",
+          "min_off_s": "Minimale rusttijd na uitschakelen voordat SolarPilot opnieuw mag starten.",
+          "start_margin_w": "Extra vermogen boven het verwachte toestelvermogen voor een nieuwe start.",
+          "ack_timeout_s": "Maximale wachttijd op een echte terugmelding na een opdracht.",
+          "manual_hold_s": "Rustperiode na herkende externe bediening of taakvoltooiing.",
+          "max_on_s": "Maximale aaneengesloten looptijd die je voor deze last toestaat.",
+          "non_interruptible": "Een eenmaal bevestigde cyclus moet veilig kunnen afwerken, zoals een vaatwasprogramma."
         }
       },
       "edit": {
@@ -115,6 +155,9 @@
         "description": "De interne toestel-ID blijft behouden. Je kunt hier ook een vervangend apparaat koppelen.",
         "data": {
           "device_id": "Toestel"
+        },
+        "data_description": {
+          "device_id": "Selecteer de bestaande SolarPilot-verbruiker die je wilt aanpassen of verwijderen."
         }
       },
       "remove": {
@@ -122,6 +165,9 @@
         "description": "Alleen de SolarPilot-koppeling wordt verwijderd; de oorspronkelijke Home Assistant-entiteiten blijven bestaan.",
         "data": {
           "device_id": "Toestel"
+        },
+        "data_description": {
+          "device_id": "Selecteer de bestaande SolarPilot-verbruiker die je wilt aanpassen of verwijderen."
         }
       },
       "confirm_remove": {
@@ -131,7 +177,7 @@
       },
       "wallbox": {
         "title": "Wallbox · koppeling",
-        "description": "SolarPilot leest de Wallbox alleen. Koppel hier de basisbronnen; statusherkenning en overnametiming staan apart onder Geavanceerd. Voor voorrang per verbruiker: vul het bevestigde minimum zonnelaadvermogen in (1 fase vaak 1380 W, 3 fasen vaak 4140 W). 0 betekent nog niet ingesteld; de huisaansluiting bewijst het aantal laadfasen niet. Een aansluitsensor is optioneel: de Wallbox-status kan laadvraag bevestigen. Selecteer uitsluitend een sensor voor deze laadpaal.",
+        "description": "Alleen uitlezen. Onderscheid de ingestelde zonnelaadmodus van de werkelijk actieve sessie. Geen wijziging van stroom, start/stop of laadfasen. Bij onbekende sessie alleen echt restoverschot.",
         "data": {
           "enabled": "Wallbox-monitor inschakelen",
           "name": "Naam",
@@ -142,32 +188,78 @@
           "charging_threshold_w": "Drempel om werkelijk laden te herkennen (W)",
           "connected_entity": "Optioneel: auto aangesloten op deze Wallbox — alleen uitlezen",
           "priority_min_power_w": "Minimum voor autonome zonnelaadstart (W; huidig 1-fase uitgangspunt 1380 W)",
-          "priority_start_margin_w": "Extra stabiele marge voor Wallbox-voorrang (W)"
+          "priority_start_margin_w": "Extra stabiele marge voor Wallbox-voorrang (W)",
+          "profile_auto": "Laadprofiel automatisch uitlezen",
+          "max_current_entity": "Maximale laadstroom uit Wallbox (optioneel)",
+          "phases_entity": "Expliciete bron voor aantal laadfasen (optioneel)",
+          "charging_phases": "Handmatig bevestigd aantal laadfasen",
+          "max_current_a": "Laadstroom bij ontbrekende bron (A)",
+          "voltage_v": "Rekenspanning per fase (V)",
+          "minimum_current_a": "Minimale zonnelaadstroom per fase (A)",
+          "minimum_from_profile": "Zonnelaadminimum afleiden uit laadprofiel",
+          "session_mode_entity": "Effectieve laadsessie — bevestigde bron (aanbevolen)",
+          "trust_solar_setting": "Alleen Full Solar-instelling vertrouwen zonder sessiebron",
+          "manual_suspend_extra_dhw": "Extra 60 °C uitstellen bij manueel/onzeker laden"
+        },
+        "data_description": {
+          "enabled": "Zet de alleen-lezen Wallbox-monitor aan.",
+          "name": "De herkenbare naam van deze koppeling in SolarPilot.",
+          "power_entity": "Werkelijk actueel vermogen van dit ene apparaat, in W of kW.",
+          "status_entity": "Tekststatus van de laadpaal.",
+          "demand_entity": "Optionele expliciete laadvraagbron.",
+          "mode_entity": "Oorspronkelijke instelling van de zonnelaadmodus.",
+          "charging_threshold_w": "Vanaf dit gemeten vermogen telt de Wallbox als daadwerkelijk ladend.",
+          "connected_entity": "Optionele expliciete terugmelding dat er een auto op deze laadpaal aangesloten is.",
+          "priority_min_power_w": "Werkelijk benodigd minimum om autonoom Full Solar te beginnen.",
+          "priority_start_margin_w": "Extra ruimte boven het Full Solar-minimum voordat lagere verbruikers voor de auto wijken.",
+          "profile_auto": "Leest de maximale laadstroom van dezelfde Wallbox via het HA-entiteitsregister.",
+          "max_current_entity": "Optionele expliciete bron voor maximale laadstroom in ampère.",
+          "phases_entity": "Alleen een bron die expliciet 1 of 3 laadfasen rapporteert.",
+          "charging_phases": "Werkelijk gebruikte laadfasen: 1 of 3.",
+          "max_current_a": "Handmatig bevestigde terugval voor de maximale laadstroom wanneer live uitlezen niet bruikbaar is.",
+          "voltage_v": "Spanning per fase voor de vermogensschatting, standaard 230 V.",
+          "minimum_current_a": "Minimale laadstroom per gebruikte fase voor de berekende Full Solar-grens.",
+          "minimum_from_profile": "AAN berekent het zonnelaadminimum uit fasen × rekenspanning × minimumstroom.",
+          "session_mode_entity": "Bron die de werkelijk actieve sessie onderscheidt: zonne-auto, manueel of gestopt.",
+          "trust_solar_setting": "Deze terugvalkeuze staat standaard UIT.",
+          "manual_suspend_extra_dhw": "Standaard AAN: tijdens een actieve of onzekere autolaadvraag geen extra 60 °C-zonnebuffer."
         }
       },
       "dhw": {
         "title": "Sanitair warm water · koppelingen",
-        "description": "SolarPilot schrijft alleen het tapwaterdoel. De Panasonic sterilisatie blijft autonoom. Minimum 43°C is een gewenste praktische ondergrens; de setpointberekening houdt rekening met de fysieke tankdifferentie.",
+        "description": "SolarPilot wijzigt alleen het tapwaterdoel. Normaal doel en bewaakte comfortgrens zijn onafhankelijk. Geen Force DHW of verhoging om de fabrikantdifferentie te omzeilen; Panasonic houdt compressor, hygiëne en taakverdeling in handen.",
         "data": {
-          "enabled": "Boilerregeling inschakelen (begint in Observatie)",
+          "enabled": "Boilerregeling vrijgeven (actief alleen in Zonnestroom)",
           "target_entity": "Boilerdoel bedienen (niet de ruimtethermostaat)",
           "temperature_entity": "Werkelijke watertemperatuur (optioneel bij water_heater/climate)",
           "power_entity": "Optioneel: uitsluitend het elektrische boilervermogen",
-          "cooling_entities": "Gekoppelde koelzones",
+          "cooling_entities": "Ruimteklimaatzones voor verwarmings- en koelbewaking",
           "hygiene_entity": "Hygiënecyclus actief: on = alle boileropdrachten blokkeren",
           "manual_entity": "Oud enkelvoudig handmatig/krachtig signaal (optioneel)",
           "safety_confirmed": "Bevestigd: fabrikantregeling, onafhankelijke hygiëne en verbrandingsbeveiliging gecontroleerd",
           "manual_active_states": "Waarden die handmatige/krachtige modus betekenen (komma-gescheiden)",
           "manual_entities": "Handmatige/krachtige signalen (selecteer bv. Krachtige modus én Warmwater forceren)"
+        },
+        "data_description": {
+          "enabled": "Geeft SolarPilot toestemming om het ondersteunde boiler-temperatuurdoel te regelen.",
+          "target_entity": "De fabrikantentiteit voor het tank-temperatuurdoel.",
+          "temperature_entity": "Werkelijk gemeten watertemperatuur in de tank.",
+          "power_entity": "Alleen een actuele elektrische vermogensmeter voor sanitair warm water, inW/kW.",
+          "cooling_entities": "Bestaande klimaatbronnen voor de woning.",
+          "hygiene_entity": "Alleen een expliciete betrouwbare melding dat een fabrikant-hygiënecyclus actief is.",
+          "manual_entity": "Oud enkelvoudig handmatig/beschermd signaal.",
+          "safety_confirmed": "Alleen aanvinken nadat fabrikantgeschiktheid, onafhankelijke hygiëne én bescherming tegen verbranding daadwerkelijk gecontroleerd zijn.",
+          "manual_active_states": "Komma-gescheiden echte statuswaarden voor handmatige bescherming, bijvoorbeeld on,on-30 m,on-60 m,on-90 m.",
+          "manual_entities": "Handmatige of krachtige functies die voorrang hebben, bijvoorbeeld Powerful en Force DHW."
         }
       },
       "dhw_rules": {
         "title": "Sanitair warm water · temperatuurregels",
-        "description": "Minimumregime gebruikt minimumtemperatuur + tankdifferentie + buffer. Voor jouw Panasonic is 43°C minimum, -5°C differentie en 1°C buffer standaard een setpoint van 49°C. Vanaf 1000W PV mag 50°C; boven 3500W echte injectie 60°C zolang er niet gekoeld wordt.",
+        "description": "Normaal 50 °C, comfortgrens 46 °C. De differentie verandert het doel niet: bij -5 °C kan Panasonic rond 45 °C herstarten. Zonnebuffers zijn afzonderlijk; het ochtenddoel veroorzaakt geen extra temperatuurboost.",
         "data": {
-          "minimum_c": "Minimum gewenste gemeten watertemperatuur (°C)",
-          "tank_differential_c": "Fysieke tank-schakeldifferentie (°C; Panasonic nu -5)",
-          "minimum_buffer_c": "Extra buffer boven de theoretische herstartgrens (°C)",
+          "normal_c": "Normale boilerdoeltemperatuur (°C)",
+          "minimum_c": "Bewaakte comfortondergrens (°C; geen gegarandeerd minimum)",
+          "tank_differential_c": "Fysieke tankdifferentie (°C; alleen voor uitleg en voorspelling)",
           "solar_c": "Doel bij voldoende zonneopbrengst (°C)",
           "surplus_c": "Doel bij ruim zonneoverschot (°C)",
           "cooling_cap_c": "Maximum bij actieve/onzekere koeling (°C)",
@@ -183,11 +275,31 @@
           "hygiene_target_c": "Ingestelde fabrikantsterilisatietemperatuur (°C)",
           "hygiene_guard_before_s": "Geen SolarPilot-opdrachten vanaf zoveel seconden vóór start",
           "hygiene_guard_after_s": "Geen SolarPilot-opdrachten tot zoveel seconden na start"
+        },
+        "data_description": {
+          "normal_c": "Het gewone tapwaterdoel, standaard 50 °C.",
+          "minimum_c": "Bewaakte gemeten comfortgrens, standaard 46 °C.",
+          "tank_differential_c": "Werkelijk in het toestel ingestelde heropwarmdifferentie, bijvoorbeeld -5 °C.",
+          "solar_c": "Gewoon tankdoel bij voldoende actuele PV-productie, standaard 50 °C.",
+          "surplus_c": "Extra opportunistisch doel, standaard 60 °C.",
+          "cooling_cap_c": "Hoogste door SolarPilot gevraagde doel bij actieve of onzekere koeling, standaard 50 °C.",
+          "pv_threshold_w": "Minimale werkelijk gemeten zonnepanelenproductie voor het gewone zonnedoel.",
+          "surplus_threshold_w": "Werkelijke netto-injectie moet voor een nieuwe extra hoge fase strikt boven deze drempel liggen, standaard 3500 W.",
+          "estimated_heat_power_w": "Conservatieve elektrische planningsinschatting voor een opwarmperiode, standaard 3200 W.",
+          "night_enabled": "Activeert het ingestelde nachtvenster.",
+          "night_start": "Vanaf dit lokale uur geldt nachtrust.",
+          "night_end": "Einde van het lokale nachtvenster.",
+          "hygiene_schedule_enabled": "Beschermt het bekende tijdvenster van het zelfstandige Panasonic-hygiëneprogramma tegen SolarPilot-setpointopdrachten.",
+          "hygiene_weekdays": "Dagen van de echte fabrikantcyclus als komma-gescheiden nummers: maandag 0 tot zondag 6.",
+          "hygiene_start": "Werkelijke starttijd van het zelfstandige fabrikantprogramma.",
+          "hygiene_target_c": "Referentietemperatuur van het fabrikant-hygiëneprogramma, bijvoorbeeld 62 °C.",
+          "hygiene_guard_before_s": "Geen SolarPilot-boileropdrachten in deze tijd vóór de fabrikantcyclus.",
+          "hygiene_guard_after_s": "Beschermtijd gerekend vanaf de start van de fabrikantcyclus, niet vanaf het einde."
         }
       },
       "dhw_stability": {
         "title": "Sanitair warm water · terugmelding en stabiliteit",
-        "description": "Nacht en koeling verlagen het aangevraagde doel zonder zonneterugvalvertraging. De temperatuur zelf daalt niet direct en de compressor volgt zijn eigen beveiligingen. Eigen vermogen mag alleen het boilerdeel meten, niet de hele warmtepomp. Handmatige of hygiënemodus wordt niet overschreven; daarna kan boilercontrole nodig zijn. Leren verandert deze regels nooit.",
+        "description": "De zonnestabiliteit en minimale tijd tussen extra verhogingen beperken onrust. Nieuwe extra buffers wachten bij actief of onbekend ruimteklimaat; het normale doel blijft beschikbaar. Fabrikant-hygiëne, handmatige functies, koellimiet en bestaande beveiligingen blijven leidend.",
         "data": {
           "rise_delay_s": "Voldoende zon/overschot gedurende (s)",
           "fall_delay_s": "Wachten bij wegvallende zon/overschot (s)",
@@ -198,7 +310,23 @@
           "ack_timeout_s": "Maximum wachten op doelbevestiging (s)",
           "max_surplus_import_w": "Bij meer netafname de 60°C-fase verlaten (W; geen elektrische beveiliging)",
           "cooling_detection": "Herkenning actieve koeling",
-          "compensate_own_power": "Eigen gemeten boilerverbruik meetellen bij vasthouden 60°C-fase (niet bij starten)"
+          "compensate_own_power": "Eigen gemeten boilerverbruik meetellen bij vasthouden 60°C-fase (niet bij starten)",
+          "optional_raise_interval_s": "Minimum tijd tussen extra doelverhogingen (s)",
+          "respect_space_climate": "Extra zonne-opwarming uitstellen zolang ruimteverwarming/koeling actief is"
+        },
+        "data_description": {
+          "rise_delay_s": "Zolang moeten de zonnevoorwaarden geldig blijven vóór een nieuwe extra setpointverhoging, advies 300 seconden.",
+          "fall_delay_s": "Wachttijd bij gewoon minder zon vóór setpointverlaging, aanbevolen 300 s.",
+          "pv_hysteresis_w": "Terugvalband onder de PV-productiedrempel.",
+          "surplus_hysteresis_w": "Terugvalband onder de echte injectiedrempel voor een lopende hoge fase.",
+          "cooling_clear_s": "Hoelang geen echte/onzekere koeling meer mag zijn voordat extra hoge tankopwarming weer kan.",
+          "stale_s": "Maximale ouderdom van een ontvangen bronrapport.",
+          "ack_timeout_s": "Maximale wachttijd op een echte terugmelding na een opdracht.",
+          "max_surplus_import_w": "Zachte importgrens om een lopende extra hoge zonnefase terug te nemen, standaard 100 W met gewone terugvalvertraging.",
+          "cooling_detection": "Actie kijkt primair naar werkelijk cooling.",
+          "compensate_own_power": "Tijdens een reeds eigen hoge fase mag een exclusieve actuele boilervermogensmeter het door de boiler zelf gebruikte zonnevermogen reconstrueren.",
+          "optional_raise_interval_s": "Rust tussen extra doelverhogingen boven het normale doel, standaard 1800 seconden (30 minuten), gerekend vanaf de laatste verstuurde doelopdracht.",
+          "respect_space_climate": "AAN: een nieuwe extra zonnebuffer boven het normale doel wacht zolang een gekoppelde klimaatbron werkelijk heating/cooling/preheating/defrosting meldt of geen betrouwbare actie doorgeeft."
         }
       },
       "capacity": {
@@ -216,6 +344,19 @@
           "respect_optional_dhw": "Optionele 50°C-boilerfase uitstellen bij te weinig piekruimte",
           "respect_billing_floor": "Geen piekoptimalisatie nastreven onder ingestelde facturatievloer",
           "billing_floor_w": "Facturatievloer / minimum relevante maandpiek (W)"
+        },
+        "data_description": {
+          "enabled": "Activeert het onderdeel capacity.",
+          "average_demand_entity": "Bron voor het lopende kwartiergemiddelde van de volledige aansluiting.",
+          "monthly_peak_entity": "Gemeten maandpiek als referentie voor piekplanning.",
+          "target_peak_w": "Gewenst kwartierpiekdoel inW.",
+          "adaptive_to_month_peak": "AAN laat een reeds hogere gemeten maandpiek meewegen in het piekdoel.",
+          "margin_w": "Extra conservatieve ruimte onder het bijbehorende piek- of faseplafond.",
+          "minimum_elapsed_s": "Minimale verstreken tijd in het kwartier voordat een extrapolatie bruikbaar wordt.",
+          "stale_s": "Maximale ouderdom van een ontvangen bronrapport.",
+          "respect_optional_dhw": "AAN laat optionele zonne-opwarming van de boiler wachten bij te weinig kwartierpiekruimte.",
+          "respect_billing_floor": "Laat de ingestelde facturatievloer meewegen als ondergrens voor zinvolle kostenoptimalisatie.",
+          "billing_floor_w": "Instelbare ondergrens voor de tariefberekening."
         }
       },
       "economy": {
@@ -227,6 +368,13 @@
           "export_price_entity": "Actuele injectievergoeding €/kWh — optioneel",
           "fixed_import_eur_kwh": "Vaste aankoopprijs €/kWh",
           "fixed_export_eur_kwh": "Vaste injectievergoeding €/kWh"
+        },
+        "data_description": {
+          "enabled": "Activeert het onderdeel economy.",
+          "import_price_entity": "Actueel afnametarief in geld per kWh.",
+          "export_price_entity": "Actuele vergoeding voor injectie per kWh.",
+          "fixed_import_eur_kwh": "Terugvalprijs per kWh netafname als geen geldige prijsbron bestaat.",
+          "fixed_export_eur_kwh": "Terugvalvergoeding per kWh injectie."
         }
       },
       "forecast": {
@@ -239,6 +387,14 @@
           "remaining_today_entity": "Resterende productie vandaag (kWh)",
           "tomorrow_entity": "Productie morgen (kWh)",
           "stale_s": "Voorspelling te oud na (s)"
+        },
+        "data_description": {
+          "enabled": "Activeert het onderdeel forecast.",
+          "current_hour_entity": "Forecast-energie voor dit uur in kWh.",
+          "next_hour_entity": "Verwachte zonne-energie voor het volgende uur in kWh.",
+          "remaining_today_entity": "Nog verwachte zonne-energie voor vandaag, in kWh.",
+          "tomorrow_entity": "Verwachte zonne-energie voor morgen in kWh.",
+          "stale_s": "Maximale ouderdom van een ontvangen bronrapport."
         }
       },
       "planner": {
@@ -266,6 +422,29 @@
           "quality_retention_days": "Kwaliteitshistorie bewaren (dagen)",
           "replay_enabled": "Plannerreplay / what-if inschakelen",
           "replay_retention_days": "Replayperiode (dagen)"
+        },
+        "data_description": {
+          "enabled": "Berekent één gezamenlijk rolling-horizonplan voor flexibele lasten.",
+          "early_grid_enabled": "Globale toestemming voor goedkope netfallback van daarvoor individueel vrijgegeven lasten.",
+          "cheap_grid_limit_eur_kwh": "Hoogste afnameprijs waarbij goedkope netfallback mag gelden.",
+          "early_grid_requires_forecast_shortfall": "AAN laat goedkope netfallback alleen toe wanneer de zonneverwachting waarschijnlijk onvoldoende is voor het resterende doel.",
+          "adaptive_power_guard": "Gebruikt na voldoende exclusieve metingen een begrensd hoger P 90-vermogensprofiel voor conservatievere planning.",
+          "adaptive_power_min_samples": "Aantal goede exclusieve vermogensmonsters vóór de planningsschatting mag worden verhoogd.",
+          "adaptive_power_max_multiplier": "Bovengrens op de aangeleerde vermogensverhoging ten opzichte van de ingestelde nominale waarde.",
+          "horizon_h": "Hoe ver SolarPilot vooruit kijkt.",
+          "slot_min": "Tijdresolutie waarmee het energieplan wordt opgebouwd.",
+          "replan_min": "Hoe vaak nieuwe metingen en forecasts in een nieuw plan worden verwerkt.",
+          "pv_reserve_w": "Vermogen dat de planner niet vooraf toewijst, als buffer voor meetfouten en gewone huislast.",
+          "base_load_learning": "Leert hoeveel niet-stuurbaar huisverbruik per uur/dagtype normaal aanwezig is.",
+          "base_load_min_days": "Aantal verschillende dagen nodig voordat live basislast een uurprofiel mag vervangen.",
+          "price_optimisation": "Laat prijsverschillen meewegen als een bruikbare dynamische prijsreeks beschikbaar is.",
+          "capacity_penalty_enabled": "Maakt voorspelde blokken boven het ingestelde piekdoel minder aantrekkelijk.",
+          "capacity_penalty_eur_kwh": "Interne planningsstraf; dit is geen echte energieprijs.",
+          "battery_advisory": "Tekent toekomstige batterijlaad/ontlaadruimte mee in het plan zonder daarmee batterijbediening vrij te geven.",
+          "quality_tracking": "Vergelijkt voorspelde PV, basislast, netresultaat en geplande starts achteraf met de werkelijkheid.",
+          "quality_retention_days": "Hoeveel dagen geaggregeerde plannerfouten worden bijgehouden.",
+          "replay_enabled": "Bewaar een begrensde 15-minutenreplay om instellingen op recente gemeten PV en basislast te vergelijken.",
+          "replay_retention_days": "Aantal dagen 15-minuteninputs voor what-ifvergelijkingen."
         }
       },
       "phase": {
@@ -281,11 +460,22 @@
           "start_headroom_w": "Benodigde vrije faseruimte voor nieuwe start (W)",
           "control_starts": "Nieuwe starts op fasegrens blokkeren",
           "shed_on_overlimit": "Eigen flexlasten afbouwen bij overschrijding"
+        },
+        "data_description": {
+          "enabled": "Activeert het onderdeel phase.",
+          "phase_1_entity": "Werkelijk netto vermogen van de juiste afzonderlijke fase (L1 vermogen).",
+          "phase_2_entity": "Werkelijk netto vermogen van de juiste afzonderlijke fase (L2 vermogen).",
+          "phase_3_entity": "Werkelijk netto vermogen van de juiste afzonderlijke fase (L3 vermogen).",
+          "limit_w": "Softwareplafond per fase.",
+          "margin_w": "Extra conservatieve ruimte onder het bijbehorende piek- of faseplafond.",
+          "start_headroom_w": "Minimaal vrije faseruimte voor nieuwe starts.",
+          "control_starts": "AAN laat fasebewaking nieuwe starts blokkeren bij onvoldoende ruimte.",
+          "shed_on_overlimit": "AAN mag SolarPilot bij geverifieerde fase-overschrijding eigen onderbreekbare lasten afbouwen."
         }
       },
       "local_pv": {
         "title": "Lokale PV-correctie en schaduw leren",
-        "description": "Leert lokaal hoe de werkelijk gemeten PV-productie afwijkt van Forecast.Solar op verschillende zonnestanden. Geen harde 16u-regel: azimut/elevatie, verschillende dagen en vertrouwen bepalen de correctie. Dit model is adviserend; actuele P1/PV blijft leidend.",
+        "description": "Oud historisch/live model als terugval. De nieuwe PV-voorspelling & lokale kalibratie is de primaire laag wanneer beschikbaar; factoren worden niet dubbel toegepast. Deze pagina is geen tweede actieve kalibratielaag.",
         "data": {
           "enabled": "Lokaal PV-model inschakelen",
           "forecast_power_entity": "Forecast.Solar verwacht vermogen nu (W/kW)",
@@ -303,6 +493,24 @@
           "recovery_delta": "Minimale factorstijging voor herstelmelding",
           "horizon_min": "Vooruitkijkhorizon schaduw/herstel (min)",
           "projection_step_min": "Stapgrootte projectie (min)"
+        },
+        "data_description": {
+          "enabled": "Activeert het onderdeel local pv.",
+          "forecast_power_entity": "Voorspeld zonnevermogen op dit moment inW/kW, om met werkelijk PV te vergelijken.",
+          "sun_entity": "Zonnestandbron met azimut en elevatie.",
+          "seed_enabled": "AAN gebruikt een lokaal aangeleverde historische bootstrap als voorzichtig beginprofiel.",
+          "sample_interval_s": "Minimale afstand tussen leerwaarnemingen, in seconden.",
+          "min_forecast_w": "Onder dit voorspelde vermogen wordt geen verhouding voor het lokale PV-model geleerd.",
+          "min_elevation_deg": "Onder deze zonnehoogte leert het schaduwmodel niet.",
+          "azimuth_bin_deg": "Breedte van een vak in horizontale zonnestand.",
+          "elevation_bin_deg": "Breedte van een vak in zonnehoogte.",
+          "min_days": "Vereist aantal verschillende meetdagen voor het betreffende leerprofiel.",
+          "min_confidence": "Onder deze interne leerscore mag de lokale correctie niet als betrouwbare plannerinput worden gebruikt.",
+          "shadow_factor": "Verhoudingsdrempel tussen werkelijke en voorspelde productie voor schaduwhints.",
+          "shadow_drop": "Benodigde daling van het lokale correctieprofiel om een schaduwperiode te markeren.",
+          "recovery_delta": "Benodigde stijging van het correctieprofiel om herstel na schaduw te herkennen.",
+          "horizon_min": "Aantal minuten dat het lokale zonne-/schaduwmodel vooruit projecteert.",
+          "projection_step_min": "Tijdstap van de zonneprojectie, in minuten."
         }
       },
       "battery_analysis": {
@@ -315,6 +523,14 @@
           "reserve_pct": "Virtuele minimum-SoC reserve (%)",
           "capacities_kwh": "Te vergelijken bruikbare capaciteiten (kWh, komma-gescheiden)",
           "powers_kw": "Te vergelijken laad/ontlaadvermogens (kW, komma-gescheiden)"
+        },
+        "data_description": {
+          "enabled": "Activeert het onderdeel battery analysis.",
+          "seed_enabled": "AAN gebruikt een lokaal aangeleverde historische bootstrap als voorzichtig beginprofiel.",
+          "roundtrip_efficiency": "Efficiëntie over de volledige laad- én ontlaadcyclus.0,80 betekent 20% totaal batterij-/omvormerverlies:1 kWh geladen zonne-energie levert circa 0,8 kWh terug.",
+          "reserve_pct": "Deel van de virtuele batterijcapaciteit dat als reserve niet beschikbaar is voor de what-if.",
+          "capacities_kwh": "Te vergelijken virtuele batterijcapaciteiten in kWh.",
+          "powers_kw": "Te vergelijken laad-/ontlaadvermogens in kW."
         }
       },
       "smart_climate": {
@@ -330,6 +546,17 @@
           "hard_band_c": "Harde comfortgrens (±°C)",
           "decision_interval_h": "Normale planningsbeslissing om de (uren)",
           "forecast_horizon_h": "Voorspellingshorizon (uren)"
+        },
+        "data_description": {
+          "enabled": "Leert hoe huis en vloer reageren en maakt een AUTO/coast-advies.",
+          "control_enabled": "Geeft SolarPilot toestemming om alleen AUTO of OFF/coast te sturen.",
+          "zone_entities": "Zones waarvan doeltemperatuur, binnentemperatuur, AUTO/OFF en hvac_action worden gebruikt.",
+          "weather_entity": "Levert de uurverwachting waarmee het gebouw over de ingestelde horizon vooruit wordt doorgerekend.",
+          "outside_temp_entity": "Werkelijke buitentemperatuur voor leren en controle.",
+          "soft_band_c": "Normale band rond het Panasonic-doel waarbinnen coasten comfortabel wordt geacht.",
+          "hard_band_c": "Bij overschrijding wordt AUTO meteen weer vrijgegeven, ook buiten het normale beslisritme.",
+          "decision_interval_h": "Hoe vaak een gewone lange-termijnbeslissing opnieuw wordt gemaakt.",
+          "forecast_horizon_h": "Hoe ver vooruit de binnentemperatuur wordt gesimuleerd."
         }
       },
       "battery": {
@@ -358,6 +585,20 @@
           "settle_s": "Stabilisatietijd na batterijopdracht (s)",
           "ack_timeout_s": "Opdrachtbevestiging uiterlijk na (s)",
           "target_tolerance_w": "Bevestigingstolerantie (W)"
+        },
+        "data_description": {
+          "enabled": "Activeert het onderdeel battery settings.",
+          "control_enabled": "Geeft dit onderdeel toestemming om ondersteunde fysieke opdrachten uit te voeren.",
+          "strategy": "Strategie voor echte batterijen: adviserend, verbruikers eerst, piekbeperking of gecombineerd.",
+          "grid_target_w": "Gewenst netto netvermogen voor de batterijstrategie.",
+          "charge_reserve_w": "Vermogensbuffer die bij het laden van echte batterijen als reserve blijft.",
+          "discharge_reserve_w": "Vermogensbuffer bij het berekenen van ontlaaddoelen.",
+          "allow_grid_charge": "AAN staat opladen van een echte batterij uit het net toe binnen de gekozen strategie.",
+          "allow_export_discharge": "AAN staat ontladen van een echte batterij richting het net toe.",
+          "command_min_interval_s": "Minimale tijd tussen echte batterijopdrachten.",
+          "settle_s": "Wachttijd na een fysieke wijziging voordat een volgende verhoging mag worden uitgevoerd.",
+          "ack_timeout_s": "Maximale wachttijd op een echte terugmelding na een opdracht.",
+          "target_tolerance_w": "Toegestane afwijking tussen gemeten batterijvermogen en aangevraagd doel bij bevestiging."
         }
       },
       "battery_add": {
@@ -367,6 +608,9 @@
         "title": "Batterij aanpassen",
         "data": {
           "battery_id": "Batterij"
+        },
+        "data_description": {
+          "battery_id": "Selecteer het opgeslagen batterijprofiel."
         }
       },
       "battery_remove": {
@@ -374,6 +618,9 @@
         "description": "Verwijdert alleen de SolarPilot-koppeling; de batterij/inverter blijft in Home Assistant bestaan.",
         "data": {
           "battery_id": "Batterij"
+        },
+        "data_description": {
+          "battery_id": "Selecteer het opgeslagen batterijprofiel."
         }
       },
       "battery_profile": {
@@ -393,6 +640,21 @@
           "max_discharge_w": "Max ontlaadvermogen (W)",
           "phase_hint": "Fase-aansluiting",
           "control_kind": "Bedieningsniveau"
+        },
+        "data_description": {
+          "name": "De herkenbare naam van deze koppeling in SolarPilot.",
+          "enabled": "Activeert het onderdeel battery profile.",
+          "capacity_kwh": "Bruikbare energiecapaciteit van deze echte batterij.",
+          "soc_entity": "Actuele laadtoestand van dit batterijprofiel in procent.",
+          "power_entity": "Werkelijk actueel vermogen van dit ene apparaat, in W of kW.",
+          "power_sign": "Tekenafspraak van deze batterijvermogensmeter.",
+          "min_soc_pct": "Absolute softwarematige ondergrens voor deze batterij.",
+          "reserve_soc_pct": "Gewenste batterijreserve boven de harde ondergrens.",
+          "max_soc_pct": "Hoogste gewenste laadtoestand voor deze batterij.",
+          "max_charge_w": "Maximaal aangevraagd laadvermogen voor dit batterijprofiel.",
+          "max_discharge_w": "Maximaal aangevraagd ontlaadvermogen voor dit batterijprofiel.",
+          "phase_hint": "Fase waarop het apparaat fysiek aangesloten is, of Auto voor voorzichtig lokaal leren.",
+          "control_kind": "Alleen uitlezen verstuurt niets."
         }
       },
       "overview": {
@@ -442,9 +704,10 @@
         "title": "Voorspellen & optimaliseren",
         "description": "Externe zonnevoorspelling, het lokaal geleerde PV-/schaduwmodel en de planner staan hier samen. Actuele meters blijven altijd leidend.",
         "menu_options": {
-          "forecast": "Zonnevoorspelling",
-          "local_pv": "Lokaal PV- & schaduwmodel",
-          "planner": "Planner & uitstelregels"
+          "forecast": "Handmatige fallback-forecastbronnen",
+          "local_pv": "Historisch PV-profiel · geavanceerde terugval",
+          "planner": "Planner & uitstelregels",
+          "pv_forecast": "PV-voorspelling & lokale kalibratie"
         }
       },
       "advanced_hub": {
@@ -455,7 +718,8 @@
           "phase_learning": "Faseherkenning · leren",
           "wallbox_advanced": "Wallbox · geavanceerde herkenning",
           "system_info": "Versie & actuele uitleg",
-          "private_bundle": "Privéprofiel & historiek"
+          "private_bundle": "Privéprofiel & historiek",
+          "analysis": "Analyse-export & lokale registratie"
         }
       },
       "system_info": {
@@ -470,6 +734,11 @@
           "reserve_w": "Gewenste injectiemarge (W)",
           "max_import_w": "Maximale softwarematige netafname (W)",
           "battery_min_soc": "Generieke batterij voorrang tot (%)"
+        },
+        "data_description": {
+          "reserve_w": "Injectiebuffer die SolarPilot niet opnieuw toewijst.",
+          "max_import_w": "Softwarematige bovengrens voor de totale netafname.",
+          "battery_min_soc": "Onder deze batterijlaadtoestand mag ontladen vermogen niet als beschikbare energie voor gewone nieuwe zonnelasten worden behandeld."
         }
       },
       "timing": {
@@ -481,6 +750,13 @@
           "stale_s": "Meting te oud na (s)",
           "filter_s": "Demping meetfluctuaties (s)",
           "fault_grace_s": "Overbrugging bij meetuitval (s)"
+        },
+        "data_description": {
+          "interval_s": "Tijd tussen realtime regelberekeningen.",
+          "settle_s": "Wachttijd na een fysieke wijziging voordat een volgende verhoging mag worden uitgevoerd.",
+          "stale_s": "Maximale ouderdom van een ontvangen bronrapport.",
+          "filter_s": "Verzachting van korte variaties in het netvermogen.",
+          "fault_grace_s": "Korte buffer bij onbetrouwbare of ontbrekende informatie vóór de bijbehorende foutreactie."
         }
       },
       "phase_learning": {
@@ -496,6 +772,17 @@
           "learning_min_confidence": "Minimum vertrouwen",
           "use_learned_device_map": "Geleerde fasekaart voor regeling gebruiken",
           "stale_s": "Fasemeting te oud na (s)"
+        },
+        "data_description": {
+          "learning_enabled": "Activeert lokaal leren voor dit onderdeel.",
+          "monitor_power_entities": "Aanvullende afzonderlijke vermogensmeters om fase-attributie te leren zonder deze toestellen te bedienen.",
+          "learning_min_delta_w": "Minimale duidelijke vermogenssprong om faseherkenning te leren.",
+          "learning_settle_s": "Wachttijd na een vermogenssprong om de bijbehorende fasemetingen te laten volgen.",
+          "learning_max_window_s": "Langste tijdsafstand voor een leerbare vermogensverandering.",
+          "learning_min_samples": "Minimaal aantal bruikbare waarnemingen voordat een geleerd profiel gebruikt mag worden.",
+          "learning_min_confidence": "Minimale interne score voor faseherkenning.",
+          "use_learned_device_map": "AAN gebruikt voldoende betrouwbaar geleerde fase-toewijzing ook bij planning.",
+          "stale_s": "Maximale ouderdom van een ontvangen bronrapport."
         }
       },
       "smart_climate_advanced": {
@@ -519,6 +806,25 @@
           "solar_precondition_extra_lead_h": "Extra voorsprong met PV (uren)",
           "max_commands_per_day": "Max gewone AUTO/OFF-opdrachten per dag",
           "stale_s": "Klimaatmeting te oud na (s)"
+        },
+        "data_description": {
+          "forecast_refresh_s": "Hoe vaak de hourly weersverwachting opnieuw wordt opgehaald.",
+          "shoulder_band_c": "Bepaalt wanneer de buitentemperatuur nog als tussenseizoen rond het binnendoel wordt gezien.",
+          "season_extreme_delta_c": "Schaal voor hoe sterk een duidelijke zomer- of wintersituatie is.",
+          "allow_winter_summer_coast": "Laat de energiebesparende OFF-logica ook buiten het tussenseizoen toe.",
+          "min_coast_window_h": "Minimale voorspelde nuttige OFF-periode voordat SolarPilot een nieuwe coast start.",
+          "min_state_hold_h": "Minimumtijd voordat een gewone tegengestelde AUTO/OFF-opdracht mag volgen.",
+          "thermal_start_margin_h": "Extra tijd bovenop de geleerde reactievertraging om AUTO vóór een voorspelde comfortgrens vrij te geven.",
+          "manual_hold_h": "Hoe lang SolarPilot na een handmatige Panasonic-modewijziging niet probeert terug te sturen.",
+          "sample_interval_s": "Minimumtijd tussen thermische leerpunten.",
+          "learning_min_samples": "Minimaal aantal bruikbare waarnemingen voordat een geleerd profiel gebruikt mag worden.",
+          "learning_min_days": "Verschillende dagen wegen apart mee zodat één uitzonderlijke dag niet domineert.",
+          "model_confidence_min": "Onder dit vertrouwen start SolarPilot geen nieuwe automatische coastperiode.",
+          "solar_preconditioning_enabled": "Vervroegt alleen een reeds voorspelde noodzakelijke AUTO-herstart; verandert geen thermostaatdoel.",
+          "precondition_min_pv_w": "PV-productie waaronder PV-voorconditionering niet actief wordt.",
+          "solar_precondition_extra_lead_h": "Als PV-voorconditionering aanstaat kan een toch al noodzakelijke AUTO-herstart hiermee vervroegd worden.",
+          "max_commands_per_day": "Begrenst gewone SolarPilot-modeopdrachten per dag; harde comfortrecovery mag altijd AUTO vrijgeven.",
+          "stale_s": "Maximale ouderdom van een ontvangen bronrapport."
         }
       },
       "wallbox_advanced": {
@@ -542,7 +848,33 @@
           "priority_release_s": "Langdurig onder minimum voor terugval (s)",
           "priority_hysteresis_w": "Marge onder Wallbox-minimum voor terugval (W)",
           "priority_start_timeout_s": "Wacht na vrijgave maximaal op autostart (s)",
-          "priority_retry_s": "Rust voor nieuwe poging als auto niet start (s)"
+          "priority_retry_s": "Rust voor nieuwe poging als auto niet start (s)",
+          "session_solar_states": "Effectieve sessiestaten: autonome zonneregeling",
+          "session_manual_states": "Effectieve sessiestaten: manueel laden",
+          "session_stopped_states": "Effectieve sessiestaten: laden gestopt"
+        },
+        "data_description": {
+          "stale_s": "Maximale ouderdom van een ontvangen bronrapport.",
+          "stable_s": "Hoe lang werkelijk restoverschot stabiel moet zijn voordat extra lasten naast de autonome laadpaal mogen starten.",
+          "cooldown_s": "Rust na vermoede wisselwerking tussen laadpaal en eigen lasten.",
+          "fault_grace_s": "Korte buffer bij onbetrouwbare of ontbrekende informatie vóór de bijbehorende foutreactie.",
+          "drop_tolerance_w": "Kleinste relevante verandering in laadvermogen voor de wisselwerkingsbewaking.",
+          "demand_states": "Puntkomma-gescheiden exacte laadstatussen die vraag betekenen.",
+          "idle_states": "Puntkomma-gescheiden statusnamen zonder actuele laadvraag, bijvoorbeeld Ready of Paused.",
+          "full_solar_states": "Puntkomma-gescheiden herkenningswaarden voor uitsluitend zonneladen, bijvoorbeeld full_solar.",
+          "handover_s": "Uiterste termijn om een gecontroleerde vermogensovername van de Wallbox te bevestigen.",
+          "handover_confirm_s": "Vereiste duur van bevestigde stabiele netmetingen tijdens een overname.",
+          "handover_import_w": "Kleine tolerantie op netafname bij de bevestiging van een overdracht.",
+          "reclaim_max_age_s": "Maximale leeftijd van het Wallbox-rapport voordat een nieuwe gecontroleerde overname mag beginnen.",
+          "max_takeover_w": "Maximale vermogenstap bij het overnemen van laadvermogen.",
+          "priority_stable_s": "Hoe lang genoeg vermogen vrijgemaakt kan worden voor het EV-minimum voordat lagere eigen lasten wijken.",
+          "priority_release_s": "Wachttijd voordat lagere lasten opnieuw stabiel restoverschot mogen gebruiken.",
+          "priority_hysteresis_w": "Vermogensband tussen voorrang vasthouden en vrijgeven.",
+          "priority_start_timeout_s": "Maximale kans voor de Wallbox om na daadwerkelijk vrijgeven te starten.",
+          "priority_retry_s": "Rust vóór een nieuwe voorrangspoging na een niet-bevestigde EV-start.",
+          "session_solar_states": "Volledige waarden, gescheiden door puntkomma.",
+          "session_manual_states": "Volledige waarden die werkelijk manueel of niet-zongeregeld laden betekenen.",
+          "session_stopped_states": "Volledige waarden die een gestopte sessie aanduiden."
         }
       },
       "battery_control": {
@@ -556,6 +888,15 @@
           "charge_script": "Script laden",
           "discharge_script": "Script ontladen",
           "idle_script": "Script idle / batterij vrijgeven"
+        },
+        "data_description": {
+          "control_enabled": "Geeft dit onderdeel toestemming om ondersteunde fysieke opdrachten uit te voeren.",
+          "exclusive_control_confirmed": "Bevestigt dat niet tegelijk een andere externe regeling batterijsetpoints schrijft.",
+          "number_entity": "Numerieke actuator waarmee een ondersteund toestel werkelijk wordt aangestuurd.",
+          "number_sign": "Tekenafspraak van het numerieke batterijcommando.",
+          "charge_script": "Bestaand script voor werkelijk laden van de batterij, met overeengekomen vermogenvariabelen.",
+          "discharge_script": "Bestaand script voor werkelijk ontladen van de batterij.",
+          "idle_script": "Bestaand script dat eigen batterijsetpoints veilig neutraliseert."
         }
       },
       "device_behavior": {
@@ -576,6 +917,22 @@
           "manual_hold_s": "Rust na externe bediening / taakvoltooiing (seconden)",
           "max_on_s": "Maximale looptijd (seconden; 0 = geen limiet)",
           "non_interruptible": "Gestarte cyclus niet onderbreken — vereist een vraagsignaal"
+        },
+        "data_description": {
+          "nominal_w": "Realistische conservatieve planningswaarde voor het toestel.",
+          "min_units": "Kleinste bruikbare actieve instelling van de numerieke actuator.",
+          "max_units": "Hoogste toegestane actuatorinstelling binnen het fysieke apparaatbereik.",
+          "step_units": "Grootte van elke regelstap op de numerieke actuator.",
+          "watts_per_unit": "Omrekening van één actuator-eenheid naar geschat elektrisch vermogen.",
+          "start_delay_s": "Zolang moeten de startvoorwaarden stabiel geldig blijven vóór een nieuwe start.",
+          "stop_delay_s": "Zolang mag een gewoon energietekort aanhouden voordat een eigen onderbreekbare last wordt teruggenomen.",
+          "min_on_s": "Minimale looptijd na een bevestigde start.",
+          "min_off_s": "Minimale rusttijd na uitschakelen voordat SolarPilot opnieuw mag starten.",
+          "start_margin_w": "Extra vermogen boven het verwachte toestelvermogen voor een nieuwe start.",
+          "ack_timeout_s": "Maximale wachttijd op een echte terugmelding na een opdracht.",
+          "manual_hold_s": "Rustperiode na herkende externe bediening of taakvoltooiing.",
+          "max_on_s": "Maximale aaneengesloten looptijd die je voor deze last toestaat.",
+          "non_interruptible": "Een eenmaal bevestigde cyclus moet veilig kunnen afwerken, zoals een vaatwasprogramma."
         }
       },
       "device_schedule": {
@@ -592,14 +949,36 @@
           "forecast_deferrable": "Start mag kort wachten op betere zon",
           "cheap_grid_allowed": "Goedkope netfallback toegestaan",
           "phase_hint": "Fase-aansluiting",
-          "allow_wallbox_reclaim": "Mag gecontroleerd vermogen van Wallbox overnemen",
+          "allow_wallbox_reclaim": "Oude expliciete Wallbox-overname (alleen bij oude keuze)",
           "daily_energy_goal_kwh": "Dagdoel energie (kWh, 0 = uit)",
           "cycle_learning_enabled": "Cyclusenergie automatisch bijleren",
           "cycle_energy_kwh": "Cyclusenergie fallback (kWh, 0 = leren)",
           "cycle_duration_min": "Verwachte cyclusduur (min, 0 = leren)",
           "cycle_program": "Programmanaam fallback",
           "cycle_program_entity": "Optionele programma-entiteit (select/sensor)",
-          "wallbox_precedence": "Voorrang ten opzichte van de Wallbox"
+          "wallbox_precedence": "Voorrang ten opzichte van de Wallbox",
+          "wallbox_power_policy": "Zonnevermogen dat de Wallbox al gebruikt"
+        },
+        "data_description": {
+          "min_daily_runtime_s": "Gewenste minimale totale draaitijd per dag, in seconden.",
+          "max_daily_runtime_s": "Hoogste totale draaitijd per dag, in seconden.",
+          "daily_deadline": "Tijdstip waarop het ingestelde dagminimum bij voorkeur bereikt moet zijn.",
+          "deadline_grid_allowed": "Toestemming om zo nodig netstroom te gebruiken voor het dagminimum.",
+          "time_window_enabled": "AAN beperkt de startvraag tot jouw eigen tijdvenster.",
+          "time_window_start": "Begin van het toegestane dagvenster in de Home Assistant-tijdzone.",
+          "time_window_end": "Einde van het dagvenster in de Home Assistant-tijdzone.",
+          "forecast_deferrable": "Een nieuwe start mag begrensd wachten op een gunstiger zonneblok.",
+          "cheap_grid_allowed": "Per-toesteltoestemming voor goedkope netfallback.",
+          "phase_hint": "Fase waarop het apparaat fysiek aangesloten is, of Auto voor voorzichtig lokaal leren.",
+          "allow_wallbox_reclaim": "Alleen gebruikt bij de keuze Oude expliciete overname.",
+          "daily_energy_goal_kwh": "Gewenste dagenergie voor deze last.",
+          "cycle_learning_enabled": "Leert energie, duur en piek uit complete bevestigde apparaatcycli met een eigen meter.",
+          "cycle_energy_kwh": "Conservatieve energie-inschatting van één volledig programma zolang geen bruikbaar geleerd cyclusprofiel bestaat.",
+          "cycle_duration_min": "Conservatieve duur van een volledige cyclus, in minuten.",
+          "cycle_program": "Naam van het programma voor cyclusregistratie, bijvoorbeeld Eco.",
+          "cycle_program_entity": "Optionele entiteit die het werkelijk gekozen programma rapporteert.",
+          "wallbox_precedence": "Globale voorkeur volgen behoudt de algemene keuze.",
+          "wallbox_power_policy": "Voorrang volgen is de nieuwe standaard: een verbruiker vóór de Wallbox mag bevestigd Full Solar-vermogen gebruiken met een eigen actuele vermogensmeter."
         }
       },
       "private_bundle": {
@@ -607,6 +986,193 @@
         "description": "Status: {status}\nHistorische bootstrap: {history}\nOntbrekende bron-groepen: {missing}\n\nPlaats één privébestand als `/config/custom_components/solar_pilot/userfiles/private_bundle.json`. Het bestand blijft buiten GitHub en wordt door HACS bij gewone updates behouden. Import vult alleen lege koppelingen in. Fysieke klimaatbediening, fase-ingrepen en boilerregeling worden niet automatisch vrijgegeven. SolarPilot blijft na herladen in Observatie.",
         "data": {
           "apply_now": "Privéprofiel en historiek nu importeren / herladen"
+        },
+        "data_description": {
+          "apply_now": "Importeert bewust de lokaal aanwezige privéconfiguratie en historische bootstrap."
+        }
+      },
+      "dhw_comfort": {
+        "title": "Sanitair warm water · nacht, ochtend en avondvoorraad",
+        "description": "Ochtendcontrole voorspelt tekorten maar verhoogt het normale setpoint niet. Avondvoorraad vraagt maximaal één berekende zonnebuffer per dag, tot de ingestelde limiet. Een andere kloktijd of lage tanktemperatuur forceert geen compressorstart.",
+        "data": {
+          "night_policy": "Nachtbeleid",
+          "morning_enabled": "Ochtendvoorraad bewaken (alleen normaal doel herstellen, geen boost)",
+          "morning_time": "Voorraad beoordelen om",
+          "morning_c": "Gewenste gemeten ochtendtemperatuur (minstens de comfortgrens)",
+          "morning_margin_c": "Reserve in voorspelling en avondvoorraad (°C)",
+          "morning_max_lead_min": "Maximale voorlooptijd van ochtendcontrole (minuten)",
+          "morning_extra_lead_min": "Extra opwarmmarge (minuten)",
+          "morning_hold_min": "Ochtenddoel blijven bewaken na deadline (minuten)",
+          "tank_loss_fallback_c_h": "Afkoeling zonder voldoende leerdata (°C per uur)",
+          "tank_heat_fallback_c_h": "Opwarmsnelheid zonder voldoende leerdata (°C per uur)",
+          "evening_enabled": "Avondvoorraad op laatste bruikbare zon",
+          "evening_cap_c": "Hoogste avondsetpoint (°C)",
+          "evening_lookahead_h": "Start avondvoorraad vóór laatste bruikbare zon (uur)",
+          "evening_fallback_start": "Avondvoorraad vanaf, zonder bruikbare voorspelling",
+          "evening_draw_buffer_c": "Reserve voor avond-/nachtelijk watergebruik (°C)",
+          "evening_margin_w": "Vermogensmarge avondvoorraad (W)",
+          "predictive_cooling_enabled": "Extra opwarming uitstellen bij voorspelde koelvraag",
+          "predictive_cooling_horizon_h": "Vooruitkijken naar koelvraag (uur)"
+        },
+        "data_description": {
+          "night_policy": "Beide nachtkeuzes laten het normale doel staan.",
+          "morning_enabled": "Bewaakt de verwachte voorraad tegen het gekozen uur.",
+          "morning_time": "Lokaal uur voor de beoordeling van de ochtendvoorraad, standaard 09:00.",
+          "morning_c": "Gewenste gemeten tanktemperatuur tegen het ochtenduur, standaard 46 °C.",
+          "morning_margin_c": "Extra reserve in de voorspelling en berekening van de avondvoorraad, standaard 1 °C.",
+          "morning_max_lead_min": "Hoe vroeg vóór de deadline de ochtendcontrole het normale setpoint mag herstellen en een tekort mag melden.",
+          "morning_extra_lead_min": "Extra tijd bij de geschatte opwarmduur voor de deadlinecontrole, standaard 30 minuten.",
+          "morning_hold_min": "Hoe lang ná het ochtenduur het doel nog bewaakt wordt.",
+          "tank_loss_fallback_c_h": "Voorzichtige aanname voor temperatuurverlies per uur zolang onvoldoende schone metingen bestaan.",
+          "tank_heat_fallback_c_h": "Voorzichtige opwarmsnelheid voor terugrekenen vanaf het ochtenduur zolang onvoldoende leerdata bestaan.",
+          "evening_enabled": "Vraagt maximaal één begrensde avondvoorraad per dag met de laatste bruikbare zon, óók wanneer de afzonderlijke ochtendcontrole uit staat.",
+          "evening_cap_c": "Maximum voor het berekende avondsetpoint, standaard 55 °C.",
+          "evening_lookahead_h": "Hoeveel uur vóór het laatste verwachte bruikbare zonneblok avondvoorraad mag beginnen, standaard 3 uur.",
+          "evening_fallback_start": "Vanaf dit lokale uur mag avondvoorraad geprobeerd worden als geen bruikbare zonne-horizon beschikbaar is.",
+          "evening_draw_buffer_c": "Extra reserve voor watergebruik in avond/nacht, uitgedrukt als temperatuurmarge.",
+          "evening_margin_w": "Extra werkelijke zonne-ruimte boven het geschatte boilervermogen vóór een nieuwe avondstart.",
+          "predictive_cooling_enabled": "AAN gebruikt betrouwbare bestaande thermische profielen en weersverwachting om extra hoge tankopwarming uit te stellen als binnen de horizon waarschijnlijk koelvraag ontstaat.",
+          "predictive_cooling_horizon_h": "Hoe ver vooruit naar mogelijke koelvraag wordt gekeken, standaard 2 uur (voorzichtig afgerond op hele modeluren)."
+        }
+      },
+      "dishwasher_connection": {
+        "title": "Afwasmachine · koppelingen",
+        "description": "Koppel de oorspronkelijke AEG START-knop, Appliance state, remote-vrijgave, deur, verbinding en programma van hetzelfde apparaat. Cycle phase is alleen aanvullende informatie; Unavailable in de wachtstand blokkeert niet. Shelly is uitsluitend een meter.",
+        "data": {
+          "start_button": "AEG/Electrolux START-knop — geen slimme stekker",
+          "dishwasher_state_entity": "Werkelijke programma-/cyclusstatus",
+          "dishwasher_connection_entity": "Verbindingsstatus afwasmachine",
+          "dishwasher_remote_entity": "Toestemming start op afstand",
+          "dishwasher_door_entity": "Deurstatus afwasmachine",
+          "cycle_program_entity": "Gekozen afwasprogramma — alleen uitlezen",
+          "power_entity": "Optioneel: exclusieve vermogensmeter (Shelly, W/kW)",
+          "dishwasher_alert_entity": "Optioneel: alarmstatus afwasmachine",
+          "dishwasher_delay_entity": "Optioneel: eigen uitgestelde-starttijd afwasmachine",
+          "dishwasher_phase_entity": "Programmafase (optioneel; voorwas, wassen, drogen, AirDry)"
+        },
+        "data_description": {
+          "start_button": "De actuele START-knop van de afwasmachine-integratie.",
+          "dishwasher_state_entity": "Oorspronkelijke Appliance state van de AEG/Electrolux-machine, niet de afgeleide helper Afwasmachine actief.",
+          "dishwasher_connection_entity": "Actuele verbindingsstatus van hetzelfde AEG/Electrolux-apparaat.",
+          "dishwasher_remote_entity": "Expliciete toestand die START op afstand toestaat.",
+          "dishwasher_door_entity": "Echte deurstatus van de afwasmachine.",
+          "cycle_program_entity": "Het reeds gekozen afwasprogramma, alleen uitlezen.",
+          "power_entity": "Optionele exclusieve W/kW-sensor van de afwasmachine, bijvoorbeeld een Shelly.",
+          "dishwasher_alert_entity": "Optionele alarmbron.",
+          "dishwasher_delay_entity": "Optionele oorspronkelijke uitgestelde-starttijd.",
+          "dishwasher_phase_entity": "Aanvullende oorspronkelijke Cycle phase-sensor van dezelfde machine."
+        }
+      },
+      "dishwasher_states": {
+        "title": "Afwasmachine · startklaar en terugmelding",
+        "description": "APP-modus gebruikt uitsluitend exact Enabled als éénmalige toestemming. Standaard: vóór 13:00 vandaag; vanaf 13:00 de volgende kalenderdag. Ook op een bewolkte geplande dag geldt de deadline met netstroom indien toegestaan. Bestaande handmatige profielen blijven handmatig totdat je dit bewust wijzigt.",
+        "data": {
+          "dishwasher_ready_states": "Ruwe toestanden: gereed vóór starten (puntkomma-gescheiden)",
+          "dishwasher_running_states": "Ruwe toestanden: programma bezig, inclusief drogen/pauze",
+          "dishwasher_finished_states": "Ruwe toestanden: programma voltooid",
+          "dishwasher_connected_states": "Ruwe toestanden: online/verbonden",
+          "dishwasher_remote_states": "Ruwe toestanden: START op afstand werkelijk toegestaan",
+          "dishwasher_closed_states": "Ruwe toestanden: deur gesloten",
+          "dishwasher_safe_states": "Ruwe toestanden: geen blokkerend alarm",
+          "dishwasher_stale_s": "Terugmelding te oud na (s)",
+          "dishwasher_ticket_hours": "Klaarzettoestemming geldig gedurende (uur)",
+          "dishwasher_mapping_confirmed": "Bevestigd: juiste START-knop, statuswaarden en externe start getest",
+          "dishwasher_arming_mode": "Toestemming voor één afwasbeurt",
+          "dishwasher_start_deadline": "Uiterlijk starten op de geplande dag",
+          "dishwasher_after_deadline": "Na deze starttijd klaargezet",
+          "dishwasher_deadline_grid_allowed": "Netstroom toestaan bij de startdeadline",
+          "dishwasher_deadline_grace_min": "Nog proberen na geblokkeerde deadline (minuten)",
+          "dishwasher_alert_mode": "Herkenning van storingen en verbruiksmateriaal",
+          "dishwasher_priority_enabled": "Voorrangsprofiel: warmtepompcomfort, dan afwas, vóór Wallbox/lage lasten/extra 60 °C",
+          "dishwasher_ev_solar_priority": "Zonnevermogen vóór Wallbox benutten — tijdelijke netafname tijdens reactie mogelijk"
+        },
+        "data_description": {
+          "dishwasher_ready_states": "Puntkomma-gescheiden ruwe toestanden waarin nog geen cyclus loopt en een start mogelijk is, bijvoorbeeld Ready of Idle alleen na verificatie.",
+          "dishwasher_running_states": "Ruwe toestanden die een bestaande cyclus voorstellen: wassen, spoelen, drogen en een gepauzeerd programma.",
+          "dishwasher_finished_states": "Expliciete ruwe eindtoestanden die een voltooid programma bevestigen.",
+          "dishwasher_connected_states": "Ruwe verbindingswaarden die aantoonbaar online betekenen, puntkomma-gescheiden.",
+          "dishwasher_remote_states": "Ruwe waarden waarbij START op afstand daadwerkelijk beschikbaar is.",
+          "dishwasher_closed_states": "Ruwe toestanden voor gesloten deur.",
+          "dishwasher_safe_states": "Ruwe toestanden van de optionele alarmbron waarbij geen blokkerend alarm geldt.",
+          "dishwasher_stale_s": "Maximum ouderdom van iedere benodigde AEG-statusbron in seconden, standaard 300.",
+          "dishwasher_ticket_hours": "Geldigheidsduur voor een handmatig in SolarPilot klaargezette beurt.",
+          "dishwasher_mapping_confirmed": "Bevestig pas nadat START-knop, alle statuswaarden, verbonden toestel en deur-/remote-startbetekenis werkelijk zijn gecontroleerd.",
+          "dishwasher_arming_mode": "APP gebruikt een nieuw waargenomen overgang naar exact Enabled op de fysieke Delay Start/APP-knop als toestemming voor één belading.",
+          "dishwasher_start_deadline": "Uiterste starttijd op de geplande dag, standaard 13:00 volgens de Home Assistant-tijdzone.",
+          "dishwasher_after_deadline": "Wat gebeurt er als je een nieuwe APP-belading op of na de uiterste starttijd klaarzet? Standaard Volgende dag: vandaag niet meer automatisch starten, morgen eerst zon en uiterlijk morgen 13:00 met eventuele netstroom.",
+          "dishwasher_deadline_grid_allowed": "AAN: op de vastgelegde startdeadline mag netstroom de ontbrekende zon aanvullen.",
+          "dishwasher_deadline_grace_min": "Begrensd herstelvenster na de startdeadline, standaard 120 minuten.",
+          "dishwasher_alert_mode": "Toestand gebruikt de bestaande expliciete lijst veilige alarmwaarden.",
+          "dishwasher_priority_enabled": "Standaard AAN voor de gevraagde voorkeursvolgorde.",
+          "dishwasher_ev_solar_priority": "Standaard AAN voor deze update."
+        }
+      },
+      "analysis": {
+        "title": "Analyse-export · lokale registratie",
+        "description": "Lokale registratie voor een handmatig analysebestand op het dashboard. Geen automatische upload en geen actuatoropdracht. Standaard vijfminutenmetingen tot zeven dagen; de laatste maximaal twee uur detail blijft in geheugen. Kortere intervallen verkorten de bereikbare historiek bij de vaste opslaglimiet. Uitzetten stopt nieuwe registratie, niet de bestaande regeling.",
+        "data": {
+          "enabled": "Lokale analyseregistratie inschakelen",
+          "include_related_entities": "Relevante entiteiten van gekoppelde apparaten meenemen",
+          "retention_days": "Gedetailleerde historiek bewaren (dagen)",
+          "sample_interval_s": "Gedetailleerde meetronde iedere (s)",
+          "extra_entities": "Extra relevante bronentiteiten (maximaal 50)"
+        },
+        "data_description": {
+          "enabled": "Bewaart lokaal begrensde meetgegevens, beslisredenen en SolarPilot-waarschuwingen voor analyse.",
+          "include_related_entities": "Neemt ondersteunde, niet-uitgeschakelde bronentiteiten van dezelfde gekoppelde apparaten mee, zodat bijvoorbeeld andere warmtepomptemperaturen kunnen worden onderzocht.",
+          "retention_days": "Maximale ouderdom van gedetailleerde opgeslagen analysedata: één tot zeven dagen.",
+          "sample_interval_s": "Gedetailleerde momentopname iedere 300 seconden standaard, instelbaar 60–900.",
+          "extra_entities": "Maximaal 50 bestaande, relevante extra bronentiteiten voor een gericht onderzoek."
+        }
+      },
+      "pv_forecast": {
+        "title": "PV-voorspelling & lokale kalibratie",
+        "description": "Eén plaats voor Forecast.Solar, installatiegrenzen en kwartierkalibratie. Actuele metingen blijven leidend. Reset en detailhistorie: PV-diagnose. Deze instellingen veranderen geen fysieke bediening.",
+        "data": {
+          "enabled": "Forecast.Solar als voorspellende laag gebruiken",
+          "auto_discover": "Eén Forecast.Solar-bron automatisch vinden",
+          "calibration_enabled": "Voorspelling automatisch lokaal kalibreren",
+          "shadow_enabled": "Correctie per zonnestand en seizoen leren",
+          "show_raw": "Ruwe én gecorrigeerde waarden tonen",
+          "learning_preset": "Leersnelheid en stabiliteit",
+          "forecast_entry_id": "Forecast.Solar-configuratie-ID (leeg bij één automatische bron)",
+          "now_entity": "Ruw verwacht PV-vermogen nu (W/kW)",
+          "next_hour_power_entity": "Ruw verwacht PV-vermogen +1 uur (optioneel)",
+          "remaining_entity": "Ruwe resterende productie vandaag (Wh/kWh)",
+          "today_entity": "Ruwe totale voorspelling vandaag (Wh/kWh)",
+          "tomorrow_entity": "Ruwe productievoorspelling morgen (Wh/kWh)",
+          "current_hour_entity": "Ruwe energie in huidig kalenderuur (Wh/kWh)",
+          "next_hour_entity": "Ruwe energie in volgend kalenderuur (Wh/kWh)",
+          "panel_peak_wp": "Totaal paneelvermogen (Wp)",
+          "inverter_limit_w": "AC-omvormerlimiet (W)",
+          "tilt_deg": "Bevestigde paneelhelling (graden)",
+          "azimuth_deg": "Paneelrichting: 180° is zuid",
+          "minimum_days": "Minimaal verschillende vergelijkbare leerdagen",
+          "history_days": "Dagen PV-diagnose bewaren",
+          "stale_s": "Forecast te oud na (seconden)"
+        },
+        "data_description": {
+          "enabled": "Gebruikt de al aanwezige Forecast.Solar-gegevens voor voorspellingen.",
+          "auto_discover": "Zoekt via het Home Assistant-register naar één ingeschakelde Forecast.Solar-installatie, ongeacht aangepaste entiteitsnamen.",
+          "calibration_enabled": "Vergelijkt werkelijk PV-vermogen met de ruwe forecast in volledige kwartieren.",
+          "shadow_enabled": "AAN gebruikt grove zonne-azimut/elevatievakken met tweemaandelijkse seizoensgroepen; zonder zonnepositie een kwartier/tijdvak.",
+          "show_raw": "Toont de originele vermogenscurve naast de lokaal gecorrigeerde curve.",
+          "learning_preset": "Normaal vraagt minstens vijf verschillende vergelijkbare dagen en verandert de factor maximaal 0,05 per dag.",
+          "forecast_entry_id": "Leeg laten bij precies één gevonden Forecast.Solar-configuratie.",
+          "now_entity": "Een echte ruwe forecastbron, niet de gemeten productie of een al door SolarPilot gecorrigeerde sensor.",
+          "next_hour_power_entity": "Een echte ruwe forecastbron, niet de gemeten productie of een al door SolarPilot gecorrigeerde sensor.",
+          "remaining_entity": "Een echte ruwe forecastbron, niet de gemeten productie of een al door SolarPilot gecorrigeerde sensor.",
+          "today_entity": "Een echte ruwe forecastbron, niet de gemeten productie of een al door SolarPilot gecorrigeerde sensor.",
+          "tomorrow_entity": "Een echte ruwe forecastbron, niet de gemeten productie of een al door SolarPilot gecorrigeerde sensor.",
+          "current_hour_entity": "Een echte ruwe forecastbron, niet de gemeten productie of een al door SolarPilot gecorrigeerde sensor.",
+          "next_hour_entity": "Een echte ruwe forecastbron, niet de gemeten productie of een al door SolarPilot gecorrigeerde sensor.",
+          "panel_peak_wp": "Som van het nominale DC-piekvermogen van de panelen in wattpiek.",
+          "inverter_limit_w": "Maximaal bruikbaar AC-vermogen van de omvormer, voor het opgegeven profiel 10.000 W.",
+          "tilt_deg": "Opgegeven hellingshoek van de panelen ten opzichte van horizontaal.",
+          "azimuth_deg": "Paneelrichting in conventie noord=0°, oost=90°, zuid=180°, west=270°.",
+          "minimum_days": "Minstens vijf verschillende dagen per vergelijkbaar zonnestand/tijdvak voordat een factor wordt gebruikt.",
+          "history_days": "Bewaart maximaal 30 dagen kwartierdiagnose met ruwe/gecorrigeerde/werkelijke waarden en acceptatie- of afwijsreden, begrensd op 2880 regels.",
+          "stale_s": "Ouderdomsgrens voor de forecast, niet voor de actuele PV-/netmeter."
         }
       }
     },
@@ -629,7 +1195,7 @@
       "dedicated_meter": "Kies een eigen vermogensmeter voor dit toestel, niet de net-, PV-, batterijmeter of die van een ander toestel.",
       "dhw_range": "Ongeldige waarde of hysterese groter dan de inschakeldrempel.",
       "dhw_step": "De waarde past niet bij de instelbare stapgrootte.",
-      "dhw_order": "Minimum + differentie + buffer moet ≤ zonnedoel ≤ overschotdoel blijven; controleer ook de koellimiet en sterilisatietemperatuur.",
+      "dhw_order": "Kies comfortgrens ≤ normaal doel ≤ zonnedoel ≤ hoog-overschotdoel; koellimiet minstens het normale doel.",
       "dhw_night": "Gebruik verschillende begin- en eindtijden, met seconden op 00.",
       "dhw_safety": "Controleer eerst met de fabrikant/installateur of deze lage doelen en 60°C geschikt zijn. Hygiëne moet onafhankelijk gewaarborgd blijven.",
       "dhw_pv_required": "Koppel eerst het actuele zonnepanelenvermogen in de algemene SolarPilot-instellingen (W/kW).",
@@ -646,7 +1212,18 @@
       "cycle_learning_requires_meter": "Cyclusleren vereist een beschermde cyclus met een exclusieve vermogensmeter.",
       "cycle_duration_required": "Geef een verwachte cyclusduur op of schakel cyclusleren in.",
       "invalid_precedence": "Kies een geldige Wallbox-voorrang.",
-      "priority_reclaim_conflict": "Een toestel dat de Wallbox voorrang geeft mag niet tegelijk laadvermogen overnemen."
+      "priority_reclaim_conflict": "Een toestel dat de Wallbox voorrang geeft mag niet tegelijk laadvermogen overnemen.",
+      "dhw_morning_required": "Schakel eerst het ochtenddoel in voor een berekende avondvoorraad.",
+      "invalid_current_source": "Gebruik de maximale laadstroom, niet de ICP/hoofdzekering.",
+      "invalid_number": "Waarde buiten het toegestane bereik of geen geldig getal.",
+      "dishwasher_restored": "Dit is een oude herstelde knop. Kies de actuele START-knop van het gekoppelde apparaat.",
+      "dishwasher_state_overlap": "Gereed, bezig en voltooid moeten niet-lege, verschillende toestanden hebben.",
+      "dishwasher_unknown_state": "Onbekend, offline of unavailable mag nooit als toestemming of bevestiging gelden.",
+      "dishwasher_same_device": "De zes AEG-bronnen moeten bij hetzelfde geregistreerde afwasmachine-apparaat horen.",
+      "analysis_too_many": "Selecteer maximaal 50 extra bronentiteiten.",
+      "dishwasher_exact_remote": "Gebruik voor fysieke APP-vrijgave uitsluitend de volledige waarde Enabled.",
+      "invalid_selection": "Ongeldige keuze; selecteer een aangeboden optie.",
+      "invalid_pv_setting": "Ongeldige PV-instelling: controleer type, eenheid en bereik."
     },
     "abort": {
       "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",

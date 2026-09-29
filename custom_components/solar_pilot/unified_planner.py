@@ -72,6 +72,8 @@ class BaseLoadModel:
         self.bins = {}
         self.last_sample_wall = 0.0
         self.accepted = 0
+        self.adaptive_enabled = False
+        self._detail_cache = {}
 
     def snapshot(self):
         return {"bins": self.bins, "accepted": self.accepted, "last_sample_wall": self.last_sample_wall}
@@ -83,6 +85,7 @@ class BaseLoadModel:
         self.bins = raw if isinstance(raw, dict) else {}
         self.accepted = max(0, int(data.get("accepted", 0) or 0))
         self.last_sample_wall = max(0.0, float(data.get("last_sample_wall", 0) or 0))
+        self._detail_cache = {}
 
     @staticmethod
     def _key(dt):
@@ -90,7 +93,7 @@ class BaseLoadModel:
 
     def observe(self, wall_ts, local_now, load_w, *, contaminated=False):
         v = finite(load_w)
-        if contaminated or v is None or v < 50 or v > 20000 or wall_ts - self.last_sample_wall < 900:
+        if contaminated or v is None or v < 0 or v > 20000 or wall_ts - self.last_sample_wall < 900:
             return False
         self.last_sample_wall = wall_ts
         key = self._key(local_now)
@@ -99,27 +102,120 @@ class BaseLoadModel:
         vals = rows.setdefault(day, [])
         vals.append(round(v, 1))
         del vals[:-8]
+        cutoff = (local_now-timedelta(days=60)).date().isoformat()
+        for bucket in self.bins.values():
+            past = bucket.get("days", {})
+            for key_day in list(past):
+                if key_day < cutoff or key_day > day:
+                    del past[key_day]
         while len(rows) > 60:
-            del rows[next(iter(rows))]
+            del rows[sorted(rows)[0]]
         self.accepted += 1
+        self._detail_cache.clear()
         return True
 
-    def estimate(self, dt, min_days=4):
+    def detail(self, dt, min_days=4):
+        """Observed history only, relative to the forecast date; never future training.
+
+        A recent-window candidate must beat an older-history median in rolling
+        origin comparisons. Neither confidence nor validation is a safety proof.
+        The incumbent stays available and every adoption is bounded to +/-25%.
+        """
         key = self._key(dt)
-        entry = self.bins.get(key, {})
-        daily = [_median(v) for v in entry.get("days", {}).values()]
-        daily = [v for v in daily if v is not None]
-        if len(daily) >= int(min_days):
-            spread = (statistics.quantiles(daily, n=4)[2] - statistics.quantiles(daily, n=4)[0]) if len(daily) >= 4 else 0
-            med = _median(daily)
-            confidence = min(.92, len(daily) / max(6.0, float(min_days) * 2)) * max(.35, 1 - spread / max(500.0, med or 500))
-            return max(0.0, med or 0.0), confidence, f"live {len(daily)} dagen"
-        daytype = "weekday" if dt.weekday() < 5 else "weekend"
-        if dt.hour in self.seed_daytype.get(daytype, {}):
-            return max(0.0, self.seed_daytype[daytype][dt.hour]), .35, "historische bootstrap dagtype"
-        if dt.hour in self.seed_hour:
-            return max(0.0, self.seed_hour[dt.hour]), .25, "historische bootstrap uur"
-        return 800.0, .10, "conservatieve fallback"
+        cache_key = (key, dt.date().isoformat(), int(min_days), self.adaptive_enabled)
+        if cache_key in self._detail_cache:
+            return self._detail_cache[cache_key]
+        minimum = max(4, int(min_days))
+        raw = self.bins.get(key, {}).get("days", {})
+        cutoff = (dt - timedelta(days=60)).date().isoformat()
+        today = dt.date().isoformat()
+        rows = []
+        for day, vals in sorted(raw.items()):
+            try:
+                datetime.fromisoformat(day)
+            except (ValueError, TypeError):
+                continue
+            if not cutoff <= day <= today or not isinstance(vals, list):
+                continue
+            values = [finite(x) for x in vals if not isinstance(x, bool)]
+            med = _median([x for x in values if x is not None and 0 <= x <= 20000])
+            if med is not None:
+                rows.append((day, med))
+        daily = [x[1] for x in rows]
+        if len(daily) >= minimum:
+            spread = statistics.quantiles(daily, n=4)[2] - statistics.quantiles(daily, n=4)[0]
+            value = _median(daily)
+            conf = min(.92, len(daily) / max(6., minimum * 2)) * max(.35, 1 - spread / max(500., value))
+            source = f"live {len(daily)} dagen"
+        else:
+            daytype = "weekday" if dt.weekday() < 5 else "weekend"
+            if dt.hour in self.seed_daytype.get(daytype, {}):
+                value, conf, source = max(0., self.seed_daytype[daytype][dt.hour]), .35, "historische bootstrap dagtype"
+            elif dt.hour in self.seed_hour:
+                value, conf, source = max(0., self.seed_hour[dt.hour]), .25, "historische bootstrap uur"
+            else:
+                value, conf, source = 800., .10, "conservatieve fallback"
+        # Frozen-before-observation, rolling-origin validation. Training excludes
+        # the day being scored. No resubstitution/current-plan score is used here.
+        comparisons = []
+        for index, (day, actual) in enumerate(rows):
+            if index < minimum:
+                continue
+            past = rows[:index]
+            recent_cut = (datetime.fromisoformat(day) - timedelta(days=14)).date().isoformat()
+            recent = [v for d, v in past if d >= recent_cut]
+            if len(recent) < minimum or len(recent) == len(past):
+                continue
+            old = _median([v for _, v in past])
+            candidate = min(old * 1.25, max(old * .75, _median(recent)))
+            comparisons.append((day, abs(actual-old), abs(actual-candidate)))
+        eval_cut = (dt - timedelta(days=14)).date().isoformat()
+        comparisons = [x for x in comparisons if x[0] >= eval_cut][-10:]
+        count = len(comparisons)
+        old_mae = statistics.mean(x[1] for x in comparisons) if count else None
+        new_mae = statistics.mean(x[2] for x in comparisons) if count else None
+        recent_cut = (dt - timedelta(days=14)).date().isoformat()
+        recent = [v for d, v in rows if d >= recent_cut]
+        candidate = min(value * 1.25, max(value * .75, _median(recent))) if len(recent) >= minimum else value
+        eligible = bool(count >= 4 and old_mae >= 20 and new_mae <= old_mae*.9
+                        and old_mae-new_mae >= 20 and len(daily) >= minimum)
+        used = bool(eligible and self.adaptive_enabled)
+        detail = {"bucket": key, "days": len(rows), "minimum_days": minimum,
+                  "missing_days": max(0, minimum-len(rows)), "confidence": round(conf, 3),
+                  "source": source, "incumbent_w": round(value, 1),
+                  "prediction_w": round(candidate if used else value, 1),
+                  "candidate_w": round(candidate, 1), "validation_days": count,
+                  "incumbent_mae_w": None if old_mae is None else round(old_mae, 1),
+                  "candidate_mae_w": None if new_mae is None else round(new_mae, 1),
+                  "candidate_eligible": eligible, "candidate_applied": used,
+                  "first_day": rows[0][0] if rows else None, "last_day": rows[-1][0] if rows else None}
+        if len(self._detail_cache) > 300:
+            self._detail_cache.clear()
+        self._detail_cache[cache_key] = detail
+        return detail
+
+    def estimate(self, dt, min_days=4):
+        info = self.detail(dt, min_days)
+        source = info["source"] + ("; gevalideerd recent profiel" if info["candidate_applied"] else "")
+        return info["prediction_w"], info["confidence"], source
+
+    def coverage(self, local_now, min_days=4):
+        """48 small hour/daytype summaries, not raw samples in every HA state."""
+        days = [local_now + timedelta(days=x) for x in range(7)]
+        anchors = {"weekday": next(d for d in days if d.weekday() < 5),
+                   "weekend": next(d for d in days if d.weekday() >= 5)}
+        # Use the same cutoff date for both day types, not a fictitious future week.
+        rows = []
+        for kind, anchor in anchors.items():
+            for hour in range(24):
+                row = dict(self.detail(anchor.replace(hour=hour), min_days))
+                rows.append(row)
+        return {"accepted": self.accepted, "buckets": rows,
+                "live_buckets": sum(x["missing_days"] == 0 for x in rows), "total_buckets": 48,
+                "eligible_candidates": sum(x["candidate_eligible"] for x in rows),
+                "applied_candidates": sum(x["candidate_applied"] for x in rows),
+                "note": "Uur/dagtype-vakken; aantal planberekeningen is geen aantal leerdagen. Historische startprofielen en live metingen blijven onderscheiden."}
+
 
 
 @dataclass
@@ -453,12 +549,12 @@ class UnifiedPlanner:
 
     def observe_actual(self, *, wall_ts, local_now, actual_pv_w, actual_base_w, actual_grid_w,
                        import_price=.30, export_price=.03, capacity_target_w=None,
-                       execution_total=0, execution_matches=0):
+                       execution_total=0, execution_matches=0, context="normal"):
         slot=self.current_slot(local_now)
         if slot and self.settings.get("quality_tracking",True):
             self.quality.observe(wall_ts=wall_ts,local_now=local_now,predicted_pv_w=slot.pv_w,actual_pv_w=actual_pv_w,
                                  predicted_base_w=slot.base_w,actual_base_w=actual_base_w,predicted_net_w=slot.net_after_plan_w,
-                                 actual_net_w=actual_grid_w,execution_total=execution_total,execution_matches=execution_matches)
+                                 actual_net_w=actual_grid_w,execution_total=execution_total,execution_matches=execution_matches,context=context)
             q=self.quality.overview().get("last_7d",{})
             self.last_pv_mae_w=q.get("pv_mae_w"); self.last_base_mae_w=q.get("base_mae_w")
         if self.settings.get("replay_enabled",True) and actual_base_w is not None:

@@ -1,0 +1,90 @@
+SolarPilot 1.0.0-beta.27 — lokaal testverslag
+Datum: 2026-09-28
+
+Basis: volledig beta.26-pakket, cumulatief; geen live HA- of GitHub-wijzigingen.
+Python: 3.13.5; pytest: 9.0.2
+Softwaretests gebruiken Home Assistant-testdubbels. Browserproeven gebruiken echte
+SolarPilot-JavaScript in lokaal Chromium met fictieve HA API-responses en meetwaarden.
+De nieuwe options-flow interface is niet tegen een echte HA-server getest.
+Geen fysieke Panasonic-, Wallbox- of ontvochtigertest. Geen HACS/hassfest-run hier.
+GitHub Actions en de praktijkcontrole volgen pas na publicatie/installatie door de gebruiker.
+
+> python -B -m pytest -q -p no:cacheprovider
+........................................................................ [ 11%]
+........................................................................ [ 22%]
+........................................................................ [ 33%]
+........................................................................ [ 44%]
+........................................................................ [ 55%]
+........................................................................ [ 66%]
+........................................................................ [ 77%]
+........................................................................ [ 88%]
+........................................................................ [ 99%]
+......                                                                   [100%]
+654 passed in 2.27s
+
+Exit code: 0
+
+> python -B tools/check_current_explanation.py
+OK: actuele uitleg 1.0.0-beta.27 · 966146841af765ab
+
+Exit code: 0
+
+> python -B tools/validate_repository.py
+Repositorystructuur OK
+
+Exit code: 0
+
+> python -B tools/check_public_repository.py
+OK: public repository preflight
+
+Exit code: 0
+
+> node --check custom_components/solar_pilot/frontend/solar-pilot-card.js
+
+
+Exit code: 0
+
+> node --check custom_components/solar_pilot/frontend/option-help.js
+
+
+Exit code: 0
+
+> python -B tools/check_options_ui.py
+OK: beta.27 opties + uitleg, 80 updates, mobiele/desktop-breedtes, payloads, foutafhandeling, geen actuatoraanroepen. HA API getest met fixtures, niet een echte server.
+
+Exit code: 0
+
+> python -B tools/check_consumer_history_ui.py
+History popup browser checks passed: actual native dialog survives 80 telemetry renders; scrolling/date/details retained; 7/30 day navigation; racing responses; no control writes; 320/390/768/1440 layouts; XSS; Esc/close/poll cleanup and focus return. All demo readings are fictitious.
+
+Exit code: 0
+
+> python -B tools/check_card.py
+Browser checks passed: unified Control Center + Planning tab, editable climate/planner settings with advice/consequences, read-only Wallbox, responsive 320/390/768/1280, safe action routing and HTML escaping.
+
+Exit code: 0
+
+Aanvullend: alle Python-bestanden AST-geparseerd; alle JSON-bestanden gelezen.
+Geen __pycache__, .pytest_cache of .git in pakket.
+
+Geteste nieuwe gedragsonderdelen:
+- Nachtstand behoudt minimum; einde nacht veroorzaakt geen vaste klokstart.
+- Ochtend45/09, lead, deadlinewaarschuwing, netfallback en beschermingsblokkeringen.
+- Avondvoorraad met echte beschikbare zon, forecastfallback en bevestigde eigen target.
+- Tankverlies/opwarming, grove hele-gradenmetingen, samplehiaten en DST.
+- Wallbox-profiel: juiste apparaatbron, A/kW onderscheid, geen ICP, expliciete fasen,
+  geen fasegok uit vermogen, verse bron of zichtbare terugval; geen Wallbox writes.
+- Extra60 gebruikt geen EV-watts; normaal comfort mag het autonome EV-vermogen meewegen.
+- Voorspelde koeling respecteert model/bronkwaliteit, geen HEAT/COOL-opdracht.
+- 350 uitleg-items gecontroleerd tegen release, veldnamen en native beschrijvingen.
+- Optiepopup: 80 telemetrieupdates zonder sluiting/veldreset, 320/390/768/1440 px,
+  typed payloads, serverfout geen vals succes, niet-admin geen configuratieverzoek,
+  onbekend selectorveld blokkeert submit, HTML escaping en geen actuatorservices.
+- Bestaande daghistorie-popup en kaart inclusief kosten/Wallbox zijn opnieuw getest.
+- Bestaande configuratiewaarden blijven behouden; nieuwe comfortopties opt-in.
+
+Grenzen:
+Een temperatuur om 09:00 is een comfortdoel, geen gegarandeerde tank-/kraantemperatuur.
+Deze setpoint-only interface biedt geen harde nachtelijke stroomvergrendeling.
+Fabrikant-hygiëne, toestelbeveiliging en gecontroleerde verbrandingsbeveiliging blijven nodig.
+Voldoende softwaretests bewijzen geen fysiek correct of veilig geïnstalleerd systeem.

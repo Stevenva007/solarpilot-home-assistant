@@ -8,7 +8,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Version = "1.0.0-beta.24"
+$Version = (Get-Content (Join-Path $PSScriptRoot "../custom_components/solar_pilot/manifest.json") -Raw | ConvertFrom-Json).version
 $Description = "SolarPilot - local Home Assistant EMS for PV surplus, flexible loads, heat pumps, EV charging coexistence and batteries."
 $Topics = @("home-assistant", "hacs", "energy-management", "ems", "solar", "photovoltaics", "heat-pump", "battery")
 

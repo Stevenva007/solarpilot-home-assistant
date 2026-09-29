@@ -1,4 +1,4 @@
-# SolarPilot beta.19 — HACS eerste installatie
+# SolarPilot beta.33 — HACS eerste installatie
 
 Dit is de aanbevolen eerste installatie.
 
@@ -50,3 +50,14 @@ De enige actuele regelbeschrijving is `docs/ACTUELE_WERKING.md` en dezelfde inho
 ## Dagoverzicht bekijken
 
 In **SolarPilot → Verbruikers** staat bij ieder toestel **Dagoverzicht**. De popup toont geregistreerde draaitijd per dag, begin/einde per sessie en de bevestigde SolarPilot-redenen of een expliciete melding van externe/onbekende bediening. De registratie begint na installatie van deze functie; gewone updates behouden de gegevens. Een slimme stekker registreert ingeschakelde tijd, niet vanzelf afzonderlijke compressorcycli. Zie `docs/ACTUELE_WERKING.md` voor meetdekking, opslaggrenzen en details.
+
+## Nieuw in beta.29: AEG en analyse
+
+Afwasmachine-start met eenmalige klaarzettoestemming en native AEG-START, nooit via de netstekker. Een gestart programma blijft beschermd. De knop **Analyse-export** onderaan het dashboard maakt een lokaal JSON-bestand voor handmatige probleem- en modelanalyse. Zie [instellen en beperkingen](docs/AFWASMACHINE_EN_ANALYSE.md). Nieuwe fysieke koppelingen worden niet automatisch geactiveerd.
+
+## Huidige AEG-voorrang en APP-start
+
+[Beta.32 instellen](docs/BETA32_INSTELLEN.md) beschrijft de standaard AEG-voorkeur
+onder warmtepompcomfort en boven Wallbox, lagere verbruikers en extra 60 °C.
+[APP en deadline](docs/BETA31_INSTELLEN.md) zijn cumulatief inbegrepen.
+Volledige faseprofielplanning blijft uitgesteld tot de latere Shelly-update.

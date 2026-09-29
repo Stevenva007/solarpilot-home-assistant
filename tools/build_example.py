@@ -10,6 +10,9 @@ import types
 
 ROOT = Path(__file__).resolve().parents[1]
 card = (ROOT / "custom_components" / "solar_pilot" / "frontend" / "solar-pilot-card.js").read_text(encoding="utf-8")
+help_data = json.loads((ROOT / "custom_components" / "solar_pilot" / "frontend" / "option-help.json").read_text(encoding="utf-8"))
+helper_code = (ROOT / "custom_components" / "solar_pilot" / "frontend" / "option-help.js").read_text(encoding="utf-8")
+card = "globalThis.SOLAR_PILOT_HELP_DATA = " + json.dumps(help_data, ensure_ascii=False) + ";\n" + helper_code + "\n" + card
 spec = importlib.util.spec_from_file_location("current_guide_example", ROOT / "custom_components" / "solar_pilot" / "current_guide.py")
 guide_mod = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
@@ -380,11 +383,12 @@ attributes = {
         "temperature_c": 46.2,
         "actual_target_c": 50,
         "proposed_target_c": 50,
-        "base_target_c": 49,
-        "minimum_c": 43,
+        "base_target_c": 50,
+        "normal_target_c": 50,
+        "minimum_c": 46,
         "tank_differential_c": -5,
-        "minimum_buffer_c": 1,
-        "expected_restart_c": 44,
+        "normal_c": 50,
+        "expected_restart_c": 45,
         "night": False,
         "cooling": True,
         "cooling_block": True,
@@ -408,7 +412,7 @@ attributes = {
         "number_entities": {
             "minimum_c": "number.voorbeeld_boiler_minimum_c",
             "tank_differential_c": "number.voorbeeld_boiler_tank_differential_c",
-            "minimum_buffer_c": "number.voorbeeld_boiler_minimum_buffer_c",
+            "normal_c": "number.voorbeeld_boiler_normal_c",
             "solar_c": "number.voorbeeld_boiler_solar_c",
             "surplus_c": "number.voorbeeld_boiler_surplus_c",
             "cooling_cap_c": "number.voorbeeld_boiler_cooling_cap_c",
@@ -417,9 +421,9 @@ attributes = {
             "estimated_heat_power_w": "number.voorbeeld_boiler_estimated_heat_power_w",
         },
         "settings": {
-            "minimum_c": 43,
+            "minimum_c": 46,
             "tank_differential_c": -5,
-            "minimum_buffer_c": 1,
+            "normal_c": 50,
             "solar_c": 50,
             "surplus_c": 60,
             "cooling_cap_c": 50,
@@ -429,13 +433,26 @@ attributes = {
             "night_enabled": True,
             "night_start": "23:00:00",
             "night_end": "06:00:00",
-            "rise_delay_s": 60,
-            "fall_delay_s": 120,
-            "cooling_clear_s": 600,
+            "rise_delay_s": 300,
+            "fall_delay_s": 300,
+            "cooling_clear_s": 1800,
             "cooling_detection": "action",
         },
     },
 }
+
+
+# Fictitious beta.28 gentle DHW fixture; never a household measurement.
+attributes['dhw']['settings'].update(normal_c=50, minimum_c=46, morning_enabled=True,
+    morning_c=46, morning_time='09:00:00', evening_enabled=True, evening_cap_c=55,
+    respect_space_climate=True, optional_raise_interval_s=1800)
+attributes['dhw']['comfort_plan']={
+    'native_restart_c':45, 'comfort_floor_c':46, 'projected_c':46.3,
+    'evening_target_c':53, 'evening_completed':False,
+    'limit_note':'50 °C normaal en -5 °C differentie: native herstart rond 45 °C. 46 °C is een bewaakte comfortgrens, geen gegarandeerd minimum.',
+    'reason':'Fictief voorbeeld: voorraad beoordeeld; geen tijdelijke herstelboost.'}
+attributes['dhw']['tank_learning']={'loss_c_h':.25,'heat_c_h':6,
+    'loss_source':'ingestelde terugvalraming','heat_source':'ingestelde terugvalraming'}
 
 # Fictitious beta.24 display fixtures; not read from household data.
 attributes["ems"]["electricity_today"] = {

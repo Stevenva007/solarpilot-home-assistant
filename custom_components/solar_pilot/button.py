@@ -11,6 +11,11 @@ async def async_setup_entry(hass, entry, async_add_entities):
         buttons += [SolarButton(r, "dhw_review", "Boilercontrole afronden"),
                     SolarButton(r, "dhw_takeover", "Boiler handmatig overnemen — verandert niets")]
     for i in r.configs:
+        if r.configs[i].get("kind") == "dishwasher":
+            buttons += [SolarButton(r, "dishwasher_arm", "Eén afwasbeurt klaarzetten", i),
+                        SolarButton(r, "dishwasher_cancel", "Afwasstart annuleren — programma niet stoppen", i),
+                        SolarButton(r, "takeover", "Handmatig overnemen — schakelt NIET uit", i)]
+            continue
         buttons += [SolarButton(r, "boost", "Boost 30 min — netstroom toegestaan", i),
                     SolarButton(r, "cancel_boost", "Boost annuleren", i),
                     SolarButton(r, "manual_start", "Manueel starten", i),
@@ -23,7 +28,11 @@ class SolarButton(SolarEntity, ButtonEntity):
     _attr_icon = "mdi:gesture-tap-button"
 
     async def async_press(self):
-        if self.suffix == "dhw_review":
+        if self.suffix == "dishwasher_arm":
+            await self.runtime.arm_dishwasher(self.key)
+        elif self.suffix == "dishwasher_cancel":
+            await self.runtime.cancel_dishwasher(self.key)
+        elif self.suffix == "dhw_review":
             await self.runtime.dhw.review()
         elif self.suffix == "dhw_takeover":
             await self.runtime.dhw.takeover()

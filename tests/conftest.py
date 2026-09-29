@@ -28,6 +28,7 @@ exceptions.HomeAssistantError = HomeAssistantError
 helpers = module("homeassistant.helpers")
 event = module("homeassistant.helpers.event")
 event.async_track_time_interval = lambda *args: lambda: None
+event.async_track_state_change_event = lambda *args: lambda: None
 storage = module("homeassistant.helpers.storage")
 class Store:
     def __init__(self, *args):

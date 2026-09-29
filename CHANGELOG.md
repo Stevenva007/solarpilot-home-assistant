@@ -1,5 +1,81 @@
 # Changelog
 
+## 1.0.0-beta.33 — 2026-09-29
+
+- Cumulatief bovenop beta.32: instelbare automatische EV-zonneverdeling voor geschikte voorrangsverbruikers, met behouden compressor-minimumtijden.
+- Effectieve Wallbox-sessie naast ingestelde Full Solar; manueel/onbekend laden geeft geen EV-credit. Optionele 60 °C terugval; gewoon Panasonic-comfort en sterilisatie blijven beschermd.
+- Forecast.Solar-registerdetectie en guarded lokale coordinatoradapter, geen nieuwe HTTP-oproepen. Eén primaire PV-configuratie, expliciete fallbackbronnen.
+- Robuuste 15-minutenkalibratie per zonnestand/seizoen, 13,8 kWp/10 kW-clippingbewaking, startup/cloud/outlierfilters, gradual bounded multi-day learning en persistente modelversie.
+- Ruwe/gecorrigeerde horizon, kWh-integratie, 14 sensoren, admin PV-diagnose met grafiek/dagtabel en bevestigde PV-only reset; analyse-export uitgebreid.
+- Opgeruimde Planning-samenvatting, Onderzoek & instellingen en nieuwe concrete leervragen; geen modals sluiten bij telemetrie.
+- AEG APP/13:00/next-day en event-einde, prioriteiten, 50/46-DHW zonder52-herstel en bestaande leerdata blijven behouden. Geen nieuwe fasegewijze afwasoptimalisatie zonder Shelly.
+- Zie docs/BETA33_INSTELLEN.md voor migratie, sessiebron en beperkingen; tests staan in het bijgevoegde testverslag.
+
+## 1.0.0-beta.32 — afwasmachinevoorrang onder warmtepompcomfort
+
+- Standaard voorkeursprofiel: gewone warmwater-/vloerregeling en noodzakelijke avondvoorraad eerst; daarna AEG-afwas vóór Wallbox, ontvochtiger en extra 60 °C.
+- Afzonderlijke beschermde zonnestart met bestaand EV-zonnevermogen, zonder Wallbox-opdrachten of uitbreiding van elektrische ruimte. Nieuwe actieve status en netto balans worden gecontroleerd; geen afwas-rollback. Tijdelijke netafname mogelijk.
+- Alleen benodigde lagere, eigen, gemeten lasten na stabiliteit vrijgeven; compressor-minimumlooptijd en verse bevestiging/P1 blijven vereist.
+- Klaar voor morgen reserveert vandaag niets. Deadline verandert geen comfort- of elektrische grens.
+- Zonder Shelly conservatieve nominale reservering; volledige faseprofielplanning blijft expliciet voor de latere Shelly-update.
+- Vraagtekens, voorrangskaart, analysevelden, herstelmelding en actuele uitleg in dezelfde release.
+- Bestaande AEG-profielen krijgen de twee voorkeurskeuzes standaard aan; bestaande Auto/Uitgesloten, mapping en fysieke APP-vrijgave blijven ongewijzigd. Keuzes kunnen uit.
+
+## 1.0.0-beta.31 — APP-start, volgende dag standaard en betrouwbare eindeherkenning
+
+- Nieuw AEG-profiel: fysieke Delay Start/APP-vrijgave, exact Enabled; geen native timer of extra klaarzetknop.
+- Vóór 13:00 vandaag; op/na 13:00 standaard volgende kalenderdag. Instelbaar alternatief dezelfde dag.
+- Uiterlijk 13:00 op de geplande dag met expliciete nettoestemming; nooit elektrische limieten of apparaatvoorwaarden omzeilen.
+- Vast schema over herstart; één belading maximaal één START; geen retry van onzekere opdrachten.
+- Kort End Of Cycle direct vastleggen en onthouden, ook na Off/Disconnected/herstart. AirDry blijft nadrogen.
+- Aparte Cycle phase-meting en AEG-technische alarmvlagcontrole, geen oordeel op enkel Alerts-teller.
+- APP-plan/eindstatus zichtbaar in kaart, uitleg bij elke nieuwe optie en volledige analyse-export.
+- Cumulatief: behoudt beta.30 leren/vragen, beta.29 analyse-export en alle bestaande warmwater-/Wallbox-/historiefuncties.
+- Bestaande fysieke rechten en handmatige AEG-profielen worden niet stilzwijgend aangepast.
+
+## 1.0.0-beta.30 — Leren, toetsen en gerichte vragen
+
+- Nieuw: Leren & vragen-popup met echte meetbasis voor alle bestaande modellen, gerichte keuzes, antwoordgeschiedenis, optionele HA-meldingen en admin-only API.
+- Restverbruik leren tijdens Wallbox/eigen lasten waar actuele, aparte meters een betrouwbare balans geven; geen schattingen, hiaten of dubbele meters als leerwaarheid. Afwijzingsredenen en beschermde boilercontext apart geregistreerd.
+- Recente basislastvariant in de achtergrond vergelijken op latere dagen; uitsluitend na jouw toestemming en aantoonbare verbetering binnen ±25% toepassen. Bij slechter bewijs terug naar gewoon profiel. Geen versoepeling van fysieke regels.
+- Eerlijke labels: basislastvertrouwen is geen totaal huisvertrouwen. Aparte daglicht-PV-fout, bias, kalenderdagen en nieuwe meetdekking; geen reconstructie van oude dekking.
+- Inclusief modellen, vragen en antwoorden in bestaande analyse-export; begrensd lokaal, geen automatische upload.
+- Geen nieuwe AEG APP-start-/deadline-logica in deze release; bestaande beta.29 adapter behouden. Alle boiler-/Wallbox- en eerder vrijgegeven functies cumulatief behouden.
+
+## 1.0.0-beta.29 — AEG-start en volledige analyse-export
+
+- Toegevoegd: afzonderlijk AEG/Electrolux-start-only profiel met echte START-knop, gereedmelding, verbinding, remote-start, deur en geselecteerd programma.
+- Per geladen afwasbeurt een bevestigde eenmalige klaarzettoestemming; pas native START bij actuele zonne-/plannervoorwaarden. Nieuwe koppelingen blijven Uitgesloten.
+- Geen plugrelais, STOPRESET, PAUSE of RESUME. Een lopende cyclus blijft beschermd bij netafname, Pauze, uitsluiting en Wallbox-voorrang. Geen blinde herhaalstart na een onzekere opdracht/herstart.
+- Voorbereid op exclusieve Shelly W/kW-meting; complete cyclus-/faseprofielen per programma, onbemeten fasen blijven onbekend. Oude geschatte fasen worden niet als echte meting geïmporteerd.
+- Toegevoegd: admin Analyse-export-popup (JSON, 1h/24h/7d) met alle module-instellingen, bronwaarden/attributen/versheid, modellen, beslissingen, eigen foutlogs, verbruikershistorie, energiekosten en beschikbare tijdreeksen.
+- Lokale begrensde registratie, configureerbaar; namen standaard gepseudonimiseerd, gevoelige velden gefilterd, geen automatische upload. Exportopbouw buiten de event loop. Private exports worden door public-preflight geweigerd.
+- Nieuwe configuratieopties hebben release-gebonden vraagtekenuitleg. Bestaande beta.28-warmwatersturing en eerdere cumulatieve functies blijven behouden.
+- Geen live HA- of GitHub-wijzigingen door het pakket; zie docs/AFWASMACHINE_EN_ANALYSE.md voor activering en testgrenzen.
+
+## 1.0.0-beta.28 — 2026-09-28
+
+- Onafhankelijk normaal boilerdoel (nieuw 50 °C) en bewaakte comfortgrens (nieuw 46 °C). Geen afgeleide tijdelijke verhoging om de Panasonic-differentie te omzeilen.
+- Ochtendcontrole herstelt uitsluitend het normale doel; oude ochtend-/noodboost-latches worden niet afgespeeld. Geen Force DHW of mode-/compressoropdrachten.
+- Expliciete waarschuwing: 50 °C met -5 °C differentie laat nominale herstart rond 45 °C toe. Geen minimumtemperatuur- of hygiënegarantie.
+- Begrensde avondvoorraad uit echt beschikbare zon: één berekende reserve per dag, geen opkruipend setpoint om starten af te dwingen, behoud voltooiing na herstart.
+- Extra zonne-opwarming wacht standaard bij bezige/onbekende ruimteklimaatactie en 30 minuten tussen extra verhogingen. Normale doelherstelling en beschermende verlaging blijven beschikbaar.
+- Bestaande normale doelen, bronnen, rechten en leerdata blijven behouden via expliciete migratie; 50/46-profiel bewust kiezen bij bestaande installaties.
+- Dashboard, actuele uitleg, optie-vraagtekens, native beschrijvingen en instelhandleiding tegelijk bijgewerkt. Nieuwe software- en browserregressies.
+
+## 1.0.0-beta.27 — 2026-09-28
+
+- Release-bound Nederlandse optie-uitleg voor alle wizardvelden en directe klimaat/planner/boileropties, onafhankelijke toegankelijke hulpdialogen en native HA-beschrijvingen.
+- Geïntegreerde configuratiewizard gebruikt HA's bestaande admin-only optiesflow; bewaarde velden en hulp overleven live dashboardupdates.
+- Alleen-lezen Wallbox-laadprofiel met same-device herkenning, expliciete fasebron of handmatige 1-/3-fasenkeuze, huidige25-A-terugval, bronactualiteit en ICP-uitsluiting.
+- Optionele nachtrust tot stabiele zon, gemeten ochtenddoel45 °C om09:00 en beperkte avondvoorraad uit laatste bruikbare zon. Begrensd tankleren en expliciete aannames; geen temperatuurgarantie.
+- Gewoon warmtepompcomfort vóór autonoom EV-laden; extra60 °C uitsluitend echt residuale injectie. Geen opdrachten naar Wallbox.
+- Koeluitloop aanbevolen30 minuten en optionele voorspellende koelblokkering met bestaande thermische/weerdata. Nacht-/ochtend- en fabrikantbeveiligingen blijven gescheiden.
+- Standaard zonne-stabiliteit300/300 seconden; bestaande opgeslagen wachttijden blijven behouden.
+- Stabiel DHW-eigenaarschap blokkeert ruimteklimaat niet permanent; pending/fout-/hygiënebescherming blijft.
+- Vaste testklok voor twee bestaande DHW-tests voorkomt afhankelijkheid van een echte maandagse hygiëneperiode. Nieuwe regres­sietests voor koude start, hele-gradenmetingen, DST, bescherming, EV-prioriteit, profielbronnen en UI.
+
+
 ## 1.0.0-beta.26 — Mobiele navigatie, manuele bediening, automatische herstartreconciliatie en 20% batterijverlies
 
 - Mobiel SolarPilot-dashboard krijgt een eigen menuknop die het normale Home Assistant-zijmenu opent; desktopnavigatie blijft ongewijzigd.

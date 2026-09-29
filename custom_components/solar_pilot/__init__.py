@@ -10,6 +10,11 @@ from homeassistant.helpers.storage import Store
 
 from .frontend import async_register_frontend, async_unregister_frontend
 from .consumer_history_api import async_register_history_api
+from .analysis_api import async_register_analysis_api
+from .learning_api import async_register_learning_api
+from .pv_forecast_api import async_register_pv_api
+from .pv_forecast import PV_SENSOR_DEFINITIONS
+from .analysis_export import storage_key as analysis_storage_key
 from .consumer_history_runtime import history_storage_key
 from .private_bundle import build_private_import, delete_private_files_if_requested, load_private_bundle
 from .historical import load_bundled_seed
@@ -58,6 +63,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Remove only SolarPilot's orphaned virtual entities, never underlying devices.
     valid_prefixes = [f"{entry.entry_id}_{i}_" for i in runtime.configs]
     hub_suffixes = {"status", "grid", "surplus", "managed", "energy", "problem", "mode", "reset", "prepare_remove", "others_first", "learning", "reset_learning", "ems_status", "guide", "ems_solar_today", "ems_value_today", "ems_self_consumption", "battery_fleet_status", "battery_fleet_soc", "battery_fleet_power", "smart_climate_status", "smart_climate_confidence", "smart_climate_predicted_min", "smart_climate_predicted_max"}
+    hub_suffixes.update(PV_SENSOR_DEFINITIONS)
     if runtime.capacity_settings["enabled"]:
         hub_suffixes.update({"capacity_status", "capacity_limit", "capacity_headroom"})
     if runtime.phase_settings["enabled"]:
@@ -75,6 +81,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await runtime.start()
     async_register_history_api(hass)
+    async_register_analysis_api(hass)
+    async_register_learning_api(hass)
+    async_register_pv_api(hass)
     try:
         await async_register_frontend(hass)
     except Exception:  # Frontend convenience must never disable the EMS core.
@@ -137,6 +146,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Remove SolarPilot-owned persistent data after the config entry is deleted."""
     await Store(hass, 1, f"{DOMAIN}.{entry.entry_id}").async_remove()
     await Store(hass, 1, history_storage_key(entry.entry_id)).async_remove()
+    await Store(hass, 1, analysis_storage_key(entry.entry_id)).async_remove()
     # Remove SolarPilot-owned optional private profile/bootstrap when the private
     # bundle opted into deletion. Underlying Home Assistant integrations and
     # devices are never touched.

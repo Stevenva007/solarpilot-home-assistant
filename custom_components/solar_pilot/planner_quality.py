@@ -19,9 +19,10 @@ class PlanQualityTracker:
         self.retention_days = int(retention_days)
         self.days = {}
         self.last_sample_wall = 0.0
+        self.coverage_previous = None
 
     def snapshot(self):
-        return {"days": self.days, "last_sample_wall": self.last_sample_wall, "retention_days": self.retention_days}
+        return {"days": self.days, "last_sample_wall": self.last_sample_wall, "retention_days": self.retention_days, "coverage_previous": self.coverage_previous}
 
     def restore(self, data):
         if not isinstance(data, dict):
@@ -29,13 +30,15 @@ class PlanQualityTracker:
         raw = data.get("days", {})
         self.days = raw if isinstance(raw, dict) else {}
         self.last_sample_wall = max(0.0, float(data.get("last_sample_wall", 0) or 0))
-        self.retention_days = max(7, int(data.get("retention_days", self.retention_days) or self.retention_days))
+        self.retention_days = max(7, min(90, int(data.get("retention_days", self.retention_days) or self.retention_days)))
+        self.coverage_previous = None  # do not pretend downtime was observed
 
     def observe(self, *, wall_ts, local_now, predicted_pv_w, actual_pv_w,
                 predicted_base_w=None, actual_base_w=None, predicted_net_w=None,
-                actual_net_w=None, execution_total=0, execution_matches=0):
+                actual_net_w=None, execution_total=0, execution_matches=0, context="normal"):
         if wall_ts - self.last_sample_wall < 300:
             return False
+        previous_wall = self.last_sample_wall
         self.last_sample_wall = float(wall_ts)
         key = local_now.date().isoformat()
         row = self.days.setdefault(key, {
@@ -55,6 +58,31 @@ class PlanQualityTracker:
         if pn is not None and an is not None:
             err = an - pn
             row["net_abs"] += abs(err); row["net_bias"] += err; row["net_count"] += 1
+        # New metrics start with real observations in beta.30. Old rows have no
+        # fabricated daytime classification or coverage.
+        row.setdefault("first_observed_wall", float(wall_ts))
+        row["last_observed_wall"] = float(wall_ts)
+        row["new_samples"] = row.get("new_samples", 0) + 1
+        for field in ("daylight_count", "daylight_abs", "daylight_bias", "daylight_actual_sum",
+                      "covered_seconds", "base_covered_seconds", "hygiene_base_count", "hygiene_base_abs"):
+            row.setdefault(field, 0.0)
+        if pp is not None and ap is not None and max(pp, ap) >= 100:
+            row["daylight_count"] += 1
+            row["daylight_abs"] += abs(ap-pp)
+            row["daylight_bias"] += ap-pp
+            row["daylight_actual_sum"] += max(0., ap)
+        valid_now = (pp is not None and ap is not None, pb is not None and ab is not None)
+        gap = float(wall_ts) - previous_wall
+        if self.coverage_previous is not None and 0 < gap <= 600:
+            # Do not assign yesterday's interval to today's row. Short intervals
+            # between valid endpoints are the only coverage we can substantiate.
+            gap = min(gap, (local_now-local_now.replace(hour=0, minute=0, second=0, microsecond=0)).total_seconds())
+            if valid_now[0] and self.coverage_previous[0]: row["covered_seconds"] += gap
+            if valid_now[1] and self.coverage_previous[1]: row["base_covered_seconds"] += gap
+        self.coverage_previous = valid_now
+        if context == "protected_dhw" and pb is not None and ab is not None:
+            row["hygiene_base_count"] += 1
+            row["hygiene_base_abs"] += abs(ab-pb)
         row["exec_total"] += max(0, int(execution_total or 0))
         row["exec_matches"] += max(0, int(execution_matches or 0))
         cutoff = local_now.date() - timedelta(days=self.retention_days)
@@ -89,8 +117,28 @@ class PlanQualityTracker:
         if net_mae is not None: penalties.append(min(1.0, net_mae / 1800.0))
         if exec_total: penalties.append(1.0 - exec_match / exec_total)
         score = None if not penalties else max(0.0, 100.0 * (1.0 - sum(penalties) / len(penalties)))
+        daylight = int(sumk("daylight_count"))
+        actual_sum = sumk("daylight_actual_sum")
+        new_rows = [r for r in rows if r.get("new_samples", 0) > 0]
+        first = min((r["first_observed_wall"] for r in new_rows), default=None)
+        last = max((r["last_observed_wall"] for r in new_rows), default=None)
+        span = last-first if first is not None and last is not None else 0
         return {
             "days": len(rows), "samples": count,
+            "period_anchor": keys[-1] if keys else None,
+            "pv_daylight_samples": daylight,
+            "pv_daylight_mae_w": round(sumk("daylight_abs") / daylight, 1) if daylight else None,
+            "pv_daylight_bias_w": round(sumk("daylight_bias") / daylight, 1) if daylight else None,
+            "pv_daylight_normalized_error_pct": round(100*sumk("daylight_abs") / actual_sum, 1) if actual_sum >= 100 else None,
+            "new_metric_samples": int(sumk("new_samples")),
+            "first_observed_wall": first, "last_observed_wall": last,
+            "covered_hours": round(sumk("covered_seconds") / 3600., 2) if new_rows else None,
+            "base_covered_hours": round(sumk("base_covered_seconds") / 3600., 2) if new_rows else None,
+            "coverage_pct": min(100., round(100*sumk("covered_seconds") / span, 1)) if span > 0 else None,
+            "coverage_note": "Vanaf beta.30: korte intervallen tussen geldige waarnemingen (max. 10 min). Geen ingevulde historie, bronuitval of herstarttijd; meetdekking is geen voorspelnauwkeurigheid.",
+            "protected_dhw_samples": int(sumk("hygiene_base_count")),
+            "protected_dhw_base_mae_w": round(sumk("hygiene_base_abs") / sumk("hygiene_base_count"), 1) if sumk("hygiene_base_count") else None,
+            "evaluation_note": "Momentopnamen tegenover huidig planblok; geen onafhankelijke validatie van de hele 36-uursprognose. Daglicht = voorspeld of gemeten PV >= 100 W.",
             "pv_mae_w": None if pv_mae is None else round(pv_mae, 1),
             "pv_bias_w": None if not count else round(sumk("pv_bias") / count, 1),
             "base_mae_w": None if base_mae is None else round(base_mae, 1),
@@ -110,7 +158,7 @@ class PlanQualityTracker:
             if seven["pv_mae_w"] is not None and seven["pv_mae_w"] > 700:
                 findings.append("De PV-voorspelling wijkt recent vaak af; laat lokale schaduwcorrectie verder leren of verhoog tijdelijk de PV-reserve.")
             if seven["base_mae_w"] is not None and seven["base_mae_w"] > 400:
-                findings.append("De basislastvoorspelling is nog onnauwkeurig; meer verschillende leerdagen kunnen helpen.")
+                findings.append("De basislastvoorspelling wijkt af. Bekijk Leren & vragen: bruikbare dagen, afgewezen metingen en bijzondere lasten; alleen wachten is niet altijd voldoende.")
             if seven["execution_match_pct"] is not None and seven["execution_match_pct"] < 80:
                 findings.append("Het geplande apparaatgedrag wordt vaak door realtime voorwaarden overruled; controleer deadlines, vraagvoorwaarden en toestelbeschikbaarheid.")
             if not findings:

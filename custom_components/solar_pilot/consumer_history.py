@@ -75,7 +75,9 @@ class ConsumerHistory:
     def _binding(cfg):
         # Names and planner settings may change without discarding history.
         return "|".join(str(cfg.get(k, "")) for k in (
-            "kind", "control_entity", "active_entity", "number_entity"))
+            "kind", "control_entity", "active_entity", "number_entity")) + (
+                "|" + "|".join(str(cfg.get(k, "")) for k in ("start_button", "dishwasher_state_entity"))
+                if cfg.get("kind") == "dishwasher" else "")
 
     def ensure(self, device_id, cfg, when):
         stamp = self._stamp(when)

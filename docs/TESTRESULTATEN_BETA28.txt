@@ -1,0 +1,57 @@
+SolarPilot 1.0.0-beta.28 — lokaal testverslag
+Datum: 2026-09-28
+Bronbasis: volledige SolarPilot 1.0.0-beta.27 GitHub/HACS-archive uit deze conversatie.
+Reikwijdte: cumulatief pakket; geen wijziging van de live installatie of GitHub-repository.
+
+UITGEVOERDE CONTROLES
+- Python: 3.13.5
+- Volledige suite: 708 passed (inclusief 54 nieuwe gentle-DHW-regressies).
+- Actuele uitleg: 1.0.0-beta.28; regel-hash 8340f33122654ebb.
+- Repositorystructuur: OK.
+- Public repository preflight: OK.
+- 94 Pythonbestanden geparseerd; alle component-JSON geldig.
+- Manifest: domain, name, overige keys alfabetisch.
+- node --check: solar-pilot-card.js en option-help.js OK.
+- git diff --check: geen uitvoer/fouten.
+
+BELANGRIJKE NIEUWE GEDRAGSREGRESSIES
+- Normaal doel 50 °C en comfortgrens 46 °C onafhankelijk; geen afgeleide 52 °C boost.
+- Lage tank, ochtenddeadline en oude boost-latches verhogen het normale doel niet.
+- 50 °C/-5 °C nominale herstart rond 45 °C staat expliciet als beperking in beeld.
+- Geen Force DHW, Powerful, compressor- of modeopdracht door DHW-sturing.
+- Een lage tank omzeilt niet de 300 s zonne-stabiliteit voor extra 60 °C.
+- Echte ruimteklimaatactie wordt onderscheiden van alleen de geselecteerde modus.
+- Extra zonne-opwarming wacht bij actief of onbekend ruimteklimaat.
+- Maximaal één berekende voltooide avondreserve per dag; toestand blijft na herstart.
+- Geen avondsetpointinflatie om de fabrikantdifferentie te passeren.
+- Ontbrekende echte zon kan niet door een forecast alleen worden vervangen.
+- Afronden naar een apparaatstap overschrijdt het expliciet gekozen plafond niet.
+- Rust tussen extra verhogingen blijft over herstart bewaard.
+- Beschermende verlagingen en normaal doelherstel worden niet door die rust geblokkeerd.
+- Een niet-uitgevoerde verhoging mag geen lagere hysterese-startdrempel vrijgeven.
+- Observatie, Pauze, hygiëne en ontbrekende veiligheidsgoedkeuring blijven beschermd.
+- Nieuwe configuraties activeren geen fysieke rechten; oude normale doelen behouden.
+- Bij stabiel 50 °C worden niet iedere regelcyclus nieuwe doelopdrachten verstuurd.
+
+BROWSERCONTROLES — ECHTE FRONTENDCODE, FICTIEVE GEGEVENS
+- tools/check_options_ui.py: uitleg, configuratiewizard, 80 telemetrieupdates,
+  mobiele/desktopbreedtes, formulierpayloads, foutafhandeling, nul actuatoraanroepen.
+- tools/check_consumer_history_ui.py: historiepopup blijft open bij 80 updates;
+  datum/scroll/details, 7/30 dagen, racing responses, XSS, Esc en polling-opruiming.
+- tools/check_card.py: alle Control Center-tabs, klimaat/plannerbediening,
+  dagkosten, alleen-lezen Wallbox, responsive layouts en HTML-escaping.
+- tools/check_dhw_gentle_ui.py: 50/46/45 apart zichtbaar, geen bufferinput,
+  waarschuwing en uitlegpopup, 80 updates, 320/390/768/1440 breedtes, nul device calls.
+
+GRENZEN
+- Geen draaiende echte Home Assistant-server gebruikt. Backend gebruikt expliciete HA-doubles.
+- Configuratie-API en sensoren in browserproeven zijn fixtures, geen gekoppelde hardware.
+- Geen fysieke Panasonic-, Wallbox-, thermische comfort- of hygiëneacceptatietest.
+- Geen nieuwe GitHub Actions/hassfest/HACS-run uitgevoerd; die volgt na jouw publicatie.
+- Geen gegarandeerd minimum van 46 °C of gegarandeerde ochtendvoorraad.
+- Geen garantie op nul nachtelijke netafname; fabrikantthermostaat blijft autonoom.
+- 46/50 is een gekozen comfort-/energieprofiel, geen aangetoonde Legionella-beheersing.
+
+VOOR JE DE UPDATE ACTIVEERT
+Lees docs/BETA28_INSTELLEN.md. Bestaande doelen en rechten blijven behouden.
+Kies bewust normaal 50 °C en comfortgrens 46 °C; controleer hygiëne en mengbeveiliging.

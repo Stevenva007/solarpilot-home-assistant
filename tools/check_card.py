@@ -1,9 +1,12 @@
 """Browser-check the real SolarPilot Control Center card in offline example HTML."""
 from pathlib import Path
 import shutil
+import os
 from playwright.sync_api import sync_playwright
 
 root = Path(__file__).resolve().parents[1]
+output=Path(os.environ.get("SOLARPILOT_SCREENSHOT_DIR", "/tmp/solarpilot-browser-tests"))
+output.mkdir(parents=True,exist_ok=True)
 browser_path = shutil.which("chromium") or shutil.which("google-chrome")
 errors = []
 with sync_playwright() as p:
@@ -40,7 +43,7 @@ with sync_playwright() as p:
     assert "Advies:" in climate_text and "Lager:" in climate_text and "Hoger:" in climate_text
     assert "geen raam/deursensoren" in climate_text.lower()
     page.set_viewport_size({"width":1280,"height":1100})
-    page.screenshot(path=str(root/"SolarPilot-Klimaat-dashboard.png"), full_page=False)
+    page.screenshot(path=str(output/"SolarPilot-Klimaat-dashboard.png"), full_page=False)
     # Focused climate Control Center: collapse findings, open settings and capture the climate block itself.
     findings = page.locator('solar-pilot-card >> .climate-findings')
     if findings.get_attribute('open'):
@@ -48,13 +51,13 @@ with sync_playwright() as p:
     settings_shell = page.locator('solar-pilot-card >> .climate-settings-shell')
     if not settings_shell.get_attribute('open'):
         settings_shell.locator(':scope > summary').click()
-    page.locator('solar-pilot-card >> .climate').screenshot(path=str(root/"SolarPilot-Klimaat-instellingen.png"))
+    page.locator('solar-pilot-card >> .climate').screenshot(path=str(output/"SolarPilot-Klimaat-instellingen.png"))
     page.set_viewport_size({"width":390,"height":844})
 
     # Planning has its own page: joint horizon, device targets, timeline and editable settings.
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="planning"]').click()
     planning_text = page.locator("solar-pilot-card >> .planning").inner_text()
-    for label in ("Planning", "Planvertrouwen", "Dagdoelen", "Tijdlijn", "Plannerkwaliteit", "What-if", "Plannerinstellingen", "Hoe wordt gekozen?"):
+    for label in ("Planning", "Basislastvertrouwen", "Dagdoelen", "Tijdlijn", "Plannerkwaliteit", "What-if", "Plannerinstellingen", "Hoe wordt gekozen?"):
         assert label in planning_text, label
     assert page.locator("solar-pilot-card >> [data-planner-setting]").count() == 15
     assert "Lokale namiddagschaduw" in planning_text
@@ -85,9 +88,9 @@ with sync_playwright() as p:
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), width
     page.set_viewport_size({"width":1440,"height":1050})
     page.evaluate("document.body.style.maxWidth='none'")
-    page.screenshot(path=str(root/"SolarPilot-kosten-beta24-desktop.png"),full_page=True)
+    page.screenshot(path=str(output/"SolarPilot-kosten-beta24-desktop.png"),full_page=True)
     page.set_viewport_size({"width":390,"height":844})
-    cost.screenshot(path=str(root/"SolarPilot-kosten-beta24-mobiel.png"))
+    cost.screenshot(path=str(output/"SolarPilot-kosten-beta24-mobiel.png"))
 
     # Energy page groups forecast, phase, capacity and learning; planner summary remains compact.
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="energy"]').click()
@@ -104,7 +107,7 @@ with sync_playwright() as p:
     # Canonical guide has its own tab and the dedicated card still exists.
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="guide"]').click()
     guide_text = page.locator("solar-pilot-card >> .guide").text_content()
-    assert "Panasonic warm water" in guide_text and "Logische interface" in guide_text and "migratie" in guide_text.lower()
+    assert "Sanitair warm water: rustig normaal doel" in guide_text and "Logische interface" in guide_text and "migratie" in guide_text.lower()
     page.evaluate("""() => {const main=document.querySelector('solar-pilot-card');const guide=document.createElement('solar-pilot-guide-card');guide.setConfig({});guide.hass=main._hass;document.body.appendChild(guide);}""")
     assert "Actuele werking" in page.locator("solar-pilot-guide-card >> ha-card").inner_text()
 
@@ -166,13 +169,13 @@ with sync_playwright() as p:
     # Final screenshot: compact overview using the clean example state.
     page.evaluate("document.querySelectorAll('solar-pilot-guide-card').forEach(el => el.remove())")
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="overview"]').click()
-    page.screenshot(path=str(root/"SolarPilot-EMS-voorbeeld.png"), full_page=True)
+    page.screenshot(path=str(output/"SolarPilot-EMS-voorbeeld.png"), full_page=True)
 
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="loads"]').click()
     assert "Wallbox-voorrang per verbruiker" in page.locator("solar-pilot-card >> .wallbox-priority").inner_text()
     assert "Wallbox eerst" in page.locator("solar-pilot-card >> .device").first.inner_text()
     page.set_viewport_size({"width":1440,"height":1000})
-    page.screenshot(path=str(root/"SolarPilot-wallbox-beta24-desktop.png"),full_page=True)
+    page.screenshot(path=str(output/"SolarPilot-wallbox-beta24-desktop.png"),full_page=True)
 
     # Untrusted strings remain text after switching to the loads view.
     page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');const a=JSON.parse(JSON.stringify(c._last.attributes));const bad='<img src=x onerror="window.injected=true">';a.devices[0].name=bad;a.wallbox.name=bad;a.wallbox.reason=bad;a.dhw.status=bad;a.dhw.reason=bad;c.hass={states:{'sensor.solarpilot_status':{state:'x',attributes:a},'sensor.solarpilot_actuele_uitleg':c._hass.states['sensor.solarpilot_actuele_uitleg']},callService:async()=>{}};}""")

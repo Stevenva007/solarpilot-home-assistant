@@ -4,25 +4,28 @@ SolarPilot only changes the tank temperature setpoint.  It never bypasses the
 manufacturer thermostat, compressor protection, sterilisation programme or
 scald protection.
 
-The important distinction in current SolarPilot is between a *minimum desired measured tank
-water temperature* and the Panasonic setpoint.  A tank with a -5 °C switching
-differential needs a higher setpoint if 43 °C is intended as the practical lower
-comfort bound.
+The normal setpoint and monitored comfort floor are independent. A low tank or
+a morning forecast never raises the normal target to defeat the manufacturer
+deadband. A 50 °C target and -5 °C differential nominally allow a 45 °C restart;
+the 46 °C comfort floor is therefore a warning threshold, NOT a hard guarantee.
 """
 from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 import math
+from .dhw_schedule import SCHEDULE_DEFAULTS, validate_schedule
 
 DHW_DEFAULTS = {
+    **SCHEDULE_DEFAULTS,
     "enabled": False, "safety_confirmed": False,
     "target_entity": "", "temperature_entity": "", "power_entity": "",
     "cooling_entities": [], "hygiene_entity": "", "manual_entity": "", "manual_entities": [],
     "manual_active_states": "on,on-30m,on-60m,on-90m",
     # User-facing thermal policy.
-    "minimum_c": 43.0,
+    "normal_c": 50.0, "minimum_c": 46.0,
     "tank_differential_c": -5.0,
-    "minimum_buffer_c": 1.0,
+    "minimum_buffer_c": 1.0,  # retained only for pre-beta.28 migration, not control
+    "respect_space_climate": True, "optional_raise_interval_s": 1800,
     "solar_c": 50.0, "surplus_c": 60.0, "cooling_cap_c": 50.0,
     "pv_threshold_w": 1000.0, "surplus_threshold_w": 3500.0,
     "estimated_heat_power_w": 3200.0,
@@ -35,18 +38,18 @@ DHW_DEFAULTS = {
     "hygiene_target_c": 62.0,
     "hygiene_guard_before_s": 900,
     "hygiene_guard_after_s": 10800,
-    "rise_delay_s": 60, "fall_delay_s": 120,
+    "rise_delay_s": 300, "fall_delay_s": 300,
     "pv_hysteresis_w": 100.0, "surplus_hysteresis_w": 300.0,
-    "cooling_clear_s": 600, "cooling_detection": "action",
+    "cooling_clear_s": 1800, "cooling_detection": "action",
     "stale_s": 300, "ack_timeout_s": 180,
     "max_surplus_import_w": 100.0, "compensate_own_power": True,
     "config_revision": "",
 }
 
 DHW_NUMBERS = {
-    "minimum_c": ("Minimum gewenste watertemperatuur", 35, 55, 0.5, "°C"),
+    "normal_c": ("Normale boilerdoeltemperatuur", 40, 60, 0.5, "°C"),
+    "minimum_c": ("Bewaakte comfortondergrens", 35, 55, 0.5, "°C"),
     "tank_differential_c": ("Tank schakeldifferentie", -12, -2, 1, "°C"),
-    "minimum_buffer_c": ("Minimum veiligheidsbuffer", 0, 5, 0.5, "°C"),
     "solar_c": ("Boiler bij zonneopbrengst", 40, 65, 0.5, "°C"),
     "surplus_c": ("Boiler bij overschot", 45, 65, 0.5, "°C"),
     "cooling_cap_c": ("Boiler maximum bij koeling", 40, 65, 0.5, "°C"),
@@ -83,13 +86,29 @@ def weekday_set(value) -> set[int]:
 
 
 def effective_base_target(settings) -> float:
-    """Setpoint needed to keep the practical lower bound near minimum_c.
+    """Independent normal target; no deadband-compensating comfort boost."""
+    return float(settings.get("normal_c", DHW_DEFAULTS["normal_c"]))
 
-    Example: minimum 43, Panasonic switching differential -5 and 1 degree
-    buffer -> setpoint 49.  This is still only a control target, not a guarantee
-    that a rapidly drawn tank can never dip below the minimum.
+
+def normalized_settings(saved=None):
+    """Migrate old normal targets once without silently resetting user choices.
+
+    Old versions derived the base from minimum - differential + buffer. Preserve
+    that historical base as an explicit normal target. After migration the floor,
+    differential and deprecated buffer NEVER automatically change that target.
+    Empty/new configurations use the new 50/46 defaults. No permissions enabled.
     """
-    return float(settings["minimum_c"]) - float(settings["tank_differential_c"]) + float(settings["minimum_buffer_c"])
+    data = dict(saved or {})
+    if data and "normal_c" not in data:
+        minimum = finite(data.get("minimum_c", 43.0))
+        differential = finite(data.get("tank_differential_c", -5.0))
+        buffer = finite(data.get("minimum_buffer_c", 1.0))
+        if None not in (minimum, differential, buffer):
+            data["normal_c"] = minimum - differential + buffer
+        else:
+            data["normal_c"] = None  # validation must fail, not hide bad data
+        data.setdefault("minimum_c", 43.0)
+    return {**DHW_DEFAULTS, **data}
 
 
 def night_active(c, local_now: datetime):
@@ -125,7 +144,8 @@ def hygiene_schedule_active(c, local_now: datetime):
 
 
 def validate_settings(c):
-    errors = {}
+    c = {**DHW_DEFAULTS, **c}
+    errors = validate_schedule(c)
     for key, (_, low, high, step, _) in DHW_NUMBERS.items():
         value = finite(c.get(key))
         if value is None or not low <= value <= high:
@@ -134,7 +154,7 @@ def validate_settings(c):
             errors[key] = "dhw_step"
     if not errors:
         base = effective_base_target(c)
-        if not base <= c["solar_c"] <= c["surplus_c"]:
+        if not c["minimum_c"] <= base <= c["solar_c"] <= c["surplus_c"]:
             errors["base"] = "dhw_order"
         if not base <= c["cooling_cap_c"] <= c["surplus_c"]:
             errors["cooling_cap_c"] = "dhw_order"
@@ -150,6 +170,7 @@ def validate_settings(c):
         errors["hygiene_weekdays"] = "dhw_range"
     for key, low, high in (
             ("rise_delay_s", 0, 1800), ("fall_delay_s", 0, 1800),
+            ("optional_raise_interval_s", 0, 21600),
             ("cooling_clear_s", 0, 3600), ("stale_s", 30, 3600),
             ("ack_timeout_s", 15, 600), ("max_surplus_import_w", 0, 3000),
             ("pv_hysteresis_w", 0, 5000), ("surplus_hysteresis_w", 0, 5000),
@@ -200,6 +221,18 @@ class DHWReading:
     protected: bool = False
     protection_reason: str = ""
     optional_import_headroom_w: float | None = None
+    battery_discharge_w: float = 0.0
+    standby_c: float | None = None
+    comfort_target_c: float | None = None
+    comfort_reason: str = ""
+    comfort_stage: str = ""
+    comfort_urgent: bool = False
+    predicted_cooling: bool = False
+    predicted_cooling_reason: str = ""
+    luxury_allowed: bool = True
+    luxury_reason: str = ""
+    space_climate_busy: bool | None = False
+    space_climate_reason: str = ""
 
 
 @dataclass
@@ -238,6 +271,7 @@ class DHWPolicy:
             self.last_cooling = now
         cooling_block = (r.cooling is not False or
                          self.last_cooling is not None and now - self.last_cooling < c["cooling_clear_s"])
+        cooling_block = cooling_block or r.predicted_cooling
         if r.protected:
             self.reset_stability()
             self.result = DHWDecision(None, r.protection_reason, "protected", night, cooling_block,
@@ -258,16 +292,16 @@ class DHWPolicy:
         solar = r.pv_w is not None and r.pv_w >= pv_min
         already_high = prev == c["surplus_c"]
         export = r.before_boiler_w if holding_owned_high and c["compensate_own_power"] and r.before_boiler_w is not None else r.export_w
-        high = (r.export_w is not None and r.pv_w is not None and not cooling_block and
+        high = (r.export_w is not None and r.pv_w is not None and not cooling_block and r.luxury_allowed and
                 ((export is not None and export >= c["surplus_threshold_w"] - c["surplus_hysteresis_w"]
                   and r.grid_w is not None and r.grid_w <= c["max_surplus_import_w"])
                  if already_high else r.export_w > c["surplus_threshold_w"]))
 
         desired, stage = base_target, "base"
-        reason = f"Minimumregime: doel {base_target:g} °C houdt rekening met tankdifferentie"
+        reason = f"Normaal doel {base_target:g} °C; Panasonic bepaalt zelf warmtevraag en verdeling"
         capacity_block = False
         if night:
-            reason, stage = "Nachtrust: alleen minimumregime behouden", "night"
+            reason, stage = f"Nachtrust: normaal doel {base_target:g} °C blijft staan; geen zonnebuffer", "night"
         elif high:
             desired, stage = c["surplus_c"], "surplus"
             reason = "Voldoende werkelijk zonneoverschot; geen actieve of onzekere koeling"
@@ -275,25 +309,52 @@ class DHWPolicy:
             # 50 °C is optional comfort/storage.  If the capacity guard says there
             # is too little quarter-hour headroom, keep only the minimum regime.
             headroom = r.optional_import_headroom_w
-            if headroom is not None and not low and headroom < c["estimated_heat_power_w"]:
+            if c["solar_c"] > base_target and headroom is not None and not low and headroom < c["estimated_heat_power_w"]:
                 capacity_block = True
                 reason = (f"Voldoende PV, maar kwartierpiekbewaking reserveert netruimte; "
                           f"minimumregime blijft actief")
             else:
                 desired, stage = c["solar_c"], "solar"
                 reason = "Voldoende zonneopbrengst; netstroom aanvullen is toegestaan"
+        if r.standby_c is not None and stage in ("base", "night"):
+            desired = min(base_target, r.standby_c)
+            stage = "waiting_solar"
+            reason = f"Nacht-/ochtendrust: normaal doel {base_target:g} °C; geen klokstart, Panasonic blijft regelen"
+        if r.comfort_target_c is not None:
+            if (not r.comfort_urgent and r.optional_import_headroom_w is not None
+                    and r.optional_import_headroom_w < c["estimated_heat_power_w"]):
+                capacity_block = True
+                reason += "; avondvoorraad wacht op kwartierpiekruimte"
+            elif (r.comfort_urgent and desired <= base_target) or r.comfort_target_c > desired:
+                # Urgent diagnostics may restore normal comfort, never boost it.
+                desired = min(base_target, r.comfort_target_c) if r.comfort_urgent else r.comfort_target_c
+                stage = r.comfort_stage
+                reason = r.comfort_reason
+        if low and desired <= base_target:
+            desired, stage = base_target, "minimum_monitor"
+            reason = (f"Onder comfortgrens {c['minimum_c']:g} °C: normaal doel {base_target:g} °C; "
+                      "geen temperatuurboost of Force DHW, Panasonic herverwarmt zelf")
+        if (c.get("respect_space_climate", True) and r.space_climate_busy is not False
+                and desired > base_target and desired > r.actual_target_c + .05):
+            desired = base_target
+            stage = "space_priority"
+            reason = r.space_climate_reason or "Extra zonnebuffer wacht: ruimteklimaat actief of niet betrouwbaar bekend"
+        if not r.luxury_allowed and stage not in ("morning", "minimum_recovery"):
+            reason += "; " + (r.luxury_reason or "extra 60 °C wacht op Wallbox")
+        if r.predicted_cooling:
+            reason += "; " + r.predicted_cooling_reason
         if cooling_block and desired > c["cooling_cap_c"]:
             desired = c["cooling_cap_c"]
         if cooling_block and not night and solar:
             reason += "; extra verhoging begrensd door koeling/koelcontrole"
-        if r.pv_w is None and not night:
-            reason = "Zonnemeting ontbreekt: terug naar minimumregime"
+        if r.pv_w is None and not night and r.comfort_target_c is None and r.standby_c is None:
+            reason = f"Zonnemeting ontbreekt: normaal doel {base_target:g} °C blijft beschikbaar"
 
-        immediate = (prev is None and desired == base_target or night or
+        immediate = ((r.comfort_urgent and desired <= base_target) or prev is None and desired <= base_target or night or
                      cooling_block and prev is not None and prev > c["cooling_cap_c"] or
-                     r.pv_w is None or low)
+                     r.pv_w is None or (low and desired <= base_target))
         if prev is None:
-            prev = base_target
+            prev = min(base_target, r.standby_c) if r.standby_c is not None else base_target
             self.current = prev
         remaining = 0
         if desired != prev and not immediate:

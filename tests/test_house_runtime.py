@@ -34,7 +34,7 @@ def setup(monkeypatch, device=None, wallbox=None, settings=None):
     states=States(c); h=SimpleNamespace(states=states,services=Services(states))
     entry=SimpleNamespace(entry_id='test',data={'grid_entity':'sensor.grid','reserve_w':150,
                                               'settle_s':5,'filter_s':5,**(settings or {})},options={
-        'wallbox': {'enabled':True,'power_entity':'sensor.ev','status_entity':'sensor.ev_status',
+        'wallbox': {'enabled':True,'trust_solar_setting':True,'power_entity':'sensor.ev','status_entity':'sensor.ev_status',
                     'mode_entity':'select.ev_mode','stable_s':30,'handover_s':120,
                     'handover_confirm_s':15,'cooldown_s':120,**(wallbox or {})},
         'devices':[{'id':'a','name':'Toestel','kind':'switch','control_entity':'switch.load',

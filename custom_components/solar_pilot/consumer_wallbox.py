@@ -21,6 +21,8 @@ PRIORITY_DEFAULTS = {
 
 
 def follows_wallbox(config: dict, others_first: bool) -> bool:
+    if config.get("kind") == "dishwasher" and config.get("dishwasher_priority_enabled", True):
+        return False
     choice = config.get("wallbox_precedence", "global")
     return choice == "wallbox_first" or (choice == "global" and not others_first)
 
@@ -74,6 +76,10 @@ class ConsumerWallboxPriority:
         if self.last_now is not None and (now < self.last_now or now - self.last_now > sample_gap_s):
             self.ready_since = self.low_since = None
         self.last_now = now
+        if reading.valid and reading.mode in ("manual", "unknown", "stopped"):
+            self._reset()
+            self.result = PriorityResult("actual_surplus", reading.session_reason or "Alleen echt restoverschot; auto regelt niet bevestigd terug")
+            return self.result
         # A snapshot's lack of EV demand is not the same as a valid unplug signal.
         # Unknown/offline data blocks new lower-priority starts, without cutting
         # an already running compressor or inventing an EV demand.
@@ -99,6 +105,11 @@ class ConsumerWallboxPriority:
                         + max(0.0, reading.power_w or 0) + own)
         minimum = max(0.0, float(c["priority_min_power_w"]))
         margin = max(0.0, float(c["priority_start_margin_w"]))
+        maximum = c.get("priority_max_power_w")
+        if not charging and maximum is not None and minimum > float(maximum):
+            self._reset()
+            self.result = PriorityResult("current_limit", "Actuele Wallbox-laadlimiet ligt onder zonnelaadminimum: geen vermogen reserveren", False, False, potential, minimum)
+            return self.result
         # EV precedence is not justified solely by cable presence: demand and
         # usable solar mode are required. Actual charging proves usable demand.
         if not charging and reading.demand is not True:

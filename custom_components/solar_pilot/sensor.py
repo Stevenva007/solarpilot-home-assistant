@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 from homeassistant.helpers.entity import EntityCategory
 from .entity import SolarEntity
+from .pv_forecast import PV_SENSOR_DEFINITIONS
 from .current_guide import CURRENT_GUIDE, GUIDE_HASH, GUIDE_VERSION, GUIDE_UPDATED
 
 
@@ -58,6 +59,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
                      SolarSensor(r, "dhw_temperature", "Boiler gemeten temperatuur"),
                      SolarSensor(r, "dhw_target", "Boiler voorgesteld doel")]
     entities += [SolarSensor(r, "status", "Regelstatus", i) for i in r.configs]
+    entities += [PVForecastSensor(r,k,v) for k,v in PV_SENSOR_DEFINITIONS.items()]
     async_add_entities(entities)
 
 
@@ -259,6 +261,7 @@ class SolarSensor(SolarEntity, SensorEntity):
                     "budget_note": "Voorwaardelijk regelbudget; geen gemeten vrije injectie", "managed_w": round(r.managed_w, 1),
                     "reserve_w": r.settings["reserve_w"], "max_import_w": r.settings["max_import_w"],
                     "dhw": r.dhw.overview(), "devices": r.overview(), "wallbox": r.wallbox_overview(), "learning": r.learning_overview(),
+                "learning_insights": r.learning_hub.summary(),
                     "ems": r.ems_overview(), "recent_decisions": list(r.logs), "recovery": list(r.recovery.values()),
                     "mode_entity": r.entity_id("select", "mode"), "reset_entity": r.entity_id("button", "reset"),
                     "prepare_remove_entity": r.entity_id("button", "prepare_remove"),
@@ -270,3 +273,34 @@ class SolarSensor(SolarEntity, SensorEntity):
             return {"description": "Verbruik tijdens regeling; omvat ook netstroom/boost. Geen besparing of gegarandeerde zonnestroommeting.",
                     "current_estimate": r.energy_estimated}
         return {}
+
+
+class PVForecastSensor(SolarEntity, SensorEntity):
+    """Scalar cached forecasts only; no histories recalculated or recorded per tick."""
+    def __init__(self, runtime, suffix, definition):
+        name,unit,self.value_key,self.horizon=definition
+        super().__init__(runtime,suffix,name)
+        self._attr_icon="mdi:solar-power-variant"
+        self._attr_native_unit_of_measurement=unit
+        self._attr_suggested_display_precision=3 if unit=="kWh" or unit is None else 1
+        if unit=="W":
+            self._attr_device_class=SensorDeviceClass.POWER
+        elif unit=="kWh":
+            self._attr_device_class=SensorDeviceClass.ENERGY
+        # Predictions are neither metered consumption nor accumulating counters.
+        self._attr_state_class=None
+
+    @property
+    def native_value(self):
+        c=self.runtime.pv_forecast.cached
+        if not c.get("available"):return None
+        if self.horizon is not None:
+            rows=c.get("horizon",[])
+            return rows[self.horizon].get(self.value_key) if len(rows)>self.horizon else None
+        if self.value_key=="mae_w":return c.get("model",{}).get("mae_w")
+        v=c.get(self.value_key)
+        return round(v*100,1) if self.value_key=="confidence" and v is not None else v
+
+    @property
+    def extra_state_attributes(self):
+        return {"forecast_only":True,"note":"Geen werkelijk gemeten productie of beschikbaar overschot"}

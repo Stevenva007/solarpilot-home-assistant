@@ -1,4 +1,5 @@
 """Adapter/integration tests with explicit Home Assistant doubles."""
+import asyncio
 from datetime import datetime
 from types import SimpleNamespace
 import time
@@ -11,6 +12,10 @@ from homeassistant.exceptions import HomeAssistantError
 
 class BoilerServices(Services):
     async def async_call(self,domain,action,data,blocking=False):
+        # Model asynchronous device feedback after the command. Without this
+        # delay, datetime's microsecond precision can timestamp the fake response
+        # just before time.time() on fast Windows runs, for any boiler adapter.
+        await asyncio.sleep(0.001)
         if action == 'set_temperature':
             self.calls.append((domain,action,data))
             if self.on_call: self.on_call(domain,action,data)
@@ -91,8 +96,9 @@ async def test_original_unconfigured_integration_does_not_command_boiler():
 @pytest.mark.asyncio
 async def test_minimum_regime_at_night_even_without_energy_readings():
     r,h=setup();r.pv_w=None
+    updates(h,'water_heater.boiler',temperature=49)
     await tick(r,grid=None,valid=False,hour=2)
-    assert h.services.calls[-1][2]['temperature']==49
+    assert h.services.calls[-1][2]['temperature']==50
 
 
 @pytest.mark.asyncio
@@ -256,7 +262,7 @@ async def test_pause_releases_to_base_not_turn_off():
     r,h=setup();await tick(r);await tick(r)
     r.mode='paused'
     await tick(r)
-    assert h.services.calls[-1][2]['temperature']==49
+    assert h.services.calls[-1][2]['temperature']==50
     await tick(r)
     assert r.dhw.owned_target is None and not r.dhw.pending
 
@@ -278,7 +284,7 @@ async def test_disallow_observe_until_control_released():
 
 @pytest.mark.asyncio
 async def test_runtime_serializes_boiler_and_other_load_commands():
-    r,h=setup(config={'night_enabled':False})
+    r,h=setup(config={'night_enabled':False,'hygiene_schedule_enabled':False})
     h.states.set('sensor.grid',-5000,{'unit_of_measurement':'W'})
     r.device_modes['a']='auto'
     await r.tick()
@@ -311,7 +317,7 @@ async def test_review_only_while_not_solar():
 
 @pytest.mark.asyncio
 async def test_review_does_not_command():
-    r,h=setup();r.mode='paused';r.dhw.manual_hold=True
+    r,h=setup(config={'hygiene_schedule_enabled':False});r.mode='paused';r.dhw.manual_hold=True
     await r.dhw.review()
     assert not r.dhw.manual_hold and not h.services.calls
 

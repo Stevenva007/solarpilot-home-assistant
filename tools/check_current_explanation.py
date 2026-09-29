@@ -32,6 +32,17 @@ if embedded_md != expected_md:
     errors.append("embedded ACTUELE_WERKING.md is not regenerated from current_guide.py")
 if "solar-pilot-guide-card" not in card_text:
     errors.append("Home Assistant guide card missing")
+# Verify generated field help as well; importing this builder does not load HA.
+help_spec = importlib.util.spec_from_file_location("option_help_check", ROOT / "tools" / "update_option_help.py")
+help_build = importlib.util.module_from_spec(help_spec)
+assert help_spec.loader is not None
+help_spec.loader.exec_module(help_build)
+help_path = ROOT / "custom_components" / "solar_pilot" / "frontend" / "option-help.json"
+try:
+    if json.loads(help_path.read_text(encoding="utf-8")) != help_build.build():
+        errors.append("option-help.json is not regenerated from current option-help sources")
+except (ValueError, OSError) as err:
+    errors.append(f"option-help.json missing or invalid: {err}")
 if errors:
     raise SystemExit("\n".join(f"ERROR: {e}" for e in errors))
 print(f"OK: actuele uitleg {guide.GUIDE_VERSION} · {guide.GUIDE_HASH[:16]}")

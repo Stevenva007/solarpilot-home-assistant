@@ -3,8 +3,9 @@ from copy import deepcopy
 from uuid import uuid4
 import voluptuous as vol
 from homeassistant.helpers import selector
-from .dhw import DHW_DEFAULTS, DHW_NUMBERS, finite, validate_settings, effective_base_target
+from .dhw import DHW_DEFAULTS, DHW_NUMBERS, finite, validate_settings, effective_base_target, normalized_settings
 from .wallbox import protected_entity
+from .dhw_schedule import SCHEDULE_DEFAULTS, validate_schedule
 from .first_install import apply_first_install_suggestions
 
 
@@ -93,10 +94,12 @@ def stability_schema(c):
     schema = {}
     for k, low, high, step in (
             ("rise_delay_s", 0, 1800, 1), ("fall_delay_s", 0, 1800, 1),
+            ("optional_raise_interval_s", 0, 21600, 60),
             ("pv_hysteresis_w", 0, 5000, 50), ("surplus_hysteresis_w", 0, 5000, 50),
             ("cooling_clear_s", 0, 3600, 1), ("stale_s", 30, 3600, 1),
             ("ack_timeout_s", 15, 600, 1), ("max_surplus_import_w", 0, 3000, 50)):
         schema[vol.Required(k, default=c[k])] = num(low, high, step)
+    schema[vol.Required("respect_space_climate", default=c["respect_space_climate"])]=selector.BooleanSelector()
     schema[vol.Required("cooling_detection", default=c["cooling_detection"])]=selector.SelectSelector({"options": [
         {"value": "action", "label": "Actief koelen; koelmodus als actieve terugmelding ontbreekt"},
         {"value": "mode", "label": "Ook blokkeren zolang koelmodus ingeschakeld is"}]})
@@ -107,7 +110,7 @@ def stability_schema(c):
 class DHWOptionsMixin:
     async def async_step_dhw(self, user_input=None):
         rt = self._runtime()
-        current = {**DHW_DEFAULTS, **self.config_entry.options.get("dhw", {})}
+        current = normalized_settings(self.config_entry.options.get("dhw", {}))
         if not self.config_entry.options.get("dhw"):
             current = apply_first_install_suggestions(self.hass, current, "dhw")
         if rt:
@@ -131,8 +134,34 @@ class DHWOptionsMixin:
             errors = {k: v for k, v in validate_settings(c).items() if k in (*DHW_NUMBERS, "base", "night_start", "night_end",
                 "hygiene_weekdays", "hygiene_start", "hygiene_target_c", "hygiene_guard_before_s", "hygiene_guard_after_s")}
             if not errors:
-                return await self.async_step_dhw_stability()
+                return await self.async_step_dhw_comfort()
         return self.async_show_form(step_id="dhw_rules", data_schema=rules_schema(c), errors=errors)
+
+    async def async_step_dhw_comfort(self, user_input=None):
+        c = self._dhw
+        errors = {}
+        if user_input is not None:
+            c.update(user_input)
+            errors = validate_schedule(c)
+            if not errors:
+                return await self.async_step_dhw_stability()
+        schema = {
+            vol.Required("night_policy", default=c["night_policy"]): selector.SelectSelector({"options": [
+                {"value": "base", "label": "Normaal doel behouden; Panasonic blijft zelfstandig regelen"},
+                {"value": "minimum_until_solar", "label": "Wachten op stabiele zon voor extra buffer; normaal doel blijft staan"}]}),
+        }
+        for k in ("morning_enabled", "evening_enabled", "predictive_cooling_enabled"):
+            schema[vol.Required(k, default=c[k])] = selector.BooleanSelector()
+        for k in ("morning_time", "evening_fallback_start"):
+            schema[vol.Required(k, default=c[k])] = selector.TimeSelector()
+        for k, lo, hi, step in (
+            ("morning_c",40,50,1),("morning_margin_c",0,3,.5),
+            ("morning_max_lead_min",30,360,5),("morning_extra_lead_min",0,120,5),("morning_hold_min",0,120,5),
+            ("tank_loss_fallback_c_h",.05,1.5,.05),("tank_heat_fallback_c_h",1,30,.5),
+            ("evening_cap_c",50,59,1),("evening_lookahead_h",.5,6,.5),("evening_draw_buffer_c",0,10,.5),
+            ("evening_margin_w",0,1000,50),("predictive_cooling_horizon_h",.5,6,.5)):
+            schema[vol.Required(k, default=c[k])] = num(lo,hi,step)
+        return self.async_show_form(step_id="dhw_comfort", data_schema=vol.Schema(schema), errors=errors)
 
     async def async_step_dhw_stability(self, user_input=None):
         c = self._dhw
@@ -147,7 +176,12 @@ class DHWOptionsMixin:
                 from .dhw_runtime import DHWManager
                 probe = DHWManager(rt)
                 probe.config = probe.settings = c
-                for target in (effective_base_target(c), c["solar_c"], c["surplus_c"], c["cooling_cap_c"]):
+                targets = [effective_base_target(c), c["solar_c"], c["surplus_c"], c["cooling_cap_c"]]
+                if c.get("evening_enabled"):
+                    targets.append(c["evening_cap_c"])
+                if c.get("night_policy") == "minimum_until_solar":
+                    targets.append(effective_base_target(c))
+                for target in targets:
                     if probe.check_target(target):
                         errors["base"] = "dhw_target_invalid"
                 if probe._temperature() is None:

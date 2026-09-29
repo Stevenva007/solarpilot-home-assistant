@@ -171,7 +171,7 @@ def test_engine_per_device_hold_leaves_higher_priority_device_alone():
 @pytest.mark.asyncio
 async def test_runtime_new_priority_reads_only_and_no_borrow_for_lower_load():
     old,h=build(power=True, device={'wallbox_precedence':'wallbox_first','nominal_w':350})
-    old.entry.options['wallbox']={**WALLBOX_DEFAULTS,'enabled':True,'priority_min_power_w':4140,
+    old.entry.options['wallbox']={**WALLBOX_DEFAULTS,'enabled':True,'trust_solar_setting':True,'priority_min_power_w':4140,
         'power_entity':'sensor.ev','status_entity':'sensor.ev_status','mode_entity':'select.ev_solar','stable_s':0}
     h.states.set('sensor.ev',0,{'unit_of_measurement':'W'})
     h.states.set('sensor.ev_status','Waiting for green energy')
@@ -188,7 +188,7 @@ async def test_runtime_new_priority_reads_only_and_no_borrow_for_lower_load():
 @pytest.mark.asyncio
 async def test_explicit_consumer_first_bypasses_global_wallbox_preference():
     old,h=build(power=True,device={'wallbox_precedence':'consumer_first','nominal_w':350})
-    old.entry.options['wallbox']={**WALLBOX_DEFAULTS,'enabled':True,'priority_min_power_w':4140,
+    old.entry.options['wallbox']={**WALLBOX_DEFAULTS,'enabled':True,'trust_solar_setting':True,'priority_min_power_w':4140,
         'power_entity':'sensor.ev','status_entity':'sensor.ev_status','mode_entity':'select.ev_solar','stable_s':0}
     h.states.set('sensor.ev',0,{'unit_of_measurement':'W'});h.states.set('sensor.ev_status','Waiting for green energy');h.states.set('select.ev_solar','full_solar')
     r=SolarRuntime(h,old.entry);r.mode='solar';r.others_first=False;r.wallbox_guard=r._make_wallbox_guard();r.device_modes['a']='auto'

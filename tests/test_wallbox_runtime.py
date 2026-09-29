@@ -164,7 +164,8 @@ async def test_optional_mode_stale_gives_warning_not_claim_of_full_green():
     r, h = setup()
     h.states.set("select.ev_solar", "full_solar", age=600)
     await r.tick()
-    assert r.wallbox_guard.reading.mode is None
+    assert r.wallbox_guard.reading.mode == "unknown"
+    assert r.wallbox_guard.reading.raw_mode is None
     assert "niet beschikbaar" in r.wallbox_guard.result.warning
 
 

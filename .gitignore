@@ -17,3 +17,7 @@ custom_components/solar_pilot/userfiles/*
 # Offline browser-preview output (rebuild with tools/build_example.py)
 /SolarPilot-voorbeeld.html
 /SolarPilot-*.png
+
+# Local analysis exports are private; never publish them.
+SolarPilot-analyse-*.json
+SolarPilot-analyse-*.zip

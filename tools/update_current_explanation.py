@@ -19,3 +19,8 @@ EMBEDDED_OUT.parent.mkdir(parents=True, exist_ok=True)
 EMBEDDED_OUT.write_text(rendered, encoding="utf-8")
 print(OUT)
 print(EMBEDDED_OUT)
+
+# Help and native field descriptions belong to the same release.
+import subprocess
+import sys
+subprocess.run([sys.executable, "-B", str(ROOT / "tools" / "update_option_help.py")], check=True)

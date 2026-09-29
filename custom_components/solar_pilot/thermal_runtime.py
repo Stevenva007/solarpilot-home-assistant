@@ -224,6 +224,12 @@ class SmartClimateManager:
             if next_kwh is not None:
                 parsed[1]["w"] = max(0.0, float(next_kwh) * 1000.0)
 
+        modern = getattr(self.runtime, "pv_forecast", None)
+        if modern is not None and modern.source.valid:
+            for row in parsed:
+                values = modern.hourly(row["dt"],1)
+                if values and values[0] is not None:
+                    row["w"] = values[0]
         self.last_solar_hourly = [round(r["w"], 1) for r in parsed]
         return list(self.last_solar_hourly)
 

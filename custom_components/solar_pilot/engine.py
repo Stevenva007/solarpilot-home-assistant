@@ -32,6 +32,7 @@ class Device:
     daily_deadline: str = "23:59:00"
     deadline_grid_allowed: bool = False
     allow_wallbox_reclaim: bool = False
+    priority_reclaim: bool = False
 
     @property
     def minimum(self) -> float:
@@ -102,6 +103,9 @@ class Site:
     device_increase_limits: dict[str, float] = field(default_factory=dict)
     device_holds: dict[str, str] = field(default_factory=dict)
     device_start_blocks: dict[str, str] = field(default_factory=dict)
+    priority_ids: set[str] = field(default_factory=set)
+    protected_ev_credit: dict[str, float] = field(default_factory=dict)
+    comfort_reserve_w: float = 0.0
     no_reclaim_ids: set[str] = field(default_factory=set)
     subordinate_ids: set[str] = field(default_factory=set)
     reclaimable_w: float = 0.0
@@ -121,6 +125,7 @@ class Action:
     watts: float
     reason: str
     reclaimed_w: float = 0.0
+    protected_ev_w: float = 0.0
 
 
 @dataclass
@@ -152,10 +157,11 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
     out.free_w = round(max(0.0, -site.grid_w - site.battery_discharge_w - site.reserve_w), 2)
     blocked_site = site.mode == "paused" or not site.valid or not site.battery_ready or site.external_hold
     emergency = site.valid and site.grid_w > site.max_import_w
-    remaining_solar, remaining_cap = solar_budget, cap_budget
+    remaining_solar = solar_budget - max(0.0, site.comfort_reserve_w)
+    remaining_cap = cap_budget - max(0.0, site.comfort_reserve_w)
     locked: set[str] = set()
     sorted_devices = sorted(devices, key=lambda d: (
-        0 if (states[d.id].manual_forced or states[d.id].boost_until > site.now or states[d.id].deadline_urgent) else (1000 if d.id in site.subordinate_ids else 0) + d.priority, d.id))
+        0 if (states[d.id].manual_forced or states[d.id].boost_until > site.now or states[d.id].deadline_urgent) else (0 if d.id in site.priority_ids else 200) + (1000 if d.id in site.subordinate_ids else 0) + d.priority, d.id))
 
     for d in sorted_devices:
         s = states[d.id]
@@ -175,7 +181,7 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
             out.reasons[d.id] = ("Manueel actief" if s.manual_forced else
                                  "Gecontroleerde overname: Wallbox krijgt reactietijd" if handover_lock else
                                  "Cyclus laten afwerken" if d.non_interruptible else
-                                 "Wallbox krijgt voorrang na minimale looptijd" if d.id in site.device_holds else "Minimale looptijd")
+                                 ("Afwasmachine krijgt voorrang na minimale looptijd" if "Afwasmachine" in site.device_holds[d.id] else "Wallbox krijgt voorrang na minimale looptijd") if d.id in site.device_holds else "Minimale looptijd")
 
     for d in sorted_devices:
         s = states[d.id]
@@ -248,9 +254,12 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
         planner_grid = s.planner_grid_force
         boost = manual_force or manual_boost or deadline_boost or planner_grid
         available = remaining_cap if boost else min(remaining_solar, remaining_cap)
-        eligible = (d.allow_wallbox_reclaim and not d.non_interruptible and d.min_on_s <= site.handover_s)
+        eligible = (d.allow_wallbox_reclaim and not d.non_interruptible and (d.priority_reclaim or d.min_on_s <= site.handover_s))
+        protected_credit = (min(credit, max(0.0, site.protected_ev_credit.get(d.id, 0.0)))
+                            if d.kind == "dishwasher" and d.id in site.priority_ids
+                            and d.id not in site.no_reclaim_ids else 0.0)
         if (not s.owned and not eligible or d.id in site.no_reclaim_ids) and not boost:
-            available = min(available, remaining_solar-credit)
+            available = min(available, remaining_solar-credit+protected_credit)
         needed = d.minimum + (d.start_margin_w if not s.on and not boost else 0)
         target = d.quantize(available) if available >= needed else 0.0
         if target:
@@ -326,7 +335,7 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
 
     # Reserve already committed but currently unconsumed power (e.g. a thermostat
     # momentarily not heating). Never allocate that same headroom a second time.
-    committed = sum(max(0.0, states[d.id].target_w - states[d.id].measured_w)
+    committed = max(0.0, site.comfort_reserve_w) + sum(max(0.0, states[d.id].target_w - states[d.id].measured_w)
                     for d in devices if states[d.id].owned and states[d.id].on)
     for d in sorted_devices:
         s = states[d.id]
@@ -348,9 +357,12 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
         actual_solar_free = solar_free
         grid_boost = s.manual_forced or s.boost_until > site.now or s.deadline_force or s.planner_grid_force
         eligible = (d.allow_wallbox_reclaim and d.id not in site.no_reclaim_ids and not d.non_interruptible
-                    and d.min_on_s <= site.handover_s and not grid_boost)
+                    and (d.priority_reclaim or d.min_on_s <= site.handover_s) and not grid_boost)
         usable_credit = min(max(0, site.reclaimable_w), max(0, site.max_takeover_w)) if eligible else 0
-        solar_free += usable_credit
+        protected_credit = (min(max(0.0, site.reclaimable_w), max(0.0, site.protected_ev_credit.get(d.id, 0.0)))
+                            if d.kind == "dishwasher" and d.id in site.priority_ids
+                            and d.id not in site.no_reclaim_ids and not grid_boost else 0.0)
+        solar_free += max(usable_credit, protected_credit)
         free = cap_free if grid_boost else min(solar_free, cap_free)
         if site.max_increase_w is not None:
             free = min(free, site.max_increase_w)
@@ -366,6 +378,10 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
             continue
         borrowed = (max(0.0, proposed-current-max(0.0, actual_solar_free))
                     if eligible and not grid_boost else 0.0)
-        out.action = Action(d.id, proposed, out.reasons[d.id], round(borrowed, 6))
+        protected_borrowed = (max(0.0, proposed-current-max(0.0, actual_solar_free))
+                              if protected_credit > 0 and not grid_boost else 0.0)
+        why = ("Afwasmachine vóór Wallbox; autonoom terugregelen, tijdelijke netafname mogelijk"
+               if protected_borrowed > 0 else out.reasons[d.id])
+        out.action = Action(d.id, proposed, why, round(borrowed, 6), round(protected_borrowed, 6))
         return out
     return out

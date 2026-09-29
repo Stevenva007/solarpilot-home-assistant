@@ -50,6 +50,10 @@ class HouseFirstGuard:
                                       False, 0, r.issue or "Geen vermogen van Wallbox overnemen")
             return self.result
         self.invalid_since = None
+        if r.mode in ("manual", "unknown", "stopped"):
+            self.history.clear(); self.cooldown_until = 0.0
+            self.result = GuardResult(r.mode, r.session_reason or "Geen autonome zonnelaadsessie: alleen echte injectie", warning=r.session_reason if r.mode == "unknown" else "")
+            return self.result
         full_solar = r.mode is not None and r.mode.casefold() in state_set(c["full_solar_states"])
         fresh = r.age_s <= c["reclaim_max_age_s"]
         warning = "" if full_solar else "Full solar niet bevestigd: geen laadvermogen overnemen; alleen echte injectie gebruiken."
