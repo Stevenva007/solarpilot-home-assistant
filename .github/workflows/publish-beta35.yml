@@ -1,0 +1,28 @@
+name: Prepare SolarPilot beta.35
+
+on:
+  push:
+    branches:
+      - publish/beta.35
+    paths:
+      - .github/workflows/publish-beta35.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 35ec20ef23bd4176e5480638ff82c7cc040ab2f3
+          persist-credentials: false
+      - name: Archive existing public source for exact comparison
+        run: git archive --format=zip HEAD -o "$RUNNER_TEMP/solarpilot-source-beta33.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: solarpilot-source-beta33
+          path: ${{ runner.temp }}/solarpilot-source-beta33.zip
+          retention-days: 1
