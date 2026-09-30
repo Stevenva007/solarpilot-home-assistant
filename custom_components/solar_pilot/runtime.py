@@ -46,6 +46,9 @@ from .ems import (CAPACITY_DEFAULTS, ECONOMY_DEFAULTS, FORECAST_DEFAULTS,
 from .unified_planner import UNIFIED_PLANNER_DEFAULTS, UnifiedPlanner, PLANNER_SETTING_SPECS, planner_settings_catalog
 from .cycle_learning import CycleEnergyModel
 from .learning_hub import LearningHub
+from .live_options import LiveOptions, ARCHIVED, keyed
+from .platforms import LivePlatforms
+from .priority_board import PriorityBoard
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -91,7 +94,7 @@ class SolarRuntime:
         self.dishwasher_priority = DishwasherPriority()
         self.dishwasher_app = DishwasherApp(self)
         self.states = {key: State(last_off=time.monotonic(), cycle_armed=cfg.get("kind") != "dishwasher") for key, cfg in self.configs.items()}
-        self.consumer_history = ConsumerHistoryRecorder(hass, entry, self.configs, self.settings["interval_s"])
+        self.consumer_history = ConsumerHistoryRecorder(hass, entry, {**keyed(entry.options.get(ARCHIVED)), **self.configs}, self.settings["interval_s"])
         self.mode = "observe"
         self.priorities = {}
         self.device_modes = {}
@@ -125,6 +128,9 @@ class SolarRuntime:
         self.dhw = DHWManager(self)
         self.analysis = AnalysisRecorder(self)
         self.learning_hub = LearningHub(self)
+        self.live_options = LiveOptions(self)
+        self.platforms = LivePlatforms(self)
+        self.priority_board = PriorityBoard(self)
 
     def _dishwasher_comfort_context(self):
         """Respect ordinary heat-pump demand; never stop it for a wash start.
@@ -206,7 +212,7 @@ class SolarRuntime:
                 self.capacity.allowed_grid_w if self.capacity.allowed_grid_w is not None
                 else self.capacity.effective_target_w or capacity_limit))
         view = self.dishwasher_priority.evaluate(now=now, wall=time.time(), mode=self.mode,
-            configs=self.configs, devices=devices, states=self.states, permitted_ids=permitted,
+            configs=self.priority_board.configs(), devices=devices, states=self.states, permitted_ids=permitted,
             actual_grid=grid if valid else None, filtered_grid=self.filtered,
             pv_w=self.pv_w, discharge_w=discharge, reserve_w=self.settings["reserve_w"],
             max_import_w=capacity_limit, reading=wb, wallbox_settings=self.wallbox_settings,
@@ -221,8 +227,10 @@ class SolarRuntime:
         # The configured Wallbox solar-start threshold is harmless by itself.
         # Activate per-device precedence only when at least one consumer explicitly
         # deviates from the global preference, preserving legacy global behaviour.
+        if hasattr(self, "priority_board") and self.priority_board.active:
+            return True
         return any(c.get("wallbox_precedence", "global") != "global" or dishwasher_has_priority(c)
-                   for c in self.entry.options.get("devices", []))
+                   for c in getattr(self, "configs", keyed(self.entry.options.get("devices"))).values())
 
     def _make_wallbox_guard(self):
         per_device = self._per_device_wallbox_enabled()
@@ -240,6 +248,7 @@ class SolarRuntime:
     def _snapshot(self):
         return {
             "mode": self.mode,
+            "live_options": self.live_options.snapshot(),
             "learning_hub": self.learning_hub.snapshot(),
             "dishwasher": self.dishwasher.snapshot(),
             "dishwasher_app": self.dishwasher_app.snapshot(),
@@ -266,6 +275,7 @@ class SolarRuntime:
 
     async def start(self):
         data = await self.store.async_load() or {}
+        self.live_options.restore(data.get("live_options", {}))
         await self.consumer_history.start()
         await self.analysis.start()
         self.dishwasher.restore(data.get("dishwasher", {}))
@@ -628,7 +638,7 @@ class SolarRuntime:
             program=self._cycle_program(cfg)
             cyc=self.cycle_learning.estimate(i,program,fallback_energy_kwh=cfg.get("cycle_energy_kwh",0),
                 fallback_duration_min=cfg.get("cycle_duration_min",0),fallback_peak_w=max(p,float(cfg.get("nominal_w",0) or 0)))
-            out.append({**cfg,"power_w":p,"enabled":self.device_modes.get(i,"auto")!="disabled",
+            out.append({**cfg,"priority": effective[i].priority if self.priority_board.active else cfg.get("priority",50),"power_w":p,"enabled":self.device_modes.get(i,"auto")!="disabled",
                         "contiguous_cycle":bool(cfg.get("non_interruptible")),
                         "cycle_energy_kwh":cyc.energy_kwh,"cycle_duration_min":cyc.duration_min,"cycle_peak_w":cyc.peak_w,
                         "cycle_program":cyc.program,"cycle_confidence":cyc.confidence})
@@ -914,7 +924,8 @@ class SolarRuntime:
         result = []
         for i, c in self.configs.items():
             kwargs = {k: v for k, v in c.items() if k in valid_fields}
-            kwargs["priority"] = self.priorities.get(i, c["priority"])
+            c = self.priority_board.effective_config(i, c)
+            kwargs["priority"] = c["priority"] if self.priority_board.active else self.priorities.get(i, c["priority"])
             if (self.planner_settings.get("adaptive_power_guard") and c.get("kind") != "number"
                     and c.get("power_entity") and self._dedicated_meter(i)):
                 kwargs["nominal_w"] = self.learning.conservative_power(
@@ -933,7 +944,7 @@ class SolarRuntime:
     def _wallbox_device_constraints(self, now, reading, grid, valid, discharge):
         if not self._per_device_wallbox_enabled() or not self.wallbox_settings.get("enabled"):
             return {}, {}, set()
-        lower = {i for i, cfg in self.configs.items() if follows_wallbox(cfg, self.others_first)}
+        lower = {i for i, cfg in self.priority_board.configs().items() if follows_wallbox(cfg, self.others_first)}
         # Explicit user boosts and hard day-minimum grid permissions remain higher
         # precedence. A Wallbox preference is never permission to override them.
         controlled = {i for i in lower if self.states[i].boost_until <= now
@@ -1275,7 +1286,7 @@ class SolarRuntime:
                 elapsed_min=max(0.0,(now-st.last_on)/60.0) if active_cycle and st.last_on else 0.0
                 remaining_min=max(0.0,cycle.duration_min-elapsed_min) if cycle.duration_min>0 else 0.0
                 active_avg=max(1.0,cycle.average_w or st.measured_w or p) if active_cycle else 0.0
-                devs.append({**cfg,"power_w":p,"required_kwh":required,
+                devs.append({**cfg,"priority": effective[i].priority if self.priority_board.active else cfg.get("priority",50),"power_w":p,"required_kwh":required,
                     "enabled":self.device_modes.get(i,"auto")!="disabled" and st.available and st.demand and st.interlock and not bool(st.fault),
                     "contiguous_cycle":cycle_ready,
                     "cycle_program":cycle.program,"cycle_energy_kwh":cycle.energy_kwh,
@@ -1542,6 +1553,16 @@ class SolarRuntime:
         except Exception:
             local_now = datetime.now().astimezone()
         self._observe(now, local_now)
+        try:
+            await self.live_options.process_pending()
+        except Exception as err:
+            # A pending configuration/virtual-entity failure is not a reason to
+            # stop unrelated, already verified controllers.
+            message = "Wachtende configuratie niet toegepast: " + type(err).__name__
+            if self.live_options.error != message:
+                self.live_options.error = message
+                self.note(message)
+                _LOGGER.exception("SolarPilot wachtende configuratie vereist controle")
         grid, valid, discharge, ready, reported = self._site_data()
         self.grid_w = grid
         self._local_pv_update(local_now)
@@ -1629,6 +1650,7 @@ class SolarRuntime:
             allow_command=(not self.pending and not self.handover and
                            now - self.last_issued >= self.settings["settle_s"]),
             local_now=local_now)
+        device_start_blocks.update(self.priority_board.extra_start_blocks(now))
         climate_sent = await self.smart_climate.tick(
             local_now=local_now,
             allow_command=(self.mode == "solar" and not self.pending and not self.handover
@@ -1673,6 +1695,7 @@ class SolarRuntime:
                     max_increase_w=max_increase, device_increase_limits=phase_device_limits,
                     device_holds=device_holds, device_start_blocks=device_start_blocks,
                     no_reclaim_ids=subordinate_ids, subordinate_ids=subordinate_ids,
+                    ordered_priorities=self.priority_board.active,
                     priority_ids={i for i,c in self.configs.items() if dishwasher_has_priority(c)},
                     protected_ev_credit=priority.ev_credit,
                     comfort_reserve_w=getattr(self,"_dishwasher_comfort_reserve",0),
@@ -1836,8 +1859,9 @@ class SolarRuntime:
             reserved = getattr(self,"_dishwasher_comfort_reserve",0)+commitment
             full = (wb_now.mode or "").casefold() in state_set(self.wallbox_settings["full_solar_states"])
             actual_free = -max(grid_now or 0,self.filtered if self.filtered is not None else grid_now or 0)-(discharge_now or 0)-self.settings["reserve_w"]-reserved
+            allocation_cfg = self.priority_board.effective_config(i, cfg)
             permissible = (cfg.get("kind") == "dishwasher" and dishwasher_has_priority(cfg)
-                and cfg.get("dishwasher_ev_solar_priority",True) and i not in self.dishwasher_priority.ev_blocks
+                and allocation_cfg.get("dishwasher_ev_solar_priority",True) and i not in self.dishwasher_priority.ev_blocks
                 and valid_now and ready_now and wb_now.valid and full and wb_now.connected is not False
                 and wb_now.demand is not False and wb_now.age_s <= self.wallbox_settings["reclaim_max_age_s"]
                 and pv_now is not None and pv_now-(discharge_now or 0)-self.settings["reserve_w"] >= action.watts+cfg["start_margin_w"]
@@ -1876,7 +1900,7 @@ class SolarRuntime:
                                      self.last_issued_wall, self.wallbox_settings["handover_s"])
             self.note(f'{cfg["name"]}: gecontroleerd {action.reclaimed_w:.0f} W van autonoom laden overnemen; geen Wallbox-opdracht.')
         self.wallbox_guard.note_action(now, self.last_issued_wall, old_target, action.watts)
-        if self._per_device_wallbox_enabled() and follows_wallbox(cfg, self.others_first):
+        if self._per_device_wallbox_enabled() and follows_wallbox(self.priority_board.effective_config(i, cfg), self.others_first):
             self.consumer_wallbox.note_action(now, self.last_issued_wall, i, old_target, action.watts, self.wallbox_guard.reading)
         if cfg.get("kind") == "dishwasher":
             self.dishwasher_priority.started(i, self.last_issued_wall, action.protected_ev_w,
@@ -1985,6 +2009,8 @@ class SolarRuntime:
 
     async def set_priority(self, device_id, value):
         async with self._lock:
+            if self.priority_board.active:
+                raise HomeAssistantError("Gebruik SolarPilot → Voorrang om de centrale volgorde te wijzigen; losse prioriteitsgetallen zijn niet meer leidend.")
             self.priorities[device_id] = max(1, min(100, int(value)))
             self.store.async_delay_save(self._snapshot, 1)
         await self.tick()
@@ -2156,7 +2182,7 @@ class SolarRuntime:
         result = []
         profiles = self.learning.overview(self.wallbox_settings["stable_s"])["profiles"]
         for d in sorted(self.devices(), key=lambda x: (x.priority, x.id)):
-            s, cfg = self.states[d.id], self.configs[d.id]
+            s, cfg = self.states[d.id], self.priority_board.effective_config(d.id)
             result.append({
                 "id": d.id, "name": d.name, "priority": d.priority, "kind": d.kind,
                 "dishwasher": {**self.dishwasher.overview(cfg, time.time()), **self.dishwasher_app.overview(cfg, time.time()),
@@ -2216,7 +2242,7 @@ class SolarRuntime:
         t = self.handover
         if not t:
             return
-        s, cfg = self.states[t.device_id], self.configs[t.device_id]
+        s, cfg = self.states[t.device_id], self.priority_board.effective_config(t.device_id)
         watts, stamp = self._power(cfg.get("power_entity"))
         has_precedence = (self.others_first if not self._per_device_wallbox_enabled()
                           else not follows_wallbox(cfg, self.others_first))
@@ -2258,6 +2284,8 @@ class SolarRuntime:
 
     async def set_others_first(self, enabled):
         async with self._lock:
+            if self.priority_board.active:
+                raise HomeAssistantError("Gebruik SolarPilot → Voorrang om de plaats van de Wallbox te wijzigen.")
             enabled = bool(enabled)
             if self.others_first == enabled:
                 return

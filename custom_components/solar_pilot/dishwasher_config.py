@@ -19,6 +19,12 @@ def _number(low, high, step=1):
 
 
 class DishwasherOptionsMixin:
+    def _base_options(self):
+        if not hasattr(self, "_options_base"):
+            from copy import deepcopy
+            self._options_base = deepcopy(dict(self.config_entry.options))
+        return self._options_base
+
     async def async_step_dishwasher_connection(self, user_input=None):
         d = normalize_config(self._device)
         errors = {}
@@ -27,17 +33,17 @@ class DishwasherOptionsMixin:
                 d.pop(key, None)
             d.update(user_input)
             errors = config_errors(self.hass, {**d, "dishwasher_mapping_confirmed": False})
-            for other in self.config_entry.options.get("devices", []):
-                if other["id"] != d["id"] and any(d.get(key) == other.get(key) and d.get(key) for key in ("start_button", "dishwasher_state_entity")):
+            for other in self._base_options().get("devices", []):
+                if other["id"] not in (d["id"], d.get("replaces_device_id")) and any(d.get(key) == other.get(key) and d.get(key) for key in ("start_button", "dishwasher_state_entity")):
                     errors["base"] = "duplicate"
             if d.get("power_entity"):
                 obj = self.hass.states.get(d["power_entity"])
                 if obj is None or obj.attributes.get("unit_of_measurement") not in ("W", "kW"):
                     errors["power_entity"] = "power_unit"
                 reserved = {self._site().get(key) for key in ("grid_entity", "export_entity", "pv_entity", "battery_power_entity")}
-                reserved.update(x.get("power_entity") for x in self.config_entry.options.get("devices", []) if x["id"] != d["id"])
-                reserved.add(self.config_entry.options.get("dhw", {}).get("power_entity"))
-                reserved.add(self.config_entry.options.get("wallbox", {}).get("power_entity"))
+                reserved.update(x.get("power_entity") for x in self._base_options().get("devices", []) if x["id"] not in (d["id"], d.get("replaces_device_id")))
+                reserved.add(self._base_options().get("dhw", {}).get("power_entity"))
+                reserved.add(self._base_options().get("wallbox", {}).get("power_entity"))
                 if d["power_entity"] in reserved:
                     errors["power_entity"] = "dedicated_meter"
             if not errors:
@@ -82,10 +88,13 @@ class DishwasherOptionsMixin:
         schema[vol.Required("dishwasher_priority_enabled", default=d["dishwasher_priority_enabled"])] = selector.BooleanSelector()
         schema[vol.Required("dishwasher_ev_solar_priority", default=d["dishwasher_ev_solar_priority"])] = selector.BooleanSelector()
         schema[vol.Required("dishwasher_mapping_confirmed", default=d["dishwasher_mapping_confirmed"])] = selector.BooleanSelector()
+        if self._base_options().get("priority_board", {}).get("schema") == 1:
+            legacy = {"dishwasher_priority_enabled", "dishwasher_ev_solar_priority"}
+            schema = {k:v for k,v in schema.items() if getattr(k,"schema",k) not in legacy}
         return self.async_show_form(step_id="dishwasher_states", data_schema=vol.Schema(schema), errors=errors)
 
     async def async_step_analysis(self, user_input=None):
-        c = {**ANALYSIS_DEFAULTS, **self.config_entry.options.get("analysis", {})}
+        c = {**ANALYSIS_DEFAULTS, **self._base_options().get("analysis", {})}
         errors = {}
         if user_input is not None:
             c = {**c, "extra_entities": [], **user_input}
@@ -94,7 +103,7 @@ class DishwasherOptionsMixin:
             if len(c["extra_entities"]) > 50:
                 errors["extra_entities"] = "analysis_too_many"
             if not errors:
-                opts = deepcopy(dict(self.config_entry.options)); opts["analysis"] = c
+                opts = deepcopy(dict(self._base_options())); opts["analysis"] = c
                 return await self._save(opts)
         schema = vol.Schema({
             vol.Required("enabled", default=c["enabled"]): selector.BooleanSelector(),

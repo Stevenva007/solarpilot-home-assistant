@@ -5,7 +5,7 @@ from .entity import SolarEntity
 
 async def async_setup_entry(hass, entry, async_add_entities):
     r = entry.runtime_data
-    async_add_entities([SolarMode(r)] + [SolarMode(r, i) for i in r.configs])
+    r.platforms.register("select", async_add_entities, lambda: [SolarMode(r)] + [SolarMode(r, i) for i in r.configs])
 
 
 class SolarMode(SolarEntity, SelectEntity):

@@ -116,15 +116,17 @@ class DishwasherPriority:
                and states[i].boost_until <= now and not states[i].deadline_force
                and not states[i].planner_grid_force
                and states[i].available and not states[i].fault}
-        own_low = sum(low.values())
-        # All existing appliance consumption is in grid; only unconsumed own
-        # commitments and the non-duplicated comfort estimate need reservation.
-        other_commitment = sum(max(0.0, s.target_w-s.measured_w) for i, s in states.items()
-                               if s.owned and s.on and i not in low)
-        free = -max(actual_grid, filtered_grid)-discharge_w-reserve_w-other_commitment-comfort_reserve_w
-        cap_after_release = max_import_w-actual_grid+own_low-other_commitment-comfort_reserve_w
         for i in sorted(eligible, key=lambda k: (devices[k].priority, k)):
             d = devices[i]
+            ranked = configs[i].get("_priority_board_rank")
+            candidate_low = {j: watts for j, watts in low.items()
+                             if ranked is None or configs[j].get("_priority_board_rank", -1) > ranked}
+            own_low = sum(candidate_low.values())
+            # Consumption is already in P1; reserve only unconsumed commitments.
+            other_commitment = sum(max(0.0, s.target_w-s.measured_w) for j, s in states.items()
+                                   if s.owned and s.on and j not in candidate_low)
+            free = -max(actual_grid, filtered_grid)-discharge_w-reserve_w-other_commitment-comfort_reserve_w
+            cap_after_release = max_import_w-actual_grid+own_low-other_commitment-comfort_reserve_w
             allowed_credit = credit if (configs[i].get("dishwasher_ev_solar_priority", True)
                                          and i not in self.ev_blocks) else 0.0
             # Actual PV is a hard ceiling for the attribution, not a forecast.
@@ -140,11 +142,11 @@ class DishwasherPriority:
                 # Release only what is needed, not every low-priority load.
                 missing = max(0.0, d.minimum+(0 if due else d.start_margin_w)
                               - (max_import_w-actual_grid-other_commitment-comfort_reserve_w if due else free+allowed_credit))
-                for j in sorted(low, key=lambda k: (devices[k].priority, k), reverse=True):
+                for j in sorted(candidate_low, key=lambda k: (devices[k].priority, k), reverse=True):
                     if missing <= 0:
                         break
                     out.holds[j] = "Afwasmachine heeft voorrang; veilig vrijgeven na minimumlooptijd"
-                    missing -= low[j]
+                    missing -= candidate_low[j]
             if allowed_credit > 0 and not due:
                 out.ev_credit[i] = allowed_credit
             # One stable priority claimant consumes this potential pool. Other

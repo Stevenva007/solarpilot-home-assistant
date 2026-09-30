@@ -1,0 +1,94 @@
+SolarPilot 1.0.0-beta.34 — lokaal test- en releaseverslag
+Datum: 30 september 2026
+
+BRON EN REIKWIJDTE
+Volledige cumulatieve update op de rechtstreeks geüploade beta.33-broncode.
+Bron-ZIP SHA-256: 322fe277c44d19d35789422c8b6eecd59fb8ee63145885262252e3cb85a735c1
+Geen publicatie naar GitHub en geen bediening van de live Home Assistant-installatie.
+
+PYTHON
+Python 3.13.5.
+Basissuite van de ongewijzigde beta.33: 1240 tests geslaagd.
+Uiteindelijke suite: 1314 tests geslaagd, waaronder 74 nieuwe regressietests.
+De bestaande assertions zijn niet versoepeld; één bestaande config-testdouble is
+uitgebreid voor de nieuwe wizard-snapshotmethode. Geen testskip toegevoegd.
+
+NIEUWE REGRESSIEGEBIEDEN
+- Configuratie openen tijdens observe/solar/paused, zonder globale pauzeblokkering.
+- Expliciete laatste opslagbevestiging; geen actuatoropdracht door het opslaan zelf.
+- Dezelfde runtime en ongewijzigde State-objecten, timers, eigenaarschap en modellen.
+- Gevoelige toestelwijzigingen wachten op echte veilige vrijgave, niet op nulwatt alleen.
+- Lopende, onbekende, onzekere of herstelde afwascyclus houdt oorspronkelijke bronnen.
+- Ook een nog open afwas/Wallbox-balanscontrole houdt een bronvervanging tegen.
+- Het korte End Of Cycle-event blijft verwerkt bij live instellingen en wachtende voorstellen.
+- Wachtende effectieve/oude koppelingen en nieuwe voorstellen blijven gescheiden na reboot.
+- Annuleren van een voorstel geeft geen stop/reset en past het voorstel niet alsnog toe.
+- Huidige of volgende APP-aanvraag expliciet gekozen; geplande dag blijft vast.
+- Nettoestemming/deadline van bestaande aanvraag bij 'volgende beurten' bewaard.
+- Geen nieuwe startticket door herladen, opnieuw verbinden of reeds bestaande Enabled-status.
+- Conflicten op dezelfde configuratiesleutel worden niet stilzwijgend overschreven.
+- Niet-overlappende wijzigingen worden samengevoegd, lijsten op stabiele toestel-ID.
+- Dubbele actuator-/exclusieve meterbronnen en centrale meterscope-conflicten geweigerd.
+- Opslagfouten geven geen valse opgeslagen/actief-bevestiging.
+- Fout bij uitgesteld voorstel pauzeert niet de gehele energieregelaar.
+- Nieuwe of opnieuw gekoppelde toestellen beginnen Uitgesloten.
+- Vervanging krijgt nieuwe identiteit; geen oude APP-, boost-, Auto- of leerrechten.
+- Archief en beperkte sessiehistoriek blijven raadpleegbaar en worden niet als nieuw leren gebruikt.
+- Dynamisch toevoegen/verwijderen van uitsluitend eigen virtuele entiteiten.
+- Fysieke AEG/Shelly/Wallbox-bronentiteiten worden niet verwijderd.
+- Analyse-export anonimisering/pseudoniemen betrekt ook voorgestelde en gearchiveerde profielen.
+
+RELEASECONTROLES
+- tools/check_current_explanation.py: 1.0.0-beta.34, regel-hash c4c6b2eaf417d0cd.
+- tools/validate_repository.py: Repositorystructuur OK.
+- tools/check_public_repository.py: OK: public repository preflight.
+- AST-parse van alle 59 component-Pythonbestanden geslaagd.
+- Alle 4 component-JSONbestanden geldig.
+- node --check op solar-pilot-card.js en option-help.js geslaagd (Node v22.16.0).
+- Whitespacecontrole van bronverschillen: geen whitespacefouten.
+- Frontendvoorbeeld opnieuw opgebouwd met de daadwerkelijke beta.34-JavaScript.
+
+BROWSERCONTROLES — ECHTE FRONTEND, NAGEBOOTSTE HOME ASSISTANT-API
+Tien Chromium-controlescripts geslaagd:
+  tools/check_live_options_ui34.py (nieuw)
+  tools/check_options_ui.py
+  tools/check_consumer_history_ui.py
+  tools/check_dhw_gentle_ui.py
+  tools/check_dishwasher_analysis_ui.py
+  tools/check_dishwasher_app_ui.py
+  tools/check_card.py
+  tools/check_dishwasher_priority_ui.py
+  tools/check_learning_ui.py
+  tools/check_pv_ui33.py
+
+Onder meer: toestelbeheer tijdens solar met editable=false; native wizardroutes;
+opslagbevestiging; huidige/volgende aanvraagkeuze; formulier behouden bij API-fout;
+wachtende voorstellen annuleren; archiefhistoriek; beheerderrechten; HTML-escaping;
+mobiel/desktop; 80 opeenvolgende telemetrieupdates zonder verlies van popup,
+invoer, open details of scrollpositie. Geen echte actuatoraanroepen gedaan.
+Sommige geërfde scripts noemen hun oorspronkelijke betanummer in de console;
+ze zijn op het opnieuw gebouwde beta.34-voorbeeld en de actuele frontend uitgevoerd.
+
+BEHOUDEN EN NIET AUTOMATISCH GEWIJZIGD
+Bestaande temperaturen, prioriteiten, fysieke rechten, APP-deadlines, netlimieten,
+broninstellingen en modellen blijven behouden. Geen tijdelijk 52 °C-hersteldoel,
+Force DHW, andere Wallbox-sessiekeuze of Shelly-faseplanner toegevoegd.
+
+GRENZEN
+- Geen echte Home Assistant-server gebruikt; HA-backendtests gebruiken expliciete doubles.
+- Geen fysieke AEG-, Wallbox-, boiler-, vloerverwarmings- of elektrische acceptatietest.
+- Geen nieuwe GitHub Actions-, hassfest- of HACS-run; die volgt na publicatie.
+- Geen prestatiemeting van CPU/geheugen op de installatie van de gebruiker.
+- Een categorie 'wasmachine' of 'droogkast' levert niet vanzelf een geteste merkkoppeling.
+- Een onzeker/onbereikbaar toestel kan een gevoelige wijziging blijven blokkeren.
+- Software-installatie vereist nog een HA-herstart; alleen gewone optie-edits zijn live.
+- Een status-event tijdens volledige HA-uitval kan niet door deze integratie worden ontvangen.
+- Archiefsessies volgen de bestaande 30-dagenbewaring; geen onbeperkte historiegarantie.
+- 50/46 blijft een comfortprofiel, geen bewezen Legionella-beheersing of temperatuurgarantie.
+- Updatebestanden zijn los aangeleverd. Geen tool kan ze hier rechtstreeks aan Project-bronnen koppelen.
+
+VOOR DE EERSTE PRAKTIJKCONTROLE
+Lees docs/BETA34_INSTELLEN.md. Installeer bij voorkeur buiten een lopende afwasbeurt.
+Controleer daarna een gewone naam-/prioriteitswijziging tijdens Zonnestroom. Verander
+geen goede fysieke bron uitsluitend als proef. Een gevoelige wijziging mag zichtbaar
+wachten; gebruik Annuleren om een voorstel weg te nemen, niet om een programma te stoppen.

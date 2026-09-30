@@ -3,7 +3,8 @@ from .entity import SolarEntity
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    async_add_entities([SolarProblem(entry.runtime_data, "problem", "Aandacht nodig")])
+    r = entry.runtime_data
+    r.platforms.register("binary_sensor", async_add_entities, lambda: [SolarProblem(r, "problem", "Aandacht nodig")])
 
 
 class SolarProblem(SolarEntity, BinarySensorEntity):

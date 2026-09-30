@@ -278,7 +278,7 @@ class DishwasherApp:
         if not self.enabled(cfg):
             return False
         q = self._entry(cfg["id"]).get("request", {})
-        return bool(q and cfg.get("dishwasher_deadline_grid_allowed", True) and q.get("grid_allowed") and q["deadline"] <= wall < q["expires"])
+        return bool(q and (q.get("policy_locked") or cfg.get("dishwasher_deadline_grid_allowed", True)) and q.get("grid_allowed") and q["deadline"] <= wall < q["expires"])
 
     def overlay(self, cfg, reading):
         d = self._entry(cfg["id"])

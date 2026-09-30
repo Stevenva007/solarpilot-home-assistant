@@ -36,10 +36,10 @@ def websocket_consumer_history(hass, connection, msg):
         connection.send_error(msg["id"], "not_loaded", "SolarPilot is niet geladen")
         return
     device_id = msg["device_id"]
-    if device_id not in runtime.configs:
+    if device_id not in runtime.consumer_history.configs:
         connection.send_error(msg["id"], "not_found", "Deze SolarPilot-verbruiker bestaat niet")
         return
-    cfg = runtime.configs[device_id]
+    cfg = runtime.consumer_history.configs[device_id]
     entities = {cfg.get("control_entity"), cfg.get("active_entity"), cfg.get("power_entity"),
                 cfg.get("dishwasher_state_entity"), cfg.get("cycle_program_entity"),
                 runtime.entity_id("sensor", "status", device_id)} - {None, ""}
@@ -55,7 +55,8 @@ def websocket_consumer_history(hass, connection, msg):
         connection.send_error(msg["id"], "invalid_date", "Kies een datum binnen de laatste 30 dagen")
         return
     # Only the selected consumer's live status is returned, never other entities.
-    result["current_status"] = runtime.result.reasons.get(device_id, "Initialiseren")
+    result["current_status"] = runtime.result.reasons.get(device_id, "Gearchiveerd toestel" if device_id not in runtime.configs else "Initialiseren")
+    result["archived"] = device_id not in runtime.configs
     result["mode"] = runtime.device_modes.get(device_id, "disabled")
     connection.send_result(msg["id"], result)
 

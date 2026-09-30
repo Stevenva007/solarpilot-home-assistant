@@ -17,6 +17,10 @@ COST_SENSORS = {
 
 async def async_setup_entry(hass, entry, async_add_entities):
     r = entry.runtime_data
+    r.platforms.register("sensor", async_add_entities, lambda: _entities(r))
+
+
+def _entities(r):
     entities = [SolarSensor(r, k, n) for k, n in [
         ("status", "Status"), ("grid", "Netvermogen"), ("surplus", "Vrij overschot"),
         ("managed", "Geregeld vermogen"), ("energy", "Geregeld verbruik indicatief"), ("learning", "Leerstatus"),
@@ -60,7 +64,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
                      SolarSensor(r, "dhw_target", "Boiler voorgesteld doel")]
     entities += [SolarSensor(r, "status", "Regelstatus", i) for i in r.configs]
     entities += [PVForecastSensor(r,k,v) for k,v in PV_SENSOR_DEFINITIONS.items()]
-    async_add_entities(entities)
+    return entities
 
 
 class SolarSensor(SolarEntity, SensorEntity):
@@ -68,7 +72,7 @@ class SolarSensor(SolarEntity, SensorEntity):
         "devices", "recent_decisions", "recovery", "wallbox", "last_report_age_s", "remaining_s",
         "meter_note", "learning", "profiles", "handover", "dhw", "phase_learning", "phase_attribution",
         "battery_analysis", "local_pv", "sections", "ems", "planner", "cycle_learning",
-        "smart_climate", "battery_fleet", "historical_phase_profile", "today", "forecast",
+        "smart_climate", "battery_fleet", "device_management", "priority_board", "historical_phase_profile", "today", "forecast",
         "capacity", "phase", "economy", "warnings", "advice", "legacy_conflicts",
     })
 
@@ -262,6 +266,8 @@ class SolarSensor(SolarEntity, SensorEntity):
                     "reserve_w": r.settings["reserve_w"], "max_import_w": r.settings["max_import_w"],
                     "dhw": r.dhw.overview(), "devices": r.overview(), "wallbox": r.wallbox_overview(), "learning": r.learning_overview(),
                 "learning_insights": r.learning_hub.summary(),
+                    "device_management": r.live_options.overview(),
+                    "priority_board": r.priority_board.overview(),
                     "ems": r.ems_overview(), "recent_decisions": list(r.logs), "recovery": list(r.recovery.values()),
                     "mode_entity": r.entity_id("select", "mode"), "reset_entity": r.entity_id("button", "reset"),
                     "prepare_remove_entity": r.entity_id("button", "prepare_remove"),

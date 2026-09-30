@@ -323,7 +323,8 @@ class AnalysisRecorder:
         components = {}
         # Independent sections: an error in one module doesn't conceal all evidence.
         calls = {"learning_evidence_and_questions": lambda: r.learning_hub.refresh(force=True),
-                 "runtime_and_models": r._snapshot, "energy_planning_climate": r.ems_overview,
+                 "priority_board": r.priority_board.overview,
+                 "device_management": r.live_options.overview, "runtime_and_models": r._snapshot, "energy_planning_climate": r.ems_overview,
                  "pv_forecast_diagnostics": r.pv_forecast.diagnostics,
                  "consumers": r.overview, "wallbox": r.wallbox_overview, "dhw": r.dhw.overview,
                  "dishwasher": r.dishwasher.snapshot, "dishwasher_app": r.dishwasher_app.snapshot,
@@ -377,7 +378,14 @@ class AnalysisRecorder:
         payload["privacy"]["entity_names_included"] = include_names
         refs = list(payload["entities"])
         current = payload["entities"]
-        configs = payload["effective_configuration"]["devices"]
+        configs = dict(payload["effective_configuration"]["devices"])
+        # Retired and pending device names/IDs are just as private as active ones.
+        options=payload.get("configuration",{}).get("options",{})
+        for row in options.get("_archived_devices",[]):
+            if isinstance(row,dict) and row.get("id"): configs[row["id"]]=row
+        for row in options.get("_live_pending",{}).values():
+            proposed=row.get("new") if isinstance(row,dict) else None
+            if isinstance(proposed,dict) and proposed.get("id"):configs[proposed["id"]]=proposed
         if not include_names:
             salt = secrets.token_hex(12)
             aliases = {eid: eid.split(".")[0] + ".source_" + hashlib.sha256((salt+eid).encode()).hexdigest()[:10] for eid in refs}

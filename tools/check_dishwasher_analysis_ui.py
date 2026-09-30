@@ -35,6 +35,7 @@ with sync_playwright() as p:
   assert card.evaluate('e=>e.scrollWidth<=e.clientWidth+2'),width
  page.set_viewport_size({'width':1440,'height':1050});card.screenshot(path=str(OUT/'SolarPilot-beta29-afwasmachine-voorbeeld.png'))
  # Opened export and form state persist through 80 main-card updates.
+ page.locator('solar-pilot-card >> .nav button[data-value=export]').click()
  page.locator('solar-pilot-card >> button[data-action=analysis_export]').click()
  dialog=page.locator('solar-pilot-analysis-dialog >> dialog')
  assert dialog.is_visible();assert page.evaluate('wsCalls.length')==0

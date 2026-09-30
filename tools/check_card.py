@@ -16,7 +16,7 @@ with sync_playwright() as p:
     page.set_content((root/"SolarPilot-voorbeeld.html").read_text(encoding="utf-8"), wait_until="load")
     page.wait_for_selector("solar-pilot-card >> h1")
 
-    assert page.locator("solar-pilot-card >> .nav button").count() == 7
+    assert page.locator("solar-pilot-card >> .nav button").count() == 9
     assert page.locator("solar-pilot-card >> .overview-view").count() == 1
     assert "Wat doet het EMS nu?" in page.locator("solar-pilot-card >> .overview-view").inner_text()
     assert "Lokale PV-voorspelling" in page.locator("solar-pilot-card >> .overview-view").inner_text()
@@ -119,22 +119,23 @@ with sync_playwright() as p:
 
     page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');
       c.shadowRoot.querySelectorAll('details').forEach(d=>d.open=false); c._uiState={};}""")
-    # Action routing: policy toggle and learning only touch SolarPilot virtual entities.
+    # Action routing: priority navigation sends nothing; learning only touches SolarPilot virtual entities.
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="loads"]').click()
     page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');window.calls=[];c._hass.callService=async(domain,service,data)=>window.calls.push({domain,service,data});}""")
-    page.locator('solar-pilot-card >> button[data-action="others_first"]').click()
-    assert page.evaluate("window.calls[0]") == {"domain":"switch","service":"turn_off","data":{"entity_id":"switch.voorbeeld_andere_toestellen_voorrang"}}
+    page.locator('solar-pilot-card >> .policy button[data-value="priorities"]').click()
+    assert page.locator('solar-pilot-card >> .priority-row').count() == 5
+    assert page.evaluate("window.calls.length") == 0
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="energy"]').click()
     page.locator('solar-pilot-card >> details.learning summary').click()
     page.locator('solar-pilot-card >> button[data-action="learning"]').click()
-    assert page.evaluate("window.calls[1]") == {"domain":"switch","service":"turn_off","data":{"entity_id":"switch.voorbeeld_lokaal_leren"}}
+    assert page.evaluate("window.calls[0]") == {"domain":"switch","service":"turn_off","data":{"entity_id":"switch.voorbeeld_lokaal_leren"}}
 
     # DHW number binding remains direct and scoped to SolarPilot number entities.
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="comfort"]').click()
     page.locator("solar-pilot-card >> details.dhw-rules summary").click()
     page.locator('solar-pilot-card >> input[data-dhw-setting="pv_threshold_w"]').fill('1200')
     page.locator('solar-pilot-card >> input[data-dhw-setting="pv_threshold_w"]').press('Tab')
-    assert page.evaluate("window.calls[2]") == {"domain":"number","service":"set_value","data":{"entity_id":"number.voorbeeld_boiler_pv_threshold_w","value":1200}}
+    assert page.evaluate("window.calls[1]") == {"domain":"number","service":"set_value","data":{"entity_id":"number.voorbeeld_boiler_pv_threshold_w","value":1200}}
 
     # Every climate setting is editable and routes through one validated SolarPilot service.
     page.evaluate("window.calls=[]; window.confirm=()=>true")

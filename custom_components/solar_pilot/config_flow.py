@@ -15,6 +15,7 @@ from .wallbox_policy import SESSION_DEFAULTS, RECLAIM_POLICIES
 from .pv_forecast_source import PV_FORECAST_DEFAULTS, ENTITY_ROLES, finite
 from .house_first import HOUSE_DEFAULTS
 from .dhw_config import DHWOptionsMixin
+from .live_config import LiveOptionsMixin
 from .dishwasher_config import DishwasherOptionsMixin
 from .dishwasher import normalize_config as normalize_dishwasher, config_errors as dishwasher_errors, REFERENCE_KEYS as DISHWASHER_KEYS
 from .ems import CAPACITY_DEFAULTS, ECONOMY_DEFAULTS, FORECAST_DEFAULTS, PHASE_DEFAULTS
@@ -170,7 +171,7 @@ class SolarPilotFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return SolarPilotOptions()
 
 
-class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.OptionsFlow):
+class SolarPilotOptions(LiveOptionsMixin, DHWOptionsMixin, DishwasherOptionsMixin, config_entries.OptionsFlow):
     def __init__(self):
         self._device = {}
         self._editing = None
@@ -185,20 +186,13 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
         return rt is not None and not rt.editable
 
     def _site(self):
-        return {**DEFAULTS, **self.config_entry.data, **self.config_entry.options.get("settings", {})}
+        return {**DEFAULTS, **self.config_entry.data, **self._base_options().get("settings", {})}
 
     async def _save(self, options):
-        rt = self._runtime()
-        if rt is None:
-            return self.async_create_entry(title="", data=options)
-        async with rt._lock:
-            if not rt.editable:
-                return self.async_abort(reason="busy")
-            return self.async_create_entry(title="", data=options)
+        return await self._live_save(options)
 
     async def async_step_init(self, user_input=None):
-        if self._busy():
-            return self.async_abort(reason="busy")
+        self._base_options()
         return self.async_show_menu(step_id="init", menu_options=[
             "overview", "energy_hub", "loads_hub", "comfort_hub",
             "storage_hub", "intelligence_hub", "advanced_hub"
@@ -208,7 +202,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
         if user_input is not None:
             return await self.async_step_init()
         rt = self._runtime()
-        opts = self.config_entry.options
+        opts = self._base_options()
         site = self._site()
         bundle = await self.hass.async_add_executor_job(load_private_bundle)
         ems = rt.ems_overview() if rt else {}
@@ -231,7 +225,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
         return self.async_show_menu(step_id="energy_hub", menu_options=["settings", "power_policy", "capacity", "phase", "economy"])
 
     async def async_step_loads_hub(self, user_input=None):
-        return self.async_show_menu(step_id="loads_hub", menu_options=["add", "edit", "remove"])
+        return self.async_show_menu(step_id="loads_hub", menu_options=["add", "manage_device", "edit", "replace", "remove", "pending_changes"])
 
     async def async_step_comfort_hub(self, user_input=None):
         return self.async_show_menu(step_id="comfort_hub", menu_options=["dhw", "smart_climate", "smart_climate_advanced"])
@@ -243,7 +237,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
         return self.async_show_menu(step_id="intelligence_hub", menu_options=["pv_forecast", "forecast", "local_pv", "planner"])
 
     async def async_step_advanced_hub(self, user_input=None):
-        return self.async_show_menu(step_id="advanced_hub", menu_options=["timing", "phase_learning", "wallbox_advanced", "analysis", "private_bundle", "system_info"])
+        return self.async_show_menu(step_id="advanced_hub", menu_options=["timing", "phase_learning", "wallbox_advanced", "analysis", "private_bundle", "system_info", "pending_changes"])
 
     async def async_step_private_bundle(self, user_input=None):
         """Apply/reload a private profile + historical bootstrap from userfiles."""
@@ -251,14 +245,14 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
         history = bundle_historical_seed(bundle)
         if user_input is not None and user_input.get("apply_now"):
             opts, result = build_private_import(
-                self.hass, dict(self.config_entry.data), dict(self.config_entry.options), force=True, bundle=bundle
+                self.hass, dict(self.config_entry.data), dict(self._base_options()), force=True, bundle=bundle
             )
             if result.get("changed"):
                 return await self._save(opts)
-        meta = self.config_entry.options.get("_private_bundle", {})
+        meta = self._base_options().get("_private_bundle", {})
         missing = meta.get("missing_groups", []) if isinstance(meta, dict) else []
         placeholders = {
-            "status": private_bundle_overview(self.config_entry.options, bundle=bundle),
+            "status": private_bundle_overview(self._base_options(), bundle=bundle),
             "history": (
                 f"aanwezig · {history.get('source', {}).get('homewizard_start', '?')} → "
                 f"{history.get('source', {}).get('homewizard_end', '?')}" if history else "niet aanwezig"
@@ -284,7 +278,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
         candidate = {**current, **(user_input or {})}
         errors = site_errors(self.hass, candidate) if user_input is not None else {}
         if user_input is not None and not errors:
-            opts = deepcopy(dict(self.config_entry.options))
+            opts = deepcopy(dict(self._base_options()))
             previous = {**current, **opts.get("settings", {})}
             cleared = {k: "" for k in ("export_entity", "pv_entity", "battery_power_entity", "battery_soc_entity")}
             opts["settings"] = {**previous, **cleared, **user_input}
@@ -294,7 +288,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
     async def async_step_power_policy(self, user_input=None):
         current = self._site()
         if user_input is not None:
-            opts = deepcopy(dict(self.config_entry.options))
+            opts = deepcopy(dict(self._base_options()))
             opts["settings"] = {**current, **opts.get("settings", {}), **user_input}
             return await self._save(opts)
         return self.async_show_form(step_id="power_policy", data_schema=power_policy_schema(current), errors={})
@@ -309,14 +303,14 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
             if candidate["filter_s"] > candidate["stale_s"]:
                 errors["filter_s"] = "timing"
             if not errors:
-                opts = deepcopy(dict(self.config_entry.options))
+                opts = deepcopy(dict(self._base_options()))
                 opts["settings"] = {**current, **opts.get("settings", {}), **user_input}
                 return await self._save(opts)
         return self.async_show_form(step_id="timing", data_schema=timing_schema(user_input or current), errors=errors)
 
     async def async_step_capacity(self, user_input=None):
-        c = {**CAPACITY_DEFAULTS, **self.config_entry.options.get("capacity", {})}
-        if not self.config_entry.options.get("capacity"):
+        c = {**CAPACITY_DEFAULTS, **self._base_options().get("capacity", {})}
+        if not self._base_options().get("capacity"):
             c = apply_first_install_suggestions(self.hass, c, "capacity")
         errors = {}
         if user_input is not None:
@@ -333,7 +327,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
             if c["margin_w"] >= max(c["target_peak_w"], floor):
                 errors["margin_w"] = "range"
             if not errors:
-                opts = deepcopy(dict(self.config_entry.options))
+                opts = deepcopy(dict(self._base_options()))
                 opts["capacity"] = c
                 return await self._save(opts)
         schema = vol.Schema({
@@ -352,8 +346,8 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
         return self.async_show_form(step_id="capacity", data_schema=schema, errors=errors)
 
     async def async_step_economy(self, user_input=None):
-        c = {**ECONOMY_DEFAULTS, **self.config_entry.options.get("economy", {})}
-        if not self.config_entry.options.get("economy"):
+        c = {**ECONOMY_DEFAULTS, **self._base_options().get("economy", {})}
+        if not self._base_options().get("economy"):
             c = apply_first_install_suggestions(self.hass, c, "economy")
         errors = {}
         if user_input is not None:
@@ -362,7 +356,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
                 if c.get(key) and self.hass.states.get(c[key]) is None:
                     errors[key] = "entity_missing"
             if not errors:
-                opts = deepcopy(dict(self.config_entry.options))
+                opts = deepcopy(dict(self._base_options()))
                 opts["economy"] = c
                 return await self._save(opts)
         schema = vol.Schema({
@@ -375,7 +369,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
         return self.async_show_form(step_id="economy", data_schema=schema, errors=errors)
 
     async def async_step_pv_forecast(self, user_input=None):
-        c = {**PV_FORECAST_DEFAULTS, **self.config_entry.options.get("pv_forecast", {}), **(user_input or {})}
+        c = {**PV_FORECAST_DEFAULTS, **self._base_options().get("pv_forecast", {}), **(user_input or {})}
         errors = {}
         if user_input is not None:
             for key in ("enabled","auto_discover","calibration_enabled","shadow_enabled","show_raw"):
@@ -395,7 +389,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
                     if obj is None or obj.attributes.get("unit_of_measurement") not in (("W","kW") if kind=="power" else ("Wh","kWh")):
                         errors[role]="power_unit" if kind=="power" else "energy_unit"
             if not errors:
-                opts=deepcopy(dict(self.config_entry.options));opts["pv_forecast"]=c
+                opts=deepcopy(dict(self._base_options()));opts["pv_forecast"]=c
                 return await self._save(opts)
         schema={}
         for key in ("enabled","auto_discover","calibration_enabled","shadow_enabled","show_raw"):
@@ -412,8 +406,8 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
         return self.async_show_form(step_id="pv_forecast",data_schema=vol.Schema(schema),errors=errors)
 
     async def async_step_forecast(self, user_input=None):
-        c = {**FORECAST_DEFAULTS, **self.config_entry.options.get("forecast", {})}
-        if not self.config_entry.options.get("forecast"):
+        c = {**FORECAST_DEFAULTS, **self._base_options().get("forecast", {})}
+        if not self._base_options().get("forecast"):
             c = apply_first_install_suggestions(self.hass, c, "forecast")
         errors = {}
         if user_input is not None:
@@ -425,7 +419,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
                         if obj is None or obj.attributes.get("unit_of_measurement") not in ("Wh", "kWh"):
                             errors[key] = "energy_unit"
             if not errors:
-                opts = deepcopy(dict(self.config_entry.options))
+                opts = deepcopy(dict(self._base_options()))
                 opts["forecast"] = c
                 return await self._save(opts)
         schema = {vol.Required("enabled", default=c["enabled"]): selector.BooleanSelector()}
@@ -435,8 +429,8 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
         return self.async_show_form(step_id="forecast", data_schema=vol.Schema(schema), errors=errors)
 
     async def async_step_local_pv(self, user_input=None):
-        c = {**LOCAL_PV_DEFAULTS, **self.config_entry.options.get("local_pv", {})}
-        if not self.config_entry.options.get("local_pv"):
+        c = {**LOCAL_PV_DEFAULTS, **self._base_options().get("local_pv", {})}
+        if not self._base_options().get("local_pv"):
             c = apply_first_install_suggestions(self.hass, c, "local_pv")
         errors = {}
         if user_input is not None:
@@ -449,7 +443,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
                 if c.get("sun_entity") and self.hass.states.get(c["sun_entity"]) is None:
                     errors["sun_entity"] = "entity_missing"
             if not errors:
-                opts = deepcopy(dict(self.config_entry.options)); opts["local_pv"] = c
+                opts = deepcopy(dict(self._base_options())); opts["local_pv"] = c
                 return await self._save(opts)
         schema = vol.Schema({
             vol.Required("enabled", default=c["enabled"]): selector.BooleanSelector(),
@@ -472,14 +466,14 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
         return self.async_show_form(step_id="local_pv", data_schema=schema, errors=errors)
 
     async def async_step_planner(self, user_input=None):
-        c = {**UNIFIED_PLANNER_DEFAULTS, **self.config_entry.options.get("planner", {})}
+        c = {**UNIFIED_PLANNER_DEFAULTS, **self._base_options().get("planner", {})}
         errors = {}
         if user_input is not None:
             c = {**UNIFIED_PLANNER_DEFAULTS, **user_input}
             if c["adaptive_power_max_multiplier"] < 1:
                 errors["adaptive_power_max_multiplier"] = "range"
             if not errors:
-                opts = deepcopy(dict(self.config_entry.options))
+                opts = deepcopy(dict(self._base_options()))
                 opts["planner"] = c
                 return await self._save(opts)
         schema = vol.Schema({
@@ -509,8 +503,8 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
 
     async def async_step_phase(self, user_input=None):
         """Basic phase monitoring/control. Learning details live in Advanced."""
-        current = {**PHASE_DEFAULTS, **self.config_entry.options.get("phase", {})}
-        if not self.config_entry.options.get("phase"):
+        current = {**PHASE_DEFAULTS, **self._base_options().get("phase", {})}
+        if not self._base_options().get("phase"):
             current = apply_first_install_suggestions(self.hass, current, "phase")
         c = {**current, **(user_input or {})}
         errors = {}
@@ -526,7 +520,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
             if c["margin_w"] >= c["limit_w"]:
                 errors["margin_w"] = "range"
             if not errors:
-                opts = deepcopy(dict(self.config_entry.options))
+                opts = deepcopy(dict(self._base_options()))
                 opts["phase"] = {**current, **user_input}
                 return await self._save(opts)
         schema = vol.Schema({
@@ -543,7 +537,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
         return self.async_show_form(step_id="phase", data_schema=schema, errors=errors)
 
     async def async_step_phase_learning(self, user_input=None):
-        current = {**PHASE_DEFAULTS, **self.config_entry.options.get("phase", {})}
+        current = {**PHASE_DEFAULTS, **self._base_options().get("phase", {})}
         c = {**current, **(user_input or {})}
         errors = {}
         if user_input is not None:
@@ -555,7 +549,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
             if c["learning_settle_s"] >= c["learning_max_window_s"]:
                 errors["learning_max_window_s"] = "timing"
             if not errors:
-                opts = deepcopy(dict(self.config_entry.options))
+                opts = deepcopy(dict(self._base_options()))
                 opts["phase"] = {**current, **user_input}
                 return await self._save(opts)
         schema = vol.Schema({
@@ -572,7 +566,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
         return self.async_show_form(step_id="phase_learning", data_schema=schema, errors=errors)
 
     async def async_step_battery_analysis(self, user_input=None):
-        c = {**BATTERY_ANALYSIS_DEFAULTS, **self.config_entry.options.get("battery_analysis", {})}
+        c = {**BATTERY_ANALYSIS_DEFAULTS, **self._base_options().get("battery_analysis", {})}
         errors = {}
         def parse_list(value, low, high):
             try:
@@ -589,7 +583,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
             if powers is None: errors["powers_kw"] = "range"
             if not errors:
                 c = {**BATTERY_ANALYSIS_DEFAULTS, **user_input, "capacities_kwh": capacities, "powers_kw": powers}
-                opts = deepcopy(dict(self.config_entry.options)); opts["battery_analysis"] = c
+                opts = deepcopy(dict(self._base_options())); opts["battery_analysis"] = c
                 return await self._save(opts)
             display = {**user_input}
         schema = vol.Schema({
@@ -605,8 +599,8 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
 
     async def async_step_smart_climate(self, user_input=None):
         """Primary climate choices: Panasonic keeps HEAT/COOL ownership."""
-        current = {**SMART_CLIMATE_DEFAULTS, **self.config_entry.options.get("smart_climate", {})}
-        if not self.config_entry.options.get("smart_climate"):
+        current = {**SMART_CLIMATE_DEFAULTS, **self._base_options().get("smart_climate", {})}
+        if not self._base_options().get("smart_climate"):
             current = apply_first_install_suggestions(self.hass, current, "smart_climate")
         c = {**current, **(user_input or {})}
         errors = {}
@@ -631,7 +625,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
             if c["hard_band_c"] < c["soft_band_c"]:
                 errors["hard_band_c"] = "range"
             if not errors:
-                opts = deepcopy(dict(self.config_entry.options)); opts["smart_climate"] = {**current, **user_input}
+                opts = deepcopy(dict(self._base_options())); opts["smart_climate"] = {**current, **user_input}
                 return await self._save(opts)
         schema = vol.Schema({
             vol.Required("enabled", default=c["enabled"]): selector.BooleanSelector(),
@@ -647,7 +641,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
         return self.async_show_form(step_id="smart_climate", data_schema=schema, errors=errors)
 
     async def async_step_smart_climate_advanced(self, user_input=None):
-        current = {**SMART_CLIMATE_DEFAULTS, **self.config_entry.options.get("smart_climate", {})}
+        current = {**SMART_CLIMATE_DEFAULTS, **self._base_options().get("smart_climate", {})}
         c = {**current, **(user_input or {})}
         errors = {}
         if user_input is not None:
@@ -660,7 +654,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
             if c["solar_preconditioning_enabled"] and not self._site().get("pv_entity"):
                 errors["precondition_min_pv_w"] = "dhw_pv_required"
             if not errors:
-                opts = deepcopy(dict(self.config_entry.options)); opts["smart_climate"] = {**current, **user_input}
+                opts = deepcopy(dict(self._base_options())); opts["smart_climate"] = {**current, **user_input}
                 return await self._save(opts)
         schema = vol.Schema({
             vol.Required("forecast_refresh_s", default=c["forecast_refresh_s"]): num(900, 21600, 300),
@@ -687,14 +681,14 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
         return self.async_show_menu(step_id="battery", menu_options=["battery_settings", "battery_add", "battery_edit", "battery_remove"])
 
     async def async_step_battery_settings(self, user_input=None):
-        c = {**BATTERY_FLEET_DEFAULTS, **self.config_entry.options.get("battery_fleet", {})}
+        c = {**BATTERY_FLEET_DEFAULTS, **self._base_options().get("battery_fleet", {})}
         errors = {}
         if user_input is not None:
             c = {**BATTERY_FLEET_DEFAULTS, **user_input}
-            if c["discharge_reserve_w"] > self.config_entry.options.get("settings", {}).get("max_import_w", self.config_entry.data.get("max_import_w", 3500)):
+            if c["discharge_reserve_w"] > self._base_options().get("settings", {}).get("max_import_w", self.config_entry.data.get("max_import_w", 3500)):
                 errors["discharge_reserve_w"] = "range"
             if not errors:
-                opts = deepcopy(dict(self.config_entry.options)); opts["battery_fleet"] = c
+                opts = deepcopy(dict(self._base_options())); opts["battery_fleet"] = c
                 return await self._save(opts)
         schema = vol.Schema({
             vol.Required("enabled", default=c["enabled"]): selector.BooleanSelector(),
@@ -716,7 +710,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
 
     def _battery_choice_schema(self):
         return vol.Schema({vol.Required("battery_id"): selector.SelectSelector({"options":[
-            {"value": b["id"], "label": b.get("name", b["id"])} for b in self.config_entry.options.get("batteries", [])]})})
+            {"value": b["id"], "label": b.get("name", b["id"])} for b in self._base_options().get("batteries", [])]})})
 
     async def async_step_battery_add(self, user_input=None):
         self._battery_editing = None
@@ -724,7 +718,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
         return await self.async_step_battery_profile()
 
     async def async_step_battery_edit(self, user_input=None):
-        batteries = self.config_entry.options.get("batteries", [])
+        batteries = self._base_options().get("batteries", [])
         if not batteries:
             return self.async_abort(reason="no_batteries")
         if user_input is not None:
@@ -734,10 +728,10 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
         return self.async_show_form(step_id="battery_edit", data_schema=self._battery_choice_schema())
 
     async def async_step_battery_remove(self, user_input=None):
-        if not self.config_entry.options.get("batteries"):
+        if not self._base_options().get("batteries"):
             return self.async_abort(reason="no_batteries")
         if user_input is not None:
-            opts = deepcopy(dict(self.config_entry.options))
+            opts = deepcopy(dict(self._base_options()))
             opts["batteries"] = [b for b in opts.get("batteries", []) if b["id"] != user_input["battery_id"]]
             return await self._save(opts)
         return self.async_show_form(step_id="battery_remove", data_schema=self._battery_choice_schema())
@@ -751,13 +745,13 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
         if not (0 <= b["min_soc_pct"] <= b["reserve_soc_pct"] < b["max_soc_pct"] <= 100):
             errors["reserve_soc_pct"] = "range"
         refs = {b.get(k) for k in ("soc_entity", "power_entity") if b.get(k)}
-        for other in self.config_entry.options.get("batteries", []):
+        for other in self._base_options().get("batteries", []):
             if other["id"] != b["id"] and refs & {other.get(k) for k in ("soc_entity", "power_entity")}:
                 errors["base"] = "duplicate"
         return errors
 
     async def _save_battery_profile(self, b):
-        opts = deepcopy(dict(self.config_entry.options))
+        opts = deepcopy(dict(self._base_options()))
         rows = [x for x in opts.get("batteries", []) if x["id"] != b["id"]]
         rows.append(b)
         opts["batteries"] = rows
@@ -818,7 +812,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
                     if not b.get(key) or self.hass.states.get(b[key]) is None:
                         errors[key] = "required"
             refs = {b.get(k) for k in ("number_entity", "charge_script", "discharge_script", "idle_script") if b.get(k)}
-            for other in self.config_entry.options.get("batteries", []):
+            for other in self._base_options().get("batteries", []):
                 if other["id"] != b["id"] and refs & {other.get(k) for k in ("number_entity", "charge_script", "discharge_script", "idle_script")}:
                     errors["base"] = "duplicate"
             if not errors:
@@ -840,15 +834,15 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
 
     async def async_step_wallbox(self, user_input=None):
         """Basic Wallbox monitoring. Fine tuning lives in Advanced."""
-        current = {**WALLBOX_DEFAULTS, **HOUSE_DEFAULTS, **PRIORITY_DEFAULTS, **PROFILE_DEFAULTS, **SESSION_DEFAULTS, **self.config_entry.options.get("wallbox", {})}
-        if not self.config_entry.options.get("wallbox"):
+        current = {**WALLBOX_DEFAULTS, **HOUSE_DEFAULTS, **PRIORITY_DEFAULTS, **PROFILE_DEFAULTS, **SESSION_DEFAULTS, **self._base_options().get("wallbox", {})}
+        if not self._base_options().get("wallbox"):
             current = apply_first_install_suggestions(self.hass, current, "wallbox")
         c = {**current, **(user_input or {})}
         errors = {}
         if user_input is not None:
-            errors = {**wallbox_errors_for(self.hass, c, self._site(), self.config_entry.options.get("devices", [])), **validate_profile(c)}
+            errors = {**wallbox_errors_for(self.hass, c, self._site(), self._base_options().get("devices", [])), **validate_profile(c)}
             if not errors:
-                opts = deepcopy(dict(self.config_entry.options))
+                opts = deepcopy(dict(self._base_options()))
                 opts["wallbox"] = {**current, **user_input}
                 return await self._save(opts)
         schema = vol.Schema({
@@ -878,13 +872,13 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
         return self.async_show_form(step_id="wallbox", data_schema=schema, errors=errors)
 
     async def async_step_wallbox_advanced(self, user_input=None):
-        current = {**WALLBOX_DEFAULTS, **HOUSE_DEFAULTS, **PRIORITY_DEFAULTS, **PROFILE_DEFAULTS, **SESSION_DEFAULTS, **self.config_entry.options.get("wallbox", {})}
+        current = {**WALLBOX_DEFAULTS, **HOUSE_DEFAULTS, **PRIORITY_DEFAULTS, **PROFILE_DEFAULTS, **SESSION_DEFAULTS, **self._base_options().get("wallbox", {})}
         c = {**current, **(user_input or {})}
         errors = {}
         if user_input is not None:
-            errors = {**wallbox_errors_for(self.hass, c, self._site(), self.config_entry.options.get("devices", [])), **validate_profile(c)}
+            errors = {**wallbox_errors_for(self.hass, c, self._site(), self._base_options().get("devices", [])), **validate_profile(c)}
             if not errors:
-                opts = deepcopy(dict(self.config_entry.options))
+                opts = deepcopy(dict(self._base_options()))
                 opts["wallbox"] = {**current, **user_input}
                 return await self._save(opts)
         schema = vol.Schema({
@@ -919,23 +913,23 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
 
     def _choice_schema(self):
         return vol.Schema({vol.Required("device_id"): selector.SelectSelector({"options": [
-            {"value": d["id"], "label": d["name"]} for d in self.config_entry.options.get("devices", [])]})})
+            {"value": d["id"], "label": d["name"]} for d in self._base_options().get("devices", [])]})})
 
     async def async_step_edit(self, user_input=None):
-        devices = self.config_entry.options.get("devices", [])
+        devices = self._base_options().get("devices", [])
         if not devices:
             return self.async_abort(reason="no_devices")
         if user_input is not None:
             self._editing = user_input["device_id"]
             self._device = deepcopy(next(d for d in devices if d["id"] == self._editing))
             rt = self._runtime()
-            if rt:
+            if rt and not rt.priority_board.active:
                 self._device["priority"] = rt.priorities.get(self._editing, self._device["priority"])
             return await self.async_step_device()
         return self.async_show_form(step_id="edit", data_schema=self._choice_schema())
 
     async def async_step_remove(self, user_input=None):
-        if not self.config_entry.options.get("devices"):
+        if not self._base_options().get("devices"):
             return self.async_abort(reason="no_devices")
         if user_input is not None:
             self._editing = user_input["device_id"]
@@ -944,7 +938,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
 
     async def async_step_confirm_remove(self, user_input=None):
         if user_input is not None:
-            opts = deepcopy(dict(self.config_entry.options))
+            opts = deepcopy(dict(self._base_options()))
             opts["devices"] = [d for d in opts["devices"] if d["id"] != self._editing]
             return await self._save(opts)
         return self.async_show_form(step_id="confirm_remove", data_schema=vol.Schema({}))
@@ -953,6 +947,8 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
         if user_input is not None:
             old_kind = self._device.get("kind")
             self._device.update(user_input)
+            if user_input["kind"] == "dishwasher":
+                self._device["appliance_type"] = "dishwasher"
             if old_kind != user_input["kind"]:
                 for k in ("control_entity", "active_entity", "number_entity", "start_script", "stop_script"):
                     self._device.pop(k, None)
@@ -968,15 +964,21 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
                         self._device.pop(key, None)
             return await self.async_step_connection()
         d = {**DEVICE_DEFAULTS, **self._device}
-        return self.async_show_form(step_id="device", data_schema=vol.Schema({
+        schema = {
             vol.Required("name", default=d.get("name", "Nieuw toestel")): selector.TextSelector(),
             vol.Required("kind", default=d["kind"]): selector.SelectSelector({"options": [
                 {"value": "switch", "label": "Aan/uit-toestel"},
                 {"value": "number", "label": "Regelbaar vermogen of laadstroom"},
                 {"value": "script", "label": "Start-/stop-script met terugmelding"},
                 {"value": "dishwasher", "label": "AEG/Electrolux afwasmachine — alleen starten"}]}),
+            vol.Required("appliance_type", default=d.get("appliance_type", "dishwasher" if d["kind"] == "dishwasher" else "other")): selector.SelectSelector({"options": [
+                {"value":"dishwasher","label":"Afwasmachine"}, {"value":"washing_machine","label":"Wasmachine"},
+                {"value":"tumble_dryer","label":"Droogkast"}, {"value":"other","label":"Andere verbruiker"}]}),
             vol.Required("priority", default=d["priority"]): num(1, 100),
-        }))
+        }
+        if self._base_options().get("priority_board", {}).get("schema") == 1:
+            schema = {k:v for k,v in schema.items() if getattr(k,"schema",k) != "priority"}
+        return self.async_show_form(step_id="device", data_schema=vol.Schema(schema))
 
     async def async_step_connection(self, user_input=None):
         if self._device.get("kind") == "dishwasher":
@@ -988,10 +990,10 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
                 d.pop(key, None)
             d.update(user_input)
             references = {d.get(k) for k in ("control_entity", "active_entity", "number_entity", "start_script", "stop_script")} - {None, ""}
-            for other in self.config_entry.options.get("devices", []):
-                if other["id"] != d["id"] and references & {other.get(k) for k in ("control_entity", "active_entity", "number_entity", "start_script", "stop_script")}:
+            for other in self._base_options().get("devices", []):
+                if other["id"] not in (d["id"], d.get("replaces_device_id")) and references & {other.get(k) for k in ("control_entity", "active_entity", "number_entity", "start_script", "stop_script")}:
                     errors["base"] = "duplicate"
-            dhw = self.config_entry.options.get("dhw", {})
+            dhw = self._base_options().get("dhw", {})
             if dhw.get("target_entity") in references:
                 errors["base"] = "duplicate"
             if d.get("power_entity") and d["power_entity"] == dhw.get("power_entity"):
@@ -1006,9 +1008,9 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
                     errors["power_entity"] = "power_unit"
             if d.get("power_entity"):
                 rt = self._runtime()
-                site = rt.settings if rt else {**self.config_entry.data, **self.config_entry.options.get("settings", {})}
+                site = rt.settings if rt else {**self.config_entry.data, **self._base_options().get("settings", {})}
                 reserved = {site.get(k) for k in ("grid_entity", "export_entity", "pv_entity", "battery_power_entity")}
-                reserved.update(x.get("power_entity") for x in self.config_entry.options.get("devices", []) if x["id"] != d["id"])
+                reserved.update(x.get("power_entity") for x in self._base_options().get("devices", []) if x["id"] not in (d["id"], d.get("replaces_device_id")))
                 if d["power_entity"] in reserved:
                     errors["power_entity"] = "dedicated_meter"
             if d["kind"] == "number":
@@ -1020,7 +1022,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
                     d["control_unit"] = unit
                     if unit in ("W", "kW"):
                         d["watts_per_unit"] = 1.0 if unit == "W" else 1000.0
-            if conflicting_devices(self.hass, self.config_entry.options.get("wallbox", {}), [d]):
+            if conflicting_devices(self.hass, self._base_options().get("wallbox", {}), [d]):
                 errors["base"] = "wallbox_duplicate"
             if not errors:
                 return await self.async_step_device_behavior()
@@ -1105,7 +1107,7 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
             if d.get("wallbox_power_policy", "priority") not in RECLAIM_POLICIES:
                 errors["wallbox_power_policy"] = "invalid_precedence"
             if d.get("allow_wallbox_reclaim") and d.get("wallbox_power_policy", "priority") == "legacy":
-                max_wait = self.config_entry.options.get("wallbox", {}).get("handover_s", HOUSE_DEFAULTS["handover_s"])
+                max_wait = self._base_options().get("wallbox", {}).get("handover_s", HOUSE_DEFAULTS["handover_s"])
                 if not d.get("power_entity") or d["non_interruptible"] or d["min_on_s"] > max_wait:
                     errors["allow_wallbox_reclaim"] = "reclaim_requirements"
             if d.get("cycle_learning_enabled"):
@@ -1119,13 +1121,10 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
                 d = normalize_dishwasher(d)
                 errors.update(dishwasher_errors(self.hass, d))
             if not errors:
-                opts = deepcopy(dict(self.config_entry.options))
-                devices = [x for x in opts.get("devices", []) if x["id"] != d["id"]]
+                opts = deepcopy(dict(self._base_options()))
+                devices = [x for x in opts.get("devices", []) if x["id"] not in (d["id"], d.get("replaces_device_id"))]
                 devices.append(d)
                 opts["devices"] = devices
-                rt = self._runtime()
-                if rt and not self._busy():
-                    rt.priorities.pop(d["id"], None)
                 return await self._save(opts)
         schema = {
             vol.Required("min_daily_runtime_s", default=d["min_daily_runtime_s"]): num(0, 86400, 60),
@@ -1159,5 +1158,8 @@ class SolarPilotOptions(DHWOptionsMixin, DishwasherOptionsMixin, config_entries.
             schema[vol.Required("cycle_duration_min", default=d.get("cycle_duration_min",0.0))] = num(0, 1440, 5)
             schema[vol.Required("cycle_program", default=d.get("cycle_program","standaard"))] = selector.TextSelector()
             schema[optional("cycle_program_entity", d)] = entity(["sensor","select","input_select"])
+        if self._base_options().get("priority_board", {}).get("schema") == 1:
+            legacy = {"wallbox_precedence", "wallbox_power_policy", "allow_wallbox_reclaim"}
+            schema = {k:v for k,v in schema.items() if getattr(k,"schema",k) not in legacy}
         return self.async_show_form(step_id="device_schedule", data_schema=vol.Schema(schema), errors=errors)
 

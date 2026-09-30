@@ -1,6 +1,6 @@
 # SolarPilot · Configuratiestructuur
 
-**Geldig voor 1.0.0-beta.27.** Dit document beschrijft waar instellingen staan. Voor de inhoudelijke EMS-regels geldt uitsluitend `ACTUELE_WERKING.md`.
+**Geldig voor 1.0.0-beta.35.** Dit document beschrijft waar instellingen staan. Voor de inhoudelijke EMS-regels geldt uitsluitend `ACTUELE_WERKING.md`.
 
 ## Configuratiecentrum
 
@@ -16,11 +16,11 @@ Hier staan de P1-/PV-bronnen, tekenrichting, injectiereserve, maximale softwarem
 
 ### Verbruikers & prioriteiten
 
-Flexibele lasten worden via vier stappen beheerd: **Basis → Koppeling → Gedrag & bescherming → Planning & energie**. Nieuwe apparaten blijven standaard **Uitgesloten** totdat je ze bewust op Auto zet. In **4/4 Planning & energie → Voorrang ten opzichte van de Wallbox** kies je per toestel de globale voorkeur, dit toestel eerst of Wallbox eerst met klein-overschotfallback. Minimumlooptijden blijven beschermd.
+Flexibele lasten worden via **Basis → Koppeling → Gedrag & bescherming → Planning & energie** beheerd. Nieuwe apparaten blijven **Uitgesloten** totdat je ze bewust op Auto zet. De gezamenlijke volgorde en toestemming om autoladen te verminderen staan op **Voorrang → Volgorde aanpassen**. Na een bevestigde centrale wijziging verdwijnen de oude prioriteitsvelden uit de toestelwizard. Zonder centrale wijziging blijft de bestaande regeling leidend. Minimumlooptijden blijven beschermd.
 
 ### Comfort & warmtepomp
 
-**Sanitair warm water** bevat de Panasonic-bronnen en de actuele 43/49/50/60 °C-regels, nachtvenster, koelblokkering en sterilisatiebescherming.
+**Sanitair warm water** bevat de Panasonic-bronnen en het gewone 50 °C-doel, de bewaakte 46 °C-grens en de afzonderlijke extra zonnebuffer (standaard 60 °C), nachtvenster, koelblokkering en sterilisatiebescherming.
 
 **Ruimteklimaat · basis** koppelt de Panasonic-zones, weather-entiteit, actuele buitentemperatuur en de belangrijkste comfortbanden. SolarPilot stuurt nooit HEAT of COOL; Panasonic AUTO beslist dat zelf.
 
@@ -113,3 +113,10 @@ Open onderaan het SolarPilot-dashboard **Configureren met uitleg ?**. De wizard 
 **Sanitair warm water** bestaat nu uit Koppelingen → Temperatuurregels → Nacht, ochtend en avondvoorraad → Terugmelding en stabiliteit. In de nieuwe derde stap staan het nachtbeleid, ochtenddoel/tijd/buffers, avondreserve/zonnehorizon en de optionele voorspellende koelblokkering.
 
 **Wallbox** bevat ook automatisch laadprofiel, optionele laadstroom-/fasebron, handmatig fase-/stroomprofiel en afgeleid zonnelaadminimum. ICP is niet de laadlimiet.
+
+
+## Dagelijkse bediening in beta.35
+
+**Overzicht · Voorrang · Verbruikers · Comfort · Planning · Energie · Opslag · Export · Uitleg**
+
+Voorrang bundelt toestellen, Wallbox en extra boilerwarmte. Vaste comfort- en hygiënebescherming staat zichtbaar erboven. Export bundelt het samenstellen van één lokaal onderzoeksbestand met bestaande privacy- en tijdvensterkeuze. Toestelbeheer, PV-diagnose en Leren & vragen blijven afzonderlijk beschikbaar; alle algemene exportverwijzingen komen op Export uit.

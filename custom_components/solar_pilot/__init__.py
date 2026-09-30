@@ -13,6 +13,7 @@ from .consumer_history_api import async_register_history_api
 from .analysis_api import async_register_analysis_api
 from .learning_api import async_register_learning_api
 from .pv_forecast_api import async_register_pv_api
+from .priority_api import async_register_priority_api
 from .pv_forecast import PV_SENSOR_DEFINITIONS
 from .analysis_export import storage_key as analysis_storage_key
 from .consumer_history_runtime import history_storage_key
@@ -64,6 +65,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     valid_prefixes = [f"{entry.entry_id}_{i}_" for i in runtime.configs]
     hub_suffixes = {"status", "grid", "surplus", "managed", "energy", "problem", "mode", "reset", "prepare_remove", "others_first", "learning", "reset_learning", "ems_status", "guide", "ems_solar_today", "ems_value_today", "ems_self_consumption", "battery_fleet_status", "battery_fleet_soc", "battery_fleet_power", "smart_climate_status", "smart_climate_confidence", "smart_climate_predicted_min", "smart_climate_predicted_max"}
     hub_suffixes.update(PV_SENSOR_DEFINITIONS)
+    hub_suffixes.update({"electricity_cost_today", "electricity_import_cost_today", "electricity_export_revenue_today", "electricity_pv_avoided_today",
+                        "local_pv_status", "local_pv_corrected_power", "local_pv_confidence", "battery_analysis_status", "battery_10_5_avoided", "phase_learning_status"})
+    hub_suffixes.update(f"phase_{p}_{k}" for p in ("l1", "l2", "l3") for k in ("known", "residual"))
     if runtime.capacity_settings["enabled"]:
         hub_suffixes.update({"capacity_status", "capacity_limit", "capacity_headroom"})
     if runtime.phase_settings["enabled"]:
@@ -84,6 +88,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async_register_analysis_api(hass)
     async_register_learning_api(hass)
     async_register_pv_api(hass)
+    async_register_priority_api(hass)
     try:
         await async_register_frontend(hass)
     except Exception:  # Frontend convenience must never disable the EMS core.
@@ -120,10 +125,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def _options_updated(hass, entry):
     runtime = getattr(entry, "runtime_data", None)
-    if runtime is not None and getattr(runtime, "_skip_options_reload_once", False):
-        runtime._skip_options_reload_once = False
-        return
-    await hass.config_entries.async_reload(entry.entry_id)
+    if runtime is not None and not runtime._closed:
+        async with runtime._lock:
+            runtime._skip_options_reload_once = False
+            await runtime.live_options.accept(dict(entry.options))
+        runtime.publish()
+    # No unconditional reload: ongoing leases, event listeners and timers survive.
+
 
 
 async def async_unload_entry(hass, entry):

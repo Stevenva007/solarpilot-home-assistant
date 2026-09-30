@@ -477,11 +477,34 @@ attributes["wallbox"]["consumer_priority"] = {
 attributes["devices"][0]["wallbox_first"] = True
 attributes["devices"][0]["wallbox_precedence"] = "wallbox_first"
 
-html = f'''<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SolarPilot {guide_mod.GUIDE_VERSION} Control Center voorbeeld</title><style>body{{margin:0;padding:18px;background:#f3f5f7;max-width:520px;margin-inline:auto}}solar-pilot-card{{display:block}}</style></head><body><solar-pilot-card></solar-pilot-card><script>{card}</script><script>
+# Fictitious beta.35 priority data, not household preferences or live HA state.
+attributes["config_entry_id"] = "offline-example"
+_order = ["device:dishwasher", "wallbox", "device:flex_load", "device:extra", "dhw_extra"]
+_names = {"device:" + d["id"]: d["name"] for d in attributes["devices"]}
+_names.update(wallbox="Auto laden · Wallbox", dhw_extra="Extra boilerwarmte · 60 °C")
+attributes["priority_board"] = {
+    "active": False, "revision": "fictitious-beta35-example", "order": _order,
+    "wallbox_power": {key: True for key in _order if key.startswith("device:")},
+    "rows": [{"id": key, "name": _names[key], "position": n + 1, "active": True,
+        "kind": "dishwasher" if key == "device:dishwasher" else "switch" if key.startswith("device:") else key,
+        **({"device_id": key[7:], "status": "Auto", "wallbox_power": True} if key.startswith("device:") else {}),
+        "power_label": "Alleen werkelijk vrij zonneoverschot" if key == "dhw_extra" else "Gebruikt het resterende zonnevermogen" if key == "wallbox" else "Ja, onder voorwaarden" if key == "device:dishwasher" else "Nee · Wallbox heeft voorrang",
+        "reason": "Voorbeeld: lopende beurt wordt niet onderbroken." if key == "device:dishwasher" else "Voorbeeld: gekozen positie en actuele voorwaarden blijven gelden."} for n, key in enumerate(_order)],
+    "protected": [{"id": key, "name": title, "active": True, "power_label": "Blijft beschermd", "reason": explanation} for key, title, explanation in [
+        ("safety", "Beveiliging en hygiëne", "Fabrikantbeveiliging en het bestaande sterilisatieprogramma blijven gelden."),
+        ("dhw_comfort", "Gewoon warm water", "Bestaand normaal doel en comfortgrens; Panasonic bepaalt de herverwarming."),
+        ("dhw_evening", "Noodzakelijke avondvoorraad", "Volgens het bestaande voorraadplan, niet de extra 60 °C-buffer."),
+        ("space_comfort", "Ruimteverwarming en koeling", "Thermostaatdoelen en handmatige standen blijven behouden.")]],
+    "constraints": [{"before": "wallbox", "after": "dhw_extra", "reason": "Extra boilerwarmte blijft na de Wallbox."},
+        {"before": "device:dishwasher", "after": "dhw_extra", "reason": "De afwas behoudt voorrang op extra boilerwarmte."}],
+    "note": "Fictief voorbeeld: de bestaande voorrang blijft behouden totdat je een wijziging bevestigt. Deze pagina slaat niets op.",
+}
+
+html = f'''<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SolarPilot {guide_mod.GUIDE_VERSION} Control Center voorbeeld</title><style>body{{margin:0;padding:18px;background:#f3f5f7;max-width:520px;margin-inline:auto}}solar-pilot-card{{display:block}}</style></head><body><p style="font:13px/1.5 system-ui">Fictieve voorbeeldgegevens · geen live bediening of opslag</p><solar-pilot-card></solar-pilot-card><script>{card}</script><script>
 const attributes = {json.dumps(attributes, ensure_ascii=False)};
 const card=document.querySelector('solar-pilot-card'); card.setConfig({{}});
 const guideAttributes = {json.dumps(guide_attributes, ensure_ascii=False)};
-card.hass={{states:{{'sensor.solarpilot_status':{{state:'Zonnestroom',attributes}},'sensor.solarpilot_actuele_uitleg':{{state:guideAttributes.version,attributes:guideAttributes}}}}, callService:async()=>{{throw new Error('Deze voorbeeldpagina bedient geen apparaten. Gebruik de kaart binnen Home Assistant voor echte bediening.');}}}};
+card.hass={{user:{{is_admin:true}},callWS:async msg=>{{if(msg.type==='solar_pilot/priority_board'&&!msg.save)return structuredClone(attributes.priority_board);throw new Error('Offline voorbeeld: er wordt niets opgeslagen of opgehaald.');}},states:{{'sensor.solarpilot_status':{{state:'Zonnestroom',attributes}},'sensor.solarpilot_actuele_uitleg':{{state:guideAttributes.version,attributes:guideAttributes}}}}, callService:async()=>{{throw new Error('Deze voorbeeldpagina bedient geen apparaten. Gebruik de kaart binnen Home Assistant voor echte bediening.');}}}};
 card.addEventListener('hass-more-info',()=>window.alert('Dit is een offline voorbeeld.'));
 </script></body></html>'''
 (ROOT / "SolarPilot-voorbeeld.html").write_text(html, encoding="utf-8")

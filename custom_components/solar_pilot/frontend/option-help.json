@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.33",
+  "version": "1.0.0-beta.35",
   "language": "nl",
   "steps": {
     "init": {
@@ -43,12 +43,14 @@
       "data": {
         "name": "Naam toestel",
         "kind": "Bedieningstype",
-        "priority": "Prioriteit — 1 is hoogste, 100 is laagste"
+        "priority": "Prioriteit — 1 is hoogste, 100 is laagste",
+        "appliance_type": "Toestelcategorie (los van technische koppeling)"
       },
       "data_description": {
         "name": "De herkenbare naam van deze koppeling in SolarPilot.",
         "kind": "Kies de werkelijk ondersteunde actuator.",
-        "priority": "Rangorde tussen gewone SolarPilot-verbruikers: 1 is het belangrijkst, 100 het minst belangrijk."
+        "priority": "De dagelijkse rangorde staat op Voorrang → Volgorde aanpassen.",
+        "appliance_type": "Dit is de herkenbare categorie: afwasmachine, wasmachine, droogkast of andere verbruiker."
       }
     },
     "connection": {
@@ -133,7 +135,7 @@
     },
     "confirm_remove": {
       "title": "Verwijderen bevestigen",
-      "description": "Dit verwijdert het geselecteerde toestel uit SolarPilot. Het oorspronkelijke apparaat wordt niet uit Home Assistant verwijderd en er wordt geen fysieke opdracht verstuurd.",
+      "description": "Het SolarPilot-profiel wordt na vrijgave gearchiveerd. Een lopend apparaat of onzekere start wordt niet onderbroken. De fysieke AEG-/Shelly-integratie blijft bestaan en oude historie blijft binnen de bewaartermijn beschikbaar.",
       "data": {}
     },
     "wallbox": {
@@ -635,12 +637,15 @@
       }
     },
     "loads_hub": {
-      "title": "Verbruikers & prioriteiten",
+      "title": "Toestellen beheren",
       "description": "Voeg alleen apparaten toe die SolarPilot werkelijk mag regelen. Prioriteit en Auto/Uitgesloten wijzig je nadien eenvoudig op het dashboard.",
       "menu_options": {
         "add": "Verbruiker toevoegen",
         "edit": "Verbruiker aanpassen",
-        "remove": "Verbruiker verwijderen"
+        "remove": "Verbruiker verwijderen",
+        "manage_device": "Toestelinstellingen / koppelingen / planning",
+        "replace": "Toestel vervangen",
+        "pending_changes": "Wachtende wijzigingen"
       }
     },
     "comfort_hub": {
@@ -680,7 +685,8 @@
         "wallbox_advanced": "Wallbox · geavanceerde herkenning",
         "system_info": "Versie & actuele uitleg",
         "private_bundle": "Privéprofiel & historiek",
-        "analysis": "Analyse-export & lokale registratie"
+        "analysis": "Analyse-export & lokale registratie",
+        "pending_changes": "Wachtende wijzigingen"
       }
     },
     "system_info": {
@@ -938,8 +944,8 @@
         "cycle_duration_min": "Conservatieve duur van een volledige cyclus, in minuten.",
         "cycle_program": "Naam van het programma voor cyclusregistratie, bijvoorbeeld Eco.",
         "cycle_program_entity": "Optionele entiteit die het werkelijk gekozen programma rapporteert.",
-        "wallbox_precedence": "Globale voorkeur volgen behoudt de algemene keuze.",
-        "wallbox_power_policy": "Voorrang volgen is de nieuwe standaard: een verbruiker vóór de Wallbox mag bevestigd Full Solar-vermogen gebruiken met een eigen actuele vermogensmeter."
+        "wallbox_precedence": "Bekijk de gezamenlijke rangorde op Voorrang.",
+        "wallbox_power_policy": "Op Voorrang kies je per verbruiker of de auto minder mag laden."
       }
     },
     "private_bundle": {
@@ -1064,7 +1070,7 @@
         "dishwasher_deadline_grid_allowed": "AAN: op de vastgelegde startdeadline mag netstroom de ontbrekende zon aanvullen.",
         "dishwasher_deadline_grace_min": "Begrensd herstelvenster na de startdeadline, standaard 120 minuten.",
         "dishwasher_alert_mode": "Toestand gebruikt de bestaande expliciete lijst veilige alarmwaarden.",
-        "dishwasher_priority_enabled": "Standaard AAN voor de gevraagde voorkeursvolgorde.",
+        "dishwasher_priority_enabled": "Het bestaande AEG-voorkeursprofiel blijft behouden.",
         "dishwasher_ev_solar_priority": "Standaard AAN voor deze update."
       }
     },
@@ -1135,6 +1141,60 @@
         "history_days": "Bewaart maximaal 30 dagen kwartierdiagnose met ruwe/gecorrigeerde/werkelijke waarden en acceptatie- of afwijsreden, begrensd op 2880 regels.",
         "stale_s": "Ouderdomsgrens voor de forecast, niet voor de actuele PV-/netmeter."
       }
+    },
+    "apply_changes": {
+      "title": "Wijzigingen controleren en opslaan",
+      "description": "{summary}\n\n{issue}\n\nHet bekijken of opslaan verstuurt zelf geen toestelopdracht. De normale regelcyclus gebruikt daarna de effectief toegepaste regels. Lopende beschermde cycli houden hun bestaande koppelingen.",
+      "data": {
+        "request_scope": "Ook voor de huidige klaargezette afwasbeurt?",
+        "confirm": "Ik bevestig de beschreven wijzigingen"
+      },
+      "data_description": {
+        "request_scope": "Alleen volgende beurten behoudt de al opgeslagen dag, deadline en nettoestemming van de huidige APP-aanvraag.",
+        "confirm": "Controleer het overzicht vóór bevestigen."
+      }
+    },
+    "pending_changes": {
+      "title": "Wachtende wijzigingen",
+      "description": "{status}\n\nAlleen de genoemde wijzigingen wachten. De andere functies werken verder. Selecteer uitsluitend voorstellen die je wilt annuleren; een lopend apparaat wordt hiermee niet gestopt.",
+      "data": {
+        "cancel": "Deze wachtende voorstellen annuleren"
+      },
+      "data_description": {
+        "cancel": "Selecteer opgeslagen voorstellen die je niet meer wilt toepassen."
+      }
+    },
+    "replace": {
+      "title": "Toestel vervangen",
+      "description": "Kies het oude SolarPilot-profiel. De oorspronkelijke AEG-/Shelly-/merkintegratie wordt niet verwijderd.",
+      "data": {
+        "device_id": "Te vervangen toestel"
+      },
+      "data_description": {
+        "device_id": "Selecteer alleen het oude SolarPilot-toestel dat vervangen wordt."
+      }
+    },
+    "confirm_replace": {
+      "title": "Nieuw apparaat, nieuw profiel",
+      "description": "Er komt een nieuwe identiteit. Naam en energiewensen kunnen als voorstel worden overgenomen. Koppelingen, vermogensmetingen, starttoestemmingen, overrides en geleerd gedrag worden niet overgenomen. De oude historiek wordt afgesloten. Een lopende cyclus werkt eerst af.",
+      "data": {
+        "confirm": "Nieuw profiel maken zonder oude koppelingen of startrechten"
+      },
+      "data_description": {
+        "confirm": "Bevestigt dat je een vervangend toestelprofiel wilt opbouwen."
+      }
+    },
+    "manage_device": {
+      "title": "Toestel beheren",
+      "description": "Deze schermen zijn ook tijdens Zonnestroom toegankelijk. Bij het uiteindelijke opslaan zie je welke wijzigingen direct kunnen en welke wachten.",
+      "data": {
+        "device_id": "Toestel",
+        "section": "Wat wil je aanpassen?"
+      },
+      "data_description": {
+        "device_id": "Kies het afzonderlijke SolarPilot-profiel dat je wilt bekijken of wijzigen.",
+        "section": "Instellingen opent de basis en bescherming; Koppelingen opent de oorspronkelijke actuator en terugmelding; Planning opent de energie- en prioriteitskeuzes."
+      }
     }
   },
   "errors": {
@@ -1184,7 +1244,8 @@
     "analysis_too_many": "Selecteer maximaal 50 extra bronentiteiten.",
     "dishwasher_exact_remote": "Gebruik voor fysieke APP-vrijgave uitsluitend de volledige waarde Enabled.",
     "invalid_selection": "Ongeldige keuze; selecteer een aangeboden optie.",
-    "invalid_pv_setting": "Ongeldige PV-instelling: controleer type, eenheid en bereik."
+    "invalid_pv_setting": "Ongeldige PV-instelling: controleer type, eenheid en bereik.",
+    "live_change": "De wijziging is nog niet opgeslagen. Lees de melding hierboven; heropen bij een gelijktijdige wijziging."
   },
   "abort": {
     "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",
@@ -1268,9 +1329,18 @@
     },
     "device.priority": {
       "title": "Prioriteit — 1 is hoogste, 100 is laagste",
-      "short": "Rangorde tussen gewone SolarPilot-verbruikers: 1 is het belangrijkst, 100 het minst belangrijk.",
+      "short": "De dagelijkse rangorde staat op Voorrang → Volgorde aanpassen.",
       "paragraphs": [
-        "Rangorde tussen gewone SolarPilot-verbruikers: 1 is het belangrijkst, 100 het minst belangrijk. Een kleiner toestel mag een onbenut restje gebruiken als een belangrijker toestel nog niet past. Minimumtijden en beveiligingen gaan altijd vóór rangorde. Wallbox-voorrang stel je afzonderlijk per toestel in.",
+        "De dagelijkse rangorde staat op Voorrang → Volgorde aanpassen. Na een bevestigde centrale wijziging verdwijnt dit oude getal uit de toestelwizard; de oude getallen blijven alleen bewaard voor migratie. Zolang de centrale lijst nog niet gewijzigd is, blijft de bestaande numerieke groepsvolgorde gelden. Minimumtijden, passende vermogensruimte en bescherming blijven altijd gelden.",
+        "Toestelvoorwaarden, fysieke terugmelding, minimumtijden en beschermde programma’s gaan vóór energie-optimalisatie. Een ingeschakelde stekker bewijst niet dat een compressor continu draait.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "device.appliance_type": {
+      "title": "Toestelcategorie (los van technische koppeling)",
+      "short": "Dit is de herkenbare categorie: afwasmachine, wasmachine, droogkast of andere verbruiker.",
+      "paragraphs": [
+        "Dit is de herkenbare categorie: afwasmachine, wasmachine, droogkast of andere verbruiker. Ze staat los van het bedieningstype en verleent geen nieuwe fysieke rechten. Een AEG-afwasmachine gebruikt de gecontroleerde start-only koppeling; voor andere merken of toestellen moeten een bestaande adapter of echte scripts met terugmelding eerst gecontroleerd worden. Een categoriewijziging neemt geen gemeten toestelvermogen aan.",
         "Toestelvoorwaarden, fysieke terugmelding, minimumtijden en beschermde programma’s gaan vóór energie-optimalisatie. Een ingeschakelde stekker bewijst niet dat een compressor continu draait.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -3962,18 +4032,18 @@
     },
     "device_schedule.wallbox_precedence": {
       "title": "Voorrang ten opzichte van de Wallbox",
-      "short": "Globale voorkeur volgen behoudt de algemene keuze.",
+      "short": "Bekijk de gezamenlijke rangorde op Voorrang.",
       "paragraphs": [
-        "Globale voorkeur volgen behoudt de algemene keuze. Dit toestel eerst plaatst deze last vóór de auto. Wallbox eerst; klein restoverschot benutten laat restjes toe onder het zonnelaadminimum en geeft veilig vermogen vrij zodra de auto kan laden. Alleen bij werkelijke laadvraag; minimumlooptijd blijft gelden.",
+        "Bekijk de gezamenlijke rangorde op Voorrang. Na een centrale wijziging bepaalt de plaats boven/onder Auto laden · Wallbox de voorrang. Deze oudere keuze wordt dan niet meer getoond in de toestelwizard.",
         "Toestelvoorwaarden, fysieke terugmelding, minimumtijden en beschermde programma’s gaan vóór energie-optimalisatie. Een ingeschakelde stekker bewijst niet dat een compressor continu draait.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
     "device_schedule.wallbox_power_policy": {
       "title": "Zonnevermogen dat de Wallbox al gebruikt",
-      "short": "Voorrang volgen is de nieuwe standaard: een verbruiker vóór de Wallbox mag bevestigd Full Solar-vermogen gebruiken met een eigen actuele vermogensmeter.",
+      "short": "Op Voorrang kies je per verbruiker of de auto minder mag laden.",
       "paragraphs": [
-        "Voorrang volgen is de nieuwe standaard: een verbruiker vóór de Wallbox mag bevestigd Full Solar-vermogen gebruiken met een eigen actuele vermogensmeter. Alleen echt overschot zet dit uit. Oude expliciete keuze behoudt de vroegere checkbox en korte minimumlooptijd. Geen optie omzeilt minimumlooptijden, terugmelding, fase-/netgrenzen of handmatige overname. Lange compressorlooptijden blijven beschermd; een mislukte overdracht kan daardoor tijdelijk netstroom vragen vóór veilig terugnemen mogelijk is. Beschermde programma’s en onbevestigde scripts krijgen geen generieke overname; de AEG heeft zijn aparte route. Manueel of onbekend laden geeft nooit EV-credit.",
+        "Op Voorrang kies je per verbruiker of de auto minder mag laden. Een toestel moet ook vóór de Wallbox staan en aan alle meet-, sessie- en veiligheidsvoorwaarden voldoen. Een bestaande legacy-overname behoudt de extra beperking voor korte minimumlooptijd. Zonder centrale wijziging blijven de bestaande keuzes gelden.",
         "Toestelvoorwaarden, fysieke terugmelding, minimumtijden en beschermde programma’s gaan vóór energie-optimalisatie. Een ingeschakelde stekker bewijst niet dat een compressor continu draait.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -4384,9 +4454,9 @@
     },
     "dishwasher_states.dishwasher_priority_enabled": {
       "title": "Voorrangsprofiel: warmtepompcomfort, dan afwas, vóór Wallbox/lage lasten/extra 60 °C",
-      "short": "Standaard AAN voor de gevraagde voorkeursvolgorde.",
+      "short": "Het bestaande AEG-voorkeursprofiel blijft behouden.",
       "paragraphs": [
-        "Standaard AAN voor de gevraagde voorkeursvolgorde. Gewoon sanitair water, benodigde avondvoorraad en vloerverwarming blijven vóór de afwasmachine. Daarna krijgt de afwasmachine voorrang op de Wallbox, lagere automatische verbruikers zoals de ontvochtiger, en de extra 60 °C-zonnebuffer. Het prioriteitsgetal bepaalt alleen de volgorde binnen dezelfde groep. Kleine restjes mogen naar een lagere last zolang de afwasmachine nog niet past. Minimumlooptijden, handmatig overgenomen toestellen en een reeds begonnen afwas blijven beschermd. De warmtepomp wordt niet uitgezet en niet met Force DHW of 52 °C geforceerd. UIT herstelt de gewone numerieke/per-Wallbox rangorde; het stopt geen cyclus.",
+        "Het bestaande AEG-voorkeursprofiel blijft behouden. Gewoon warmtepompcomfort gaat voor; de standaard afwasvolgorde is vóór de Wallbox en extra boilerwarmte. Na een bevestigde centrale wijziging bepaalt de lijst Voorrang de toestelvolgorde. De afwas blijft vóór de extra zonnebuffer en een lopende beurt wordt nooit afgebroken. Het oude groepsgetal is dan niet meer leidend.",
         "Een gestart afwasprogramma blijft beschermd: geen stop/pauze/reset of stroomonderbreking voor energiesturing. Begin met gecontroleerde bronwaarden en één geschikte geladen afwasbeurt.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -4610,6 +4680,62 @@
       "short": "Ouderdomsgrens voor de forecast, niet voor de actuele PV-/netmeter.",
       "paragraphs": [
         "Ouderdomsgrens voor de forecast, niet voor de actuele PV-/netmeter. Standaard twee uur, passend bij een uurlijkse bron. De ongewijzigde coordinatorcache wordt niet fris gemaakt door hem opnieuw te lezen. Bij uitval blijven echte meters leidend; onbekende uren worden niet door fictieve productie gevuld.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "apply_changes.request_scope": {
+      "title": "Ook voor de huidige klaargezette afwasbeurt?",
+      "short": "Alleen volgende beurten behoudt de al opgeslagen dag, deadline en nettoestemming van de huidige APP-aanvraag.",
+      "paragraphs": [
+        "Alleen volgende beurten behoudt de al opgeslagen dag, deadline en nettoestemming van de huidige APP-aanvraag. Ook huidige beurt verandert deadline en nettoestemming op dezelfde geplande kalenderdag, zonder een nieuwe toestemming te maken. Een deadline die daardoor al voorbij is kan bij de volgende regelcyclus tot starten leiden, maar alleen met alle normale apparaat- en elektrische controles. Een al begonnen beurt wordt nooit opnieuw gestart.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "apply_changes.confirm": {
+      "title": "Ik bevestig de beschreven wijzigingen",
+      "short": "Controleer het overzicht vóór bevestigen.",
+      "paragraphs": [
+        "Controleer het overzicht vóór bevestigen. Gewone wijzigingen worden zonder volledige herlading toegepast. Actieve toestelbronnen en bescherming blijven bevroren tot het toestel vrij is. Annuleren bewaart de bestaande werking. De bevestiging start of stopt niets; pas de volgende normale regelbeslissing kan op basis van nieuwe effectieve regels een opdracht geven.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "pending_changes.cancel": {
+      "title": "Deze wachtende voorstellen annuleren",
+      "short": "Selecteer opgeslagen voorstellen die je niet meer wilt toepassen.",
+      "paragraphs": [
+        "Selecteer opgeslagen voorstellen die je niet meer wilt toepassen. Alleen die voorstellen worden verwijderd; de huidige werkende regels blijven staan en geen apparaat wordt uitgezet. Een voorstel kan bijvoorbeeld wachten op het einde van een wasbeurt, een bevestigde stop of de uitkomst van een al verzonden opdracht. Onbekend is niet hetzelfde als uit.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "replace.device_id": {
+      "title": "Te vervangen toestel",
+      "short": "Selecteer alleen het oude SolarPilot-toestel dat vervangen wordt.",
+      "paragraphs": [
+        "Selecteer alleen het oude SolarPilot-toestel dat vervangen wordt. De opvolger krijgt een nieuw ID zodat oude metingen of een oude starttoestemming niet voor de nieuwe machine worden gebruikt. Bij een lopende of onzekere cyclus wachten archiveren en toevoegen op veilige vrijgave; de overige regeling loopt door.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "confirm_replace.confirm": {
+      "title": "Nieuw profiel maken zonder oude koppelingen of startrechten",
+      "short": "Bevestigt dat je een vervangend toestelprofiel wilt opbouwen.",
+      "paragraphs": [
+        "Bevestigt dat je een vervangend toestelprofiel wilt opbouwen. De wizard begint met lege fysieke koppelingen en een nieuw ID; controleer het voorgestelde vermogen en de start-/stopvoorwaarden opnieuw. De oude historiek blijft apart. Oude APP-vrijgave, automatische deelname en geleerd verbruik worden nooit automatisch aan het nieuwe apparaat toegekend.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "manage_device.device_id": {
+      "title": "Toestel",
+      "short": "Kies het afzonderlijke SolarPilot-profiel dat je wilt bekijken of wijzigen.",
+      "paragraphs": [
+        "Kies het afzonderlijke SolarPilot-profiel dat je wilt bekijken of wijzigen. Dit is niet het verwijderen of veranderen van de oorspronkelijke merkintegratie. De huidige cyclus blijft gekoppeld aan zijn bestaande bronnen; gevoelige wijzigingen kunnen na opslaan wachten tot die cyclus is afgerond.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "manage_device.section": {
+      "title": "Wat wil je aanpassen?",
+      "short": "Instellingen opent de basis en bescherming; Koppelingen opent de oorspronkelijke actuator en terugmelding; Planning opent de energie- en prioriteitskeuzes.",
+      "paragraphs": [
+        "Instellingen opent de basis en bescherming; Koppelingen opent de oorspronkelijke actuator en terugmelding; Planning opent de energie- en prioriteitskeuzes. Je doorloopt de resterende wizard en bevestigt aan het einde. Bekijken is altijd mogelijk tijdens Zonnestroom en doet op zichzelf niets met toestellen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -5015,6 +5141,22 @@
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
+    "dashboard.priority_board": {
+      "title": "Voorrang en autoladen",
+      "short": "Sleep een rij of gebruik de pijltjes.",
+      "paragraphs": [
+        "Sleep een rij of gebruik de pijltjes. Mag de auto minder laten laden? is een afzonderlijke toestemming, geen garantie op beschikbaar vermogen. Opslaan vraagt bevestiging; openen en conceptwijzigingen sturen niets. Comfort en hygiëne blijven beschermd. Extra boilerwarmte blijft na Wallbox en voorkeur-afwas. Een concept blijft staan tijdens live updates; gelijktijdige instellingenwijzigingen vragen een nieuwe controle.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "dashboard.manage_devices": {
+      "title": "Toestellen beheren",
+      "short": "Toestellen beheren toont actieve profielen, wachtende wijzigingen en archieven.",
+      "paragraphs": [
+        "Toestellen beheren toont actieve profielen, wachtende wijzigingen en archieven. Toevoegen, koppelen, plannen en vervangen gebeurt via dezelfde gecontroleerde Home Assistant-wizard. Andere apparaten blijven actief; er is geen algemene pauze nodig om dit venster te openen. Een nieuw of opnieuw gekoppeld profiel begint Uitgesloten.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
     "dashboard.learning_hub": {
       "title": "Leren & vragen",
       "short": "Opent Leren & vragen met de meetbasis per model, ontbrekende broninformatie, voorstellen en jouw eerdere antwoorden.",
@@ -5033,9 +5175,9 @@
     },
     "dashboard.others_first": {
       "title": "Globale Wallbox-voorkeur",
-      "short": "Globale standaard voor gewone verbruikers: Andere eerst of Wallbox eerst.",
+      "short": "De volgorde tussen toestellen en de auto staat samen op Voorrang.",
       "paragraphs": [
-        "Globale standaard voor gewone verbruikers: Andere eerst of Wallbox eerst. Een specifieke voorrang per toestel heeft voorrang op deze standaard. Gewoon warmtepompcomfort heeft afzonderlijk voorrang; extra 60 °C gebruikt alleen werkelijk restoverschot.",
+        "De volgorde tussen toestellen en de auto staat samen op Voorrang. Na een centrale wijziging kan deze oude globale schakelaar de lijst niet meer overschrijven. Zonder centrale wijziging blijft de bestaande keuze ongewijzigd werken.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -5064,10 +5206,10 @@
       ]
     },
     "dashboard.analysis_export": {
-      "title": "Analyse-export",
-      "short": "Opent de handmatige analyse-export: laatste uur, 24 uur of zeven dagen.",
+      "title": "Export samenstellen",
+      "short": "Open Export → Export samenstellen voor één lokaal JSON-onderzoeksbestand.",
       "paragraphs": [
-        "Opent de handmatige analyse-export: laatste uur, 24 uur of zeven dagen. Alleen een HA-beheerder kan het JSON-bestand maken. Namen zijn standaard per bestand gepseudonimiseerd; tijden en gebruikspatronen blijven gevoelig. Controleer het bestand voor delen en plaats het nooit in de publieke repository. Uploaden naar ChatGPT doe je zelf.",
+        "Open Export → Export samenstellen voor één lokaal JSON-onderzoeksbestand. Kies 1 uur, 24 uur of 7 dagen. Instellingen, centrale voorrang, metingen, modellen en bewaarde beslissingen worden meegenomen voor zover aanwezig. Namen worden standaard gepseudonimiseerd; controleer altijd vóór delen. Geen automatische upload, geen toestelopdracht en geen herstelbare Home Assistant-back-up.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },

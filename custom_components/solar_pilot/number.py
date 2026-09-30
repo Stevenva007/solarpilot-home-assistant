@@ -5,10 +5,14 @@ from .dhw import DHW_NUMBERS
 
 async def async_setup_entry(hass, entry, async_add_entities):
     r = entry.runtime_data
+    r.platforms.register("number", async_add_entities, lambda: _entities(r))
+
+
+def _entities(r):
     entities = [SolarPriority(r, i) for i in r.configs]
     if r.dhw.configured:
         entities += [DHWNumber(r, k) for k in DHW_NUMBERS]
-    async_add_entities(entities)
+    return entities
 
 
 class SolarPriority(SolarEntity, NumberEntity):
@@ -23,6 +27,8 @@ class SolarPriority(SolarEntity, NumberEntity):
 
     @property
     def native_value(self):
+        if self.runtime.priority_board.active:
+            return self.runtime.priority_board.effective_config(self.key)["priority"]
         return self.runtime.priorities.get(self.key, self.runtime.configs[self.key]["priority"])
 
     async def async_set_native_value(self, value):

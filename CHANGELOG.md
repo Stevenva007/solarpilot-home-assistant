@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.0.0-beta.35 — 2026-09-30
+
+- Cumulatief op de aangeleverde beta.34, zonder automatische herordening of reset van instellingen/leerdata.
+- Nieuwe centrale tab Voorrang, stabiele editor met slepen en toetsenbord-/mobielvriendelijke pijlen, per-toesteltoestemming om autoladen te verminderen, expliciete bevestiging en conflictcontrole.
+- Bestaande regeling blijft leidend tot een echte centrale wijziging. Daarna volgen realtime toestelallocatie, planner, Wallbox-relaties en afwas-afbouw dezelfde gekozen rangorde.
+- Comfort, hygiëne, minimale looptijden en gestarte programma's blijven beschermd. Extra boilerwarmte is sorteerbaar tussen lagere lasten maar blijft na Wallbox en voorkeur-afwas; geen EV-vermogen voor die buffer.
+- Nieuwe verbruikers komen automatisch in de lijst zonder nieuwe startrechten. Oude numerieke/globale controles kunnen een actieve centrale lijst niet overschrijven.
+- Eén Export-pagina met bestaande privacy-/tijdsvensterkeuze en uitgebreid compleet analysebestand; geen upload en geen vervanging van een back-up.
+- Negen tabbladen, duidelijkere verwijzingen, actuele volledige uitleg en veldhulp in dezelfde release. Native instellingen tijdens Zonnestroom, APP-/deadlinegedrag, PV-correctie en fabrikantsturing blijven behouden.
+- Software- en browsertests gebruiken lokale testdubbels/voorbeelddata. Geen fysieke installatie, GitHub-publicatie of HACS-release uitgevoerd.
+
+## 1.0.0-beta.34 — 2026-09-30
+
+- Cumulatief op de rechtstreeks aangeleverde beta.33; alle bestaande PV-, Wallbox-, AEG- en warmwaterregels behouden.
+- Configuratie toegankelijk in Zonnestroom; finale bevestiging met live/deferred overzicht. Gewone opties zonder volledige herlading, zelfde runtime, timers en statuslisteners.
+- Gevoelige wijzigingen per toestel opgeslagen tot veilige vrijgave; effectieve oude koppelingen blijven ook na herstart leidend. Voorstellen individueel annuleerbaar.
+- Deadline/nettoestemming: expliciete keuze huidige APP-aanvraag of alleen volgende beurten; geplande dag en eenmalige toestemming behouden.
+- Toestellen beheren: toevoegen, instellingen, koppelingen, planning, historie en vervangen. Categorie en technische adapter afzonderlijk.
+- Vervangen krijgt nieuw ID, geen oude koppelingen, meetprofielen, APP-vrijgave of automatische deelname. Oud profiel gearchiveerd; bestaande bewaartermijn blijft gelden.
+- Native virtuele entiteiten dynamisch toevoegen/verwijderen zonder bronapparaten te wijzigen; archiefhistorie en analyse-export uitgebreid.
+- Optimistische samenvoeging, bronduplicaat- en opslagfoutcontroles; vraagtekens en één actuele release-uitleg bijgewerkt.
+- Geen nieuwe generieke merkintegratie voor wasmachine/droogkast; geen wijziging van de fysieke installatie of publicatie uitgevoerd.
+
 ## 1.0.0-beta.33 — 2026-09-29
 
 - Cumulatief bovenop beta.32: instelbare automatische EV-zonneverdeling voor geschikte voorrangsverbruikers, met behouden compressor-minimumtijden.

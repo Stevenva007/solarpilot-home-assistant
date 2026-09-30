@@ -108,10 +108,16 @@ def stability_schema(c):
 
 
 class DHWOptionsMixin:
+    def _base_options(self):
+        if not hasattr(self, "_options_base"):
+            from copy import deepcopy
+            self._options_base = deepcopy(dict(self.config_entry.options))
+        return self._options_base
+
     async def async_step_dhw(self, user_input=None):
         rt = self._runtime()
-        current = normalized_settings(self.config_entry.options.get("dhw", {}))
-        if not self.config_entry.options.get("dhw"):
+        current = normalized_settings(self._base_options().get("dhw", {}))
+        if not self._base_options().get("dhw"):
             current = apply_first_install_suggestions(self.hass, current, "dhw")
         if rt:
             current = {**current, **rt.dhw.settings, "enabled": rt.dhw.auto_enabled}
@@ -119,8 +125,8 @@ class DHWOptionsMixin:
         errors = {}
         if user_input is not None:
             c = {**c, **{k: deepcopy(DHW_DEFAULTS[k]) for k in ("target_entity", "temperature_entity", "power_entity", "cooling_entities", "hygiene_entity", "manual_entity", "manual_entities")}, **user_input}
-            site = rt.settings if rt else {**self.config_entry.data, **self.config_entry.options.get("settings", {})}
-            errors = sources_errors(self.hass, c, site, self.config_entry.options.get("wallbox", {}), self.config_entry.options.get("devices", []))
+            site = rt.settings if rt else {**self.config_entry.data, **self._base_options().get("settings", {})}
+            errors = sources_errors(self.hass, c, site, self._base_options().get("wallbox", {}), self._base_options().get("devices", []))
             self._dhw = c
             if not errors:
                 return await self.async_step_dhw_rules()
@@ -187,7 +193,7 @@ class DHWOptionsMixin:
                 if probe._temperature() is None:
                     errors["base"] = "dhw_temperature_invalid"
             if not errors:
-                opts = deepcopy(dict(self.config_entry.options))
+                opts = deepcopy(dict(self._base_options()))
                 opts["dhw"] = {**c, "config_revision": uuid4().hex}
                 return await self._save(opts)
         return self.async_show_form(step_id="dhw_stability", data_schema=stability_schema(c), errors=errors)

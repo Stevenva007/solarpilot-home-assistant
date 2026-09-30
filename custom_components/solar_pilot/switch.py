@@ -5,11 +5,15 @@ from .entity import SolarEntity
 
 async def async_setup_entry(hass, entry, async_add_entities):
     r = entry.runtime_data
+    r.platforms.register("switch", async_add_entities, lambda: _entities(r))
+
+
+def _entities(r):
     entities = [SolarSwitch(r, "others_first", "Andere toestellen voorrang"),
                 SolarSwitch(r, "learning", "Lokaal leren")]
     if r.dhw.configured:
         entities.append(SolarSwitch(r, "dhw_enabled", "Boiler automatisch regelen"))
-    async_add_entities(entities)
+    return entities
 
 
 class SolarSwitch(SolarEntity, SwitchEntity):

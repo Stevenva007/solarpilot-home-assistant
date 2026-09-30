@@ -1,17 +1,15 @@
-> **Nieuw: beta.33** — effectieve Wallbox-sessie en instelbare vermogensovername,
-> Forecast.Solar-kwartierkalibratie en PV-diagnose. Lees **docs/BETA33_INSTELLEN.md**
-> voordat je de effectieve Wallbox-bron koppelt. Geen wijziging van fysieke rechten.
+> **Nieuw: beta.35** — één centrale voorrangslijst met slepen/pijltjes, duidelijke toestemming om autoladen te verminderen en één Export-pagina. Bestaande instellingen blijven leidend tot je een wijziging bevestigt. Zie **docs/BETA35_INSTELLEN.md**.
 
 # SolarPilot
 
 SolarPilot is a local Home Assistant Energy Management System (EMS) for PV surplus, flexible loads, Panasonic Aquarea hot-water policy, Wallbox Full Solar coexistence, phase analysis, capacity-tariff awareness, local PV/shade learning, slow thermal-climate learning, future home batteries and a unified rolling-horizon planner.
 
-> **Status:** beta.33 · public HACS beta. Start in **Observatie**. Do not enable physical control for several devices at once.
+> **Status:** beta.35 · public HACS beta. Start in **Observatie**. Do not enable physical control for several devices at once.
 
 
 > **Updates zijn cumulatief.** Je hoeft tussenliggende beta-versies niet één voor één te installeren of publiceren. Installeer de nieuwste release over je bestaande SolarPilot-installatie; Home Assistant-configuratie en lokale leerdata blijven behouden.
 
-## Current DHW policy (preserved in beta.33)
+## Current DHW policy (preserved in beta.35)
 
 Normal tank setpoint and monitored comfort floor are independent (new defaults 50/46 °C). No deadband-compensating 52 °C boost or Force DHW. A 50 °C target with a -5 °C native differential can reheat around 45 °C: 46 °C is monitored, not guaranteed and not a hygiene standard. Optional bounded evening solar storage waits for space climate; see `docs/BETA28_INSTELLEN.md`. Existing setpoints and permissions migrate without silent profile activation.
 
@@ -117,7 +115,7 @@ bevat zowel die startlogica als de leerupdate.
 
 ## Afwasmachinevoorrang in beta.32
 
-Zie [de beta.32-instelhandleiding](docs/BETA32_INSTELLEN.md). Voor de nieuwste instellingen, zie [de beta.33-instelhandleiding](docs/BETA33_INSTELLEN.md).
+Zie [de actuele beta.32-instelhandleiding](docs/BETA32_INSTELLEN.md).
 Normaal warmtepompcomfort gaat voor, vervolgens de afwasmachine en daarna de
 lagere automatische lasten, Wallbox en extra 60 °C-zonnebuffer. De twee nieuwe
 voorkeuren staan standaard aan voor AEG-profielen; fysieke rechten blijven staan.

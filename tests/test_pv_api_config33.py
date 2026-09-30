@@ -85,6 +85,7 @@ def flow():
     r,h=build()
     class Flow:
         config_entry=r.entry;hass=h
+        def _base_options(self): return self.config_entry.options
         async def _save(self,opts):self.saved=opts;return {'saved':True}
         def async_show_form(self,**kwargs):return kwargs
     vol=NS(Required=lambda x,**kw:x,Optional=lambda x,**kw:x,Schema=lambda x:x)

@@ -328,6 +328,8 @@ class DHWManager:
         if preference is not None and preference.view.luxury_block:
             r.luxury_allowed = False
             r.luxury_reason = preference.view.reason
+        if hasattr(self.runtime, "priority_board"):
+            self.runtime.priority_board.guard_extra(r, time.monotonic())
         target, obj = self._target()
         heating = bool(obj and (obj.state == "heating" or obj.attributes.get("hvac_action") == "heating"))
         if r.cooling is not False:

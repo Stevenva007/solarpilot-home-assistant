@@ -21,6 +21,8 @@ PRIORITY_DEFAULTS = {
 
 
 def follows_wallbox(config: dict, others_first: bool) -> bool:
+    if "_priority_board_before_wallbox" in config:
+        return not config["_priority_board_before_wallbox"]
     if config.get("kind") == "dishwasher" and config.get("dishwasher_priority_enabled", True):
         return False
     choice = config.get("wallbox_precedence", "global")

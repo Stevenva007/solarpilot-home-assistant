@@ -104,6 +104,7 @@ class Site:
     device_holds: dict[str, str] = field(default_factory=dict)
     device_start_blocks: dict[str, str] = field(default_factory=dict)
     priority_ids: set[str] = field(default_factory=set)
+    ordered_priorities: bool = False
     protected_ev_credit: dict[str, float] = field(default_factory=dict)
     comfort_reserve_w: float = 0.0
     no_reclaim_ids: set[str] = field(default_factory=set)
@@ -161,7 +162,7 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
     remaining_cap = cap_budget - max(0.0, site.comfort_reserve_w)
     locked: set[str] = set()
     sorted_devices = sorted(devices, key=lambda d: (
-        0 if (states[d.id].manual_forced or states[d.id].boost_until > site.now or states[d.id].deadline_urgent) else (0 if d.id in site.priority_ids else 200) + (1000 if d.id in site.subordinate_ids else 0) + d.priority, d.id))
+        0 if (states[d.id].manual_forced or states[d.id].boost_until > site.now or states[d.id].deadline_urgent) else (d.priority if site.ordered_priorities else (0 if d.id in site.priority_ids else 200) + (1000 if d.id in site.subordinate_ids else 0) + d.priority), d.id))
 
     for d in sorted_devices:
         s = states[d.id]

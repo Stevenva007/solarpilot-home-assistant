@@ -82,12 +82,14 @@
         "data": {
           "name": "Naam toestel",
           "kind": "Bedieningstype",
-          "priority": "Prioriteit — 1 is hoogste, 100 is laagste"
+          "priority": "Prioriteit — 1 is hoogste, 100 is laagste",
+          "appliance_type": "Toestelcategorie (los van technische koppeling)"
         },
         "data_description": {
           "name": "De herkenbare naam van deze koppeling in SolarPilot.",
           "kind": "Kies de werkelijk ondersteunde actuator.",
-          "priority": "Rangorde tussen gewone SolarPilot-verbruikers: 1 is het belangrijkst, 100 het minst belangrijk."
+          "priority": "De dagelijkse rangorde staat op Voorrang → Volgorde aanpassen.",
+          "appliance_type": "Dit is de herkenbare categorie: afwasmachine, wasmachine, droogkast of andere verbruiker."
         }
       },
       "connection": {
@@ -172,7 +174,7 @@
       },
       "confirm_remove": {
         "title": "Verwijderen bevestigen",
-        "description": "Dit verwijdert het geselecteerde toestel uit SolarPilot. Het oorspronkelijke apparaat wordt niet uit Home Assistant verwijderd en er wordt geen fysieke opdracht verstuurd.",
+        "description": "Het SolarPilot-profiel wordt na vrijgave gearchiveerd. Een lopend apparaat of onzekere start wordt niet onderbroken. De fysieke AEG-/Shelly-integratie blijft bestaan en oude historie blijft binnen de bewaartermijn beschikbaar.",
         "data": {}
       },
       "wallbox": {
@@ -674,12 +676,15 @@
         }
       },
       "loads_hub": {
-        "title": "Verbruikers & prioriteiten",
+        "title": "Toestellen beheren",
         "description": "Voeg alleen apparaten toe die SolarPilot werkelijk mag regelen. Prioriteit en Auto/Uitgesloten wijzig je nadien eenvoudig op het dashboard.",
         "menu_options": {
           "add": "Verbruiker toevoegen",
           "edit": "Verbruiker aanpassen",
-          "remove": "Verbruiker verwijderen"
+          "remove": "Verbruiker verwijderen",
+          "manage_device": "Toestelinstellingen / koppelingen / planning",
+          "replace": "Toestel vervangen",
+          "pending_changes": "Wachtende wijzigingen"
         }
       },
       "comfort_hub": {
@@ -719,7 +724,8 @@
           "wallbox_advanced": "Wallbox · geavanceerde herkenning",
           "system_info": "Versie & actuele uitleg",
           "private_bundle": "Privéprofiel & historiek",
-          "analysis": "Analyse-export & lokale registratie"
+          "analysis": "Analyse-export & lokale registratie",
+          "pending_changes": "Wachtende wijzigingen"
         }
       },
       "system_info": {
@@ -977,8 +983,8 @@
           "cycle_duration_min": "Conservatieve duur van een volledige cyclus, in minuten.",
           "cycle_program": "Naam van het programma voor cyclusregistratie, bijvoorbeeld Eco.",
           "cycle_program_entity": "Optionele entiteit die het werkelijk gekozen programma rapporteert.",
-          "wallbox_precedence": "Globale voorkeur volgen behoudt de algemene keuze.",
-          "wallbox_power_policy": "Voorrang volgen is de nieuwe standaard: een verbruiker vóór de Wallbox mag bevestigd Full Solar-vermogen gebruiken met een eigen actuele vermogensmeter."
+          "wallbox_precedence": "Bekijk de gezamenlijke rangorde op Voorrang.",
+          "wallbox_power_policy": "Op Voorrang kies je per verbruiker of de auto minder mag laden."
         }
       },
       "private_bundle": {
@@ -1103,7 +1109,7 @@
           "dishwasher_deadline_grid_allowed": "AAN: op de vastgelegde startdeadline mag netstroom de ontbrekende zon aanvullen.",
           "dishwasher_deadline_grace_min": "Begrensd herstelvenster na de startdeadline, standaard 120 minuten.",
           "dishwasher_alert_mode": "Toestand gebruikt de bestaande expliciete lijst veilige alarmwaarden.",
-          "dishwasher_priority_enabled": "Standaard AAN voor de gevraagde voorkeursvolgorde.",
+          "dishwasher_priority_enabled": "Het bestaande AEG-voorkeursprofiel blijft behouden.",
           "dishwasher_ev_solar_priority": "Standaard AAN voor deze update."
         }
       },
@@ -1174,6 +1180,60 @@
           "history_days": "Bewaart maximaal 30 dagen kwartierdiagnose met ruwe/gecorrigeerde/werkelijke waarden en acceptatie- of afwijsreden, begrensd op 2880 regels.",
           "stale_s": "Ouderdomsgrens voor de forecast, niet voor de actuele PV-/netmeter."
         }
+      },
+      "apply_changes": {
+        "title": "Wijzigingen controleren en opslaan",
+        "description": "{summary}\n\n{issue}\n\nHet bekijken of opslaan verstuurt zelf geen toestelopdracht. De normale regelcyclus gebruikt daarna de effectief toegepaste regels. Lopende beschermde cycli houden hun bestaande koppelingen.",
+        "data": {
+          "request_scope": "Ook voor de huidige klaargezette afwasbeurt?",
+          "confirm": "Ik bevestig de beschreven wijzigingen"
+        },
+        "data_description": {
+          "request_scope": "Alleen volgende beurten behoudt de al opgeslagen dag, deadline en nettoestemming van de huidige APP-aanvraag.",
+          "confirm": "Controleer het overzicht vóór bevestigen."
+        }
+      },
+      "pending_changes": {
+        "title": "Wachtende wijzigingen",
+        "description": "{status}\n\nAlleen de genoemde wijzigingen wachten. De andere functies werken verder. Selecteer uitsluitend voorstellen die je wilt annuleren; een lopend apparaat wordt hiermee niet gestopt.",
+        "data": {
+          "cancel": "Deze wachtende voorstellen annuleren"
+        },
+        "data_description": {
+          "cancel": "Selecteer opgeslagen voorstellen die je niet meer wilt toepassen."
+        }
+      },
+      "replace": {
+        "title": "Toestel vervangen",
+        "description": "Kies het oude SolarPilot-profiel. De oorspronkelijke AEG-/Shelly-/merkintegratie wordt niet verwijderd.",
+        "data": {
+          "device_id": "Te vervangen toestel"
+        },
+        "data_description": {
+          "device_id": "Selecteer alleen het oude SolarPilot-toestel dat vervangen wordt."
+        }
+      },
+      "confirm_replace": {
+        "title": "Nieuw apparaat, nieuw profiel",
+        "description": "Er komt een nieuwe identiteit. Naam en energiewensen kunnen als voorstel worden overgenomen. Koppelingen, vermogensmetingen, starttoestemmingen, overrides en geleerd gedrag worden niet overgenomen. De oude historiek wordt afgesloten. Een lopende cyclus werkt eerst af.",
+        "data": {
+          "confirm": "Nieuw profiel maken zonder oude koppelingen of startrechten"
+        },
+        "data_description": {
+          "confirm": "Bevestigt dat je een vervangend toestelprofiel wilt opbouwen."
+        }
+      },
+      "manage_device": {
+        "title": "Toestel beheren",
+        "description": "Deze schermen zijn ook tijdens Zonnestroom toegankelijk. Bij het uiteindelijke opslaan zie je welke wijzigingen direct kunnen en welke wachten.",
+        "data": {
+          "device_id": "Toestel",
+          "section": "Wat wil je aanpassen?"
+        },
+        "data_description": {
+          "device_id": "Kies het afzonderlijke SolarPilot-profiel dat je wilt bekijken of wijzigen.",
+          "section": "Instellingen opent de basis en bescherming; Koppelingen opent de oorspronkelijke actuator en terugmelding; Planning opent de energie- en prioriteitskeuzes."
+        }
       }
     },
     "error": {
@@ -1223,7 +1283,8 @@
       "analysis_too_many": "Selecteer maximaal 50 extra bronentiteiten.",
       "dishwasher_exact_remote": "Gebruik voor fysieke APP-vrijgave uitsluitend de volledige waarde Enabled.",
       "invalid_selection": "Ongeldige keuze; selecteer een aangeboden optie.",
-      "invalid_pv_setting": "Ongeldige PV-instelling: controleer type, eenheid en bereik."
+      "invalid_pv_setting": "Ongeldige PV-instelling: controleer type, eenheid en bereik.",
+      "live_change": "De wijziging is nog niet opgeslagen. Lees de melding hierboven; heropen bij een gelijktijdige wijziging."
     },
     "abort": {
       "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",

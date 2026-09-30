@@ -1,8 +1,8 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.33
-**Bijgewerkt:** 2026-09-29
-**Regel-hash:** `d9d84237b3bf6e5c`
+**Versie:** 1.0.0-beta.35
+**Bijgewerkt:** 2026-09-30
+**Regel-hash:** `8a2043c5183af36a`
 
 Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en leerdata blijven lokaal in Home Assistant en worden bij gewone HACS-updates niet vervangen door programmabestanden.
 
@@ -23,6 +23,8 @@ Er wordt maximaal één gewone fysieke wijziging tegelijk uitgevoerd en daarna o
 
 De netmeter bepaalt echte import of injectie. SolarPilot houdt tegelijk rekening met de lasten die het zelf beheert, zodat een succesvolle inschakeling niet meteen als verdwenen zonne-energie wordt geïnterpreteerd.
 
+De tab Voorrang toont alle flexibele toestellen, de Wallbox en de extra boilerwarmte samen. Installeren of bekijken verandert de bestaande verdeling niet. Pas een werkelijk gewijzigde, expliciet bevestigde lijst maakt de centrale volgorde leidend. De aparte uitleg hieronder beschrijft die overstap en de beschermde onderdelen. Gewoon warmwater- en ruimtecomfort blijven boven deze verdeling staan.
+
 Toestellen op Auto worden volgens hun prioriteit gepland. Een hooggeprioriteerd toestel dat niet past mag een kleiner lager toestel niet automatisch blokkeren. Minimum aan/uit-tijden, start- en stopvertragingen, tijdvensters, dagminima en beschermde programma's blijven gelden.
 
 De Unified Planner rekent standaard iedere 15 minuten een rolling horizon van 36 uur opnieuw door in blokken van 15 minuten. Hij plant alleen flexibele, expliciet vrijgegeven lasten en combineert lokaal gecorrigeerde PV, geleerd basisverbruik, prijzen, kwartierpiek en toekomstige batterijruimte in één plan. Alleen het huidige blok mag invloed krijgen op de realtime regelaar; bij nieuwe meetinformatie wordt het plan opnieuw berekend.
@@ -36,7 +38,7 @@ Een vrijgegeven last zonder dagdoel, dagminimum of beschermde cyclus wordt niet 
 - Goedkope netfallback is dubbele opt-in en standaard UIT. Dynamische prijzen worden alleen gebruikt wanneer een bruikbare prijsreeks beschikbaar is. Tijdgestempelde reeksen worden op het echte planmoment uitgelijnd; gangbare today/tomorrow-profielen worden op het lokale uur of kwartier gelegd. Bij ontbrekende of ongeldige gegevens geldt de vaste prijsfallback.
 - Capaciteitstarief- en fasegrenzen blijven van toepassing als netstroom wordt toegestaan.
 - Aangeleerd toestelvermogen mag de planningsschatting alleen conservatiever, dus hoger, maken.
-- Het basislastmodel leert alleen uit schone perioden zonder duidelijke Wallbox- of eigen flexlastvervuiling; de historische bootstrap versnelt de eerste weken maar wordt niet als zekerheid behandeld.
+- Het basislastmodel kan ook leren tijdens gemeten Wallbox- en flexlastgebruik. Alleen werkelijk afzonderlijk gemeten vermogen wordt afgetrokken; ontbrekende/geschatte of ongeldige bronnen worden niet als nul gebruikt. De historische bootstrap is een voorzichtige start, geen zekerheid.
 - Een toekomstige batterij wordt in de planner eerst adviserend meegetekend; de aparte realtime batterijguard blijft eigenaar van fysieke batterijsetpoints.
 - Plannerkwaliteit wordt achteraf gemeten op voorspelde versus werkelijke PV, basislast en netresultaat, plus de mate waarin geplande run/stop-toestanden werkelijk konden worden uitgevoerd. SolarPilot bewaart hiervan compacte dagaggregaten en toont 7- en 30-dagenfouten; de kwaliteitsscore is een technische indicator en geen waarschijnlijkheid.
 - Een begrensde 15-minutenreplay bewaart recente gemeten PV, basislast, prijzen en netresultaat. Daarmee vergelijkt de Planning-tab enkele alternatieve plannerstrategieën op dezelfde meetdata. Dit is een plannerreplay en geen exacte fysieke simulatie van elk historisch apparaat; verschillen worden daarom alleen als richtinggevend advies getoond.
@@ -48,7 +50,7 @@ SolarPilot bedient de Wallbox niet: geen laadstroom-, fase-, pauze-, start- of h
 
 Koppel een betrouwbare effectieve-sessiebron met volledige waarden voor zonneladen, manueel en gestopt. Een manuele melding wint van een Full Solar-instelling. Een onbekende, te oude of strijdige bron geeft geen overneembaar EV-vermogen vrij. De expliciete terugval Alleen Full Solar-instelling vertrouwen staat standaard UIT; uitsluitend kiezen wanneer die aanname voor jouw gebruik klopt. Geen statuscode gokken en geen mode afleiden uit alleen netimport.
 
-Per gewone verbruiker bepaalt Voorrang ten opzichte van Wallbox of hij vóór de auto komt. De keuze Zonnevermogen dat de Wallbox al gebruikt staat standaard op Voorrang volgen. Daarmee mag een geschikte voorrangsverbruiker na stabilisatie zonnevermogen benutten dat de auto momenteel gebruikt, ook als er weinig resterende injectie is. Een eigen exclusieve W/kW-meter en een onderbreekbare schakelaar of numerieke actuator zijn vereist. De keuze Alleen echt overschot zet deze overname uit. Oude expliciete keuze gebruikt het vroegere vinkje en de voorwaarde dat minimumlooptijd binnen de overnametermijn past.
+Na een bevestigde centrale wijziging bepaalt de positie vóór of na Auto laden · Wallbox de relatieve voorrang. Per toestel kies je Mag de auto minder laten laden?: Ja, als het veilig kan of Nee. Ja geeft alleen een voorwaardelijke toestemming: een eigen exclusieve W/kW-meter, een onderbreekbare schakelaar of numerieke actuator en een actuele bevestigde zonnelaadsessie blijven vereist. De AEG gebruikt zijn aparte beschermde route. Achter de Wallbox krijgt een toestel geen EV-vermogen, ook niet met Ja geselecteerd. Een bestaande legacy-overname behoudt haar extra voorwaarde voor korte minimumlooptijd. Zolang de centrale lijst nog niet is gewijzigd, blijven de bestaande numerieke en per-Wallbox-keuzes exact leidend.
 
 Een lange minimumlooptijd wordt bij Voorrang volgen niet weggeknipt om een overdracht sneller terug te nemen. Ook bij een mislukte overdracht blijft de compressor beschermd. Daardoor kan tijdelijk netstroom nodig blijven tot veilig vrijgeven mogelijk is. De generieke route wordt niet voor een beschermd huishoudprogramma of onbevestigde scriptcyclus gebruikt. De AEG heeft de afzonderlijke, niet-terugneembare start-only route.
 
@@ -234,13 +236,13 @@ De eerste ingebruikname gebeurt gecontroleerd: eerst SolarPilot in Observatie co
 
 ## 12. Logische interface en configuratiestructuur
 
-SolarPilot gebruikt één Configuratiecentrum in plaats van een lange lijst losse functies. De instellingen zijn gegroepeerd als Overzicht, Energie & net, Verbruikers & prioriteiten, Comfort & warmtepomp, Opslag & laden, Voorspellen & optimaliseren en Geavanceerd & systeem.
+Het Configuratiecentrum groepeert bron- en toestelinstellingen als Overzicht, Energie & net, Verbruikers & prioriteiten, Comfort & warmtepomp, Opslag & laden, Voorspellen & optimaliseren en Geavanceerd & systeem. De dagelijkse prioriteitsbediening staat op de eigen tab Voorrang; nadat die lijst is gewijzigd verdwijnen de oudere, concurrerende prioriteitsvelden uit de toestelwizard.
 
 De publieke HACS-release bevat bewust geen woning- of installatie-specifieke entity_id's. Wie geen privébundel gebruikt, kiest de net- en optionele PV-bron en overige koppelingen expliciet via Home Assistant. Wie wel een privébundel gebruikt, plaatst één lokaal bestand in de door HACS bewaarde userfiles-map; SolarPilot vult daarmee alleen nog lege, bestaande bronkoppelingen in. Ontbrekende entiteiten worden overgeslagen en later opnieuw geprobeerd. Dezelfde bundel kan de geaggregeerde historische bootstrap bevatten. Import schakelt nooit fysieke klimaatbediening, fase-afbouw of boilerregeling vrij. Een eerste installatie begint veilig in Observatie; na latere Home Assistant-herstarts wordt de opgeslagen modus alleen hervat nadat de actuele toestelstatussen automatisch zijn gereconcilieerd.
 
 De basispagina's tonen alleen de instellingen die je normaal nodig hebt. Timing, faseherkenning en Wallbox-herkenningsdetails staan bewust onder Geavanceerd. De onderliggende option-keys en regelalgoritmen blijven compatibel met bestaande instellingen.
 
-De dashboardkaart gebruikt dezelfde mentale structuur met zeven tabbladen: Overzicht, Verbruikers, Comfort, Planning, Energie, Opslag en Uitleg. Moduskeuze en belangrijke waarschuwingen blijven altijd bovenaan zichtbaar. In Planning staan nu naast de horizon ook planfouten, uitvoeringstreffer, beschermde cyclusprofielen en recente what-if-replay. Daardoor hoeft niet alle telemetrie tegelijk in één lange kaart te staan.
+De dashboardkaart bevat negen herkenbare tabbladen: Overzicht, Voorrang, Verbruikers, Comfort, Planning, Energie, Opslag, Export en Uitleg. Modus en belangrijke waarschuwingen blijven bovenaan. Voorrang bundelt de rangorde en toestemming om autoladen te verminderen. Planning bundelt horizon, planfouten, beschermde cyclusprofielen en what-if-replay. Zo hoeft niet alle informatie op één scherm te staan.
 
 Op mobiele schermen bevat het SolarPilot-paneel een eigen menuknop die het normale Home Assistant-zijmenu opent; op desktop blijft de bestaande Home Assistant-navigatie ongewijzigd.
 
@@ -248,7 +250,7 @@ Een verbruiker die fysiek aan staat krijgt een duidelijke AAN-status en visueel 
 
 De tab Comfort bevat voor slim klimaat nu vier samenhangende delen: instellingen, bevindingen/leerresultaten, meldingen en uitleg. Iedere klimaatinstelling uit het regelmodel is rechtstreeks wijzigbaar in Home Assistant. Bij elk veld staat een korte uitleg, een aanbevolen uitgangspunt en in gewone taal wat een lagere/hogere waarde of Aan/Uit betekent. Voor het opslaan toont SolarPilot nogmaals het advies en de verwachte gevolgen.
 
-Na de cumulatieve uitbreidingen blijft de vaste indeling Overzicht, Verbruikers, Comfort, Planning, Energie, Opslag en Uitleg behouden. Planning begint met Zon & voorspelling en verwijst naar de aparte PV-diagnose. Onderzoek & instellingen bundelt PV-diagnose, Leren & vragen, Analyse-export en de configuratiewizard. De voorspelling is geen groot extra blok op ieder scherm. De PV-configuratie is primair; oudere handmatige forecastbronnen en het historische model staan expliciet als geavanceerde terugval. Effectieve laadmodus, ingestelde modus en overnamevoorwaarden staan bij de Wallbox en verbruiker, niet op een los dashboard.
+Instellingen & onderzoek bevat snelkoppelingen naar toestelbeheer, PV-diagnose, Leren & vragen, Export en de instellingenwizard. Alle algemene exportverwijzingen komen bij de ene Export-pagina uit. Planning begint met Zon & voorspelling; handmatige forecastbronnen blijven een geavanceerde terugval. Verbruikers en Wallbox tonen operationele status en een verwijzing naar Voorrang, geen tweede rangorde-editor. Open popups, invoer en conceptvolgorde worden niet opnieuw opgebouwd door een gewone live verversing.
 
 - Eerste installatie vraagt alleen de essentiële net- en PV-bronnen; een optionele lokale privébundel kan daarna de overige bronkoppelingen en historische bootstrap in één keer veilig invullen.
 - Verbruikers worden toegevoegd via een duidelijke vierstappenwizard: basis, koppeling, gedrag & bescherming, planning & energie.
@@ -298,7 +300,7 @@ De popup blijft open tijdens live dashboardupdates en bewaart de gekozen dag, sc
 
 ## 15. Uitleg bij iedere instelling
 
-Open in het SolarPilot-dashboard Configureren met uitleg ?. De geïntegreerde wizard gebruikt dezelfde Home Assistant-optiesflow en dezelfde servervalidatie als de standaard configuratie. Er worden geen beveiligingen omzeild. Alleen een HA-beheerder kan configureren; voor wijzigingen moet SolarPilot rustig gepauzeerd en vrijgegeven zijn.
+Open in het SolarPilot-dashboard Configureren met uitleg ?. De geïntegreerde wizard gebruikt dezelfde Home Assistant-optiesflow en dezelfde servervalidatie als de standaard configuratie. Er worden geen beveiligingen omzeild. Alleen een HA-beheerder kan configureren; instellingen zijn ook tijdens Zonnestroom toegankelijk. Gewone wijzigingen worden live toegepast; gevoelige wijzigingen wachten alleen op de betrokken veilige grens.
 
 Bij iedere ondersteunde optie staat een vraagteken. Hover/focus toont een korte toelichting; klikken of tikken opent volledige uitleg met betekenis, gevolgen, uitgangspunt en relevante grenzen. De hulp staat buiten de live kaartopbouw en blijft open bij nieuwe telemetrie. De uitleg zelf kan geen instellingen opslaan of apparaten bedienen.
 
@@ -330,13 +332,13 @@ De analyse-export bevat de APP-aanvraag, geplande dag/deadline, laatste aanvraag
 
 Ook de afzonderlijke AEG-overname van EV-zonnevermogen vereist nu een bevestigde effectieve zonnelaadsessie. Bij manueel of onbekend laden wordt vóór 13:00 alleen echt restoverschot gebruikt. De ingestelde 13:00-nettoestemming blijft apart, evenals comfort- en elektrische limieten. Een al begonnen programma wordt nooit afgebroken wegens een latere manuele autosessie.
 
-Het gevraagde voorkeursprofiel is standaard AAN voor AEG-afwasmachineprofielen, ook bestaande. Fysieke starttoestemming, bronbevestiging en Auto-deelname worden niet aangezet. Normale warmwaterbereiding, noodzakelijke avondvoorraad en vloerverwarming blijven voorgaan. Vervolgens krijgt de afwasmachine voorrang boven de Wallbox, lagere automatische lasten zoals de ontvochtiger en uitsluitend de extra 60 °C-zonnebuffer. De bestaande volgorde tussen die lagere functies wordt niet onnodig veranderd. Het getal rangschikt binnen een groep. De twee nieuwe voorkeurskeuzes zijn afzonderlijk uit te schakelen.
+Het bestaande AEG-voorkeursprofiel blijft bij deze update behouden: gewoon warm water, noodzakelijke avondvoorraad en vloerverwarming eerst; daarna de afwasmachine, de Wallbox, lagere automatische lasten en extra boilerwarmte. Installeren schakelt geen fysieke starttoestemming, bronbevestiging of Auto-deelname in. Zolang je de centrale lijst niet wijzigt, rangschikt het oude getal binnen de bestaande groepen. Na een bevestigde wijziging bepaalt de centrale lijst de relatieve volgorde; de gewone comfortbescherming blijft gelden. Een voorkeur-AEG blijft vóór de extra boilerwarmte. De toestemming voor het benutten van EV-zonnevermogen staat dan uitsluitend in die centrale editor.
 
 Een vandaag werkelijk startklare APP-aanvraag of een al lopende beurt blokkeert extra 60 °C. Een aanvraag voor morgen doet dat vandaag niet. De gewone 50 °C en een benodigde avondvoorraad tot de gekozen limiet blijven beschikbaar. Een eerder zelf aangevraagd extra hoog doel valt volgens de bestaande vertraging en bescherming terug; fabrikantsterilisatie en handmatige functies worden niet verlaagd. Afwasvoorrang verandert geen vloer-, compressor-, Powerful-, Force-DHW- of andere warmtepompopdracht.
 
 De ontvochtiger mag kleine restjes gebruiken zolang er niet genoeg beschikbaar kan worden gemaakt voor de afwas. Pas na de afwas-startstabiliteit wordt een benodigde lagere, eigen, daadwerkelijk gemeten onderbreekbare last vrijgegeven. Het minimum aan/uit en handmatige eigenaarschap blijven gelden. Eén stopopdracht moet bevestigd zijn en een nieuwe netmeting beschikbaar voordat de afwas kan starten. Voldoende ruimte voor beide betekent dat beide mogen draaien. Gewone warmtepompacties worden eerst afgehandeld; reeds lopend warmteverbruik zit in P1 en wordt niet als vrije zonne-energie voorgesteld.
 
-Bij voldoende stabiele werkelijke zonneproductie kan een vrijgegeven afwasbeurt ook voorrang krijgen op zonnevermogen dat de Full Solar-laadpaal momenteel gebruikt. Alleen actuele geldige Wallboxstatus in Full Solar, de conservatieve combinatie van ruwe en gefilterde netmeting, de ingestelde maximale overnamestap en voldoende PV geven die mogelijkheid. De volledige nieuwe belasting moet binnen de huidige elektrische, kwartierpiek- en faselimieten passen voordat de Wallbox reageert. Dit vergroot nooit het vrije elektrische vermogen. Er gaan geen pauze-, stroom- of hervatopdrachten naar de Wallbox.
+Bij voldoende stabiele werkelijke zonneproductie kan een vrijgegeven afwasbeurt ook zonnevermogen benutten dat de Full Solar-laadpaal momenteel gebruikt. In de actieve centrale lijst moet de afwasmachine vóór de Wallbox staan en Ja, als het veilig kan geselecteerd hebben. Zonder centrale wijziging blijft de oude expliciete toestemming gelden. Actuele geldige Full Solar-status, conservatief gecombineerd ruw/gefilterd netvermogen, de bestaande maximale overnamestap en voldoende PV blijven noodzakelijk. De volledige nieuwe belasting moet binnen de actuele elektrische, kwartierpiek- en fasegrenzen passen vóór de Wallbox reageert. Dit vergroot nooit elektrische capaciteit en verstuurt geen opdracht naar de Wallbox.
 
 Deze start van een beschermd programma is niet dezelfde regeling als de terugneembare overname voor onderbreekbare lasten. De oude optie Mag gecontroleerd vermogen van Wallbox overnemen blijft voor afwasmachines UIT. De nieuwe aparte keuze heet Zonnevermogen vóór Wallbox benutten. De belasting verlaagt het door Wallbox gezien overschot; Full Solar moet autonoom reageren. Tijdelijke netafname en latere netaanvulling kunnen niet worden uitgesloten. Na START wordt de nieuwe actieve toestelstatus en netto energiebalans gecontroleerd. Dit is zonder Shelly geen bewijs van gemeten afwasvermogen of causale vermogensoverdracht. Een ontbrekende balans na 15 minuten geeft een melding en blokkeert toekomstige EV-gebaseerde starts voor deze afwasmachine tot gecontroleerd herstel. De huidige beurt wordt nooit afgebroken.
 
@@ -349,9 +351,9 @@ Zonder een exclusieve Shelly-meter wordt geen gemeten faseprofiel verzonnen. Tij
 - Normaal boilerdoel 50 °C en bewaakte comfortgrens 46 °C blijven onafhankelijk. Geen hersteldoel van 52 °C en geen beloofde fysieke 46 °C-garantie.
 - Deze cumulatieve update bevat beta.31. Geen automatische publicatie, bronkoppeling of fysieke activering. Alle proeven gebruiken fictieve apparatuur.
 
-## 17. Analyse-export voor alle SolarPilot-functies
+## 17. Export — één onderzoeksbestand voor alle SolarPilot-functies
 
-De knop Analyse-export onderaan het dashboard opent een onafhankelijke popup. Een HA-beheerder kiest één uur, 24 uur of zeven dagen en downloadt één gestructureerd JSON-bestand voor handmatige analyse. Er is geen automatische upload naar ChatGPT of een andere dienst en geen actuatoropdracht. Het bestand bevat release/schema, tijdzone, instellingen/effectieve regels, actuele bronwaarden en attributen, rapportleeftijden, modellen, besluiten, fouten en beschikbare historiek voor verbruikers/AEG, tapwater, klimaat, PV/forecast, net/fasen/kwartierpiek, Wallbox, dagkosten, planner en batterijsimulatie. Niet geconfigureerde onderdelen blijven herkenbaar.
+Open Export → Export samenstellen. Een Home Assistant-beheerder kiest 1 uur, 24 uur of 7 dagen en downloadt één gestructureerd JSON-bestand voor handmatige analyse. Dit wijzigt geen instellingen, verstuurt geen toestelopdracht en uploadt niets. Het bestand bevat release/schema, tijdzone, instellingen/effectieve regels, de centrale voorrang met toestemmingen en vaste bescherming, actuele bronwaarden/attributen, rapportleeftijden, modellen, besluiten, fouten en werkelijk beschikbare historie voor verbruikers/AEG, tapwater, klimaat, PV/forecast, net/fasen/kwartierpiek, Wallbox, dagkosten, planner en batterijsimulatie. Ontbrekende gegevens worden niet aangevuld. Niet geconfigureerde onderdelen blijven herkenbaar. Dit onderzoeksbestand is geen herstelbare Home Assistant-back-up.
 
 De registratie gebruikt bestaande HA-toestanden, geen extra cloudpolling. Standaard wordt iedere vijf minuten een gedetailleerde momentopname bewaard, maximaal zeven dagen/2016 ronden, 20000 bronwijzigingen en 6000 gebeurtenissen. Relevante entiteiten van dezelfde gekoppelde apparaten mogen mee; maximaal 250 bronnen, expliciete eerst. Tot 50 extra relevante bronnen zijn configureerbaar. De laatste maximaal twee uur/1440 snelle regelcycli blijven in RAM. Verkorting van het interval kan de bewaarde periode verkorten door de vaste aantallimiet. Bewaren gebeurt gebundeld; na een herstart blijven opgeslagen gegevens, niet de RAM-historiek, behouden.
 
@@ -385,7 +387,45 @@ Per uur/dagtype blijven maximaal zestig dagen geaggregeerde basislastgegevens st
 
 Leren & vragen kan nu melden dat de effectieve Wallbox-laadsessie nog ontbreekt of dat meerdere Forecast.Solar-bronnen zijn gevonden. De opties zijn instellingen bekijken, voorlopig alleen veilige fallback houden of later vragen. Een antwoord activeert geen fysieke koppeling op basis van een vermoeden; de normale configuratiecontrole blijft vereist.
 
-## 19. Release- en documentatieregel
+## 19. Live instellingen en afzonderlijk toestelbeheer
+
+Vanaf beta.34 is configuratie ook in Zonnestroom toegankelijk. Openen en doorlopen van een wizard verstuurt geen bedieningsopdrachten. Voor opslaan volgt een overzicht met expliciete bevestiging. Gewone wijzigingen worden in dezelfde runtime verwerkt; er wordt geen volledige integratie herladen. Modus, metingen, timers, leerprofielen en statuslisteners van ongewijzigde toestellen blijven behouden.
+
+Naam en categorie kunnen ook bij een draaiend toestel aangepast worden. Voorrang wijzigt via de centrale tab met bevestiging; een reeds verzonden opdracht of lopende vermogensoverdracht moet eerst afgehandeld zijn. De oude numerieke bediening blijft alleen werken zolang nog geen centrale wijziging is opgeslagen. Actuator-, terugmeldings-, meter- en beschermingswijzigingen aan een draaiend toestel blijven wachtende voorstellen. De actieve oude koppeling blijft leidend, ook na herstart. SolarPilot stopt geen toestel om zo een voorstel te kunnen toepassen; toepassing volgt na gewone, bevestigde veilige vrijgave.
+
+Een andere koppeling begint Uitgesloten en vraagt nieuwe bewuste vrijgave. Oude starttickets en op die oude bronnen gebaseerd leren worden niet gebruikt op de nieuwe koppeling. Bij veranderen van een fysiek toestel is Toestel vervangen de aangewezen functie: deze geeft een nieuw ID, archiveert de oude historie en neemt alleen voorkeuren als voorstel over, geen oude meters, vermogen, startrechten of leerdata.
+
+Bij een aangepaste deadline of nettoestemming en een nog wachtende APP-aanvraag vraagt de wizard expliciet: alleen volgende beurten of ook huidige aanvraag. Alleen volgende behoudt de bewaarde deadline en nettoestemming. Ook huidige past die aan op dezelfde al geplande kalenderdag; het maakt geen nieuwe belading. Als een opdracht al verzonden is, wachten zulke wijzigingen voor volgende beurten. Een nieuwe deadline in het verleden kan bij de volgende gewone controle starten toestaan; beveiligingen blijven gelden.
+
+Net-/fase- of andere centrale gevoelige bronwijzigingen wachten zolang een opdracht/overdracht nog bevestigd moet worden. Boiler- of klimaatbindingswijzigingen wachten op gerichte vrijgave, inclusief fabrikantbescherming. Het wijzigen van tarieven of een analysevoorkeur vraagt dat niet. Onbekend/onbereikbaar is geen bevestigde rusttoestand. Wachtende voorstellen zijn zichtbaar en afzonderlijk annuleerbaar. De overige regeling loopt door.
+
+Toestellen beheren staat op Verbruikers en onder Instellingen & onderzoek. Elk profiel heeft Instellingen, Koppelingen, Planning, Historiek en Vervangen. Oude profielen hebben alleen historiek. De categorieën wasmachine en droogkast zijn labels voor bestaande ondersteunde adapters/scripts, geen nieuwe geteste merkintegraties. De native AEG-afwasmachineadapter blijft uitsluitend starten; geen stekkeronderbreking, STOPRESET of programmawijziging.
+
+Toestelentiteiten worden bij toevoegen/verwijderen afzonderlijk bijgewerkt zonder de rest te herladen. Alleen eigen virtuele SolarPilot-entiteiten mogen worden verwijderd, nooit de bronentiteiten van AEG, Wallbox of Shelly. De analyse-export bevat effectieve configuratie, wachtende voorstellen, archieven en toepassingsmeldingen. De bestaande historie bewaart maximaal dertig dagen; archiveren verandert die termijn niet.
+
+Gelijktijdige wizardwijzigingen worden per opgeslagen sleutel samengevoegd. Tegenstrijdige veranderingen aan dezelfde sleutel of dubbele actuator-/meterbindings worden afgewezen in plaats van overschreven. Een voorstel mag geen bron overnemen die al door een ander wachtend voorstel wordt gereserveerd. Opslaan is geen toestemming om normale apparaatbeveiligingen te omzeilen.
+
+Een software-update via HACS vereist nog steeds een Home Assistant-herstart. Deze verbetering betreft het latere wijzigen van instellingen in de geïnstalleerde versie. De softwareproeven gebruiken fictieve Home Assistant-antwoorden en vervangen geen praktische acceptatietest.
+
+## 20. Eén centrale voorrangslijst — bewaren, aanpassen en grenzen
+
+Na installeren staat de bestaande regeling ongewijzigd. Het overzicht leest de huidige apparaatprioriteiten, AEG-voorkeur, globale Wallbox-keuze en de keuzes per toestel. Openen, slepen of een vinkje wijzigen schakelt niets. Opslaan wordt pas mogelijk na een echte wijziging én expliciete bevestiging. Ongewijzigd opslaan activeert geen andere regeling.
+
+Gebruik Volgorde aanpassen. Sleep rijen op desktop of gebruik de omhoog/omlaagknoppen, ook op mobiel en met toetsenbord. De lijst bevat elk huidig toestel, Auto laden · Wallbox en Extra boilerwarmte met het werkelijke ingestelde extra doel. De standaard is 60 °C; een ander bestaand doel wordt niet teruggezet. Mag de auto minder laten laden? staat per verbruiker zichtbaar naast de gekozen volgorde. Toestemming en actuele geschiktheid zijn verschillende zaken: ontbrekende/ongeschikte meter of een onbekende laadsessie kan een toegestane overname alsnog blokkeren.
+
+Beveiliging en hygiëne, gewoon warm water, noodzakelijke avondvoorraad en gewoon ruimtecomfort staan zichtbaar boven de verdeellijst en zijn niet versleepbaar. Ook handmatige overname, expliciete boost, toegestane deadline en minimale looptijden behouden hun bescherming. De extra zonnebuffer blijft altijd na de Wallbox en een bestaande voorkeur-afwasmachine. Hij mag tussen andere lagere verbruikers worden geplaatst, maar krijgt nooit toestemming om EV-vermogen te benutten. Zo kan de interface de afgesproken comfortgrenzen niet omzeilen.
+
+Na bevestiging bepaalt de centrale volgorde de automatische verdeling tussen gewone verbruikers en hun positie ten opzichte van de Wallbox. De gewone realtime berekening en planner gebruiken dezelfde toestelrangorde. Een hoger toestel dat niet past hoeft een passend kleiner toestel niet tegen te houden. De afwasroute mag alleen lagere gemeten eigen lasten laten wijken, nooit een hoger geplaatste verbruiker. Beginnen, stopvertraging, minimumrust en minimumlooptijd worden niet herschreven.
+
+Extra boilerwarmte wacht op een passend, vrijgegeven hoger geplaatst gewoon toestel dat nog moet starten. Anders mag een werkelijk door het bestaande boilerbeleid goedgekeurd zonnevenster vóór nieuwe lagere starts komen. Er wordt geen lagere lopende cyclus onderbroken voor extra warmte. Een inactieve tank boven de herstartdrempel van het bestaande Panasonic-temperatuurverschil houdt niet alleen wegens een hoog setpoint eindeloos een zonnevenster vast. Koeling, nacht, onbekende status, fabrikantbescherming en bestaande stabiliteit blijven het boilerbeleid begrenzen. Er wordt geen Force DHW, compressorstop of nieuwe ruimteklimaatmodus toegevoegd.
+
+Nieuwe gewone verbruikers verschijnen onderaan; een nieuw voorkeur-AEG-profiel wordt vóór de Wallbox toegevoegd. Nieuwe identiteiten blijven Uitgesloten totdat je ze bewust vrijgeeft. Vervangen erft geen Auto-deelname, fysieke koppelingen of startticket. Verwijderde identiteiten verdwijnen uit de actieve lijst. Controleer na toevoegen de plaats en toestemming; de nieuwe verbruiker kan meteen omhoog of omlaag worden gezet.
+
+Opslag gebeurt onder dezelfde vergrendeling als de regelaar, zonder directe toestelopdracht. Gewijzigde broninstellingen, een ander prioriteitsvenster of nieuw/verwijderd toestel maken een ouder concept ongeldig. Bij een conflict blijven de lokale keuzes zichtbaar en wordt niet stilzwijgend overschreven. Vernieuwen vraagt toestemming om een lokaal concept weg te gooien. Alleen een beheerder kan lezen via de editor-API en opslaan; het gewone statusoverzicht blijft leesbaar. Bij een verbindingsfout eerst vernieuwen om te controleren of de opslag toch is gelukt.
+
+De vroegere prioriteitsgetallen, globale keuzes en ruwe toestelprofielen blijven bewaard voor migratie en onderzoek. Nadat de centrale lijst is gewijzigd zijn zij niet langer leidend: de oude numerieke/global-schakelbediening wijst wijzigingsopdrachten af met een verwijzing naar Voorrang. De toestelwizard verbergt dan de oude rangorde- en overnametoestemmingsvelden. Een oude, al geopende wizard mag die keuzes niet terugschrijven. Temperaturen, timers, startrechten, leerdata en niet-gerelateerde opties worden niet gereset.
+
+## 21. Release- en documentatieregel
 
 Deze actuele uitleg is onderdeel van de release zelf. Dezelfde inhoud wordt als Markdown meegeleverd én in Home Assistant getoond. Een releasecontrole faalt wanneer versie of gegenereerde uitleg niet overeenkomt met de integratieversie.
 

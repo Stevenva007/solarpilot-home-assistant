@@ -1,4 +1,6 @@
-# SolarPilot beta.33 — HACS eerste installatie
+> **Actuele release: beta.35.** Lees `docs/BETA35_INSTELLEN.md` voor de centrale voorrangslijst, Export en veilig bijwerken. De volledige huidige werking staat in `docs/ACTUELE_WERKING.md`.
+
+# SolarPilot beta.35 — HACS eerste installatie
 
 Dit is de aanbevolen eerste installatie.
 

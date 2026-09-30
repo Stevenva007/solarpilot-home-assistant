@@ -4,6 +4,10 @@ from .entity import SolarEntity
 
 async def async_setup_entry(hass, entry, async_add_entities):
     r = entry.runtime_data
+    r.platforms.register("button", async_add_entities, lambda: _entities(r))
+
+
+def _entities(r):
     buttons = [SolarButton(r, "reset", "Herstartcontrole en fouten wissen"),
                SolarButton(r, "reset_learning", "Leergegevens wissen"),
                SolarButton(r, "prepare_remove", "Verwijderen voorbereiden")]
@@ -21,7 +25,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
                     SolarButton(r, "manual_start", "Manueel starten", i),
                     SolarButton(r, "manual_stop", "Manueel stoppen / vrijgeven", i),
                     SolarButton(r, "takeover", "Handmatig overnemen — schakelt NIET uit", i)]
-    async_add_entities(buttons)
+    return buttons
 
 
 class SolarButton(SolarEntity, ButtonEntity):
