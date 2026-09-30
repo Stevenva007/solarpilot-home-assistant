@@ -2,19 +2,15 @@ name: Validate and publish SolarPilot beta.35
 
 on:
   push:
-    branches:
-      - publish/beta.35
-    paths:
-      - .github/workflows/publish-beta35.yml
+    branches: [publish/beta.35]
+    paths: [.github/workflows/publish-beta35.yml]
   workflow_dispatch:
 
 concurrency:
   group: solarpilot-beta35-publication
   cancel-in-progress: false
-
 permissions:
   contents: read
-
 env:
   PYTHONDONTWRITEBYTECODE: "1"
   BASE_SHA: 35ec20ef23bd4176e5480638ff82c7cc040ab2f3
@@ -112,7 +108,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add CHANGELOG.md README.md START_HIER.md custom_components docs tests tools
-          git diff --cached --check
+          # Markdown uses two trailing spaces for intentional hard line breaks.
+          # Preserve the uploaded documentation byte-for-byte; retain all other checks.
+          git diff --cached --check -- . ':!docs/BETA35_INSTELLEN.md' ':!docs/TESTRESULTATEN_BETA35.md'
+          git -c core.whitespace=-blank-at-eol diff --cached --check -- docs/BETA35_INSTELLEN.md docs/TESTRESULTATEN_BETA35.md
           git diff --cached --stat
           git commit -m "SolarPilot 1.0.0-beta.35 - central priorities, device settings and export" -m "Cumulative beta.34 and beta.35 source from the approved upload. Retain existing publishing helpers, boiler test timing fix, prior reports and repository history. Current explanation updated in the same release. Offline screenshots regenerated during browser validation."
           git push origin HEAD:refs/heads/release/beta.35
@@ -193,11 +192,11 @@ jobs:
           import os
           from pathlib import Path
           changelog = Path('CHANGELOG.md').read_text(encoding='utf-8')
-          section = changelog.split('## 1.0.0-beta.35', 1)[1].split('\n## ', 1)[0]
-          notes = '''Cumulatieve update vanaf beta.33: beta.34 hoeft niet afzonderlijk te worden geinstalleerd.
-
-          ## Nieuw in beta.35
-          ''' + section.lstrip(' -—0123456789\n') + '''
+          start = changelog.index('## 1.0.0-beta.35')
+          end = changelog.index('\n## ', start + 1)
+          section = '\n'.join(line for line in changelog[start:end].splitlines() if 'GitHub-publicatie of HACS-release uitgevoerd' not in line)
+          intro = 'Cumulatieve update vanaf beta.33: beta.34 hoeft niet afzonderlijk te worden geinstalleerd.\n\n'
+          footer = '''
 
           ## Installeren
           Maak eerst een Home Assistant-back-up. Installeer v1.0.0-beta.35 via HACS en herstart Home Assistant. De bestaande configuratie, voorrang en lokale leerdata blijven behouden; de centrale voorrangslijst verandert pas na bevestigen en opslaan. Er wordt geen nieuwe fysieke ruimteverwarmingsregeling ingeschakeld.
@@ -205,13 +204,14 @@ jobs:
           Lees [de installatiehandleiding](https://github.com/Stevenva007/solarpilot-home-assistant/blob/v1.0.0-beta.35/docs/BETA35_INSTELLEN.md) en [de volledige actuele werking](https://github.com/Stevenva007/solarpilot-home-assistant/blob/v1.0.0-beta.35/docs/ACTUELE_WERKING.md).
 
           ## Publicatiecontrole
-          De 55 bijgewerkte bron- en documentatiebestanden zijn met SHA-256 vergeleken met het aangeleverde beta.35-pakket. Bestaande GitHub-publicatiecorrecties en de asynchrone boiler-testdubbel zijn behouden. De volledige Python-testsuite, alle elf offline browsercontroles, de uitleg- en privacycontroles, HACS-validatie en Hassfest zijn geslaagd voor publicatie. De vier voorbeeldafbeeldingen zijn opnieuw opgebouwd tijdens de browsertests.
+          De 55 bijgewerkte bron- en documentatiebestanden zijn met SHA-256 vergeleken met het aangeleverde beta.35-pakket. Bestaande GitHub-publicatiecorrecties en de asynchrone boiler-testdubbel zijn behouden. Alle 1.404 Python-tests, alle elf offline browsercontroles, de uitleg- en privacycontroles, HACS-validatie en Hassfest zijn geslaagd voor publicatie. De vier voorbeeldafbeeldingen zijn opnieuw opgebouwd tijdens de browsertests.
 
-          Deze tests bedienen geen echte apparaten. De publicatie wijzigt niets in een bestaande Home Assistant-installatie totdat de update daar wordt geinstalleerd.
+          Deze tests bedienen geen echte apparaten. De publicatie wijzigt niets in een bestaande Home Assistant-installatie totdat de update daar wordt geinstalleerd. Het meegeleverde oorspronkelijke testverslag beschrijft het lokale pakket voor deze GitHub-publicatie; de gekoppelde workflow bevat de nieuwe publicatiecontroles.
 
           [Alle wijzigingen sinds beta.33](https://github.com/Stevenva007/solarpilot-home-assistant/compare/v1.0.0-beta.33...v1.0.0-beta.35)
           '''
-          Path(os.environ['RUNNER_TEMP'], 'beta35-release-notes.md').write_text(notes, encoding='utf-8')
+          footer += '\n[Geslaagde publicatiecontroles](https://github.com/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['GITHUB_RUN_ID'] + ')\n'
+          Path(os.environ['RUNNER_TEMP'], 'beta35-release-notes.md').write_text(intro + section + footer, encoding='utf-8')
           PY
           gh release create "$RELEASE_TAG" --verify-tag --prerelease --title "SolarPilot v1.0.0-beta.35" --notes-file "$RUNNER_TEMP/beta35-release-notes.md" "$RUNNER_TEMP/SolarPilot-v1.0.0-beta.35-GitHub-HACS.zip" docs/BETA35_INSTELLEN.md docs/ACTUELE_WERKING.md docs/TESTRESULTATEN_BETA35.md
           gh release view "$RELEASE_TAG" --json url,tagName,isPrerelease,publishedAt
