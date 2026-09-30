@@ -1,4 +1,4 @@
-name: Prepare SolarPilot beta.35
+name: Validate and publish SolarPilot beta.35
 
 on:
   push:
@@ -8,21 +8,210 @@ on:
       - .github/workflows/publish-beta35.yml
   workflow_dispatch:
 
+concurrency:
+  group: solarpilot-beta35-publication
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  BASE_SHA: 35ec20ef23bd4176e5480638ff82c7cc040ab2f3
+  RELEASE_TAG: v1.0.0-beta.35
+
 jobs:
-  source-baseline:
+  prepare-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    outputs:
+      source_sha: ${{ steps.source-commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Check existing repository and untouched main
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "Stevenva007/solarpilot-home-assistant"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$BASE_SHA"
+          test -z "$(git ls-remote origin "refs/tags/$RELEASE_TAG")"
+          test -z "$(git ls-remote origin refs/heads/release/beta.35)"
+          command -v zstd
+          echo "SOURCE_DIR=$RUNNER_TEMP/solarpilot-beta35" >> "$GITHUB_ENV"
+          echo "REPORT_DIR=$RUNNER_TEMP/solarpilot-beta35-reports" >> "$GITHUB_ENV"
+          echo "SOLARPILOT_SCREENSHOT_DIR=$RUNNER_TEMP/solarpilot-beta35-screenshots" >> "$GITHUB_ENV"
+          git worktree add --detach "$RUNNER_TEMP/solarpilot-beta35" "$BASE_SHA"
+          mkdir -p "$RUNNER_TEMP/solarpilot-beta35-reports"
+      - name: Verify transport and all updated source files
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .release-beta35/reconstruct.py --target "$SOURCE_DIR" --payload .release-beta35 | tee "$REPORT_DIR/source-integrity.txt"
+      - name: Public-source and documentation checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_DIR"
+          python tools/check_public_repository.py | tee "$REPORT_DIR/public-source.txt"
+          python tools/check_current_explanation.py | tee "$REPORT_DIR/current-explanation.txt"
+          git diff --check
+      - name: Install test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_DIR"
+          python -m pip install -r requirements-dev.txt playwright
+          python -m playwright install --with-deps chromium
+      - name: Full Python regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_DIR"
+          python -m pytest -q -p no:cacheprovider | tee "$REPORT_DIR/pytest.txt"
+      - name: All eleven offline browser checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_DIR"
+          python tools/build_example.py
+          scripts=(tools/check_card.py tools/check_*ui*.py)
+          test "${#scripts[@]}" -eq 11
+          for script in "${scripts[@]}"; do
+            python "$script" | tee "$REPORT_DIR/$(basename "$script" .py).txt"
+          done
+          mkdir -p docs/images/beta35
+          cp "$SOLARPILOT_SCREENSHOT_DIR"/SolarPilot-beta35-*.png docs/images/beta35/
+      - name: Final clean-source checks and syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_DIR"
+          python tools/check_public_repository.py
+          python tools/check_current_explanation.py
+          python - <<'PY'
+          from pathlib import Path
+          for path in Path('custom_components/solar_pilot').rglob('*.py'):
+              compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+          print('OK: Python syntax; no bytecode files generated')
+          PY
+          git diff --check
+      - name: Commit tested source on an isolated release branch
+        id: source-commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_DIR"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$BASE_SHA"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md README.md START_HIER.md custom_components docs tests tools
+          git diff --cached --check
+          git diff --cached --stat
+          git commit -m "SolarPilot 1.0.0-beta.35 - central priorities, device settings and export" -m "Cumulative beta.34 and beta.35 source from the approved upload. Retain existing publishing helpers, boiler test timing fix, prior reports and repository history. Current explanation updated in the same release. Offline screenshots regenerated during browser validation."
+          git push origin HEAD:refs/heads/release/beta.35
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Save validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solarpilot-beta35-validation
+          path: ${{ runner.temp }}/solarpilot-beta35-reports/
+          retention-days: 30
+
+  validate-hacs:
+    needs: prepare-and-test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: 35ec20ef23bd4176e5480638ff82c7cc040ab2f3
-          persist-credentials: false
-      - name: Archive existing public source for exact comparison
-        run: git archive --format=zip HEAD -o "$RUNNER_TEMP/solarpilot-source-beta33.zip"
-      - uses: actions/upload-artifact@v4
+          ref: ${{ needs.prepare-and-test.outputs.source_sha }}
+      - name: HACS validation of tested beta.35 source
+        uses: hacs/action@main
         with:
-          name: solarpilot-source-beta33
-          path: ${{ runner.temp }}/solarpilot-source-beta33.zip
-          retention-days: 1
+          category: integration
+
+  hassfest:
+    needs: prepare-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare-and-test.outputs.source_sha }}
+      - name: Hassfest validation of tested beta.35 source
+        uses: home-assistant/actions/hassfest@master
+
+  publish:
+    needs: [prepare-and-test, validate-hacs, hassfest]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_SHA: ${{ needs.prepare-and-test.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare-and-test.outputs.source_sha }}
+          fetch-depth: 0
+      - name: Final publication guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "Stevenva007/solarpilot-home-assistant"
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$BASE_SHA"
+          test -z "$(git ls-remote origin "refs/tags/$RELEASE_TAG")"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          test ! -e .release-beta35
+          test ! -e .github/workflows/publish-beta35.yml
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          assert json.loads(Path('custom_components/solar_pilot/manifest.json').read_text())['version'] == '1.0.0-beta.35'
+          PY
+      - name: Fast-forward existing main and create new beta tag atomically
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$RELEASE_TAG" -m "SolarPilot 1.0.0-beta.35 - validated cumulative prerelease"
+          git push --atomic origin HEAD:refs/heads/main "refs/tags/$RELEASE_TAG"
+      - name: Publish prerelease and source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          git archive --format=zip --prefix=SolarPilot-v1.0.0-beta.35/ HEAD -o "$RUNNER_TEMP/SolarPilot-v1.0.0-beta.35-GitHub-HACS.zip"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          changelog = Path('CHANGELOG.md').read_text(encoding='utf-8')
+          section = changelog.split('## 1.0.0-beta.35', 1)[1].split('\n## ', 1)[0]
+          notes = '''Cumulatieve update vanaf beta.33: beta.34 hoeft niet afzonderlijk te worden geinstalleerd.
+
+          ## Nieuw in beta.35
+          ''' + section.lstrip(' -—0123456789\n') + '''
+
+          ## Installeren
+          Maak eerst een Home Assistant-back-up. Installeer v1.0.0-beta.35 via HACS en herstart Home Assistant. De bestaande configuratie, voorrang en lokale leerdata blijven behouden; de centrale voorrangslijst verandert pas na bevestigen en opslaan. Er wordt geen nieuwe fysieke ruimteverwarmingsregeling ingeschakeld.
+
+          Lees [de installatiehandleiding](https://github.com/Stevenva007/solarpilot-home-assistant/blob/v1.0.0-beta.35/docs/BETA35_INSTELLEN.md) en [de volledige actuele werking](https://github.com/Stevenva007/solarpilot-home-assistant/blob/v1.0.0-beta.35/docs/ACTUELE_WERKING.md).
+
+          ## Publicatiecontrole
+          De 55 bijgewerkte bron- en documentatiebestanden zijn met SHA-256 vergeleken met het aangeleverde beta.35-pakket. Bestaande GitHub-publicatiecorrecties en de asynchrone boiler-testdubbel zijn behouden. De volledige Python-testsuite, alle elf offline browsercontroles, de uitleg- en privacycontroles, HACS-validatie en Hassfest zijn geslaagd voor publicatie. De vier voorbeeldafbeeldingen zijn opnieuw opgebouwd tijdens de browsertests.
+
+          Deze tests bedienen geen echte apparaten. De publicatie wijzigt niets in een bestaande Home Assistant-installatie totdat de update daar wordt geinstalleerd.
+
+          [Alle wijzigingen sinds beta.33](https://github.com/Stevenva007/solarpilot-home-assistant/compare/v1.0.0-beta.33...v1.0.0-beta.35)
+          '''
+          Path(os.environ['RUNNER_TEMP'], 'beta35-release-notes.md').write_text(notes, encoding='utf-8')
+          PY
+          gh release create "$RELEASE_TAG" --verify-tag --prerelease --title "SolarPilot v1.0.0-beta.35" --notes-file "$RUNNER_TEMP/beta35-release-notes.md" "$RUNNER_TEMP/SolarPilot-v1.0.0-beta.35-GitHub-HACS.zip" docs/BETA35_INSTELLEN.md docs/ACTUELE_WERKING.md docs/TESTRESULTATEN_BETA35.md
+          gh release view "$RELEASE_TAG" --json url,tagName,isPrerelease,publishedAt
