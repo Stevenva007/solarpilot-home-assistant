@@ -424,11 +424,13 @@ class ThermalProfile:
         """Conservative control confidence, not a generic data-completeness score."""
         parts = self.confidence_components(settings)
         passive = parts["passive_temperature_change"]["confidence"]
-        active = max(parts["heating_response"]["confidence"], parts["cooling_response"]["confidence"])
+        heating = parts["heating_response"]["confidence"]
+        cooling = parts["cooling_response"]["confidence"]
         delay = parts["response_delay"]["confidence"]
-        # Coast may use passive prediction, but without at least one measured
-        # active response/delay we do not claim high confidence or auto-coast.
-        return min(passive, active, delay)
+        # A generic AUTO/coast confidence may not hide a missing active response.
+        # Until both heating and cooling have controlled evidence, optimisation
+        # remains conservative. Hard comfort overrides are evaluated separately.
+        return min(passive, heating, cooling, delay)
 
     def solar_confidence(self, settings):
         min_samples = max(6, min(48, int(settings.get("learning_min_samples", 24)) // 2 or 6))
