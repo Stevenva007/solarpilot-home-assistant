@@ -23,7 +23,7 @@ from .const import DOMAIN, VERSION
 
 ANALYSIS_DEFAULTS = {"enabled": True, "retention_days": 7, "sample_interval_s": 300,
                      "extra_entities": [], "include_related_entities": True}
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 MAX_SAMPLES = 2016  # Seven days at five minutes; shorter cadence has shorter count-limited coverage.
 MAX_CHANGES = 20000
 MAX_EVENTS = 6000
@@ -316,6 +316,35 @@ class AnalysisRecorder:
         refs = self.refs()
         current = {eid: entity_snapshot(r.hass, eid, wall) for eid in refs}
         windows = {key: [x for x in getattr(self, key) if x["ts"] >= cutoff] for key in ("samples", "changes", "events", "fast")}
+        sample_rows = sorted(windows["samples"], key=lambda row: row["ts"])
+        first_ts = sample_rows[0]["ts"] if sample_rows else None
+        last_ts = sample_rows[-1]["ts"] if sample_rows else None
+        raw_span_s = max(0.0, last_ts-first_ts) if first_ts is not None and last_ts is not None else 0.0
+        max_gap_s = max(120.0, float(self.settings["sample_interval_s"]) * 2.2)
+        covered_s = gap_s = 0.0
+        for before, after in zip(sample_rows, sample_rows[1:]):
+            delta = max(0.0, float(after["ts"])-float(before["ts"]))
+            if delta <= max_gap_s:
+                covered_s += delta
+            else:
+                gap_s += delta
+        requested_s = max(1.0, float(hours) * 3600.0)
+        fast_rows = sorted(windows["fast"], key=lambda row: row["ts"])
+        fast_span_s = max(0.0, fast_rows[-1]["ts"]-fast_rows[0]["ts"]) if len(fast_rows) > 1 else 0.0
+        restart_count = sum(1 for row in windows["events"] if row.get("kind") == "restart")
+        coverage_summary = {
+            "requested_hours": float(hours),
+            "available_raw_hours": round(raw_span_s/3600.0, 2),
+            "covered_hours": round(covered_s/3600.0, 2),
+            "coverage_pct": round(min(100.0, 100.0*covered_s/requested_s), 1),
+            "raw_span_coverage_pct": round(min(100.0, 100.0*covered_s/raw_span_s), 1) if raw_span_s > 0 else 0.0,
+            "first_usable_sample": iso(first_ts) if first_ts is not None else None,
+            "last_usable_sample": iso(last_ts) if last_ts is not None else None,
+            "restart_count": restart_count,
+            "offline_or_unregistered_gap_hours": round(gap_s/3600.0, 2),
+            "fast_telemetry_hours": round(fast_span_s/3600.0, 2),
+            "coverage_method": "Alleen intervallen tussen twee ruwe samples; gaten groter dan 2,2× het sample-interval tellen niet als dekking.",
+        }
         try:
             from homeassistant.const import __version__ as ha_version
         except ImportError:
@@ -346,11 +375,18 @@ class AnalysisRecorder:
                    "time_zone": getattr(getattr(r.hass, "config", None), "time_zone", "Europe/Brussels"),
                    "system": {"home_assistant": ha_version, "python": sys.version.split()[0]},
                    "configuration": safe({"site": r.entry.data, "options": {k:v for k,v in r.entry.options.items() if k != "_private_bundle"}}),
-                   "effective_configuration": safe({"settings": r.settings, "devices": r.configs, "dhw": r.dhw.config,
+                   "effective_configuration": safe({"settings": r.settings, "devices": r.configs, "dhw": r.dhw.settings,
                                                       "wallbox": r.wallbox_settings, "pv_forecast": r.pv_forecast.settings, "analysis": self.settings}),
                    "entities": current, "source_metadata": source_metadata(r.hass, refs), "components": components, "recent_decisions": safe(list(r.logs)),
                    "current_faults": safe({"problem": r.problem, "faults": r.faults, "recovery": r.recovery}),
                    "telemetry": windows,
+                   "coverage_summary": coverage_summary,
+                   "data_provenance": {
+                       "recorder_or_historical_bootstrap": "Alleen aanwezige geaggregeerde bootstrap-/historische modellen; geen verzonnen ruwe SolarPilot-live samples.",
+                       "solarpilot_live_learning": "Eigen SolarPilot-leerdata en ruwe analysemetingen sinds de werkelijke verzameling startte.",
+                       "calculated_start_profiles": "Berekende/geleerde toestelprofielen zijn modellen en tellen niet als extra meettijd of extra leerdag.",
+                       "current_measurements": "Actuele Home Assistant/P1/PV-bronwaarden op exportmoment; realtime metingen blijven leidend.",
+                   },
                    "coverage": {"collection_enabled": self.settings["enabled"], "collection_started": iso(self.started),
                                 "first_sample": iso(windows["samples"][0]["ts"]) if windows["samples"] else None,
                                 "last_sample": iso(windows["samples"][-1]["ts"]) if windows["samples"] else None,
@@ -360,8 +396,9 @@ class AnalysisRecorder:
                                 "sample_interval_s": self.settings["sample_interval_s"],
                                 "retention_days": self.settings["retention_days"], "compact_source_columns": ["state", "last_reported_unix_s", "last_updated_unix_s", "dynamic_attributes_if_present"], "capacity_evictions": dict(self.dropped),
                                 "selected_entities": len(refs), "source_candidates": self.source_count, "sources_omitted_by_cap": max(0, self.source_count-len(refs)), "section_errors": failures, "storage_error": self.error,
+                                **coverage_summary,
                                 "scope_note": "Tijdvenster geldt voor ruwe analysemetingen/gebeurtenissen en overlappende sessies. Reeds bewaarde leerprofielen en dagsamenvattingen kunnen ouder zijn.",
-                                "note": "Alleen werkelijk geregistreerde perioden; geen Recorder-backfill. Hiaten zijn onbekend. Cloud last_reported is niet bewezen fysiek meettijdstip."},
+                                "note": "Alleen werkelijk geregistreerde perioden; geen Recorder-backfill. Een aangevraagde 168 uur is dus nooit automatisch 168 uur dekking. Cloud last_reported is niet bewezen fysiek meettijdstip."},
                    "performance": {"cycle_count_retained": len(self.timing), "mean_ms": sum(self.timing)/len(self.timing) if self.timing else None,
                                    "max_ms": max(self.timing) if self.timing else None, "note": "Doorlooptijd regelcyclus, geen CPU-percentage; exportwerk niet meegerekend."},
                    "privacy": {"entity_names_included": False, "automatic_upload": False,
