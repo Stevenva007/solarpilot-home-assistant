@@ -169,3 +169,30 @@ def test_coast_feedback_can_only_adjust_minimum_window_within_bounds():
 def test_open_window_logic_is_not_part_of_smart_climate_settings():
     forbidden = {'open_window', 'open_windows', 'window_entities', 'window_delay_s', 'raam_entities', 'deur_entities'}
     assert forbidden.isdisjoint(SMART_CLIMATE_DEFAULTS)
+
+
+def test_beta36_many_passive_samples_do_not_create_false_full_climate_confidence():
+    p=ThermalProfile()
+    p.samples=200
+    p.days={f"2026-09-{n:02d}" for n in range(1,11)}
+    p.passive_k=[0.03]*40
+    p.solar_gain_per_kw=[0.01]*30
+    parts=p.confidence_components(SMART_CLIMATE_DEFAULTS)
+    assert parts["passive_temperature_change"]["status"]=="Betrouwbaar"
+    assert parts["solar_gain"]["status"]=="Betrouwbaar"
+    assert parts["heating_response"]["status"]=="Nog niet geleerd"
+    assert parts["cooling_response"]["status"]=="Nog niet geleerd"
+    assert parts["response_delay"]["status"]=="Nog niet geleerd"
+    assert p.confidence(SMART_CLIMATE_DEFAULTS)==0.0
+
+
+def test_beta36_missing_active_response_keeps_auto_coast_conservative():
+    p=ThermalProfile()
+    p.samples=200
+    p.days={f"2026-09-{n:02d}" for n in range(1,11)}
+    p.passive_k=[0.03]*40
+    d=decide_mode(settings={**SMART_CLIMATE_DEFAULTS,"enabled":True},
+                  zones=[zone(21,21,"auto")], outside_hourly=[20]*24,
+                  profiles={"climate.zone":p})
+    assert d.desired_mode=="hold"
+    assert d.prediction_confidence==0.0
