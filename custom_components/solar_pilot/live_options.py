@@ -8,6 +8,7 @@ same lock as dispatch; the dishwasher event listener remains installed.
 from __future__ import annotations
 
 from copy import deepcopy
+import logging
 from datetime import datetime, time as clock_time
 from zoneinfo import ZoneInfo
 import time
@@ -481,8 +482,18 @@ class LiveOptions:
             r.battery_analysis_settings={**BATTERY_ANALYSIS_DEFAULTS,**value}
             r.battery_analysis.update_settings(r.battery_analysis_settings)
         elif group == "analysis":
-            from .analysis_export import ANALYSIS_DEFAULTS
+            from .analysis_export import ANALYSIS_DEFAULTS, AnalysisLogHandler
+            was_enabled = bool(r.analysis.settings.get("enabled"))
             r.analysis.settings={**ANALYSIS_DEFAULTS,**value}
+            is_enabled = bool(r.analysis.settings.get("enabled"))
+            # Analysis can be enabled/disabled live. Keep the log hook in sync;
+            # changing this setting must not require an integration reload.
+            if is_enabled and not was_enabled and r.analysis.log_handler is None:
+                r.analysis.log_handler = AnalysisLogHandler(r.analysis)
+                logging.getLogger("custom_components.solar_pilot").addHandler(r.analysis.log_handler)
+            elif was_enabled and not is_enabled and r.analysis.log_handler is not None:
+                logging.getLogger("custom_components.solar_pilot").removeHandler(r.analysis.log_handler)
+                r.analysis.log_handler = None
         elif group == "wallbox":
             from .wallbox import WALLBOX_DEFAULTS
             from .house_first import HOUSE_DEFAULTS
