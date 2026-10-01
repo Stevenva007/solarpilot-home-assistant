@@ -380,14 +380,55 @@ class ThermalProfile:
             return 0.0
         return _clamp(_med(self.solar_gain_per_kw, 0.0), 0.0, 0.5)
 
+    @staticmethod
+    def confidence_status(confidence, samples=0):
+        if not samples:
+            return "Nog niet geleerd"
+        if confidence < 0.35:
+            return "Eerste metingen"
+        if confidence < 0.70:
+            return "Voorlopig"
+        return "Betrouwbaar"
+
+    def confidence_components(self, settings):
+        """Separate evidence; sample count alone can never imply a complete model."""
+        min_samples = max(1, int(settings.get("learning_min_samples", 24)))
+        min_days = max(1, int(settings.get("learning_min_days", 5)))
+        day_conf = min(1.0, len(self.days) / min_days)
+
+        def component(values, need, use_days=True):
+            count = len(values)
+            sample_conf = min(1.0, count / max(1, need))
+            confidence = sample_conf * (0.5 + 0.5 * day_conf) if use_days else sample_conf
+            confidence = min(0.98, confidence)
+            return {
+                "confidence": round(confidence, 3),
+                "samples": count,
+                "status": self.confidence_status(confidence, count),
+            }
+
+        passive = component(self.passive_k, max(6, min_samples // 2))
+        solar = component(self.solar_gain_per_kw, max(6, min_samples // 2))
+        heating = component(self.heat_gain, 6)
+        cooling = component(self.cool_gain, 6)
+        delay = component(self.response_delays_h, 4, use_days=False)
+        return {
+            "passive_temperature_change": passive,
+            "solar_gain": solar,
+            "heating_response": heating,
+            "cooling_response": cooling,
+            "response_delay": delay,
+        }
+
     def confidence(self, settings):
-        samples = max(1, int(settings.get("learning_min_samples", 24)))
-        days = max(1, int(settings.get("learning_min_days", 5)))
-        return min(
-            1.0,
-            0.5 * min(1.0, self.samples / samples)
-            + 0.5 * min(1.0, len(self.days) / days),
-        )
+        """Conservative control confidence, not a generic data-completeness score."""
+        parts = self.confidence_components(settings)
+        passive = parts["passive_temperature_change"]["confidence"]
+        active = max(parts["heating_response"]["confidence"], parts["cooling_response"]["confidence"])
+        delay = parts["response_delay"]["confidence"]
+        # Coast may use passive prediction, but without at least one measured
+        # active response/delay we do not claim high confidence or auto-coast.
+        return min(passive, active, delay)
 
     def solar_confidence(self, settings):
         min_samples = max(6, min(48, int(settings.get("learning_min_samples", 24)) // 2 or 6))
