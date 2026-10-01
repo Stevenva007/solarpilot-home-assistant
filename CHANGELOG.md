@@ -12,7 +12,7 @@
 - Leren & vragen schakelt naar gemeten sampling, begrensde automatische adaptatie en Home Assistant-meldingen. De eenmalige migratie stuurt niet meteen een notificatie en overschrijft latere gebruikerskeuzes niet.
 - Analyse kan live aan/uit zonder volledige integratieherlading; logregistratie volgt die instelling direct.
 - Nieuwe fysieke toestelrechten, ontbrekende entiteiten, DHW-veiligheidsbevestiging en batterij-eigenaarschap worden nooit automatisch verzonnen of toegekend.
-- GitHub-validatie is beperkt tot `main`, pull requests naar `main` en handmatige starts. Werkbranch-pushes, tags en de vroegere dagelijkse schedule starten geen extra Validate-run meer; dit voorkomt onnodige Actions-meldingen tijdens ontwikkeling. Tags blijven uitsluitend de bestaande Release-workflow starten.
+- GitHub-validatie is beperkt tot `main`, pull requests naar `main` en handmatige starts. Werkbranch-pushes, tags en de vroegere dagelijkse schedule starten geen extra Validate-run meer. Publicatie loopt na één groene `main`-validatie via de vaste `publish-release`-branch; één gecontroleerde Release-workflow herhaalt de releasechecks/tests, maakt daarna de beta.37-tag en publiceert het volledige ZIP-pakket plus instel- en testdocumentatie.
 
 ## 1.0.0-beta.36 — 2026-10-01
 
