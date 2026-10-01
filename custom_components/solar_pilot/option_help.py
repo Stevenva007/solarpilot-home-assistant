@@ -321,11 +321,12 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
  'manual_active_states': 'Komma-gescheiden echte statuswaarden voor handmatige bescherming, '
                          'bijvoorbeeld on,on-30 m,on-60 m,on-90 m. Gebruik de ruwe HA-waarden, niet '
                          'alleen een vertaalde naam op het scherm.',
- 'safety_confirmed': 'Alleen aanvinken nadat fabrikantgeschiktheid, onafhankelijke hygiëne én '
-                     'bescherming tegen verbranding daadwerkelijk gecontroleerd zijn. Een setpoint van '
-                     '60 °C of eerder probleemloos gebruik bewijst dit niet. Ook 50 °C of een '
-                     'wekelijkse cyclus is op zichzelf geen veiligheidsbewijs. SolarPilot schakelt deze '
-                     'bevestiging nooit automatisch in.',
+ 'safety_confirmed': 'Bevestigt dat de gebruiker de fabrikantgeschiktheid, onafhankelijke hygiëne en '
+                     'verbrandingsrisico-informatie voor deze installatie heeft beoordeeld. Nieuwe '
+                     'installaties krijgen deze toestemming nooit vanzelf. Bij de beta.35→beta.36-migratie '
+                     'wordt een reeds actief en exact bevestigd 50/46/-5/50/60/62-profiel als bestaande '
+                     'gebruikerskeuze behouden, zodat dezelfde eerder aanvaarde situatie niet opnieuw '
+                     'onnodig blokkeert. Fabrikantbeveiligingen blijven altijd leidend.',
  'minimum_c': 'Bewaakte gemeten comfortgrens, standaard 46 °C. Onderschrijding geeft een zichtbare '
               'waarschuwing en laat alleen het gewone doel beschikbaar. Geen tijdelijke verhoging naar '
               '52 °C, geen Force DHW. Met normaal 50 °C en differentie -5 °C kan de fabrikant rond 45 '
@@ -1063,23 +1064,21 @@ HELP_NOTES.update({'pv_forecast:enabled': 'Gebruikt de al aanwezige Forecast.Sol
  'session_stopped_states': 'Volledige waarden die een gestopte sessie aanduiden. SolarPilot rekent '
                            'alleen met echte injectie. Een nulvermogen alleen bewijst niet dat de '
                            'sessie gestopt is; de lader kan op zon wachten.',
- 'wallbox_power_policy': 'Voorrang volgen is de nieuwe standaard: een verbruiker vóór de Wallbox mag '
-                         'bevestigd Full Solar-vermogen gebruiken met een eigen actuele vermogensmeter. '
-                         'Alleen echt overschot zet dit uit. Oude expliciete keuze behoudt de vroegere '
-                         'checkbox en korte minimumlooptijd. Geen optie omzeilt minimumlooptijden, '
-                         'terugmelding, fase-/netgrenzen of handmatige overname. Lange '
-                         'compressorlooptijden blijven beschermd; een mislukte overdracht kan daardoor '
-                         'tijdelijk netstroom vragen vóór veilig terugnemen mogelijk is. Beschermde '
-                         'programma’s en onbevestigde scripts krijgen geen generieke overname; de AEG '
-                         'heeft zijn aparte route. Manueel of onbekend laden geeft nooit EV-credit.',
+ 'wallbox_power_policy': 'De centrale beta.36-lijst scheidt rangorde van toestemming. Een toestel kan '
+                         'hoger dan de Wallbox staan, lager staan maar toch expliciet terugregelen mogen, '
+                         'of uitsluitend werkelijk vrij zonneoverschot gebruiken. Terugnemen vereist een '
+                         'bevestigde zonnelaadsessie, een eigen actuele vermogensmeter en alle bestaande '
+                         'minimumlooptijd-, terugmeld-, fase-, net- en importgrenzen. Bij manueel, gestopt '
+                         'of onbekend laden is er nooit EV-credit. Beschermde cycli gebruiken hun eigen '
+                         'specifieke route.',
  'mode_entity': 'Oorspronkelijke instelling van de zonnelaadmodus. Die kan Full Solar blijven tonen '
                 'tijdens een manuele override. Koppel daarom ook de effectieve laadsessie. Deze bron '
                 'wordt alleen uitgelezen; geen laadmoduswijzigingen vanuit SolarPilot.',
- 'allow_wallbox_reclaim': 'Alleen gebruikt bij de keuze Oude expliciete overname. Daar zijn een eigen '
-                          'meter, onderbreekbare last en minimumlooptijd korter dan de overnametermijn '
-                          'verplicht. Bij de nieuwe standaard Voorrang volgen bepaalt de voorrang dit '
-                          'automatisch met behouden fysieke beperkingen; de oude checkbox wordt dan '
-                          'genegeerd. AEG gebruikt altijd zijn aparte beschermde route.'})
+ 'allow_wallbox_reclaim': 'Legacy-veld voor oudere configuraties. Na de beta.36-migratie bepaalt de '
+                          'centrale Voorrang-lijst per flexibele verbruiker afzonderlijk of Wallbox-vermogen '
+                          'mag worden afgenomen. De positie alleen geeft dat recht niet. Een uitgeschakelde '
+                          'toestemming betekent altijd uitsluitend werkelijk vrij zonneoverschot. AEG '
+                          'gebruikt zijn aparte beschermde route.'})
 
 HELP_NOTES.update({'appliance_type': 'Dit is de herkenbare categorie: afwasmachine, wasmachine, droogkast of andere '
                    'verbruiker. Ze staat los van het bedieningstype en verleent geen nieuwe '
@@ -1168,5 +1167,5 @@ HELP_NOTES.update({
     "wallbox_power_policy": "Op Voorrang kies je per verbruiker of de auto minder mag laden. Een toestel moet ook vóór de Wallbox staan en aan alle meet-, sessie- en veiligheidsvoorwaarden voldoen. Een bestaande legacy-overname behoudt de extra beperking voor korte minimumlooptijd. Zonder centrale wijziging blijven de bestaande keuzes gelden.",
     "dishwasher_priority_enabled": "Het bestaande AEG-voorkeursprofiel blijft behouden. Gewoon warmtepompcomfort gaat voor; de standaard afwasvolgorde is vóór de Wallbox en extra boilerwarmte. Na een bevestigde centrale wijziging bepaalt de lijst Voorrang de toestelvolgorde. De afwas blijft vóór de extra zonnebuffer en een lopende beurt wordt nooit afgebroken. Het oude groepsgetal is dan niet meer leidend.",
     "analysis_export": "Open Export → Export samenstellen voor één lokaal JSON-onderzoeksbestand. Kies 1 uur, 24 uur of 7 dagen. Instellingen, centrale voorrang, metingen, modellen en bewaarde beslissingen worden meegenomen voor zover aanwezig. Namen worden standaard gepseudonimiseerd; controleer altijd vóór delen. Geen automatische upload, geen toestelopdracht en geen herstelbare Home Assistant-back-up.",
-    "priority_board": "Sleep een rij of gebruik de pijltjes. Mag de auto minder laten laden? is een afzonderlijke toestemming, geen garantie op beschikbaar vermogen. Opslaan vraagt bevestiging; openen en conceptwijzigingen sturen niets. Comfort en hygiëne blijven beschermd. Extra boilerwarmte blijft na Wallbox en voorkeur-afwas. Een concept blijft staan tijdens live updates; gelijktijdige instellingenwijzigingen vragen een nieuwe controle."
+    "priority_board": "Sleep een rij of gebruik de pijltjes. ‘Mag dit toestel vermogen van de Wallbox afnemen?’ is een afzonderlijke toestemming naast de rangorde: hoger dan Wallbox, lager maar terugregelen toegestaan, of alleen werkelijk vrij zonneoverschot. Het is nooit een garantie dat er nu vermogen beschikbaar is. Beveiliging/legionella, noodzakelijk warmwatercomfort en noodzakelijk ruimtecomfort zijn niet verplaatsbaar. Opslaan vraagt bevestiging en stuurt op zichzelf geen toestel."
 })
