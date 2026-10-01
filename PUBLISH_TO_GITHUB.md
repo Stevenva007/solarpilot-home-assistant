@@ -47,16 +47,28 @@ lopende run kiezen.
 
 ## Alleen na groene validatie van die commit
 
+Publicatie gebruikt voortaan één vaste releasebranch. Hierdoor is geen handmatige tagpush nodig
+en start een tag ook geen tweede Validate-run.
+
 ```powershell
-git tag -a v1.0.0-beta.37 -m "SolarPilot 1.0.0-beta.37"
-git push origin v1.0.0-beta.37
-gh run list --limit 5
+git push origin main:publish-release
 ```
 
-Wacht op de **Release**-run voor `v1.0.0-beta.37`. De Validate-workflow draait bewust niet
-nogmaals voor de tag; de commit op `main` is dan al volledig gevalideerd. Een bestaande tag is
-geen reden om hem te verwijderen of te verplaatsen: controleer eerst wat al gepubliceerd is.
-De bestaande Release-workflow maakt de prerelease.
+Bestaat `publish-release` nog niet, dan maakt deze opdracht hem aan. Bij latere releases is
+`main` een afstammeling van de vorige releasecommit en wordt dezelfde branch normaal
+fast-forward bijgewerkt. Gebruik geen force-push.
+
+De **Release**-workflow controleert opnieuw privacy, overdrachtsdossier, actuele uitleg, volledige
+pytest-suite, Python-syntax, HACS en Hassfest. Alleen als alles groen is:
+
+1. leest hij de versie uit `custom_components/solar_pilot/manifest.json`;
+2. maakt hij de bijbehorende geannoteerde tag als die nog niet bestaat;
+3. bouwt hij `SolarPilot-<versie>-GitHub-HACS.zip` uit exact die commit;
+4. publiceert hij de prerelease met ZIP, `BETA37_INSTELLEN.md` en
+   `TESTRESULTATEN_BETA37.md` als assets.
+
+Een bestaande tag die naar een andere commit wijst laat de workflow bewust falen in plaats van
+hem te verplaatsen.
 
 ## Home Assistant
 
