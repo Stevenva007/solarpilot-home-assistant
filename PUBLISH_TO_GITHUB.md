@@ -1,6 +1,6 @@
-# SolarPilot beta.36 publiceren — bestaande GitHub/HACS-repository
+# SolarPilot beta.37 publiceren — bestaande GitHub/HACS-repository
 
-Dit is de volledige cumulatieve bron van **1.0.0-beta.36**. Het pakket publiceert
+Dit is de volledige cumulatieve bron van **1.0.0-beta.37**. Het pakket publiceert
 niets zelf. Gebruik de bestaande repository en de bestaande licentie. Maak geen
 nieuwe repository, verplaats geen oude release-tags en voer geen force-push uit.
 
@@ -31,25 +31,32 @@ regels zijn afzonderlijke opdrachten; niet aan elkaar plakken.
 ```powershell
 git add -A
 git diff --cached --stat
-git commit -m "SolarPilot 1.0.0-beta.36 - heat-pump learning, central priorities and diagnostics"
+git commit -m "SolarPilot 1.0.0-beta.37 - usability, central priorities and safe defaults"
 git push origin main
 ```
 
-Controleer de nieuwe **Validate**-run voor die commit op `main`. Ga niet verder met
-een oude groene run of een run van een andere commit. `gh run list --workflow Validate
---limit 5` toont de runs; `gh run watch` laat je de juiste lopende run kiezen.
+Werkbranches starten in beta.37 niet langer automatisch een Validate-run. Dat voorkomt een
+stroom GitHub Actions-meldingen tijdens tussenstappen. De automatische Validate-workflow draait
+alleen bij een push naar `main` of bij een pull request naar `main`; handmatig starten blijft
+mogelijk vanuit GitHub Actions.
+
+Controleer na de ene definitieve push naar `main` de nieuwe **Validate**-run voor precies die
+commit. Ga niet verder met een oude groene run of een run van een andere commit.
+`gh run list --workflow Validate --limit 5` toont de runs; `gh run watch` laat je de juiste
+lopende run kiezen.
 
 ## Alleen na groene validatie van die commit
 
 ```powershell
-git tag -a v1.0.0-beta.36 -m "SolarPilot 1.0.0-beta.36"
-git push origin v1.0.0-beta.36
+git tag -a v1.0.0-beta.37 -m "SolarPilot 1.0.0-beta.37"
+git push origin v1.0.0-beta.37
 gh run list --limit 5
 ```
 
-Wacht op de **Release**-run voor `v1.0.0-beta.36` én de tagvalidatie. Een bestaande
-tag is geen reden om hem te verwijderen of te verplaatsen: controleer eerst wat
-al gepubliceerd is. De bestaande Release-workflow maakt de prerelease.
+Wacht op de **Release**-run voor `v1.0.0-beta.37`. De Validate-workflow draait bewust niet
+nogmaals voor de tag; de commit op `main` is dan al volledig gevalideerd. Een bestaande tag is
+geen reden om hem te verwijderen of te verplaatsen: controleer eerst wat al gepubliceerd is.
+De bestaande Release-workflow maakt de prerelease.
 
 ## Home Assistant
 

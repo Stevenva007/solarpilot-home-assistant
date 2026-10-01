@@ -43,3 +43,15 @@ Dit zijn software-, repository- en integratievalidaties. Ze zijn geen fysieke ac
 - de elektrische installatie of beveiligingen.
 
 Na installatie hoort de eerste controle te bestaan uit het bekijken van de centrale voorrang, het controleren van de actieve/wachtende leermodules en het downloaden van een analyse-export na enkele dagen normaal gebruik.
+
+
+## GitHub Actions en meldingen
+
+De functionele beta.37-code is op de werkbranch volledig gevalideerd voordat de workflow-scope
+werd aangescherpt. Om onnodige GitHub Actions-mails tijdens ontwikkeling te vermijden, start
+`Validate` voortaan automatisch alleen bij een push naar `main` en bij pull requests naar
+`main`. De vroegere dagelijkse schedule is verwijderd en een release-tag start niet nogmaals
+`Validate`; de tag gebruikt alleen de bestaande `Release`-workflow.
+
+Voor publicatie blijft daarom één finale groene `Validate`-run op de exacte beta.37-commit op
+`main` verplicht, gevolgd door de `Release`-run voor `v1.0.0-beta.37`.
