@@ -1,17 +1,28 @@
-> **Nieuw: beta.35** — één centrale voorrangslijst met slepen/pijltjes, duidelijke toestemming om autoladen te verminderen en één Export-pagina. Bestaande instellingen blijven leidend tot je een wijziging bevestigt. Zie **docs/BETA35_INSTELLEN.md**.
+> **Nieuw: beta.36** — warmtepompactiviteit wordt uit de gewone basislast gehouden, Wallbox-sessies worden explicieter herkend, de centrale prioriteitenlijst is nu leidend, DHW gebruikt één configuratiebron en klimaat-/exportkwaliteit toont betrouwbaarheid en echte meetdekking duidelijker.
 
 # SolarPilot
 
 SolarPilot is a local Home Assistant Energy Management System (EMS) for PV surplus, flexible loads, Panasonic Aquarea hot-water policy, Wallbox Full Solar coexistence, phase analysis, capacity-tariff awareness, local PV/shade learning, slow thermal-climate learning, future home batteries and a unified rolling-horizon planner.
 
-> **Status:** beta.35 · public HACS beta. Start in **Observatie**. Do not enable physical control for several devices at once.
+> **Status:** beta.36 · public HACS beta. Start in **Observatie**. Do not enable physical control for several devices at once.
 
 
 > **Updates zijn cumulatief.** Je hoeft tussenliggende beta-versies niet één voor één te installeren of publiceren. Installeer de nieuwste release over je bestaande SolarPilot-installatie; Home Assistant-configuratie en lokale leerdata blijven behouden.
 
-## Current DHW policy (preserved in beta.35)
+## Current DHW policy (preserved in beta.36)
 
 Normal tank setpoint and monitored comfort floor are independent (new defaults 50/46 °C). No deadband-compensating 52 °C boost or Force DHW. A 50 °C target with a -5 °C native differential can reheat around 45 °C: 46 °C is monitored, not guaranteed and not a hygiene standard. Optional bounded evening solar storage waits for space climate; see `docs/BETA28_INSTELLEN.md`. Existing setpoints and permissions migrate without silent profile activation.
+
+
+## Nieuw in beta.36
+
+- Panasonic-activiteit wordt onderscheiden als gewone huishoudlast, ruimteverwarming, ruimtekoeling, tapwater, sterilisatie of onbekende warmtepompactiviteit. Zonder eigen warmtepomp-W-meter mag alleen een conservatieve planningsschatting uit stabiele P1+PV-stappen worden geleerd; die schatting verandert nooit de realtime netruimte.
+- De Wallbox toont ingestelde modus, werkelijk gedetecteerde sessie, laadvermogen en waarom terugnemen van laadvermogen nu wel/niet mag. Zonder effectieve sessiesensor gebruikt SolarPilot uitsluitend werkelijk vrije injectie.
+- De centrale prioriteitenlijst is na migratie de leidende bron: beveiliging/legionella, noodzakelijk warmwatercomfort en noodzakelijk ruimtecomfort zijn beschermd; daarna blijven standaard Wallbox → ontvochtiger → extra boilerwarmte 60 °C behouden. Per flexibele verbruiker staat los daarvan of Wallbox-vermogen mag worden teruggenomen.
+- DHW centraliseert de afgesproken 50/46/-5/50/60/62 °C-regels in één configuratiebron en toont afzonderlijk configuratie, inschakeling, vrijgave, eigenaarschap en handmatige override.
+- Klimaatbetrouwbaarheid is opgesplitst in passieve drift, zonnewinst, verwarmingsrespons, koelrespons, reactievertraging, weerscorrectie en coast-feedback. Ontbrekende onderdelen worden niet als 100% weergegeven.
+- PV-kalibratie behoudt minimaal vijf geldige dagen, 13,8 kWp en 10 kW omvormerlimiet; diagnostiek voegt fout/bias per ochtend, middag en namiddag toe.
+- Analyse-export vermeldt aangevraagde periode én werkelijk beschikbare/dekkende uren, gaten, herstarts en fast telemetry. Planberekeningen tellen nooit als extra leerdag.
 
 ## Install via HACS
 
