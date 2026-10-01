@@ -304,6 +304,8 @@ class SolarRuntime:
         self.wallbox_guard = self._make_wallbox_guard()
         self.priorities = {i: p for i, p in data.get("priorities", {}).items() if i in self.configs}
         self.device_modes = {i: m for i, m in data.get("device_modes", {}).items() if i in self.configs}
+        if await self.priority_board.migrate_beta36():
+            self.note("Beta.36-migratie: bestaande flexibele voorrang exact vastgelegd als centrale prioriteitenlijst.")
         self.energy_kwh = max(0, float(data.get("energy_kwh", 0)))
         stored_stats = data.get("ems_stats", {})
         self.ems_stats = dict(stored_stats) if isinstance(stored_stats, dict) else fresh_daily_stats()
