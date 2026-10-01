@@ -97,20 +97,32 @@ def classify_session(config, raw_mode, session_value):
 
 
 def reclaim_permission(config, *, before_wallbox, dedicated_meter, blocked=False):
-    """Return (allowed, long_runtime_allowed, explanation) without changing rights."""
+    """Return (allowed, long_runtime_allowed, explanation) without changing rights.
+
+    In the central beta.36 board the position and the per-device permission are
+    deliberately independent: a lower-priority load may be allowed to ask the
+    autonomous solar charger to give back measured solar power.  This never
+    creates electrical headroom and still requires a confirmed solar session.
+    """
     policy = config.get("wallbox_power_policy", "priority")
-    if policy not in RECLAIM_POLICIES or policy == "never":
-        return False, False, "Alleen werkelijk vrij overschot: overname uitgezet"
-    if not before_wallbox:
-        return False, False, "Wallbox heeft voorrang op dit toestel"
+    central = "_priority_board_wallbox_power" in config
+    central_permission = config.get("_priority_board_wallbox_power") is True
+    if policy not in RECLAIM_POLICIES or policy == "never" or (central and not central_permission):
+        return False, False, "Alleen werkelijk vrij zonneoverschot: Wallbox-terugname staat uit"
+    if not central and not before_wallbox:
+        return False, False, "Wallbox heeft volgens de oude regeling voorrang op dit toestel"
     if blocked:
-        return False, False, "Vorige overname vraagt controle"
+        return False, False, "Vorige Wallbox-overname vraagt eerst controle"
     if config.get("kind", "switch") == "dishwasher":
         return False, False, "Afwasmachine gebruikt de afzonderlijke beschermde-cyclusroute"
     if config.get("non_interruptible") or config.get("kind", "switch") not in ("switch", "number"):
         return False, False, "Geen generieke vermogensovername voor een beschermde of onbevestigde scriptcyclus"
     if not dedicated_meter:
         return False, False, "Een eigen actuele vermogensmeter is vereist voor bevestiging"
-    if policy == "legacy":
+    if policy == "legacy" and not central:
         return bool(config.get("allow_wallbox_reclaim")), False, "Oude expliciete overnamekeuze en korte minimumlooptijd gelden"
+    if central and before_wallbox:
+        return True, True, "Hoger dan Wallbox en expliciet toegestaan: gemeten zonnelaadvermogen mag veilig worden benut"
+    if central:
+        return True, True, "Lager dan Wallbox, maar expliciet toegestaan: Wallbox mag alleen met bevestigde zonnelaadsessie veilig terugregelen"
     return True, True, "Voorrang volgen: gemeten zonnestroom van Wallbox mag worden benut; minimumlooptijd blijft gelden"
