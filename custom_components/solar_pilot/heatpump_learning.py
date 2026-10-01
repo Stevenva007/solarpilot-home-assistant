@@ -112,6 +112,7 @@ class HeatPumpActivityModel:
         self.recent = deque(maxlen=36)  # ~3 minutes at a normal 5 s loop.
         self.pending = None
         self.last_context = None
+        self.unknown_observations = 0
         self.restore_note = ""
 
     def snapshot(self):
@@ -119,6 +120,7 @@ class HeatPumpActivityModel:
             "schema": 1,
             "samples": {k: list(v[-40:]) for k, v in self.samples.items()},
             "days": {k: sorted(v)[-60:] for k, v in self.days.items()},
+            "unknown_observations": self.unknown_observations,
         }
 
     def restore(self, data):
@@ -128,6 +130,7 @@ class HeatPumpActivityModel:
             self.restore_note = "Warmtepompleermodel incompatibel; alleen dit model leert opnieuw."
             return False
         try:
+            self.unknown_observations = max(0, min(1000000, int(data.get("unknown_observations", 0) or 0)))
             for key in ACTIVE_CONTEXTS:
                 vals = []
                 for value in (data.get("samples", {}) or {}).get(key, [])[-40:]:
@@ -166,6 +169,8 @@ class HeatPumpActivityModel:
         if wall_ts is None:
             return False
         context = context if context in ACTIVE_CONTEXTS | {CONTEXT_NORMAL, CONTEXT_UNKNOWN} else CONTEXT_UNKNOWN
+        if context == CONTEXT_UNKNOWN:
+            self.unknown_observations = min(1000000, self.unknown_observations + 1)
 
         previous_context = self.last_context
         if previous_context is not None and context != previous_context:
@@ -224,7 +229,7 @@ class HeatPumpActivityModel:
             return "Nog niet geleerd"
         if confidence < 0.35:
             return "Eerste metingen"
-        if confidence < 0.70:
+        if confidence < 0.75:
             return "Voorlopig"
         return "Betrouwbaar"
 
@@ -234,7 +239,8 @@ class HeatPumpActivityModel:
         conf = self._confidence(values, days)
         # Planning estimate uses the median rather than an optimistic low value.
         # It is deliberately unavailable until there is at least preliminary proof.
-        watts = statistics.median(values) if len(values) >= 3 and conf >= 0.35 else None
+        watts = (statistics.median(values)
+                 if len(values) >= 4 and len(days) >= 2 and conf >= 0.50 else None)
         return HeatPumpEstimate(
             context, None if watts is None else round(float(watts), 1), round(conf, 3),
             len(values), len(days), self._status(conf, len(values)),
@@ -251,8 +257,19 @@ class HeatPumpActivityModel:
             "planning_only": True,
             "realtime_headroom_uses_estimate": False,
             "contexts": {
-                key: {"label": labels[key], **self.estimate(key).__dict__}
-                for key in (CONTEXT_HEATING, CONTEXT_COOLING, CONTEXT_DHW, CONTEXT_HYGIENE)
+                **{
+                    key: {"label": labels[key], **self.estimate(key).__dict__}
+                    for key in (CONTEXT_HEATING, CONTEXT_COOLING, CONTEXT_DHW, CONTEXT_HYGIENE)
+                },
+                CONTEXT_UNKNOWN: {
+                    "label": "Onbekende warmtepompactiviteit",
+                    "context": CONTEXT_UNKNOWN,
+                    "watts": None,
+                    "confidence": 0.0,
+                    "samples": self.unknown_observations,
+                    "days": 0,
+                    "status": "Classificatie onzeker" if self.unknown_observations else "Nog niet waargenomen",
+                },
             },
             "note": (
                 "Geschat warmtepompvermogen is uitsluitend classificatie/planningsbewijs. "
