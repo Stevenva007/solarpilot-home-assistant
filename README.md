@@ -1,28 +1,29 @@
-> **Nieuw: beta.36** — warmtepompactiviteit wordt uit de gewone basislast gehouden, Wallbox-sessies worden explicieter herkend, de centrale prioriteitenlijst is nu leidend, DHW gebruikt één configuratiebron en klimaat-/exportkwaliteit toont betrouwbaarheid en echte meetdekking duidelijker.
+> **Nieuw: beta.37** — eenvoudiger dashboardtaal, één centrale verschuifbare voorrangslijst, eenduidige Wallbox-regels, één complete analyse-export en een éénmalig startprofiel dat beschikbare regelingen en leermodules activeert zonder ontbrekende bronnen of veiligheidsbevestigingen te verzinnen.
 
 # SolarPilot
 
 SolarPilot is a local Home Assistant Energy Management System (EMS) for PV surplus, flexible loads, Panasonic Aquarea hot-water policy, Wallbox Full Solar coexistence, phase analysis, capacity-tariff awareness, local PV/shade learning, slow thermal-climate learning, future home batteries and a unified rolling-horizon planner.
 
-> **Status:** beta.36 · public HACS beta. Start in **Observatie**. Do not enable physical control for several devices at once.
+> **Status:** beta.37 · public HACS beta. De dashboardmodus **Alleen bekijken** blijft de veilige observatiestand; **Automatisch regelen** voert alleen reeds toegestane fysieke regels uit.
 
 
 > **Updates zijn cumulatief.** Je hoeft tussenliggende beta-versies niet één voor één te installeren of publiceren. Installeer de nieuwste release over je bestaande SolarPilot-installatie; Home Assistant-configuratie en lokale leerdata blijven behouden.
 
-## Current DHW policy (preserved in beta.36)
+## Current DHW policy (preserved in beta.37)
 
 Normal tank setpoint and monitored comfort floor are independent (new defaults 50/46 °C). No deadband-compensating 52 °C boost or Force DHW. A 50 °C target with a -5 °C native differential can reheat around 45 °C: 46 °C is monitored, not guaranteed and not a hygiene standard. Optional bounded evening solar storage waits for space climate; see `docs/BETA28_INSTELLEN.md`. Existing setpoints and permissions migrate without silent profile activation.
 
 
-## Nieuw in beta.36
+## Nieuw in beta.37
 
-- Panasonic-activiteit wordt onderscheiden als gewone huishoudlast, ruimteverwarming, ruimtekoeling, tapwater, sterilisatie of onbekende warmtepompactiviteit. Zonder eigen warmtepomp-W-meter mag alleen een conservatieve planningsschatting uit stabiele P1+PV-stappen worden geleerd; die schatting verandert nooit de realtime netruimte.
-- De Wallbox toont ingestelde modus, werkelijk gedetecteerde sessie, laadvermogen en waarom terugnemen van laadvermogen nu wel/niet mag. Zonder effectieve sessiesensor gebruikt SolarPilot uitsluitend werkelijk vrije injectie.
-- De centrale prioriteitenlijst is na migratie de leidende bron: beveiliging/legionella, noodzakelijk warmwatercomfort en noodzakelijk ruimtecomfort zijn beschermd; daarna blijven standaard Wallbox → ontvochtiger → extra boilerwarmte 60 °C behouden. Per flexibele verbruiker staat los daarvan of Wallbox-vermogen mag worden teruggenomen.
-- DHW centraliseert de afgesproken 50/46/-5/50/60/62 °C-regels in één configuratiebron en toont afzonderlijk configuratie, inschakeling, vrijgave, eigenaarschap en handmatige override.
-- Klimaatbetrouwbaarheid is opgesplitst in passieve drift, zonnewinst, verwarmingsrespons, koelrespons, reactievertraging, weerscorrectie en coast-feedback. Ontbrekende onderdelen worden niet als 100% weergegeven.
-- PV-kalibratie behoudt minimaal vijf geldige dagen, 13,8 kWp en 10 kW omvormerlimiet; diagnostiek voegt fout/bias per ochtend, middag en namiddag toe.
-- Analyse-export vermeldt aangevraagde periode én werkelijk beschikbare/dekkende uren, gaten, herstarts en fast telemetry. Planberekeningen tellen nooit als extra leerdag.
+- **Voorrang** is de enige dagelijkse plek voor de volgorde van flexibele zonne-energie. Veiligheid en noodzakelijk Panasonic-comfort staan vast bovenaan; bestaande beta.36-prioriteiten blijven behouden.
+- Toestellen boven **Auto laden (Wallbox)** kunnen alleen zonnevermogen van de auto gebruiken wanneer ook expliciet **Ja · Wallbox mag terugregelen** is gekozen. Onder de Wallbox blijft die toestemming inactief.
+- Nieuwe gewone flexibele toestellen komen standaard onderaan de lijst en kunnen daarna op desktop of mobiel hoger/lager worden gezet. Nieuwe toestellen krijgen geen automatische fysieke starttoestemming.
+- De dashboardtaal is vereenvoudigd: **Alleen bekijken**, **Automatisch regelen**, **Toestellen**, **Warmte & comfort**, **Auto & batterij**, **Voorrang** en **Export**.
+- **Export** heeft één hoofdactie voor een compleet analysebestand dat je zelf in ChatGPT kunt uploaden. Standaard omvat het zeven dagen en pseudonimiseert het namen.
+- Bij de eerste beta.37-start worden beschikbare analyse- en leermodules éénmalig geactiveerd. Bronafhankelijke regels worden alleen ingeschakeld wanneer hun koppelingen en noodzakelijke bevestigingen al bestaan.
+- Leren & vragen gebruikt gemeten data, begrensde automatische adaptatie en Home Assistant-meldingen voor nieuwe vragen. Comfort- en veiligheidsgrenzen worden nooit zelfstandig verruimd.
+- De Wallbox blijft volledig read-only; SolarPilot stuurt geen laadstroom, pauze, start of laadmodus.
 
 ## Install via HACS
 
