@@ -90,3 +90,18 @@ Ontbrekende historie wordt niet verzonnen. SolarPilot uploadt niets automatisch.
 6. Zet geen nieuw fysiek toestel op Auto voordat de koppelingen en veilig gedrag zijn gecontroleerd.
 
 Een software-update verandert geen fabrikantbeveiliging en is geen elektrische of hygiënische keuring.
+
+
+## GitHub-publicatie en minder Actions-mails
+
+De normale publicatie van beta.37 gebruikt nog maar één automatische keten:
+
+1. er wordt één keer naar `main` gepusht;
+2. repositorytests, pytest, HACS-validatie en Hassfest draaien samen in **Validate**;
+3. overlappende oudere runs op dezelfde ref worden geannuleerd;
+4. alleen wanneer alles groen is én de manifestversie nog geen tag heeft, maakt dezelfde workflow `v<versie>`;
+5. dezelfde job maakt daarna de GitHub prerelease.
+
+Er is geen dagelijkse geplande Validate-run meer. Een tagpush start ook geen tweede Validate-run. De aparte workflow **Manual Release** blijft alleen als noodroute bestaan voor een tag die al bestaat maar nog geen GitHub release heeft.
+
+Dit vermindert het aantal GitHub Actions-runs dat e-mailmeldingen kan veroorzaken. Of GitHub daadwerkelijk e-mail verstuurt blijft afhankelijk van de persoonlijke GitHub-notificatie-instellingen van het account; SolarPilot wijzigt die accountinstellingen niet.
