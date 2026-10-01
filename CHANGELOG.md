@@ -1,18 +1,35 @@
 # Changelog
 
+## 1.0.0-beta.39 — 2026-10-01
+
+- Gebouwd op de geregistreerde beta.38-bron; geen terugval naar een oudere branch of losse GitHub-state.
+- Herstelt automatische AEG-starts die na langer wachten op zon konden blokkeren doordat beta.38 alle statische startvoorwaarden afzonderlijk na 300 seconden als te oud beschouwde. Alleen ConnectivityState fungeert nu als actuele heartbeat; Ready To Start, exacte `Enabled`, gesloten deur en programmaselectie blijven bruikbaar zolang ze niet unknown/unavailable/restored of werkelijk gewijzigd zijn.
+- Herstelt de eerder afgesproken beschermde fasen Washing, Prewash, Main wash, Rinsing, Drying en Ado Drying naast Running/Paused. AirDry blijft dus dezelfde lopende cyclus tot End Of Cycle.
+- Nieuwe legacy-recovery koppelt de optionele numerieke AEG Alerts-sensor niet automatisch als veiligheidsbron zonder bruikbare technische `DISH_ALARM_*`-vlaggen.
+- Eénmalige beta.39-reparatiemigratie wijzigt uitsluitend een profiel dat aantoonbaar door beta.38 zelf als recovered werd aangemaakt: verkorte faselijst wordt hersteld en alleen een onbewezen automatisch gekozen alarmbron wordt verwijderd. Handmatige profielen blijven onaangeroerd.
+- APP-startregels blijven strikt: uitsluitend nieuwe exacte `Enabled`-overgang, vóór 13:00 vandaag / vanaf 13:00 volgende dag, deadline/nettoestemming ongewijzigd, één START per belading, geen blind retry, nooit STOPRESET/PAUSE/RESUME of stekkerrelais.
+- End Of Cycle blijft eventgestuurd en persistent; Off/Unavailable/Disconnected alleen bewijst geen einde.
+- Centrale prioriteiten, Panasonic/DHW, Wallbox-read-onlybeleid, PV/fase/planner/analyse/leren en bestaande configuratie/leerdata blijven cumulatief behouden.
+- Volledige regressiesuite na implementatie: 1434 tests geslaagd.
+
+## 1.0.0-beta.38 — 2026-10-01
+
+- Herstelt de concrete regressie waardoor de bestaande AEG-afwasmachine niet automatisch kon starten: de beta.35-analyse toonde wel de afwaslogica maar geen actief dishwasher-device, geen APP-ticket en geen afwasprioriteit.
+- Nieuwe conservatieve éénmalige herstelmigratie reconstrueert uitsluitend de reeds bedoelde AEG/Electrolux-koppeling wanneer één eenduidig Home Assistant-apparaat alle verplichte bronnen bevat. Dubbele oude START-entiteiten worden gefilterd; PAUSE, RESUME, STOPRESET en starttijd kunnen nooit als START worden gekozen.
+- Een hersteld profiel krijgt de bestaande APP-regels terug: exact `Enabled`, vóór 13:00 vandaag, vanaf 13:00 volgende kalenderdag, deadline 13:00 met bestaande nettoestemming, één START per belading, geen retry na onzekerheid en eventgestuurd End Of Cycle. Startup met APP al Enabled maakt geen kunstmatige aanvraag.
+- Alleen een werkelijk hersteld legacy-profiel wordt éénmalig op Auto gezet wanneer daarvoor nog geen opgeslagen gebruikerskeuze bestaat. De migratie zelf verstuurt geen fysieke opdracht en wijzigt geen programma.
+- SolarPilot-status exporteert `dishwasher_setup`, zodat ontbrekende, ambigue en herstelde koppelingen zichtbaar worden in plaats van stil uit te vallen.
+- Behoudt de geldige beta.37-verbeteringen: eenvoudige namen, één centrale voorrang, nieuwe gewone toestellen onderaan, Wallbox-vermogen alleen voor toestellen die én boven de Wallbox staan én toestemming hebben, en de éénmalige veilige activering van reeds gekoppelde leer-/regelmodules.
+- Afgesproken prioriteiten blijven behouden: veiligheid/fabrikantregels en noodzakelijk comfort beschermd; voorkeur-AEG vóór Wallbox wanneer actief; Wallbox vóór lagere flexibele lasten en extra 60 °C-buffer volgens de centrale lijst.
+- Volledige cumulatieve regressiesuite, release-uitleg, veldhulp, overdrachtsdossier en installatiepakket worden samen vernieuwd.
+
 ## 1.0.0-beta.37 — 2026-10-01
 
-- Dashboard en configuratie hernoemd in gewone taal: Alleen bekijken, Automatisch regelen, Toestellen, Warmte & comfort, Auto & batterij, Voorrang en Export.
-- Centrale voorrangslijst is nu de eenduidige dagelijkse bron voor flexibele zonne-energie. De bestaande beta.36-volgorde blijft behouden; nieuwe gewone toestellen komen standaard onderaan en kunnen daarna hoger/lager worden gezet.
-- Wallbox-regel verduidelijkt én runtime gelijkgetrokken met de zichtbare lijst: alleen een toestel bóven Auto laden (Wallbox) én met expliciete toestemming mag tijdens een bevestigde Full Solar-sessie zonnevermogen van de auto benutten. Onder de Wallbox blijft de toestemming opgeslagen maar inactief.
-- Afgesproken volgorde blijft beschermd: noodzakelijk warmtepompcomfort boven flexibele lasten; AEG-afwasmachine vóór Wallbox; Wallbox vóór ontvochtiger; extra warm water tot 60 °C als lagere luxe-zonbuffer.
-- Duplicerende oude Wallbox-prioriteitsweergave verdwijnt zodra de centrale lijst actief is. Per rij staat in begrijpelijke taal of Wallbox-zonnevermogen mag worden gebruikt.
-- Export vereenvoudigd tot één hoofdactie voor een compleet analysebestand voor periodieke controle in ChatGPT; standaard zeven dagen en gepseudonimiseerde namen.
-- Eénmalig beta.37-startprofiel activeert beschikbare analyse-, planner- en leermodules. Bronafhankelijke fase-, Wallbox-, klimaat- en DHW-regels worden alleen geactiveerd als de vereiste bestaande koppelingen en bevestigingen aanwezig zijn.
-- Leren & vragen schakelt naar gemeten sampling, begrensde automatische adaptatie en Home Assistant-meldingen. De eenmalige migratie stuurt niet meteen een notificatie en overschrijft latere gebruikerskeuzes niet.
-- Analyse kan live aan/uit zonder volledige integratieherlading; logregistratie volgt die instelling direct.
-- Nieuwe fysieke toestelrechten, ontbrekende entiteiten, DHW-veiligheidsbevestiging en batterij-eigenaarschap worden nooit automatisch verzonnen of toegekend.
-- GitHub-validatie en publicatie zijn samengevoegd tot één normale keten: alleen `main`, pull requests naar `main` en handmatige starts kunnen Validate starten; de dagelijkse schedule en tag-validatie zijn weg. Overlappende runs op dezelfde ref worden geannuleerd. Na één volledig groene `main`-validatie maakt dezelfde workflow alleen bij een nieuwe manifestversie de tag, het ZIP-pakket en de GitHub-prerelease. De aparte Release-workflow is alleen nog een handmatige noodroute voor een bestaande tag. Dit vermindert dubbele/periodieke Actions-runs en dus de mogelijke GitHub-mails.
+- Eenvoudigere dashboardnamen en configuratiegroepen voor niet-technische bediening.
+- Centrale zichtbare volgorde werd leidend: Wallbox-zonnevermogen kan alleen worden gebruikt door een toestel dat boven de Wallbox staat én daarvoor expliciet toestemming heeft.
+- Nieuwe gewone flexibele toestellen starten onderaan de lijst; een voorkeurs-AEG-profiel blijft vóór de Wallbox wanneer die logica van toepassing is.
+- Eénmalig veilig activeringsprofiel voor analyse, planner en bestaande bronafhankelijke modules; geen ontbrekende bron, veiligheidsbevestiging of actuatorrecht wordt verzonnen.
+- Analyse-logregistratie volgt live het aan/uitzetten van de analysefunctie.
 
 ## 1.0.0-beta.36 — 2026-10-01
 

@@ -1,6 +1,6 @@
-> **Actuele release: beta.36.** De centrale prioriteitenlijst wordt bij upgrade automatisch leidend met behoud van de bestaande volgorde. Controleer na installatie vooral Wallbox-sessie, 50/46 °C-boilerstatus, klimaat-leerstatus en meetdekking. De volledige huidige werking staat in `docs/ACTUELE_WERKING.md`.
+> **Actuele release: beta.39.** Deze release bouwt op beta.38 en herstelt de automatische AEG-start: statische veilige statussen verlopen niet meer kunstmatig tijdens wachten op zon, de volledige cyclusfasen zijn terug beschermd en een onbewezen automatisch alarmblok wordt gerepareerd. Centrale prioriteiten, APP-/13:00-regels, warmtepompregels en leerdata blijven behouden.
 
-# SolarPilot beta.36 — HACS eerste installatie
+# SolarPilot beta.39 — installatie en upgrade
 
 Dit is de aanbevolen eerste installatie.
 
@@ -11,7 +11,7 @@ Dit is de aanbevolen eerste installatie.
 
 - Maak een volledige Home Assistant-back-up.
 - Installeer/configureer HACS als dat nog niet gebeurd is.
-- SolarPilot blijft tijdens de eerste controle in **Observatie**.
+- Een nieuwe installatie blijft tijdens de eerste controle in **Alleen bekijken**.
 
 ## 2. SolarPilot via HACS toevoegen
 
@@ -33,11 +33,11 @@ Heb je een installatie-specifieke privébundel, plaats dan `private_bundle.json`
 /config/custom_components/solar_pilot/userfiles/private_bundle.json
 ```
 
-Ga daarna naar **SolarPilot → Configureren → Geavanceerd & systeem → Privéprofiel & historiek** en kies importeren/herladen. De bundel vult alleen lege koppelingen in en gebruikt uitsluitend entiteiten die op dat moment werkelijk bestaan. Historische aggregaten worden als bootstrap gebruikt. Fysieke klimaatbediening, fase-afbouw en boilerregeling worden niet automatisch vrijgegeven; SolarPilot blijft in Observatie.
+Ga daarna naar **SolarPilot → Configureren → Geavanceerd & systeem → Privéprofiel & historiek** en kies importeren/herladen. De bundel vult alleen lege koppelingen in en gebruikt uitsluitend entiteiten die op dat moment werkelijk bestaan. Historische aggregaten worden als bootstrap gebruikt. Fysieke klimaatbediening, fase-afbouw en boilerregeling worden niet automatisch vrijgegeven; SolarPilot blijft bij een nieuwe installatie in Alleen bekijken.
 
 ## 4. Eerste controle
 
-Controleer in Observatie achtereenvolgens P1/PV, Forecast.Solar/lokale schaduw, L1/L2/L3, Panasonic warm water, slim klimaat, Wallbox read-only en de Planning-tab.
+Controleer in Alleen bekijken achtereenvolgens P1/PV, Forecast.Solar/lokale schaduw, L1/L2/L3, Panasonic warm water, slim klimaat, Wallbox read-only en de Planning-tab.
 
 Zet PV Excess Control en de twee oude boilerautomatiseringen pas uit wanneer SolarPilot daadwerkelijk klaar is om over te nemen.
 
@@ -63,3 +63,15 @@ Afwasmachine-start met eenmalige klaarzettoestemming en native AEG-START, nooit 
 onder warmtepompcomfort en boven Wallbox, lagere verbruikers en extra 60 °C.
 [APP en deadline](docs/BETA31_INSTELLEN.md) zijn cumulatief inbegrepen.
 Volledige faseprofielplanning blijft uitgesteld tot de latere Shelly-update.
+
+
+## Beta.39-upgrade: AEG-afwasmachine controleren
+
+Beta.39 repareert een profiel dat door beta.38 automatisch werd hersteld zonder handmatige profielen generiek te herschrijven. Voor de echte test:
+
+1. Controleer **SolarPilot → Toestellen** en **Voorrang**.
+2. Kies het AEG-programma, sluit de deur en zet APP/remote-start uit en opnieuw aan zodat exact `Enabled` als nieuwe overgang wordt gezien.
+3. Controleer geplande dag/deadline en wachtrede. Een onveranderde Ready To Start/deur/programmakeuze mag niet meer alleen door ouderdom na vijf minuten afvallen zolang ConnectivityState actueel blijft.
+4. Er mag maximaal één native START worden verstuurd. Een lopende Washing/Rinsing/Drying/Ado Drying-fase blijft beschermd tot het echte End Of Cycle.
+
+Zie `docs/BETA39_INSTELLEN.md` voor de volledige upgrade- en rollbackprocedure.

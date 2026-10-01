@@ -1,30 +1,28 @@
-> **Nieuw: beta.37** — eenvoudiger dashboardtaal, één centrale verschuifbare voorrangslijst, eenduidige Wallbox-regels, één complete analyse-export en een éénmalig startprofiel dat beschikbare regelingen en leermodules activeert zonder ontbrekende bronnen of veiligheidsbevestigingen te verzinnen.
+> **Nieuw: beta.39** — herstelt de automatische AEG-afwasstart na de beta.38-recovery: statische veilige startvoorwaarden verlopen niet meer kunstmatig na vijf minuten, de volledige cyclusfasen zijn terug beschermd en een onbewezen automatisch gekoppelde alarmbron blokkeert niet langer.
 
 # SolarPilot
 
 SolarPilot is a local Home Assistant Energy Management System (EMS) for PV surplus, flexible loads, Panasonic Aquarea hot-water policy, Wallbox Full Solar coexistence, phase analysis, capacity-tariff awareness, local PV/shade learning, slow thermal-climate learning, future home batteries and a unified rolling-horizon planner.
 
-> **Status:** beta.37 · public HACS beta. De dashboardmodus **Alleen bekijken** blijft de veilige observatiestand; **Automatisch regelen** voert alleen reeds toegestane fysieke regels uit.
+> **Status:** beta.39 · public HACS beta. Start nieuwe installaties in **Alleen bekijken**. Do not enable physical control for several devices at once.
 
 
 > **Updates zijn cumulatief.** Je hoeft tussenliggende beta-versies niet één voor één te installeren of publiceren. Installeer de nieuwste release over je bestaande SolarPilot-installatie; Home Assistant-configuratie en lokale leerdata blijven behouden.
 
-## Current DHW policy (preserved in beta.37)
+## Current DHW policy (preserved in beta.39)
 
 Normal tank setpoint and monitored comfort floor are independent (new defaults 50/46 °C). No deadband-compensating 52 °C boost or Force DHW. A 50 °C target with a -5 °C native differential can reheat around 45 °C: 46 °C is monitored, not guaranteed and not a hygiene standard. Optional bounded evening solar storage waits for space climate; see `docs/BETA28_INSTELLEN.md`. Existing setpoints and permissions migrate without silent profile activation.
 
 
-## Nieuw in beta.37
+## Nieuw in beta.39
 
-- **Voorrang** is de enige dagelijkse plek voor de volgorde van flexibele zonne-energie. Veiligheid en noodzakelijk Panasonic-comfort staan vast bovenaan; bestaande beta.36-prioriteiten blijven behouden.
-- Toestellen boven **Auto laden (Wallbox)** kunnen alleen zonnevermogen van de auto gebruiken wanneer ook expliciet **Ja · Wallbox mag terugregelen** is gekozen. Onder de Wallbox blijft die toestemming inactief.
-- Nieuwe gewone flexibele toestellen komen standaard onderaan de lijst en kunnen daarna op desktop of mobiel hoger/lager worden gezet. Nieuwe toestellen krijgen geen automatische fysieke starttoestemming.
-- De dashboardtaal is vereenvoudigd: **Alleen bekijken**, **Automatisch regelen**, **Toestellen**, **Warmte & comfort**, **Auto & batterij**, **Voorrang** en **Export**.
-- **Export** heeft één hoofdactie voor een compleet analysebestand dat je zelf in ChatGPT kunt uploaden. Standaard omvat het zeven dagen en pseudonimiseert het namen.
-- Bij de eerste beta.37-start worden beschikbare analyse- en leermodules éénmalig geactiveerd. Bronafhankelijke regels worden alleen ingeschakeld wanneer hun koppelingen en noodzakelijke bevestigingen al bestaan.
-- Leren & vragen gebruikt gemeten data, begrensde automatische adaptatie en Home Assistant-meldingen voor nieuwe vragen. Comfort- en veiligheidsgrenzen worden nooit zelfstandig verruimd.
-- De Wallbox blijft volledig read-only; SolarPilot stuurt geen laadstroom, pauze, start of laadmodus.
-- GitHub-publicatie gebruikt één automatische keten: na één volledig groene `main`-validatie wordt een nieuwe manifestversie automatisch getagd en als prerelease gepubliceerd; tagpushes en dagelijkse schedules starten geen tweede validatie meer.
+- Gebouwd op de geregistreerde beta.38-bron; geen terugval naar een oudere SolarPilot-versie.
+- `ConnectivityState` is voortaan de actuele heartbeat voor AEG-startveiligheid. Ready To Start, exacte `Enabled`, gesloten deur en programmaselectie mogen veilig onveranderd blijven terwijl SolarPilot op zon wacht; unknown/unavailable/restored of een afwijkende waarde blijft blokkeren.
+- Herstelt de volledige beschermde AEG-cyclusfasen: Running, Washing, Prewash, Main wash, Rinsing, Drying, Ado Drying en Paused.
+- Een automatisch hersteld profiel krijgt niet langer een numerieke Alerts-sensor als optionele veiligheidsbron wanneer echte technische `DISH_ALARM_*`-vlaggen ontbreken.
+- Eénmalige migratie repareert uitsluitend het door beta.38 zelf gemarkeerde recovered-profiel. Handmatige profielen worden niet generiek overschreven.
+- Alle bestaande APP-/13:00-/één-START-/End Of Cycle-/AirDry-regels, centrale prioriteiten, Wallbox-read-onlybeleid, Panasonic/DHW-regels, fasebewaking, planner, analyse en leerdata blijven cumulatief behouden.
+- Volledige regressiesuite: 1434 tests geslaagd. Zie `docs/BETA39_INSTELLEN.md` en `docs/TESTRESULTATEN_BETA39.md`.
 
 ## Install via HACS
 
@@ -35,7 +33,7 @@ This repository is intended to be added as a **HACS Custom Repository** of type 
 3. Download **SolarPilot**.
 4. Restart Home Assistant.
 5. Go to **Settings → Devices & services → Add integration → SolarPilot**.
-6. Select your grid-power source and optional PV source, then keep the integration in **Observatie** during the first checks.
+6. Select your grid-power source and optional PV source, then keep the integration in **Alleen bekijken** during the first checks.
 
 The SolarPilot frontend is shipped inside the integration. No `/config/www` file, Lovelace resource or manual dashboard YAML is required for normal use.
 
@@ -56,7 +54,7 @@ A private bundle is optional. Place exactly one local file at:
 /config/custom_components/solar_pilot/userfiles/private_bundle.json
 ```
 
-Then open **SolarPilot → Configure → Advanced & system → Private profile & history** and apply/reload it. The importer only fills still-empty links to Home Assistant entities that actually exist. Monitoring/advisory modules may be enabled with safe defaults, but physical climate control, phase shedding and DHW control remain explicitly protected. A first setup starts in **Observatie**. On ordinary restart the stored mode resumes only after actual-state reconciliation; unresolved states remain protected. See `IMPORT_PRIVATE_BUNDLE.md`.
+Then open **SolarPilot → Configure → Advanced & system → Private profile & history** and apply/reload it. The importer only fills still-empty links to Home Assistant entities that actually exist. Monitoring/advisory modules may be enabled with safe defaults, but physical climate control, phase shedding and DHW control remain explicitly protected. A first setup starts in **Alleen bekijken**. On ordinary restart the stored mode resumes only after actual-state reconciliation; unresolved states remain protected. See `IMPORT_PRIVATE_BUNDLE.md`.
 
 ## Safe removal
 

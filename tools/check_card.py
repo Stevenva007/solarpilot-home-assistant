@@ -61,7 +61,8 @@ with sync_playwright() as p:
         assert label in planning_text, label
     assert page.locator("solar-pilot-card >> [data-planner-setting]").count() == 15
     assert "Lokale namiddagschaduw" in planning_text
-    assert "82%" in planning_text and "92%" in planning_text
+    assert "92%" in planning_text
+    assert "82%" not in planning_text  # geen losse misleidende totaalscore meer
     assert "beschermde cyclus" in planning_text.lower() and "Eco" in planning_text
 
     # Daily cost is separate from forecast and own PV is not subtracted twice.

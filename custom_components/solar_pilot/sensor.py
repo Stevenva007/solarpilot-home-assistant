@@ -73,7 +73,7 @@ class SolarSensor(SolarEntity, SensorEntity):
         "meter_note", "learning", "profiles", "handover", "dhw", "phase_learning", "phase_attribution",
         "battery_analysis", "local_pv", "sections", "ems", "planner", "cycle_learning",
         "smart_climate", "battery_fleet", "device_management", "priority_board", "historical_phase_profile", "today", "forecast",
-        "capacity", "phase", "economy", "warnings", "advice", "legacy_conflicts",
+        "capacity", "phase", "economy", "warnings", "advice", "legacy_conflicts", "dishwasher_setup",
     })
 
     def __init__(self, runtime, suffix, name, device_id=None):
@@ -268,6 +268,7 @@ class SolarSensor(SolarEntity, SensorEntity):
                 "learning_insights": r.learning_hub.summary(),
                     "device_management": r.live_options.overview(),
                     "priority_board": r.priority_board.overview(),
+                    "dishwasher_setup": getattr(r, "dishwasher_recovery_info", {"status": "not_checked"}),
                     "ems": r.ems_overview(), "recent_decisions": list(r.logs), "recovery": list(r.recovery.values()),
                     "mode_entity": r.entity_id("select", "mode"), "reset_entity": r.entity_id("button", "reset"),
                     "prepare_remove_entity": r.entity_id("button", "prepare_remove"),

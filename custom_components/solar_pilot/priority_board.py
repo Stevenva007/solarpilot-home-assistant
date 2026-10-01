@@ -1,8 +1,9 @@
-"""One understandable allocation order, without rewriting device bindings or rights.
+"""One explicit allocation order, without rewriting device bindings or rights.
 
-The board is the single place where flexible solar priorities are ordered.
-Safety and necessary Panasonic comfort remain fixed above it. New flexible
-devices start at the bottom and can then be moved deliberately by the user.
+Absent a saved board, the beta.34 controllers are untouched. Saving is an admin
+operation under the existing runtime lock. Safety/comfort is NOT a sortable load.
+The optional DHW buffer stays behind EV and the protected dishwasher preference;
+it can be placed among other lower loads without borrowing EV watts.
 """
 from __future__ import annotations
 

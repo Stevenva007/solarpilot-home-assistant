@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections import deque
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import math
 import re
 import time
@@ -111,9 +111,23 @@ def config_errors(hass, cfg):
     return errors
 
 
-def fresh(hass, eid, age, wall):
+def known(hass, eid):
+    """Return a current HA state when its value is usable, regardless of age.
+
+    AEG exposes several *stateful* guards (door, selected program, remote permission,
+    native delay). They may remain unchanged for much longer than five minutes. Their
+    safety freshness comes from the appliance connectivity heartbeat; rejecting each
+    unchanged guard on its own timestamp made legitimate delayed solar starts expire.
+    """
     obj = hass.states.get(eid) if eid else None
     if obj is None or norm(obj.state) in {norm(x) for x in UNKNOWN} or obj.attributes.get("restored"):
+        return None
+    return obj
+
+
+def fresh(hass, eid, age, wall):
+    obj = known(hass, eid)
+    if obj is None:
         return None
     try:
         stamp = getattr(obj, "last_reported", obj.last_updated).timestamp()
@@ -132,20 +146,29 @@ class Reading:
     stamp: float = 0.0
     program: str = ""
     phase: str = ""
+    gates: dict = field(default_factory=dict)
 
 
 def read(hass, cfg, wall=None):
     c, wall = settings(cfg), time.time() if wall is None else wall
     age = c["dishwasher_stale_s"]
-    obj = fresh(hass, c.get("dishwasher_state_entity"), age, wall)
+    # Connectivity is the freshness heartbeat. Static appliance guards may remain
+    # unchanged for hours and must not become unsafe merely because HA did not emit
+    # a new identical state. They still fail closed on unknown/unavailable/restored.
     link = fresh(hass, c.get("dishwasher_connection_entity"), age, wall)
+    obj = known(hass, c.get("dishwasher_state_entity"))
     r = Reading(raw=str(getattr(obj, "state", "")))
-    if link is None or norm(link.state) not in accepted(c["dishwasher_connected_states"]):
-        r.reason = "Afwasmachine offline of terugmelding te oud"
+    r.gates["connection"] = bool(link and norm(link.state) in accepted(c["dishwasher_connected_states"]))
+    if not r.gates["connection"]:
+        r.reason = "Afwasmachine offline of verbindingsterugmelding te oud"
         return r
     if obj is None:
+        r.reason = "Afwasmachinestatus onbekend of onbeschikbaar"
         return r
-    r.stamp = getattr(obj, "last_reported", obj.last_updated).timestamp()
+    try:
+        r.stamp = getattr(obj, "last_reported", obj.last_updated).timestamp()
+    except (AttributeError, ValueError, TypeError):
+        r.stamp = wall
     r.phase = str(obj.state)[:80]
     val = norm(obj.state)
     if val in accepted(c["dishwasher_running_states"]):
@@ -160,10 +183,10 @@ def read(hass, cfg, wall=None):
     else:
         r.reason = "Afwasmachinestatus niet herkend: " + str(obj.state)[:80]
         return r
-    prog = fresh(hass, c.get("cycle_program_entity"), age, wall)
+    prog = known(hass, c.get("cycle_program_entity"))
     r.program = str(prog.state)[:80] if prog else ""
     if c.get("dishwasher_phase_entity"):
-        phase = fresh(hass, c["dishwasher_phase_entity"], age, wall)
+        phase = known(hass, c["dishwasher_phase_entity"])
         r.phase = str(phase.state)[:80] if phase else "onbekend"
     if r.active or r.finished:
         return r
@@ -174,35 +197,41 @@ def read(hass, cfg, wall=None):
         ("dishwasher_remote_entity", "dishwasher_remote_states", "Start op afstand niet bevestigd"),
         ("dishwasher_door_entity", "dishwasher_closed_states", "Deur niet aantoonbaar gesloten"),
     ):
-        value = fresh(hass, c.get(key), age, wall)
+        value = known(hass, c.get(key))
         exact_remote = key == "dishwasher_remote_entity" and c.get("dishwasher_arming_mode") == "app"
-        if value is None or (str(value.state) != "Enabled" if exact_remote else norm(value.state) not in accepted(c[values])):
+        ok = value is not None and (str(value.state) == "Enabled" if exact_remote else norm(value.state) in accepted(c[values]))
+        r.gates["remote" if key == "dishwasher_remote_entity" else "door"] = ok
+        if not ok:
             r.reason = label
             return r
-    if not prog:
-        r.reason = "Programmakeuze ontbreekt of is verouderd"
+    program_value = norm(prog.state) if prog else ""
+    r.gates["program"] = prog is not None and program_value not in {"", "noprogram", "none", "off"}
+    if not r.gates["program"]:
+        r.reason = "Programmakeuze ontbreekt, is onbekend of er is geen programma geselecteerd"
         return r
     if c.get("dishwasher_delay_entity"):
-        obj_delay = fresh(hass, c["dishwasher_delay_entity"], age, wall)
+        obj_delay = known(hass, c["dishwasher_delay_entity"])
         try:
             delay = float(obj_delay.state) if obj_delay else math.nan
         except (TypeError, ValueError):
             delay = math.nan
-        if not math.isfinite(delay) or delay != 0:
+        r.gates["native_delay_zero"] = math.isfinite(delay) and delay == 0
+        if not r.gates["native_delay_zero"]:
             r.reason = "Eigen uitgestelde start van afwasmachine actief of onbekend"
             return r
     if c.get("dishwasher_alert_entity"):
-        alert = fresh(hass, c["dishwasher_alert_entity"], age, wall)
+        alert = known(hass, c["dishwasher_alert_entity"])
         safe = alert is not None and norm(alert.state) in accepted(c["dishwasher_safe_states"])
         if c.get("dishwasher_alert_mode") == "aeg_attributes":
-            # The aggregate includes consumable warnings. Never whitelist a numeric
-            # count such as 2: inspect explicit alarm flags from the AEG API instead.
+            # The aggregate numeric count is not a safety policy. Only explicit
+            # non-consumable AEG alarm flags can prove this optional gate safe.
             flags = {k: v for k, v in getattr(alert, "attributes", {}).items()
                      if k.startswith("DISH_ALARM_") and k not in
-                     ("DISH_ALARM_RINSE_AID_LOW", "DISH_ALARM_SALT_MISSING")}
-            safe = bool(alert and flags) and all(str(v) == "OFF" for v in flags.values())
+                     ("DISH_ALARM_RINSE_AID_LOW", "DISH_ALARM_SALT_MISSING")} if alert else {}
+            safe = bool(flags) and all(str(v) == "OFF" for v in flags.values())
+        r.gates["alarm"] = safe
         if not safe:
-            r.reason = "Afwasmachine meldt een alarm of onbekende alarmstatus"
+            r.reason = "Afwasmachine-alarmbron is actief, onbekend of niet bruikbaar als veilige startvoorwaarde"
             return r
     button = hass.states.get(c.get("start_button", ""))
     # A never-pressed HA button legitimately reports 'unknown'. Other guards
@@ -210,6 +239,7 @@ def read(hass, cfg, wall=None):
     if button is None or str(button.state).lower() == "unavailable" or button.attributes.get("restored"):
         r.reason = "AEG START-knop ontbreekt of is onbeschikbaar"
         return r
+    r.gates["start_button"] = True
     r.ready = True
     return r
 
@@ -330,7 +360,7 @@ class DishwasherControl:
         ticket = self.tickets.get(i, {})
         profiles = self.profiles.get(i, [])
         return {"ready": r.ready, "prepared": allowed, "ticket_armed": bool(ticket.get("armed")),
-                "attempted": bool(ticket.get("attempted")), "gate_reason": reason,
+                "attempted": bool(ticket.get("attempted")), "gate_reason": reason, "gates": dict(r.gates),
                 "phase": r.phase, "program": r.program, "source_age_s": round(max(0, wall-r.stamp), 1) if r.stamp else None,
                 "profile_count": len(profiles), "last_measured_profile": profiles[-1] if profiles else None,
                 "profile_note": "Exclusief gemeten cyclusprofielen" if profiles else "Nog geen volledig gemeten cyclus; fasen zijn onbekend, niet 0 W",

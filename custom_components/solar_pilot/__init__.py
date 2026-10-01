@@ -19,6 +19,7 @@ from .analysis_export import storage_key as analysis_storage_key
 from .consumer_history_runtime import history_storage_key
 from .private_bundle import build_private_import, delete_private_files_if_requested, load_private_bundle
 from .historical import load_bundled_seed
+from .dishwasher_recovery import recover_legacy_dishwasher
 
 from .const import DOMAIN, PLATFORMS
 from .runtime import SolarRuntime
@@ -55,11 +56,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     imported_options, import_result = build_private_import(
         hass, dict(entry.data), dict(entry.options), bundle=private_bundle
     )
-    if import_result.get("changed"):
-        hass.config_entries.async_update_entry(entry, options=imported_options)
+    recovered_options, dishwasher_recovery = recover_legacy_dishwasher(hass, imported_options)
+    if import_result.get("changed") or dishwasher_recovery.get("changed"):
+        hass.config_entries.async_update_entry(entry, options=recovered_options)
     historical_seed = await hass.async_add_executor_job(load_bundled_seed, private_bundle)
     runtime = SolarRuntime(hass, entry, historical_seed=historical_seed)
     runtime.private_bundle_import = import_result
+    runtime.dishwasher_recovery_info = dishwasher_recovery
     entry.runtime_data = runtime
     # Remove only SolarPilot's orphaned virtual entities, never underlying devices.
     valid_prefixes = [f"{entry.entry_id}_{i}_" for i in runtime.configs]

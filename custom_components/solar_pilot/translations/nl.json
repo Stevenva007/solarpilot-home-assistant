@@ -688,7 +688,7 @@
         }
       },
       "comfort_hub": {
-        "title": "Comfort & warmtepomp",
+        "title": "Warmte & comfort",
         "description": "Warm water en ruimteklimaat gebruiken dezelfde Panasonic-installatie maar blijven aparte regelblokken. Voor ruimteklimaat staan alle fijninstellingen, leerbevindingen, meldingen, advies en gevolgen overzichtelijk in de tab Comfort van het SolarPilot-dashboard.",
         "menu_options": {
           "dhw": "Sanitair warm water",
@@ -697,7 +697,7 @@
         }
       },
       "storage_hub": {
-        "title": "Opslag & laden",
+        "title": "Auto & batterij",
         "description": "De Wallbox blijft autonoom en read-only. Thuisbatterijen kunnen worden geanalyseerd en later, na expliciete toestemming, als vloot worden aangestuurd.",
         "menu_options": {
           "wallbox": "Wallbox · koppeling",
@@ -706,7 +706,7 @@
         }
       },
       "intelligence_hub": {
-        "title": "Voorspellen & optimaliseren",
+        "title": "Voorspellen & leren",
         "description": "Externe zonnevoorspelling, het lokaal geleerde PV-/schaduwmodel en de planner staan hier samen. Actuele meters blijven altijd leidend.",
         "menu_options": {
           "forecast": "Handmatige fallback-forecastbronnen",
@@ -716,7 +716,7 @@
         }
       },
       "advanced_hub": {
-        "title": "Geavanceerd & systeem",
+        "title": "Instellingen & systeem",
         "description": "Deze instellingen hoef je normaal niet dagelijks te wijzigen. Pas timing en leerparameters alleen aan wanneer je weet waarom.",
         "menu_options": {
           "timing": "Algemene timing & meetkwaliteit",

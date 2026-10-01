@@ -31,18 +31,23 @@ def test_valid_reading_not_permission_without_preparation():
  ('sensor.dw_connection','Disconnected','offline'),('sensor.dw_connection','unknown','offline'),
  ('sensor.dw_phase','Unavailable','onbekend'),('sensor.dw_phase','NewUnexpectedState','niet herkend'),
  ('sensor.dw_remote','Not Safety Relevant Enabled','afstand'),('sensor.dw_remote','Disabled','afstand'),
- ('binary_sensor.dw_door','on','Deur'),('select.dw_program','unknown','Programma'),
+ ('binary_sensor.dw_door','on','Deur'),('select.dw_program','unknown','Programma'),('select.dw_program','No Program','Programma'),
  ('button.dw_start','unavailable','START')])
 def test_readiness_fail_closed(eid,state,reason):
     r,h,c=setup(); h.states.set(eid,state); d=dw.read(h,c)
     assert not d.ready and reason.lower() in d.reason.lower()
 
-@pytest.mark.parametrize('eid', ['sensor.dw_connection','sensor.dw_phase','sensor.dw_remote','binary_sensor.dw_door','select.dw_program'])
-def test_every_live_guard_rejects_stale(eid):
-    r,h,c=setup(); old=h.states.get(eid);h.states.set(eid,old.state,age=301)
+def test_connectivity_heartbeat_rejects_stale_device():
+    r,h,c=setup(); old=h.states.get('sensor.dw_connection');h.states.set('sensor.dw_connection',old.state,age=301)
     assert not dw.read(h,c).ready
 
-@pytest.mark.parametrize('state', ['Running','Washing','Prewash','Main wash','Rinsing','Drying','Paused'])
+
+@pytest.mark.parametrize('eid', ['sensor.dw_phase','sensor.dw_remote','binary_sensor.dw_door','select.dw_program'])
+def test_unchanged_static_guard_may_be_old_when_connectivity_is_fresh(eid):
+    r,h,c=setup(); old=h.states.get(eid);h.states.set(eid,old.state,age=3600)
+    assert dw.read(h,c).ready
+
+@pytest.mark.parametrize('state', ['Running','Washing','Prewash','Main wash','Rinsing','Drying','Ado Drying','Paused'])
 def test_running_phase_not_zero_or_available_for_new_start(state):
     r,h,c=setup();h.states.set('sensor.dw_phase',state);h.states.set('binary_sensor.dw_door','on')
     d=dw.read(h,c);assert d.active is True and not d.ready and not d.finished

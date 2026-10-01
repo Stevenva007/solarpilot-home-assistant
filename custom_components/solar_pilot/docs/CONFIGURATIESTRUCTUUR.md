@@ -1,6 +1,6 @@
 # SolarPilot · Configuratiestructuur
 
-**Geldig voor 1.0.0-beta.27.** Dit document beschrijft waar instellingen staan. Voor de inhoudelijke EMS-regels geldt uitsluitend `ACTUELE_WERKING.md`.
+**Geldig voor 1.0.0-beta.39.** Dit document beschrijft waar instellingen staan. Voor de inhoudelijke EMS-regels geldt uitsluitend `ACTUELE_WERKING.md`.
 
 ## Configuratiecentrum
 
@@ -14,17 +14,17 @@ Toont modus, gekoppelde bronnen, actieve onderdelen, waarschuwingen en concurrer
 
 Hier staan de P1-/PV-bronnen, tekenrichting, injectiereserve, maximale softwarematige netafname, kwartierpiek, L1/L2/L3 en energieprijzen.
 
-### Verbruikers & prioriteiten
+### Toestellen
 
-Flexibele lasten worden via vier stappen beheerd: **Basis → Koppeling → Gedrag & bescherming → Planning & energie**. Nieuwe apparaten blijven standaard **Uitgesloten** totdat je ze bewust op Auto zet. In **4/4 Planning & energie → Voorrang ten opzichte van de Wallbox** kies je per toestel de globale voorkeur, dit toestel eerst of Wallbox eerst met klein-overschotfallback. Minimumlooptijden blijven beschermd.
+Flexibele lasten worden via **Basis → Koppeling → Gedrag & bescherming → Planning & energie** beheerd. Nieuwe apparaten blijven **Uitgesloten** totdat je ze bewust op Auto zet. De gezamenlijke volgorde en toestemming om zonnevermogen van de auto te gebruiken staan centraal op **Voorrang → Wie krijgt eerst zonne-energie?**. Na een bevestigde centrale wijziging verdwijnen de oude prioriteitsvelden uit de toestelwizard. Zonder centrale wijziging blijft de bestaande regeling leidend. Minimumlooptijden blijven beschermd.
 
-### Comfort & warmtepomp
+### Warmte & comfort
 
-**Sanitair warm water** bevat de Panasonic-bronnen en de actuele 43/49/50/60 °C-regels, nachtvenster, koelblokkering en sterilisatiebescherming.
+**Sanitair warm water** bevat de Panasonic-bronnen en het gewone 50 °C-doel, de bewaakte 46 °C-grens en de afzonderlijke extra zonnebuffer (standaard 60 °C), nachtvenster, koelblokkering en sterilisatiebescherming.
 
 **Ruimteklimaat · basis** koppelt de Panasonic-zones, weather-entiteit, actuele buitentemperatuur en de belangrijkste comfortbanden. SolarPilot stuurt nooit HEAT of COOL; Panasonic AUTO beslist dat zelf.
 
-**Ruimteklimaat · geavanceerd** blijft beschikbaar als fallback-configuratie, maar de normale plaats om het klimaat te begrijpen en fijn af te stellen is voortaan het **dashboard → Comfort → Ruimteklimaat**.
+**Ruimteklimaat · geavanceerd** blijft beschikbaar als fallback-configuratie, maar de normale plaats om het klimaat te begrijpen en fijn af te stellen is voortaan het **dashboard → Warmte & comfort → Ruimteklimaat**.
 
 Daar vind je in één samenhangend blok:
 
@@ -61,28 +61,33 @@ Een door SolarPilot gestarte OFF/coastperiode wordt achteraf als **correct**, **
 
 **Niet geïmplementeerd:** raam- en deurcontacten hebben geen invloed op het klimaatmodel of AUTO/coast-beslissingen.
 
-### Opslag & laden
+### Auto & batterij
 
 Wallbox blijft alleen-lezen. Onder **Wallbox · koppeling** stel je het werkelijke minimum zonnelaadvermogen in (0 = nog niet bevestigd) en optioneel een specifiek aansluitingssignaal van deze laadpaal. Onder de geavanceerde Wallbox-instellingen staan stabiliteit, terugvalmarge, maximale wachttijd en herbeoordeling. Een aangesloten maar volle, gepauzeerde of niet-vragende auto houdt geen onnodige reserve vast. Toekomstige thuisbatterijen kunnen read-only of expliciet bestuurbaar worden gekoppeld; fysieke batterijbediening vereist meerdere toestemmingen. Batterij-what-if blijft adviserend zonder hardware.
 
-### Voorspellen & optimaliseren
+### Voorspellen & leren
 
 Forecast.Solar, lokaal PV-/schaduwmodel en planner. Actuele meters blijven altijd belangrijker dan forecast of historische patronen.
 
-### Geavanceerd & systeem
+### Export
+
+Eén hoofdactie **Analysebestand downloaden** maakt het volledige onderzoeksbestand voor periodieke controle. Standaard wordt zeven dagen gevraagd en worden namen gepseudonimiseerd. Extra periode-/naamkeuzes staan onder de geavanceerde exportopties.
+
+### Instellingen & systeem
 
 Technische engine-timing, meetkwaliteit, faseherkenning, Wallbox-herkenning, privéprofiel/historiek en systeeminformatie. Dit zijn geen dagelijkse instellingen. **Privéprofiel & historiek** leest uitsluitend het lokale `userfiles/private_bundle.json`, toont welke bron-groepen ontbreken en kan de bundel opnieuw conservatief toepassen zonder fysieke regeltoestemmingen te activeren.
 
 ## Dashboardstructuur
 
-De gewone kaart heeft zeven hoofdtabs:
+De gewone kaart heeft negen hoofdtabs:
 
 - **Overzicht** — beslisinformatie en belangrijkste KPI's;
-- **Verbruikers** — flexibele lasten en prioriteiten;
-- **Comfort** — boiler én het volledige klimaat-Control Center;
+- **Voorrang** — alle flexibele zonneprioriteiten, Wallbox en extra warmwaterbuffer in één verschuifbare lijst;
+- **Toestellen** — apparaten toevoegen, koppelen, plannen, historiek bekijken of vervangen;
+- **Warmte & comfort** — boiler én het volledige klimaat-Control Center;
 - **Planning** — gezamenlijke 24–48-uursplanning, dagdoelen, beschermde cyclusprofielen, planfouten, what-if-replay, tijdlijn en plannerinstellingen;
 - **Energie** — kwartierpiek, fasen, forecast en lokaal PV-model;
-- **Opslag** — batterijvloot en batterijscenario's;
+- **Auto & batterij** — Wallbox, batterijvloot en batterijscenario's;
 - **Uitleg** — de release-gebonden actuele werking.
 
 Moduskeuze en kritieke waarschuwingen blijven bovenaan zichtbaar.
@@ -94,7 +99,7 @@ Nieuwe functies horen in een bestaande logische categorie tenzij dat echt niet k
 
 ## Planning-tab
 
-De Planning-tab hoort bij **Voorspellen & optimaliseren → Unified Planner**. Hier staan horizon, planblokken, dagdoelen, beschermde cycli, voorspelde import/export/kost, 7/30-dagen plannerkwaliteit, recente what-if-replay en alle actieve plannerinstellingen. Wijzigingen vanuit het dashboard tonen eerst een korte uitleg, advies en de gevolgen. Beschermde cycli worden per programma geconfigureerd bij **Verbruikers & prioriteiten → Planning & energie**.
+De Planning-tab hoort bij **Voorspellen & optimaliseren → Unified Planner**. Hier staan horizon, planblokken, dagdoelen, beschermde cycli, voorspelde import/export/kost, 7/30-dagen plannerkwaliteit, recente what-if-replay en alle actieve plannerinstellingen. Wijzigingen vanuit het dashboard tonen eerst een korte uitleg, advies en de gevolgen. Beschermde cycli worden per programma geconfigureerd bij **Toestellen → Planning & energie**.
 
 ### Elektriciteitskost vandaag
 
@@ -102,7 +107,7 @@ De Planning-tab hoort bij **Voorspellen & optimaliseren → Unified Planner**. H
 
 ### Dagoverzicht per verbruiker
 
-**Verbruikers → Dagoverzicht** opent een aparte popup voor het gekozen toestel. Bovenaan staan de dagtotalen; eronder de aan-perioden op een tijdlijn, 7/30-dagenbalkjes en de sessies met de geregistreerde redenen. De datumkiezer, Vandaag en Vorige/Volgende dag veranderen alleen wat je bekijkt. Een actieve sessie wordt als lopend gemarkeerd. De popup blijft open tijdens de gewone dashboardupdates.
+**Toestellen → Dagoverzicht** opent een aparte popup voor het gekozen toestel. Bovenaan staan de dagtotalen; eronder de aan-perioden op een tijdlijn, 7/30-dagenbalkjes en de sessies met de geregistreerde redenen. De datumkiezer, Vandaag en Vorige/Volgende dag veranderen alleen wat je bekijkt. Een actieve sessie wordt als lopend gemarkeerd. De popup blijft open tijdens de gewone dashboardupdates.
 
 De registratie is alleen-lezen en respecteert Home Assistant-leesrechten. Historische redenen van vóór de installatie worden niet ingevuld. Een onbeschikbare status of herstart is een meetgat, geen bewezen stop. Bij een slimme stekker is de draaitijd de ingeschakelde tijd; voor echte compressorlooptijd is een bijpassende actieve-statusbron nodig. De complete begrenzing en opslagregels staan in `ACTUELE_WERKING.md`.
 
@@ -113,3 +118,10 @@ Open onderaan het SolarPilot-dashboard **Configureren met uitleg ?**. De wizard 
 **Sanitair warm water** bestaat nu uit Koppelingen → Temperatuurregels → Nacht, ochtend en avondvoorraad → Terugmelding en stabiliteit. In de nieuwe derde stap staan het nachtbeleid, ochtenddoel/tijd/buffers, avondreserve/zonnehorizon en de optionele voorspellende koelblokkering.
 
 **Wallbox** bevat ook automatisch laadprofiel, optionele laadstroom-/fasebron, handmatig fase-/stroomprofiel en afgeleid zonnelaadminimum. ICP is niet de laadlimiet.
+
+
+## Dagelijkse bediening in beta.39
+
+**Overzicht · Voorrang · Toestellen · Warmte & comfort · Planning · Energie · Auto & batterij · Export · Uitleg**
+
+Voorrang bundelt toestellen, Wallbox en extra boilerwarmte. Vaste comfort- en hygiënebescherming staat zichtbaar erboven. Export bundelt het samenstellen van één lokaal onderzoeksbestand met bestaande privacy- en tijdvensterkeuze. Toestelbeheer, PV-diagnose en Leren & vragen blijven afzonderlijk beschikbaar; alle algemene exportverwijzingen komen op Export uit.

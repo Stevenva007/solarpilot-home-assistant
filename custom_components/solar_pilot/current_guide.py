@@ -3,11 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.37'
+GUIDE_VERSION = '1.0.0-beta.39'
 GUIDE_UPDATED = '2026-10-01'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.37',
+ 'version': '1.0.0-beta.39',
  'updated': '2026-10-01',
  'intro': 'Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst '
           'samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en '
@@ -776,7 +776,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'geannuleerd. Geen extra klaarzetknop in SolarPilot. Ready To Start, actuele '
                               'verbinding, gesloten deur, programma en alarmcontrole blijven vereist voor de '
                               'uiteindelijke start; Unavailable in de aanvullende Cycle phase mag deze '
-                              'gereedstand niet blokkeren.',
+                              'gereedstand niet blokkeren. ConnectivityState is daarbij de actuele '
+                              'bereikbaarheidsheartbeat. Een ongewijzigde Ready To Start-, deur-, programma- '
+                              'of exact Enabled-status verloopt niet meer kunstmatig na vijf minuten alleen '
+                              'omdat Home Assistant geen identieke toestand opnieuw heeft gemeld. '
+                              'Unknown, Unavailable, restored of een werkelijk onveilige waarde blokkeert nog '
+                              'steeds fail-closed. Ook No Program geldt expliciet niet als een geselecteerd '
+                              'programma.',
                               'Standaard geldt 13:00 als uiterste starttijd. Een aanvraag vóór 13:00 wordt op '
                               'dezelfde dag gepland; een aanvraag op of na 13:00 wacht tot de volgende '
                               'kalenderdag. Die volgende dag wordt eerst zon benut, maar uiterlijk 13:00 mag '
@@ -818,7 +824,11 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'van alleen het tellertje. Technische alarmvlaggen moeten OFF zijn; onbekende '
                               'vlaggen of ontbrekende informatie blokkeren. Alleen de benoemde zout- en '
                               'glansmiddelmeldingen tellen niet als startblok. De toestandmodus blijft '
-                              'beschikbaar voor andere expliciete alarmbronnen.',
+                              'beschikbaar voor andere expliciete alarmbronnen. SolarPilot koppelt een '
+                              'optionele numerieke AEG Alerts-sensor niet meer automatisch als veiligheidsbron '
+                              'wanneer daarmee geen echte DISH_ALARM-vlaggen bewezen kunnen worden. Een bewust '
+                              'handmatig gekoppelde alarmbron blijft wel volgens de gekozen fail-closed-regel '
+                              'werken.',
                               'De Shelly wordt alleen als exclusieve vermogensmeter gebruikt. Het voorlopige '
                               'vermogen voor nieuwe profielen is 2000 W, een handmatig te controleren '
                               'planningsschatting, geen geverifieerde specificatie. Bestaande fasegemiddelden '
@@ -840,8 +850,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Het bestaande AEG-voorkeursprofiel blijft bij deze update behouden: gewoon warm '
                               'water, noodzakelijke avondvoorraad en vloerverwarming eerst; daarna de '
                               'afwasmachine, de Wallbox, lagere automatische lasten en extra boilerwarmte. '
-                              'Installeren schakelt geen fysieke starttoestemming, bronbevestiging of '
-                              'Auto-deelname in. Zolang je de centrale lijst niet wijzigt, rangschikt het oude '
+                              'Een gewone nieuwe installatie schakelt geen fysieke starttoestemming, '
+                              'bronbevestiging of Auto-deelname in. De beta.38-herstelmigratie voor de eerder '
+                              'al gebruikte AEG-koppeling kan een verdwenen profiel éénmalig als Auto '
+                              'herstellen; beta.39 herstelt uitsluitend zo’n door beta.38 aangemaakt profiel '
+                              'wanneer de oude migratie een te beperkte faselijst of een onbewezen automatische '
+                              'alarmbron heeft opgeslagen. Dat maakt geen APP-aanvraag en verstuurt geen START. '
+                              'Zolang je de centrale lijst niet wijzigt, rangschikt het oude '
                               'getal binnen de bestaande groepen. Na een bevestigde wijziging bepaalt de '
                               'centrale lijst de relatieve volgorde; de gewone comfortbescherming blijft '
                               'gelden. Een voorkeur-AEG blijft vóór de extra boilerwarmte. De toestemming voor '
@@ -906,8 +921,9 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                            'en Disconnected zijn geen nieuwe belading.',
                            'Normaal boilerdoel 50 °C en bewaakte comfortgrens 46 °C blijven onafhankelijk. '
                            'Geen hersteldoel van 52 °C en geen beloofde fysieke 46 °C-garantie.',
-                           'Deze cumulatieve update bevat beta.31. Geen automatische publicatie, bronkoppeling '
-                           'of fysieke activering. Alle proeven gebruiken fictieve apparatuur.']},
+                           'De actuele release behoudt alle APP-, deadline-, einddetectie- en prioriteitsregels. '
+                           'Softwareproeven gebruiken fictieve apparatuur; een echte start blijft afhankelijk '
+                           'van de live AEG- en Home Assistant-terugmeldingen.']},
               {'title': '17. Export — één onderzoeksbestand voor alle SolarPilot-functies',
                'paragraphs': ['Open Export → Export samenstellen. Een Home Assistant-beheerder kiest 1 uur, 24 '
                               'uur of 7 dagen en downloadt één gestructureerd JSON-bestand voor handmatige '
@@ -1115,7 +1131,9 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'verplaatsbare lijst en zijn niet versleepbaar. Ook handmatige overname, een '
                               'expliciete boost, toegestane deadline en minimale looptijden behouden hun '
                               'bescherming. Extra boilerwarmte naar 60 °C is wél een flexibele zonnestroomtaak '
-                              'en blijft na de Wallbox; hij gebruikt nooit geschat of onbewezen EV-vermogen.',
+                              'en gebruikt nooit Wallbox-vermogen. De centrale volgorde is zichtbaar en '
+                              'leidend; de 60 °C-buffer mag normaal comfort of een beschermde afwasstart niet '
+                              'verdringen.',
                               'Na bevestiging bepaalt de centrale volgorde de automatische verdeling tussen '
                               'gewone verbruikers en hun positie ten opzichte van de Wallbox. De gewone '
                               'realtime berekening en planner gebruiken dezelfde toestelrangorde. Een hoger '
@@ -1137,8 +1155,8 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'wordt vóór de Wallbox toegevoegd wanneer die voorkeurslogica van toepassing is. '
                               'Nieuwe identiteiten blijven Uitgesloten totdat je ze bewust vrijgeeft. Vervangen '
                               'erft geen Auto-deelname, fysieke koppelingen of startticket. Verwijderde '
-                              'identiteiten verdwijnen uit de actieve lijst. De bestaande beta.36-volgorde '
-                              'wordt bij de upgrade naar beta.37 niet herschreven.',
+                              'identiteiten verdwijnen uit de actieve lijst. De bij de upgrade vastgelegde '
+                              'bestaande volgorde wordt niet herschreven.',
                               'Opslag gebeurt onder dezelfde vergrendeling als de regelaar, zonder directe '
                               'toestelopdracht. Gewijzigde broninstellingen, een ander prioriteitsvenster of '
                               'nieuw/verwijderd toestel maken een ouder concept ongeldig. Bij een conflict '
@@ -1156,7 +1174,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'terugschrijven. Temperaturen, timers, startrechten, leerdata en '
                               'niet-gerelateerde opties worden niet gereset.'],
                'bullets': []},
-              {'title': '21. Beta.36 — leren, Wallbox, boiler, klimaat en analyse',
+              {'title': '21. Leren, Wallbox, boiler, klimaat en analyse',
                'paragraphs': ['De huishoudelijke basislast leert alleen uit perioden die als gewone '
                               'huishoudlast zijn geclassificeerd. Duidelijke Panasonic-ruimteverwarming, '
                               'ruimtekoeling, tapwaterverwarming en sterilisatie worden apart gehouden. '
@@ -1190,41 +1208,80 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'leerdata, berekende profielen en actuele metingen worden apart benoemd; een '
                               'planberekening telt nooit als extra leerdag.'],
                'bullets': []},
-              {'title': '22. Beta.37 — eenvoudiger bedienen, centrale voorrang en automatische activering',
-               'paragraphs': ['De dagelijkse dashboardnamen zijn vereenvoudigd: Alleen bekijken, Automatisch regelen, '
-                              'Toestellen, Warmte & comfort, Auto & batterij, Voorrang en Export. Technische details '
-                              'blijven beschikbaar via Info, uitlegknoppen en de configuratiewizard.',
-                              'Wie krijgt eerst zonne-energie? is de centrale plaats voor flexibele verdeling. '
-                              'Veiligheid, normale ruimteverwarming/koeling en noodzakelijk warmwatercomfort staan '
-                              'vast bovenaan. De bestaande afgesproken volgorde van beta.36 blijft behouden. '
-                              'De AEG-afwasmachine blijft vóór de Wallbox wanneer dat profiel aanwezig is; '
-                              'de Wallbox blijft vóór de ontvochtiger en extra 60 °C-buffer. Nieuwe gewone '
-                              'verbruikers komen standaard onderaan totdat de gebruiker ze verplaatst.',
-                              'Een toestel mag zonnevermogen gebruiken dat de auto al gebruikt wanneer het boven '
-                              'Auto laden (Wallbox) staat én de expliciete toestemming op Ja staat. Onder de '
-                              'Wallbox blijft de toestemming bewaard maar inactief. De Wallbox blijft read-only: '
-                              'SolarPilot stuurt geen laadstroom, pauze, start of laadmodus.',
-                              'Export bevat één hoofdactie: een compleet analysebestand om zelf in ChatGPT te '
-                              'uploaden. Standaard vraagt de export zeven dagen en pseudonimiseert hij namen. '
-                              'Instellingen, centrale voorrang, meetdekking, beslissingen, modellen, leerresultaten '
-                              'en fouten worden samengebracht zonder ontbrekende historie te verzinnen.',
-                              'Bij de eerste start van beta.37 wordt éénmalig een activeringsprofiel toegepast. '
-                              'Analyse, planner, basislastleren, lokaal PV-leren, Forecast.Solar-kalibratie, '
-                              'batterij-what-if en beschikbare leerfuncties worden geactiveerd. Bronafhankelijke '
-                              'regels zoals fasebewaking, Wallbox-monitoring, klimaatregeling en boilerregeling '
-                              'worden alleen geactiveerd wanneer de bestaande koppelingen en noodzakelijke '
-                              'bevestigingen al aanwezig zijn. SolarPilot verzint geen bron, bevestigt geen '
-                              'veiligheidskeuze en geeft geen nieuw toestel- of batterijrecht.',
-                              'De automatische activering gebeurt maar één keer. Latere keuzes van de gebruiker '
-                              'blijven behouden. Leren & vragen gebruikt gemeten data en begrensde automatische '
-                              'adaptatie; nieuwe vragen mogen als Home Assistant-melding verschijnen, maar leren '
-                              'verruimt nooit zelfstandig comfort- of veiligheidsgrenzen.'],
-               'bullets': ['Lopende programma’s, minimumlooptijden en beschermde cycli blijven beschermd wanneer '
-                           'de voorrang wordt gewijzigd.',
-                           'Extra warm water tot 60 °C blijft een flexibele luxe-zonbuffer en gebruikt geen '
-                           'Wallbox-vermogen.',
-                           'Nieuwe toestellen krijgen geen automatische Auto-deelname of fysieke starttoestemming.']},
-              {'title': '23. Release- en documentatieregel',
+              {'title': '22. Eenvoudige bediening en éénmalige veilige activering',
+               'paragraphs': ['De dagelijkse modusnamen zijn Alleen bekijken, Automatisch regelen en Pauze. '
+                              'De hoofdgroepen heten Toestellen, Warmte & comfort, Auto & batterij, Voorrang '
+                              'en Export. Technische details blijven beschikbaar via uitleg en instellingen.',
+                              'Bij de eerste start van de actuele migratiereeks wordt het beta.37-activeringsprofiel '
+                              'hoogstens één keer toegepast. Analyse, planner en leerfuncties worden geactiveerd '
+                              'waar dat zonder nieuw actuatorrecht kan. Bronafhankelijke regeling wordt alleen '
+                              'ingeschakeld wanneer de noodzakelijke bestaande koppelingen al aanwezig zijn; '
+                              'DHW vereist de bestaande veiligheidsbevestiging. Een later door de gebruiker '
+                              'uitgeschakelde functie wordt niet bij iedere herstart opnieuw aangezet.',
+                              'De centrale prioriteitenlijst is de enige leidende flexibele volgorde. Een '
+                              'toestel mag gemeten zonnevermogen gebruiken dat de auto al gebruikt alleen als '
+                              'het boven Auto laden (Wallbox) staat én de afzonderlijke toestemming op Ja '
+                              'staat. De Wallbox blijft read-only: SolarPilot verstuurt geen start, stop, '
+                              'laadmodus of laadstroom naar de laadpaal.',
+                              'Export bundelt de belangrijke instellingen, meetdekking, beslissingen, modellen, '
+                              'leerresultaten en fouten. Namen worden standaard gepseudonimiseerd en SolarPilot '
+                              'uploadt het bestand niet automatisch.'],
+               'bullets': ['Lopende programma’s, minimumlooptijden, elektrische grenzen en fabrikantbeveiliging '
+                           'blijven boven de flexibele volgorde staan.',
+                           'Nieuwe gewone toestellen komen onderaan tot de gebruiker ze bewust verplaatst.',
+                           'Een voorkeurs-AEG-profiel wordt vóór de Wallbox geplaatst wanneer die afwaslogica '
+                           'actief is.']},
+              {'title': '23. Afwasmachineherstel — beta.39 repareert de beta.38-startregressies',
+               'paragraphs': ['De beta.35-analyse kon een situatie bevatten waarin de AEG-regelcode nog '
+                              'aanwezig was maar geen afwasmachine in de actieve devices-configuratie stond. '
+                              'Zonder zo’n profiel bestaan er geen APP-tickets, geen afwasprioriteit en dus '
+                              'geen automatische START, ook al zijn de AEG-entiteiten in Home Assistant wel '
+                              'beschikbaar.',
+                              'Beta.38 voegde daarvoor een conservatieve éénmalige herstelmigratie toe voor '
+                              'de reeds bedoelde bestaande AEG/Electrolux-koppeling. Beta.39 behoudt die '
+                              'migratie, maar corrigeert drie regressies die een hersteld profiel nog konden '
+                              'blokkeren of verkeerd volgen: statische AEG-startvoorwaarden vervallen niet '
+                              'meer na vijf minuten zolang de actuele ConnectivityState gezond blijft; de '
+                              'volledige lijst Washing/Prewash/Main wash/Rinsing/Drying/Ado Drying/Paused '
+                              'wordt opnieuw als lopende beschermde cyclus herkend; en een optionele '
+                              'numerieke Alerts-sensor wordt niet automatisch als veiligheidsbron gebruikt '
+                              'zonder expliciete bruikbare DISH_ALARM-vlaggen.',
+                              'De herstelzoektocht blijft streng same-device: START, ApplianceState, '
+                              'ConnectivityState, RemoteControl, DoorState en programmaselectie moeten '
+                              'eenduidig op hetzelfde Home Assistant-apparaat zitten. Bij dubbele oude en '
+                              'actuele AEG-knoppen wordt alleen een bruikbare START gekozen; PAUSE, RESUME, '
+                              'STOPRESET en starttijd kunnen nooit als START worden gekoppeld. Ontbreekt een '
+                              'verplichte bron, zijn er meerdere mogelijke apparaten of is de START niet '
+                              'betrouwbaar te onderscheiden, dan maakt SolarPilot geen profiel en verleent '
+                              'het geen fysiek recht.',
+                              'De beta.39-reparatiemigratie wijzigt uitsluitend een profiel dat aantoonbaar '
+                              'door beta.38 zelf als recovered is gemarkeerd. Handmatig aangemaakte of '
+                              'bewust aangepaste afwasmachineprofielen worden niet generiek herschreven. '
+                              'Wanneer beta.38 de verkorte Running;Paused-lijst heeft opgeslagen, wordt de '
+                              'volledige eerder afgesproken faselijst hersteld. Wanneer beta.38 automatisch '
+                              'een AEG Alerts-bron in attribuutmodus koos maar die bron geen technische '
+                              'DISH_ALARM-vlaggen levert, wordt alleen die automatische optionele blokkade '
+                              'verwijderd. Deze reparatie maakt geen APP-ticket en verstuurt geen START.',
+                              'Een werkelijk hersteld profiel houdt alle bestaande APP-regels: exact Remote '
+                              'Control Enabled is de fysieke aanvraag, vóór 13:00 geldt vandaag en vanaf '
+                              '13:00 de volgende kalenderdag, met de bestaande 13:00-deadline/nettoestemming. '
+                              'Startup met APP al Enabled telt niet als nieuwe aanvraag. Eén belading krijgt '
+                              'maximaal één START en een onzekere opdracht wordt niet blind herhaald.',
+                              'De migratie verstuurt zelf geen START en wijzigt geen programma. Een lopende '
+                              'cyclus blijft beschermd; End Of Cycle wordt eventgestuurd bewaard, AirDry '
+                              'blijft onderdeel van de cyclus en Off of Disconnected alleen bewijst geen '
+                              'einde. De status meldt of herstel/reparatie is uitgevoerd, al eerder gebeurde '
+                              'of niet veilig/eenduidig toepasbaar was.'],
+               'bullets': ['ConnectivityState is de versheidsheartbeat voor startveiligheid; statische '
+                           'startvoorwaarden blijven fail-closed op Unknown, Unavailable, restored of een '
+                           'afwijkende waarde.',
+                           'De afgesproken comfortvolgorde blijft behouden: noodzakelijke warmte/warm water '
+                           'blijven beschermd; een voorkeurs-afwasmachine kan vóór de Wallbox staan; lagere '
+                           'flexibele lasten en de extra 60 °C-buffer volgen de centrale lijst.',
+                           'Een afwasstart blijft afhankelijk van gesloten deur, Ready To Start, geldig '
+                           'programma, veilige/bruikbare alarmcontrole indien gekoppeld, elektrische ruimte '
+                           'en een geldige nieuwe APP-aanvraag.']},
+              {'title': '24. Release- en documentatieregel',
                'paragraphs': ['Deze actuele uitleg is onderdeel van de release zelf. Dezelfde inhoud wordt als '
                               'Markdown meegeleverd én in Home Assistant getoond. Een releasecontrole faalt '
                               'wanneer versie of gegenereerde uitleg niet overeenkomt met de integratieversie.',

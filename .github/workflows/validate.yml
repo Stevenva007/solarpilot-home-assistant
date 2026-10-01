@@ -98,15 +98,33 @@ jobs:
             echo "exists=false" >> "${GITHUB_OUTPUT}"
           fi
 
-      - name: Create release package
+      - name: Create release packages
         if: steps.existing.outputs.exists != 'true'
         id: package
         shell: bash
         run: |
           version="${{ steps.version.outputs.version }}"
-          package="SolarPilot-${version}-GitHub-HACS.zip"
-          git archive --format=zip --output="${package}" HEAD
-          echo "package=${package}" >> "${GITHUB_OUTPUT}"
+          hacs="SolarPilot-v${version}-GitHub-HACS.zip"
+          local="SolarPilot-v${version}-local.zip"
+          git archive --format=zip --output="${hacs}" HEAD
+          python - <<'PY'
+          import os, zipfile
+          from pathlib import Path
+          version=os.environ['VERSION']
+          root=Path('.')
+          out=Path(f'SolarPilot-v{version}-local.zip')
+          base=root/'custom_components'/'solar_pilot'
+          with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+              for p in sorted(base.rglob('*')):
+                  rel=p.relative_to(root)
+                  if p.is_dir() or '__pycache__' in rel.parts or 'userfiles' in rel.parts:
+                      continue
+                  z.write(p,rel.as_posix())
+          PY
+          echo "hacs=${hacs}" >> "${GITHUB_OUTPUT}"
+          echo "local=${local}" >> "${GITHUB_OUTPUT}"
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
 
       - name: Create tag and GitHub prerelease
         if: steps.existing.outputs.exists != 'true'
@@ -114,7 +132,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
           VERSION: ${{ steps.version.outputs.version }}
-          PACKAGE: ${{ steps.package.outputs.package }}
+          HACS_PACKAGE: ${{ steps.package.outputs.hacs }}
+          LOCAL_PACKAGE: ${{ steps.package.outputs.local }}
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
@@ -122,9 +141,9 @@ jobs:
           git tag -a "${TAG}" -m "SolarPilot ${VERSION}"
           git push origin "${TAG}"
 
-          assets=("${PACKAGE}")
-          [[ -f "docs/BETA37_INSTELLEN.md" ]] && assets+=("docs/BETA37_INSTELLEN.md")
-          [[ -f "docs/TESTRESULTATEN_BETA37.md" ]] && assets+=("docs/TESTRESULTATEN_BETA37.md")
+          assets=("${HACS_PACKAGE}" "${LOCAL_PACKAGE}")
+          [[ -f "docs/BETA38_INSTELLEN.md" ]] && assets+=("docs/BETA38_INSTELLEN.md")
+          [[ -f "docs/TESTRESULTATEN_BETA38.md" ]] && assets+=("docs/TESTRESULTATEN_BETA38.md")
 
           extra=()
           if [[ "${TAG}" == *beta* || "${TAG}" == *alpha* || "${TAG}" == *rc* ]]; then

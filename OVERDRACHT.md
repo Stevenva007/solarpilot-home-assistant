@@ -1,450 +1,125 @@
 <!-- solarpilot-handoff-schema: 1 -->
-<!-- solarpilot-handoff-version: 1.0.0-beta.37 -->
-
-# SolarPilot · Overdrachtsdossier
-
-**Actuele productieversie:** `1.0.0-beta.37`  
-**Status:** publieke HACS-beta, actuele codebasis = `main`  
-**Laatst inhoudelijk gecontroleerd:** 2026-10-01  
-**Minimale Home Assistant-versie:** 2026.9.0  
-**Repository:** `Stevenva007/solarpilot-home-assistant`  
-**Integratiedomein:** `solar_pilot`
-
-Dit bestand is het technische overdrachtsdossier van de **huidige** SolarPilot-toestand. Het is geen changelog en geen archief van oude logica. Historische wijzigingen horen in `CHANGELOG.md`; gebruikersuitleg hoort in `docs/ACTUELE_WERKING.md`.
-
-## AI-handoff
-
-> **Instructie voor een nieuwe ChatGPT-chat of ontwikkelaar**
->
-> Lees dit bestand eerst en behandel het samen met de actuele code op `main` als de technische uitgangssituatie. Gebruik oude gesprekken, oude ZIP-bestanden en oudere beta-documentatie nooit als bron voor de huidige werking wanneer die hiermee in tegenspraak zijn.
->
-> Controleer vóór een wijziging de versie in `custom_components/solar_pilot/manifest.json`, `const.py` en `docs/ACTUELE_WERKING.md`. Behoud bestaande werkende functies, gebruikersinstellingen, leerdata, prioriteiten en expliciete bedieningsrechten tenzij de wijziging bewust een betere centrale implementatie introduceert.
->
-> Iedere functionele codewijziging moet in dezelfde wijziging ook dit `OVERDRACHT.md` opnieuw inhoudelijk controleren en zo nodig aanpassen. Een release is niet compleet zolang code, migratie, tests, actuele gebruikersuitleg, changelog, dit overdrachtsdossier en rollback-informatie niet met elkaar overeenkomen.
-
-**Belangrijk:** dit dossier bevat bewust geen privé-entiteitsnamen, adressen, tokens, exports of andere installatiegeheimen. Installatiespecifieke koppelingen blijven in Home Assistant of in het lokale private bundle.
-
-## 1. Projectstatus
-
-SolarPilot is een lokaal Home Assistant Energy Management System voor:
-
-- realtime PV-overschot en netbalans;
-- centrale voorrang van flexibele verbruikers;
-- Wallbox-samenwerking zonder de Wallbox rechtstreeks te besturen;
-- Panasonic Aquarea tapwaterbeleid en conservatieve warmtepompanalyse;
-- AEG/Electrolux afwasmachine-startlogica;
-- fasebelasting en capaciteitstariefbewaking;
-- PV-voorspelling en lokale kalibratie;
-- thermisch leren en klimaatadvies;
-- dagkosten en plannerkwaliteit;
-- verbruikershistoriek en analyse-export;
-- toekomstige batterijplanning en optionele batterijbesturing.
-
-De integratie is `single_config_entry`, gebruikt geen externe Python-runtimevereisten en exposeert native Home Assistant-entiteiten via sensor, binary_sensor, select, number, button en switch.
-
-De dashboardmodus **Alleen bekijken** (`observe`) blijft de veilige observatiestand. Beta.37 activeert éénmalig beschikbare leer- en regelmodules waarvoor de bestaande koppelingen en vereiste bevestigingen al aanwezig zijn; nieuwe fysieke toestelrechten, ontbrekende bronnen en veiligheidsbevestigingen worden nooit verzonnen.
-
-## 2. Bronnen van waarheid
-
-Gebruik deze volgorde wanneer bronnen elkaar tegenspreken:
-
-1. **Actuele code op `main`** en de persistente configuratiemigratie.
-2. **`OVERDRACHT.md`** — technische overdracht, architectuur en vaste ontwikkelregels.
-3. **`docs/ACTUELE_WERKING.md`** — enige actuele gebruikersuitleg voor de release; wordt gegenereerd vanuit `custom_components/solar_pilot/current_guide.py`.
-4. **`CHANGELOG.md`** — historische wijzigingen per release.
-5. **`README.md`** en instelhandleidingen — installatie, releasecontext en specifieke configuratiehulp.
-6. Oudere beta-documenten en oude chats — alleen historische context, nooit automatisch actuele logica.
-
-De actuele gebruikersuitleg moet bij iedere gedragswijziging samen met de code worden vernieuwd. De GitHub-controle `tools/check_current_explanation.py` bewaakt versie en gegenereerde uitleg.
-
-## 3. Niet-onderhandelbare ontwerpregels
-
-### Veiligheid en eigenaarschap
-
-- Realtime P1/PV-metingen, apparaatvoorwaarden en beveiligingen gaan altijd vóór voorspellingen, planners en aangeleerde modellen.
-- Eén actuator heeft maar één eigenaar.
-- SolarPilot is geen elektrische beveiliging en mag zekeringen, fabrikantbeveiligingen of installatiebeveiliging nooit vervangen.
-- Onzekere fysieke opdrachten worden niet blind of eindeloos herhaald.
-- Na Home Assistant/SolarPilot-herstart wordt eerst de **werkelijke toesteltoestand** gereconcilieerd voordat regeling verdergaat.
-- Nieuwe fysieke koppelingen of rechten worden nooit stilzwijgend geactiveerd.
-
-### Bestaande gebruikersconfiguratie behouden
-
-- Upgrades moeten bestaande entity-koppelingen, prijzen, apparaten, rechten, bevestigingen, plannerinstellingen, Wallbox-keuzes, prioriteiten en bruikbare leerdata behouden.
-- Een migratie mag alleen het specifieke incompatibele model resetten wanneer daar technisch een aantoonbare reden voor is; geen brede reset als makkelijkste oplossing.
-- De centrale prioriteitenlijst is na de beta.35→beta.36-migratie de leidende bron. Bestaande effectieve volgorde moet behouden blijven.
-- Een nieuwe verbruiker wordt toegevoegd zonder automatisch nieuwe startrechten te krijgen en komt standaard onderaan de centrale flexibele voorrangslijst.
-
-### Gebruiksvriendelijkheid
-
-- Benamingen moeten begrijpelijk zijn voor niet-technische gebruikers.
-- Alle gewone voorrangsregels horen samen in één centrale **Voorrang**-weergave.
-- De gebruiker moet verbruikers kunnen verplaatsen in de prioriteitenvolgorde.
-- Per relevante verbruiker is apart zichtbaar/instelbaar of deze zonnevermogen van een bevestigde Wallbox-zonnelaadsessie mag benutten. Die toestemming is alleen actief wanneer het toestel ook boven de Wallbox staat.
-- **Export** heeft één hoofdactie voor een compleet analysebestand met instellingen, metingen, beslissingen, leerresultaten en fouten; aanvullende exportopties blijven ondergeschikt.
-- Telemetrieverversing mag open pop-ups en configuratiecontext niet onnodig sluiten of resetten.
-- Iedere gebruikersoptie moet uitlegbaar zijn via de bestaande hulpstructuur.
-
-### Documentatie als release-eis
-
-Een codewijziging die gedrag, configuratie, migratie of gebruikersinterface beïnvloedt is niet klaar voordat ook:
-
-- `current_guide.py` en de gegenereerde `ACTUELE_WERKING.md` actueel zijn;
-- `CHANGELOG.md` de releasewijziging correct beschrijft;
-- dit `OVERDRACHT.md` de nieuwe huidige toestand beschrijft;
-- tests en releasecontrole zijn aangepast waar nodig.
-
-## 4. Huidige functionele toestand
-
-### 4.1 Modi en realtime regeling
-
-SolarPilot kent de modi `observe`, `solar` en `paused`.
-
-- **Alleen bekijken (`observe`):** berekenen en leren, zonder gewone flexibele verbruikers fysiek te sturen.
-- **Automatisch regelen (`solar`):** toegestane realtime regeling uitvoeren.
-- **Pauze:** niets nieuws starten en eigen onderbreekbare lasten veilig afbouwen, met behoud van minimumlooptijden en beschermde cycli.
-
-Er wordt maximaal één gewone fysieke wijziging tegelijk uitgevoerd; daarna wordt op terugmelding en nieuwe meetinformatie gewacht.
-
-### 4.2 Centrale prioriteiten
-
-Boven de verplaatsbare lijst blijven beschermd:
-
-1. elektrische/fabrikantbeveiligingen en Panasonic-sterilisatie;
-2. noodzakelijk warmwatercomfort;
-3. noodzakelijk ruimtecomfort.
-
-Daarna is de centrale gebruikersvolgorde leidend. Bij de beta.36-migratie wordt de voordien effectieve volgorde bewaard. De afgesproken referentievolgorde voor de huidige installatie is **AEG-afwasmachine → Wallbox → ontvochtiger → extra warm water tot 60 °C** wanneer het AEG-profiel aanwezig is. Zonder AEG begint de flexibele volgorde bij de Wallbox. De upgrade herschikt een reeds opgeslagen beta.36-volgorde niet.
-
-Een reeds gestarte beschermde cyclus, zoals een afwasprogramma, wordt niet afgebroken om een hogere prioriteit vrij te maken. Voor zulke routes blijven de specifieke beschermingsregels gelden.
-
-Een generiek toestel mag alleen zonnevermogen dat de Wallbox op dat moment gebruikt benutten wanneer het **boven Auto laden (Wallbox)** staat én de expliciete toestemming daarvoor aan staat. Onder de Wallbox blijft die toestemming opgeslagen maar inactief. Nieuwe gewone flexibele toestellen komen onderaan totdat de gebruiker ze bewust verplaatst.
-
-### 4.3 Beta.37 automatische activering
-
-Bij de eerste start van beta.37 wordt éénmalig een startprofiel toegepast:
-
-- analyse-export, planner, basislastleren, lokaal PV-leren, Forecast.Solar-kalibratie en batterij-what-if worden actief;
-- fasebewaking/-leren wordt actief wanneer L1/L2/L3 al gekoppeld zijn; nieuwe starts mogen dan de bevestigde fasegrenzen respecteren, maar lopende lasten worden niet automatisch afgeworpen;
-- Wallbox-monitoring wordt actief wanneer een laadvermogensbron al gekoppeld is;
-- slim klimaatmodel wordt actief bij gekoppelde zones; fysieke AUTO/OFF-regeling wordt alleen geactiveerd wanneer alle gekoppelde zones daadwerkelijk AUTO en OFF ondersteunen;
-- DHW-regeling wordt alleen actief wanneer doel-, temperatuursensor én de bestaande veiligheidsbevestiging aanwezig zijn;
-- apparaten met een afzonderlijke eigen vermogensmeter mogen hun cyclusprofiel leren;
-- Leren & vragen gebruikt gemeten sampling, begrensde automatische adaptatie en meldingen.
-
-De migratie heeft een persistente eenmalige marker. Latere handmatige uitschakelingen of beleidskeuzes worden bij een volgende herstart niet opnieuw overschreven. Een bestaand toestel wordt door deze migratie niet van Uitgesloten naar Auto gezet en fysieke batterijbesturing krijgt geen nieuw eigenaarschap.
-
-De positie ten opzichte van de Wallbox en de toestemming **Mag de auto minder laten laden?** zijn twee afzonderlijke zaken. Een hogere positie alleen geeft geen recht op EV-vermogen.
-
-### 4.3 Wallbox
-
-De Wallbox Pulsar Max blijft vanuit SolarPilot **read-only**:
-
-- geen start/stop/pauze/hervat-opdracht;
-- geen laadstroom- of faseopdracht;
-- geen wijziging van Full Solar door SolarPilot.
-
-SolarPilot onderscheidt ingestelde modus, werkelijk gedetecteerde sessie, laadvermogen en actuele toestemming om zonnelaadvermogen indirect te laten teruglopen doordat een hogere eigen belasting wordt gestart.
-
-Wallbox-vermogen mag alleen conditioneel worden meegenomen wanneer een effectieve zonnelaadsessie voldoende betrouwbaar bevestigd is. Manueel, onbekend of verouderd laden levert geen overneembaar EV-vermogen op. EV-vermogen telt nooit als extra fysieke net- of fasecapaciteit.
-
-Het huidige terugvalprofiel is 1 fase / 25 A; het afzonderlijke Full Solar-minimum is ongeveer 1.380 W. Deze waarden blijven configureerbaar en mogen later niet als vaste hardwarewaarheid worden behandeld wanneer de installatie wijzigt.
-
-### 4.4 Sanitair warm water / Panasonic Aquarea
-
-De actuele centrale DHW-regelset gebruikt één persistente configuratiebron.
-
-Huidige referentiewaarden:
-
-- normaal tankdoel: **50 °C**;
-- bewaakte comfortgrens: **46 °C**;
-- fysieke Panasonic heropwarmdifferentie: **-5 °C**;
-- gewoon zonnedoel: **50 °C**;
-- extra PV-buffer: **60 °C**;
-- maximum voor extra doelen bij actieve koeling: **50 °C**;
-- Panasonic-sterilisatie: **62 °C**, fabrikantgestuurd en autonoom.
-
-De 46 °C is een bewaakte comfortgrens, geen gegarandeerde fysieke ondergrens. Met 50 °C doel en -5 °C native differentie kan Panasonic nominaal pas rond 45 °C opnieuw starten.
-
-SolarPilot stuurt geen Force DHW, Powerful, compressor, hoofdvoeding of HEAT/COOL-modus om deze grens kunstmatig af te dwingen.
-
-De optionele ochtendcontrole gebruikt standaard 09:00 en 46 °C. Een optionele avondvoorraad kan uit zonne-energie worden gepland en is standaard begrensd op 55 °C. Extra 60 °C blijft luxe-opwarming uit echte resterende zonne-ruimte, niet uit virtueel EV-vermogen.
-
-Panasonic kiest zelf HEAT versus COOL en behoudt autonome sterilisatie.
-
-### 4.5 Warmtepomp- en klimaatleren
-
-Beta.36 onderscheidt warmtepompactiviteit als gewone huishoudlast, ruimteverwarming, ruimtekoeling, tapwater, sterilisatie of onbekende warmtepompactiviteit.
-
-Zonder aparte elektrische warmtepompmeter mag SolarPilot alleen een conservatieve planningsschatting leren uit stabiele P1+PV-veranderingen. Die schatting:
-
-- mag basislastleren verbeteren;
-- mag de planner informeren;
-- mag **nooit** realtime elektrische ruimte creëren of een fysieke grens versoepelen.
-
-Klimaatbetrouwbaarheid wordt afzonderlijk bijgehouden voor passieve drift, zonnewinst, verwarmingsrespons, koelrespons, reactievertraging, weerscorrectie en coast/off-feedback. Ontbrekende onderdelen mogen geen kunstmatige totaalscore van 100% veroorzaken.
-
-### 4.6 AEG/Electrolux afwasmachine
-
-De AEG-route is **start-only**:
-
-- starten via de native AEG START-mogelijkheid;
-- Remote Control moet werkelijk geldig/vrijgegeven zijn;
-- geen plugrelais gebruiken als programmastart;
-- geen STOP/RESET, PAUSE of RESUME door SolarPilot;
-- maximaal één start per klaarzetaanvraag;
-- geen blinde retry na een onzekere opdracht.
-
-De APP-/deadline-logica plant vóór 13:00 standaard voor dezelfde dag en op/na 13:00 standaard voor de volgende kalenderdag. Expliciete nettoestemming op de geplande deadline kan bestaan, maar mag elektrische of apparaatvoorwaarden niet omzeilen.
-
-Een lopende cyclus blijft beschermd. End Of Cycle wordt event-driven bewaard; Off/Unavailable/Disconnected of AirDry geldt niet automatisch als bewezen einde.
-
-Volledige fasegewijze afwasoptimalisatie wacht op een betrouwbare exclusieve vermogensmeting; zonder zo'n meter worden onbekende fasen niet verzonnen.
-
-### 4.7 PV-voorspelling en lokale kalibratie
-
-Forecast.Solar kan als basisvoorspelling dienen, maar realtime P1/PV blijft leidend.
-
-Huidig referentieprofiel:
-
-- panelen: **13,8 kWp**;
-- AC-omvormerlimiet: **10,0 kW**;
-- minimaal vijf geldige vergelijkbare dagen voor normale lokale kalibratie;
-- clipping, wolken/outliers en startupperioden worden uit structureel schaduwleren gehouden;
-- lokale afwijkingen worden per zonnestand/seizoen geleerd;
-- ontbrekende toekomstdekking blijft onbekend en wordt niet als 0 W behandeld.
-
-Planberekeningen tellen nooit als extra leerdag.
-
-### 4.8 Planner, fasebeheer en batterij
-
-De Unified Planner gebruikt standaard:
-
-- rolling horizon: **36 uur**;
-- resolutie: **15 minuten**;
-- alleen het huidige blok kan de realtime regelaar beïnvloeden.
-
-De planner combineert voorspelde PV, geleerd basisverbruik, prijzen, kwartierpiek, flexibele lasten en toekomstige batterijruimte. Realtime regels en beschermingen blijven hoger in rang.
-
-Faseherkenning maakt onderscheid tussen geleerd, betrouwbaar genoeg voor advies en expliciet vrijgegeven voor regeling. Geen fasecontrole op basis van onvoldoende bewijs.
-
-Batterijfunctionaliteit is standaard adviserend/uitgeschakeld voor fysieke besturing en vereist expliciet eigenaarschap en toestemming.
-
-### 4.9 Historiek, kosten en export
-
-SolarPilot registreert lokaal begrensde verbruikerssessies met start-/stoptijden, duur en bevestigde reden waar die beschikbaar is.
-
-De analyse-export gebruikt schema 2 en maakt onderscheid tussen:
-
-- aangevraagde periode;
-- beschikbare ruwe periode;
-- werkelijk gedekte meettijd;
-- meetgaten/offline tijd;
-- herstarts;
-- fast telemetry;
-- bootstrapdata, live leerdata, berekende profielen en actuele metingen.
-
-Een analyse-export is diagnostiek, geen Home Assistant-back-up en wordt niet automatisch geüpload.
-
-## 5. Architectuur en belangrijke bestanden
-
-| Bestand / module | Verantwoordelijkheid |
-|---|---|
-| `custom_components/solar_pilot/__init__.py` | Integratie-opstart, registratie en Home Assistant-lifecycle |
-| `const.py` / `manifest.json` | Domein, versie, platforms en basisdefaults |
-| `config_flow.py` | Installatie- en configuratieflows |
-| `live_config.py` / `live_options.py` / `option_help.py` | Live configuratie, opties en begrijpelijke veldhulp |
-| `runtime.py` / `engine.py` / `ems.py` | Realtime coördinatie en EMS-beslissingen |
-| `priority_board.py` / `priority_api.py` | Centrale voorrangsbron en UI/API |
-| `unified_planner.py` / `planner_quality.py` | 36-uursplanning, kwaliteit en replay/backtestbasis |
-| `wallbox.py` / `wallbox_policy.py` / `wallbox_profile.py` / `consumer_wallbox.py` | Wallbox-detectie, read-only profiel en voorrang/reclaimregels |
-| `dhw_config.py` / `dhw.py` / `dhw_runtime.py` / `dhw_schedule.py` | Centrale DHW-configuratie, beslissingen en planning |
-| `heatpump_learning.py` | Classificatie en conservatief leren van warmtepompactiviteit |
-| `thermal_climate.py` / `thermal_runtime.py` | Thermisch model en klimaatcontext |
-| `dishwasher*.py` | AEG/Electrolux start-only adapter, APP/deadline en beschermde prioriteitslogica |
-| `pv_forecast*.py` / `pv_calibration.py` / `pv_model.py` | Forecast.Solar-bron, lokale kalibratie en PV-model |
-| `phase_learning.py` | Faseherkenning en betrouwbaarheidsstatus |
-| `battery_*.py` | Batterijanalyse, vloot/runtime en beschermde toekomstige besturing |
-| `consumer_history*.py` | Sessieregistratie en dagoverzicht |
-| `electricity_cost.py` | Dagkosten en energieprijslogica |
-| `analysis_export.py` / `analysis_api.py` / `diagnostics.py` | Analyse-export en diagnostiek |
-| `learning*.py` | Centrale leerstatus, vragen en veilige modelupdates |
-| `current_guide.py` | Canonieke bron voor de actuele gebruikersuitleg |
-| `frontend/solar-pilot-card.js` | SolarPilot-dashboard/UI in Home Assistant |
-| `tests/` | Software- en regressietests |
-| `tools/` | Releasechecks, documentgeneratie, UI-checks en offline hulpmiddelen |
-
-De actuele gebruikersuitleg bestaat zowel onder `docs/ACTUELE_WERKING.md` als ingebed in de integratie. Beide moeten uit dezelfde `current_guide.py` gegenereerd blijven.
-
-## 6. Configuratie, migratie en persistente data
-
-### Home Assistant-configuratie
-
-- SolarPilot gebruikt één config entry.
-- Programmacode wordt door HACS vervangen; configuratie en leerdata worden in Home Assistant opgeslagen.
-- HACS bewaart de map `userfiles` als persistent directory.
-- Een lokaal `custom_components/solar_pilot/userfiles/private_bundle.json` kan optioneel installatiespecifieke mappings en geaggregeerde bootstrapdata bevatten.
-- Een private bundle mag nooit in de publieke repository terechtkomen.
-
-### Migratie-eis
-
-Bij iedere nieuwe release moet expliciet worden gecontroleerd dat bestaande installaties niet onnodig opnieuw moeten configureren.
-
-Beta.36 bewaart onder meer:
-
-- gekoppelde entiteiten;
-- prijzen;
-- Wallboxinstellingen;
-- apparaten en profielen;
-- leerdata;
-- fase-/PV-/klimaat-/boilerdata;
-- bevestigingen en fysieke rechten;
-- centrale prioriteitsvolgorde.
-
-Alleen incompatibele warmtepompleerdata mag specifiek worden gereset wanneer het model niet veilig naar de nieuwe classificatie kan worden vertaald.
-
-### Herstart
-
-Na herstart:
-
-1. opgeslagen modus/configuratie laden;
-2. echte toestelstatussen opnieuw lezen;
-3. eigenaarschap en onzekere opdrachten reconciliëren;
-4. alleen bij betrouwbare toestand automatisch verdergaan;
-5. geen oude fysieke opdracht blind opnieuw uitvoeren.
-
-## 7. Test- en releaseprocedure
-
-### GitHub-validatie
-
-`.github/workflows/validate.yml` draait automatisch alleen bij een push naar `main`, een pull request naar `main` en een handmatige start. Werkbranch-pushes, tags en een dagelijkse schedule starten bewust geen extra Validate-run, zodat ontwikkeling niet telkens nieuwe Actions-meldingen veroorzaakt. Na een groene Validate-run op de exacte releasecommit wordt de vaste branch `publish-release` naar diezelfde commit doorgeschoven. `.github/workflows/release.yml` voert daar opnieuw de releasechecks en volledige tests uit, maakt daarna de versie-tag uit `manifest.json`, bouwt het volledige GitHub/HACS-ZIP-pakket, voegt instelhandleiding en testverslag als assets toe en publiceert de prerelease. Een releasebranch mag nooit naar een andere commit wijzen dan de reeds gevalideerde `main`.
-
-De repository-checks moeten minimaal uitvoeren:
-
-1. publieke privacy-/structuurcontrole;
-2. controle van dit overdrachtsdossier;
-3. actuele gebruikersuitleg/version consistency;
-4. installatie van testdependencies;
-5. volledige `pytest`-suite;
-6. Python `compileall`;
-7. HACS-validatie;
-8. Hassfest-validatie.
-
-Het exacte aantal geslaagde tests wordt **niet** in dit dossier vastgepind; de actuele GitHub Actions-run is daarvoor de bron van waarheid. Daardoor veroudert het dossier niet alleen omdat er regressietests bijkomen.
-
-### Lokale minimale controle
-
-```bash
-python tools/check_public_repository.py
-python tools/check_handoff.py
-python tools/check_current_explanation.py
-python -m pytest -q -p no:cacheprovider
-python -m compileall -q custom_components/solar_pilot
-```
-
-UI-specifieke checks in `tools/check_*.py` blijven behouden en moeten worden uitgebreid wanneer een relevante interfacefunctie wordt gewijzigd.
-
-### Praktijktest
-
-CI bestuurt geen echte thuisinstallatie. Voor een nieuwe functionele release:
-
-- eerst in **Observatie**;
-- bronwaarden en actualiteit controleren;
-- migratie en bestaande koppelingen controleren;
-- pas daarna fysieke rechten gefaseerd activeren;
-- nooit meerdere nieuwe fysieke regelroutes tegelijk vrijgeven zonder afzonderlijke verificatie.
-
-## 8. Installeren, upgraden en rollback
-
-### Installeren/upgraden
-
-Normale route:
-
-1. SolarPilot als HACS Custom Repository van type Integration;
-2. nieuwste release installeren/updaten;
-3. Home Assistant herstarten;
-4. migratie en bronstatus controleren;
-5. eerst Observatie gebruiken na een grote regelwijziging.
-
-Tussenliggende beta-versies hoeven niet één voor één te worden geïnstalleerd wanneer de nieuwste release expliciet cumulatieve migratie ondersteunt.
-
-### Voor elke belangrijke upgrade
-
-Maak een recente Home Assistant-back-up wanneer een release persistente configuratie of leerdata migreert. Bewaar minstens de vorige bekende goede SolarPilot-release/tag.
-
-### Rollback
-
-Rollback is een herstelpad, geen garantie dat elke toekomstige dataschemawijziging onbeperkt achterwaarts compatibel zal zijn.
-
-Veilige werkwijze:
-
-1. fysieke regeling pauzeren of naar Observatie;
-2. Home Assistant-back-up veiligstellen;
-3. vorige bekende goede tag/release installeren;
-4. Home Assistant herstarten;
-5. configuratie- en opslagcompatibiliteit controleren;
-6. eerst Observatie valideren;
-7. pas daarna fysieke regeling opnieuw activeren.
-
-Wanneer een toekomstige release een niet-achterwaarts-compatibele opslagmigratie nodig heeft, moet dit **voor publicatie** expliciet in changelog én dit dossier staan, inclusief concreet herstelpad.
-
-### Verwijderen
-
-Gebruik de ingebouwde voorbereiding voor verwijderen, verwijder daarna de config entry/HACS-integratie en herstart Home Assistant. Onderliggende apparaten en hun native integraties mogen niet door SolarPilot verwijderd worden.
-
-## 9. Privacy en secrets
-
-Nooit committen:
-
-- Home Assistant access tokens;
-- API-sleutels of OAuth-secrets;
-- wachtwoorden;
-- privé-entiteitsnamen uit de persoonlijke installatie;
-- Home Assistant-back-ups;
-- ruwe energie-/analyse-exports;
-- adressen, coördinaten of andere identificerende gegevens;
-- `private_bundle.json` met installatiespecifieke mappings.
-
-De publieke repository moet bruikbaar blijven zonder persoonlijke installatiegegevens.
-
-`tools/check_public_repository.py` controleert de bekende privacy-/structuurregels en scant ook dit overdrachtsdossier.
-
-## 10. Bekende grenzen en volgende aandachtspunten
-
-- Zonder aparte warmtepomp-W-meter blijft geleerd warmtepompvermogen uitsluitend een conservatieve **planningsschatting**.
-- SolarPilot bestuurt de Wallbox niet rechtstreeks; effectieve sessieherkenning en terugmelding blijven daarom essentieel.
-- Volledige fasegewijze optimalisatie van de afwasmachine vereist een betrouwbare exclusieve vermogensmeting.
-- Forecastdekking is niet altijd volledig; onbekende uren mogen niet als nul of gegarandeerd overschot worden geïnterpreteerd.
-- Faseadvies en fasesturing moeten afzonderlijk betrouwbaar en expliciet vrijgegeven blijven.
-- Batterijbesturing blijft standaard uit en vereist afzonderlijke toestemming/eigenaarschap.
-- Open pop-ups, sleepvolgorde en onopgeslagen configuratie mogen niet door snelle telemetrie-refresh verloren gaan.
-- Deze GitHub-borging kan alleen wijzigingen controleren die **in de repository worden gecommit**. Een lokale/offline codewijziging die nooit naar GitHub wordt gebracht kan technisch niet automatisch dit dossier aanpassen. Zodra de wijziging via deze ontwikkel-/releaseflow loopt, blokkeert CI een functionele codewijziging zonder bijgewerkt `OVERDRACHT.md`.
-
-## 11. Release-checklist
-
-Een SolarPilot-release is pas compleet wanneer alle toepasselijke vakken hieronder zijn afgewerkt:
-
-- [ ] Nieuwe code werkt op de actuele codebasis; geen los prototype of pseudocode.
-- [ ] Bestaande werkende functies zijn behouden of aantoonbaar centraal vervangen.
-- [ ] Bestaande gebruikersinstellingen en relevante leerdata migreren correct.
-- [ ] Centrale prioriteiten en Wallbox-reclaimrechten blijven behouden tenzij de gebruiker ze bewust wijzigt.
-- [ ] Nieuwe fysieke rechten worden niet stilzwijgend geactiveerd.
-- [ ] `manifest.json`, `const.py`, frontendversie en guide-versie lopen gelijk.
-- [ ] `current_guide.py` is bijgewerkt en beide `ACTUELE_WERKING.md`-kopieën zijn opnieuw gegenereerd.
-- [ ] Optie-uitleg/help is bijgewerkt wanneer instellingen veranderden.
-- [ ] `CHANGELOG.md` beschrijft de nieuwe release.
-- [ ] **`OVERDRACHT.md` is inhoudelijk opnieuw gecontroleerd en bijgewerkt.**
-- [ ] Automatische tests slagen.
-- [ ] Python compileert.
-- [ ] HACS-validatie en Hassfest slagen.
-- [ ] Publieke privacycontrole slaagt.
-- [ ] Analyse-/diagnostische schemawijzigingen zijn gedocumenteerd.
-- [ ] Installatie-/upgradepad is duidelijk.
-- [ ] Rollbackrisico en eventuele opslagcompatibiliteit zijn beoordeeld.
-- [ ] Release/tag wordt pas daarna gepubliceerd.
-
----
-
-### Onderhoudsregel
-
-Dit bestand beschrijft altijd **hoe SolarPilot nu werkt**. Verouderde werking wordt hier verwijderd of herschreven, niet eronder bijgeplakt. Wie historische verschillen nodig heeft, gebruikt `CHANGELOG.md` en Git.
+<!-- solarpilot-handoff-version: 1.0.0-beta.39 -->
+
+# OVERDRACHT — SolarPilot
+
+Laatst bijgewerkt: **1 oktober 2026**  
+Actuele/productieversie voor deze overdracht: **v1.0.0-beta.39**.
+
+## 1. Projectdoel in gewone taal
+SolarPilot is de centrale Home Assistant-regeling voor zonnestroom, Wallbox, Panasonic Aquarea warmtepomp/tapwater, klimaat, flexibele verbruikers, fasebelasting, voorspellingen, kostenanalyse, historiek en lokaal leren. De gebruiker moet de belangrijkste keuzes in gewone taal kunnen begrijpen en bedienen.
+
+## 2. Actuele basis
+Beta.39 is rechtstreeks opgebouwd op de in de Library geregistreerde volledige **beta.38**-bron. Beta.38 zelf was de gecontroleerde samenvoeging van beta.36, geldige beta.37-wijzigingen en het eerste AEG-profielherstel. Beta.39 vervangt die basis niet: het repareert drie concrete afwasmachine-regressies die tijdens de praktijktest zichtbaar werden.
+
+Na registratie moeten `LATEST.zip`, `releases/SolarPilot-v1.0.0-beta.39-GitHub-HACS.zip`, `releases/SolarPilot-v1.0.0-beta.39-local.zip`, `CURRENT.json`, deze `OVERDRACHT.md` en `PROJECT_INDEX.json` allemaal naar beta.39 verwijzen.
+
+## 3. Absolute ontwerpregels die niet stilzwijgend mogen wijzigen
+- Behoud bestaande werkende functies, gebruikersinstellingen, leerdata en huidige koppelingen bij upgrade.
+- Migreer oude configuraties automatisch waar dat veilig en eenduidig kan; bij twijfel niets fysiek activeren.
+- Veiligheid, fabrikantbeveiliging, wekelijkse Panasonic-sterilisatie en noodzakelijk comfort staan boven energieoptimalisatie.
+- De centrale flexibele prioriteitenlijst is leidend. Nieuwe gewone flexibele toestellen komen onderaan totdat de gebruiker ze bewust verplaatst.
+- Een toestel mag zonnevermogen gebruiken dat de auto al gebruikt alleen wanneer het boven **Auto laden (Wallbox)** staat én de afzonderlijke toestemming aanstaat. Wallbox blijft read-only.
+- Een voorkeurs-AEG-afwasmachine staat vóór de Wallbox wanneer die regel actief is; een al gestarte afwascyclus wordt nooit onderbroken.
+- Extra warm water tot 60 °C is een flexibele zonnebuffer en gebruikt geen Wallbox-vermogen. Normaal DHW-comfort blijft apart beschermd.
+- Panasonic kiest HEAT/COOL; SolarPilot mag geen agressieve modusswitching introduceren.
+- Realtime P1/PV-metingen en fysieke grenzen gaan altijd vóór forecast of aangeleerde schattingen.
+- Geen tokens, wachtwoorden, API-sleutels, private keys, adressen of private installatie-identiteiten in publieke bron/release.
+- Codewijziging = dezelfde release ook tests, changelog, actuele gebruikersuitleg, installatie/upgrade, rollback en dit overdrachtsdossier bijwerken.
+
+## 4. Actuele werking
+### Modi en bediening
+Dagelijkse modusnamen: **Alleen bekijken**, **Automatisch regelen**, **Pauze**. Belangrijkste groepen: Overzicht, Voorrang, Toestellen, Warmte & comfort, Planning, Energie, Auto & batterij, Export en Uitleg.
+
+### Centrale voorrang
+Veiligheid en noodzakelijk ruimte-/warmwatercomfort zijn niet versleepbaar. De flexibele lijst bepaalt de echte relatieve volgorde. Voor Wallbox-zonnevermogen zijn positie én toestemming vereist. Minimumlooptijden en lopende beschermde cycli blijven intact.
+
+### AEG-afwasmachine
+APP-start is start-only: alleen de bevestigde native START-knop, nooit STOPRESET/PAUSE/RESUME/programmakeuze of stekkerrelais. Alleen een nieuwe overgang naar exact `Enabled` maakt één aanvraag. Vóór 13:00: vandaag; vanaf 13:00: volgende kalenderdag. Standaarddeadline 13:00; netaanvulling alleen wanneer de bestaande optie dat toestaat. Startup met APP al aan maakt geen aanvraag. Eén belading krijgt maximaal één START; onzekere START wordt niet blind herhaald. End Of Cycle blijft eventgestuurd en persistent; AirDry/Ado Drying is geen einde.
+
+Beta.39 gebruikt **ConnectivityState** als actuele bereikbaarheidsheartbeat. Ready To Start, exact Enabled, gesloten deur en geselecteerd programma zijn statische veiligheidswaarden die langer dan vijf minuten ongewijzigd mogen blijven terwijl op zon wordt gewacht. Unknown, Unavailable, restored of een werkelijk onveilige/afwijkende waarde blokkeert nog steeds. Het volledige lopende cyclusverloop omvat Running, Washing, Prewash, Pre wash, Main wash, Rinsing, Drying, Ado Drying en Paused.
+
+### Beta.38→beta.39 herstel
+Beta.38 kon een verdwenen legacy-AEG-profiel veilig same-device reconstrueren. Beta.39 behoudt dat pad maar koppelt bij nieuwe recovery geen optionele numerieke Alerts-sensor automatisch als veiligheidsbron zonder echte technische `DISH_ALARM_*`-vlaggen. Een éénmalige reparatie raakt uitsluitend het profiel dat beta.38 zelf als `recovered` markeerde: de verkorte `Running;Paused`-lijst wordt indien aanwezig hersteld en alleen een door beta.38 automatisch gekozen onbruikbare alarmbron wordt verwijderd. Handmatige profielen worden niet generiek herschreven. De migratie maakt geen ticket en verstuurt geen START.
+
+### Beta.37/beta.36 en eerdere regels
+Veilige éénmalige activering van reeds geconfigureerde analyse/leer-/regelmodules, centrale zichtbare prioriteit, gescheiden warmtepomp/basislastleren, PV-kalibratie, fasebewaking, eerlijke exportdekking en alle bestaande planner-/Wallbox-/DHW-regels blijven cumulatief behouden.
+
+### DHW/klimaat/PV/fasen/planner
+Behoud 50 °C normaal DHW, 46 °C bewaakte comfortgrens, Panasonic-differentie -5 °C, 50 °C zonnebuffer, 60 °C extra PV-buffer, max. 50 °C bij actieve koeling en autonome 62 °C-sterilisatie. PV: 13,8 kWp panelen, 10 kW omvormerlimiet, lokale schaduw/kalibratie, realtime PV als waarheid. Fase- en plannerregels mogen geen elektrische ruimte verzinnen. Warmtepompleren blijft gescheiden van gewone huishoudbasislast.
+
+## 5. Configuratie, integraties en belangrijke entiteiten
+Generieke integraties: Home Assistant, digitale meter/HomeWizard, PV/Forecast.Solar, Panasonic Aquarea, Wallbox, flexibele toestellen, toekomstige batterijprofielen. Exacte installatie-entity_ids altijd uit actuele HA/config lezen en niet in publieke documentatie hardcoderen.
+
+Legacy AEG-recovery wordt lokaal via het HA-apparaatregister herleid. Verplichte same-device rollen: START, ApplianceState, ConnectivityState, RemoteControl, DoorState en programmaselectie. CyclePhase en native starttijd zijn optioneel; alarm is alleen optioneel bruikbaar wanneer de gekozen bron een verifieerbare veiligheidssemantiek heeft. Het HA-device-id wordt uitsluitend gehasht/fingerprinted in statusinformatie.
+
+## 6. Belangrijke ontwerpbeslissingen + waarom
+- **Beta.38 Library source als absolute basis**: voorkomt opnieuw ontwikkelen op een oudere versie.
+- **Connectivity als heartbeat, statische waarden als state**: voorkomt dat een legitieme wachttijd op zonneoverschot vanzelf ongeldig wordt zonder een echte toestandwijziging.
+- **Fail-closed blijft intact**: onbekend/onbeschikbaar/restored/afwijkend blokkeert; alleen kunstmatige leeftijd van statische waarden is verwijderd.
+- **Geen numerieke Alerts-teller als automatische veiligheidswaarheid**: zonder expliciete technische vlaggen is `2` of een andere aggregate waarde onvoldoende om veilig/gevaarlijk af te leiden.
+- **Beta.39-reparatie alleen op beta.38-marker**: voorkomt overschrijven van handmatig ingestelde profielen.
+- **Same-device + unieke role mapping**: voorkomt verkeerde START-knop of ander keukenapparaat.
+- **APP startup latch**: voorkomt onverwachte start na upgrade wanneer remote APP al aan stond.
+- **Centrale zichtbare order = echte order**: voorkomt verborgen Wallbox-reclaim door een lagere load.
+
+## 7. Automatische processen
+- Runtime reconcilieert configuratie/toestand na start/reload zonder dubbele fysieke opdrachten.
+- Beta.36-prioriteitsmigratie bewaart de bestaande effectieve volgorde.
+- Beta.37-activeringsprofiel is éénmalig en overschrijft latere gebruikerskeuzes niet.
+- Beta.38 legacy-recovery blijft idempotent en maakt geen fysieke opdracht.
+- Beta.39-reparatie is idempotent, gemarkeerd met eigen schema en beperkt tot het beta.38 recovered-profiel.
+- Analyse, leerdata, historiek en planners blijven lokaal/persistent volgens hun bestaande bewaartermijnen.
+
+## 8. Geheimenbeleid
+Nooit wachtwoorden, tokens, API-sleutels, private keys, exacte adressen, ruwe privé-analyses of private device-identiteiten in Git/release/OVERDRACHT. Analyse-export blijft lokaal en wordt alleen handmatig gedeeld. Publieke preflight moet groen zijn vóór publicatie.
+
+## 9. Testprocedure + actuele teststatus
+Op beta.39 uitgevoerd op 1 oktober 2026:
+- `pytest -q`: **1434 passed**.
+- Gerichte afwasmachinetests: **133 passed**.
+- Nieuwe tests dekken lange wachttijd met verse ConnectivityState, volledig faseherstel, reparatie van onbruikbare beta.38-autoalarmkoppeling en niet-wijzigen van handmatige profielen.
+- Releasechecks, compileall en publieke preflight moeten groen blijven in de finale cachevrije releaseboom; zie `docs/TESTRESULTATEN_BETA39.md` voor het finale verslag.
+
+## 10. Bekende problemen / beperkingen
+- De fysieke AEG-afwasmachine kan vanuit de bouwomgeving niet echt worden gestart. Na installatie is één gecontroleerde nieuwe belading nodig om live AEG-cloud/HA-terugmelding te bevestigen.
+- Zonder exclusieve afwasmachinemeter blijft het elektrische programma-/faseprofiel conservatief geschat; geen fictieve meetdata toevoegen.
+- Een incomplete/ambigue AEG-mapping wordt bewust niet automatisch hersteld. `dishwasher_setup` meldt dit en vereist dan handmatige controle.
+- Een handmatig gekoppelde alarmbron blijft bewust fail-closed volgens de gekozen configuratie; beta.39 verwijdert alleen de specifieke onbewezen bron die beta.38 automatisch koos.
+
+## 11. Concrete openstaande ontwikkeling
+- Na installatie beta.39 één echte nieuwe AEG-belading controleren: APP uit→aan, geplande dag/deadline, wachten >5 min indien nodig, één START, Running/Washing/Drying/Ado Drying en End Of Cycle.
+- Later eventueel exclusieve Shelly-vermogensmeting van de afwasmachine gebruiken voor gemeten programmafasen/planning; tot dan geen faseprofiel verzinnen.
+- Ruimteverwarmingsfase en overige toekomstige SolarPilot-uitbreidingen alleen verderzetten vanaf de geregistreerde beta.39-basis en deze overdracht.
+
+## 12. Installatie/upgrade en rollback
+Zie `docs/BETA39_INSTELLEN.md`.
+
+Upgrade: Home Assistant-back-up → beta.39 installeren → herstart → Toestellen/Afwasmachine/Voorrang/status controleren → voor een nieuwe testbelading APP uit en weer aan → fysieke start alleen onder de bestaande live voorwaarden.
+
+Rollback: SolarPilot Pauze → lopende beschermde cyclus laten afwerken → vorige release/back-up herstellen → HA herstart → toestelconfiguratie en prioriteit opnieuw verifiëren. Nooit een lopende afwasbeurt met STOPRESET vanuit SolarPilot beëindigen.
+
+## 13. Belangrijkste bestanden
+- `custom_components/solar_pilot/dishwasher.py`: startveiligheid en statische guard/Connectivity-heartbeat.
+- `custom_components/solar_pilot/dishwasher_recovery.py`: beta.38 recovery + gerichte beta.39-reparatiemigratie.
+- `custom_components/solar_pilot/dishwasher_app.py`: APP-ticket, 13:00-planning en eventgestuurd einde.
+- `custom_components/solar_pilot/runtime.py`: runtime, éénmalige Auto voor daadwerkelijk legacy-recovered profiel en fysieke commandoroute.
+- `custom_components/solar_pilot/priority_board.py` / `wallbox_policy.py`: centrale voorrang en Wallbox-regels.
+- `custom_components/solar_pilot/current_guide.py`: enige actuele gebruikersuitlegbron.
+- `tests/test_dishwasher.py`, `tests/test_dishwasher_recovery.py`, `tests/test_dishwasher_app31.py`, volledige `tests/`-suite.
+- `CHANGELOG.md`, `docs/BETA39_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA39.md`.
+
+## 14. Release-checklist
+1. CURRENT/overdracht lezen en juiste basis bevestigen.
+2. Manifest/const/current guide exact dezelfde versie.
+3. Volledige tests groen.
+4. Publieke preflight groen op schone bronboom.
+5. Actuele uitleg + option-help opnieuw genereren.
+6. Changelog + installatie/rollback + testverslag + OVERDRACHT actualiseren.
+7. Geen caches/private data in pakket.
+8. Release-zip bouwen + checksum vastleggen.
+9. `releases/`, `LATEST.zip`, `CURRENT.json`, `OVERDRACHT.md`, `PROJECT_INDEX.json` atomair naar beta.39 bijwerken.
+10. GitHub/HACS alleen vanaf deze gecontroleerde beta.39-bron publiceren, liefst één gecontroleerde commit/tag/release om ruis te vermijden.
+
+## 15. AI-handoff
+Start altijd bij `CURRENT.json` + deze `OVERDRACHT.md`; kies nooit een versie enkel omdat die later op GitHub of in een bestandsnaam staat. Beta.39 = geregistreerde beta.38 plus de afwas-delayed-start/phase/alarm-reparatie. Verander afwas-APP-, 13:00-, prioriteits-, DHW-, Wallbox- of veiligheidsregels niet zonder expliciete nieuwe gebruikersbeslissing en bijbehorende regressietests.

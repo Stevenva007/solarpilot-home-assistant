@@ -1,6 +1,6 @@
 # SolarPilot · Configuratiestructuur
 
-**Geldig voor 1.0.0-beta.37.** Dit document beschrijft waar instellingen staan. Voor de inhoudelijke EMS-regels geldt uitsluitend `ACTUELE_WERKING.md`.
+**Geldig voor 1.0.0-beta.39.** Dit document beschrijft waar instellingen staan. Voor de inhoudelijke EMS-regels geldt uitsluitend `ACTUELE_WERKING.md`.
 
 ## Configuratiecentrum
 
@@ -71,7 +71,7 @@ Forecast.Solar, lokaal PV-/schaduwmodel en planner. Actuele meters blijven altij
 
 ### Export
 
-Eén hoofdactie **Analysebestand downloaden** maakt het volledige onderzoeksbestand voor periodieke controle in ChatGPT. Standaard wordt zeven dagen gevraagd en worden namen gepseudonimiseerd. Extra periode-/naamkeuzes staan onder de geavanceerde exportopties; er zijn geen concurrerende losse analyse-exporten.
+Eén hoofdactie **Analysebestand downloaden** maakt het volledige onderzoeksbestand voor periodieke controle. Standaard wordt zeven dagen gevraagd en worden namen gepseudonimiseerd. Extra periode-/naamkeuzes staan onder de geavanceerde exportopties.
 
 ### Instellingen & systeem
 
@@ -79,7 +79,7 @@ Technische engine-timing, meetkwaliteit, faseherkenning, Wallbox-herkenning, pri
 
 ## Dashboardstructuur
 
-De gewone kaart heeft zeven hoofdtabs:
+De gewone kaart heeft negen hoofdtabs:
 
 - **Overzicht** — beslisinformatie en belangrijkste KPI's;
 - **Voorrang** — alle flexibele zonneprioriteiten, Wallbox en extra warmwaterbuffer in één verschuifbare lijst;
@@ -107,7 +107,7 @@ De Planning-tab hoort bij **Voorspellen & optimaliseren → Unified Planner**. H
 
 ### Dagoverzicht per verbruiker
 
-**Verbruikers → Dagoverzicht** opent een aparte popup voor het gekozen toestel. Bovenaan staan de dagtotalen; eronder de aan-perioden op een tijdlijn, 7/30-dagenbalkjes en de sessies met de geregistreerde redenen. De datumkiezer, Vandaag en Vorige/Volgende dag veranderen alleen wat je bekijkt. Een actieve sessie wordt als lopend gemarkeerd. De popup blijft open tijdens de gewone dashboardupdates.
+**Toestellen → Dagoverzicht** opent een aparte popup voor het gekozen toestel. Bovenaan staan de dagtotalen; eronder de aan-perioden op een tijdlijn, 7/30-dagenbalkjes en de sessies met de geregistreerde redenen. De datumkiezer, Vandaag en Vorige/Volgende dag veranderen alleen wat je bekijkt. Een actieve sessie wordt als lopend gemarkeerd. De popup blijft open tijdens de gewone dashboardupdates.
 
 De registratie is alleen-lezen en respecteert Home Assistant-leesrechten. Historische redenen van vóór de installatie worden niet ingevuld. Een onbeschikbare status of herstart is een meetgat, geen bewezen stop. Bij een slimme stekker is de draaitijd de ingeschakelde tijd; voor echte compressorlooptijd is een bijpassende actieve-statusbron nodig. De complete begrenzing en opslagregels staan in `ACTUELE_WERKING.md`.
 
@@ -120,8 +120,8 @@ Open onderaan het SolarPilot-dashboard **Configureren met uitleg ?**. De wizard 
 **Wallbox** bevat ook automatisch laadprofiel, optionele laadstroom-/fasebron, handmatig fase-/stroomprofiel en afgeleid zonnelaadminimum. ICP is niet de laadlimiet.
 
 
-## Dagelijkse bediening in beta.35
+## Dagelijkse bediening in beta.39
 
-**Overzicht · Voorrang · Verbruikers · Comfort · Planning · Energie · Opslag · Export · Uitleg**
+**Overzicht · Voorrang · Toestellen · Warmte & comfort · Planning · Energie · Auto & batterij · Export · Uitleg**
 
 Voorrang bundelt toestellen, Wallbox en extra boilerwarmte. Vaste comfort- en hygiënebescherming staat zichtbaar erboven. Export bundelt het samenstellen van één lokaal onderzoeksbestand met bestaande privacy- en tijdvensterkeuze. Toestelbeheer, PV-diagnose en Leren & vragen blijven afzonderlijk beschikbaar; alle algemene exportverwijzingen komen op Export uit.

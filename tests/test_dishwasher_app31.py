@@ -409,3 +409,24 @@ async def test_deadline_reserves_other_owned_but_unconsumed_commitments(monkeypa
     r.device_modes['other']='auto';h.states.set('switch.other','on');h.states.set('sensor.other_power',0,{'unit_of_measurement':'W'})
     move(h,w,'2026-09-29T13:00');await r.tick()
     assert not [x for x in h.services.calls if x[0]=='button']
+
+@pytest.mark.asyncio
+async def test_app_request_can_wait_beyond_static_guard_age_when_connectivity_stays_fresh(monkeypatch):
+    r,h,c,w=configured(monkeypatch,start_delay_s=300)
+    ready(r,h,c,w)
+    await r.tick()
+    # Request exists, but not enough stable surplus yet. Let static AEG values age
+    # well beyond the old 300 s blanket timeout while connectivity keeps reporting.
+    w[0] += 1800
+    for eid in ('sensor.dw_phase','sensor.dw_remote','binary_sensor.dw_door','select.dw_program'):
+        obj=h.states.get(eid)
+        obj.last_reported=datetime.fromtimestamp(w[0]-1800,timezone.utc)
+        obj.last_updated=obj.last_reported
+    h.states.set('sensor.dw_connection','Connected')
+    h.states.set('sensor.grid',-2500,{'unit_of_measurement':'W'})
+    r.filtered=-2500
+    await r.tick()
+    r.states['a'].start_since -= 301
+    h.states.set('sensor.dw_connection','Connected')
+    await r.tick()
+    assert len([x for x in h.services.calls if x[0]=='button'])==1
