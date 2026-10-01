@@ -203,3 +203,27 @@ def test_current_registry_metadata_without_device_identifiers(monkeypatch):
     assert out['sensor.grid']['platform']=='electrolux_status'
     assert out['sensor.grid']['device_ref']=='device_1'
     assert 'PRIVATE' not in json.dumps(out)
+
+
+def test_beta36_export_reports_real_coverage_instead_of_requested_window():
+    r,h=build();now=time.time()
+    r.analysis.samples.extend([
+        {"ts":now-4*3600},
+        {"ts":now-4*3600+300},
+        {"ts":now-3600},
+        {"ts":now-3600+300},
+    ])
+    r.analysis.fast.extend([{"ts":now-1200},{"ts":now-60}])
+    r.analysis.events.append({"ts":now-1800,"kind":"restart","message":"test"})
+    data=r.analysis.build(hours=168,include_names=True)
+    cov=data["coverage_summary"]
+    assert cov["requested_hours"]==168
+    assert 3.0 < cov["available_raw_hours"] < 4.1
+    assert 0 < cov["covered_hours"] < 1
+    assert cov["coverage_pct"] < 1
+    assert cov["offline_or_unregistered_gap_hours"] > 2
+    assert cov["restart_count"]==1
+    assert 0 < cov["fast_telemetry_hours"] < 1
+    assert data["schema_version"]==2
+    assert "solarpilot_live_learning" in data["data_provenance"]
+    assert "extra meettijd" in data["data_provenance"]["calculated_start_profiles"]
