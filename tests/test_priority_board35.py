@@ -138,8 +138,8 @@ def test_new_id_not_granted_previous_mode_and_retired_id_not_displayed():
     r,h=multiple();b=r.priority_board;activate(r)
     old=r.configs.pop('a');r.configs['replacement']={**old,'id':'replacement','name':'Vervanger'}
     assert 'device:a' not in b.order()
-    assert b.order().index('device:replacement') < b.order().index(EXTRA)
-    assert b.order()[-1] == EXTRA
+    assert b.order().index(EXTRA) < b.order().index('device:replacement')
+    assert b.order()[-1] == 'device:replacement'
     assert r.device_modes.get('replacement','disabled')=='disabled'
     assert 'device:replacement' in b.permissions()
     r.configs['new_aeg']={**old,'id':'new_aeg','name':'Nieuwe afwas','kind':'dishwasher','dishwasher_priority_enabled':True}
@@ -154,7 +154,7 @@ def test_right_requires_position_permission_and_meter(before,permission,meter):
     activate(r,order,{'device:a':permission,'device:second_consumer':True})
     c=r.priority_board.effective_config('a')
     allowed,_,_=reclaim_permission(c,before_wallbox=before,dedicated_meter=meter)
-    assert allowed==(permission and meter)
+    assert allowed==(before and permission and meter)
     assert c['_priority_board_before_wallbox']==before
     assert r.configs['a']['priority']==60
 
@@ -166,7 +166,7 @@ def test_legacy_opt_in_toggles_without_relaxing_legacy_runtime_rule():
     assert allowed and long and c['wallbox_power_policy']=='legacy'
 
 
-def test_lower_rank_wallbox_permission_is_not_forced_into_no_reclaim_ids():
+def test_lower_rank_never_reclaims_wallbox_even_if_permission_saved():
     r,h=multiple()
     activate(r,[WALLBOX,'device:a','device:second_consumer',EXTRA],
              {'device:a':True,'device:second_consumer':False})
@@ -178,7 +178,7 @@ def test_lower_rank_wallbox_permission_is_not_forced_into_no_reclaim_ids():
                     raw_mode='full_solar',session_reason='ok',session_confirmed=True,
                     session_value='Zonne-auto · laden')
     _,_,no_reclaim=r._wallbox_device_constraints(time.monotonic(),reading,-100,True,0)
-    assert 'a' not in no_reclaim
+    assert 'a' in no_reclaim
     assert 'second_consumer' in no_reclaim
 
 
