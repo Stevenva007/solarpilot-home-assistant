@@ -3,12 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.40'
-GUIDE_UPDATED = '2026-10-01'
+GUIDE_VERSION = '1.0.0-beta.41'
+GUIDE_UPDATED = '2026-10-02'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.40',
- 'updated': '2026-10-01',
+ 'version': '1.0.0-beta.41',
+ 'updated': '2026-10-02',
  'intro': 'Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst '
           'samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en '
           'leerdata blijven lokaal in Home Assistant en worden bij gewone HACS-updates niet vervangen door '
@@ -126,8 +126,8 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'toestemming: een eigen exclusieve W/kW-meter, een onderbreekbare schakelaar of '
                               'numerieke actuator en een actuele bevestigde zonnelaadsessie blijven vereist. '
                               'De AEG gebruikt zijn aparte beschermde route. Achter de Wallbox krijgt een '
-                              'toestel geen EV-vermogen, ook niet met Ja geselecteerd. Een bestaande '
-                              'legacy-overname behoudt haar extra voorwaarde voor korte minimumlooptijd. '
+                              'toestel geen EV-vermogen, ook niet met Ja geselecteerd. Een reeds ingestelde '
+                              'korte-cycluskeuze behoudt haar strengere voorwaarde voor de minimumlooptijd. '
                               'Zolang de centrale lijst nog niet is gewijzigd, blijven de bestaande numerieke '
                               'en per-Wallbox-keuzes exact leidend.',
                               'Een lange minimumlooptijd wordt bij Voorrang volgen niet weggeknipt om een '
@@ -180,7 +180,8 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'standaardkeuzes verhogen geen Auto-deelname, actuatorvrijgave of toestemming om '
                               'nieuwe hardware aan te sturen.'],
                'bullets': ['Effectieve sessie en ingestelde zonnemodus staan naast elkaar in het dashboard.',
-                           'Per verbruiker: Voorrang volgen / Alleen echt overschot / Oude expliciete keuze.',
+                           'Per verbruiker staat één uitkomst: auto mag veilig minder laden, alleen vrij '
+                           'zonneoverschot, of de strengere route voor een kort en gemeten toestel.',
                            'De bestaande voortgang, fouten en overnamebesluiten staan ook in de '
                            'analyse-export.']},
               {'title': '4. Sanitair warm water: rustig normaal doel, zon voor extra voorraad',
@@ -343,8 +344,8 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'dienst gestuurd. Een terugkerende empirische afwijking is niet automatisch '
                               'bewezen fysieke schaduw.',
                               'Kalibratie en schaduwleren staan standaard aan wanneer een bruikbare bron '
-                              'bestaat, zonder fysieke bevoegdheden te veranderen. Een oude expliciete '
-                              'forecast- of lokale-PV-opt-out blijft behouden. Normaal gebruikt minstens vijf '
+                              'bestaat, zonder fysieke bevoegdheden te veranderen. Een al gemaakte keuze om '
+                              'forecast- of lokale-PV-aanpassing uit te schakelen blijft behouden. Normaal gebruikt minstens vijf '
                               'vergelijkbare dagen; Rustig minstens zeven. Per dag beweegt de factor maximaal '
                               '0,05 / 0,025 / 0,075 voor Normaal / Rustig / Vlotter, binnen 0,35–1,25. Bij te '
                               'wisselende dagen of te weinig bewijs blijft de factor 1. Meer metingen op '
@@ -571,7 +572,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                            'Panasonic-sterilisatie blijft aan en Wallbox Full Solar blijft autonoom.']},
               {'title': '12. Logische interface en configuratiestructuur',
                'paragraphs': ['Het Configuratiecentrum groepeert bron- en toestelinstellingen als Overzicht, '
-                              'Energie & net, Verbruikers & prioriteiten, Comfort & warmtepomp, Opslag & '
+                              'Energie & net, Toestellen, Warmte & comfort, Auto & batterij, '
                               'laden, Voorspellen & optimaliseren en Geavanceerd & systeem. De dagelijkse '
                               'prioriteitsbediening staat op de eigen tab Voorrang; nadat die lijst is '
                               'gewijzigd verdwijnen de oudere, concurrerende prioriteitsvelden uit de '
@@ -592,7 +593,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Geavanceerd. De onderliggende option-keys en regelalgoritmen blijven compatibel '
                               'met bestaande instellingen.',
                               'De dashboardkaart bevat negen herkenbare tabbladen: Overzicht, Voorrang, '
-                              'Verbruikers, Comfort, Planning, Energie, Opslag, Export en Uitleg. Modus en '
+                              'Toestellen, Warmte & comfort, Planning, Energie, Auto & batterij, Export en Uitleg. Modus en '
                               'belangrijke waarschuwingen blijven bovenaan. Voorrang bundelt de rangorde en '
                               'toestemming om autoladen te verminderen. Planning bundelt horizon, planfouten, '
                               'beschermde cyclusprofielen en what-if-replay. Zo hoeft niet alle informatie op '
@@ -616,13 +617,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Leren & vragen, Export en de instellingenwizard. Alle algemene '
                               'exportverwijzingen komen bij de ene Export-pagina uit. Planning begint met Zon '
                               '& voorspelling; handmatige forecastbronnen blijven een geavanceerde terugval. '
-                              'Verbruikers en Wallbox tonen operationele status en een verwijzing naar '
+                              'Toestellen en Auto laden tonen operationele status en een verwijzing naar '
                               'Voorrang, geen tweede rangorde-editor. Open popups, invoer en conceptvolgorde '
                               'worden niet opnieuw opgebouwd door een gewone live verversing.'],
                'bullets': ['Eerste installatie vraagt alleen de essentiële net- en PV-bronnen; een optionele '
                            'lokale privébundel kan daarna de overige bronkoppelingen en historische bootstrap '
                            'in één keer veilig invullen.',
-                           'Verbruikers worden toegevoegd via een duidelijke vierstappenwizard: basis, '
+                           'Toestellen worden toegevoegd via een duidelijke vierstappenwizard: basis, '
                            'koppeling, gedrag & bescherming, planning & energie.',
                            'Batterijprofiel en batterijbediening zijn gescheiden zodat read-only gebruik geen '
                            'bedieningsvelden toont.',
@@ -637,7 +638,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                            'Er bestaan geen verborgen klimaat-tuningwaarden zonder dashboarduitleg: iedere '
                            'SMART_CLIMATE-instelling heeft één catalogusitem met betekenis, advies, gevolg en '
                            'aanbevolen standaard.',
-                           'Iedere flexlast heeft in de tab Verbruikers een Dagoverzicht-popup voor de eigen '
+                           'Ieder toestel heeft in de tab Toestellen een Geschiedenis-popup voor de eigen '
                            'draaitijd, sessies en beslisredenen; de popup blijft open tijdens live '
                            'telemetrie-updates.',
                            'Manuele start is een expliciete gebruikersoverride met bevestiging. Pauze en harde '
@@ -686,9 +687,9 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                            'De eigen dag-/sessiehistoriek van verbruikers wordt eveneens behouden bij gewone '
                            'updates en verwijderd bij definitieve verwijdering van de '
                            'SolarPilot-configuratie-entry.']},
-              {'title': '14. Dagoverzicht en draaitijd per verbruiker',
-               'paragraphs': ['Open het SolarPilot-dashboard → Verbruikers en klik bij een toestel op '
-                              'Dagoverzicht. De knop toont ook de geregistreerde draaitijd van vandaag. De '
+              {'title': '14. Apparaatgeschiedenis en draaitijd per toestel',
+               'paragraphs': ['Open het SolarPilot-dashboard → Toestellen en klik bij een toestel op '
+                              'Geschiedenis. De knop toont ook de geregistreerde draaitijd van vandaag. De '
                               'aparte, uitsluitend uitlezende popup toont per gekozen dag de totale '
                               'aan-/actieve tijd, het aantal bevestigde starts en stops, een tijdlijn en de '
                               'afzonderlijke sessies. Met de datumkiezer of de balkjes van 7/30 dagen kies je '
@@ -854,11 +855,11 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                                'bronbevestiging of Auto-deelname in. De beta.38-herstelmigratie voor de eerder '
                                'al gebruikte AEG-koppeling kan een verdwenen profiel éénmalig als Auto '
                                'herstellen. Beta.39 repareerde uitsluitend zo’n door beta.38 aangemaakt profiel '
-                               'wanneer de oude migratie een te beperkte faselijst of een onbewezen automatische '
+                               'wanneer de eerdere herstelstap een te beperkte faselijst of een onbewezen automatische '
                                'alarmbron had opgeslagen. Beta.40 houdt de herstelcontrole na SolarPilot-start '
-                               'nog tien minuten gericht actief wanneer Home Assistant de legacy-markers of '
+                               'nog tien minuten gericht actief wanneer Home Assistant de herstelmarkers of '
                                'AEG-entiteiten later laadt. Ook dat maakt geen APP-aanvraag en verstuurt geen START. '
-                              'Zolang je de centrale lijst niet wijzigt, rangschikt het oude '
+                              'Zolang je de centrale lijst niet wijzigt, rangschikt het bewaarde '
                               'getal binnen de bestaande groepen. Na een bevestigde wijziging bepaalt de '
                               'centrale lijst de relatieve volgorde; de gewone comfortbescherming blijft '
                               'gelden. Een voorkeur-AEG blijft vóór de extra boilerwarmte. De toestemming voor '
@@ -881,17 +882,17 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Bij voldoende stabiele werkelijke zonneproductie kan een vrijgegeven afwasbeurt '
                               'ook zonnevermogen benutten dat de Full Solar-laadpaal momenteel gebruikt. In de '
                               'actieve centrale lijst moet de afwasmachine vóór de Wallbox staan en Ja, als '
-                              'het veilig kan geselecteerd hebben. Zonder centrale wijziging blijft de oude '
-                              'expliciete toestemming gelden. Actuele geldige Full Solar-status, conservatief '
+                              'het veilig kan geselecteerd hebben. Zolang de centrale lijst nog niet is '
+                              'aangepast, blijft de eerder gekozen uitkomst ongewijzigd gelden. Actuele geldige Full Solar-status, conservatief '
                               'gecombineerd ruw/gefilterd netvermogen, de bestaande maximale overnamestap en '
                               'voldoende PV blijven noodzakelijk. De volledige nieuwe belasting moet binnen de '
                               'actuele elektrische, kwartierpiek- en fasegrenzen passen vóór de Wallbox '
                               'reageert. Dit vergroot nooit elektrische capaciteit en verstuurt geen opdracht '
                               'naar de Wallbox.',
                               'Deze start van een beschermd programma is niet dezelfde regeling als de '
-                              'terugneembare overname voor onderbreekbare lasten. De oude optie Mag '
-                              'gecontroleerd vermogen van Wallbox overnemen blijft voor afwasmachines UIT. De '
-                              'nieuwe aparte keuze heet Zonnevermogen vóór Wallbox benutten. De belasting '
+                              'terugneembare overname voor onderbreekbare lasten. Bij de afwasmachine bepaalt '
+                              'Mag de auto minder laden? rechtstreeks of deze beschermde start zonnevermogen '
+                              'mag benutten dat de auto op dat moment gebruikt. De belasting '
                               'verlaagt het door Wallbox gezien overschot; Full Solar moet autonoom reageren. '
                               'Tijdelijke netafname en latere netaanvulling kunnen niet worden uitgesloten. Na '
                               'START wordt de nieuwe actieve toestelstatus en netto energiebalans '
@@ -1167,13 +1168,10 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'beheerder kan lezen via de editor-API en opslaan; het gewone statusoverzicht '
                               'blijft leesbaar. Bij een verbindingsfout eerst vernieuwen om te controleren of '
                               'de opslag toch is gelukt.',
-                              'De vroegere prioriteitsgetallen, globale keuzes en ruwe toestelprofielen '
-                              'blijven bewaard voor migratie en onderzoek. Na de automatische beta.36-migratie '
-                              'zijn zij niet langer leidend: de oude numerieke/global-schakelbediening '
-                              'wijst wijzigingsopdrachten af met een '
-                              'verwijzing naar Voorrang. De toestelwizard verbergt dan de oude rangorde- en '
-                              'overnametoestemmingsvelden. Een oude, al geopende wizard mag die keuzes niet '
-                              'terugschrijven. Temperaturen, timers, startrechten, leerdata en '
+                              'Na de automatische omzetting is de centrale lijst leidend en blijft de '
+                              'effectieve volgorde gelijk. De toestelwizard toont geen tweede bediening voor '
+                              'rangorde of autolaadvermogen. Een al geopend formulier kan die centrale keuzes '
+                              'niet overschrijven. Temperaturen, timers, startrechten, leerdata en '
                               'niet-gerelateerde opties worden niet gereset.'],
                'bullets': []},
               {'title': '21. Leren, Wallbox, boiler, klimaat en analyse',
@@ -1233,7 +1231,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                            'Nieuwe gewone toestellen komen onderaan tot de gebruiker ze bewust verplaatst.',
                            'Een voorkeurs-AEG-profiel wordt vóór de Wallbox geplaatst wanneer die afwaslogica '
                            'actief is.']},
-               {'title': '23. Afwasmachineherstel — beta.40 herstelt na late Home Assistant-start',
+               {'title': '23. Afwasmachineherstel na late Home Assistant-start',
                 'paragraphs': ['De beta.35-analyse kon een situatie bevatten waarin de AEG-regelcode nog '
                                'aanwezig was maar geen afwasmachine in de actieve devices-configuratie stond. '
                                'Zonder zo’n profiel bestaan er geen APP-tickets, geen afwasprioriteit en dus '
@@ -1249,13 +1247,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                                'numerieke Alerts-sensor wordt niet automatisch als veiligheidsbron gebruikt '
                                'zonder expliciete bruikbare DISH_ALARM-vlaggen.',
                                'De praktijkdiagnose voor beta.39 bewees daarna een afzonderlijke '
-                               'opstartvolgordefout. SolarPilot controleerde de legacy-markers één keer tijdens '
+                               'opstartvolgordefout. SolarPilot controleerde de herstelmarkers één keer tijdens '
                                'zijn eigen config-entry-setup. Op dat moment waren de template-markers nog niet '
                                'geladen en werd terecht maar definitief “niet van toepassing” gemeld. Kort '
                                'daarna waren beide markers en alle verplichte AEG-rollen wel volledig op één '
                                'Home Assistant-apparaat aanwezig, maar beta.39 controleerde niet opnieuw.',
                                'Beta.40 doet de directe controle nog steeds en houdt daarna uitsluitend deze '
-                               'legacy-migratie maximaal tien minuten actief. Relevante statuswijzigingen en '
+                               'gerichte herstelcontrole maximaal tien minuten actief. Relevante statuswijzigingen en '
                                'een begrensde periodieke controle kunnen de ontdekking opnieuw uitvoeren. Na '
                                'succes, timeout of unload worden de tijdelijke listeners opgeruimd. Dit is '
                                'geen permanente algemene toestelherkenning en de retry roept geen regelcyclus '
@@ -1273,7 +1271,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                                'private Home Assistant-apparaat-id te publiceren. Een '
                                'compleet laat gevonden profiel wordt persistent opgeslagen, direct in '
                                'Toestellen opgenomen en volgens de bestaande voorkeursregel in Voorrang '
-                               'geplaatst. Alleen het exact gemarkeerde legacy-herstelprofiel kan zijn '
+                               'geplaatst. Alleen het exact door deze herstelroute gemarkeerde profiel kan zijn '
                                'afgesproken eenmalige Auto-deelname terugkrijgen wanneer er nog geen eerdere '
                                'gebruikersmodus voor die identiteit bestaat. Een later bewust verwijderd '
                                'herstelprofiel wordt niet stil opnieuw gemaakt.',

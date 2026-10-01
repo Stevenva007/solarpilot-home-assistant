@@ -124,7 +124,12 @@ with sync_playwright() as p:
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="loads"]').click()
     page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');window.calls=[];c._hass.callService=async(domain,service,data)=>window.calls.push({domain,service,data});}""")
     page.locator('solar-pilot-card >> .policy button[data-value="priorities"]').click()
-    assert page.locator('solar-pilot-card >> .priority-row').count() == 5
+    # The daily view is one complete stack: four fixed protections followed by
+    # the five reorderable example rules.
+    assert page.locator('solar-pilot-card >> .priority-stack .priority-row').count() == 9
+    assert page.locator('solar-pilot-card >> .priority-stack .priority-row.fixed').count() == 4
+    assert page.locator('solar-pilot-card >> .priority-stack').get_attribute('aria-label') == 'Volledige voorrangslijst'
+    assert page.locator('solar-pilot-card >> .priority-stack').inner_text().count('Mag de auto minder laden?') == 9
     assert page.evaluate("window.calls.length") == 0
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="energy"]').click()
     page.locator('solar-pilot-card >> details.learning summary').click()
@@ -174,8 +179,8 @@ with sync_playwright() as p:
     page.screenshot(path=str(output/"SolarPilot-EMS-voorbeeld.png"), full_page=True)
 
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="loads"]').click()
-    assert "Wallbox-voorrang per verbruiker" in page.locator("solar-pilot-card >> .wallbox-priority").inner_text()
-    assert "Wallbox eerst" in page.locator("solar-pilot-card >> .device").first.inner_text()
+    assert "Actuele verdeling rond Auto laden" in page.locator("solar-pilot-card >> .wallbox-priority").inner_text()
+    assert "Auto laden eerst" in page.locator("solar-pilot-card >> .device").first.inner_text()
     page.set_viewport_size({"width":1440,"height":1000})
     page.screenshot(path=str(output/"SolarPilot-wallbox-beta24-desktop.png"),full_page=True)
 

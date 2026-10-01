@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import time
 import pytest
 from custom_components.solar_pilot.runtime import SolarRuntime
-from custom_components.solar_pilot.engine import Action
+from custom_components.solar_pilot.engine import Action, Plan
 from homeassistant.exceptions import HomeAssistantError
 
 
@@ -473,6 +473,145 @@ def test_overview_with_configured_device_uses_real_device_id_for_cycle_learning(
     assert len(rows) == 1
     assert rows[0]["id"] == "a"
     assert rows[0]["cycle_learning"]["program"] == "standaard"
+    requirements = rows[0]["start_requirements"]
+    assert requirements["availability_and_fault"]["available"] is None
+    assert requirements["release"]["released"] is None
+    assert requirements["demand_or_time_window"]["demand"] is None
+
+
+@pytest.mark.asyncio
+async def test_overview_exposes_live_start_power_and_stability_without_replacing_engine_reason():
+    r, _ = build(device={"start_delay_s": 30, "start_margin_w": 150, "min_off_s": 0})
+    r.mode = "solar"
+    r.device_modes["a"] = "auto"
+
+    await r.tick()
+
+    row = r.overview()[0]
+    requirements = row["start_requirements"]
+    diagnostics = row["start_diagnostics"]
+    assert all(requirements[key]["met"] for key in (
+        "global_solar_mode", "recovery_clear", "automatic_participation",
+        "reliable_energy_measurement", "availability_and_fault",
+        "release", "demand_or_time_window", "minimum_rest",
+        "non_interruptible_cycle_release", "daily_maximum",
+        "planner_start_block", "wallbox_start_block", "runtime_start_block",
+        "general_increase_permission"))
+    assert diagnostics["summary"] == row["reason"] == r.result.reasons["a"]
+    assert diagnostics["summary_source"] == "result.reason"
+    assert diagnostics["missing"] == []
+    assert diagnostics["power"]["minimum_w"] == 1000.0
+    assert diagnostics["power"]["start_margin_w"] == 150.0
+    assert diagnostics["power"]["required_start_w"] == 1150.0
+    assert diagnostics["power"]["measured_free_w"] == 2500.0
+    assert diagnostics["power"]["measurement_valid"] is True
+    assert diagnostics["power"]["effective_import_limit_w"] == 3500.0
+    assert "hogere prioriteiten" in diagnostics["power"]["note"]
+    assert diagnostics["stable_start"]["building"]
+    assert 0 < diagnostics["stable_start"]["remaining_s"] <= 30
+
+
+def test_overview_reports_each_known_start_block_and_hides_invalid_free_power():
+    r, _ = build(device={"non_interruptible": True, "min_off_s": 120,
+                         "max_daily_runtime_s": 3600, "start_margin_w": 200})
+    s = r.states["a"]
+    r.mode = "observe"
+    r.device_modes["a"] = "disabled"
+    s.available = False
+    s.fault = "Vermogensmeting onbetrouwbaar"
+    s.interlock = False
+    s.demand = False
+    s.last_off = time.monotonic()
+    s.cycle_armed = False
+    s.daily_runtime_s = 3600
+    s.planner_hold = True
+    s.planner_reason = "Planner wacht op gepland venster"
+    r._start_context = {
+        "measurement_valid": False,
+        "device_start_blocks": {"a": "Beschermde hogere prioriteit wacht"},
+        "wallbox_start_blocks": {"a": "Wallbox krijgt eerst zonnevermogen"},
+        "wallbox_global_block": False,
+        "wallbox_reason": "",
+        "can_increase": False,
+        "increase_reason": "Fasebewaking blokkeert nieuwe verhogingen",
+        "effective_import_limit_w": 0,
+        "max_increase_w": 0,
+        "device_increase_limits": {"a": 0},
+    }
+    r.result = Plan(free_w=9999, targets={"a": 0},
+                    reasons={"a": "Doorslaggevende bestaande regeluitkomst"})
+
+    row = r.overview()[0]
+    requirements = row["start_requirements"]
+    diagnostics = row["start_diagnostics"]
+    assert diagnostics["summary"] == "Doorslaggevende bestaande regeluitkomst"
+    assert diagnostics["power"]["measured_free_w"] is None
+    assert diagnostics["power"]["required_start_w"] == 1200.0
+    assert requirements["minimum_rest"]["remaining_s"] > 0
+    assert not requirements["non_interruptible_cycle_release"]["met"]
+    assert not requirements["daily_maximum"]["met"]
+    assert requirements["planner_start_block"]["reason"] == "Planner wacht op gepland venster"
+    assert requirements["wallbox_start_block"]["reason"] == "Wallbox krijgt eerst zonnevermogen"
+    assert requirements["runtime_start_block"]["reason"] == "Beschermde hogere prioriteit wacht"
+    assert not requirements["reliable_energy_measurement"]["met"]
+    assert requirements["general_increase_permission"]["reason"] == "Fasebewaking blokkeert nieuwe verhogingen"
+    assert set(diagnostics["missing"]) == {
+        "global_solar_mode", "automatic_participation", "reliable_energy_measurement",
+        "availability_and_fault",
+        "release", "demand_or_time_window", "minimum_rest",
+        "non_interruptible_cycle_release", "daily_maximum",
+        "planner_start_block", "wallbox_start_block", "runtime_start_block",
+        "general_increase_permission",
+    }
+
+
+@pytest.mark.asyncio
+async def test_pure_wallbox_start_block_is_not_duplicated_as_runtime_block():
+    r, _ = build(device={"min_off_s": 0})
+    r.mode = "solar"
+    r.device_modes["a"] = "auto"
+    wallbox_reason = "Wallbox krijgt eerst zonnevermogen"
+    r._wallbox_device_constraints = lambda *args: ({}, {"a": wallbox_reason}, set())
+
+    await r.tick()
+
+    row = r.overview()[0]
+    requirements = row["start_requirements"]
+    assert not requirements["wallbox_start_block"]["met"]
+    assert requirements["wallbox_start_block"]["reason"] == wallbox_reason
+    assert requirements["runtime_start_block"]["met"]
+    assert requirements["runtime_start_block"]["reason"] == ""
+    assert "wallbox_start_block" in row["start_diagnostics"]["missing"]
+    assert "runtime_start_block" not in row["start_diagnostics"]["missing"]
+    assert row["reason"] == wallbox_reason
+
+
+@pytest.mark.asyncio
+async def test_invalid_grid_measurement_is_an_explicit_missing_start_requirement():
+    r, h = build(device={"min_off_s": 0})
+    r.mode = "solar"
+    r.device_modes["a"] = "auto"
+    h.states.set("sensor.grid", -3000, {"unit_of_measurement": "W"}, age=500)
+
+    await r.tick()
+
+    row = r.overview()[0]
+    requirement = row["start_requirements"]["reliable_energy_measurement"]
+    assert not requirement["met"] and not requirement["valid"]
+    assert "reliable_energy_measurement" in row["start_diagnostics"]["missing"]
+    assert row["start_diagnostics"]["power"]["measured_free_w"] is None
+
+
+def test_recovery_is_reported_separately_from_solar_mode():
+    r, _ = build(device={"min_off_s": 0})
+    r.mode = "solar"
+    r.recovery["a"] = {"reason": "controle nodig"}
+
+    requirements = r.overview()[0]["start_requirements"]
+
+    assert requirements["global_solar_mode"]["met"]
+    assert not requirements["recovery_clear"]["met"]
+    assert requirements["recovery_clear"]["active"]
 
 
 @pytest.mark.asyncio

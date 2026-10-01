@@ -278,8 +278,13 @@ class SmartClimateManager:
             return False
         # If SolarPilot still owns an OFF/coast state, explicitly give Panasonic
         # AUTO back.  We never choose HEAT or COOL here.
-        if any(want == "off" and have == "off" for want, have in pairs):
-            return await self._send_mode("auto", zones)
+        owned_off = [
+            z for z in zones
+            if str(expected.get(z["entity_id"], "")).casefold() == "off"
+            and str(z.get("mode", "")).casefold() == "off"
+        ]
+        if owned_off:
+            return await self._send_mode("auto", owned_off)
         # An expected OFF which is no longer OFF was changed externally; preserve
         # that manual state and relinquish ownership without writing anything.
         if any(want == "off" and have != "off" for want, have in pairs):
@@ -302,6 +307,48 @@ class SmartClimateManager:
     def _has_fixed_heat_cool(self, zones):
         return any(str(z.get("mode", "")).casefold() in ("heat", "cool") for z in zones)
 
+    def _command_targets(self, decision, zones):
+        """Select only zones SolarPilot may change for this global decision.
+
+        An OFF zone without an expected OFF in our persisted ownership map is a
+        user/Panasonic state, not a SolarPilot coast.  A normal AUTO decision may
+        therefore never wake that zone.  A hard comfort breach remains the sole
+        exception, and then only the zone(s) that actually breach the relevant
+        boundary are released.  This matters for independent Panasonic circuits:
+        one zone may legitimately remain OFF while another is available in AUTO.
+        """
+        mode = str(decision.desired_mode).casefold()
+        if mode == "off":
+            return [z for z in zones if str(z.get("mode", "")).casefold() != "off"]
+        if mode != "auto":
+            return []
+
+        hard = max(
+            float(self.settings.get("soft_band_c", 0.5)),
+            float(self.settings.get("hard_band_c", 1.0)),
+        )
+        direction = str(decision.comfort_direction or "").casefold()
+        expected = self.state.expected_mode or {}
+        targets = []
+        for zone in zones:
+            if str(zone.get("mode", "")).casefold() == "auto":
+                continue
+            entity_id = zone["entity_id"]
+            if str(expected.get(entity_id, "")).casefold() == "off":
+                targets.append(zone)
+                continue
+            if not decision.hard_override:
+                continue
+            current = float(zone["current"])
+            target = float(zone["target"])
+            cold = current < target - hard
+            hot = current > target + hard
+            if ((direction == "heating" and cold)
+                    or (direction == "cooling" and hot)
+                    or (not direction and (cold or hot))):
+                targets.append(zone)
+        return targets
+
     async def _send_mode(self, mode, zones):
         # Hard invariant: SolarPilot never chooses HEAT or COOL. Panasonic AUTO owns it.
         if mode not in ("auto", "off"):
@@ -317,7 +364,12 @@ class SmartClimateManager:
         for z in zones:
             await self.runtime.hass.services.async_call(
                 "climate", "set_hvac_mode", {"entity_id": z["entity_id"], "hvac_mode": mode}, blocking=False)
-        self.state.expected_mode = {z["entity_id"]: mode for z in zones}
+        # Keep ownership for other zones when only one independent circuit needs
+        # a hard comfort release.  Manual changes are cleared earlier by
+        # _manual_override_detected and are never claimed here.
+        expected = dict(self.state.expected_mode or {})
+        expected.update({z["entity_id"]: mode for z in zones})
+        self.state.expected_mode = expected
         self.state.last_command_wall = now
         self.state.last_command_mode = mode
         if mode == "off":
@@ -489,13 +541,14 @@ class SmartClimateManager:
             return False
         if decision.desired_mode not in ("auto", "off"):
             return False
-        if all(str(z["mode"]).casefold() == decision.desired_mode for z in zones):
+        targets = self._command_targets(decision, zones)
+        if not targets:
             return False
         if self.state.last_command_wall and not decision.hard_override:
             elapsed_h = (time.time() - self.state.last_command_wall) / 3600.0
             if elapsed_h < float(self.settings.get("min_state_hold_h", 8.0)):
                 return False
-        return await self._send_mode(decision.desired_mode, zones)
+        return await self._send_mode(decision.desired_mode, targets)
 
     def _alerts(self, zones, confidences):
         alerts = []
@@ -505,6 +558,17 @@ class SmartClimateManager:
             alerts.append({"severity": "warning", "title": "Weersvoorspelling", "message": self.last_forecast_error})
         if self._has_fixed_heat_cool(zones):
             alerts.append({"severity": "info", "title": "Handmatige Panasonic-stand", "message": "HEAT/COOL wordt nooit overschreven; SolarPilot blijft adviserend tot je zelf terugkeert naar AUTO/OFF."})
+        manual_off = [
+            z["name"] for z in zones
+            if str(z.get("mode", "")).casefold() == "off"
+            and str((self.state.expected_mode or {}).get(z["entity_id"], "")).casefold() != "off"
+        ]
+        if manual_off:
+            alerts.append({
+                "severity": "info",
+                "title": "Handmatige OFF-zone behouden",
+                "message": f"{', '.join(manual_off)} blijft OFF; alleen een harde comfortgrens mag die zone afzonderlijk naar Panasonic AUTO vrijgeven.",
+            })
         model_conf = min(confidences) if confidences else 0.0
         min_conf = float(self.settings.get("model_confidence_min", .55))
         if self.settings.get("enabled") and model_conf < min_conf:

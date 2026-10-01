@@ -5,6 +5,9 @@ ROOT = Path(__file__).resolve().parents[1]
 FLOW = (ROOT / "custom_components" / "solar_pilot" / "config_flow.py").read_text(encoding="utf-8")
 CARD = (ROOT / "custom_components" / "solar_pilot" / "frontend" / "solar-pilot-card.js").read_text(encoding="utf-8")
 STRINGS = json.loads((ROOT / "custom_components" / "solar_pilot" / "translations" / "en.json").read_text(encoding="utf-8"))
+NL_TEXT = (ROOT / "custom_components" / "solar_pilot" / "translations" / "nl.json").read_text(encoding="utf-8")
+EN_TEXT = (ROOT / "custom_components" / "solar_pilot" / "translations" / "en.json").read_text(encoding="utf-8")
+OPTION_HELP = (ROOT / "custom_components" / "solar_pilot" / "frontend" / "option-help.json").read_text(encoding="utf-8")
 
 
 def test_root_options_are_grouped_into_seven_hubs():
@@ -90,3 +93,59 @@ def test_beta26_active_consumers_have_clear_visual_state_badges():
 def test_beta26_battery_what_if_shows_roundtrip_loss_assumption():
     assert "roundtrip_loss_pct" in CARD
     assert "% totaal round-trip verlies" in CARD
+
+
+def test_priority_is_one_plain_language_stack_with_car_effect_per_rule():
+    for text in (
+        "Voorrang en autoladen", "Volledige voorrangslijst",
+        "Mag de auto minder laden?", "Beschermde regels staan vast",
+    ):
+        assert text in CARD
+    assert "priority-stack" in CARD and "row locked" in CARD
+
+
+def test_device_cards_explain_start_state_and_history_always_names_both_reasons():
+    for text in (
+        "<h2>Toestellen</h2>", "De gezamenlijke rangorde beheer je via Voorrang",
+        "Waarom dit toestel nog niet gestart is", "start_diagnostics", "start_requirements",
+        "Benodigd voor start", "Vrije injectie gemeten", "Stabiel nodig", "Nog nodig",
+        "Nog ongeveer", "betrouwbare actuele energiemeting", "herstartcontrole is nog bezig",
+        "recovery_clear", "reliable_energy_measurement", "general_increase_permission",
+        "Een veiligheidscontrole houdt nieuwe starts tegen",
+        "Verbinding actueel", "AEG START beschikbaar",
+        "Startreden", "Stopreden", "Een ontbrekende externe oorzaak wordt niet ingevuld",
+    ):
+        assert text in CARD
+    assert "start-check" not in CARD
+
+
+def test_device_schedule_has_one_outcome_choice_and_hides_it_with_active_priority_board():
+    schedule = FLOW.split("async def async_step_device_schedule", 1)[1].split("async def async_step_analysis", 1)[0]
+    schema = schedule.split("schema = {", 1)[1]
+    assert 'vol.Required("wallbox_energy_choice"' in schema
+    assert 'vol.Required("min_daily_runtime_min"' in schema
+    assert 'vol.Required("max_daily_runtime_min"' in schema
+    assert 'vol.Required("min_daily_runtime_s"' not in schema
+    assert 'vol.Required("max_daily_runtime_s"' not in schema
+    assert 'vol.Required("allow_wallbox_reclaim"' not in schema
+    assert 'vol.Required("wallbox_power_policy"' not in schema
+    assert '.get("schema") in (1, 2)' in schedule
+    assert 'central_fields = {"wallbox_precedence", "wallbox_energy_choice"}' in schedule
+    visible_text = "\n".join((FLOW, NL_TEXT, EN_TEXT, CARD, OPTION_HELP))
+    for forbidden in (
+        "Oude expliciete overnamekeuze gebruiken",
+        "Oude expliciete Wallbox-overname",
+        "Legacy-veld voor oudere configuraties",
+    ):
+        assert forbidden not in visible_text
+    assert "Toestel instellen · stap 4 van 4 · Planning en energie" in NL_TEXT
+    assert "Configure device · step 4 of 4 · Planning and energy" in EN_TEXT
+
+
+def test_frontend_assets_are_release_bound_to_beta41():
+    option_js = (ROOT / "custom_components" / "solar_pilot" / "frontend" / "option-help.js").read_text(encoding="utf-8")
+    assert CARD.startswith("/* SolarPilot 1.0.0-beta.41.")
+    assert "option-help.js?v=1.0.0-beta.41" in CARD
+    assert option_js.startswith("/* SolarPilot 1.0.0-beta.41.")
+    assert "option-help.json?v=1.0.0-beta.41" in option_js
+    assert json.loads(OPTION_HELP)["version"] == "1.0.0-beta.41"

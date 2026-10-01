@@ -241,8 +241,8 @@ class PriorityBoard:
                 "wallbox_power": permissions, "rows": rows, "protected": self.protected_rows(),
                 "constraints": self.constraints(),
                 "note": ("Dit is de enige volgorde voor flexibele zonne-energie. Wat hoger staat krijgt eerst de kans, maar lopende programma’s, minimumlooptijden en veiligheid blijven altijd beschermd."
-                         if self.active else "De bestaande beta.35-volgorde wordt bij migratie ongewijzigd als centrale lijst vastgelegd."),
-                "legacy_note": "Oude losse prioriteitsinstellingen blijven voor migratie bewaard, maar deze lijst is voortaan leidend."}
+                         if self.active else "De bestaande effectieve volgorde wordt ongewijzigd in deze centrale lijst vastgelegd."),
+                "legacy_note": "Eerder opgeslagen toestelkeuzes blijven behouden; deze centrale lijst is leidend."}
 
     def guard_extra(self, reading, now):
         """Do not let optional heat take a *fitting* higher claimant's free watts.

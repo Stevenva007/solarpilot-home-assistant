@@ -338,6 +338,46 @@ def test_options_init_no_global_busy_gate():
     assert not any(isinstance(x,ast.Attribute) and x.attr=='_busy' for x in ast.walk(fn))
 
 
+@pytest.mark.asyncio
+async def test_central_planning_save_preserves_absent_hidden_priority_keys():
+    """Editing a schedule must not invent a hidden central-priority change."""
+    from custom_components.solar_pilot.const import DEVICE_DEFAULTS
+    from custom_components.solar_pilot.priority_board import WALLBOX, EXTRA, device_key
+
+    r,h=build()
+    raw=r.entry.options['devices'][0]
+    hidden=('wallbox_precedence','wallbox_power_policy','allow_wallbox_reclaim')
+    for key in hidden:
+        raw.pop(key,None)
+    r.entry.options['priority_board']={
+        'schema':2,
+        'order':[device_key('a'),WALLBOX,EXTRA],
+        'wallbox_power':{device_key('a'):True},
+    }
+    assert r.priority_board.active
+    base=deepcopy(dict(r.entry.options))
+
+    path=Path(__file__).parents[1]/'custom_components/solar_pilot/config_flow.py'
+    tree=ast.parse(path.read_text(encoding='utf-8'))
+    cls=next(x for x in tree.body if isinstance(x,ast.ClassDef) and x.name=='SolarPilotOptions')
+    fn=next(x for x in cls.body if isinstance(x,ast.AsyncFunctionDef) and x.name=='async_step_device_schedule')
+    namespace={'DEVICE_DEFAULTS':DEVICE_DEFAULTS,'deepcopy':deepcopy}
+    exec(compile(ast.Module(body=[fn],type_ignores=[]),str(path),'exec'),namespace)
+
+    class Flow:
+        def __init__(self):self._device=deepcopy(base['devices'][0])
+        def _base_options(self):return base
+        async def _save(self,options):return await r.live_options.submit(base,options)
+
+    result=await namespace['async_step_device_schedule'](
+        Flow(),{'min_daily_runtime_min':10,'max_daily_runtime_min':0})
+
+    saved=next(d for d in result['devices'] if d['id']=='a')
+    assert saved['min_daily_runtime_s']==600
+    assert all(key not in saved for key in hidden)
+    assert not h.services.calls
+
+
 @pytest.mark.parametrize('setting,value',[('name','New'),('kind','dishwasher'),('appliance_type','tumble_dryer')])
 def test_replacement_profile_preserves_only_preferences(setting,value):
     old={'id':'old','name':'Old','kind':'switch','power_entity':'sensor.p',

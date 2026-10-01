@@ -30,13 +30,24 @@ with sync_playwright() as p:
     }''')
     page.locator('solar-pilot-card >> .nav [data-value=priorities]').click()
     assert page.locator('solar-pilot-card >> .nav button').count()==9
-    assert page.locator('solar-pilot-card >> .priority-row').count()==5
-    assert 'Altijd eerst beschermd' in page.locator('solar-pilot-card >> ha-card').inner_text()
+    assert page.locator('solar-pilot-card >> .priority-row').count()==page.evaluate('server.rows.length+server.protected.length')
+    assert page.locator('solar-pilot-card >> .priority-row.fixed').count()==page.evaluate('server.protected.length')
+    overview_text=page.locator('solar-pilot-card >> ha-card').inner_text()
+    assert 'Voorrang en autoladen' in overview_text
+    assert overview_text.count('Mag de auto minder laden?')==page.evaluate('server.rows.length+server.protected.length')
+    assert 'legacy' not in overview_text.lower() and 'oude expliciete' not in overview_text.lower()
     assert page.evaluate('commands.length===0&&calls.length===0')
     page.screenshot(path=str(OUT/'SolarPilot-beta35-voorrang-desktop.png'),full_page=True)
     page.locator('solar-pilot-card >> [data-action=priority_edit]').click()
     editor=page.locator('solar-pilot-priority-dialog');dialog=editor.locator('dialog')
     page.wait_for_selector('solar-pilot-priority-dialog >> [data-row]')
+    assert editor.locator('.row.locked').count()==page.evaluate('server.protected.length')
+    assert editor.locator('.row').count()==page.evaluate('server.rows.length+server.protected.length')
+    assert editor.locator('.permission').count()==page.evaluate('server.rows.length+server.protected.length')
+    permission_labels = dialog.inner_text().count('Mag de auto minder laden?')
+    expected_labels = page.evaluate('server.rows.length+server.protected.length')
+    assert permission_labels == expected_labels, (permission_labels, expected_labels)
+    assert 'legacy' not in dialog.inner_text().lower() and 'oude expliciete' not in dialog.inner_text().lower()
     assert editor.locator('[data-save]').is_disabled()
     # Explicit movement and permission edit: no save, no device command.
     editor.locator('[data-move="device:flex_load"][data-delta="-1"]').click()

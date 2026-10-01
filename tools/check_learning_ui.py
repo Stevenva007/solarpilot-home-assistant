@@ -50,7 +50,8 @@ with sync_playwright() as p:
     host=page.locator('solar-pilot-learning-dialog')
     assert host.locator('dialog').is_visible()
     assert host.locator('.question').count()>=2
-    assert host.locator('.model').count()==7
+    model_count = host.locator('article.model').count()
+    assert model_count == len(fixture['models']), (model_count, len(fixture['models']))
     assert 'FICTIEVE VOORBEELDGEGEVENS' in host.locator('dialog').inner_text()
     for key in ('sampling','adaptation','notifications'):
         host.locator(f'button[data-learning-help={key}]').click()
@@ -98,4 +99,4 @@ with sync_playwright() as p:
     page.keyboard.press('Escape');assert not host.locator('dialog').is_visible()
     assert page.evaluate('deviceCalls.length')==0 and not errors,errors
     browser.close()
-print('OK: echte Leren & vragen-popup, 7 modules, antwoorden en revisies, 3 vraagtekens, expliciete beleidsopslag, foutafhandeling, 80 telemetrieupdates, scroll/details/invoer behouden, XSS, 320/390/768/1440 px, Esc/polling-opruiming, nul actuatoraanroepen. Alleen fictieve API/apparaten.')
+print('OK: echte Leren & vragen-popup, alle aangeleverde modules, antwoorden en revisies, 3 vraagtekens, expliciete beleidsopslag, foutafhandeling, 80 telemetrieupdates, scroll/details/invoer behouden, XSS, 320/390/768/1440 px, Esc/polling-opruiming, nul actuatoraanroepen. Alleen fictieve API/apparaten.')

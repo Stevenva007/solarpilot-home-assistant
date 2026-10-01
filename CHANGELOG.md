@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.0-beta.41 — 2026-10-02
+
+- Maakt **Voorrang** één duidelijke verticale bron van waarheid: beschermde regels staan vast, flexibele regels zijn verplaatsbaar en per toestel staat één begrijpelijke uitkomst voor **Mag de auto minder laden?**.
+- Verbergt de oude dubbele toestelprioriteit- en Wallboxvelden ook voor het actuele schema 2. Een formulier dat vóór de centrale omzetting werd geopend kan de centrale volgorde of toestemming niet terugschrijven.
+- Toont per toestel de doorslaggevende actuele regelreden plus gestructureerde startvoorwaarden, benodigd/startmargevermogen en resterende stabiliteitstijd. De geschiedenis benoemt Startreden en Stopreden afzonderlijk en verzint geen ontbrekende externe oorzaak.
+- Behoudt een handmatig of extern uitgeschakelde Panasonic-zone tijdens een gewone AUTO-beslissing. Alleen de werkelijk overschrijdende zone kan bij een harde comfortgrens naar Panasonic AUTO worden vrijgegeven; verwijdering herstelt uitsluitend door SolarPilot zelf ingezette coast-zones. SolarPilot kiest nooit HEAT of COOL.
+- Beperkt DHW-overschothysterese tot een aantoonbaar door SolarPilot uitgegeven en teruggemeld hoog doel. Werkelijke netafname, actieve koeling of een onbeheerde/onbevestigde extra-doelbeslissing kan de 60 °C-luxe zonder terugvalvertraging laten vervallen; manual hold en fabrikantbescherming blijven schrijfblokkeringen.
+- Documenteert de live Wallbox-koppeling via één effectieve-sessiebron met volledige zonne-auto-, manueel- en gestoptwaarden. Een Full Solar-instelling alleen is geen sessiebewijs en SolarPilot blijft read-only.
+- Houdt activering bewust in lagen: eerst Alleen bekijken, daarna de gecontroleerde globale regeling en vervolgens per toestel Auto. Een update, migratie of opgeslagen prioriteitswijziging verleent geen nieuw actuatorrecht.
+- Behoudt de volledige beta.40-AEG-recovery: maximaal tien minuten gericht na opstart, uitsluitend één complete same-device mapping, geen APP-ticket of START tijdens migratie en alle bestaande veiligheidslocks.
+- Testaantallen worden pas na de definitieve bronboomcontrole ingevuld in `docs/TESTRESULTATEN_BETA41.md`; dit changelog vermeldt geen voorlopige of afgeleide aantallen.
+
 ## 1.0.0-beta.40 — 2026-10-01
 
 - Herstelt de bewezen Home Assistant-opstartvolgordefout waardoor beta.39 bij zijn enige recoverycontrole nog geen legacy-dashboardmarker zag, `not_applicable` vastlegde en het later volledig aanwezige AEG-profiel niet meer aanmaakte.

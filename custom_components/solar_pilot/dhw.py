@@ -290,7 +290,10 @@ class DHWPolicy:
         pv_hold = prev is not None and prev >= c["solar_c"]
         pv_min = c["pv_threshold_w"] - (c["pv_hysteresis_w"] if pv_hold else 0)
         solar = r.pv_w is not None and r.pv_w >= pv_min
-        already_high = prev == c["surplus_c"]
+        # The wider hold band belongs only to a high target SolarPilot has
+        # actually issued and received back.  A stale policy decision or an
+        # externally selected 60 °C target must satisfy the full start rule.
+        already_high = holding_owned_high and prev == c["surplus_c"]
         export = r.before_boiler_w if holding_owned_high and c["compensate_own_power"] and r.before_boiler_w is not None else r.export_w
         high = (r.export_w is not None and r.pv_w is not None and not cooling_block and r.luxury_allowed and
                 ((export is not None and export >= c["surplus_threshold_w"] - c["surplus_hysteresis_w"]
@@ -350,9 +353,17 @@ class DHWPolicy:
         if r.pv_w is None and not night and r.comfort_target_c is None and r.standby_c is None:
             reason = f"Zonnemeting ontbreekt: normaal doel {base_target:g} °C blijft beschikbaar"
 
+        real_import_drop = (r.grid_w is not None and r.grid_w > c["max_surplus_import_w"]
+                            and prev is not None and desired < prev)
+        unowned_high_drop = (prev == c["surplus_c"] and desired < prev
+                             and not holding_owned_high)
+        if real_import_drop:
+            reason += "; werkelijke netafname: extra doel valt zonder terugvalvertraging weg"
+        elif unowned_high_drop:
+            reason += "; onbevestigde extra-doelbeslissing vervalt zonder terugvalvertraging"
         immediate = ((r.comfort_urgent and desired <= base_target) or prev is None and desired <= base_target or night or
                      cooling_block and prev is not None and prev > c["cooling_cap_c"] or
-                     r.pv_w is None or (low and desired <= base_target))
+                     real_import_drop or unowned_high_drop or r.pv_w is None or (low and desired <= base_target))
         if prev is None:
             prev = min(base_target, r.standby_c) if r.standby_c is not None else base_target
             self.current = prev

@@ -30,7 +30,7 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
              'belangrijk. Een kleiner toestel mag een onbenut restje gebruiken als een belangrijker '
              'toestel nog niet past. Minimumtijden en beveiligingen gaan altijd vóór rangorde. '
              'Wallbox-voorrang stel je afzonderlijk per toestel in.',
- 'device_id': 'Selecteer de bestaande SolarPilot-verbruiker die je wilt aanpassen of verwijderen. Dit '
+ 'device_id': 'Selecteer het bestaande SolarPilot-toestel dat je wilt aanpassen of verwijderen. Dit '
               'is niet een opdracht om het fysieke toestel aan of uit te zetten. Verwijderen vraagt nog '
               'bevestiging.',
  'battery_id': 'Selecteer het opgeslagen batterijprofiel. De oorspronkelijke batterij-integratie wordt '
@@ -147,11 +147,11 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
  'non_interruptible': 'Een eenmaal bevestigde cyclus moet veilig kunnen afwerken, zoals een '
                       'vaatwasprogramma. AAN verhindert gewone energiebeslissingen die de cyclus abrupt '
                       'onderbreken. Gebruik dit niet als truc om voldoende startruimte te omzeilen.',
- 'min_daily_runtime_s': 'Gewenste minimale totale draaitijd per dag, in seconden. 0 betekent geen '
-                        'verplicht dagminimum. Dit is niet dezelfde instelling als minimumlooptijd per '
-                        'start.',
- 'max_daily_runtime_s': 'Hoogste totale draaitijd per dag, in seconden. 0 betekent geen daglimiet. Een '
-                        'ingestelde limiet kan nieuwe starts blokkeren, ook wanneer er nog zon is.',
+ 'min_daily_runtime_min': 'Gewenste minimale totale draaitijd per dag, in minuten. 0 betekent geen '
+                          'verplicht dagminimum. Dit is niet dezelfde instelling als minimumlooptijd per '
+                          'start.',
+ 'max_daily_runtime_min': 'Hoogste totale draaitijd per dag, in minuten. 0 betekent geen daglimiet. Een '
+                          'ingestelde limiet kan nieuwe starts blokkeren, ook wanneer er nog zon is.',
  'daily_deadline': 'Tijdstip waarop het ingestelde dagminimum bij voorkeur bereikt moet zijn. Een '
                    'deadline maakt geen netstroom vrij tenzij je die toestemming afzonderlijk geeft. '
                    '0-dagdoelen vragen geen verplichte taak.',
@@ -177,15 +177,14 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
  'phase_hint': 'Fase waarop het apparaat fysiek aangesloten is, of Auto voor voorzichtig lokaal leren. '
                'De 32 A-hoofdaansluiting blijft een grens per fase; netto optelling over fasen maakt '
                'één fase niet onbeperkt belastbaar.',
- 'allow_wallbox_reclaim': 'Laat deze last starten met zonnevermogen dat de Wallbox nu al gebruikt. '
-                          'SolarPilot stuurt de Wallbox niet: Full Solar moet zelf terugregelen, waarna '
-                          'nieuwe meter- en laadrapporten de overdracht bevestigen. Alleen voor direct '
-                          'reagerende, gemeten en onderbreekbare lasten. UIT laten voor een compressor '
-                          'die Wallbox-voorrang moet respecteren.',
- 'wallbox_precedence': 'Globale voorkeur volgen behoudt de algemene keuze. Dit toestel eerst plaatst '
-                       'deze last vóór de auto. Wallbox eerst; klein restoverschot benutten laat '
-                       'restjes toe onder het zonnelaadminimum en geeft veilig vermogen vrij zodra de '
-                       'auto kan laden. Alleen bij werkelijke laadvraag; minimumlooptijd blijft gelden.',
+ 'allow_wallbox_reclaim': 'In de gewone bediening kies je één duidelijke uitkomst bij Mag de auto minder '
+                          'laden?. SolarPilot stuurt de Wallbox niet: '
+                          'Full Solar moet zelf terugregelen en nieuwe metingen moeten dat bevestigen.',
+ 'wallbox_precedence': 'Bepaalt uitsluitend of dit toestel vóór of na Auto laden staat. In de centrale '
+                       'Voorrang-lijst verplaats je de rij direct; minimumlooptijd en veiligheid blijven gelden.',
+ 'wallbox_energy_choice': 'Eén uitkomstkeuze: alleen vrij zonneoverschot, autoladen veilig laten afnemen '
+                          'volgens de voorrang, of de strengere route voor een kort, gemeten en '
+                          'onderbreekbaar toestel. Dit is nooit een garantie dat vermogen beschikbaar is.',
  'cycle_learning_enabled': 'Leert energie, duur en piek uit complete bevestigde apparaatcycli met een '
                            'eigen meter. Afgebroken of onvoldoende gemeten cycli vormen geen '
                            'betrouwbaar programma. Leren geeft geen extra bedieningsrecht.',
@@ -1064,8 +1063,8 @@ HELP_NOTES.update({'pv_forecast:enabled': 'Gebruikt de al aanwezige Forecast.Sol
  'session_stopped_states': 'Volledige waarden die een gestopte sessie aanduiden. SolarPilot rekent '
                            'alleen met echte injectie. Een nulvermogen alleen bewijst niet dat de '
                            'sessie gestopt is; de lader kan op zon wachten.',
- 'wallbox_power_policy': 'De centrale beta.36-lijst scheidt rangorde van toestemming. Een toestel kan '
-                         'hoger dan de Wallbox staan, lager staan maar toch expliciet terugregelen mogen, '
+ 'wallbox_power_policy': 'De centrale lijst scheidt rangorde van toestemming. Een toestel kan '
+                         'hoger dan Auto laden staan, lager staan maar toch veilig terugregelen mogen, '
                          'of uitsluitend werkelijk vrij zonneoverschot gebruiken. Terugnemen vereist een '
                          'bevestigde zonnelaadsessie, een eigen actuele vermogensmeter en alle bestaande '
                          'minimumlooptijd-, terugmeld-, fase-, net- en importgrenzen. Bij manueel, gestopt '
@@ -1074,10 +1073,9 @@ HELP_NOTES.update({'pv_forecast:enabled': 'Gebruikt de al aanwezige Forecast.Sol
  'mode_entity': 'Oorspronkelijke instelling van de zonnelaadmodus. Die kan Full Solar blijven tonen '
                 'tijdens een manuele override. Koppel daarom ook de effectieve laadsessie. Deze bron '
                 'wordt alleen uitgelezen; geen laadmoduswijzigingen vanuit SolarPilot.',
- 'allow_wallbox_reclaim': 'Legacy-veld voor oudere configuraties. Na de beta.36-migratie bepaalt de '
-                          'centrale Voorrang-lijst per flexibele verbruiker afzonderlijk of Wallbox-vermogen '
-                          'mag worden afgenomen. De positie alleen geeft dat recht niet. Een uitgeschakelde '
-                          'toestemming betekent altijd uitsluitend werkelijk vrij zonneoverschot. AEG '
+ 'allow_wallbox_reclaim': 'De gewone bediening toont één uitkomstkeuze bij Mag de auto minder laden?. '
+                          'De positie alleen geeft geen vermogen vrij. '
+                          'Zonder toestemming telt uitsluitend werkelijk vrij zonneoverschot. AEG '
                           'gebruikt zijn aparte beschermde route.'})
 
 HELP_NOTES.update({'appliance_type': 'Dit is de herkenbare categorie: afwasmachine, wasmachine, droogkast of andere '
@@ -1161,11 +1159,12 @@ def help_for(step, key, label, spec=None):
 
 # Central priority editor is authoritative only after an explicit saved change.
 HELP_NOTES.update({
-    "priority": "De dagelijkse rangorde staat op Voorrang → Volgorde aanpassen. Na een bevestigde centrale wijziging verdwijnt dit oude getal uit de toestelwizard; de oude getallen blijven alleen bewaard voor migratie. Zolang de centrale lijst nog niet gewijzigd is, blijft de bestaande numerieke groepsvolgorde gelden. Minimumtijden, passende vermogensruimte en bescherming blijven altijd gelden.",
-    "others_first": "De volgorde tussen toestellen en de auto staat samen op Voorrang. Na een centrale wijziging kan deze oude globale schakelaar de lijst niet meer overschrijven. Zonder centrale wijziging blijft de bestaande keuze ongewijzigd werken.",
-    "wallbox_precedence": "Bekijk de gezamenlijke rangorde op Voorrang. Na een centrale wijziging bepaalt de plaats boven/onder Auto laden · Wallbox de voorrang. Deze oudere keuze wordt dan niet meer getoond in de toestelwizard.",
-    "wallbox_power_policy": "Op Voorrang kies je per verbruiker of de auto minder mag laden. Een toestel moet ook vóór de Wallbox staan en aan alle meet-, sessie- en veiligheidsvoorwaarden voldoen. Een bestaande legacy-overname behoudt de extra beperking voor korte minimumlooptijd. Zonder centrale wijziging blijven de bestaande keuzes gelden.",
+    "priority": "De rangorde staat op Voorrang → Voorrang instellen. Minimumtijden, passende vermogensruimte en bescherming blijven altijd gelden.",
+    "others_first": "De volgorde tussen toestellen en de auto staat samen op Voorrang. De centrale lijst toont direct welke regel eerst komt.",
+    "wallbox_precedence": "Bekijk en wijzig de gezamenlijke rangorde op Voorrang. De plaats boven of onder Auto laden bepaalt de relatieve volgorde.",
+    "wallbox_energy_choice": "Kies één duidelijke uitkomst: de auto mag binnen de veiligheidsgrenzen minder laden, alleen vrij zonneoverschot telt, of de strengere route voor een kort en gemeten toestel geldt.",
+    "wallbox_power_policy": "Op Voorrang kies je per verbruiker of de auto minder mag laden. Een toestel moet ook aan alle meet-, sessie- en veiligheidsvoorwaarden voldoen.",
     "dishwasher_priority_enabled": "Het bestaande AEG-voorkeursprofiel blijft behouden. Gewoon warmtepompcomfort gaat voor; de standaard afwasvolgorde is vóór de Wallbox en extra boilerwarmte. Na een bevestigde centrale wijziging bepaalt de lijst Voorrang de toestelvolgorde. De afwas blijft vóór de extra zonnebuffer en een lopende beurt wordt nooit afgebroken. Het oude groepsgetal is dan niet meer leidend.",
     "analysis_export": "Open Export → Export samenstellen voor één lokaal JSON-onderzoeksbestand. Kies 1 uur, 24 uur of 7 dagen. Instellingen, centrale voorrang, metingen, modellen en bewaarde beslissingen worden meegenomen voor zover aanwezig. Namen worden standaard gepseudonimiseerd; controleer altijd vóór delen. Geen automatische upload, geen toestelopdracht en geen herstelbare Home Assistant-back-up.",
-    "priority_board": "Sleep een rij of gebruik de pijltjes. ‘Mag dit toestel vermogen van de Wallbox afnemen?’ is een afzonderlijke toestemming naast de rangorde: hoger dan Wallbox, lager maar terugregelen toegestaan, of alleen werkelijk vrij zonneoverschot. Het is nooit een garantie dat er nu vermogen beschikbaar is. Beveiliging/legionella, noodzakelijk warmwatercomfort en noodzakelijk ruimtecomfort zijn niet verplaatsbaar. Opslaan vraagt bevestiging en stuurt op zichzelf geen toestel."
+    "priority_board": "Alle regels staan onder elkaar. Beschermde regels staan vast; apparaten, Auto laden en extra warm water zijn binnen de veilige grenzen verplaatsbaar. Per regel staat ‘Mag de auto minder laden?’. Dat is nooit een garantie dat er nu vermogen beschikbaar is. Opslaan vraagt bevestiging en stuurt op zichzelf geen toestel."
 })

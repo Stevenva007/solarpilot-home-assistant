@@ -129,6 +129,34 @@ def test_excess_import_cancels_high_even_with_compensation():
     assert evaluate(p,now=105,pv=5000,export=0,before=4000,holding=True,grid=500).target_c == 50
 
 
+def test_real_import_bypasses_fall_delay_but_loss_of_export_alone_is_debounced():
+    p=make(fall_delay_s=120)
+    assert evaluate(p,now=100,temp=49,pv=5000,export=4000,grid=-4000).target_c == 60
+    waiting=evaluate(p,now=105,temp=49,pv=5000,export=0,grid=0,holding=True)
+    assert waiting.target_c == 60 and waiting.remaining_s == 120
+    falling=evaluate(p,now=110,temp=49,pv=5000,export=0,grid=500)
+    assert falling.target_c == 50 and falling.remaining_s == 0
+    assert "zonder terugvalvertraging" in falling.reason
+
+
+def test_surplus_hold_hysteresis_requires_confirmed_solarpilot_ownership():
+    p=make()
+    assert evaluate(p,now=100,pv=5000,export=4000,grid=-4000).target_c == 60
+    assert evaluate(p,now=105,pv=5000,export=3300,grid=-3300,holding=False).target_c == 50
+
+    owned=make()
+    assert evaluate(owned,now=100,pv=5000,export=4000,grid=-4000).target_c == 60
+    assert evaluate(owned,now=105,pv=5000,export=3300,grid=-3300,holding=True).target_c == 60
+
+
+def test_unissued_high_decision_is_not_sent_during_fall_delay():
+    p=make(fall_delay_s=120)
+    assert evaluate(p,now=100,temp=49,pv=5000,export=4000,grid=-4000).target_c == 60
+    falling=evaluate(p,now=105,temp=49,pv=5000,export=0,grid=0,holding=False)
+    assert falling.target_c == 50 and falling.remaining_s == 0
+    assert "onbevestigde extra-doelbeslissing" in falling.reason
+
+
 def test_compensation_can_be_disabled():
     p=make(compensate_own_power=False)
     evaluate(p,pv=5000,export=4000)

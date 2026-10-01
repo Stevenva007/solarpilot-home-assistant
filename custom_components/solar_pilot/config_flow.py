@@ -1091,12 +1091,40 @@ class SolarPilotOptions(LiveOptionsMixin, DHWOptionsMixin, DishwasherOptionsMixi
 
     async def async_step_device_schedule(self, user_input=None):
         d = {**DEVICE_DEFAULTS, **self._device}
+        central_priority = self._base_options().get("priority_board", {}).get("schema") in (1, 2)
         errors = {}
         if user_input is not None:
             d.update(user_input)
+            wallbox_choice = d.pop("wallbox_energy_choice", None)
+            for minute_key, seconds_key in (
+                ("min_daily_runtime_min", "min_daily_runtime_s"),
+                ("max_daily_runtime_min", "max_daily_runtime_s"),
+            ):
+                if minute_key in d:
+                    d[seconds_key] = int(round(float(d.pop(minute_key)) * 60))
+            if central_priority:
+                # A form opened before central priority became active cannot
+                # overwrite the now-central order or car-power permission.
+                for key in ("wallbox_precedence", "wallbox_power_policy", "allow_wallbox_reclaim"):
+                    if key in self._device:
+                        d[key] = self._device[key]
+                    else:
+                        # Preserve the raw legacy record exactly.  Materialising
+                        # a missing default here would look like a forbidden
+                        # priority edit to LiveOptions even though this field is
+                        # hidden and the user changed only planning settings.
+                        d.pop(key, None)
+            elif wallbox_choice == "priority":
+                d.update(wallbox_power_policy="priority", allow_wallbox_reclaim=False)
+            elif wallbox_choice == "never":
+                d.update(wallbox_power_policy="never", allow_wallbox_reclaim=False)
+            elif wallbox_choice == "short_cycle":
+                d.update(wallbox_power_policy="legacy", allow_wallbox_reclaim=True)
+            elif wallbox_choice is not None:
+                errors["wallbox_energy_choice"] = "invalid_precedence"
             if (d.get("max_daily_runtime_s", 0) and
                     d.get("min_daily_runtime_s", 0) > d.get("max_daily_runtime_s", 0)):
-                errors["max_daily_runtime_s"] = "daily_runtime"
+                errors["max_daily_runtime_min"] = "daily_runtime"
             try:
                 for time_key in ("daily_deadline", "time_window_start", "time_window_end"):
                     parts = [int(x) for x in str(d.get(time_key, "23:59:00")).split(":" )]
@@ -1104,16 +1132,17 @@ class SolarPilotOptions(LiveOptionsMixin, DHWOptionsMixin, DishwasherOptionsMixi
                         raise ValueError(time_key)
             except (TypeError, ValueError) as err:
                 errors[str(err) if str(err) in ("daily_deadline", "time_window_start", "time_window_end") else "daily_deadline"] = "time"
-            if d.get("wallbox_precedence", "global") not in ("global", "consumer_first", "wallbox_first"):
-                errors["wallbox_precedence"] = "invalid_precedence"
-            if d.get("wallbox_precedence") == "wallbox_first" and d.get("allow_wallbox_reclaim"):
-                errors["allow_wallbox_reclaim"] = "priority_reclaim_conflict"
-            if d.get("wallbox_power_policy", "priority") not in RECLAIM_POLICIES:
-                errors["wallbox_power_policy"] = "invalid_precedence"
-            if d.get("allow_wallbox_reclaim") and d.get("wallbox_power_policy", "priority") == "legacy":
-                max_wait = self._base_options().get("wallbox", {}).get("handover_s", HOUSE_DEFAULTS["handover_s"])
-                if not d.get("power_entity") or d["non_interruptible"] or d["min_on_s"] > max_wait:
-                    errors["allow_wallbox_reclaim"] = "reclaim_requirements"
+            if not central_priority:
+                if d.get("wallbox_precedence", "global") not in ("global", "consumer_first", "wallbox_first"):
+                    errors["wallbox_precedence"] = "invalid_precedence"
+                if d.get("wallbox_precedence") == "wallbox_first" and d.get("allow_wallbox_reclaim"):
+                    errors["wallbox_energy_choice"] = "priority_reclaim_conflict"
+                if d.get("wallbox_power_policy", "priority") not in RECLAIM_POLICIES:
+                    errors["wallbox_energy_choice"] = "invalid_precedence"
+                if d.get("allow_wallbox_reclaim") and d.get("wallbox_power_policy", "priority") == "legacy":
+                    max_wait = self._base_options().get("wallbox", {}).get("handover_s", HOUSE_DEFAULTS["handover_s"])
+                    if not d.get("power_entity") or d["non_interruptible"] or d["min_on_s"] > max_wait:
+                        errors["wallbox_energy_choice"] = "reclaim_requirements"
             if d.get("cycle_learning_enabled"):
                 if not d.get("non_interruptible") or not d.get("power_entity"):
                     errors["cycle_learning_enabled"] = "cycle_learning_requires_meter"
@@ -1130,10 +1159,15 @@ class SolarPilotOptions(LiveOptionsMixin, DHWOptionsMixin, DishwasherOptionsMixi
                 devices.append(d)
                 opts["devices"] = devices
                 return await self._save(opts)
+        current_wallbox_choice = (
+            "short_cycle" if d.get("wallbox_power_policy") == "legacy" and d.get("allow_wallbox_reclaim")
+            else "never" if d.get("wallbox_power_policy") in ("never", "legacy")
+            else "priority"
+        )
         schema = {
-            vol.Required("min_daily_runtime_s", default=d["min_daily_runtime_s"]): num(0, 86400, 60),
+            vol.Required("min_daily_runtime_min", default=d["min_daily_runtime_s"] / 60): num(0, 1440, 1),
             vol.Required("daily_energy_goal_kwh", default=d.get("daily_energy_goal_kwh",0.0)): num(0, 100, 0.1),
-            vol.Required("max_daily_runtime_s", default=d["max_daily_runtime_s"]): num(0, 86400, 60),
+            vol.Required("max_daily_runtime_min", default=d["max_daily_runtime_s"] / 60): num(0, 1440, 1),
             vol.Required("daily_deadline", default=d["daily_deadline"]): selector.TimeSelector(),
             vol.Required("deadline_grid_allowed", default=d["deadline_grid_allowed"]): selector.BooleanSelector(),
             vol.Required("time_window_enabled", default=d["time_window_enabled"]): selector.BooleanSelector(),
@@ -1147,14 +1181,13 @@ class SolarPilotOptions(LiveOptionsMixin, DHWOptionsMixin, DishwasherOptionsMixi
                 {"value":"three_phase","label":"3-fase"},{"value":"l1_l2","label":"L1 + L2"},
                 {"value":"l1_l3","label":"L1 + L3"},{"value":"l2_l3","label":"L2 + L3"}]}),
             vol.Required("wallbox_precedence", default=d.get("wallbox_precedence", "global")): selector.SelectSelector({"options": [
-                {"value": "global", "label": "Globale voorkeur volgen"},
-                {"value": "consumer_first", "label": "Dit toestel eerst"},
-                {"value": "wallbox_first", "label": "Wallbox eerst; klein restoverschot benutten"}]}),
-            vol.Required("wallbox_power_policy", default=d.get("wallbox_power_policy", "priority")): selector.SelectSelector({"options": [
-                {"value": "priority", "label": "Voorrang volgen: zonnestroom van Wallbox standaard benutten"},
-                {"value": "never", "label": "Nooit overnemen; alleen echte restinjectie"},
-                {"value": "legacy", "label": "Oude expliciete overnamekeuze gebruiken"}]}),
-            vol.Required("allow_wallbox_reclaim", default=d["allow_wallbox_reclaim"]): selector.BooleanSelector(),
+                {"value": "global", "label": "Gezamenlijke volgorde gebruiken"},
+                {"value": "consumer_first", "label": "Dit toestel vóór Auto laden"},
+                {"value": "wallbox_first", "label": "Auto laden vóór dit toestel"}]}),
+            vol.Required("wallbox_energy_choice", default=current_wallbox_choice): selector.SelectSelector({"options": [
+                {"value": "priority", "label": "Ja · als volgorde en veiligheid het toelaten"},
+                {"value": "never", "label": "Nee · alleen vrij zonneoverschot"},
+                {"value": "short_cycle", "label": "Ja · alleen voor een kort, gemeten en onderbreekbaar toestel"}]}),
         }
         if d.get("non_interruptible"):
             schema[vol.Required("cycle_learning_enabled", default=d.get("cycle_learning_enabled",False))] = selector.BooleanSelector()
@@ -1162,8 +1195,7 @@ class SolarPilotOptions(LiveOptionsMixin, DHWOptionsMixin, DishwasherOptionsMixi
             schema[vol.Required("cycle_duration_min", default=d.get("cycle_duration_min",0.0))] = num(0, 1440, 5)
             schema[vol.Required("cycle_program", default=d.get("cycle_program","standaard"))] = selector.TextSelector()
             schema[optional("cycle_program_entity", d)] = entity(["sensor","select","input_select"])
-        if self._base_options().get("priority_board", {}).get("schema") == 1:
-            legacy = {"wallbox_precedence", "wallbox_power_policy", "allow_wallbox_reclaim"}
-            schema = {k:v for k,v in schema.items() if getattr(k,"schema",k) not in legacy}
+        if central_priority:
+            central_fields = {"wallbox_precedence", "wallbox_energy_choice"}
+            schema = {k:v for k,v in schema.items() if getattr(k,"schema",k) not in central_fields}
         return self.async_show_form(step_id="device_schedule", data_schema=vol.Schema(schema), errors=errors)
-

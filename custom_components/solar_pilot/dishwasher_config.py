@@ -88,7 +88,7 @@ class DishwasherOptionsMixin:
         schema[vol.Required("dishwasher_priority_enabled", default=d["dishwasher_priority_enabled"])] = selector.BooleanSelector()
         schema[vol.Required("dishwasher_ev_solar_priority", default=d["dishwasher_ev_solar_priority"])] = selector.BooleanSelector()
         schema[vol.Required("dishwasher_mapping_confirmed", default=d["dishwasher_mapping_confirmed"])] = selector.BooleanSelector()
-        if self._base_options().get("priority_board", {}).get("schema") == 1:
+        if self._base_options().get("priority_board", {}).get("schema") in (1, 2):
             legacy = {"dishwasher_priority_enabled", "dishwasher_ev_solar_priority"}
             schema = {k:v for k,v in schema.items() if getattr(k,"schema",k) not in legacy}
         return self.async_show_form(step_id="dishwasher_states", data_schema=vol.Schema(schema), errors=errors)

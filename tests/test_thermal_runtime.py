@@ -69,6 +69,72 @@ async def test_hard_comfort_breach_releases_auto_not_heat_or_cool_and_keeps_targ
 
 
 @pytest.mark.asyncio
+async def test_clear_winter_preserves_unowned_off_zone_at_upper_boundary():
+    r,h=setup_climate(control=True,temp=21,target=21,mode='auto')
+    attrs=dict(h.states.get('climate.home').attributes)
+    attrs['current_temperature']=22
+    h.states.set('climate.home','off',attrs)
+    h.states.set('sensor.outdoor',14,{'unit_of_measurement':'°C'})
+    h.services.forecast=[{**row,'temperature':14} for row in h.services.forecast]
+
+    await r.smart_climate.tick(local_now=datetime(2026,10,2,8),allow_command=True)
+
+    assert r.smart_climate.state.last_decision.desired_mode=='auto'
+    assert r.smart_climate.state.last_decision.season_context=='winter'
+    assert not any(c[0]=='climate' for c in h.services.calls)
+    assert h.states.get('climate.home').state=='off'
+    assert h.states.get('climate.salon').state=='auto'
+    assert any(a['title']=='Handmatige OFF-zone behouden' for a in r.smart_climate.overview()['alerts'])
+
+
+@pytest.mark.asyncio
+async def test_winter_releases_only_solarpilot_owned_off_zone_to_auto():
+    r,h=setup_climate(control=True,temp=21,target=21,mode='auto')
+    attrs=dict(h.states.get('climate.home').attributes)
+    h.states.set('climate.home','off',attrs)
+    r.smart_climate.state.expected_mode={'climate.home':'off'}
+    h.states.set('sensor.outdoor',14,{'unit_of_measurement':'°C'})
+    h.services.forecast=[{**row,'temperature':14} for row in h.services.forecast]
+
+    await r.smart_climate.tick(local_now=datetime(2026,10,2,8),allow_command=True)
+
+    climate_calls=[c for c in h.services.calls if c[0]=='climate']
+    assert len(climate_calls)==1
+    assert climate_calls[0][2]=={'entity_id':'climate.home','hvac_mode':'auto'}
+    assert h.states.get('climate.salon').state=='auto'
+
+
+@pytest.mark.asyncio
+async def test_removal_releases_owned_coast_without_waking_manual_off_zone():
+    r,h=setup_climate(control=True,temp=21,target=21,mode='off')
+    r.smart_climate.state.expected_mode={'climate.home':'off'}
+
+    assert await r.smart_climate.prepare_for_removal() is True
+
+    climate_calls=[c for c in h.services.calls if c[0]=='climate']
+    assert len(climate_calls)==1
+    assert climate_calls[0][2]=={'entity_id':'climate.home','hvac_mode':'auto'}
+    assert h.states.get('climate.home').state=='auto'
+    assert h.states.get('climate.salon').state=='off'
+
+
+@pytest.mark.asyncio
+async def test_hard_cold_breach_releases_only_breaching_manual_off_zone():
+    r,h=setup_climate(control=True,temp=21,target=21,mode='auto')
+    attrs=dict(h.states.get('climate.home').attributes)
+    attrs['current_temperature']=19.8
+    h.states.set('climate.home','off',attrs)
+
+    await r.smart_climate.tick(local_now=datetime(2026,10,2,8),allow_command=True)
+
+    climate_calls=[c for c in h.services.calls if c[0]=='climate']
+    assert r.smart_climate.state.last_decision.hard_override
+    assert len(climate_calls)==1
+    assert climate_calls[0][2]=={'entity_id':'climate.home','hvac_mode':'auto'}
+    assert h.states.get('climate.salon').state=='auto'
+
+
+@pytest.mark.asyncio
 async def test_mature_shoulder_model_can_put_zones_in_off_coast():
     r,h=setup_climate(control=True,temp=21,target=21,mode='auto')
     mature(r.smart_climate)

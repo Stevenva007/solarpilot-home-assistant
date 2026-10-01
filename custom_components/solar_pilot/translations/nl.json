@@ -77,7 +77,7 @@
         }
       },
       "device": {
-        "title": "Verbruiker · 1/4 Basis",
+        "title": "Toestel instellen · stap 1 van 4 · Basis",
         "description": "De koppeling gebruikt bestaande Home Assistant-entiteiten. Er wordt geen nieuw apparaat of merkintegratie geïnstalleerd. Nieuwe toestellen staan standaard uitgesloten.",
         "data": {
           "name": "Naam toestel",
@@ -88,12 +88,12 @@
         "data_description": {
           "name": "De herkenbare naam van deze koppeling in SolarPilot.",
           "kind": "Kies de werkelijk ondersteunde actuator.",
-          "priority": "De dagelijkse rangorde staat op Voorrang → Volgorde aanpassen.",
+          "priority": "De rangorde staat op Voorrang → Voorrang instellen.",
           "appliance_type": "Dit is de herkenbare categorie: afwasmachine, wasmachine, droogkast of andere verbruiker."
         }
       },
       "connection": {
-        "title": "Verbruiker · 2/4 Koppeling",
+        "title": "Toestel instellen · stap 2 van 4 · Koppeling",
         "description": "Gebruik geen slimme stekker om een warmtepomp of een lopend huishoudprogramma hard te onderbreken. Scripts moeten kort en idempotent zijn; stoppen betekent terug naar de veilige normale stand. Een helper die zichzelf bevestigt is geen fysieke terugmelding.",
         "data": {
           "control_entity": "Expliciete aan/uit- of laad-vrijgaveschakelaar",
@@ -159,7 +159,7 @@
           "device_id": "Toestel"
         },
         "data_description": {
-          "device_id": "Selecteer de bestaande SolarPilot-verbruiker die je wilt aanpassen of verwijderen."
+          "device_id": "Selecteer het bestaande SolarPilot-toestel dat je wilt aanpassen of verwijderen."
         }
       },
       "remove": {
@@ -169,7 +169,7 @@
           "device_id": "Toestel"
         },
         "data_description": {
-          "device_id": "Selecteer de bestaande SolarPilot-verbruiker die je wilt aanpassen of verwijderen."
+          "device_id": "Selecteer het bestaande SolarPilot-toestel dat je wilt aanpassen of verwijderen."
         }
       },
       "confirm_remove": {
@@ -237,7 +237,7 @@
           "power_entity": "Optioneel: uitsluitend het elektrische boilervermogen",
           "cooling_entities": "Ruimteklimaatzones voor verwarmings- en koelbewaking",
           "hygiene_entity": "Hygiënecyclus actief: on = alle boileropdrachten blokkeren",
-          "manual_entity": "Oud enkelvoudig handmatig/krachtig signaal (optioneel)",
+          "manual_entity": "Gecombineerd handmatig/krachtig signaal (optioneel)",
           "safety_confirmed": "Bevestigd: fabrikantregeling, onafhankelijke hygiëne en verbrandingsbeveiliging gecontroleerd",
           "manual_active_states": "Waarden die handmatige/krachtige modus betekenen (komma-gescheiden)",
           "manual_entities": "Handmatige/krachtige signalen (selecteer bv. Krachtige modus én Warmwater forceren)"
@@ -661,7 +661,7 @@
       },
       "overview": {
         "title": "Overzicht & controle",
-        "description": "Modus: {mode}\nNetmeting: {grid} · PV: {pv}\nVerbruikers: {devices}\nBoiler: {dhw} · Slim klimaat: {climate}\nWallbox: {wallbox} · Batterijen: {batteries}\nConcurrerende oude regelaars: {conflicts}\nPrivéprofiel: {private_bundle}\n\nGebruik het dashboard voor dagelijkse bediening. Kies Terug om instellingen te wijzigen.",
+        "description": "Modus: {mode}\nNetmeting: {grid} · PV: {pv}\nToestellen: {devices}\nBoiler: {dhw} · Slim klimaat: {climate}\nWallbox: {wallbox} · Batterijen: {batteries}\nAndere regelaars die tegelijk actief zijn: {conflicts}\nPrivéprofiel: {private_bundle}\n\nGebruik het dashboard voor dagelijkse bediening. Kies Terug om instellingen te wijzigen.",
         "data": {}
       },
       "energy_hub": {
@@ -679,9 +679,9 @@
         "title": "Toestellen beheren",
         "description": "Voeg alleen apparaten toe die SolarPilot werkelijk mag regelen. Prioriteit en Auto/Uitgesloten wijzig je nadien eenvoudig op het dashboard.",
         "menu_options": {
-          "add": "Verbruiker toevoegen",
-          "edit": "Verbruiker aanpassen",
-          "remove": "Verbruiker verwijderen",
+          "add": "Toestel toevoegen",
+          "edit": "Toestel aanpassen",
+          "remove": "Toestel verwijderen",
           "manage_device": "Toestelinstellingen / koppelingen / planning",
           "replace": "Toestel vervangen",
           "pending_changes": "Wachtende wijzigingen"
@@ -906,7 +906,7 @@
         }
       },
       "device_behavior": {
-        "title": "Verbruiker · 3/4 Gedrag & bescherming",
+        "title": "Toestel instellen · stap 3 van 4 · Gedrag en bescherming",
         "description": "Elektrisch vermogen, reactie en minimale looptijden. Gebruik toestelspecificaties voor minimum aan/uit-tijden. Deze pagina bepaalt hoe SolarPilot veilig mag schakelen.",
         "data": {
           "nominal_w": "Vast / conservatief maximaal elektrisch vermogen (W)",
@@ -942,11 +942,11 @@
         }
       },
       "device_schedule": {
-        "title": "Verbruiker · 4/4 Planning & energie",
-        "description": "Optioneel: dagdoel, tijdvenster, deadline, cyclusprofiel, voorspelling, fasehint en gecontroleerde Wallbox-overname. Beschermde cycli worden aaneengesloten gepland. Wallbox eerst laat klein overschot toe zolang de auto niet kan zonneladen; minimumlooptijden blijven gelden. Kies dan niet ook vermogen van de Wallbox overnemen.",
+        "title": "Toestel instellen · stap 4 van 4 · Planning en energie",
+        "description": "Optioneel: dagdoel, tijdvenster, deadline, cyclusprofiel, voorspelling en fasehint. De gezamenlijke volgorde en de keuze of de auto minder mag laden beheer je centraal via Voorrang. Zolang die centrale lijst nog niet beschikbaar is, staan de twee uitkomstkeuzes hieronder.",
         "data": {
-          "min_daily_runtime_s": "Minimum looptijd per dag (s)",
-          "max_daily_runtime_s": "Maximum looptijd per dag (s)",
+          "min_daily_runtime_min": "Gewenste minimale draaitijd per dag (minuten)",
+          "max_daily_runtime_min": "Maximale draaitijd per dag (minuten)",
           "daily_deadline": "Deadline dagminimum",
           "deadline_grid_allowed": "Netstroom toestaan om dagminimum te halen",
           "time_window_enabled": "Eigen tijdvenster gebruiken",
@@ -955,19 +955,18 @@
           "forecast_deferrable": "Start mag kort wachten op betere zon",
           "cheap_grid_allowed": "Goedkope netfallback toegestaan",
           "phase_hint": "Fase-aansluiting",
-          "allow_wallbox_reclaim": "Oude expliciete Wallbox-overname (alleen bij oude keuze)",
           "daily_energy_goal_kwh": "Dagdoel energie (kWh, 0 = uit)",
           "cycle_learning_enabled": "Cyclusenergie automatisch bijleren",
           "cycle_energy_kwh": "Cyclusenergie fallback (kWh, 0 = leren)",
           "cycle_duration_min": "Verwachte cyclusduur (min, 0 = leren)",
           "cycle_program": "Programmanaam fallback",
           "cycle_program_entity": "Optionele programma-entiteit (select/sensor)",
-          "wallbox_precedence": "Voorrang ten opzichte van de Wallbox",
-          "wallbox_power_policy": "Zonnevermogen dat de Wallbox al gebruikt"
+          "wallbox_precedence": "Plaats ten opzichte van Auto laden",
+          "wallbox_energy_choice": "Mag de auto minder laden voor dit toestel?"
         },
         "data_description": {
-          "min_daily_runtime_s": "Gewenste minimale totale draaitijd per dag, in seconden.",
-          "max_daily_runtime_s": "Hoogste totale draaitijd per dag, in seconden.",
+          "min_daily_runtime_min": "Gewenste minimale totale draaitijd per dag, in minuten.",
+          "max_daily_runtime_min": "Hoogste totale draaitijd per dag, in minuten.",
           "daily_deadline": "Tijdstip waarop het ingestelde dagminimum bij voorkeur bereikt moet zijn.",
           "deadline_grid_allowed": "Toestemming om zo nodig netstroom te gebruiken voor het dagminimum.",
           "time_window_enabled": "AAN beperkt de startvraag tot jouw eigen tijdvenster.",
@@ -976,15 +975,14 @@
           "forecast_deferrable": "Een nieuwe start mag begrensd wachten op een gunstiger zonneblok.",
           "cheap_grid_allowed": "Per-toesteltoestemming voor goedkope netfallback.",
           "phase_hint": "Fase waarop het apparaat fysiek aangesloten is, of Auto voor voorzichtig lokaal leren.",
-          "allow_wallbox_reclaim": "Legacy-veld voor oudere configuraties.",
           "daily_energy_goal_kwh": "Gewenste dagenergie voor deze last.",
           "cycle_learning_enabled": "Leert energie, duur en piek uit complete bevestigde apparaatcycli met een eigen meter.",
           "cycle_energy_kwh": "Conservatieve energie-inschatting van één volledig programma zolang geen bruikbaar geleerd cyclusprofiel bestaat.",
           "cycle_duration_min": "Conservatieve duur van een volledige cyclus, in minuten.",
           "cycle_program": "Naam van het programma voor cyclusregistratie, bijvoorbeeld Eco.",
           "cycle_program_entity": "Optionele entiteit die het werkelijk gekozen programma rapporteert.",
-          "wallbox_precedence": "Bekijk de gezamenlijke rangorde op Voorrang.",
-          "wallbox_power_policy": "Op Voorrang kies je per verbruiker of de auto minder mag laden."
+          "wallbox_precedence": "Bekijk en wijzig de gezamenlijke rangorde op Voorrang.",
+          "wallbox_energy_choice": "Kies één duidelijke uitkomst: de auto mag binnen de veiligheidsgrenzen minder laden, alleen vrij zonneoverschot telt, of de strengere route voor een kort en gemeten toestel geldt."
         }
       },
       "private_bundle": {

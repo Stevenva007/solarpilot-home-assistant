@@ -68,6 +68,8 @@ with sync_playwright() as p:
     assert dialog.is_visible()
     assert host.locator('[data-total]').inner_text() == '2 u 10 min'
     assert host.locator('.session').count() == 3
+    for session in host.locator('.session').all():
+        assert session.locator('dt').all_inner_texts() == ['Startreden', 'Stopreden']
     assert 'Voldoende stabiel zonneoverschot' in dialog.inner_text()
     assert 'handmatige bediening' in dialog.inner_text()
     assert 'loopt nog' in dialog.inner_text()

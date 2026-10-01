@@ -110,9 +110,9 @@ def reclaim_permission(config, *, before_wallbox, dedicated_meter, blocked=False
     if policy not in RECLAIM_POLICIES or policy == "never" or (central and not central_permission):
         return False, False, "Alleen werkelijk vrij zonneoverschot: Wallbox-terugname staat uit"
     if not central and not before_wallbox:
-        return False, False, "Wallbox heeft volgens de oude regeling voorrang op dit toestel"
+        return False, False, "Auto laden staat volgens de huidige toestelinstelling vóór dit toestel"
     if blocked:
-        return False, False, "Vorige Wallbox-overname vraagt eerst controle"
+        return False, False, "De vorige afname van autolaadvermogen vraagt eerst controle"
     if config.get("kind", "switch") == "dishwasher":
         return False, False, "Afwasmachine gebruikt de afzonderlijke beschermde-cyclusroute"
     if config.get("non_interruptible") or config.get("kind", "switch") not in ("switch", "number"):
@@ -120,9 +120,9 @@ def reclaim_permission(config, *, before_wallbox, dedicated_meter, blocked=False
     if not dedicated_meter:
         return False, False, "Een eigen actuele vermogensmeter is vereist voor bevestiging"
     if policy == "legacy" and not central:
-        return bool(config.get("allow_wallbox_reclaim")), False, "Oude expliciete overnamekeuze en korte minimumlooptijd gelden"
+        return bool(config.get("allow_wallbox_reclaim")), False, "Afzonderlijke toesteltoestemming actief; alleen de korte minimumlooptijdroute geldt"
     if central and before_wallbox:
-        return True, True, "Hoger dan Wallbox en expliciet toegestaan: gemeten zonnelaadvermogen mag veilig worden benut"
+        return True, True, "Vóór Auto laden en toegestaan: gemeten zonnelaadvermogen mag veilig worden benut"
     if central:
-        return False, False, "Lager dan Wallbox: de auto houdt zijn zonnevermogen, ook als toestemming vooraf is aangevinkt"
-    return True, True, "Voorrang volgen: gemeten zonnestroom van Wallbox mag worden benut; minimumlooptijd blijft gelden"
+        return False, False, "Na Auto laden: de auto houdt zijn zonnevermogen, ook als toestemming vooraf is aangevinkt"
+    return True, True, "Toestel staat eerst: gemeten zonnelaadvermogen mag worden benut; minimumlooptijd blijft gelden"

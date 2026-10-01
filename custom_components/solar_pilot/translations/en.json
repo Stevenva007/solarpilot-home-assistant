@@ -68,7 +68,7 @@
         }
       },
       "device": {
-        "title": "Verbruiker · 1/4 Basis",
+        "title": "Configure device · step 1 of 4 · Basics",
         "description": "De koppeling gebruikt bestaande Home Assistant-entiteiten. Er wordt geen nieuw apparaat of merkintegratie geïnstalleerd. Nieuwe toestellen staan standaard uitgesloten.",
         "data": {
           "name": "Naam toestel",
@@ -78,7 +78,7 @@
         }
       },
       "connection": {
-        "title": "Verbruiker · 2/4 Koppeling",
+        "title": "Configure device · step 2 of 4 · Connection",
         "description": "Gebruik geen slimme stekker om een warmtepomp of een lopend huishoudprogramma hard te onderbreken. Scripts moeten kort en idempotent zijn; stoppen betekent terug naar de veilige normale stand. Een helper die zichzelf bevestigt is geen fysieke terugmelding.",
         "data": {
           "control_entity": "Expliciete aan/uit- of laad-vrijgaveschakelaar",
@@ -167,7 +167,7 @@
           "power_entity": "Optioneel: uitsluitend het elektrische boilervermogen",
           "cooling_entities": "Ruimteklimaatzones voor verwarmings- en koelbewaking",
           "hygiene_entity": "Hygiënecyclus actief: on = alle boileropdrachten blokkeren",
-          "manual_entity": "Legacy single manual/powerful signal (optional)",
+          "manual_entity": "Combined manual/powerful signal (optional)",
           "safety_confirmed": "Bevestigd: fabrikantregeling, onafhankelijke hygiëne en verbrandingsbeveiliging gecontroleerd",
           "manual_active_states": "Waarden die handmatige/krachtige modus betekenen (komma-gescheiden)",
           "manual_entities": "Manual/powerful signals (select e.g. Powerful mode and Force DHW)"
@@ -410,7 +410,7 @@
       },
       "overview": {
         "title": "Overzicht & controle",
-        "description": "Modus: {mode}\nNetmeting: {grid} · PV: {pv}\nVerbruikers: {devices}\nBoiler: {dhw} · Slim klimaat: {climate}\nWallbox: {wallbox} · Batterijen: {batteries}\nConcurrerende oude regelaars: {conflicts}\nPrivéprofiel: {private_bundle}\n\nGebruik het dashboard voor dagelijkse bediening. Kies Terug om instellingen te wijzigen.",
+        "description": "Mode: {mode}\nGrid meter: {grid} · PV: {pv}\nDevices: {devices}\nHot water: {dhw} · Smart climate: {climate}\nWallbox: {wallbox} · Batteries: {batteries}\nOther controllers active at the same time: {conflicts}\nPrivate profile: {private_bundle}\n\nUse the dashboard for daily operation. Choose Back to change settings.",
         "data": {}
       },
       "energy_hub": {
@@ -428,12 +428,12 @@
         "title": "Manage appliances",
         "description": "Voeg alleen apparaten toe die SolarPilot werkelijk mag regelen. Prioriteit en Auto/Uitgesloten wijzig je nadien eenvoudig op het dashboard.",
         "menu_options": {
-          "add": "Verbruiker toevoegen",
-          "edit": "Verbruiker aanpassen",
-          "remove": "Verbruiker verwijderen",
-          "manage_device": "Toestelinstellingen / koppelingen / planning",
-          "replace": "Toestel vervangen",
-          "pending_changes": "Wachtende wijzigingen"
+          "add": "Add device",
+          "edit": "Edit device",
+          "remove": "Remove device",
+          "manage_device": "Device settings, connections and planning",
+          "replace": "Replace device",
+          "pending_changes": "Pending changes"
         }
       },
       "comfort_hub": {
@@ -581,7 +581,7 @@
         }
       },
       "device_behavior": {
-        "title": "Verbruiker · 3/4 Gedrag & bescherming",
+        "title": "Configure device · step 3 of 4 · Behaviour and protection",
         "description": "Elektrisch vermogen, reactie en minimale looptijden. Gebruik toestelspecificaties voor minimum aan/uit-tijden. Deze pagina bepaalt hoe SolarPilot veilig mag schakelen.",
         "data": {
           "nominal_w": "Vast / conservatief maximaal elektrisch vermogen (W)",
@@ -601,28 +601,27 @@
         }
       },
       "device_schedule": {
-        "title": "Verbruiker · 4/4 Planning & energie",
-        "description": "Optioneel: dagdoel, tijdvenster, deadline, cyclusprofiel, voorspelling, fasehint en gecontroleerde Wallbox-overname. Beschermde cycli worden aaneengesloten gepland. Wallbox first allows small solar surplus until EV charging is viable. Minimum runtimes remain protected. Do not also enable Wallbox power reclaim.",
+        "title": "Configure device · step 4 of 4 · Planning and energy",
+        "description": "Optional daily target, time window, deadline, cycle profile, forecast and phase. Manage the shared order and whether car charging may be reduced centrally under Priority. Until that central list is available, the two outcome choices are shown below.",
         "data": {
-          "min_daily_runtime_s": "Minimum looptijd per dag (s)",
-          "max_daily_runtime_s": "Maximum looptijd per dag (s)",
-          "daily_deadline": "Deadline dagminimum",
-          "deadline_grid_allowed": "Netstroom toestaan om dagminimum te halen",
-          "time_window_enabled": "Eigen tijdvenster gebruiken",
-          "time_window_start": "Mag starten vanaf",
-          "time_window_end": "Mag werken tot",
-          "forecast_deferrable": "Start mag kort wachten op betere zon",
-          "cheap_grid_allowed": "Goedkope netfallback toegestaan",
-          "phase_hint": "Fase-aansluiting",
-          "allow_wallbox_reclaim": "Oude expliciete Wallbox-overname (alleen bij oude keuze)",
-          "daily_energy_goal_kwh": "Dagdoel energie (kWh, 0 = uit)",
-          "cycle_learning_enabled": "Cyclusenergie automatisch bijleren",
-          "cycle_energy_kwh": "Cyclusenergie fallback (kWh, 0 = leren)",
-          "cycle_duration_min": "Verwachte cyclusduur (min, 0 = leren)",
-          "cycle_program": "Programmanaam fallback",
-          "cycle_program_entity": "Optionele programma-entiteit (select/sensor)",
-          "wallbox_precedence": "Priority relative to the Wallbox",
-          "wallbox_power_policy": "Zonnevermogen dat de Wallbox al gebruikt"
+          "min_daily_runtime_min": "Desired minimum runtime per day (minutes)",
+          "max_daily_runtime_min": "Maximum runtime per day (minutes)",
+          "daily_deadline": "Daily target deadline",
+          "deadline_grid_allowed": "Allow grid power to reach the daily target",
+          "time_window_enabled": "Use a time window",
+          "time_window_start": "May start from",
+          "time_window_end": "May run until",
+          "forecast_deferrable": "May wait briefly for better solar output",
+          "cheap_grid_allowed": "Allow low-price grid fallback",
+          "phase_hint": "Electrical phase",
+          "daily_energy_goal_kwh": "Daily energy target (kWh, 0 = off)",
+          "cycle_learning_enabled": "Learn cycle energy automatically",
+          "cycle_energy_kwh": "Fallback cycle energy (kWh, 0 = learn)",
+          "cycle_duration_min": "Expected cycle duration (minutes, 0 = learn)",
+          "cycle_program": "Fallback program name",
+          "cycle_program_entity": "Optional program entity (select/sensor)",
+          "wallbox_precedence": "Position relative to car charging",
+          "wallbox_energy_choice": "May car charging be reduced for this device?"
         }
       },
       "private_bundle": {

@@ -119,6 +119,49 @@ async def test_either_cooling_zone_caps_60_at_50():
 
 
 @pytest.mark.asyncio
+async def test_active_cooling_immediately_releases_owned_60_despite_fall_delay():
+    r,h=setup(config={'fall_delay_s':120})
+    await tick(r)
+    await tick(r)
+    assert r.dhw.owned_target == 60
+
+    h.states.set('climate.salon','cool',{'hvac_action':'cooling'})
+    await tick(r)
+
+    assert r.dhw.policy.result.cooling_block
+    assert r.dhw.policy.result.target_c == 50
+    assert r.dhw.policy.result.remaining_s == 0
+    assert h.services.calls[-1][2]['temperature'] == 50
+
+
+@pytest.mark.asyncio
+async def test_manual_hold_never_writes_even_when_cooling_proposes_50():
+    r,h=setup(config={'fall_delay_s':120})
+    r.dhw.manual_hold=True
+    h.states.set('climate.salon','cool',{'hvac_action':'cooling'})
+    updates(h,'water_heater.boiler',temperature=60)
+
+    await tick(r)
+
+    assert r.dhw.policy.result.target_c == 50
+    assert r.dhw.manual_hold and not h.services.calls
+
+
+@pytest.mark.asyncio
+async def test_real_import_releases_owned_60_despite_configured_fall_delay():
+    r,h=setup(config={'fall_delay_s':120})
+    await tick(r)
+    await tick(r)
+    assert r.dhw.owned_target == 60 and len(h.services.calls) == 1
+
+    await tick(r,grid=500)
+
+    assert r.dhw.policy.result.target_c == 50
+    assert r.dhw.policy.result.remaining_s == 0
+    assert h.services.calls[-1][2]['temperature'] == 50
+
+
+@pytest.mark.asyncio
 async def test_unknown_cooling_caps_60():
     r,h=setup()
     h.states.set('climate.salon','unavailable')

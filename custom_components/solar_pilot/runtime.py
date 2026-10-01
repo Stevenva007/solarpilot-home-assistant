@@ -108,6 +108,7 @@ class SolarRuntime:
         self.logs = deque(maxlen=30)
         self.pending = None
         self.result = Plan()
+        self._start_context = {}
         self.grid_w = None
         self.pv_w = None
         self.filtered = None
@@ -1789,9 +1790,11 @@ class SolarRuntime:
                          reason="Voorrang gewijzigd: eigen lasten veilig vrijgeven voor Wallbox")
             self.wallbox_guard.result = wb
         device_holds, device_start_blocks, subordinate_ids = self._wallbox_device_constraints(now, wallbox_reading, grid, valid, discharge)
+        wallbox_start_blocks = dict(device_start_blocks)
         priority = self._update_dishwasher_priority(now, local_now, grid, valid, discharge, ready, wallbox_reading)
         device_holds.update(priority.holds)
-        device_start_blocks.update(priority.blocks)
+        runtime_start_blocks = dict(priority.blocks)
+        device_start_blocks.update(runtime_start_blocks)
         for device_id, message in self.dishwasher_priority.observe(wall=time.time(),
                 readings=self.dishwasher.readings, grid_w=grid if valid else None,
                 grid_stamp=reported, wb=wallbox_reading):
@@ -1802,7 +1805,9 @@ class SolarRuntime:
             allow_command=(not self.pending and not self.handover and
                            now - self.last_issued >= self.settings["settle_s"]),
             local_now=local_now)
-        device_start_blocks.update(self.priority_board.extra_start_blocks(now))
+        extra_start_blocks = self.priority_board.extra_start_blocks(now)
+        runtime_start_blocks.update(extra_start_blocks)
+        device_start_blocks.update(extra_start_blocks)
         climate_sent = await self.smart_climate.tick(
             local_now=local_now,
             allow_command=(self.mode == "solar" and not self.pending and not self.handover
@@ -1860,6 +1865,20 @@ class SolarRuntime:
                     rollback_device=transfer.device_id if rollback else "",
                     rollback_target_w=transfer.old_w if rollback else 0,
                     rollback_reason=transfer.reason if rollback else "")
+        self._start_context = {
+            "measurement_valid": bool(valid),
+            # Keep source attribution separate for the UI.  The Site still gets
+            # the combined map above, so this changes no planning decision.
+            "device_start_blocks": dict(runtime_start_blocks),
+            "wallbox_start_blocks": wallbox_start_blocks,
+            "wallbox_global_block": bool(wb.block_increase),
+            "wallbox_reason": wb.reason if wb.block_increase else "",
+            "can_increase": bool(site.can_increase),
+            "increase_reason": str(site.increase_reason or ""),
+            "effective_import_limit_w": float(site.max_import_w),
+            "max_increase_w": site.max_increase_w,
+            "device_increase_limits": dict(site.device_increase_limits),
+        }
         self.result = plan(site, self.devices(), self.states)
         # Deadline permission buys grid energy; it is not permission to borrow EV
         # watts or exceed phase/quarter-hour/import limits. EV solar preference
@@ -2339,12 +2358,146 @@ class SolarRuntime:
         unique = f'{self.entry.entry_id}_{device_id + "_" if device_id else ""}{suffix}'
         return er.async_get(self.hass).async_get_entity_id(kind, DOMAIN, unique)
 
+    def _device_start_diagnostics(self, d, s, cfg, now):
+        """Explain current start inputs without replacing the engine verdict."""
+        mode = self.device_modes.get(d.id, "disabled")
+        solar_mode = self.mode == "solar"
+        recovery_active = bool(self.recovery)
+        observed = bool(s.observed_once)
+        rest_remaining = (0 if s.on else
+                          max(0, math.ceil(float(d.min_off_s) - (now - s.last_off))))
+        cycle_met = not d.non_interruptible or (observed and (s.on or s.cycle_armed))
+        daily_limit = max(0.0, float(d.max_daily_runtime_s))
+        daily_used = max(0.0, float(s.daily_runtime_s))
+        daily_remaining = max(0.0, daily_limit - daily_used) if daily_limit else None
+        planner_blocked = bool(s.planner_hold and not s.on)
+        context = self._start_context if isinstance(self._start_context, dict) else {}
+        device_blocks = context.get("device_start_blocks", {})
+        wallbox_blocks = context.get("wallbox_start_blocks", {})
+        runtime_block_reason = str(device_blocks.get(d.id, ""))
+        wallbox_reason = str(wallbox_blocks.get(d.id, ""))
+        wallbox_blocked = bool(not s.on and (wallbox_reason or context.get("wallbox_global_block")))
+        if wallbox_blocked and not wallbox_reason:
+            wallbox_reason = str(context.get("wallbox_reason", ""))
+        runtime_blocked = bool(not s.on and runtime_block_reason)
+        measurement_valid = bool(context.get("measurement_valid", self.grid_w is not None))
+        increase_known = "can_increase" in context
+        increase_allowed = bool(context.get("can_increase")) if increase_known else None
+        increase_reason = str(context.get("increase_reason", ""))
+        window_enabled = bool(cfg.get("time_window_enabled", False))
+        try:
+            from zoneinfo import ZoneInfo
+            zone = getattr(getattr(self.hass, "config", None), "time_zone", "Europe/Brussels")
+            local_now = datetime.now(ZoneInfo(zone))
+        except Exception:
+            local_now = datetime.now().astimezone()
+        window_active = self._time_window_active(local_now, cfg)
+
+        requirements = {
+            "global_solar_mode": {
+                "met": solar_mode, "required_mode": "solar", "current_mode": self.mode,
+            },
+            "recovery_clear": {
+                "met": not recovery_active, "active": recovery_active,
+            },
+            "automatic_participation": {
+                "met": mode == "auto", "required_mode": "auto", "current_mode": mode,
+            },
+            "reliable_energy_measurement": {
+                "met": measurement_valid, "valid": measurement_valid,
+            },
+            "availability_and_fault": {
+                "met": bool(observed and s.available and not s.fault),
+                "available": bool(s.available) if observed else None,
+                "fault": str(s.fault or ""), "observed": observed,
+            },
+            "release": {"met": bool(observed and s.interlock),
+                        "released": bool(s.interlock) if observed else None},
+            "demand_or_time_window": {
+                "met": bool(observed and s.demand),
+                "demand": bool(s.demand) if observed else None,
+                "time_window_enabled": window_enabled, "time_window_active_now": bool(window_active),
+                "time_window_start": cfg.get("time_window_start", "00:00:00"),
+                "time_window_end": cfg.get("time_window_end", "23:59:00"),
+            },
+            "minimum_rest": {
+                "met": rest_remaining == 0, "configured_s": float(d.min_off_s),
+                "remaining_s": rest_remaining,
+            },
+            "non_interruptible_cycle_release": {
+                "met": bool(cycle_met), "required": bool(d.non_interruptible),
+                "armed": bool(s.cycle_armed),
+            },
+            "daily_maximum": {
+                "met": not daily_limit or daily_used < daily_limit,
+                "configured": bool(daily_limit), "limit_s": daily_limit,
+                "used_s": round(daily_used, 1), "remaining_s": (round(daily_remaining, 1)
+                                                                  if daily_remaining is not None else None),
+            },
+            "planner_start_block": {
+                "met": not planner_blocked, "blocked": planner_blocked,
+                "reason": str(s.planner_reason or "") if planner_blocked else "",
+            },
+            "wallbox_start_block": {
+                "met": not wallbox_blocked, "blocked": wallbox_blocked,
+                "reason": wallbox_reason,
+            },
+            "runtime_start_block": {
+                "met": not runtime_blocked, "blocked": runtime_blocked,
+                "reason": runtime_block_reason,
+            },
+            "general_increase_permission": {
+                "met": bool(increase_known and increase_allowed),
+                "known": increase_known, "allowed": increase_allowed,
+                "reason": increase_reason,
+            },
+        }
+        missing = [key for key, value in requirements.items() if not value["met"]]
+        building = bool(not s.on and s.start_since is not None)
+        elapsed = max(0.0, now - s.start_since) if building else None
+        stable_remaining = (max(0, math.ceil(float(d.start_delay_s) - elapsed))
+                            if elapsed is not None else None)
+        reason = self.result.reasons.get(d.id, "Initialiseren")
+        selected = bool(self.result.action and self.result.action.id == d.id
+                        and self.result.action.watts > 0)
+        diagnostics = {
+            # This is deliberately the decisive summary. The structured values
+            # below expose inputs; they do not invent a competing root cause.
+            "summary": reason, "summary_source": "result.reason",
+            "missing": missing, "listed_requirements_met": not missing,
+            "listed_requirements_are_not_a_start_guarantee": True,
+            "selected_for_command": selected,
+            "allocated_target_w": round(self.result.targets.get(d.id, 0.0), 1),
+            "power": {
+                "minimum_w": round(d.minimum, 1),
+                "start_margin_w": round(d.start_margin_w, 1),
+                "required_start_w": round(d.minimum + d.start_margin_w, 1),
+                "measured_free_w": (round(self.result.free_w, 1) if measurement_valid else None),
+                "measurement_valid": measurement_valid,
+                "effective_import_limit_w": (round(float(context["effective_import_limit_w"]), 1)
+                                               if context.get("effective_import_limit_w") is not None else None),
+                "maximum_general_increase_w": (round(float(context["max_increase_w"]), 1)
+                                                if context.get("max_increase_w") is not None else None),
+                "device_increase_limit_w": (round(float(context.get("device_increase_limits", {}).get(d.id)), 1)
+                                             if context.get("device_increase_limits", {}).get(d.id) is not None else None),
+                "note": ("Actuele vrije netinjectie na batterijontlading en huisreserve; "
+                         "hogere prioriteiten, reeds toegezegd vermogen en andere reserves kunnen minder vrijlaten."),
+            },
+            "stable_start": {
+                "building": building, "configured_s": float(d.start_delay_s),
+                "elapsed_s": round(elapsed, 1) if elapsed is not None else None,
+                "remaining_s": stable_remaining,
+            },
+        }
+        return requirements, diagnostics
+
     def overview(self):
         now = time.monotonic()
         result = []
         profiles = self.learning.overview(self.wallbox_settings["stable_s"])["profiles"]
         for d in sorted(self.devices(), key=lambda x: (x.priority, x.id)):
             s, cfg = self.states[d.id], self.priority_board.effective_config(d.id)
+            start_requirements, start_diagnostics = self._device_start_diagnostics(d, s, cfg, now)
             result.append({
                 "id": d.id, "name": d.name, "priority": d.priority, "kind": d.kind,
                 "dishwasher": {**self.dishwasher.overview(cfg, time.time()), **self.dishwasher_app.overview(cfg, time.time()),
@@ -2358,6 +2511,8 @@ class SolarRuntime:
                 "power_w": round(s.measured_w, 1), "estimated": not bool(cfg.get("power_entity")),
                 "target_w": round(self.result.targets.get(d.id, 0), 1),
                 "reason": self.result.reasons.get(d.id, "Initialiseren"),
+                "start_requirements": start_requirements,
+                "start_diagnostics": start_diagnostics,
                 "boost_seconds": max(0, int(s.boost_until - now)),
                 "manual_forced": bool(s.manual_forced),
                 "manual_stop_requested": bool(s.manual_stop_requested),
