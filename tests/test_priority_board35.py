@@ -13,6 +13,7 @@ from custom_components.solar_pilot.engine import Device, State, Site, plan
 from custom_components.solar_pilot.dhw import DHWReading, DHWDecision
 from custom_components.solar_pilot.priority_board import WALLBOX, EXTRA, device_key
 from custom_components.solar_pilot.wallbox_policy import reclaim_permission
+from custom_components.solar_pilot.wallbox import Reading
 
 
 def multiple():
