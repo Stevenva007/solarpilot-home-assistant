@@ -15,11 +15,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
       - name: Public repository privacy/structure
         run: python tools/check_public_repository.py
+      - name: Handoff dossier consistency
+        env:
+          HANDOFF_BASE: ${{ github.event.before }}
+          HANDOFF_PR_BASE: ${{ github.event.pull_request.base.sha }}
+          HANDOFF_HEAD: ${{ github.sha }}
+        run: python tools/check_handoff.py
       - name: Release/documentation consistency
         run: python tools/check_current_explanation.py
       - name: Install test dependencies

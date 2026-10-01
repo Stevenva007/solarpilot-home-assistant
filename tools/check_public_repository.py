@@ -14,6 +14,7 @@ allow_license_pending = os.getenv("SOLARPILOT_ALLOW_LICENSE_PENDING") == "1"
 
 required = [
     ROOT / "README.md",
+    ROOT / "OVERDRACHT.md",
     ROOT / "hacs.json",
     ROOT / "custom_components" / "solar_pilot" / "manifest.json",
     ROOT / "custom_components" / "solar_pilot" / "frontend" / "solar-pilot-card.js",
@@ -68,7 +69,7 @@ private_markers = (
     "pv_excess_control_ontvochtiger_",
     "pv_excess_control_koelkast_",
 )
-scan_roots = [ROOT / "custom_components", ROOT / "docs", ROOT / "examples", ROOT / "START_HIER.md"]
+scan_roots = [ROOT / "custom_components", ROOT / "docs", ROOT / "examples", ROOT / "START_HIER.md", ROOT / "OVERDRACHT.md"]
 for scan_root in scan_roots:
     paths = [scan_root] if scan_root.is_file() else scan_root.rglob("*")
     for path in paths:
