@@ -3,12 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.35'
-GUIDE_UPDATED = '2026-09-30'
+GUIDE_VERSION = '1.0.0-beta.36'
+GUIDE_UPDATED = '2026-10-01'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.35',
- 'updated': '2026-09-30',
+ 'version': '1.0.0-beta.36',
+ 'updated': '2026-10-01',
  'intro': 'Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst '
           'samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en '
           'leerdata blijven lokaal in Home Assistant en worden bij gewone HACS-updates niet vervangen door '
@@ -1082,27 +1082,28 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Assistant-antwoorden en vervangen geen praktische acceptatietest.'],
                'bullets': []},
               {'title': '20. Eén centrale voorrangslijst — bewaren, aanpassen en grenzen',
-               'paragraphs': ['Na installeren staat de bestaande regeling ongewijzigd. Het overzicht leest de '
-                              'huidige apparaatprioriteiten, AEG-voorkeur, globale Wallbox-keuze en de keuzes '
-                              'per toestel. Openen, slepen of een vinkje wijzigen schakelt niets. Opslaan '
-                              'wordt pas mogelijk na een echte wijziging én expliciete bevestiging. '
-                              'Ongewijzigd opslaan activeert geen andere regeling.',
+               'paragraphs': ['Bij de upgrade van beta.35 naar beta.36 wordt de bestaande effectieve volgorde '
+                              'automatisch en ongewijzigd vastgelegd als de centrale prioriteitenlijst. '
+                              'Daarbij worden geen toestellen ingeschakeld, geen startrechten toegevoegd en '
+                              'geen leerdata of timers gereset. Vanaf dat moment is deze lijst de leidende '
+                              'bron voor flexibele energieregeling. Openen, slepen of een keuze wijzigen '
+                              'bedient nog steeds niets; alleen expliciet opslaan verandert de lijst.',
                               'Gebruik Volgorde aanpassen. Sleep rijen op desktop of gebruik de '
                               'omhoog/omlaagknoppen, ook op mobiel en met toetsenbord. De lijst bevat elk '
                               'huidig toestel, Auto laden · Wallbox en Extra boilerwarmte met het werkelijke '
                               'ingestelde extra doel. De standaard is 60 °C; een ander bestaand doel wordt '
-                              'niet teruggezet. Mag de auto minder laten laden? staat per verbruiker zichtbaar '
-                              'naast de gekozen volgorde. Toestemming en actuele geschiktheid zijn '
-                              'verschillende zaken: ontbrekende/ongeschikte meter of een onbekende laadsessie '
-                              'kan een toegestane overname alsnog blokkeren.',
-                              'Beveiliging en hygiëne, gewoon warm water, noodzakelijke avondvoorraad en '
-                              'gewoon ruimtecomfort staan zichtbaar boven de verdeellijst en zijn niet '
-                              'versleepbaar. Ook handmatige overname, expliciete boost, toegestane deadline en '
-                              'minimale looptijden behouden hun bescherming. De extra zonnebuffer blijft '
-                              'altijd na de Wallbox en een bestaande voorkeur-afwasmachine. Hij mag tussen '
-                              'andere lagere verbruikers worden geplaatst, maar krijgt nooit toestemming om '
-                              'EV-vermogen te benutten. Zo kan de interface de afgesproken comfortgrenzen niet '
-                              'omzeilen.',
+                              'niet teruggezet. Per flexibele verbruiker staat Mag dit toestel vermogen van '
+                              'de Wallbox afnemen? los van de rangorde. Een hoger toestel kan dus voor de '
+                              'Wallbox staan; een lager toestel kan afzonderlijk toestemming hebben om een '
+                              'bevestigde zonne-laadsessie veilig te laten terugregelen; zonder toestemming '
+                              'gebruikt het uitsluitend werkelijk vrij zonneoverschot. Een eigen actuele '
+                              'meter, bevestigde zonnelaadsessie en alle elektrische grenzen blijven vereist.',
+                              'Elektrische en fabrikantbeveiliging inclusief legionella, noodzakelijk normaal '
+                              'warmwatercomfort en noodzakelijk ruimteverwarmings-/koelcomfort staan boven de '
+                              'verplaatsbare lijst en zijn niet versleepbaar. Ook handmatige overname, een '
+                              'expliciete boost, toegestane deadline en minimale looptijden behouden hun '
+                              'bescherming. Extra boilerwarmte naar 60 °C is wél een flexibele zonnestroomtaak '
+                              'en blijft na de Wallbox; hij gebruikt nooit geschat of onbewezen EV-vermogen.',
                               'Na bevestiging bepaalt de centrale volgorde de automatische verdeling tussen '
                               'gewone verbruikers en hun positie ten opzichte van de Wallbox. De gewone '
                               'realtime berekening en planner gebruiken dezelfde toestelrangorde. Een hoger '
@@ -1119,8 +1120,10 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'nacht, onbekende status, fabrikantbescherming en bestaande stabiliteit blijven '
                               'het boilerbeleid begrenzen. Er wordt geen Force DHW, compressorstop of nieuwe '
                               'ruimteklimaatmodus toegevoegd.',
-                              'Nieuwe gewone verbruikers verschijnen onderaan; een nieuw voorkeur-AEG-profiel '
-                              'wordt vóór de Wallbox toegevoegd. Nieuwe identiteiten blijven Uitgesloten '
+                              'Nieuwe gewone verbruikers verschijnen automatisch vóór de optionele extra '
+                              'boilerwarmte en kunnen daarna omhoog of omlaag worden gezet; een nieuw '
+                              'voorkeur-AEG-profiel wordt vóór de Wallbox toegevoegd. Nieuwe identiteiten '
+                              'blijven Uitgesloten 
                               'totdat je ze bewust vrijgeeft. Vervangen erft geen Auto-deelname, fysieke '
                               'koppelingen of startticket. Verwijderde identiteiten verdwijnen uit de actieve '
                               'lijst. Controleer na toevoegen de plaats en toestemming; de nieuwe verbruiker '
@@ -1134,15 +1137,49 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'blijft leesbaar. Bij een verbindingsfout eerst vernieuwen om te controleren of '
                               'de opslag toch is gelukt.',
                               'De vroegere prioriteitsgetallen, globale keuzes en ruwe toestelprofielen '
-                              'blijven bewaard voor migratie en onderzoek. Nadat de centrale lijst is '
-                              'gewijzigd zijn zij niet langer leidend: de oude '
+                              'blijven bewaard voor migratie en onderzoek. Na de automatische beta.36-migratie '
+                              'zijn zij niet langer leidend: de oude 
                               'numerieke/global-schakelbediening wijst wijzigingsopdrachten af met een '
                               'verwijzing naar Voorrang. De toestelwizard verbergt dan de oude rangorde- en '
                               'overnametoestemmingsvelden. Een oude, al geopende wizard mag die keuzes niet '
                               'terugschrijven. Temperaturen, timers, startrechten, leerdata en '
                               'niet-gerelateerde opties worden niet gereset.'],
                'bullets': []},
-              {'title': '21. Release- en documentatieregel',
+              {'title': '21. Beta.36 — leren, Wallbox, boiler, klimaat en analyse',
+               'paragraphs': ['De huishoudelijke basislast leert alleen uit perioden die als gewone '
+                              'huishoudlast zijn geclassificeerd. Duidelijke Panasonic-ruimteverwarming, '
+                              'ruimtekoeling, tapwaterverwarming en sterilisatie worden apart gehouden. '
+                              'Zonder aparte warmtepomp-W-meter mag SolarPilot uit stabiele P1+PV-sprongen '
+                              'een conservatieve vermogensschatting leren, maar uitsluitend voor planning en '
+                              'classificatie. Die schatting wordt nooit van actuele P1-netruimte afgetrokken.',
+                              'De Wallbox blijft read-only. Een Full Solar-instelling bewijst niet welke '
+                              'laadsessie werkelijk actief is. SolarPilot kan alleen een sessie-entiteit '
+                              'voorstellen wanneer één entiteit op hetzelfde Wallbox-apparaat voldoende '
+                              'bewijs bevat. Zonder bevestigde effectieve sessie wordt geen Wallbox-vermogen '
+                              'toegekend; werkelijk gemeten vrije injectie blijft wel bruikbaar.',
+                              'De boiler gebruikt vanaf beta.36 één config-entrybron voor de effectieve '
+                              'instellingen. Bij de beta.35-migratie worden de werkelijk gebruikte waarden '
+                              '50 °C normaal, 46 °C bewaakte comfortgrens, -5 °C Panasonic-differentie, '
+                              '50 °C zonnebuffer, 60 °C extra PV-buffer en 50 °C maximum tijdens actieve '
+                              'koeling behouden. Het wekelijkse Panasonic-sterilisatieprogramma op 62 °C '
+                              'blijft autonoom. Geconfigureerd, ingeschakeld, vrijgegeven, doelbezit, '
+                              'Panasonic-autonomie en handmatige override zijn afzonderlijk zichtbaar.',
+                              'Klimaatbetrouwbaarheid wordt niet meer als één algemene 100%-waarde getoond. '
+                              'Passieve temperatuurverandering, zonnewinst, verwarmingsrespons, koelrespons, '
+                              'reactievertraging, weerscorrectie en coast/off-feedback hebben elk een eigen '
+                              'status: Nog niet geleerd, Eerste metingen, Voorlopig of Betrouwbaar. Ontbrekend '
+                              'bewijs maakt de regeling conservatiever en verruimt nooit de comfortgrenzen.',
+                              'De lokale PV-kalibratie houdt minimaal vijf geldige vergelijkingsdagen nodig. '
+                              '13,8 kWp panelen, 10 kW omvormerlimiet en lokale schaduwdetectie blijven '
+                              'behouden. Diagnostiek toont daarnaast fout en bias per ochtend, middag en '
+                              'namiddag. Realtime PV blijft altijd belangrijker dan de forecast.',
+                              'Analyse-export vermeldt bovenaan de aangevraagde periode én de werkelijk '
+                              'beschikbare en gedekte meettijd, gaten, eerste/laatste bruikbare sample, '
+                              'herstarts en snelle telemetrie. Bootstrap/historiek, echte SolarPilot-live '
+                              'leerdata, berekende profielen en actuele metingen worden apart benoemd; een '
+                              'planberekening telt nooit als extra leerdag.'],
+               'bullets': []},
+              {'title': '22. Release- en documentatieregel',
                'paragraphs': ['Deze actuele uitleg is onderdeel van de release zelf. Dezelfde inhoud wordt als '
                               'Markdown meegeleverd én in Home Assistant getoond. Een releasecontrole faalt '
                               'wanneer versie of gegenereerde uitleg niet overeenkomt met de integratieversie.',
