@@ -1,5 +1,5 @@
 name: Beta36 finalizer
-# validation-attempt: 3
+# validation-attempt: 4
 
 on:
   push:
@@ -15,6 +15,8 @@ jobs:
   quality:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
     steps:
       - uses: actions/checkout@v5
         with:
