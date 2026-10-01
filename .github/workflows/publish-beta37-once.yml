@@ -1,0 +1,56 @@
+name: Publish SolarPilot beta.37 once
+
+on:
+  push:
+    branches:
+      - "release/beta.37"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Verify exact validated main commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED="26dc85e93c7b4328382fcd82e4c8ed254eab84c3"
+          git fetch origin main --tags
+          test "$(git rev-parse HEAD^)" = "$EXPECTED"
+          test "$(git rev-parse origin/main)" = "$EXPECTED"
+          if git ls-remote --exit-code --tags origin refs/tags/v1.0.0-beta.37 >/dev/null 2>&1; then
+            echo "Tag already exists; refusing to move it."
+            exit 1
+          fi
+      - name: Build exact release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED="26dc85e93c7b4328382fcd82e4c8ed254eab84c3"
+          ZIP="SolarPilot-v1.0.0-beta.37-GitHub-HACS.zip"
+          git archive --format=zip --output="$ZIP" "$EXPECTED"
+          git show "$EXPECTED:docs/BETA37_INSTELLEN.md" > BETA37_INSTELLEN.md
+          git show "$EXPECTED:docs/TESTRESULTATEN_BETA37.md" > TESTRESULTATEN_BETA37.md
+          git show "$EXPECTED:docs/ACTUELE_WERKING.md" > ACTUELE_WERKING.md
+          sha256sum "$ZIP" BETA37_INSTELLEN.md TESTRESULTATEN_BETA37.md ACTUELE_WERKING.md
+      - name: Create immutable release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED="26dc85e93c7b4328382fcd82e4c8ed254eab84c3"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a v1.0.0-beta.37 "$EXPECTED" -m "SolarPilot 1.0.0-beta.37"
+          git push origin v1.0.0-beta.37
+      - name: Create prerelease with installation assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create v1.0.0-beta.37             SolarPilot-v1.0.0-beta.37-GitHub-HACS.zip             BETA37_INSTELLEN.md             TESTRESULTATEN_BETA37.md             ACTUELE_WERKING.md             --title "SolarPilot v1.0.0-beta.37"             --prerelease             --generate-notes             --verify-tag
