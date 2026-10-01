@@ -36,11 +36,12 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'rekening met de lasten die het zelf beheert, zodat een succesvolle inschakeling '
                               'niet meteen als verdwenen zonne-energie wordt geïnterpreteerd.',
                               'De tab Voorrang toont alle flexibele toestellen, de Wallbox en de extra '
-                              'boilerwarmte samen. Installeren of bekijken verandert de bestaande verdeling '
-                              'niet. Pas een werkelijk gewijzigde, expliciet bevestigde lijst maakt de '
-                              'centrale volgorde leidend. De aparte uitleg hieronder beschrijft die overstap '
-                              'en de beschermde onderdelen. Gewoon warmwater- en ruimtecomfort blijven boven '
-                              'deze verdeling staan.',
+                              'boilerwarmte samen. Bij de upgrade vanaf beta.35 wordt de reeds effectieve '
+                              'volgorde éénmalig en ongewijzigd vastgelegd als centrale bron van waarheid. '
+                              'Beveiliging/legionella, noodzakelijk warmwatercomfort en noodzakelijk '
+                              'ruimtecomfort blijven boven de verplaatsbare lijst staan. Daarna blijft de '
+                              'afgesproken flexibele volgorde Wallbox, ontvochtiger en extra boilerwarmte '
+                              'naar 60 °C behouden totdat de gebruiker die bewust wijzigt.',
                               'Toestellen op Auto worden volgens hun prioriteit gepland. Een hooggeprioriteerd '
                               'toestel dat niet past mag een kleiner lager toestel niet automatisch blokkeren. '
                               'Minimum aan/uit-tijden, start- en stopvertragingen, tijdvensters, dagminima en '
@@ -80,8 +81,10 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                            'ontbrekende of ongeldige gegevens geldt de vaste prijsfallback.',
                            'Capaciteitstarief- en fasegrenzen blijven van toepassing als netstroom wordt '
                            'toegestaan.',
-                           'Aangeleerd toestelvermogen mag de planningsschatting alleen conservatiever, dus '
-                           'hoger, maken.',
+                           'Aangeleerd toestelvermogen mag de planningsschatting alleen conservatiever maken. '
+                           'Voor een binaire last die fysiek al AAN staat is een gewijzigde geleerde '
+                           'vermogenswaarde alleen een plannings-/boekhoudkundige update; SolarPilot stuurt '
+                           'daarom niet opnieuw turn_on zolang de bestaande opdracht bevestigd is.',
                            'Het basislastmodel kan ook leren tijdens gemeten Wallbox- en flexlastgebruik. '
                            'Alleen werkelijk afzonderlijk gemeten vermogen wordt afgetrokken; '
                            'ontbrekende/geschatte of ongeldige bronnen worden niet als nul gebruikt. De '
@@ -89,10 +92,11 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                            'Een toekomstige batterij wordt in de planner eerst adviserend meegetekend; de '
                            'aparte realtime batterijguard blijft eigenaar van fysieke batterijsetpoints.',
                            'Plannerkwaliteit wordt achteraf gemeten op voorspelde versus werkelijke PV, '
-                           'basislast en netresultaat, plus de mate waarin geplande run/stop-toestanden '
-                           'werkelijk konden worden uitgevoerd. SolarPilot bewaart hiervan compacte '
-                           'dagaggregaten en toont 7- en 30-dagenfouten; de kwaliteitsscore is een technische '
-                           'indicator en geen waarschijnlijkheid.',
+                           'gewone huishoudelijke basislast en netresultaat, plus de mate waarin geplande '
+                           'run/stop-toestanden werkelijk konden worden uitgevoerd. SolarPilot bewaart '
+                           'hiervan compacte dagaggregaten en toont meetdekking, 7- en 30-dagenfouten en '
+                           'uitvoering afzonderlijk. Er is geen losse totaalscore die als '
+                           'waarschijnlijkheid of kwaliteitsgarantie moet worden gelezen.',
                            'Een begrensde 15-minutenreplay bewaart recente gemeten PV, basislast, prijzen en '
                            'netresultaat. Daarmee vergelijkt de Planning-tab enkele alternatieve '
                            'plannerstrategieën op dezelfde meetdata. Dit is een plannerreplay en geen exacte '
@@ -471,8 +475,11 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'klimaatbediening bewust vrijgegeven is. Een gewoon stabiel beheerd DHW-setpoint '
                               'blokkeert deze klimaatregelaar niet permanent. Openstaande/onzekere opdrachten '
                               'en beschermde fabrikantcycli blijven wel geserialiseerd en beschermd. De '
-                              'leerscore is een interne indicator, geen gekalibreerde veiligheidskans; meer '
-                              'procent alleen bewijst geen goed model.'],
+                              'betrouwbaarheid wordt daarom per onderdeel getoond: passieve '
+                              'temperatuurverandering, zonnewinst, verwarmingsrespons, koelrespons, '
+                              'reactievertraging, weerscorrectie en coast/off-feedback. Een ontbrekend '
+                              'onderdeel staat als Nog niet geleerd, Eerste metingen of Voorlopig en kan niet '
+                              'stilzwijgend als 100% worden voorgesteld.'],
                'bullets': ['Een handmatig gekozen Panasonic HEAT- of COOL-stand wordt nooit door SolarPilot '
                            'overschreven; de regeling wordt dan adviserend tot de gebruiker zelf terugkeert '
                            'naar AUTO/OFF.',
@@ -924,11 +931,14 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'RAM-historiek, behouden.',
                               'Alleen eigen SolarPilot-WARNING/ERROR-logs en beslisnotities worden verzameld, '
                               'niet de volledige Home Assistant-logbestanden of automatiseringscode. De export '
-                              'vermeldt meetdekking, hiaten, opslagfouten, afgekapte bronnen en modulefouten '
-                              'afzonderlijk. Er is geen terugwerkende Recorder-import: gedetailleerde '
-                              'registratie begint na deze update; reeds bestaande oudere modellen en '
-                              'dagsamenvattingen blijven wel exporteerbaar. Doorlooptijden zijn geen '
-                              'CPU-percentages en bewijzen niet wat de fysieke apparaten verbruiken.',
+                              'vermeldt de aangevraagde periode naast de beschikbare ruwe periode, werkelijk '
+                              'gedekte meettijd, dekking, eerste en laatste bruikbare sample, herstarts, '
+                              'bepaalbare offline/gattijd en beschikbare snelle telemetrie. Er is geen '
+                              'terugwerkende Recorder-import: bootstrap-/historische data, echte '
+                              'SolarPilot-live leerdata, berekende startprofielen en actuele metingen worden '
+                              'afzonderlijk benoemd. Een planberekening telt nooit als extra leerdag of '
+                              'meettijd. Doorlooptijden zijn geen CPU-percentages en bewijzen niet wat de '
+                              'fysieke apparaten verbruiken.',
                               'Standaard worden entiteitsnamen en apparaatlabels per bestand gepseudonimiseerd '
                               'met consistente koppelingen tussen instellingen en metingen. Een expliciete '
                               'checkbox kan de werkelijke namen opnemen. Tokens/wachtwoorden, netwerkadressen, '
@@ -967,12 +977,14 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'aangeleerd. Voor batterijvloten is deze nieuwe correctie nog niet gevalideerd; '
                               'dan blijft die leerwaarneming onbekend. Dat verandert de aparte '
                               'batterijbesturing niet.',
-                              'Gewone ongemeten warmtepompvraag blijft onderdeel van de restlast; we trekken '
-                              'geen zelf verzonnen vermogen af. Een herkend beschermd '
-                              'boiler-/sterilisatievenster wordt apart geteld en niet als normale dagelijkse '
-                              'basislast geleerd. Die geldige metingen blijven juist WEL in de kwaliteitsfout '
-                              'en een aparte contextgroep staan. Dit bewijst geen afzonderlijke oorzaak van de '
-                              'fout of gemeten compressorvermogen.',
+                              'Duidelijke Panasonic-activiteit wordt vanaf beta.36 apart geclassificeerd als '
+                              'ruimteverwarming, ruimtekoeling, tapwaterverwarming, '
+                              'legionella/sterilisatie of onbekende warmtepompactiviteit en wordt niet als '
+                              'normale huishoudelijke basislast aangeleerd. Zonder afzonderlijke elektrische '
+                              'W-meter mag SolarPilot uit voldoende stabiele P1+PV-veranderingen rond duidelijke '
+                              'compressorstarts/-stops een conservatieve vermogensschatting leren met eigen '
+                              'betrouwbaarheid. Die schatting is uitsluitend voor planning en classificatie en '
+                              'wordt nooit van de realtime gemeten vrije netruimte afgetrokken.',
                               'De oorspronkelijke basislastlearner blijft na minimaal vier verschillende dagen '
                               'per uur en dagtype een live mediaan gebruiken. De nieuwe aanvullende recente '
                               'variant gebruikt de laatste veertien dagen. Vergelijkingen trainen alleen op '
@@ -990,12 +1002,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'ingestelde vrijgaven. Het oude Lokaal leren schakelt niet automatisch elk '
                               'afzonderlijk model in of uit.',
                               'De daglicht-PV-fout (voorspeld of gemeten vermogen minstens 100 W), richting '
-                              'van de fout, gemeten dagen en nieuwe dekking staan apart van de oude '
-                              'gehele-dagfout. Dekking telt alleen korte intervallen tussen opeenvolgende '
-                              'geldige waarnemingen, maximaal tien minuten. Nieuwe dekking/daglichtdata begint '
-                              'bij beta.30; oude data blijft in de oude kwaliteitscijfers maar wordt niet '
-                              'retrospectief ingedeeld. De kwaliteitsindex blijft een technische index tegen '
-                              'huidige planblokken, niet de kans dat de volledige 36-uursvoorspelling klopt.',
+                              'van de fout, gemeten dagen en nieuwe dekking staan apart. De PV-kalibratie '
+                              'toont daarnaast fout en bias voor ochtend, middag en namiddag. Dekking telt '
+                              'alleen korte intervallen tussen opeenvolgende geldige waarnemingen; oude '
+                              'historie wordt niet retrospectief als live dekking ingevuld. Voor de gewone '
+                              'basislast worden warmtepompperioden niet meegeteld. De verschillende fouten en '
+                              'de dekking worden afzonderlijk getoond, niet samengeperst tot één '
+                              'misleidende totaalscore.',
                               'Open Leren & vragen op het dashboard. De popup toont rekenmodellen, ontbrekende '
                               'meters, voorspelfouten, vragen met keuzes, geaccepteerde en geweigerde '
                               'leerwaarnemingen, en jouw antwoordgeschiedenis. Alleen een Home '
