@@ -17,6 +17,56 @@ SESSION_DEFAULTS = {
 }
 RECLAIM_POLICIES = ("priority", "never", "legacy")
 
+
+def discover_session_candidate(hass, config):
+    """Return one strongly evidenced same-Wallbox session entity, never a guess."""
+    try:
+        from homeassistant.helpers import entity_registry as er
+        registry = er.async_get(hass)
+        lookup = getattr(registry, "async_get", lambda _entity: None)
+        reference = next(
+            (lookup(config.get(key)) for key in ("power_entity", "status_entity", "mode_entity")
+             if config.get(key) and lookup(config.get(key)) is not None),
+            None,
+        )
+        device_id = getattr(reference, "device_id", None)
+        if not device_id:
+            return ""
+        rows = getattr(registry, "entities", {})
+        rows = list(rows.values()) if hasattr(rows, "values") else []
+        known_groups = [
+            state_set(config.get("session_solar_states", SESSION_DEFAULTS["session_solar_states"])),
+            state_set(config.get("session_manual_states", SESSION_DEFAULTS["session_manual_states"])),
+            state_set(config.get("session_stopped_states", SESSION_DEFAULTS["session_stopped_states"])),
+        ]
+        hits = []
+        for row in rows:
+            if getattr(row, "device_id", None) != device_id or getattr(row, "disabled_by", None):
+                continue
+            entity_id = str(getattr(row, "entity_id", "") or "")
+            if entity_id.split(".")[0] not in ("sensor", "select"):
+                continue
+            obj = hass.states.get(entity_id)
+            options = {
+                str(value).strip().casefold()
+                for value in ((getattr(obj, "attributes", {}) or {}).get("options", []) if obj is not None else [])
+            }
+            current = str(getattr(obj, "state", "") or "").strip().casefold()
+            evidence_groups = sum(bool(options & group) for group in known_groups)
+            current_known = any(current in group for group in known_groups)
+            identity = " ".join(filter(None, [
+                entity_id,
+                str(getattr(row, "translation_key", "") or ""),
+                str((getattr(obj, "attributes", {}) or {}).get("friendly_name", "") if obj is not None else ""),
+            ])).casefold()
+            name_evidence = any(token in identity for token in ("session", "laadsessie", "charging mode", "charging_mode"))
+            if evidence_groups >= 2 or (current_known and name_evidence):
+                hits.append(entity_id)
+        return hits[0] if len(hits) == 1 else ""
+    except (AttributeError, ImportError, TypeError):
+        return ""
+
+
 @dataclass(frozen=True)
 class Session:
     mode: str
