@@ -92,7 +92,10 @@ class PVForecast:
                 "native_raw_now_w":self.source.scalars.get("now_entity"),
                 "curve_method":"Lineaire interpolatie tussen ruwe Forecast.Solar-vermogenspunten; kan afwijken van de native trapsgewijze nu-sensor",
                 "factor":round(currentfactor,3),"confidence":round(confidence,3),"comparable_days":days,
-                "model_source":why,"model":summary,"source_age_s":round(ts-self.source.source_stamp) if self.source.source_stamp else None,
+                "model_source":why,"mae_w":summary.get("mae_w"),"bias_w":summary.get("bias_w"),
+                "dayparts":summary.get("periods",{}),"last_learning_reason":summary.get("last_reason"),
+                "minimum_days_required":summary.get("minimum_days_required"),
+                "model":summary,"source_age_s":round(ts-self.source.source_stamp) if self.source.source_stamp else None,
                 "source_entry_id":self.source.entry_id,"series_points":len(self.source.series.points),
                 "inverter_limit_w":self.settings["inverter_limit_w"],"panel_peak_wp":self.settings["panel_peak_wp"],
                 "actual_w":actual,"updated":now.isoformat(),"note":"Voorspelling, geen beschikbaar vermogen. Realtime meters blijven leidend."}
