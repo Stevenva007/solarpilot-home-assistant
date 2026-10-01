@@ -1,9 +1,9 @@
 <!-- solarpilot-handoff-schema: 1 -->
-<!-- solarpilot-handoff-version: 1.0.0-beta.36 -->
+<!-- solarpilot-handoff-version: 1.0.0-beta.37 -->
 
 # SolarPilot · Overdrachtsdossier
 
-**Actuele productieversie:** `1.0.0-beta.36`  
+**Actuele productieversie:** `1.0.0-beta.37`  
 **Status:** publieke HACS-beta, actuele codebasis = `main`  
 **Laatst inhoudelijk gecontroleerd:** 2026-10-01  
 **Minimale Home Assistant-versie:** 2026.9.0  
@@ -42,7 +42,7 @@ SolarPilot is een lokaal Home Assistant Energy Management System voor:
 
 De integratie is `single_config_entry`, gebruikt geen externe Python-runtimevereisten en exposeert native Home Assistant-entiteiten via sensor, binary_sensor, select, number, button en switch.
 
-De standaard veilige startmodus is **Observatie**. Fysieke rechten worden niet automatisch uitgebreid door een upgrade of door het toevoegen van nieuwe apparaten.
+De dashboardmodus **Alleen bekijken** (`observe`) blijft de veilige observatiestand. Beta.37 activeert éénmalig beschikbare leer- en regelmodules waarvoor de bestaande koppelingen en vereiste bevestigingen al aanwezig zijn; nieuwe fysieke toestelrechten, ontbrekende bronnen en veiligheidsbevestigingen worden nooit verzonnen.
 
 ## 2. Bronnen van waarheid
 
@@ -73,15 +73,15 @@ De actuele gebruikersuitleg moet bij iedere gedragswijziging samen met de code w
 - Upgrades moeten bestaande entity-koppelingen, prijzen, apparaten, rechten, bevestigingen, plannerinstellingen, Wallbox-keuzes, prioriteiten en bruikbare leerdata behouden.
 - Een migratie mag alleen het specifieke incompatibele model resetten wanneer daar technisch een aantoonbare reden voor is; geen brede reset als makkelijkste oplossing.
 - De centrale prioriteitenlijst is na de beta.35→beta.36-migratie de leidende bron. Bestaande effectieve volgorde moet behouden blijven.
-- Een nieuwe verbruiker wordt toegevoegd zonder automatisch nieuwe startrechten te krijgen.
+- Een nieuwe verbruiker wordt toegevoegd zonder automatisch nieuwe startrechten te krijgen en komt standaard onderaan de centrale flexibele voorrangslijst.
 
 ### Gebruiksvriendelijkheid
 
 - Benamingen moeten begrijpelijk zijn voor niet-technische gebruikers.
 - Alle gewone voorrangsregels horen samen in één centrale **Voorrang**-weergave.
 - De gebruiker moet verbruikers kunnen verplaatsen in de prioriteitenvolgorde.
-- Per relevante verbruiker is apart zichtbaar/instelbaar of deze, wanneer veilig, vermogen van een bevestigde zonnelaadsessie van de Wallbox mag benutten.
-- Alle exportfuncties horen logisch onder één **Export**-onderdeel.
+- Per relevante verbruiker is apart zichtbaar/instelbaar of deze zonnevermogen van een bevestigde Wallbox-zonnelaadsessie mag benutten. Die toestemming is alleen actief wanneer het toestel ook boven de Wallbox staat.
+- **Export** heeft één hoofdactie voor een compleet analysebestand met instellingen, metingen, beslissingen, leerresultaten en fouten; aanvullende exportopties blijven ondergeschikt.
 - Telemetrieverversing mag open pop-ups en configuratiecontext niet onnodig sluiten of resetten.
 - Iedere gebruikersoptie moet uitlegbaar zijn via de bestaande hulpstructuur.
 
@@ -100,8 +100,8 @@ Een codewijziging die gedrag, configuratie, migratie of gebruikersinterface beï
 
 SolarPilot kent de modi `observe`, `solar` en `paused`.
 
-- **Observatie:** berekenen en leren, zonder gewone flexibele verbruikers fysiek te sturen.
-- **Zonnestroom:** toegestane realtime regeling uitvoeren.
+- **Alleen bekijken (`observe`):** berekenen en leren, zonder gewone flexibele verbruikers fysiek te sturen.
+- **Automatisch regelen (`solar`):** toegestane realtime regeling uitvoeren.
 - **Pauze:** niets nieuws starten en eigen onderbreekbare lasten veilig afbouwen, met behoud van minimumlooptijden en beschermde cycli.
 
 Er wordt maximaal één gewone fysieke wijziging tegelijk uitgevoerd; daarna wordt op terugmelding en nieuwe meetinformatie gewacht.
@@ -114,9 +114,25 @@ Boven de verplaatsbare lijst blijven beschermd:
 2. noodzakelijk warmwatercomfort;
 3. noodzakelijk ruimtecomfort.
 
-Daarna is de centrale gebruikersvolgorde leidend. Bij de beta.36-migratie wordt de voordien effectieve volgorde bewaard. De afgesproken referentievolgorde voor gewone flexibele lasten blijft **Wallbox → ontvochtiger → extra boilerwarmte 60 °C** zolang de gebruiker die volgorde niet bewust wijzigt.
+Daarna is de centrale gebruikersvolgorde leidend. Bij de beta.36-migratie wordt de voordien effectieve volgorde bewaard. De afgesproken referentievolgorde voor de huidige installatie is **AEG-afwasmachine → Wallbox → ontvochtiger → extra warm water tot 60 °C** wanneer het AEG-profiel aanwezig is. Zonder AEG begint de flexibele volgorde bij de Wallbox. De upgrade herschikt een reeds opgeslagen beta.36-volgorde niet.
 
 Een reeds gestarte beschermde cyclus, zoals een afwasprogramma, wordt niet afgebroken om een hogere prioriteit vrij te maken. Voor zulke routes blijven de specifieke beschermingsregels gelden.
+
+Een generiek toestel mag alleen zonnevermogen dat de Wallbox op dat moment gebruikt benutten wanneer het **boven Auto laden (Wallbox)** staat én de expliciete toestemming daarvoor aan staat. Onder de Wallbox blijft die toestemming opgeslagen maar inactief. Nieuwe gewone flexibele toestellen komen onderaan totdat de gebruiker ze bewust verplaatst.
+
+### 4.3 Beta.37 automatische activering
+
+Bij de eerste start van beta.37 wordt éénmalig een startprofiel toegepast:
+
+- analyse-export, planner, basislastleren, lokaal PV-leren, Forecast.Solar-kalibratie en batterij-what-if worden actief;
+- fasebewaking/-leren wordt actief wanneer L1/L2/L3 al gekoppeld zijn; nieuwe starts mogen dan de bevestigde fasegrenzen respecteren, maar lopende lasten worden niet automatisch afgeworpen;
+- Wallbox-monitoring wordt actief wanneer een laadvermogensbron al gekoppeld is;
+- slim klimaatmodel wordt actief bij gekoppelde zones; fysieke AUTO/OFF-regeling wordt alleen geactiveerd wanneer alle gekoppelde zones daadwerkelijk AUTO en OFF ondersteunen;
+- DHW-regeling wordt alleen actief wanneer doel-, temperatuursensor én de bestaande veiligheidsbevestiging aanwezig zijn;
+- apparaten met een afzonderlijke eigen vermogensmeter mogen hun cyclusprofiel leren;
+- Leren & vragen gebruikt gemeten sampling, begrensde automatische adaptatie en meldingen.
+
+De migratie heeft een persistente eenmalige marker. Latere handmatige uitschakelingen of beleidskeuzes worden bij een volgende herstart niet opnieuw overschreven. Een bestaand toestel wordt door deze migratie niet van Uitgesloten naar Auto gezet en fysieke batterijbesturing krijgt geen nieuw eigenaarschap.
 
 De positie ten opzichte van de Wallbox en de toestemming **Mag de auto minder laten laden?** zijn twee afzonderlijke zaken. Een hogere positie alleen geeft geen recht op EV-vermogen.
 
