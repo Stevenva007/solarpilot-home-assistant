@@ -115,14 +115,19 @@ def test_quiet_policy_still_available_and_no_permission_change():
     assert before==r.settings and not h.services.calls
 
 
-def test_protected_context_scores_but_does_not_train_normal_demand():
-    r,h=metered();r.dhw.reading=SimpleNamespace(protected=True)
+def test_protected_context_scores_separately_and_does_not_train_normal_demand():
+    r,h=metered()
+    r.dhw.config['target_entity']='water_heater.tank'
+    r.dhw.settings['hygiene_schedule_enabled']=False
+    r.dhw.reading=SimpleNamespace(protected=True,protection_reason='Hygiëneprogramma actief')
     x=r.learning_hub.observe(datetime.now(timezone.utc),time.monotonic())
-    assert x['valid'] and x['context']=='protected_dhw'
+    assert x['valid'] and x['context']=='sterilization'
     assert r.unified_planner.base_load.accepted==0
-    assert next(iter(r.learning_hub.days.values()))['protected_dhw']==1
+    assert next(iter(r.learning_hub.days.values()))['heatpump_sterilization']==1
     q=PlanQualityTracker();q.observe(wall_ts=1000,local_now=datetime(2026,9,28,12),predicted_pv_w=1000,actual_pv_w=1000,predicted_base_w=200,actual_base_w=3200,context=x['context'])
-    a=q.overview()['last_7d'];assert a['base_mae_w']==3000 and a['protected_dhw_base_mae_w']==3000
+    a=q.overview()['last_7d']
+    assert a['base_mae_w'] is None
+    assert a['protected_dhw_base_mae_w']==3000
 
 
 def test_no_passive_store_write_before_runtime_load():
@@ -296,3 +301,29 @@ async def test_answered_questions_clear_only_own_notification():
     await hub.tick()
     assert h.services.calls[-1]==('persistent_notification','dismiss',{'notification_id':'solar_pilot_learning_test'})
     assert not hub.notification_signature
+
+
+def test_beta36_space_heating_is_not_learned_as_household_base():
+    r,h=metered()
+    r.smart_climate.settings.update(enabled=True,zone_entities=['climate.zone'])
+    h.states.set('climate.zone','auto',{'hvac_action':'heating'})
+    x=r.learning_hub.observe(datetime.now(timezone.utc),time.monotonic())
+    assert x['valid'] and x['context']=='space_heating'
+    assert r.unified_planner.base_load.accepted==0
+    counts=next(iter(r.learning_hub.days.values()))
+    assert counts['heatpump_space_heating']==1
+
+
+def test_beta36_unknown_high_residual_is_not_silently_added_to_base_profile():
+    r,h=metered()
+    # Seed a usable household bucket so the spike filter has evidence to compare.
+    now=datetime.now(timezone.utc)
+    key=r.unified_planner.base_load._key(now)
+    r.unified_planner.base_load.bins[key]={'days':{
+        (now-timedelta(days=d)).date().isoformat():[500.0] for d in range(1,6)
+    }}
+    h.states.set('sensor.grid',3000,{'unit_of_measurement':'W'})
+    x=r.learning_hub.observe(now,time.monotonic())
+    assert x['valid']
+    assert x['context']=='heatpump_unknown'
+    assert r.unified_planner.base_load.accepted==0
