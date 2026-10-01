@@ -30,7 +30,8 @@ def api(monkeypatch,request):
 async def test_read_models_evidence_not_devices(api):
     r,h,c,out,err=context();before=list(h.services.calls)
     await api.websocket_learning(h,c,{'id':1,'config_entry_id':'test'})
-    assert not err and len(out[0]['models'])==7 and out[0]['questions']
+    assert not err and len(out[0]['models'])==8 and out[0]['questions']
+    assert any(model['id']=='heatpump' for model in out[0]['models'])
     assert h.services.calls==before
 
 
