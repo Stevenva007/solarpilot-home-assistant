@@ -980,7 +980,7 @@ class SolarPilotOptions(LiveOptionsMixin, DHWOptionsMixin, DishwasherOptionsMixi
                 {"value":"tumble_dryer","label":"Droogkast"}, {"value":"other","label":"Andere verbruiker"}]}),
             vol.Required("priority", default=d["priority"]): num(1, 100),
         }
-        if self._base_options().get("priority_board", {}).get("schema") == 1:
+        if self._base_options().get("priority_board", {}).get("schema") in (1, 2):
             schema = {k:v for k,v in schema.items() if getattr(k,"schema",k) != "priority"}
         return self.async_show_form(step_id="device", data_schema=vol.Schema(schema))
 
