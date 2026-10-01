@@ -3,7 +3,7 @@ from datetime import datetime,timezone
 from types import SimpleNamespace as NS
 from copy import deepcopy
 import pytest
-from custom_components.solar_pilot.wallbox_policy import SESSION_DEFAULTS,classify_session,reclaim_permission
+from custom_components.solar_pilot.wallbox_policy import SESSION_DEFAULTS,classify_session,reclaim_permission,discover_session_candidate
 from custom_components.solar_pilot.wallbox import Reading
 from test_house_runtime import setup,tick
 from test_dhw_runtime import setup as dhw_setup,tick as dhw_tick
@@ -147,3 +147,38 @@ async def test_manual_override_between_plan_and_dispatch_never_sends(monkeypatch
 def test_trusting_solar_setting_requires_literal_boolean_permission(unconfirmed):
     config = {**SESSION_DEFAULTS, "trust_solar_setting": unconfirmed}
     assert classify_session(config, "full_solar", None).mode == "unknown"
+
+
+def test_beta36_session_candidate_requires_unique_same_device_evidence(monkeypatch):
+    from homeassistant.helpers import entity_registry as er
+    r,h=build()
+    h.states.set('sensor.wb_power',0,{'unit_of_measurement':'W'})
+    h.states.set('select.wb_session','Zonne-auto · laden',{'options':[
+        'Zonne-auto · laden','Zonne-auto · wacht op overschot',
+        'Manueel laden','Manueel laden · klaar','Manueel / solar uit','Laden gestopt']})
+    power=NS(entity_id='sensor.wb_power',device_id='wb',platform='wallbox',translation_key='charging_power',disabled_by=None)
+    session=NS(entity_id='select.wb_session',device_id='wb',platform='wallbox',translation_key='charging_mode',disabled_by=None)
+    reg=NS(entities={'p':power,'s':session},async_get=lambda eid:power if eid=='sensor.wb_power' else session if eid=='select.wb_session' else None)
+    monkeypatch.setattr(er,'async_get',lambda hass:reg)
+    c={**SESSION_DEFAULTS,'power_entity':'sensor.wb_power'}
+    assert discover_session_candidate(h,c)=='select.wb_session'
+
+    h.states.set('sensor.wb_session_2','Laden gestopt',{'options':[
+        'Zonne-auto · laden','Manueel laden','Laden gestopt']})
+    session2=NS(entity_id='sensor.wb_session_2',device_id='wb',platform='wallbox',translation_key='session_mode',disabled_by=None)
+    reg.entities['s2']=session2
+    assert discover_session_candidate(h,c)==''
+
+
+def test_beta36_session_candidate_never_uses_other_device(monkeypatch):
+    from homeassistant.helpers import entity_registry as er
+    r,h=build()
+    h.states.set('sensor.wb_power',0,{'unit_of_measurement':'W'})
+    h.states.set('select.other_session','Zonne-auto · laden',{'options':[
+        'Zonne-auto · laden','Manueel laden','Laden gestopt']})
+    power=NS(entity_id='sensor.wb_power',device_id='wb',platform='wallbox',translation_key='charging_power',disabled_by=None)
+    other=NS(entity_id='select.other_session',device_id='other',platform='wallbox',translation_key='charging_mode',disabled_by=None)
+    reg=NS(entities={'p':power,'o':other},async_get=lambda eid:power if eid=='sensor.wb_power' else other if eid=='select.other_session' else None)
+    monkeypatch.setattr(er,'async_get',lambda hass:reg)
+    c={**SESSION_DEFAULTS,'power_entity':'sensor.wb_power'}
+    assert discover_session_candidate(h,c)==''
