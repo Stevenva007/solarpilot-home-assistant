@@ -1,9 +1,8 @@
-"""One explicit allocation order, without rewriting device bindings or rights.
+"""One understandable allocation order, without rewriting device bindings or rights.
 
-Absent a saved board, the beta.34 controllers are untouched. Saving is an admin
-operation under the existing runtime lock. Safety/comfort is NOT a sortable load.
-The optional DHW buffer stays behind EV and the protected dishwasher preference;
-it can be placed among other lower loads without borrowing EV watts.
+The board is the single place where flexible solar priorities are ordered.
+Safety and necessary Panasonic comfort remain fixed above it. New flexible
+devices start at the bottom and can then be moved deliberately by the user.
 """
 from __future__ import annotations
 
@@ -74,9 +73,10 @@ class PriorityBoard:
                 if dishwasher_priority_enabled(self.r.configs[i]):
                     result.insert(result.index(WALLBOX), key)
                 else:
-                    # New ordinary flexible loads join the movable solar list just
-                    # before optional 60 °C heat, never behind the final buffer.
-                    result.insert(result.index(EXTRA), key)
+                    # A newly added flexible device gets no implicit priority over
+                    # existing choices. It starts at the bottom until the user
+                    # deliberately moves it in the central priority screen.
+                    result.append(key)
         return result
 
     def ranks(self):
@@ -191,15 +191,15 @@ class PriorityBoard:
     def protected_rows(self):
         r = self.r
         return [
-            {"id": "safety", "name": "Elektrische beveiliging, fabrikantbeveiliging en legionella", "active": True,
-             "power_label": "Altijd beschermd",
-             "reason": "Echte elektrische grenzen, Panasonic-beveiliging en het bestaande wekelijkse sterilisatieprogramma gaan altijd voor."},
-            {"id": "dhw_comfort", "name": "Noodzakelijk warmwatercomfort", "active": r.dhw.configured,
-             "power_label": "Altijd vóór flexibele zonneverdeling",
-             "reason": "Het normale 50 °C-doel, de bewaakte 46 °C-comfortgrens en noodzakelijke voorraad blijven beschermd. Extra 60 °C staat wél in de verplaatsbare lijst."},
-            {"id": "space_comfort", "name": "Noodzakelijk ruimteverwarmings-/koelcomfort", "active": bool(r.smart_climate.settings.get("enabled")),
-             "power_label": "Altijd vóór flexibele zonneverdeling",
-             "reason": "Comfortgrenzen en Panasonic HEAT/COOL-keuze blijven beschermd; SolarPilot versoepelt ze niet voor energieoptimalisatie."},
+            {"id": "safety", "name": "Veiligheid en Panasonic-beveiliging", "active": True,
+             "power_label": "Wallbox-vermogen: niet van toepassing",
+             "reason": "Elektrische grenzen, Panasonic-beveiliging en de wekelijkse sterilisatie blijven altijd beschermd."},
+            {"id": "space_comfort", "name": "Verwarming en koeling van de woning", "active": bool(r.smart_climate.settings.get("enabled")),
+             "power_label": "Wallbox-vermogen: ja, comfort gaat voor",
+             "reason": "Als de woning echt warmte of koeling nodig heeft, blijft de warmtepomp voorrang houden. Panasonic kiest zelf HEAT of COOL."},
+            {"id": "dhw_comfort", "name": "Normaal warm water en noodzakelijke ochtendvoorraad", "active": r.dhw.configured,
+             "power_label": "Wallbox-vermogen: ja, comfort gaat voor",
+             "reason": "Het gewone 50 °C-doel, de 46 °C-bewaking en noodzakelijke voorraad blijven beschermd. De extra 60 °C-buffer staat apart in de verplaatsbare lijst."},
         ]
 
     def overview(self):
@@ -208,16 +208,16 @@ class PriorityBoard:
         rows = []
         for key in self.order():
             if key == WALLBOX:
-                rows.append({"id": key, "name": "Auto laden · Wallbox", "kind": "wallbox",
+                rows.append({"id": key, "name": "Auto laden (Wallbox)", "kind": "wallbox",
                     "active": bool(r.wallbox_settings.get("enabled")), "position": ranks[key],
-                    "power_label": "Gebruikt het resterende zonnevermogen",
+                    "power_label": "Wallbox-vermogen: dit ís de Wallbox",
                     "reason": "De Wallbox regelt zelf. SolarPilot verstuurt geen laadcommando vanuit deze lijst."})
             elif key == EXTRA:
                 target = r.dhw.settings.get("surplus_c", 60)
-                rows.append({"id": key, "name": f"Extra boilerwarmte · {target:g} °C", "kind": "dhw_extra",
+                rows.append({"id": key, "name": f"Extra warm water tot {target:g} °C", "kind": "dhw_extra",
                     "active": r.dhw.configured and r.dhw.auto_enabled, "position": ranks[key],
-                    "power_label": "Nee · alleen werkelijk vrij zonneoverschot",
-                    "reason": "Blijft na Wallbox en beschermde afwas. Koeling, stabiliteit en bestaande grenzen blijven gelden. Mag tussen lagere verbruikers verschuiven."})
+                    "power_label": "Wallbox-vermogen: nee · alleen echt vrij overschot",
+                    "reason": "Dit is alleen extra zonne-opslag in warm water. Het mag nooit normaal comfort, de afwasmachine of de auto verdringen."})
             else:
                 i = key[len("device:"):]
                 c = self.effective_config(i)
@@ -239,9 +239,9 @@ class PriorityBoard:
         return {"active": self.active, "revision": self.revision(), "order": self.order(),
                 "wallbox_power": permissions, "rows": rows, "protected": self.protected_rows(),
                 "constraints": self.constraints(),
-                "note": ("Deze centrale lijst is de leidende bron voor flexibele energieregeling. Bescherming, expliciete boosts en toegestane deadlines blijven erboven staan."
+                "note": ("Dit is de enige volgorde voor flexibele zonne-energie. Wat hoger staat krijgt eerst de kans, maar lopende programma’s, minimumlooptijden en veiligheid blijven altijd beschermd."
                          if self.active else "De bestaande beta.35-volgorde wordt bij migratie ongewijzigd als centrale lijst vastgelegd."),
-                "legacy_note": "Bestaande getallen en globale keuzes blijven bewaard, maar zijn na een centrale wijziging niet langer leidend."}
+                "legacy_note": "Oude losse prioriteitsinstellingen blijven voor migratie bewaard, maar deze lijst is voortaan leidend."}
 
     def guard_extra(self, reading, now):
         """Do not let optional heat take a *fitting* higher claimant's free watts.
