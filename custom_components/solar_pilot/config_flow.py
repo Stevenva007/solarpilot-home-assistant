@@ -11,7 +11,7 @@ from .const import DEFAULTS, DEVICE_DEFAULTS, DOMAIN, NAME
 from .wallbox import WALLBOX_DEFAULTS, READ_KEYS, state_set, conflicting_devices
 from .consumer_wallbox import PRIORITY_DEFAULTS
 from .wallbox_profile import PROFILE_DEFAULTS, validate_profile
-from .wallbox_policy import SESSION_DEFAULTS, RECLAIM_POLICIES
+from .wallbox_policy import SESSION_DEFAULTS, RECLAIM_POLICIES, discover_session_candidate
 from .pv_forecast_source import PV_FORECAST_DEFAULTS, ENTITY_ROLES, finite
 from .house_first import HOUSE_DEFAULTS
 from .dhw_config import DHWOptionsMixin
@@ -507,6 +507,10 @@ class SolarPilotOptions(LiveOptionsMixin, DHWOptionsMixin, DishwasherOptionsMixi
         if not self._base_options().get("phase"):
             current = apply_first_install_suggestions(self.hass, current, "phase")
         c = {**current, **(user_input or {})}
+        if user_input is None and not c.get("session_mode_entity"):
+            candidate = discover_session_candidate(self.hass, c)
+            if candidate:
+                c["session_mode_entity"] = candidate
         errors = {}
         if user_input is not None:
             if c["enabled"]:
