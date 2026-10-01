@@ -97,6 +97,52 @@ class DHWManager:
         if self.needs_review:
             self.status = "Boilercontrole na herstart vereist; huidige instelling blijft onaangeroerd"
 
+    def _persist_canonical(self):
+        """Persist the effective DHW state as the single config-entry truth."""
+        options = dict(self.runtime.entry.options)
+        canonical = {**self.config, **self.settings, "enabled": bool(self.auto_enabled)}
+        canonical["config_revision"] = str(canonical.get("config_revision") or self.config.get("config_revision") or "")
+        options["dhw"] = canonical
+        updater = getattr(getattr(self.runtime.hass, "config_entries", None), "async_update_entry", None)
+        if updater is not None:
+            updater(self.runtime.entry, options=options)
+        else:
+            self.runtime.entry.options = options
+        self.config = normalized_settings(canonical)
+        self.settings = dict(self.config)
+        self.policy.settings = dict(self.settings)
+        self.tunables = {}
+
+    async def migrate_beta36(self, stored):
+        """Fold beta.35 runtime tunables/enabled state into config-entry options."""
+        stored = stored if isinstance(stored, dict) else {}
+        before = dict(self.runtime.entry.options.get("dhw", {}) or {})
+        canonical = {**normalized_settings(before), **self.settings, "enabled": bool(self.auto_enabled)}
+        legacy_confirmed_profile = (
+            bool(stored.get("enabled")) and self.configured
+            and abs(float(canonical.get("normal_c", 0)) - 50.0) < 0.01
+            and abs(float(canonical.get("minimum_c", 0)) - 46.0) < 0.01
+            and abs(float(canonical.get("tank_differential_c", 0)) + 5.0) < 0.01
+            and abs(float(canonical.get("solar_c", 0)) - 50.0) < 0.01
+            and abs(float(canonical.get("surplus_c", 0)) - 60.0) < 0.01
+            and abs(float(canonical.get("cooling_cap_c", 0)) - 50.0) < 0.01
+            and abs(float(canonical.get("hygiene_target_c", 0)) - 62.0) < 0.01
+        )
+        if not canonical.get("safety_confirmed") and legacy_confirmed_profile:
+            canonical["safety_confirmed"] = True
+            canonical["safety_confirmation_source"] = "beta35_enabled_50_46_profile"
+        changed = any(before.get(k) != v for k, v in canonical.items())
+        if changed:
+            self.settings = dict(canonical)
+            self.config = dict(canonical)
+            self.auto_enabled = bool(canonical["enabled"])
+            self._persist_canonical()
+            self.runtime.note(
+                "Beta.36-migratie: effectieve boilerinstellingen als enige configbron vastgelegd "
+                f"({self.settings['normal_c']:g}/{self.settings['minimum_c']:g} °C)."
+            )
+        return changed
+
     def _state(self, entity_id, freshness=True):
         obj = self.runtime.hass.states.get(entity_id) if entity_id else None
         if obj is None or obj.state in ("unknown", "unavailable", ""):
@@ -556,6 +602,9 @@ class DHWManager:
     async def set_enabled(self, enabled):
         async with self.runtime._lock:
             self.auto_enabled = bool(enabled)
+            self.settings["enabled"] = self.auto_enabled
+            self.config["enabled"] = self.auto_enabled
+            self._persist_canonical()
             self.policy.reset_stability()
             await self._save()
         await self.runtime.tick()
@@ -576,7 +625,9 @@ class DHWManager:
                 if error := self.check_target(target):
                     raise HomeAssistantError(error)
             self.settings = candidate
+            self.config = dict(candidate)
             self.tunables[key] = float(value)
+            self._persist_canonical()
             self.policy.reset_stability()
             await self._save()
         await self.runtime.tick()
@@ -612,7 +663,16 @@ class DHWManager:
 
     def overview(self):
         d, r = self.policy.result, self.reading
+        safety_confirmed = bool(self.settings.get("safety_confirmed"))
+        control_allowed = bool(self.configured and self.auto_enabled and safety_confirmed
+                               and not self.needs_review and not self.manual_hold and not self.fault)
+        panasonic_autonomous = bool(r.protected or not control_allowed or self.owned_target is None)
         return {"configured": self.configured, "enabled": self.auto_enabled,
+                "safety_confirmed": safety_confirmed,
+                "control_allowed": control_allowed,
+                "solar_pilot_owns_target": self.owned_target is not None,
+                "panasonic_autonomous": panasonic_autonomous,
+                "manual_override_active": bool(self.manual_hold),
                 "status": self.status, "reason": d.reason, "stage": d.stage,
                 "temperature_c": r.temperature_c, "actual_target_c": r.actual_target_c,
                 "proposed_target_c": d.target_c, "base_target_c": d.base_target_c,
@@ -644,6 +704,7 @@ class DHWManager:
                 "review_entity": self.runtime.entity_id("button", "dhw_review"),
                 "takeover_entity": self.runtime.entity_id("button", "dhw_takeover"),
                 "number_entities": {k: self.runtime.entity_id("number", "dhw_" + k) for k in DHW_NUMBERS},
+                "configuration_source": "config_entry.options.dhw",
                 "settings": {k: self.settings[k] for k in (*DHW_NUMBERS, "night_enabled", "night_start", "night_end",
                     "rise_delay_s", "fall_delay_s", "cooling_clear_s", "cooling_detection",
                     "respect_space_climate", "optional_raise_interval_s",
