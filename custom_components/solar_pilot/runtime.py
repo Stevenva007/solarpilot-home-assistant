@@ -397,6 +397,9 @@ class SolarRuntime:
         self.learning.enabled = True
         self.learning_hub.policy.update(
             sampling="metered", adaptation="automatic", notifications=True)
+        # Do not fire a notification merely because the upgrade enabled the
+        # inbox. New/changed questions can notify from the next day onward.
+        self.learning_hub.last_notification = time.time()
         self.unified_planner.base_load.adaptive_enabled = True
         self.note(
             "Beta.37 startprofiel toegepast: beschikbare regelingen en leermodules zijn actief; "
@@ -1117,15 +1120,10 @@ class SolarRuntime:
         holds = {i: p.reason for i in controlled} if p.yield_loads else {}
         blocks = {i: p.reason for i in controlled} if p.block_starts else {}
         if self.priority_board.active:
-            permissions = self.priority_board.permissions()
-            # Rank and EV-solar permission are separate in beta.36. A consumer
-            # below the Wallbox may use the measured handover route only when its
-            # own permission is explicitly enabled. Waiting/minimum Wallbox
-            # states can still block a new lower-priority start above.
-            no_reclaim = {
-                i for i in lower
-                if permissions.get("device:" + i) is not True
-            }
+            # The visible central order is authoritative: everything below the
+            # Wallbox keeps the car's solar power. A stored permission is only
+            # effective after the user also moves that device above the Wallbox.
+            no_reclaim = set(lower)
         else:
             no_reclaim = set(lower)
         return holds, blocks, no_reclaim
