@@ -9,6 +9,10 @@ on:
       - main
   workflow_dispatch:
 
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -56,3 +60,58 @@ jobs:
       - uses: actions/checkout@v5
       - name: Hassfest validation
         uses: home-assistant/actions/hassfest@master
+
+  publish:
+    name: Publish new version
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - repository-checks
+      - validate-hacs
+      - hassfest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Read SolarPilot version
+        id: version
+        shell: bash
+        run: |
+          version="$(python -c 'import json; print(json.load(open("custom_components/solar_pilot/manifest.json", encoding="utf-8"))["version"])')"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "tag=v${version}" >> "${GITHUB_OUTPUT}"
+      - name: Check whether version is already published
+        id: existing
+        shell: bash
+        run: |
+          tag="${{ steps.version.outputs.tag }}"
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "exists=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
+          fi
+      - name: Create tag and GitHub release
+        if: steps.existing.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG}" -m "SolarPilot ${VERSION}"
+          git push origin "${TAG}"
+          extra=()
+          if [[ "${TAG}" == *beta* || "${TAG}" == *alpha* || "${TAG}" == *rc* ]]; then
+            extra+=(--prerelease)
+          fi
+          gh release create "${TAG}" --generate-notes --verify-tag "${extra[@]}"
+      - name: Version already published
+        if: steps.existing.outputs.exists == 'true'
+        run: echo "Tag ${{ steps.version.outputs.tag }} bestaat al; publicatie overgeslagen."
