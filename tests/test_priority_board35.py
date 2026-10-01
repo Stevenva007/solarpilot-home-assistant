@@ -165,6 +165,22 @@ def test_legacy_opt_in_toggles_without_relaxing_legacy_runtime_rule():
     assert allowed and long and c['wallbox_power_policy']=='legacy'
 
 
+def test_lower_rank_wallbox_permission_is_not_forced_into_no_reclaim_ids():
+    r,h=multiple()
+    activate(r,[WALLBOX,'device:a','device:second_consumer',EXTRA],
+             {'device:a':True,'device:second_consumer':False})
+    r.wallbox_settings['enabled']=True
+    r.consumer_wallbox.settings['enabled']=True
+    r.filtered=-100
+    reading=Reading(power_w=2000,stamp=time.time(),demand=True,status='Charging',
+                    mode='full_solar',valid=True,age_s=0,connected=True,
+                    raw_mode='full_solar',session_reason='ok',session_confirmed=True,
+                    session_value='Zonne-auto · laden')
+    _,_,no_reclaim=r._wallbox_device_constraints(time.monotonic(),reading,-100,True,0)
+    assert 'a' not in no_reclaim
+    assert 'second_consumer' in no_reclaim
+
+
 def test_board_rank_matches_planner_and_engine_configs():
     r,h=multiple();activate(r,['device:a',WALLBOX,'device:second_consumer',EXTRA])
     planned={d['id']:d['priority'] for d in r._planner_device_configs_for_overview()}
