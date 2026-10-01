@@ -317,7 +317,7 @@ Na herstart:
 
 ### GitHub-validatie
 
-`.github/workflows/validate.yml` draait op push, pull request, dagelijks schema en handmatige start.
+`.github/workflows/validate.yml` draait automatisch alleen bij een push naar `main`, een pull request naar `main` en een handmatige start. Werkbranch-pushes, tags en een dagelijkse schedule starten bewust geen extra Validate-run, zodat ontwikkeling niet telkens nieuwe Actions-meldingen veroorzaakt. Na een groene Validate-run op de exacte releasecommit wordt de vaste branch `publish-release` naar diezelfde commit doorgeschoven. `.github/workflows/release.yml` voert daar opnieuw de releasechecks en volledige tests uit, maakt daarna de versie-tag uit `manifest.json`, bouwt het volledige GitHub/HACS-ZIP-pakket, voegt instelhandleiding en testverslag als assets toe en publiceert de prerelease. Een releasebranch mag nooit naar een andere commit wijzen dan de reeds gevalideerde `main`.
 
 De repository-checks moeten minimaal uitvoeren:
 
