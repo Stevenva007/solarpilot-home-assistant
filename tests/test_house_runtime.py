@@ -174,7 +174,8 @@ async def test_restore_remembers_user_switch_and_learned_data_but_starts_observe
     await tick(r,h,c,0)
     r.mode='observe'
     await r.start()
-    assert not r.others_first and isinstance(r.wallbox_guard,WallboxGuard)
+    assert not r.others_first and isinstance(r.wallbox_guard,HouseFirstGuard)
+    assert r.priority_board.active
     assert r.mode=='observe' and len(r.learning.responses)==5
     assert r.wallbox_guard.settings['stable_s']==230
     assert not h.services.calls
