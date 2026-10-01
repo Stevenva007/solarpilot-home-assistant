@@ -14,6 +14,10 @@ import json
 import math
 import time
 
+from .heatpump_learning import (
+    ACTIVE_CONTEXTS, CONTEXT_NORMAL, CONTEXT_UNKNOWN, classify_heatpump,
+)
+
 
 def number(value):
     if isinstance(value, bool):
@@ -123,15 +127,13 @@ def measured_baseline(r, local_now, monotonic):
     base = grid + pv + battery - ev - owned
     if not 0 <= base <= 20000:
         return fail("balance", "De gemeten energiebalans is niet plausibel. Controleer bronkoppelingen/eenheden; geen negatief verbruik als nul leren.")
-    from .dhw import hygiene_schedule_active
-    protected = bool(getattr(r.dhw.reading, "protected", False))
-    if r.dhw.configured:
-        protected = protected or hygiene_schedule_active(r.dhw.settings, local_now)
+    context, context_reason = classify_heatpump(r, local_now)
     return {"valid": True, "watts": round(base, 1), "code": "measured",
-            "reason": "Basislast uit net + PV + batterijontlading − gemeten beheerde lasten − gemeten Wallbox.",
-            "sources": refs, "parts": parts, "context": "protected_dhw" if protected else "normal",
+            "reason": "Gemeten restlast uit net + PV + batterijontlading − gemeten beheerde lasten − gemeten Wallbox.",
+            "sources": refs, "parts": parts, "context": context,
+            "context_reason": context_reason,
             "old_rule_would_skip": bool(ev > 100 or owned > 100),
-            "note": "Unieke entiteit-ID's bewijzen niet dat twee fysieke meters geen overlap hebben. Gebruik de bevestigde koppelingen; niet-getraceerde warmtepompvraag blijft in de restlast."}
+            "note": "Warmtepompactiviteit wordt afzonderlijk geclassificeerd. Een geleerd warmtepompvermogen is alleen planningsbewijs en wordt nooit van realtime vrije netruimte afgetrokken."}
 
 
 class LearningHub:
@@ -184,14 +186,33 @@ class LearningHub:
         stamp = time.time()
         model = r.unified_planner.base_load
         model.adaptive_enabled = self.policy["adaptation"] == "automatic"
+
+        # Classify heat-pump activity every normal rule cycle. The learned watts
+        # remain planning/diagnostic evidence and never change realtime headroom.
+        if sample.get("valid"):
+            context = sample.get("context", CONTEXT_UNKNOWN)
+            if context in ACTIVE_CONTEXTS | {CONTEXT_NORMAL, CONTEXT_UNKNOWN}:
+                r.heatpump_learning.observe(
+                    stamp, local_now.date().isoformat(), context, sample["watts"])
+            if context == CONTEXT_NORMAL:
+                predicted, confidence, _source = model.estimate(
+                    local_now, r.planner_settings.get("base_load_min_days", 4))
+                excess = float(sample["watts"]) - float(predicted)
+                if confidence >= 0.25 and excess > max(900.0, float(predicted)):
+                    sample["context"] = CONTEXT_UNKNOWN
+                    sample["context_reason"] = (
+                        f"Onverklaarde restlastpiek {excess:.0f} W boven het gewone profiel; "
+                        "niet als huishoudelijke basislast geleerd"
+                    )
+
         if stamp-self.last_attempt < 900:
             return sample
         self.last_attempt = stamp
         code = sample["code"]
         if not r.planner_settings.get("base_load_learning", True):
             code = "learning_disabled"
-        elif sample.get("context") == "protected_dhw":
-            code = "protected_dhw"  # still score its errors, just don't learn it as normal daily demand
+        elif sample.get("context") != CONTEXT_NORMAL:
+            code = "heatpump_" + str(sample.get("context") or CONTEXT_UNKNOWN)
         elif self.policy["sampling"] == "quiet" and sample.get("old_rule_would_skip"):
             code = "quiet_policy"
         elif sample["valid"]:
@@ -224,11 +245,17 @@ class LearningHub:
         dhw = r.dhw.overview()
         power = r.learning.overview(r.wallbox_settings.get("stable_s", 180))
         phase = r.phase_learning.overview(r.configs)
+        heatpump = r.heatpump_learning.overview()
         q = quality.get("last_7d", {})
         models = [
             {"id": "base", "name": "Huishoudelijk restverbruik", "enabled": r.planner_settings.get("enabled", True) and r.planner_settings.get("base_load_learning", True),
              "state": f'{base["live_buckets"]}/48 uur/dagtype-vakken met genoeg live dagen',
-             "evidence": base, "effect": "Voorspelde achtergrondlast voor de planner; actuele vrije netruimte blijft gemeten."},
+             "evidence": {**base, "heatpump_separation": heatpump},
+             "effect": "Gewone huishoudlast voor de planner. Duidelijke ruimteverwarming, koeling, tapwater en sterilisatie worden niet als normale basislast geleerd; actuele vrije netruimte blijft uitsluitend gemeten."},
+            {"id": "heatpump", "name": "Warmtepompactiviteit", "enabled": r.dhw.configured or r.smart_climate.configured,
+             "state": "Afzonderlijke activiteit en planningsschatting",
+             "evidence": heatpump,
+             "effect": "Schattingen uit stabiele compressorstarts/stops zijn alleen voor planning en classificatie; nooit voor realtime netruimte."},
             {"id": "pv", "name": "Zonnepanelen en lokale schaduw", "enabled": pv.get("enabled"),
              "state": pv.get("reason", "Leren"), "evidence": {**pv, "forecast_calibration": r.pv_forecast.cached},
              "effect": "Lokale correctie van zonnevoorspellingen binnen bestaande drempels; geen virtueel overschot."},
@@ -294,7 +321,7 @@ class LearningHub:
             ask("thermal_fault", "Ruimteklimaat vraagt controle", str(thermal["fault"]) + " De leermodule verruimt geen comfortband en verandert geen Panasonic-stand om de melding te laten verdwijnen.",
                 [{"id": "configure", "label": "Klimaatinstellingen bekijken"}, {"id": "export", "label": "Analyse-export"}, {"id": "later", "label": "Morgen beoordelen"}], "attention")
         if dhw.get("configured") and not dhw.get("own_meter_available") and (number(q.get("base_mae_w")) or 0) > 400:
-            ask("heatpump_meter", "Warmtepompverbruik nog niet afzonderlijk verklaard", "Zonder onafhankelijke elektrische vermogensmeting blijft warmtepompvraag deel van de restlast. Een sterilisatievenster wordt apart gemarkeerd, niet als normale basislast geleerd. Een kWh-teller is geen W-meter en een meter van de gehele warmtepomp is geen exclusieve boilermeter.",
+            ask("heatpump_meter", "Warmtepompvermogen wordt nog bijgeleerd", "SolarPilot houdt duidelijke ruimteverwarming, koeling, tapwater en sterilisatie nu uit de gewone huishoudelijke basislast. Zonder onafhankelijke W-meter leert het alleen een conservatieve planningsschatting uit stabiele starts/stops. Die schatting wordt nooit van realtime P1-netruimte afgetrokken.",
                 [{"id": "configure", "label": "Beschikbare meters bekijken"}, {"id": "keep", "label": "Nog geen aparte meter"}, {"id": "later", "label": "Later bekijken"}])
         no_meter = [c.get("name", i) for i, c in r.configs.items() if not c.get("power_entity")]
         if no_meter:
