@@ -43,7 +43,7 @@ Daaronder staat de verschuifbare volgorde. De bestaande beta.36-volgorde wordt b
 
 1. **AEG-afwasmachine**;
 2. **Auto laden (Wallbox)**;
-3. **Ontvochtiger kelder**;
+3. **Ontvochtiger**;
 4. **Extra warm water tot 60 °C**.
 
 Een nieuw gewoon flexibel toestel komt standaard onderaan. Gebruik slepen of de pijltjes om het hoger/lager te zetten.
