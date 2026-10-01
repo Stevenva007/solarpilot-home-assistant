@@ -76,6 +76,7 @@ class Reading:
     raw_mode: str | None = None
     session_reason: str = ""
     session_confirmed: bool = False
+    session_value: str | None = None
 
 
 @dataclass(frozen=True)
