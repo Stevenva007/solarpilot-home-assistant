@@ -445,3 +445,30 @@ def test_invalid_features_do_not_raise_or_send(features):
     updates(h,"water_heater.boiler",supported_features=features)
     assert r.dhw.check_target(60)
     assert not h.services.calls
+
+
+@pytest.mark.asyncio
+async def test_beta36_migration_persists_runtime_50_46_as_single_dhw_truth():
+    r,h=setup(config={"enabled":False,"safety_confirmed":False,"normal_c":49.0,"minimum_c":43.0})
+    stored={
+        "config_revision":r.dhw.config["config_revision"],
+        "target_entity":r.dhw.config["target_entity"],
+        "enabled":True,
+        "tunables":{"normal_c":50.0,"minimum_c":46.0},
+        "pending":None,"owned_target":None,"needs_review":False,
+        "manual_hold":False,"fault":"",
+    }
+    r.dhw.restore(stored)
+    changed=await r.dhw.migrate_beta36(stored)
+    assert changed
+    saved=r.entry.options["dhw"]
+    assert saved["enabled"] is True
+    assert saved["safety_confirmed"] is True
+    assert saved["normal_c"]==50.0 and saved["minimum_c"]==46.0
+    assert saved["tank_differential_c"]==-5.0
+    assert saved["solar_c"]==50.0 and saved["surplus_c"]==60.0
+    assert saved["cooling_cap_c"]==50.0 and saved["hygiene_target_c"]==62.0
+    assert r.dhw.settings==r.dhw.config
+    view=r.dhw.overview()
+    assert view["configuration_source"]=="config_entry.options.dhw"
+    assert view["enabled"] and view["safety_confirmed"]
