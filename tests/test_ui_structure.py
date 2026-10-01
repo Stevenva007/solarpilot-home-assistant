@@ -36,9 +36,9 @@ def test_progressive_disclosure_steps_exist():
 def test_card_uses_six_logical_views_and_keeps_modes_global():
     for key in ("overview", "loads", "comfort", "energy", "storage", "guide"):
         assert f'data-value="{key}"' in CARD or f"value: '{key}'" in CARD or f'"{key}"' in CARD
-    for label in ("Overzicht", "Verbruikers", "Comfort", "Energie", "Opslag", "Uitleg"):
+    for label in ("Overzicht", "Toestellen", "Warmte & comfort", "Energie", "Auto & batterij", "Uitleg"):
         assert label in CARD
-    for label in ("Observatie", "Zonnestroom", "Pauze"):
+    for label in ("Alleen bekijken", "Automatisch regelen", "Pauze"):
         assert label in CARD
 
 
