@@ -3,11 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.36'
+GUIDE_VERSION = '1.0.0-beta.37'
 GUIDE_UPDATED = '2026-10-01'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.36',
+ 'version': '1.0.0-beta.37',
  'updated': '2026-10-01',
  'intro': 'Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst '
           'samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en '
@@ -1071,7 +1071,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'dat niet. Onbekend/onbereikbaar is geen bevestigde rusttoestand. Wachtende '
                               'voorstellen zijn zichtbaar en afzonderlijk annuleerbaar. De overige regeling '
                               'loopt door.',
-                              'Toestellen beheren staat op Verbruikers en onder Instellingen & onderzoek. Elk '
+                              'Toestellen beheren staat op Toestellen en onder Instellingen & controle. Elk '
                               'profiel heeft Instellingen, Koppelingen, Planning, Historiek en Vervangen. Oude '
                               'profielen hebben alleen historiek. De categorieën wasmachine en droogkast zijn '
                               'labels voor bestaande ondersteunde adapters/scripts, geen nieuwe geteste '
@@ -1101,16 +1101,15 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'geen leerdata of timers gereset. Vanaf dat moment is deze lijst de leidende '
                               'bron voor flexibele energieregeling. Openen, slepen of een keuze wijzigen '
                               'bedient nog steeds niets; alleen expliciet opslaan verandert de lijst.',
-                              'Gebruik Volgorde aanpassen. Sleep rijen op desktop of gebruik de '
+                              'Gebruik Wie krijgt eerst zonne-energie?. Sleep rijen op desktop of gebruik de '
                               'omhoog/omlaagknoppen, ook op mobiel en met toetsenbord. De lijst bevat elk '
-                              'huidig toestel, Auto laden · Wallbox en Extra boilerwarmte met het werkelijke '
+                              'huidig toestel, Auto laden (Wallbox) en Extra warm water tot het werkelijk '
                               'ingestelde extra doel. De standaard is 60 °C; een ander bestaand doel wordt '
-                              'niet teruggezet. Per flexibele verbruiker staat Mag dit toestel vermogen van '
-                              'de Wallbox afnemen? los van de rangorde. Een hoger toestel kan dus voor de '
-                              'Wallbox staan; een lager toestel kan afzonderlijk toestemming hebben om een '
-                              'bevestigde zonne-laadsessie veilig te laten terugregelen; zonder toestemming '
-                              'gebruikt het uitsluitend werkelijk vrij zonneoverschot. Een eigen actuele '
-                              'meter, bevestigde zonnelaadsessie en alle elektrische grenzen blijven vereist.',
+                              'niet teruggezet. Per flexibele verbruiker staat Mag dit toestel zonnevermogen '
+                              'gebruiken dat de auto al gebruikt?. Daarvoor zijn twee voorwaarden nodig: het '
+                              'toestel staat boven de Wallbox én de toestemming staat op Ja. Onder de Wallbox '
+                              'blijft een opgeslagen toestemming inactief. Een eigen actuele meter, bevestigde '
+                              'zonnelaadsessie en alle elektrische grenzen blijven vereist.',
                               'Elektrische en fabrikantbeveiliging inclusief legionella, noodzakelijk normaal '
                               'warmwatercomfort en noodzakelijk ruimteverwarmings-/koelcomfort staan boven de '
                               'verplaatsbare lijst en zijn niet versleepbaar. Ook handmatige overname, een '
@@ -1133,14 +1132,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'nacht, onbekende status, fabrikantbescherming en bestaande stabiliteit blijven '
                               'het boilerbeleid begrenzen. Er wordt geen Force DHW, compressorstop of nieuwe '
                               'ruimteklimaatmodus toegevoegd.',
-                              'Nieuwe gewone verbruikers verschijnen automatisch vóór de optionele extra '
-                              'boilerwarmte en kunnen daarna omhoog of omlaag worden gezet; een nieuw '
-                              'voorkeur-AEG-profiel wordt vóór de Wallbox toegevoegd. Nieuwe identiteiten '
-                              'blijven Uitgesloten totdat je ze bewust vrijgeeft. Vervangen erft geen '
-                              'Auto-deelname, fysieke koppelingen of startticket. Verwijderde identiteiten '
-                              'verdwijnen uit de actieve lijst. Controleer na toevoegen de plaats en '
-                              'toestemming; de nieuwe verbruiker '
-                              'kan meteen omhoog of omlaag worden gezet.',
+                              'Nieuwe gewone verbruikers verschijnen automatisch onderaan de centrale lijst '
+                              'en kunnen daarna omhoog of omlaag worden gezet. Een nieuw voorkeur-AEG-profiel '
+                              'wordt vóór de Wallbox toegevoegd wanneer die voorkeurslogica van toepassing is. '
+                              'Nieuwe identiteiten blijven Uitgesloten totdat je ze bewust vrijgeeft. Vervangen '
+                              'erft geen Auto-deelname, fysieke koppelingen of startticket. Verwijderde '
+                              'identiteiten verdwijnen uit de actieve lijst. De bestaande beta.36-volgorde '
+                              'wordt bij de upgrade naar beta.37 niet herschreven.',
                               'Opslag gebeurt onder dezelfde vergrendeling als de regelaar, zonder directe '
                               'toestelopdracht. Gewijzigde broninstellingen, een ander prioriteitsvenster of '
                               'nieuw/verwijderd toestel maken een ouder concept ongeldig. Bij een conflict '
@@ -1192,7 +1190,41 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'leerdata, berekende profielen en actuele metingen worden apart benoemd; een '
                               'planberekening telt nooit als extra leerdag.'],
                'bullets': []},
-              {'title': '22. Release- en documentatieregel',
+              {'title': '22. Beta.37 — eenvoudiger bedienen, centrale voorrang en automatische activering',
+               'paragraphs': ['De dagelijkse dashboardnamen zijn vereenvoudigd: Alleen bekijken, Automatisch regelen, '
+                              'Toestellen, Warmte & comfort, Auto & batterij, Voorrang en Export. Technische details '
+                              'blijven beschikbaar via Info, uitlegknoppen en de configuratiewizard.',
+                              'Wie krijgt eerst zonne-energie? is de centrale plaats voor flexibele verdeling. '
+                              'Veiligheid, normale ruimteverwarming/koeling en noodzakelijk warmwatercomfort staan '
+                              'vast bovenaan. De bestaande afgesproken volgorde van beta.36 blijft behouden. '
+                              'De AEG-afwasmachine blijft vóór de Wallbox wanneer dat profiel aanwezig is; '
+                              'de Wallbox blijft vóór de ontvochtiger en extra 60 °C-buffer. Nieuwe gewone '
+                              'verbruikers komen standaard onderaan totdat de gebruiker ze verplaatst.',
+                              'Een toestel mag zonnevermogen gebruiken dat de auto al gebruikt wanneer het boven '
+                              'Auto laden (Wallbox) staat én de expliciete toestemming op Ja staat. Onder de '
+                              'Wallbox blijft de toestemming bewaard maar inactief. De Wallbox blijft read-only: '
+                              'SolarPilot stuurt geen laadstroom, pauze, start of laadmodus.',
+                              'Export bevat één hoofdactie: een compleet analysebestand om zelf in ChatGPT te '
+                              'uploaden. Standaard vraagt de export zeven dagen en pseudonimiseert hij namen. '
+                              'Instellingen, centrale voorrang, meetdekking, beslissingen, modellen, leerresultaten '
+                              'en fouten worden samengebracht zonder ontbrekende historie te verzinnen.',
+                              'Bij de eerste start van beta.37 wordt éénmalig een activeringsprofiel toegepast. '
+                              'Analyse, planner, basislastleren, lokaal PV-leren, Forecast.Solar-kalibratie, '
+                              'batterij-what-if en beschikbare leerfuncties worden geactiveerd. Bronafhankelijke '
+                              'regels zoals fasebewaking, Wallbox-monitoring, klimaatregeling en boilerregeling '
+                              'worden alleen geactiveerd wanneer de bestaande koppelingen en noodzakelijke '
+                              'bevestigingen al aanwezig zijn. SolarPilot verzint geen bron, bevestigt geen '
+                              'veiligheidskeuze en geeft geen nieuw toestel- of batterijrecht.',
+                              'De automatische activering gebeurt maar één keer. Latere keuzes van de gebruiker '
+                              'blijven behouden. Leren & vragen gebruikt gemeten data en begrensde automatische '
+                              'adaptatie; nieuwe vragen mogen als Home Assistant-melding verschijnen, maar leren '
+                              'verruimt nooit zelfstandig comfort- of veiligheidsgrenzen.'],
+               'bullets': ['Lopende programma’s, minimumlooptijden en beschermde cycli blijven beschermd wanneer '
+                           'de voorrang wordt gewijzigd.',
+                           'Extra warm water tot 60 °C blijft een flexibele luxe-zonbuffer en gebruikt geen '
+                           'Wallbox-vermogen.',
+                           'Nieuwe toestellen krijgen geen automatische Auto-deelname of fysieke starttoestemming.']},
+              {'title': '23. Release- en documentatieregel',
                'paragraphs': ['Deze actuele uitleg is onderdeel van de release zelf. Dezelfde inhoud wordt als '
                               'Markdown meegeleverd én in Home Assistant getoond. Een releasecontrole faalt '
                               'wanneer versie of gegenereerde uitleg niet overeenkomt met de integratieversie.',
