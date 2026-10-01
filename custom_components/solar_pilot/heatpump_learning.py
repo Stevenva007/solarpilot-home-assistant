@@ -55,6 +55,8 @@ def classify_heatpump(runtime, local_now):
         protection = str(getattr(reading, "protection_reason", "") or "").casefold()
         if any(word in protection for word in ("hygiëne", "hygiene", "sterili", "legionella", "disinfect")):
             return CONTEXT_HYGIENE, "Panasonic-hygiëne/sterilisatie gemeld"
+        if bool(getattr(reading, "protected", False)):
+            return CONTEXT_UNKNOWN, "Warmtepomp/DHW is beschermd of handmatig actief; functie niet als huishoudelijke basislast leren"
 
     hass = getattr(runtime, "hass", None)
     states = getattr(hass, "states", None)
