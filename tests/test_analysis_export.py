@@ -208,10 +208,10 @@ def test_current_registry_metadata_without_device_identifiers(monkeypatch):
 def test_beta36_export_reports_real_coverage_instead_of_requested_window():
     r,h=build();now=time.time()
     r.analysis.samples.extend([
-        {"ts":now-4*3600},
-        {"ts":now-4*3600+300},
-        {"ts":now-3600},
-        {"ts":now-3600+300},
+        {"ts":now-4*3600,"grid_w":-500,"pv_w":1500},
+        {"ts":now-4*3600+300,"grid_w":-450,"pv_w":1450},
+        {"ts":now-3600,"grid_w":-300,"pv_w":1200},
+        {"ts":now-3600+300,"grid_w":-250,"pv_w":1150},
     ])
     r.analysis.fast.extend([{"ts":now-1200},{"ts":now-60}])
     r.analysis.events.append({"ts":now-1800,"kind":"restart","message":"test"})
