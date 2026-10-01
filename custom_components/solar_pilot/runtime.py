@@ -1,6 +1,7 @@
 """Local, serialized Home Assistant runtime with feedback and durable leases."""
 from __future__ import annotations
 import asyncio
+from copy import deepcopy
 from collections import deque
 from dataclasses import fields, replace
 from datetime import datetime, timedelta, timezone
@@ -276,6 +277,133 @@ class SolarRuntime:
                        for i, s in self.states.items() if s.owned}},
         }
 
+    async def _migrate_beta37_activation_profile(self):
+        """One-time activation of safe, already configured regulation and learning.
+
+        This honours the user's explicit beta.37 request to avoid hunting for
+        scattered enable switches. It never invents entity mappings, confirms a
+        safety acknowledgement, grants a new appliance start right or enables
+        unconfirmed physical battery ownership. The marker makes later user
+        choices sticky: this profile is never re-applied on future restarts.
+        """
+        current = dict(self.entry.options)
+        if current.get("_beta37_activation_profile") == 1:
+            return False
+
+        options = deepcopy(current)
+
+        def merge_group(name, **updates):
+            value = deepcopy(options.get(name, {})) if isinstance(options.get(name, {}), dict) else {}
+            value.update(updates)
+            options[name] = value
+            return value
+
+        # Analysis and advisory/learning layers are safe to activate without
+        # granting any new actuator authority.
+        merge_group("analysis", enabled=True, retention_days=7, sample_interval_s=300)
+        merge_group("planner", enabled=True, base_load_learning=True, replay_enabled=True,
+                    forecast_deferral_enabled=True, adaptive_power_guard=True)
+        merge_group("local_pv", enabled=True, seed_enabled=True)
+        merge_group("pv_forecast", enabled=True, auto_discover=True,
+                    calibration_enabled=True, shadow_enabled=True)
+        merge_group("battery_analysis", enabled=True, seed_enabled=True)
+        merge_group("economy", enabled=True)
+
+        # Only enable source-dependent modules when their required mappings
+        # already exist. Missing sources remain visible as "waiting", never
+        # silently replaced by guesses.
+        forecast = deepcopy(options.get("forecast", {})) if isinstance(options.get("forecast", {}), dict) else {}
+        if any(forecast.get(k) for k in ("current_hour_entity", "next_hour_entity",
+                                         "remaining_today_entity", "tomorrow_entity")):
+            forecast["enabled"] = True
+            options["forecast"] = forecast
+
+        capacity = deepcopy(options.get("capacity", {})) if isinstance(options.get("capacity", {}), dict) else {}
+        if capacity.get("average_demand_entity"):
+            capacity["enabled"] = True
+            options["capacity"] = capacity
+
+        phase = deepcopy(options.get("phase", {})) if isinstance(options.get("phase", {}), dict) else {}
+        phase_sources = [phase.get("phase_1_entity"), phase.get("phase_2_entity"), phase.get("phase_3_entity")]
+        if all(phase_sources):
+            phase.update(enabled=True, learning_enabled=True, use_learned_device_map=True,
+                         control_starts=True)
+            # Shedding a running load remains an explicit separate permission.
+            phase["shed_on_overlimit"] = bool(phase.get("shed_on_overlimit", False))
+            options["phase"] = phase
+
+        wallbox = deepcopy(options.get("wallbox", {})) if isinstance(options.get("wallbox", {}), dict) else {}
+        if wallbox.get("power_entity"):
+            wallbox["enabled"] = True
+            options["wallbox"] = wallbox
+
+        climate = deepcopy(options.get("smart_climate", {})) if isinstance(options.get("smart_climate", {}), dict) else {}
+        zones = list(climate.get("zone_entities", []) or [])
+        zones_ok = bool(zones)
+        for entity_id in zones:
+            obj = self.hass.states.get(entity_id)
+            modes = {str(x).casefold() for x in (getattr(obj, "attributes", {}) or {}).get("hvac_modes", [])} if obj else set()
+            if obj is None or not {"auto", "off"}.issubset(modes):
+                zones_ok = False
+                break
+        if zones:
+            climate["enabled"] = True
+            if zones_ok:
+                climate["control_enabled"] = True
+            options["smart_climate"] = climate
+
+        dhw = deepcopy(options.get("dhw", {})) if isinstance(options.get("dhw", {}), dict) else {}
+        if dhw.get("target_entity") and dhw.get("temperature_entity") and dhw.get("safety_confirmed") is True:
+            dhw["enabled"] = True
+            options["dhw"] = dhw
+
+        batteries = [b for b in options.get("batteries", []) if isinstance(b, dict)]
+        if batteries:
+            fleet = deepcopy(options.get("battery_fleet", {})) if isinstance(options.get("battery_fleet", {}), dict) else {}
+            fleet["enabled"] = True
+            # Physical battery control stays off unless it was already granted.
+            fleet["control_enabled"] = bool(fleet.get("control_enabled", False))
+            options["battery_fleet"] = fleet
+
+        # A dedicated appliance meter may immediately start collecting a cycle
+        # profile. This never turns the appliance itself from Excluded to Auto.
+        reserved = {
+            self.settings.get("grid_entity"), self.settings.get("export_entity"),
+            self.settings.get("pv_entity"), wallbox.get("power_entity"),
+            dhw.get("power_entity"),
+        }
+        devices = []
+        for row in options.get("devices", []) or []:
+            if not isinstance(row, dict):
+                continue
+            item = deepcopy(row)
+            meter = item.get("power_entity")
+            if meter and meter not in reserved:
+                item["cycle_learning_enabled"] = True
+            devices.append(item)
+        if devices or "devices" in options:
+            options["devices"] = devices
+
+        options["_beta37_activation_profile"] = 1
+
+        await self.live_options.accept(options)
+        updater = getattr(getattr(self.hass, "config_entries", None), "async_update_entry", None)
+        if updater is not None:
+            updater(self.entry, options=options)
+        else:
+            self.entry.options = options
+
+        # Runtime-only learner permissions live in the durable runtime store.
+        self.learning.enabled = True
+        self.learning_hub.policy.update(
+            sampling="metered", adaptation="automatic", notifications=True)
+        self.unified_planner.base_load.adaptive_enabled = True
+        self.note(
+            "Beta.37 startprofiel toegepast: beschikbare regelingen en leermodules zijn actief; "
+            "ontbrekende bronnen, veiligheidsbevestigingen en nieuwe toestelrechten zijn niet verzonnen."
+        )
+        return True
+
     async def start(self):
         data = await self.store.async_load() or {}
         self.live_options.restore(data.get("live_options", {}))
@@ -301,6 +429,7 @@ class SolarRuntime:
         self.unified_planner.restore(data.get("unified_planner", {}))
         self.learning_hub.restore(data.get("learning_hub", {}))
         self.cycle_learning.restore(data.get("cycle_learning", {}))
+        activated_beta37 = await self._migrate_beta37_activation_profile()
         self.reclaim_blocks = {i: str(reason) for i, reason in data.get("reclaim_blocks", {}).items() if i in self.configs}
         self.priorities = {i: p for i, p in data.get("priorities", {}).items() if i in self.configs}
         self.device_modes = {i: m for i, m in data.get("device_modes", {}).items() if i in self.configs}
@@ -310,6 +439,8 @@ class SolarRuntime:
         self.wallbox_guard = self._make_wallbox_guard()
         if migrated_priority_board:
             self.note("Beta.36-migratie: bestaande flexibele voorrang exact vastgelegd als centrale prioriteitenlijst.")
+        if activated_beta37:
+            self.note("Beta.37: veilige automatische activering is éénmalig toegepast; latere keuzes blijven behouden.")
         self.energy_kwh = max(0, float(data.get("energy_kwh", 0)))
         stored_stats = data.get("ems_stats", {})
         self.ems_stats = dict(stored_stats) if isinstance(stored_stats, dict) else fresh_daily_stats()
