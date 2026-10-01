@@ -470,7 +470,7 @@ class SolarPilotCard extends HTMLElement {
   }
   _modeBar(a){
     const mode=a.mode||"observe";
-    return `<div class="modes">${[["observe","Observatie"],["solar","Zonnestroom"],["paused","Pauze"]].map(([v,l])=>`<button data-action="mode" data-value="${v}" class="${mode===v?'active':''}" ${this._busy?'disabled':''}>${l}</button>`).join('')}</div>${mode==='observe'?this._notice('Alleen kijken, leren en adviseren. Er worden geen gewone flexibele verbruikers bediend.'):''}${mode==='paused'?this._notice('Geen nieuwe starts. Eigen onderbreekbare lasten worden veilig vrijgegeven; beschermde cycli mogen afwerken.'):''}`;
+    return `<div class="modes">${[["observe","Alleen bekijken"],["solar","Automatisch regelen"],["paused","Pauze"]].map(([v,l])=>`<button data-action="mode" data-value="${v}" class="${mode===v?'active':''}" ${this._busy?'disabled':''}>${l}</button>`).join('')}</div>${mode==='observe'?this._notice('Alleen kijken, leren en adviseren. Er worden geen gewone flexibele verbruikers bediend.'):''}${mode==='paused'?this._notice('Geen nieuwe starts. Eigen onderbreekbare lasten worden veilig vrijgegeven; beschermde cycli mogen afwerken.'):''}`;
   }
   _overview(c){
     const {a,dhw,wb,cap,forecast,localPv,batteryFleet,batteryAnalysis,smartClimate,phase,today,planner,ems}=c;
@@ -544,7 +544,7 @@ class SolarPilotCard extends HTMLElement {
       <div class="controls"><button type="button" data-action="view" data-value="priorities">Voorrang bekijken</button><button class="mini ${d.mode==='auto'?'active':''}" data-action="participate" data-id="${spEscape(d.id)}">${d.mode==='auto'?'Auto':'Uitgesloten'}</button>
       ${(w.app_request||w.ticket_armed)?`<button class="mini" data-action="dishwasher_cancel" data-id="${spEscape(d.id)}">Klaarzetten annuleren</button>`:app?'':`<button class="mini" data-action="dishwasher_arm" data-id="${spEscape(d.id)}" ${!w.ready||w.attempted||active?'disabled':''}>Eén beurt klaarzetten</button>`}
       <button class="mini" data-action="history" data-id="${spEscape(d.id)}">Dagoverzicht${d.history?.on_s!=null?` · ${spDuration(d.history.on_s)} vandaag`:''}</button><button class="mini" data-action="info" data-id="${spEscape(d.id)}">Info</button></div>
-      ${mode!=='solar'&&w.ticket_armed?'<p class="note">Klaargezet, maar geen fysieke start zolang de globale modus niet Zonnestroom is.</p>':''}
+      ${mode!=='solar'&&w.ticket_armed?'<p class="note">Klaargezet, maar geen fysieke start zolang Automatisch regelen niet actief is.</p>':''}
       <details><summary>Vermogensprofiel · ${Number(w.profile_count||0)} volledig gemeten cycli</summary><p>${spEscape(w.profile_note||'Nog geen meting. Ontbrekende fasen zijn onbekend, niet 0 W.')}</p>${rows?`<p>Laatste complete cyclus ${spEscape(p.program)} · ${spKwh(p.energy_kwh)} · ${spDuration(p.duration_s)}</p><div style="overflow:auto"><table class="dw-profile-table" style="border-collapse:separate;border-spacing:10px 5px;text-align:left"><thead><tr><th>Fase</th><th>Gemiddeld</th><th>Piek</th><th>Duur</th></tr></thead><tbody>${rows}</tbody></table></div>`:''}<p class="note">Shelly uitsluitend als vermogensmeter. Een lage vermogensfase is geen voltooid programma. Nog onbekende fasen en schattingen worden niet als zeker of nul weergegeven.</p></details></div>`;
   }
   _loads(c){
