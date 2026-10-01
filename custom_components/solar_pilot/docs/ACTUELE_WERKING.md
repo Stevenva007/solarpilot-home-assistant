@@ -2,7 +2,7 @@
 
 **Versie:** 1.0.0-beta.37
 **Bijgewerkt:** 2026-10-01
-**Regel-hash:** `0c7d29bd1f33c0dc`
+**Regel-hash:** `5f9e929e543b92c9`
 
 Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en leerdata blijven lokaal in Home Assistant en worden bij gewone HACS-updates niet vervangen door programmabestanden.
 
@@ -10,7 +10,7 @@ Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging w
 
 SolarPilot is een lokaal Home Assistant-EMS. De actuele P1- en PV-metingen, apparaatvoorwaarden en beveiligingen zijn altijd belangrijker dan voorspellingen of aangeleerde patronen.
 
-Observatie berekent en leert maar stuurt geen gewone flexibele verbruikers. Zonnestroom voert de toegestane regeling uit. Pauze start niets nieuws en bouwt eigen onderbreekbare lasten veilig af, met behoud van minimumlooptijden en beschermde cycli.
+Alleen bekijken (technisch: observe) berekent en leert maar stuurt geen gewone flexibele toestellen. Automatisch regelen (technisch: solar) voert de toegestane regeling uit. Pauze start niets nieuws en bouwt eigen onderbreekbare lasten veilig af, met behoud van minimumlooptijden en beschermde cycli.
 
 Er wordt maximaal één gewone fysieke wijziging tegelijk uitgevoerd en daarna op terugmelding en nieuwe meetinformatie gewacht. Nieuwe apparaten staan standaard Uitgesloten totdat ze bewust op Auto worden gezet.
 
