@@ -99,10 +99,10 @@ def classify_session(config, raw_mode, session_value):
 def reclaim_permission(config, *, before_wallbox, dedicated_meter, blocked=False):
     """Return (allowed, long_runtime_allowed, explanation) without changing rights.
 
-    In the central beta.36 board the position and the per-device permission are
-    deliberately independent: a lower-priority load may be allowed to ask the
-    autonomous solar charger to give back measured solar power.  This never
-    creates electrical headroom and still requires a confirmed solar session.
+    In the central board both conditions are required: the device must be
+    positioned above the Wallbox *and* have explicit permission. A device below
+    the Wallbox never takes power that the car is already using. This keeps the
+    visible order equal to the real control order.
     """
     policy = config.get("wallbox_power_policy", "priority")
     central = "_priority_board_wallbox_power" in config
@@ -124,5 +124,5 @@ def reclaim_permission(config, *, before_wallbox, dedicated_meter, blocked=False
     if central and before_wallbox:
         return True, True, "Hoger dan Wallbox en expliciet toegestaan: gemeten zonnelaadvermogen mag veilig worden benut"
     if central:
-        return True, True, "Lager dan Wallbox, maar expliciet toegestaan: Wallbox mag alleen met bevestigde zonnelaadsessie veilig terugregelen"
+        return False, False, "Lager dan Wallbox: de auto houdt zijn zonnevermogen, ook als toestemming vooraf is aangevinkt"
     return True, True, "Voorrang volgen: gemeten zonnestroom van Wallbox mag worden benut; minimumlooptijd blijft gelden"
