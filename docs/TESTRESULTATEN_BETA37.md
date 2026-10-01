@@ -50,8 +50,12 @@ Na installatie hoort de eerste controle te bestaan uit het bekijken van de centr
 De functionele beta.37-code is op de werkbranch volledig gevalideerd voordat de workflow-scope
 werd aangescherpt. Om onnodige GitHub Actions-mails tijdens ontwikkeling te vermijden, start
 `Validate` voortaan automatisch alleen bij een push naar `main` en bij pull requests naar
-`main`. De vroegere dagelijkse schedule is verwijderd en een release-tag start niet nogmaals
-`Validate`; de tag gebruikt alleen de bestaande `Release`-workflow.
+`main`. De vroegere dagelijkse schedule is verwijderd; werkbranch- en tag-pushes starten geen
+extra Validate-run.
 
-Voor publicatie blijft daarom één finale groene `Validate`-run op de exacte beta.37-commit op
-`main` verplicht, gevolgd door de `Release`-run voor `v1.0.0-beta.37`.
+Publicatie gebruikt daarna de vaste branch `publish-release`. Die branch wordt pas naar de
+exacte beta.37-commit doorgeschoven nadat de finale `Validate`-run op `main` groen is. De
+`Release`-workflow herhaalt privacy/handoff/uitleg, de volledige pytest-suite, compileall,
+HACS-validatie en Hassfest. Pas daarna maakt hij de tag uit de manifestversie, bouwt hij het
+volledige GitHub/HACS-ZIP-pakket en publiceert hij de prerelease met instelhandleiding en
+testverslag als assets. Zo geeft één release geen aparte Validate-run voor de tag.
