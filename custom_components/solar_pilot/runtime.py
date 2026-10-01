@@ -832,26 +832,40 @@ class SolarRuntime:
                 issue = issue or "Wallbox-aansluitsignaal onbekend of te oud"
         elif demand is True or (power or 0) >= c["charging_threshold_w"]:
             connected = True  # Waiting/charging status is evidence at this charger.
-        session = classify_session(c, mode, self._wallbox_text(c.get("session_mode_entity")))
+        session_value = self._wallbox_text(c.get("session_mode_entity"))
+        session = classify_session(c, mode, session_value)
         return Reading(power, stamp, demand, status, session.mode, not bool(issue), issue,
                        max(0, time.time()-stamp) if stamp else math.inf, connected,
-                       raw_mode=mode, session_reason=session.reason, session_confirmed=session.confirmed)
+                       raw_mode=mode, session_reason=session.reason, session_confirmed=session.confirmed,
+                       session_value=session_value)
 
     def wallbox_overview(self):
         c, g = self.wallbox_settings, self.wallbox_guard
         r, v = g.reading, g.result
         age = max(0, int(time.time() - r.stamp)) if r.stamp else None
+        full_solar = bool(r.session_confirmed and (r.mode or "").casefold() in state_set(c.get("full_solar_states", "")))
+        reclaimable = round(getattr(g, "reclaimable_w", 0), 1)
+        reclaim_now = bool(full_solar and r.valid and reclaimable > 0)
+        reclaim_reason = (
+            "Effectieve zonnelaadsessie bevestigd en stabiel terugneembaar laadvermogen gemeten"
+            if reclaim_now else
+            r.session_reason if not full_solar else
+            "Zonnelaadsessie bevestigd, maar nog geen stabiel terugneembaar laadvermogen beschikbaar"
+        )
         return {"enabled": c["enabled"], "name": c["name"], "policy": "house_first" if self.others_first else "priority",
                 "others_first": self.others_first,
                 "per_device_priority": self._per_device_wallbox_enabled(),
                 "consumer_priority": self.consumer_wallbox.result.__dict__,
                 "connected": r.connected, "effective_mode": r.mode, "configured_mode": r.raw_mode,
+                "session_entity": c.get("session_mode_entity") or "",
+                "session_value": r.session_value,
                 "session_confirmed": r.session_confirmed, "session_reason": r.session_reason,
+                "reclaim_allowed_now": reclaim_now, "reclaim_reason": reclaim_reason,
                 "priority_min_power_w": self.consumer_wallbox.settings["priority_min_power_w"],
                 "charging_profile": self.wallbox_profile.cached,
                 "comfort_priority": "Warmtepompcomfort vóór Wallbox; extra 60 °C ná Wallbox",
                 "priority_switch": self.entity_id("switch", "others_first"),
-                "reclaimable_w": round(getattr(g, "reclaimable_w", 0), 1),
+                "reclaimable_w": reclaimable,
                 "handover": self.handover.overview(time.monotonic()) if self.handover else self.last_handover,
                 "reclaim_blocks": dict(self.reclaim_blocks),
                 "read_only": True, "state": v.state, "reason": v.reason,
