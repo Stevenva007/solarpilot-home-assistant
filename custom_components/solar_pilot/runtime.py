@@ -285,6 +285,7 @@ class SolarRuntime:
         self.dishwasher_app.restore(data.get("dishwasher_app", {}))
         self.dishwasher_priority.restore(data.get("dishwasher_priority", {}), self.configs)
         self.dhw.restore(data.get("dhw", {}))
+        await self.dhw.migrate_beta36(data.get("dhw", {}))
         self.electricity_cost.restore(data.get("electricity_cost", {}))
         self.others_first = data.get("others_first", True) is True
         self.learning.restore(data.get("learning", {}), self.configs)
