@@ -328,7 +328,8 @@ De repository-checks moeten minimaal uitvoeren:
 5. volledige `pytest`-suite;
 6. Python `compileall`;
 7. HACS-validatie;
-8. Hassfest-validatie.
+8. Hassfest-validatie;
+9. alleen na al deze groene jobs: voor een nog niet gepubliceerde manifestversie automatisch tag + GitHub-(pre)release.
 
 Het exacte aantal geslaagde tests wordt **niet** in dit dossier vastgepind; de actuele GitHub Actions-run is daarvoor de bron van waarheid. Daardoor veroudert het dossier niet alleen omdat er regressietests bijkomen.
 
