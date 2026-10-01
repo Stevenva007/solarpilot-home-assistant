@@ -1136,10 +1136,10 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Nieuwe gewone verbruikers verschijnen automatisch vóór de optionele extra '
                               'boilerwarmte en kunnen daarna omhoog of omlaag worden gezet; een nieuw '
                               'voorkeur-AEG-profiel wordt vóór de Wallbox toegevoegd. Nieuwe identiteiten '
-                              'blijven Uitgesloten 
-                              'totdat je ze bewust vrijgeeft. Vervangen erft geen Auto-deelname, fysieke '
-                              'koppelingen of startticket. Verwijderde identiteiten verdwijnen uit de actieve '
-                              'lijst. Controleer na toevoegen de plaats en toestemming; de nieuwe verbruiker '
+                              'blijven Uitgesloten totdat je ze bewust vrijgeeft. Vervangen erft geen '
+                              'Auto-deelname, fysieke koppelingen of startticket. Verwijderde identiteiten '
+                              'verdwijnen uit de actieve lijst. Controleer na toevoegen de plaats en '
+                              'toestemming; de nieuwe verbruiker '
                               'kan meteen omhoog of omlaag worden gezet.',
                               'Opslag gebeurt onder dezelfde vergrendeling als de regelaar, zonder directe '
                               'toestelopdracht. Gewijzigde broninstellingen, een ander prioriteitsvenster of '
