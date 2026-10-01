@@ -24,6 +24,7 @@ Normal tank setpoint and monitored comfort floor are independent (new defaults 5
 - Bij de eerste beta.37-start worden beschikbare analyse- en leermodules éénmalig geactiveerd. Bronafhankelijke regels worden alleen ingeschakeld wanneer hun koppelingen en noodzakelijke bevestigingen al bestaan.
 - Leren & vragen gebruikt gemeten data, begrensde automatische adaptatie en Home Assistant-meldingen voor nieuwe vragen. Comfort- en veiligheidsgrenzen worden nooit zelfstandig verruimd.
 - De Wallbox blijft volledig read-only; SolarPilot stuurt geen laadstroom, pauze, start of laadmodus.
+- GitHub-publicatie gebruikt één normale keten: één `main`-validatie, daarna alleen bij een nieuwe versie automatisch tag + prerelease. Er is geen dagelijkse Validate-run en een tag start geen tweede validatie meer.
 
 ## Install via HACS
 
