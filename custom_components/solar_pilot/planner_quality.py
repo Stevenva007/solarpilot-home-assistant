@@ -45,15 +45,21 @@ class PlanQualityTracker:
             "count": 0, "pv_abs": 0.0, "pv_bias": 0.0, "base_count": 0,
             "base_abs": 0.0, "base_bias": 0.0, "net_count": 0,
             "net_abs": 0.0, "net_bias": 0.0, "exec_total": 0, "exec_matches": 0,
+            "contexts": {},
         })
         pp, ap = finite(predicted_pv_w), finite(actual_pv_w)
         if pp is not None and ap is not None:
             err = ap - pp
             row["pv_abs"] += abs(err); row["pv_bias"] += err; row["count"] += 1
         pb, ab = finite(predicted_base_w), finite(actual_base_w)
-        if pb is not None and ab is not None:
+        # Household base-load accuracy is scored only on periods classified as
+        # normal household demand. Known/possible heat-pump activity remains
+        # visible in net accuracy but cannot inflate the household error/model.
+        if pb is not None and ab is not None and context == "normal":
             err = ab - pb
             row["base_abs"] += abs(err); row["base_bias"] += err; row["base_count"] += 1
+        contexts = row.setdefault("contexts", {})
+        contexts[str(context or "unknown")] = int(contexts.get(str(context or "unknown"), 0) or 0) + 1
         pn, an = finite(predicted_net_w), finite(actual_net_w)
         if pn is not None and an is not None:
             err = an - pn
@@ -71,7 +77,8 @@ class PlanQualityTracker:
             row["daylight_abs"] += abs(ap-pp)
             row["daylight_bias"] += ap-pp
             row["daylight_actual_sum"] += max(0., ap)
-        valid_now = (pp is not None and ap is not None, pb is not None and ab is not None)
+        valid_now = (pp is not None and ap is not None,
+                     pb is not None and ab is not None and context == "normal")
         gap = float(wall_ts) - previous_wall
         if self.coverage_previous is not None and 0 < gap <= 600:
             # Do not assign yesterday's interval to today's row. Short intervals
@@ -80,7 +87,7 @@ class PlanQualityTracker:
             if valid_now[0] and self.coverage_previous[0]: row["covered_seconds"] += gap
             if valid_now[1] and self.coverage_previous[1]: row["base_covered_seconds"] += gap
         self.coverage_previous = valid_now
-        if context == "protected_dhw" and pb is not None and ab is not None:
+        if context in ("protected_dhw", "sterilization") and pb is not None and ab is not None:
             row["hygiene_base_count"] += 1
             row["hygiene_base_abs"] += abs(ab-pb)
         row["exec_total"] += max(0, int(execution_total or 0))
@@ -123,6 +130,10 @@ class PlanQualityTracker:
         first = min((r["first_observed_wall"] for r in new_rows), default=None)
         last = max((r["last_observed_wall"] for r in new_rows), default=None)
         span = last-first if first is not None and last is not None else 0
+        context_counts = {}
+        for source in rows:
+            for name, value in (source.get("contexts", {}) or {}).items():
+                context_counts[str(name)] = context_counts.get(str(name), 0) + int(value or 0)
         return {
             "days": len(rows), "samples": count,
             "period_anchor": keys[-1] if keys else None,
@@ -147,6 +158,8 @@ class PlanQualityTracker:
             "net_bias_w": None if not ncount else round(sumk("net_bias") / ncount, 1),
             "execution_match_pct": None if not exec_total else round(100.0 * exec_match / exec_total, 1),
             "quality_score": None if score is None else round(score, 1),
+            "context_samples": context_counts,
+            "household_quality_note": "Basislastfout gebruikt alleen als normale huishoudlast geclassificeerde perioden; warmtepompactiviteit blijft apart.",
         }
 
     def overview(self):
