@@ -132,3 +132,15 @@ def test_running_protected_cycle_is_reserved_before_new_flex_loads():
     assert plan.devices['dish'].selected_slots == [0,1,2]
     assert all('dish' in plan.slots[i].devices for i in [0,1,2])
     assert plan.slots[0].planned_load_w >= 600
+
+
+def test_beta36_heatpump_context_is_not_written_into_household_replay():
+    p=UnifiedPlanner({**UNIFIED_PLANNER_DEFAULTS,'replay_enabled':True})
+    now=datetime(2026,10,1,12,0,tzinfo=timezone.utc)
+    p.observe_actual(wall_ts=1_000_000,local_now=now,actual_pv_w=2000,
+                     actual_base_w=3200,actual_grid_w=1200,context='space_heating')
+    assert p.replay.samples=={}
+    p.observe_actual(wall_ts=1_000_301,local_now=now,actual_pv_w=2000,
+                     actual_base_w=700,actual_grid_w=-1300,context='normal')
+    assert len(p.replay.samples)==1
+    assert next(iter(p.replay.samples.values()))['base_w']==700
