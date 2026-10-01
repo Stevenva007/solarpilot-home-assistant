@@ -29,6 +29,7 @@ from .dishwasher import DishwasherControl, read as read_dishwasher, normalize_co
 from .analysis_export import AnalysisRecorder
 from .house_first import HOUSE_DEFAULTS, HouseFirstGuard, Handover
 from .learning import LocalLearning
+from .heatpump_learning import HeatPumpActivityModel
 from .historical import load_bundled_seed
 from .wallbox_profile import WallboxProfile, PROFILE_DEFAULTS
 from .wallbox_policy import SESSION_DEFAULTS, classify_session, reclaim_permission
@@ -84,6 +85,7 @@ class SolarRuntime:
         self.consumer_wallbox = ConsumerWallboxPriority(self.wallbox_settings)
         self.wallbox_profile = WallboxProfile(self.hass, self.wallbox_settings)
         self.learning = LocalLearning()
+        self.heatpump_learning = HeatPumpActivityModel()
         self.handover = None
         self.last_handover = {}
         self.reclaim_blocks = {}
@@ -256,6 +258,7 @@ class SolarRuntime:
             "dhw": self.dhw.snapshot(),
             "priorities": self.priorities, "device_modes": self.device_modes,
             "others_first": self.others_first, "learning": self.learning.snapshot(),
+            "heatpump_learning": self.heatpump_learning.snapshot(),
             "local_pv": self.local_pv.snapshot(), "pv_forecast": self.pv_forecast.snapshot(), "phase_learning": self.phase_learning.snapshot(),
             "battery_analysis": self.battery_analysis.snapshot(),
             "battery_fleet": self.battery_fleet.snapshot(), "smart_climate": self.smart_climate.snapshot(),
@@ -285,6 +288,9 @@ class SolarRuntime:
         self.electricity_cost.restore(data.get("electricity_cost", {}))
         self.others_first = data.get("others_first", True) is True
         self.learning.restore(data.get("learning", {}), self.configs)
+        heatpump_ok = self.heatpump_learning.restore(data.get("heatpump_learning", {}))
+        if not heatpump_ok:
+            self.note(self.heatpump_learning.restore_note or "Warmtepompleermodel leert opnieuw.")
         self.local_pv.restore(data.get("local_pv", {}))
         self.pv_forecast.restore(data.get("pv_forecast", {}))
         self.phase_learning.restore(data.get("phase_learning", {}), list(self.configs) + list(self._phase_monitor_configs()))
