@@ -302,10 +302,13 @@ class SolarRuntime:
         self.learning_hub.restore(data.get("learning_hub", {}))
         self.cycle_learning.restore(data.get("cycle_learning", {}))
         self.reclaim_blocks = {i: str(reason) for i, reason in data.get("reclaim_blocks", {}).items() if i in self.configs}
-        self.wallbox_guard = self._make_wallbox_guard()
         self.priorities = {i: p for i, p in data.get("priorities", {}).items() if i in self.configs}
         self.device_modes = {i: m for i, m in data.get("device_modes", {}).items() if i in self.configs}
-        if await self.priority_board.migrate_beta36():
+        migrated_priority_board = await self.priority_board.migrate_beta36()
+        # Build the guard after migration so schema-2 per-device Wallbox rights
+        # are active immediately after a beta.35 restart, not one reload later.
+        self.wallbox_guard = self._make_wallbox_guard()
+        if migrated_priority_board:
             self.note("Beta.36-migratie: bestaande flexibele voorrang exact vastgelegd als centrale prioriteitenlijst.")
         self.energy_kwh = max(0, float(data.get("energy_kwh", 0)))
         stored_stats = data.get("ems_stats", {})
