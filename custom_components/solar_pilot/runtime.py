@@ -1905,6 +1905,16 @@ class SolarRuntime:
             return
         old_on = s.on
         old_target = s.target_w if s.owned else 0.0
+        # A binary switch has no physical watt setpoint. If it is already ON and
+        # confirmed as SolarPilot-owned, a changed learned/planning watt estimate
+        # only updates accounting; it must never cause a duplicate turn_on call.
+        if cfg.get("kind") == "switch" and action.watts > 0 and old_on and s.owned:
+            if abs(float(s.target_w or 0) - float(action.watts)) > 0.5:
+                s.target_w = float(action.watts)
+                self.result.targets[i] = float(action.watts)
+                self.result.reasons[i] = "Reeds ingeschakeld; alleen planningsvermogen bijgewerkt"
+                self.store.async_delay_save(self._snapshot, 1)
+            return
         if self.phase_settings.get("enabled") and self.phase_settings.get("learning_enabled", True) and cfg.get("power_entity"):
             before_w, _ = self._power(cfg.get("power_entity"))
             if before_w is not None:
