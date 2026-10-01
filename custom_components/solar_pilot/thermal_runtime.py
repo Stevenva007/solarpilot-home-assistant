@@ -531,11 +531,15 @@ class SmartClimateManager:
             k, heat, cool, delay = p.coefficients()
             conf = p.confidence(self.settings)
             confidences.append(conf)
+            components = p.confidence_components(self.settings)
             coeffs[z["entity_id"]] = {
                 "samples": p.samples, "days": len(p.days), "confidence": round(conf, 3),
+                "reliability_status": p.confidence_status(conf, p.samples),
+                "confidence_components": components,
                 "passive_k_per_h": round(k, 4), "thermal_time_constant_h": round(1.0 / max(k, .001), 1),
-                "heat_gain_c_h": round(heat, 3), "cool_gain_c_h": round(cool, 3),
-                "response_delay_h": round(delay, 2),
+                "heat_gain_c_h": round(heat, 3), "heat_gain_learned": len(p.heat_gain) >= 6,
+                "cool_gain_c_h": round(cool, 3), "cool_gain_learned": len(p.cool_gain) >= 6,
+                "response_delay_h": round(delay, 2), "response_delay_learned": len(p.response_delays_h) >= 4,
                 "solar_gain_c_h_per_kw_pv": round(p.solar_coefficient(), 4),
                 "solar_gain_samples": len(p.solar_gain_per_kw),
                 "solar_gain_confidence": round(p.solar_confidence(self.settings), 3),
@@ -543,6 +547,29 @@ class SmartClimateManager:
         d = self.state.last_decision
         weather = self.state.weather_bias.overview(self.settings)
         coast = self.state.coast_feedback.overview(self.settings)
+        weather_values = [float(x.get("confidence", 0) or 0) for x in weather.get("horizons", [])]
+        weather_conf = max(weather_values, default=0.0)
+        weather_samples = int(weather.get("total_samples", 0) or 0)
+        coast_need = max(1, int(self.settings.get("coast_feedback_min_episodes", 4)))
+        coast_conf = min(0.98, float(coast.get("scored", 0) or 0) / coast_need)
+        coast_samples = int(coast.get("scored", 0) or 0)
+        overall_conf = min(confidences) if confidences else 0.0
+        reliability = {
+            "automatic_coast": {
+                "confidence": round(overall_conf, 3),
+                "status": self.state.profile(zones[0]["entity_id"]).confidence_status(overall_conf, sum(p.samples for p in self.state.profiles.values())) if zones else "Nog niet geleerd",
+            },
+            "weather_forecast_correction": {
+                "confidence": round(weather_conf, 3),
+                "samples": weather_samples,
+                "status": self.state.profile(zones[0]["entity_id"]).confidence_status(weather_conf, weather_samples) if zones else "Nog niet geleerd",
+            },
+            "coast_off_feedback": {
+                "confidence": round(coast_conf, 3),
+                "samples": coast_samples,
+                "status": self.state.profile(zones[0]["entity_id"]).confidence_status(coast_conf, coast_samples) if zones else "Nog niet geleerd",
+            },
+        }
         solar_nonzero = [x for x in self.last_solar_hourly if x > 0]
         solar_summary = {
             "enabled": bool(self.settings.get("solar_gain_enabled")),
@@ -571,7 +598,8 @@ class SmartClimateManager:
             "manual_hold_remaining_h": max(0.0, (self.state.manual_hold_until - time.time()) / 3600),
             "commands_today": self.state.commands_today if self.state.command_day == datetime.now().astimezone().date().isoformat() else 0,
             "last_command_mode": self.state.last_command_mode,
-            "model_confidence": round(min(confidences) if confidences else 0.0, 3),
+            "model_confidence": round(overall_conf, 3),
+            "reliability": reliability,
             "profiles": coeffs,
             "weather_bias": weather,
             "solar_gain": solar_summary,
@@ -584,6 +612,7 @@ class SmartClimateManager:
             "explanation": [
                 "Zonnewinst: werkelijke PV dient als lokale instralingsproxy. SolarPilot leert per zone hoeveel extra opwarming daarmee samenhangt en begrenst de invloed.",
                 "Weerscorrectie: forecastfouten op 6/12/24/48 uur worden lokaal geleerd. Een bias wordt pas toegepast na voldoende verschillende samples en dagen.",
+                "Betrouwbaarheid: passieve drift, zonnewinst, verwarmingsrespons, koelrespons, reactievertraging, weerscorrectie en coast-feedback worden afzonderlijk beoordeeld. Ontbrekende onderdelen worden nooit als 100% weergegeven.",
                 "Coast-evaluatie: een SolarPilot-coast wordt achteraf gescoord als correct, te lang of te voorzichtig. Alleen het minimale nuttige coastvenster mag binnen ingestelde grenzen verschuiven.",
                 "Open ramen/deuren zijn bewust géén onderdeel van deze versie; de regeling blijft gericht op halve-dag/daggedrag van vloer en bouwschil.",
             ],
