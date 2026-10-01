@@ -112,6 +112,7 @@ class HeatPumpActivityModel:
         self.recent = deque(maxlen=36)  # ~3 minutes at a normal 5 s loop.
         self.pending = None
         self.last_context = None
+        self.last_wall_ts = None
         self.unknown_observations = 0
         self.restore_note = ""
 
@@ -168,6 +169,11 @@ class HeatPumpActivityModel:
         wall_ts = _finite(wall_ts)
         if wall_ts is None:
             return False
+        if self.last_wall_ts is not None and (wall_ts <= self.last_wall_ts or wall_ts-self.last_wall_ts > 120):
+            self.recent.clear()
+            self.pending = None
+            self.last_context = None
+        self.last_wall_ts = wall_ts
         context = context if context in ACTIVE_CONTEXTS | {CONTEXT_NORMAL, CONTEXT_UNKNOWN} else CONTEXT_UNKNOWN
         if context == CONTEXT_UNKNOWN:
             self.unknown_observations = min(1000000, self.unknown_observations + 1)
