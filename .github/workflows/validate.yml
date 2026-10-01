@@ -142,8 +142,9 @@ jobs:
           git push origin "${TAG}"
 
           assets=("${HACS_PACKAGE}" "${LOCAL_PACKAGE}")
-          [[ -f "docs/BETA38_INSTELLEN.md" ]] && assets+=("docs/BETA38_INSTELLEN.md")
-          [[ -f "docs/TESTRESULTATEN_BETA38.md" ]] && assets+=("docs/TESTRESULTATEN_BETA38.md")
+          release_label="$(printf '%s' "${VERSION##*-}" | tr '[:lower:]' '[:upper:]' | tr -d '.')"
+          [[ -f "docs/${release_label}_INSTELLEN.md" ]] && assets+=("docs/${release_label}_INSTELLEN.md")
+          [[ -f "docs/TESTRESULTATEN_${release_label}.md" ]] && assets+=("docs/TESTRESULTATEN_${release_label}.md")
 
           extra=()
           if [[ "${TAG}" == *beta* || "${TAG}" == *alpha* || "${TAG}" == *rc* ]]; then

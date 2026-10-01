@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.0-beta.40 — 2026-10-01
+
+- Herstelt de bewezen Home Assistant-opstartvolgordefout waardoor beta.39 bij zijn enige recoverycontrole nog geen legacy-dashboardmarker zag, `not_applicable` vastlegde en het later volledig aanwezige AEG-profiel niet meer aanmaakte.
+- Houdt uitsluitend de bestaande legacy-afwasmachinemigratie na SolarPilot-start tijdelijk actief: maximaal tien minuten, met gerichte state-events en een begrensde periodieke hercontrole. Listeners stoppen na succes, timeout of unload.
+- Een late recovery wordt persistent én live toegepast, zodat het profiel zonder integratie-reload onder **Toestellen** en volgens de bestaande voorkeursregel onder **Voorrang** verschijnt.
+- Herstel blijft éénmalig en fail-closed: alleen één complete, eenduidige same-device mapping van START, ApplianceState, ConnectivityState, RemoteControl, DoorState en programmaselectie kan een profiel opleveren. Ontbrekende of ambigue rollen geven geen fysiek recht.
+- Rolstatus wordt zonder private Home Assistant-device-id in `dishwasher_setup` zichtbaar. Een eerder hersteld en later bewust verwijderd profiel wordt niet automatisch opnieuw gemaakt.
+- Alleen het exact als legacy-recovery gemarkeerde nieuwe profiel kan de eerder afgesproken eenmalige Auto-deelname krijgen wanneer voor die identiteit nog geen gebruikersmodus bestaat. Gewone nieuwe toestellen blijven Uitgesloten en bestaande keuzes worden niet overschreven.
+- De migratie verstuurt geen START, maakt geen APP-aanvraag en wijzigt geen programma. Exacte nieuwe APP-`Enabled`-overgang, gesloten deur, geldig programma, Ready To Start, actuele verbinding, één START per belading en alle elektrische/comfortlocks blijven verplicht.
+- De beta.39-fixes voor lange zonwachttijd, volledige beschermde cyclusfasen en de onbewezen automatische alarmbron blijven cumulatief behouden.
+- Volledige regressiesuite: **1445 tests geslaagd**; gerichte afwasmachine-/recovery-/runtime-set: **353 tests geslaagd**. Ook release-, privacy-, syntax- en documentconsistentiecontroles zijn groen.
+
 ## 1.0.0-beta.39 — 2026-10-01
 
 - Gebouwd op de geregistreerde beta.38-bron; geen terugval naar een oudere branch of losse GitHub-state.

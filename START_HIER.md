@@ -1,6 +1,6 @@
-> **Actuele release: beta.39.** Deze release bouwt op beta.38 en herstelt de automatische AEG-start: statische veilige statussen verlopen niet meer kunstmatig tijdens wachten op zon, de volledige cyclusfasen zijn terug beschermd en een onbewezen automatisch alarmblok wordt gerepareerd. Centrale prioriteiten, APP-/13:00-regels, warmtepompregels en leerdata blijven behouden.
+> **Actuele release: beta.40.** Deze release herstelt de bewezen Home Assistant-opstartvolgordefout waardoor beta.39 de legacy-markers te vroeg controleerde en het later complete AEG-profiel niet meer aanmaakte. Een begrensde post-start recovery kan het profiel nu veilig onder Toestellen en Voorrang opnemen. Zij verstuurt geen START; APP-vrijgave en alle veiligheidslocks blijven verplicht.
 
-# SolarPilot beta.39 — installatie en upgrade
+# SolarPilot beta.40 — installatie en upgrade
 
 Dit is de aanbevolen eerste installatie.
 
@@ -65,13 +65,14 @@ onder warmtepompcomfort en boven Wallbox, lagere verbruikers en extra 60 °C.
 Volledige faseprofielplanning blijft uitgesteld tot de latere Shelly-update.
 
 
-## Beta.39-upgrade: AEG-afwasmachine controleren
+## Beta.40-upgrade: laat AEG-profiel veilig herstellen
 
-Beta.39 repareert een profiel dat door beta.38 automatisch werd hersteld zonder handmatige profielen generiek te herschrijven. Voor de echte test:
+Beta.40 houdt de bestaande legacy-recovery na SolarPilot-start maximaal tien minuten gericht actief wanneer Home Assistant de template-markers of AEG-entiteiten later laadt. Alleen één complete same-device mapping wordt opgeslagen; de migratie zelf maakt geen APP-aanvraag en verstuurt geen START. Voor de echte controle:
 
-1. Controleer **SolarPilot → Toestellen** en **Voorrang**.
-2. Kies het AEG-programma, sluit de deur en zet APP/remote-start uit en opnieuw aan zodat exact `Enabled` als nieuwe overgang wordt gezien.
-3. Controleer geplande dag/deadline en wachtrede. Een onveranderde Ready To Start/deur/programmakeuze mag niet meer alleen door ouderdom na vijf minuten afvallen zolang ConnectivityState actueel blijft.
-4. Er mag maximaal één native START worden verstuurd. Een lopende Washing/Rinsing/Drying/Ado Drying-fase blijft beschermd tot het echte End Of Cycle.
+1. Controleer dat de SolarPilot-status werkelijk `1.0.0-beta.40` toont en wacht na de herstart maximaal tien minuten.
+2. Controleer **SolarPilot → Toestellen**, **Voorrang** en de rolstatus in `dishwasher_setup`.
+3. Kies het AEG-programma, sluit de deur en zet APP/remote-start uit en opnieuw aan zodat exact `Enabled` als nieuwe overgang wordt gezien.
+4. Controleer geplande dag/deadline en wachtrede. Een onveranderde Ready To Start/deur/programmakeuze mag niet alleen door ouderdom afvallen zolang ConnectivityState actueel blijft.
+5. Er mag maximaal één native START worden verstuurd. Een lopende Washing/Rinsing/Drying/Ado Drying-fase blijft beschermd tot het echte End Of Cycle.
 
-Zie `docs/BETA39_INSTELLEN.md` voor de volledige upgrade- en rollbackprocedure.
+Zie `docs/BETA40_INSTELLEN.md` voor de volledige upgrade- en rollbackprocedure.

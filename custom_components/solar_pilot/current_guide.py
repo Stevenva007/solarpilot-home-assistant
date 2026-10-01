@@ -3,11 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.39'
+GUIDE_VERSION = '1.0.0-beta.40'
 GUIDE_UPDATED = '2026-10-01'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.39',
+ 'version': '1.0.0-beta.40',
  'updated': '2026-10-01',
  'intro': 'Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst '
           'samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en '
@@ -851,11 +851,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'water, noodzakelijke avondvoorraad en vloerverwarming eerst; daarna de '
                               'afwasmachine, de Wallbox, lagere automatische lasten en extra boilerwarmte. '
                               'Een gewone nieuwe installatie schakelt geen fysieke starttoestemming, '
-                              'bronbevestiging of Auto-deelname in. De beta.38-herstelmigratie voor de eerder '
-                              'al gebruikte AEG-koppeling kan een verdwenen profiel éénmalig als Auto '
-                              'herstellen; beta.39 herstelt uitsluitend zo’n door beta.38 aangemaakt profiel '
-                              'wanneer de oude migratie een te beperkte faselijst of een onbewezen automatische '
-                              'alarmbron heeft opgeslagen. Dat maakt geen APP-aanvraag en verstuurt geen START. '
+                               'bronbevestiging of Auto-deelname in. De beta.38-herstelmigratie voor de eerder '
+                               'al gebruikte AEG-koppeling kan een verdwenen profiel éénmalig als Auto '
+                               'herstellen. Beta.39 repareerde uitsluitend zo’n door beta.38 aangemaakt profiel '
+                               'wanneer de oude migratie een te beperkte faselijst of een onbewezen automatische '
+                               'alarmbron had opgeslagen. Beta.40 houdt de herstelcontrole na SolarPilot-start '
+                               'nog tien minuten gericht actief wanneer Home Assistant de legacy-markers of '
+                               'AEG-entiteiten later laadt. Ook dat maakt geen APP-aanvraag en verstuurt geen START. '
                               'Zolang je de centrale lijst niet wijzigt, rangschikt het oude '
                               'getal binnen de bestaande groepen. Na een bevestigde wijziging bepaalt de '
                               'centrale lijst de relatieve volgorde; de gewone comfortbescherming blijft '
@@ -1231,33 +1233,54 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                            'Nieuwe gewone toestellen komen onderaan tot de gebruiker ze bewust verplaatst.',
                            'Een voorkeurs-AEG-profiel wordt vóór de Wallbox geplaatst wanneer die afwaslogica '
                            'actief is.']},
-              {'title': '23. Afwasmachineherstel — beta.39 repareert de beta.38-startregressies',
-               'paragraphs': ['De beta.35-analyse kon een situatie bevatten waarin de AEG-regelcode nog '
-                              'aanwezig was maar geen afwasmachine in de actieve devices-configuratie stond. '
-                              'Zonder zo’n profiel bestaan er geen APP-tickets, geen afwasprioriteit en dus '
-                              'geen automatische START, ook al zijn de AEG-entiteiten in Home Assistant wel '
-                              'beschikbaar.',
-                              'Beta.38 voegde daarvoor een conservatieve éénmalige herstelmigratie toe voor '
-                              'de reeds bedoelde bestaande AEG/Electrolux-koppeling. Beta.39 behoudt die '
-                              'migratie, maar corrigeert drie regressies die een hersteld profiel nog konden '
-                              'blokkeren of verkeerd volgen: statische AEG-startvoorwaarden vervallen niet '
-                              'meer na vijf minuten zolang de actuele ConnectivityState gezond blijft; de '
-                              'volledige lijst Washing/Prewash/Main wash/Rinsing/Drying/Ado Drying/Paused '
-                              'wordt opnieuw als lopende beschermde cyclus herkend; en een optionele '
-                              'numerieke Alerts-sensor wordt niet automatisch als veiligheidsbron gebruikt '
-                              'zonder expliciete bruikbare DISH_ALARM-vlaggen.',
-                              'De herstelzoektocht blijft streng same-device: START, ApplianceState, '
-                              'ConnectivityState, RemoteControl, DoorState en programmaselectie moeten '
-                              'eenduidig op hetzelfde Home Assistant-apparaat zitten. Bij dubbele oude en '
-                              'actuele AEG-knoppen wordt alleen een bruikbare START gekozen; PAUSE, RESUME, '
-                              'STOPRESET en starttijd kunnen nooit als START worden gekoppeld. Ontbreekt een '
-                              'verplichte bron, zijn er meerdere mogelijke apparaten of is de START niet '
-                              'betrouwbaar te onderscheiden, dan maakt SolarPilot geen profiel en verleent '
-                              'het geen fysiek recht.',
-                              'De beta.39-reparatiemigratie wijzigt uitsluitend een profiel dat aantoonbaar '
-                              'door beta.38 zelf als recovered is gemarkeerd. Handmatig aangemaakte of '
-                              'bewust aangepaste afwasmachineprofielen worden niet generiek herschreven. '
-                              'Wanneer beta.38 de verkorte Running;Paused-lijst heeft opgeslagen, wordt de '
+               {'title': '23. Afwasmachineherstel — beta.40 herstelt na late Home Assistant-start',
+                'paragraphs': ['De beta.35-analyse kon een situatie bevatten waarin de AEG-regelcode nog '
+                               'aanwezig was maar geen afwasmachine in de actieve devices-configuratie stond. '
+                               'Zonder zo’n profiel bestaan er geen APP-tickets, geen afwasprioriteit en dus '
+                               'geen automatische START, ook al zijn de AEG-entiteiten in Home Assistant wel '
+                               'beschikbaar.',
+                               'Beta.38 voegde daarvoor een conservatieve éénmalige herstelmigratie toe voor '
+                               'de reeds bedoelde bestaande AEG/Electrolux-koppeling. Beta.39 behoudt die '
+                               'migratie, maar corrigeert drie regressies die een hersteld profiel nog konden '
+                               'blokkeren of verkeerd volgen: statische AEG-startvoorwaarden vervallen niet '
+                               'meer na vijf minuten zolang de actuele ConnectivityState gezond blijft; de '
+                               'volledige lijst Washing/Prewash/Main wash/Rinsing/Drying/Ado Drying/Paused '
+                               'wordt opnieuw als lopende beschermde cyclus herkend; en een optionele '
+                               'numerieke Alerts-sensor wordt niet automatisch als veiligheidsbron gebruikt '
+                               'zonder expliciete bruikbare DISH_ALARM-vlaggen.',
+                               'De praktijkdiagnose voor beta.39 bewees daarna een afzonderlijke '
+                               'opstartvolgordefout. SolarPilot controleerde de legacy-markers één keer tijdens '
+                               'zijn eigen config-entry-setup. Op dat moment waren de template-markers nog niet '
+                               'geladen en werd terecht maar definitief “niet van toepassing” gemeld. Kort '
+                               'daarna waren beide markers en alle verplichte AEG-rollen wel volledig op één '
+                               'Home Assistant-apparaat aanwezig, maar beta.39 controleerde niet opnieuw.',
+                               'Beta.40 doet de directe controle nog steeds en houdt daarna uitsluitend deze '
+                               'legacy-migratie maximaal tien minuten actief. Relevante statuswijzigingen en '
+                               'een begrensde periodieke controle kunnen de ontdekking opnieuw uitvoeren. Na '
+                               'succes, timeout of unload worden de tijdelijke listeners opgeruimd. Dit is '
+                               'geen permanente algemene toestelherkenning en de retry roept geen regelcyclus '
+                               'of fysieke service aan.',
+                               'De herstelzoektocht blijft streng same-device: START, ApplianceState, '
+                               'ConnectivityState, RemoteControl, DoorState en programmaselectie moeten '
+                               'eenduidig op hetzelfde Home Assistant-apparaat zitten. Bij dubbele oude en '
+                               'actuele AEG-knoppen wordt alleen een bruikbare START gekozen; PAUSE, RESUME, '
+                               'STOPRESET en starttijd kunnen nooit als START worden gekoppeld. Ontbreekt een '
+                               'verplichte bron, zijn er meerdere mogelijke apparaten of is de START niet '
+                               'betrouwbaar te onderscheiden, dan maakt SolarPilot geen profiel en verleent '
+                               'het geen fysiek recht.',
+                               'De status toont per verplichte rol missing, selected of ambiguous en telt '
+                               'afwijzingen door disabled, restored, not_loaded of unavailable, zonder het '
+                               'private Home Assistant-apparaat-id te publiceren. Een '
+                               'compleet laat gevonden profiel wordt persistent opgeslagen, direct in '
+                               'Toestellen opgenomen en volgens de bestaande voorkeursregel in Voorrang '
+                               'geplaatst. Alleen het exact gemarkeerde legacy-herstelprofiel kan zijn '
+                               'afgesproken eenmalige Auto-deelname terugkrijgen wanneer er nog geen eerdere '
+                               'gebruikersmodus voor die identiteit bestaat. Een later bewust verwijderd '
+                               'herstelprofiel wordt niet stil opnieuw gemaakt.',
+                               'De beta.39-reparatiemigratie blijft uitsluitend een profiel wijzigen dat aantoonbaar '
+                               'door beta.38 zelf als recovered is gemarkeerd. Handmatig aangemaakte of '
+                               'bewust aangepaste afwasmachineprofielen worden niet generiek herschreven. '
+                               'Wanneer beta.38 de verkorte Running;Paused-lijst heeft opgeslagen, wordt de '
                               'volledige eerder afgesproken faselijst hersteld. Wanneer beta.38 automatisch '
                               'een AEG Alerts-bron in attribuutmodus koos maar die bron geen technische '
                               'DISH_ALARM-vlaggen levert, wordt alleen die automatische optionele blokkade '
@@ -1267,15 +1290,18 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               '13:00 de volgende kalenderdag, met de bestaande 13:00-deadline/nettoestemming. '
                               'Startup met APP al Enabled telt niet als nieuwe aanvraag. Eén belading krijgt '
                               'maximaal één START en een onzekere opdracht wordt niet blind herhaald.',
-                              'De migratie verstuurt zelf geen START en wijzigt geen programma. Een lopende '
-                              'cyclus blijft beschermd; End Of Cycle wordt eventgestuurd bewaard, AirDry '
-                              'blijft onderdeel van de cyclus en Off of Disconnected alleen bewijst geen '
-                              'einde. De status meldt of herstel/reparatie is uitgevoerd, al eerder gebeurde '
-                              'of niet veilig/eenduidig toepasbaar was.'],
-               'bullets': ['ConnectivityState is de versheidsheartbeat voor startveiligheid; statische '
-                           'startvoorwaarden blijven fail-closed op Unknown, Unavailable, restored of een '
-                           'afwijkende waarde.',
-                           'De afgesproken comfortvolgorde blijft behouden: noodzakelijke warmte/warm water '
+                               'Geen enkele herstel- of reparatiemigratie verstuurt zelf een START of wijzigt '
+                               'een programma. Een lopende '
+                               'cyclus blijft beschermd; End Of Cycle wordt eventgestuurd bewaard, AirDry '
+                               'blijft onderdeel van de cyclus en Off of Disconnected alleen bewijst geen '
+                               'einde. De status meldt of herstel/reparatie is uitgevoerd, al eerder gebeurde '
+                               'of niet veilig/eenduidig toepasbaar was.'],
+                'bullets': ['ConnectivityState is de versheidsheartbeat voor startveiligheid; statische '
+                            'startvoorwaarden blijven fail-closed op Unknown, Unavailable, restored of een '
+                            'afwijkende waarde.',
+                            'Ook na een laat hersteld profiel blijft een nieuwe fysieke APP-overgang naar exact '
+                            'Enabled per belading verplicht; een bestaande Enabled-stand bij startup telt niet.',
+                            'De afgesproken comfortvolgorde blijft behouden: noodzakelijke warmte/warm water '
                            'blijven beschermd; een voorkeurs-afwasmachine kan vóór de Wallbox staan; lagere '
                            'flexibele lasten en de extra 60 °C-buffer volgen de centrale lijst.',
                            'Een afwasstart blijft afhankelijk van gesloten deur, Ready To Start, geldig '

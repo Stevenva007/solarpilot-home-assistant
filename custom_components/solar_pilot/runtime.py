@@ -27,6 +27,7 @@ from .consumer_history_runtime import ConsumerHistoryRecorder
 from .dishwasher_app import DishwasherApp
 from .dishwasher_priority import DishwasherPriority, enabled as dishwasher_has_priority
 from .dishwasher import DishwasherControl, read as read_dishwasher, normalize_config as normalize_dishwasher
+from .dishwasher_recovery import RECOVERED_AUTO_KEY, RECOVERY_KEY, RECOVERY_SOURCE
 from .analysis_export import AnalysisRecorder
 from .house_first import HOUSE_DEFAULTS, HouseFirstGuard, Handover
 from .learning import LocalLearning
@@ -407,7 +408,16 @@ class SolarRuntime:
         # stored a mode for it, that later choice always wins. APP still requires
         # a fresh exact Enabled transition, so setup itself never starts a cycle.
         stored_modes = data.get("device_modes", {}) if isinstance(data.get("device_modes", {}), dict) else {}
-        for recovered_id in self.entry.options.get("_beta38_recovered_auto_devices", []) or []:
+        recovery_meta = self.entry.options.get(RECOVERY_KEY, {})
+        exact_recovered_id = recovery_meta.get("device_id") if (
+            isinstance(recovery_meta, dict)
+            and recovery_meta.get("schema") == 1
+            and recovery_meta.get("status") == "recovered"
+            and recovery_meta.get("source") == RECOVERY_SOURCE
+        ) else None
+        for recovered_id in self.entry.options.get(RECOVERED_AUTO_KEY, []) or []:
+            if recovered_id != exact_recovered_id:
+                continue
             if recovered_id in self.configs and recovered_id not in stored_modes:
                 self.device_modes[recovered_id] = "auto"
                 self.note(f'{self.configs[recovered_id]["name"]}: beta.38 herstelde de afgesproken Auto-deelname; APP-vrijgave blijft per belading verplicht.')

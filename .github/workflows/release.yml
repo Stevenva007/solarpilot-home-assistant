@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Bestaande versie-tag, bijvoorbeeld v1.0.0-beta.39"
+        description: "Bestaande versie-tag, bijvoorbeeld v1.0.0-beta.40"
         required: true
         type: string
 

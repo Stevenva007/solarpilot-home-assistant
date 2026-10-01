@@ -1,28 +1,29 @@
-> **Nieuw: beta.39** — herstelt de automatische AEG-afwasstart na de beta.38-recovery: statische veilige startvoorwaarden verlopen niet meer kunstmatig na vijf minuten, de volledige cyclusfasen zijn terug beschermd en een onbewezen automatisch gekoppelde alarmbron blokkeert niet langer.
+> **Nieuw: beta.40** — herstelt de bewezen Home Assistant-opstartvolgordefout: wanneer legacy-markers of AEG-entiteiten pas na SolarPilot laden, kan een begrensde post-start recovery het complete profiel alsnog veilig onder Toestellen en Voorrang opnemen. De migratie verstuurt geen START en APP-vrijgave blijft verplicht.
 
 # SolarPilot
 
 SolarPilot is a local Home Assistant Energy Management System (EMS) for PV surplus, flexible loads, Panasonic Aquarea hot-water policy, Wallbox Full Solar coexistence, phase analysis, capacity-tariff awareness, local PV/shade learning, slow thermal-climate learning, future home batteries and a unified rolling-horizon planner.
 
-> **Status:** beta.39 · public HACS beta. Start nieuwe installaties in **Alleen bekijken**. Do not enable physical control for several devices at once.
+> **Status:** beta.40 · public HACS beta. Start nieuwe installaties in **Alleen bekijken**. Do not enable physical control for several devices at once.
 
 
 > **Updates zijn cumulatief.** Je hoeft tussenliggende beta-versies niet één voor één te installeren of publiceren. Installeer de nieuwste release over je bestaande SolarPilot-installatie; Home Assistant-configuratie en lokale leerdata blijven behouden.
 
-## Current DHW policy (preserved in beta.39)
+## Current DHW policy (preserved in beta.40)
 
 Normal tank setpoint and monitored comfort floor are independent (new defaults 50/46 °C). No deadband-compensating 52 °C boost or Force DHW. A 50 °C target with a -5 °C native differential can reheat around 45 °C: 46 °C is monitored, not guaranteed and not a hygiene standard. Optional bounded evening solar storage waits for space climate; see `docs/BETA28_INSTELLEN.md`. Existing setpoints and permissions migrate without silent profile activation.
 
 
-## Nieuw in beta.39
+## Nieuw in beta.40
 
-- Gebouwd op de geregistreerde beta.38-bron; geen terugval naar een oudere SolarPilot-versie.
-- `ConnectivityState` is voortaan de actuele heartbeat voor AEG-startveiligheid. Ready To Start, exacte `Enabled`, gesloten deur en programmaselectie mogen veilig onveranderd blijven terwijl SolarPilot op zon wacht; unknown/unavailable/restored of een afwijkende waarde blijft blokkeren.
-- Herstelt de volledige beschermde AEG-cyclusfasen: Running, Washing, Prewash, Main wash, Rinsing, Drying, Ado Drying en Paused.
-- Een automatisch hersteld profiel krijgt niet langer een numerieke Alerts-sensor als optionele veiligheidsbron wanneer echte technische `DISH_ALARM_*`-vlaggen ontbreken.
-- Eénmalige migratie repareert uitsluitend het door beta.38 zelf gemarkeerde recovered-profiel. Handmatige profielen worden niet generiek overschreven.
-- Alle bestaande APP-/13:00-/één-START-/End Of Cycle-/AirDry-regels, centrale prioriteiten, Wallbox-read-onlybeleid, Panasonic/DHW-regels, fasebewaking, planner, analyse en leerdata blijven cumulatief behouden.
-- Volledige regressiesuite: 1434 tests geslaagd. Zie `docs/BETA39_INSTELLEN.md` en `docs/TESTRESULTATEN_BETA39.md`.
+- De live diagnose bewees dat beta.39 tijdens zijn enige setupcontrole nog geen legacy-marker zag, terwijl beide markers en alle verplichte AEG-rollen kort daarna volledig op hetzelfde Home Assistant-apparaat aanwezig waren.
+- De bestaande legacy-recovery blijft daarom na SolarPilot-start maximaal tien minuten gericht actief, reageert op relevante states en controleert begrensd opnieuw. Na succes, timeout of unload worden de tijdelijke listeners verwijderd.
+- Alleen één complete, eenduidige same-device mapping kan een profiel opleveren. Ontbrekende of ambigue verplichte rollen geven geen fysiek recht; `dishwasher_setup` maakt de rolstatus zichtbaar zonder private device-id.
+- Een laat hersteld profiel wordt persistent en live toegepast, verschijnt onder Toestellen en volgens de bestaande voorkeursregel onder Voorrang. Alleen de exacte eenmalige legacy-recovery kan Auto herstellen wanneer geen eerdere gebruikersmodus bestaat.
+- De migratie maakt geen APP-aanvraag, verandert geen programma en verstuurt geen START. Exacte nieuwe `Enabled`-overgang, deur, programma, Ready To Start, actuele verbinding, elektrische ruimte en alle overige veiligheidslocks blijven verplicht.
+- Een later bewust verwijderd herstelprofiel wordt niet stil opnieuw gemaakt. Handmatige profielen en bestaande gebruikerskeuzes worden niet overschreven.
+- De beta.39-fixes voor ConnectivityState als heartbeat, volledige beschermde cyclusfasen en de onbewezen automatische alarmbron blijven cumulatief behouden, evenals centrale prioriteiten, Wallbox-read-onlybeleid, Panasonic/DHW, fasebewaking, planner, analyse en leerdata.
+- Volledige regressiesuite: **1445 tests geslaagd**; gerichte afwasmachine-/recovery-/runtime-set: **353 tests geslaagd**. Zie `docs/BETA40_INSTELLEN.md` en `docs/TESTRESULTATEN_BETA40.md`.
 
 ## Install via HACS
 

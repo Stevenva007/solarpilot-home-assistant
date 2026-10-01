@@ -1,6 +1,6 @@
 # SolarPilot · Configuratiestructuur
 
-**Geldig voor 1.0.0-beta.39.** Dit document beschrijft waar instellingen staan. Voor de inhoudelijke EMS-regels geldt uitsluitend `ACTUELE_WERKING.md`.
+**Geldig voor 1.0.0-beta.40.** Dit document beschrijft waar instellingen staan. Voor de inhoudelijke EMS-regels geldt uitsluitend `ACTUELE_WERKING.md`.
 
 ## Configuratiecentrum
 
@@ -17,6 +17,8 @@ Hier staan de P1-/PV-bronnen, tekenrichting, injectiereserve, maximale softwarem
 ### Toestellen
 
 Flexibele lasten worden via **Basis → Koppeling → Gedrag & bescherming → Planning & energie** beheerd. Nieuwe apparaten blijven **Uitgesloten** totdat je ze bewust op Auto zet. De gezamenlijke volgorde en toestemming om zonnevermogen van de auto te gebruiken staan centraal op **Voorrang → Wie krijgt eerst zonne-energie?**. Na een bevestigde centrale wijziging verdwijnen de oude prioriteitsvelden uit de toestelwizard. Zonder centrale wijziging blijft de bestaande regeling leidend. Minimumlooptijden blijven beschermd.
+
+Het eenmalige legacy-AEG-herstel is een afzonderlijke migratie, geen instelling voor algemene toestelontdekking. In beta.40 blijft alleen die herstelcontrole na opstart maximaal tien minuten actief wanneer Home Assistant de markers of AEG-entiteiten later laadt. Een profiel wordt uitsluitend bij één volledige same-device mapping persistent en live toegevoegd. De migratie verstuurt geen START; de nieuwe APP-overgang naar exact `Enabled` en alle bestaande veiligheidsvoorwaarden blijven nodig. Bij geen profiel toont `dishwasher_setup` per verplichte rol `missing`, `selected` of `ambiguous` en de afwijsredenen `disabled`, `restored`, `not_loaded` en `unavailable`, zonder het private Home Assistant-device-id.
 
 ### Warmte & comfort
 
@@ -120,7 +122,7 @@ Open onderaan het SolarPilot-dashboard **Configureren met uitleg ?**. De wizard 
 **Wallbox** bevat ook automatisch laadprofiel, optionele laadstroom-/fasebron, handmatig fase-/stroomprofiel en afgeleid zonnelaadminimum. ICP is niet de laadlimiet.
 
 
-## Dagelijkse bediening in beta.39
+## Dagelijkse bediening in beta.40
 
 **Overzicht · Voorrang · Toestellen · Warmte & comfort · Planning · Energie · Auto & batterij · Export · Uitleg**
 

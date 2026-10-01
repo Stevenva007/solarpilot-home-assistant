@@ -19,7 +19,7 @@ from .analysis_export import storage_key as analysis_storage_key
 from .consumer_history_runtime import history_storage_key
 from .private_bundle import build_private_import, delete_private_files_if_requested, load_private_bundle
 from .historical import load_bundled_seed
-from .dishwasher_recovery import recover_legacy_dishwasher
+from .dishwasher_recovery import LegacyDishwasherRecoveryRetry, recover_legacy_dishwasher
 
 from .const import DOMAIN, PLATFORMS
 from .runtime import SolarRuntime
@@ -87,6 +87,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             registry.async_remove(ent.entity_id)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await runtime.start()
+    # AEG/cloud entities can publish after SolarPilot's config-entry setup.  Keep
+    # the beta.38 legacy migration alive for a short, targeted post-start window.
+    # It cannot send START; a late profile is adopted through LiveOptions.
+    runtime.dishwasher_recovery_retry = LegacyDishwasherRecoveryRetry(runtime)
+    await runtime.dishwasher_recovery_retry.start()
     async_register_history_api(hass)
     async_register_analysis_api(hass)
     async_register_learning_api(hass)
@@ -148,6 +153,9 @@ async def async_unload_entry(hass, entry):
         or runtime.battery_fleet.removal_blocked()
     ):
         return False
+    retry = getattr(runtime, "dishwasher_recovery_retry", None)
+    if retry is not None:
+        retry.close()
     await runtime.close()
     async_unregister_frontend(hass, final=False)
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

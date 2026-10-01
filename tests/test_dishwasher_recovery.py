@@ -1,8 +1,19 @@
 from datetime import datetime, timezone
+from copy import deepcopy
+import asyncio
+import ast
+from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from homeassistant.helpers import entity_registry as er
-from custom_components.solar_pilot.dishwasher_recovery import recover_legacy_dishwasher
+from custom_components.solar_pilot.dishwasher_recovery import (
+    LegacyDishwasherRecoveryRetry,
+    recover_legacy_dishwasher,
+)
+import custom_components.solar_pilot.dishwasher_recovery as recovery_module
+from custom_components.solar_pilot.runtime import SolarRuntime
+from test_runtime import Services, build
 
 
 class States:
@@ -31,7 +42,7 @@ def appliance(marker=True):
     states = States(); rows = {}
     def add(eid, state, name, device="dev1", restored=False):
         states.set(eid, state, name, restored=restored)
-        rows[eid] = SimpleNamespace(device_id=device, original_name=name)
+        rows[eid] = SimpleNamespace(device_id=device, original_name=name, disabled_by=None)
     if marker:
         add("sensor.afwasmachine_dashboardstatus", "Klaar om te starten", "Afwasmachine dashboardstatus", device="helper")
     add("button.aeg_afwasmachine_executecommand_3", "unavailable", "Afwasmachine START", restored=True)
@@ -67,6 +78,8 @@ def test_beta38_recovers_missing_legacy_aeg_profile(monkeypatch):
     assert d["dishwasher_priority_enabled"] is True
     assert d["wallbox_precedence"] == "consumer_first"
     assert d["id"] in out["_beta38_recovered_auto_devices"]
+    assert info["roles"]["start_button"]["status"] == "selected"
+    assert info["roles"]["start_button"]["rejected"]["restored"] == 1
 
 
 def test_recovery_never_runs_without_legacy_dashboard_marker(monkeypatch):
@@ -92,7 +105,82 @@ def test_incomplete_mapping_does_not_grant_start_right(monkeypatch):
     monkeypatch.setattr(er, "async_get", lambda _hass: reg)
     out, info = recover_legacy_dishwasher(hass, {"devices": []})
     assert info["status"] == "incomplete"
+    assert info["roles"]["program"]["status"] == "missing"
+    assert info["roles"]["program"]["candidate_count"] == 1
+    assert info["roles"]["program"]["rejected"]["not_loaded"] == 1
+    assert all("entity_id" not in str(value) and "dev1" not in str(value)
+               for value in info["roles"].values())
     assert out["devices"] == []
+
+
+def test_ambiguous_role_is_reported_without_private_identifiers(monkeypatch):
+    hass, reg = appliance()
+    eid = "button.aeg_afwasmachine_executecommand_start_extra"
+    hass.states.set(eid, "unknown", "Afwasmachine START extra")
+    reg.rows[eid] = SimpleNamespace(device_id="dev1", original_name="Afwasmachine START extra", disabled_by=None)
+    monkeypatch.setattr(er, "async_get", lambda _hass: reg)
+
+    out, info = recover_legacy_dishwasher(hass, {"devices": []})
+
+    assert info["status"] == "incomplete"
+    assert info["roles"]["start_button"]["status"] == "ambiguous"
+    assert info["roles"]["start_button"]["usable_count"] == 2
+    assert "button.aeg" not in str(info) and "dev1" not in str(info)
+    assert out["devices"] == []
+
+
+@pytest.mark.parametrize(("state", "restored", "reason"), [
+    ("unavailable", False, "unavailable"),
+    ("unknown", True, "restored"),
+])
+def test_sole_unusable_start_is_missing_never_selected(monkeypatch, state, restored, reason):
+    hass, reg = appliance()
+    hass.states.data.pop("button.aeg_afwasmachine_executecommand_3")
+    reg.rows.pop("button.aeg_afwasmachine_executecommand_3")
+    hass.states.set("button.aeg_afwasmachine_executecommand_7", state, "Afwasmachine START", restored=restored)
+    monkeypatch.setattr(er, "async_get", lambda _hass: reg)
+
+    out, info = recover_legacy_dishwasher(hass, {"devices": []})
+
+    role = info["roles"]["start_button"]
+    assert info["status"] == "incomplete" and out["devices"] == []
+    assert role["status"] == "missing" and role["usable_count"] == 0
+    assert role["rejected"][reason] == 1
+
+
+@pytest.mark.parametrize("disabled", [False, True])
+def test_registry_only_start_reports_not_loaded_or_disabled(monkeypatch, disabled):
+    hass, reg = appliance()
+    for eid in ("button.aeg_afwasmachine_executecommand_3", "button.aeg_afwasmachine_executecommand_7"):
+        hass.states.data.pop(eid)
+        reg.rows.pop(eid)
+    eid = "button.aeg_afwasmachine_executecommand_registry"
+    reg.rows[eid] = SimpleNamespace(device_id="dev1", original_name="Afwasmachine START",
+                                    disabled_by="integration" if disabled else None)
+    monkeypatch.setattr(er, "async_get", lambda _hass: reg)
+
+    out, info = recover_legacy_dishwasher(hass, {"devices": []})
+
+    reason = "disabled" if disabled else "not_loaded"
+    role = info["roles"]["start_button"]
+    assert info["status"] == "incomplete" and out["devices"] == []
+    assert role["status"] == "missing" and role["rejected"][reason] == 1
+
+
+def test_sensor_program_uid_is_supported(monkeypatch):
+    hass, reg = appliance()
+    old = "select.aeg_afwasmachine_userselections_programuid"
+    hass.states.data.pop(old)
+    reg.rows.pop(old)
+    eid = "sensor.aeg_afwasmachine_userselections_programuid"
+    hass.states.set(eid, "Eco", "Afwasmachine Program uid")
+    reg.rows[eid] = SimpleNamespace(device_id="dev1", original_name="Afwasmachine Program uid", disabled_by=None)
+    monkeypatch.setattr(er, "async_get", lambda _hass: reg)
+
+    out, info = recover_legacy_dishwasher(hass, {"devices": []})
+
+    assert info["status"] == "recovered"
+    assert out["devices"][0]["cycle_program_entity"] == eid
 
 
 def test_beta39_repairs_only_beta38_recovered_profile(monkeypatch):
@@ -124,3 +212,125 @@ def test_beta39_does_not_modify_manual_dishwasher_profile(monkeypatch):
     out, info = recover_legacy_dishwasher(hass, {"devices": [original]})
     assert info["status"] == "already_configured"
     assert out["devices"] == [original]
+
+
+def test_removed_recovered_profile_is_not_recreated_or_reenabled(monkeypatch):
+    hass, reg = appliance()
+    monkeypatch.setattr(er, "async_get", lambda _hass: reg)
+    recovered, _ = recover_legacy_dishwasher(hass, {"devices": []})
+    recovered["devices"] = []
+
+    out, info = recover_legacy_dishwasher(hass, recovered)
+
+    assert info["status"] == "previously_recovered"
+    assert info["changed"] is False
+    assert out["devices"] == []
+
+
+@pytest.mark.asyncio
+async def test_retry_stops_and_reports_inactive_after_previously_recovered_profile_removed(monkeypatch):
+    hass, reg = appliance()
+    monkeypatch.setattr(er, "async_get", lambda _hass: reg)
+    recovered, _ = recover_legacy_dishwasher(hass, {"devices": []})
+    recovered["devices"] = []
+    runtime, _ = build(kind="switch")
+    runtime.entry.options = recovered
+    runtime.configs.clear()
+
+    retry = LegacyDishwasherRecoveryRetry(runtime)
+
+    assert await retry.attempt() is False
+    assert retry._closed is True
+    assert runtime.dishwasher_recovery_info["status"] == "previously_recovered"
+    assert runtime.dishwasher_recovery_info["retry_active"] is False
+
+
+@pytest.mark.asyncio
+async def test_post_start_retry_adds_late_states_live_rebinds_and_sets_only_recovered_auto(monkeypatch):
+    complete_hass, reg = appliance()
+    hass = SimpleNamespace(states=States())
+    hass.services = Services(hass.states)
+    hass.async_create_task = asyncio.create_task
+
+    class ConfigEntries:
+        def __init__(self):
+            self.updates = []
+        def async_update_entry(self, entry, *, options):
+            entry.options = deepcopy(options)
+            self.updates.append(deepcopy(options))
+
+    hass.config_entries = ConfigEntries()
+    monkeypatch.setattr(er, "async_get", lambda _hass: reg)
+    unsubscribed = []
+    def track_states(_hass, _ids, callback):
+        def unsub():
+            unsubscribed.append(("state", callback.__name__))
+        return unsub
+    def track_timer(_hass, callback, _interval):
+        def unsub():
+            unsubscribed.append(("timer", callback.__name__))
+        return unsub
+    monkeypatch.setattr(recovery_module, "async_track_state_change_event", track_states)
+    monkeypatch.setattr(recovery_module, "async_track_time_interval", track_timer)
+    entry = SimpleNamespace(entry_id="late", data={"grid_entity": "sensor.grid"}, options={"devices": []})
+    runtime = SolarRuntime(hass, entry)
+    runtime.dishwasher_recovery_info = {"status": "not_applicable", "changed": False}
+    listener_calls = []
+    original_close = runtime.dishwasher_app.close
+    original_start = runtime.dishwasher_app.start
+    runtime.dishwasher_app.close = lambda: (listener_calls.append("close"), original_close())[1]
+    runtime.dishwasher_app.start = lambda: (listener_calls.append("start"), original_start())[1]
+    refreshes = []
+    async def refresh():
+        refreshes.append(True)
+    runtime.platforms.refresh = refresh
+
+    retry = LegacyDishwasherRecoveryRetry(runtime)
+    assert await retry.start() is False
+    assert not runtime.configs
+    # The AEG integration and legacy helper publish only after SolarPilot setup.
+    hass.states.data.update(complete_hass.states.data)
+
+    assert await retry.attempt() is True
+    recovered = next(c for c in runtime.configs.values() if c["kind"] == "dishwasher")
+    recovered_id = recovered["id"]
+    assert runtime.device_modes[recovered_id] == "auto"
+    assert runtime.live_options.applied["devices"][-1]["id"] == recovered_id
+    assert listener_calls == ["close", "start"]
+    assert refreshes == [True]
+    assert hass.config_entries.updates[-1]["devices"][-1]["id"] == recovered_id
+    assert runtime.dishwasher_recovery_info["status"] == "recovered"
+    assert runtime.dishwasher_recovery_info["retry_active"] is False
+    assert unsubscribed == [("state", "_on_state"), ("timer", "_on_interval")]
+    assert not runtime.dishwasher_app.data[recovered_id].get("request")
+    assert not [call for call in hass.services.calls if call[0] in {"button", "switch", "script"}]
+    # Closed/idempotent: no duplicate profile and no second mutation.
+    assert await retry.attempt() is False
+    retry.close()
+    assert unsubscribed == [("state", "_on_state"), ("timer", "_on_interval")]
+    assert len([c for c in runtime.configs.values() if c["kind"] == "dishwasher"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_retry_never_overwrites_manual_profile_or_mode():
+    runtime, _hass = build(kind="dishwasher")
+    before = deepcopy(runtime.configs["a"])
+    runtime.device_modes["a"] = "disabled"
+
+    retry = LegacyDishwasherRecoveryRetry(runtime)
+
+    assert await retry.start() is False
+    assert await retry.attempt() is False
+    assert runtime.configs["a"] == before
+    assert runtime.device_modes["a"] == "disabled"
+
+
+def test_integration_unload_closes_temporary_recovery_listener():
+    path = Path(__file__).parents[1] / "custom_components" / "solar_pilot" / "__init__.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    unload = next(node for node in tree.body
+                  if isinstance(node, ast.AsyncFunctionDef) and node.name == "async_unload_entry")
+    calls = [node for node in ast.walk(unload) if isinstance(node, ast.Call)]
+    assert any(isinstance(call.func, ast.Attribute) and call.func.attr == "close"
+               and isinstance(call.func.value, ast.Name) and call.func.value.id == "retry"
+               for call in calls)
