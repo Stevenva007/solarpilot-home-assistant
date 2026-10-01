@@ -250,7 +250,7 @@
           "cooling_entities": "Bestaande klimaatbronnen voor de woning.",
           "hygiene_entity": "Alleen een expliciete betrouwbare melding dat een fabrikant-hygiënecyclus actief is.",
           "manual_entity": "Oud enkelvoudig handmatig/beschermd signaal.",
-          "safety_confirmed": "Alleen aanvinken nadat fabrikantgeschiktheid, onafhankelijke hygiëne én bescherming tegen verbranding daadwerkelijk gecontroleerd zijn.",
+          "safety_confirmed": "Bevestigt dat de gebruiker de fabrikantgeschiktheid, onafhankelijke hygiëne en verbrandingsrisico-informatie voor deze installatie heeft beoordeeld.",
           "manual_active_states": "Komma-gescheiden echte statuswaarden voor handmatige bescherming, bijvoorbeeld on,on-30 m,on-60 m,on-90 m.",
           "manual_entities": "Handmatige of krachtige functies die voorrang hebben, bijvoorbeeld Powerful en Force DHW."
         }
@@ -976,7 +976,7 @@
           "forecast_deferrable": "Een nieuwe start mag begrensd wachten op een gunstiger zonneblok.",
           "cheap_grid_allowed": "Per-toesteltoestemming voor goedkope netfallback.",
           "phase_hint": "Fase waarop het apparaat fysiek aangesloten is, of Auto voor voorzichtig lokaal leren.",
-          "allow_wallbox_reclaim": "Alleen gebruikt bij de keuze Oude expliciete overname.",
+          "allow_wallbox_reclaim": "Legacy-veld voor oudere configuraties.",
           "daily_energy_goal_kwh": "Gewenste dagenergie voor deze last.",
           "cycle_learning_enabled": "Leert energie, duur en piek uit complete bevestigde apparaatcycli met een eigen meter.",
           "cycle_energy_kwh": "Conservatieve energie-inschatting van één volledig programma zolang geen bruikbaar geleerd cyclusprofiel bestaat.",

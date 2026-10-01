@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.35",
+  "version": "1.0.0-beta.36",
   "language": "nl",
   "steps": {
     "init": {
@@ -211,7 +211,7 @@
         "cooling_entities": "Bestaande klimaatbronnen voor de woning.",
         "hygiene_entity": "Alleen een expliciete betrouwbare melding dat een fabrikant-hygiënecyclus actief is.",
         "manual_entity": "Oud enkelvoudig handmatig/beschermd signaal.",
-        "safety_confirmed": "Alleen aanvinken nadat fabrikantgeschiktheid, onafhankelijke hygiëne én bescherming tegen verbranding daadwerkelijk gecontroleerd zijn.",
+        "safety_confirmed": "Bevestigt dat de gebruiker de fabrikantgeschiktheid, onafhankelijke hygiëne en verbrandingsrisico-informatie voor deze installatie heeft beoordeeld.",
         "manual_active_states": "Komma-gescheiden echte statuswaarden voor handmatige bescherming, bijvoorbeeld on,on-30 m,on-60 m,on-90 m.",
         "manual_entities": "Handmatige of krachtige functies die voorrang hebben, bijvoorbeeld Powerful en Force DHW."
       }
@@ -937,7 +937,7 @@
         "forecast_deferrable": "Een nieuwe start mag begrensd wachten op een gunstiger zonneblok.",
         "cheap_grid_allowed": "Per-toesteltoestemming voor goedkope netfallback.",
         "phase_hint": "Fase waarop het apparaat fysiek aangesloten is, of Auto voor voorzichtig lokaal leren.",
-        "allow_wallbox_reclaim": "Alleen gebruikt bij de keuze Oude expliciete overname.",
+        "allow_wallbox_reclaim": "Legacy-veld voor oudere configuraties.",
         "daily_energy_goal_kwh": "Gewenste dagenergie voor deze last.",
         "cycle_learning_enabled": "Leert energie, duur en piek uit complete bevestigde apparaatcycli met een eigen meter.",
         "cycle_energy_kwh": "Conservatieve energie-inschatting van één volledig programma zolang geen bruikbaar geleerd cyclusprofiel bestaat.",
@@ -1813,9 +1813,9 @@
     },
     "dhw.safety_confirmed": {
       "title": "Bevestigd: fabrikantregeling, onafhankelijke hygiëne en verbrandingsbeveiliging gecontroleerd",
-      "short": "Alleen aanvinken nadat fabrikantgeschiktheid, onafhankelijke hygiëne én bescherming tegen verbranding daadwerkelijk gecontroleerd zijn.",
+      "short": "Bevestigt dat de gebruiker de fabrikantgeschiktheid, onafhankelijke hygiëne en verbrandingsrisico-informatie voor deze installatie heeft beoordeeld.",
       "paragraphs": [
-        "Alleen aanvinken nadat fabrikantgeschiktheid, onafhankelijke hygiëne én bescherming tegen verbranding daadwerkelijk gecontroleerd zijn. Een setpoint van 60 °C of eerder probleemloos gebruik bewijst dit niet. Ook 50 °C of een wekelijkse cyclus is op zichzelf geen veiligheidsbewijs. SolarPilot schakelt deze bevestiging nooit automatisch in.",
+        "Bevestigt dat de gebruiker de fabrikantgeschiktheid, onafhankelijke hygiëne en verbrandingsrisico-informatie voor deze installatie heeft beoordeeld. Nieuwe installaties krijgen deze toestemming nooit vanzelf. Bij de beta.35→beta.36-migratie wordt een reeds actief en exact bevestigd 50/46/-5/50/60/62-profiel als bestaande gebruikerskeuze behouden, zodat dezelfde eerder aanvaarde situatie niet opnieuw onnodig blokkeert. Fabrikantbeveiligingen blijven altijd leidend.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -3969,9 +3969,9 @@
     },
     "device_schedule.allow_wallbox_reclaim": {
       "title": "Oude expliciete Wallbox-overname (alleen bij oude keuze)",
-      "short": "Alleen gebruikt bij de keuze Oude expliciete overname.",
+      "short": "Legacy-veld voor oudere configuraties.",
       "paragraphs": [
-        "Alleen gebruikt bij de keuze Oude expliciete overname. Daar zijn een eigen meter, onderbreekbare last en minimumlooptijd korter dan de overnametermijn verplicht. Bij de nieuwe standaard Voorrang volgen bepaalt de voorrang dit automatisch met behouden fysieke beperkingen; de oude checkbox wordt dan genegeerd. AEG gebruikt altijd zijn aparte beschermde route.",
+        "Legacy-veld voor oudere configuraties. Na de beta.36-migratie bepaalt de centrale Voorrang-lijst per flexibele verbruiker afzonderlijk of Wallbox-vermogen mag worden afgenomen. De positie alleen geeft dat recht niet. Een uitgeschakelde toestemming betekent altijd uitsluitend werkelijk vrij zonneoverschot. AEG gebruikt zijn aparte beschermde route.",
         "Toestelvoorwaarden, fysieke terugmelding, minimumtijden en beschermde programma’s gaan vóór energie-optimalisatie. Een ingeschakelde stekker bewijst niet dat een compressor continu draait.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -5145,7 +5145,7 @@
       "title": "Voorrang en autoladen",
       "short": "Sleep een rij of gebruik de pijltjes.",
       "paragraphs": [
-        "Sleep een rij of gebruik de pijltjes. Mag de auto minder laten laden? is een afzonderlijke toestemming, geen garantie op beschikbaar vermogen. Opslaan vraagt bevestiging; openen en conceptwijzigingen sturen niets. Comfort en hygiëne blijven beschermd. Extra boilerwarmte blijft na Wallbox en voorkeur-afwas. Een concept blijft staan tijdens live updates; gelijktijdige instellingenwijzigingen vragen een nieuwe controle.",
+        "Sleep een rij of gebruik de pijltjes. ‘Mag dit toestel vermogen van de Wallbox afnemen?’ is een afzonderlijke toestemming naast de rangorde: hoger dan Wallbox, lager maar terugregelen toegestaan, of alleen werkelijk vrij zonneoverschot. Het is nooit een garantie dat er nu vermogen beschikbaar is. Beveiliging/legionella, noodzakelijk warmwatercomfort en noodzakelijk ruimtecomfort zijn niet verplaatsbaar. Opslaan vraagt bevestiging en stuurt op zichzelf geen toestel.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
