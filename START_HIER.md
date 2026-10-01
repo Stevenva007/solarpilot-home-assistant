@@ -1,6 +1,6 @@
-> **Actuele release: beta.35.** Lees `docs/BETA35_INSTELLEN.md` voor de centrale voorrangslijst, Export en veilig bijwerken. De volledige huidige werking staat in `docs/ACTUELE_WERKING.md`.
+> **Actuele release: beta.36.** De centrale prioriteitenlijst wordt bij upgrade automatisch leidend met behoud van de bestaande volgorde. Controleer na installatie vooral Wallbox-sessie, 50/46 °C-boilerstatus, klimaat-leerstatus en meetdekking. De volledige huidige werking staat in `docs/ACTUELE_WERKING.md`.
 
-# SolarPilot beta.35 — HACS eerste installatie
+# SolarPilot beta.36 — HACS eerste installatie
 
 Dit is de aanbevolen eerste installatie.
 
