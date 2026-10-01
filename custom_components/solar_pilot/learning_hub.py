@@ -262,6 +262,7 @@ class LearningHub:
             {"id": "climate", "name": "Woning en vloerverwarming", "enabled": thermal.get("enabled"),
              "state": thermal.get("decision", {}).get("reason", "Niet gekoppeld"),
              "evidence": {"confidence": thermal.get("model_confidence"), "profiles": thermal.get("profiles", {}),
+                          "reliability": thermal.get("reliability", {}),
                           "weather_bias": thermal.get("weather_bias", {}), "coast_feedback": thermal.get("coast_feedback", {})},
              "effect": "Bestaande leerfuncties en grenzen blijven gelden. Geen nieuwe AUTO/OFF-vrijgave of HEAT/COOL-keuze door deze pagina."},
             {"id": "tank", "name": "Boiler en nachtvoorraad", "enabled": dhw.get("configured"),
