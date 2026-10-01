@@ -1,9 +1,12 @@
-name: Release
+name: Manual Release
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Bestaande versie-tag, bijvoorbeeld v1.0.0-beta.37"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -13,6 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -24,13 +29,24 @@ jobs:
         run: python tools/check_current_explanation.py
       - name: Validate Python syntax
         run: python -m compileall -q custom_components/solar_pilot
-      - name: Create GitHub release
+      - name: Verify requested tag
         env:
-          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
         shell: bash
         run: |
+          git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null
+      - name: Create GitHub release when missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} bestaat al; niets gewijzigd."
+            exit 0
+          fi
           extra=()
-          if [[ "${GITHUB_REF_NAME}" == *beta* || "${GITHUB_REF_NAME}" == *alpha* || "${GITHUB_REF_NAME}" == *rc* ]]; then
+          if [[ "${TAG}" == *beta* || "${TAG}" == *alpha* || "${TAG}" == *rc* ]]; then
             extra+=(--prerelease)
           fi
-          gh release create "${GITHUB_REF_NAME}" --generate-notes --verify-tag "${extra[@]}"
+          gh release create "${TAG}" --generate-notes --verify-tag "${extra[@]}"
