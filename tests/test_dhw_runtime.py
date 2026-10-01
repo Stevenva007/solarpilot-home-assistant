@@ -396,13 +396,15 @@ async def test_tunable_validation_and_persistence():
 
 
 @pytest.mark.asyncio
-async def test_changed_config_revision_drops_old_tunables():
+async def test_changed_config_revision_keeps_canonical_option_and_drops_stale_runtime_tunable():
     r,h=setup();r.mode='observe'
     await r.dhw.set_number('pv_threshold_w',1500)
     old=r.dhw.snapshot()
+    old['tunables']['pv_threshold_w']=1700  # simulate stale pre-beta36 runtime-only value
     r.entry.options['dhw']['config_revision']='new'
     other=DHWManager(r);other.restore(old)
-    assert other.settings['pv_threshold_w']==1000
+    assert other.settings['pv_threshold_w']==1500
+    assert other.tunables=={}
 
 
 @pytest.mark.asyncio
