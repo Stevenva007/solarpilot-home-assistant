@@ -497,3 +497,16 @@ async def test_manual_start_is_rejected_outside_solar_mode():
     r, _h = build()
     with pytest.raises(HomeAssistantError):
         await r.manual_start("a")
+
+
+@pytest.mark.asyncio
+async def test_beta36_active_owned_switch_does_not_receive_duplicate_turn_on_for_new_estimate():
+    r,h=build(power=True)
+    r.states["a"].on=True
+    r.states["a"].owned=True
+    r.states["a"].target_w=310
+    h.states.set("switch.load","on")
+    await r._send(Action("a",325,"Nieuw geleerd planningsvermogen"),time.monotonic())
+    assert h.services.calls==[]
+    assert r.states["a"].target_w==325
+    assert r.result.reasons["a"]=="Reeds ingeschakeld; alleen planningsvermogen bijgewerkt"
