@@ -557,7 +557,7 @@ class UnifiedPlanner:
                                  actual_net_w=actual_grid_w,execution_total=execution_total,execution_matches=execution_matches,context=context)
             q=self.quality.overview().get("last_7d",{})
             self.last_pv_mae_w=q.get("pv_mae_w"); self.last_base_mae_w=q.get("base_mae_w")
-        if self.settings.get("replay_enabled",True) and actual_base_w is not None:
+        if self.settings.get("replay_enabled",True) and actual_base_w is not None and context == "normal":
             self.replay.observe(local_now=local_now,pv_w=actual_pv_w,base_w=actual_base_w,grid_w=actual_grid_w,
                                 import_price=import_price,export_price=export_price,capacity_target_w=capacity_target_w)
 
