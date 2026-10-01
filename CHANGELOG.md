@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.0-beta.36 — 2026-10-01
+
+- Basislastleren scheidt duidelijke Panasonic-ruimteverwarming, -koeling, tapwater en sterilisatie van gewone huishoudlast. Zonder aparte W-meter wordt alleen uit stabiele P1+PV-start/stops een begrensde planningsschatting geleerd; realtime elektrische ruimte blijft uitsluitend op echte metingen gebaseerd.
+- Wallbox-sessieherkenning uitgebreid: ingestelde modus, effectieve sessie, laadvermogen en actuele terugnametoestemming zijn afzonderlijk zichtbaar. Een kandidaat-sessiesensor wordt alleen voorgesteld bij voldoende bewijs op hetzelfde Wallbox-apparaat; er wordt nooit een entity_id verzonnen.
+- Centrale prioriteitenlijst wordt bij beta.35 → beta.36 automatisch leidend met behoud van de bestaande effectieve volgorde. Beschermd: elektrische/fabrikantbeveiliging en legionella, noodzakelijk warmwatercomfort en noodzakelijk ruimtecomfort. Flexibele standaardvolgorde blijft Wallbox → ontvochtiger → extra boilerwarmte 60 °C. Wallbox-rang en per-toesteltoestemming om laadvermogen terug te nemen zijn afzonderlijke instellingen.
+- Ontvochtiger en andere binaire lasten krijgen geen dubbele turn_on wanneer alleen hun geleerde/planningsvermogen wijzigt. Bestaande minimumlooptijden en anti-pendelregels blijven gelden.
+- DHW gebruikt één persistente configuratiebron. De afgesproken 50 °C normaal, 46 °C bewaakte comfortgrens, -5 °C Panasonic-differentie, 50 °C zonnebuffer, 60 °C extra PV-buffer, 50 °C maximum bij actieve koeling en Panasonic 62 °C-sterilisatie blijven behouden. Configuratie, inschakeling, veiligheidsbevestiging, regeltoestemming, SolarPilot-doelbezit, Panasonic-autonomie en handmatige override zijn afzonderlijk zichtbaar.
+- Klimaatbetrouwbaarheid opgesplitst in passieve temperatuurverandering, zonnewinst, verwarmingsrespons, koelrespons, reactievertraging, weerscorrectie en coast/off-feedback. Ontbrekende onderdelen worden als Nog niet geleerd/Eerste metingen/Voorlopig getoond en kunnen geen 100%-vertrouwen veroorzaken.
+- PV-kalibratie behoudt minimum vijf geldige dagen, 13.800 Wp, 10.000 W omvormerlimiet, lokale schaduwdetectie en realtime-PV als waarheid. Diagnostiek toont voortaan ook bias en fout per ochtend/middag/namiddag.
+- Faseherkenning onderscheidt geleerd, voldoende betrouwbaar, gebruikt voor advies en werkelijk vrijgegeven voor regeling; de expliciete regelvrijgave blijft vereist.
+- Analyse-export schema 2 toont aangevraagde periode, beschikbare ruwe periode, werkelijk gedekte meettijd, dekking, eerste/laatste bruikbare meting, herstarts, offline/gat-tijd en fast telemetry. Bootstrapdata, live leerdata, berekende profielen en actuele metingen worden afzonderlijk benoemd; planberekeningen zijn geen leerdagen.
+- Kwaliteitspagina herwerkt naar begrijpelijke secties Metingen, Zonnevoorspelling, Huishoudelijk verbruik, Toestellen, Klimaat en concrete aanbevolen acties; geen losse misleidende totaalscore bovenaan.
+- Bestaande AEG-afwasmachinebeveiligingen blijven behouden: kort End Of Cycle event-driven opslaan, Off/Unavailable/Disconnected niet als bewezen einde, AirDry niet als einde, exact Remote Control Enabled voor start en maximaal één start per aanvraag.
+- Migratie bewaart gekoppelde entiteiten, prijzen, Wallboxinstellingen, apparaten, leerdata, fase/PV/klimaat/boilerdata, bevestigingen en prioriteitsvolgorde. Incompatibele warmtepompleerdata reset alleen dat model.
+
 ## 1.0.0-beta.35 — 2026-09-30
 
 - Cumulatief op de aangeleverde beta.34, zonder automatische herordening of reset van instellingen/leerdata.
