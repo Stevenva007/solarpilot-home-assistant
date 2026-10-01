@@ -17,10 +17,10 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                'paragraphs': ['SolarPilot is een lokaal Home Assistant-EMS. De actuele P1- en PV-metingen, '
                               'apparaatvoorwaarden en beveiligingen zijn altijd belangrijker dan '
                               'voorspellingen of aangeleerde patronen.',
-                              'Observatie berekent en leert maar stuurt geen gewone flexibele verbruikers. '
-                              'Zonnestroom voert de toegestane regeling uit. Pauze start niets nieuws en bouwt '
-                              'eigen onderbreekbare lasten veilig af, met behoud van minimumlooptijden en '
-                              'beschermde cycli.',
+                              'Alleen bekijken (technisch: observe) berekent en leert maar stuurt geen gewone '
+                              'flexibele toestellen. Automatisch regelen (technisch: solar) voert de toegestane '
+                              'regeling uit. Pauze start niets nieuws en bouwt eigen onderbreekbare lasten veilig '
+                              'af, met behoud van minimumlooptijden en beschermde cycli.',
                               'Er wordt maximaal één gewone fysieke wijziging tegelijk uitgevoerd en daarna op '
                               'terugmelding en nieuwe meetinformatie gewacht. Nieuwe apparaten staan standaard '
                               'Uitgesloten totdat ze bewust op Auto worden gezet.'],
