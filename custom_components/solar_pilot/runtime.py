@@ -982,7 +982,19 @@ class SolarRuntime:
             sample_gap_s=max(30, 2*self.settings["interval_s"]))
         holds = {i: p.reason for i in controlled} if p.yield_loads else {}
         blocks = {i: p.reason for i in controlled} if p.block_starts else {}
-        return holds, blocks, lower
+        if self.priority_board.active:
+            permissions = self.priority_board.permissions()
+            # Rank and EV-solar permission are separate in beta.36. A consumer
+            # below the Wallbox may use the measured handover route only when its
+            # own permission is explicitly enabled. Waiting/minimum Wallbox
+            # states can still block a new lower-priority start above.
+            no_reclaim = {
+                i for i in lower
+                if permissions.get("device:" + i) is not True
+            }
+        else:
+            no_reclaim = set(lower)
+        return holds, blocks, no_reclaim
 
     @staticmethod
     def _time_window_active(local_now, cfg):
