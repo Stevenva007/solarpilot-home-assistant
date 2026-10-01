@@ -1,5 +1,6 @@
 """Beta.36 heat-pump classification and conservative power learning."""
 from types import SimpleNamespace as NS
+from test_runtime import build
 
 from custom_components.solar_pilot.heatpump_learning import (
     CONTEXT_COOLING,
@@ -92,3 +93,17 @@ def test_heatpump_transition_gap_is_not_learned_as_compressor_step():
     for n in range(5):
         model.observe(3600+n*5,"2026-10-01",CONTEXT_HEATING,3300)
     assert model.estimate(CONTEXT_HEATING).samples==0
+
+
+def test_learned_heatpump_power_never_changes_realtime_site_measurement():
+    r,h=build(settings={'pv_entity':'sensor.pv'})
+    h.states.set('sensor.pv',3000,{'unit_of_measurement':'W'})
+    r.heatpump_learning.samples[CONTEXT_HEATING]=[5000,5100,4950,5050]
+    r.heatpump_learning.days[CONTEXT_HEATING]={'2026-09-29','2026-09-30'}
+    assert r.heatpump_learning.estimate(CONTEXT_HEATING).watts is not None
+    grid,valid,discharge,ready,_stamp=r._site_data()
+    assert valid and ready
+    assert grid==-2500
+    assert discharge==0
+    # The learned 5 kW estimate is not subtracted from P1 and cannot create headroom.
+    assert grid != -7500
