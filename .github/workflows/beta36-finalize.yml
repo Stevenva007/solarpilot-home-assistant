@@ -1,5 +1,5 @@
 name: Beta36 finalizer
-# validation-attempt: 2
+# validation-attempt: 3
 
 on:
   push:
