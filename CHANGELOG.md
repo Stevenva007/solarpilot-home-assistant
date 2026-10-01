@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.0-beta.37 — 2026-10-01
+
+- Dashboard en configuratie hernoemd in gewone taal: Alleen bekijken, Automatisch regelen, Toestellen, Warmte & comfort, Auto & batterij, Voorrang en Export.
+- Centrale voorrangslijst is nu de eenduidige dagelijkse bron voor flexibele zonne-energie. De bestaande beta.36-volgorde blijft behouden; nieuwe gewone toestellen komen standaard onderaan en kunnen daarna hoger/lager worden gezet.
+- Wallbox-regel verduidelijkt én runtime gelijkgetrokken met de zichtbare lijst: alleen een toestel bóven Auto laden (Wallbox) én met expliciete toestemming mag tijdens een bevestigde Full Solar-sessie zonnevermogen van de auto benutten. Onder de Wallbox blijft de toestemming opgeslagen maar inactief.
+- Afgesproken volgorde blijft beschermd: noodzakelijk warmtepompcomfort boven flexibele lasten; AEG-afwasmachine vóór Wallbox; Wallbox vóór ontvochtiger; extra warm water tot 60 °C als lagere luxe-zonbuffer.
+- Duplicerende oude Wallbox-prioriteitsweergave verdwijnt zodra de centrale lijst actief is. Per rij staat in begrijpelijke taal of Wallbox-zonnevermogen mag worden gebruikt.
+- Export vereenvoudigd tot één hoofdactie voor een compleet analysebestand voor periodieke controle in ChatGPT; standaard zeven dagen en gepseudonimiseerde namen.
+- Eénmalig beta.37-startprofiel activeert beschikbare analyse-, planner- en leermodules. Bronafhankelijke fase-, Wallbox-, klimaat- en DHW-regels worden alleen geactiveerd als de vereiste bestaande koppelingen en bevestigingen aanwezig zijn.
+- Leren & vragen schakelt naar gemeten sampling, begrensde automatische adaptatie en Home Assistant-meldingen. De eenmalige migratie stuurt niet meteen een notificatie en overschrijft latere gebruikerskeuzes niet.
+- Analyse kan live aan/uit zonder volledige integratieherlading; logregistratie volgt die instelling direct.
+- Nieuwe fysieke toestelrechten, ontbrekende entiteiten, DHW-veiligheidsbevestiging en batterij-eigenaarschap worden nooit automatisch verzonnen of toegekend.
+
 ## 1.0.0-beta.36 — 2026-10-01
 
 - Basislastleren scheidt duidelijke Panasonic-ruimteverwarming, -koeling, tapwater en sterilisatie van gewone huishoudlast. Zonder aparte W-meter wordt alleen uit stabiele P1+PV-start/stops een begrensde planningsschatting geleerd; realtime elektrische ruimte blijft uitsluitend op echte metingen gebaseerd.
