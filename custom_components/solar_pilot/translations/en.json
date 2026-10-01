@@ -45,13 +45,13 @@
         "title": "SolarPilot · Configuratiecentrum",
         "description": "Alles is gegroepeerd per functie. Begin bij Overzicht. Veelgebruikte bediening gebeurt op het SolarPilot-dashboard; hier beheer je koppelingen en regels.",
         "menu_options": {
-          "overview": "Overzicht & controle",
-          "energy_hub": "Energie & net",
-          "loads_hub": "Verbruikers & prioriteiten",
-          "comfort_hub": "Comfort & warmtepomp",
-          "storage_hub": "Opslag & laden",
-          "intelligence_hub": "Voorspellen & optimaliseren",
-          "advanced_hub": "Geavanceerd & systeem"
+          "overview": "Overview & status",
+          "energy_hub": "Energy & grid",
+          "loads_hub": "Devices",
+          "comfort_hub": "Heat & comfort",
+          "storage_hub": "EV & battery",
+          "intelligence_hub": "Forecast & learning",
+          "advanced_hub": "Advanced & system"
         }
       },
       "settings": {
