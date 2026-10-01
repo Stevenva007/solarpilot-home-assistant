@@ -2,8 +2,6 @@ name: Validate
 
 on:
   push:
-    branches-ignore:
-      - "release/beta.36"
   pull_request:
   schedule:
     - cron: "0 0 * * *"
