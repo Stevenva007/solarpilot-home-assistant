@@ -124,9 +124,14 @@ class LocalLearning:
         profiles = {}
         for i, p in self.profiles.items():
             values = p["watts"]
-            profiles[i] = {"samples": len(values), "median_w": percentile(values, .5),
-                           "p90_w": percentile(values, .9), "peak_observed_w": max(values) if values else None,
-                           "status": "Beschikbaar voor conservatieve planningsschatting" if len(values) >= 10 else "Gegevens verzamelen"}
+            samples = len(values)
+            p90 = percentile(values, .9)
+            profiles[i] = {"samples": samples, "median_w": percentile(values, .5),
+                           "p90_w": p90, "peak_observed_w": max(values) if values else None,
+                           "planning_w": p90 if samples >= 10 else None,
+                           "reliable": samples >= 10,
+                           "status": "Betrouwbaar · P90 voor conservatieve planning" if samples >= 10 else
+                                     "Voorlopig" if samples >= 5 else "Eerste metingen" if samples else "Nog niet geleerd"}
         return {"enabled": self.enabled, "local_only": True, "samples": len(self.responses),
                 "successes": self.successes, "failures": self.failures,
                 "response_p90_s": percentile(self.responses, .9),
