@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.36",
+  "version": "1.0.0-beta.37",
   "language": "nl",
   "steps": {
     "init": {
@@ -8,11 +8,11 @@
       "menu_options": {
         "overview": "Overzicht & controle",
         "energy_hub": "Energie & net",
-        "loads_hub": "Verbruikers & prioriteiten",
-        "comfort_hub": "Comfort & warmtepomp",
-        "storage_hub": "Opslag & laden",
-        "intelligence_hub": "Voorspellen & optimaliseren",
-        "advanced_hub": "Geavanceerd & systeem"
+        "loads_hub": "Toestellen",
+        "comfort_hub": "Warmte & comfort",
+        "storage_hub": "Auto & batterij",
+        "intelligence_hub": "Voorspellen & leren",
+        "advanced_hub": "Instellingen & systeem"
       }
     },
     "settings": {
