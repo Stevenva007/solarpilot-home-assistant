@@ -265,7 +265,8 @@ async def test_notification_optin_deduplicated_and_separate_from_faults():
 def test_export_includes_questions_models_and_answer_history():
     r,h=build();data=r.analysis.build(include_names=True)
     info=data['components']['learning_evidence_and_questions']
-    assert len(info['models'])==7 and info['questions'] and info['policy']['adaptation']=='assisted'
+    assert len(info['models'])==8 and info['questions'] and info['policy']['adaptation']=='assisted'
+    assert any(model['id']=='heatpump' for model in info['models'])
     assert 'coverage_note' in info['quality']['last_7d'] and not h.services.calls
 
 
