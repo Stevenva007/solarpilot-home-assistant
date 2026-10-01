@@ -203,8 +203,28 @@ class PVCalibration:
     def summary(self):
         days=set()
         for e in self.bins.values():days.update(e.get("days",{}))
-        errors=[abs(r["actual_w"]-r["corrected_w"]) for r in self.history
-                if r.get("actual_w") is not None and r.get("corrected_w") is not None and (r.get("raw_w") or 0)>=400]
+        valid=[r for r in self.history
+               if r.get("actual_w") is not None and r.get("corrected_w") is not None and (r.get("raw_w") or 0)>=400]
+        errors=[abs(r["actual_w"]-r["corrected_w"]) for r in valid]
+        biases=[r["actual_w"]-r["corrected_w"] for r in valid]
+        periods={}
+        for key,lo,hi in (("ochtend",0,11),("middag",11,15),("namiddag",15,24)):
+            rows=[]
+            for row in valid:
+                try: hour=datetime.fromisoformat(row["time"]).hour
+                except (ValueError,TypeError,KeyError): continue
+                if lo<=hour<hi: rows.append(row)
+            diffs=[x["actual_w"]-x["corrected_w"] for x in rows]
+            periods[key]={
+                "samples":len(rows),
+                "mae_w":round(sum(abs(x) for x in diffs)/len(diffs),1) if diffs else None,
+                "bias_w":round(sum(diffs)/len(diffs),1) if diffs else None,
+                "accepted":sum(1 for x in rows if x.get("accepted") is True),
+                "rejected":sum(1 for x in rows if x.get("accepted") is not True),
+            }
         return {"days":len(days),"accepted":self.counts["accepted"],"rejected":self.counts["rejected"],
                 "last_reason":self.last_reason,"revision":self.revision,
-                "mae_w":round(sum(errors)/len(errors),1) if errors else None,"error_samples":len(errors)}
+                "mae_w":round(sum(errors)/len(errors),1) if errors else None,
+                "bias_w":round(sum(biases)/len(biases),1) if biases else None,
+                "error_samples":len(errors),"periods":periods,
+                "minimum_days_required":max(int(self.settings.get("minimum_days",5)),PRESETS.get(self.settings.get("learning_preset"),PRESETS["normal"])[1])}
