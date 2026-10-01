@@ -317,17 +317,36 @@ class AnalysisRecorder:
         current = {eid: entity_snapshot(r.hass, eid, wall) for eid in refs}
         windows = {key: [x for x in getattr(self, key) if x["ts"] >= cutoff] for key in ("samples", "changes", "events", "fast")}
         sample_rows = sorted(windows["samples"], key=lambda row: row["ts"])
-        first_ts = sample_rows[0]["ts"] if sample_rows else None
-        last_ts = sample_rows[-1]["ts"] if sample_rows else None
-        raw_span_s = max(0.0, last_ts-first_ts) if first_ts is not None and last_ts is not None else 0.0
+        first_raw_ts = sample_rows[0]["ts"] if sample_rows else None
+        last_raw_ts = sample_rows[-1]["ts"] if sample_rows else None
+        raw_span_s = max(0.0, last_raw_ts-first_raw_ts) if first_raw_ts is not None and last_raw_ts is not None else 0.0
+
+        def usable_sample(row):
+            try:
+                grid = float(row.get("grid_w"))
+                if not math.isfinite(grid):
+                    return False
+                if r.settings.get("pv_entity"):
+                    pv = float(row.get("pv_w"))
+                    if not math.isfinite(pv) or pv < 0:
+                        return False
+                return True
+            except (TypeError, ValueError):
+                return False
+
+        usable_rows = [row for row in sample_rows if usable_sample(row)]
+        first_usable_ts = usable_rows[0]["ts"] if usable_rows else None
+        last_usable_ts = usable_rows[-1]["ts"] if usable_rows else None
         max_gap_s = max(120.0, float(self.settings["sample_interval_s"]) * 2.2)
-        covered_s = gap_s = 0.0
+        covered_s = gap_s = unusable_s = 0.0
         for before, after in zip(sample_rows, sample_rows[1:]):
             delta = max(0.0, float(after["ts"])-float(before["ts"]))
-            if delta <= max_gap_s:
+            if delta > max_gap_s:
+                gap_s += delta
+            elif usable_sample(before) and usable_sample(after):
                 covered_s += delta
             else:
-                gap_s += delta
+                unusable_s += delta
         requested_s = max(1.0, float(hours) * 3600.0)
         fast_rows = sorted(windows["fast"], key=lambda row: row["ts"])
         fast_span_s = max(0.0, fast_rows[-1]["ts"]-fast_rows[0]["ts"]) if len(fast_rows) > 1 else 0.0
@@ -338,12 +357,16 @@ class AnalysisRecorder:
             "covered_hours": round(covered_s/3600.0, 2),
             "coverage_pct": round(min(100.0, 100.0*covered_s/requested_s), 1),
             "raw_span_coverage_pct": round(min(100.0, 100.0*covered_s/raw_span_s), 1) if raw_span_s > 0 else 0.0,
-            "first_usable_sample": iso(first_ts) if first_ts is not None else None,
-            "last_usable_sample": iso(last_ts) if last_ts is not None else None,
+            "first_raw_sample": iso(first_raw_ts) if first_raw_ts is not None else None,
+            "last_raw_sample": iso(last_raw_ts) if last_raw_ts is not None else None,
+            "first_usable_sample": iso(first_usable_ts) if first_usable_ts is not None else None,
+            "last_usable_sample": iso(last_usable_ts) if last_usable_ts is not None else None,
             "restart_count": restart_count,
             "offline_or_unregistered_gap_hours": round(gap_s/3600.0, 2),
+            "unusable_sample_interval_hours": round(unusable_s/3600.0, 2),
+            "uncovered_within_raw_span_hours": round(max(0.0, raw_span_s-covered_s)/3600.0, 2),
             "fast_telemetry_hours": round(fast_span_s/3600.0, 2),
-            "coverage_method": "Alleen intervallen tussen twee ruwe samples; gaten groter dan 2,2× het sample-interval tellen niet als dekking.",
+            "coverage_method": "Dekking telt alleen korte intervallen tussen twee bruikbare P1/PV-samples. Opgeslagen maar ongeldige samples en grotere meetgaten tellen niet als meettijd.",
         }
         try:
             from homeassistant.const import __version__ as ha_version
