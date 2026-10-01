@@ -1151,8 +1151,8 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'de opslag toch is gelukt.',
                               'De vroegere prioriteitsgetallen, globale keuzes en ruwe toestelprofielen '
                               'blijven bewaard voor migratie en onderzoek. Na de automatische beta.36-migratie '
-                              'zijn zij niet langer leidend: de oude 
-                              'numerieke/global-schakelbediening wijst wijzigingsopdrachten af met een '
+                              'zijn zij niet langer leidend: de oude numerieke/global-schakelbediening '
+                              'wijst wijzigingsopdrachten af met een '
                               'verwijzing naar Voorrang. De toestelwizard verbergt dan de oude rangorde- en '
                               'overnametoestemmingsvelden. Een oude, al geopende wizard mag die keuzes niet '
                               'terugschrijven. Temperaturen, timers, startrechten, leerdata en '
