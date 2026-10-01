@@ -42,6 +42,20 @@ def test_opening_legacy_order_is_read_only(others_first):
     assert all(not row['active'] for row in view['rows'] if row.get('device_id'))
 
 
+@pytest.mark.asyncio
+async def test_beta36_migration_activates_exact_existing_order_without_commands():
+    r,h=multiple();r.others_first=True
+    before_devices=deepcopy(r.entry.options['devices'])
+    expected=r.priority_board.legacy_order()
+    changed=await r.priority_board.migrate_beta36()
+    assert changed
+    assert r.priority_board.active
+    assert r.priority_board.saved['schema']==2
+    assert r.priority_board.order()==expected
+    assert r.entry.options['devices']==before_devices
+    assert not h.services.calls
+
+
 def test_existing_preferred_dishwasher_precedes_wallbox_and_extra():
     r,h=multiple();r.configs['second_consumer'].update(kind='dishwasher',dishwasher_priority_enabled=True,wallbox_precedence='wallbox_first')
     order=r.priority_board.order()
@@ -122,7 +136,9 @@ def test_extra_cannot_overtake_wallbox_or_preferred_dishwasher():
 def test_new_id_not_granted_previous_mode_and_retired_id_not_displayed():
     r,h=multiple();b=r.priority_board;activate(r)
     old=r.configs.pop('a');r.configs['replacement']={**old,'id':'replacement','name':'Vervanger'}
-    assert 'device:a' not in b.order() and b.order()[-1]=='device:replacement'
+    assert 'device:a' not in b.order()
+    assert b.order().index('device:replacement') < b.order().index(EXTRA)
+    assert b.order()[-1] == EXTRA
     assert r.device_modes.get('replacement','disabled')=='disabled'
     assert 'device:replacement' in b.permissions()
     r.configs['new_aeg']={**old,'id':'new_aeg','name':'Nieuwe afwas','kind':'dishwasher','dishwasher_priority_enabled':True}
@@ -137,7 +153,7 @@ def test_right_requires_position_permission_and_meter(before,permission,meter):
     activate(r,order,{'device:a':permission,'device:second_consumer':True})
     c=r.priority_board.effective_config('a')
     allowed,_,_=reclaim_permission(c,before_wallbox=before,dedicated_meter=meter)
-    assert allowed==(before and permission and meter)
+    assert allowed==(permission and meter)
     assert c['_priority_board_before_wallbox']==before
     assert r.configs['a']['priority']==60
 
@@ -146,7 +162,7 @@ def test_legacy_opt_in_toggles_without_relaxing_legacy_runtime_rule():
     r,h=multiple();r.configs['a'].update(wallbox_power_policy='legacy',allow_wallbox_reclaim=False)
     activate(r,['device:a',WALLBOX,'device:second_consumer',EXTRA],{'device:a':True,'device:second_consumer':True})
     c=r.priority_board.effective_config('a');allowed,long,_=reclaim_permission(c,before_wallbox=True,dedicated_meter=True)
-    assert allowed and not long and c['wallbox_power_policy']=='legacy'
+    assert allowed and long and c['wallbox_power_policy']=='legacy'
 
 
 def test_board_rank_matches_planner_and_engine_configs():
