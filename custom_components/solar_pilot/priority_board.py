@@ -20,6 +20,7 @@ from .dishwasher_priority import enabled as dishwasher_priority_enabled
 from .wallbox_policy import reclaim_permission
 
 GROUP = "priority_board"
+SCHEMA = 2
 WALLBOX = "wallbox"
 EXTRA = "dhw_extra"
 
@@ -45,7 +46,7 @@ class PriorityBoard:
     def active(self):
         s = self.saved
         order = s.get("order")
-        return (s.get("schema") == 1 and isinstance(order, list)
+        return (s.get("schema") in (1, SCHEMA) and isinstance(order, list)
                 and all(isinstance(x, str) for x in order)
                 and len(set(order)) == len(order) and WALLBOX in order and EXTRA in order
                 and order.index(WALLBOX) < order.index(EXTRA))
@@ -73,7 +74,9 @@ class PriorityBoard:
                 if dishwasher_priority_enabled(self.r.configs[i]):
                     result.insert(result.index(WALLBOX), key)
                 else:
-                    result.append(key)
+                    # New ordinary flexible loads join the movable solar list just
+                    # before optional 60 °C heat, never behind the final buffer.
+                    result.insert(result.index(EXTRA), key)
         return result
 
     def ranks(self):
@@ -111,6 +114,7 @@ class PriorityBoard:
         permission = self.permissions()[device_key(device_id)]
         return {**c, "priority": ranks[device_key(device_id)],
                 "_priority_board_before_wallbox": before,
+                "_priority_board_wallbox_power": permission,
                 "_priority_board_rank": ranks[device_key(device_id)],
                 "wallbox_precedence": "consumer_first" if before else "wallbox_first",
                 "wallbox_power_policy": ("legacy" if c.get("wallbox_power_policy") == "legacy" else "priority") if permission else "never",
@@ -157,25 +161,45 @@ class PriorityBoard:
             raise HomeAssistantError("Er wordt nog op een toestel of Wallbox-overdracht gewacht. De huidige opdracht wordt eerst afgerond; probeer daarna opnieuw.")
         base = deepcopy(dict(self.r.entry.options))
         desired = deepcopy(base)
-        desired[GROUP] = {"schema": 1, "order": list(order), "wallbox_power": dict(permissions)}
+        desired[GROUP] = {"schema": SCHEMA, "order": list(order), "wallbox_power": dict(permissions),
+                          "source": "central_beta36"}
         await self.r.live_options.submit(base, desired)
         return {**self.overview(), "message": "Voorrang opgeslagen. De volgende regelcontrole gebruikt de nieuwe volgorde; lopende bescherming blijft gelden."}
+
+    async def migrate_beta36(self):
+        """Activate one central board while preserving beta.35 effective order exactly."""
+        saved = self.saved
+        order = self.order()
+        permissions = self.permissions()
+        if (saved.get("schema") == SCHEMA and saved.get("order") == order
+                and saved.get("wallbox_power") == permissions):
+            return False
+        options = deepcopy(dict(self.r.entry.options))
+        options[GROUP] = {
+            "schema": SCHEMA,
+            "order": list(order),
+            "wallbox_power": dict(permissions),
+            "source": "migrated_beta35" if saved.get("schema") != SCHEMA else saved.get("source", "central_beta36"),
+        }
+        updater = getattr(getattr(self.r.hass, "config_entries", None), "async_update_entry", None)
+        if updater is not None:
+            updater(self.r.entry, options=options)
+        else:
+            self.r.entry.options = options
+        return True
 
     def protected_rows(self):
         r = self.r
         return [
-            {"id": "safety", "name": "Beveiliging en hygiëne", "active": True,
-             "power_label": "Niet door deze lijst begrensd",
-             "reason": "Elektrische grenzen, fabrikantbeveiliging en de bestaande sterilisatie blijven altijd gelden."},
-            {"id": "dhw_comfort", "name": "Gewoon warm water", "active": r.dhw.configured,
-             "power_label": "Heeft voorrang op autoladen",
-             "reason": "Normaal boilerdoel en bewaakte comfortgrens blijven ongewijzigd. Panasonic bepaalt de herverwarming."},
-            {"id": "dhw_evening", "name": "Noodzakelijke avondvoorraad", "active": r.dhw.configured and bool(r.dhw.settings.get("evening_enabled")),
-             "power_label": "Heeft voorrang op autoladen",
-             "reason": "Alleen volgens het bestaande voorraadplan en doelplafond; dit is niet de extra 60 °C-buffer."},
-            {"id": "space_comfort", "name": "Ruimteverwarming en koeling", "active": bool(r.smart_climate.settings.get("enabled")),
-             "power_label": "Normaal comfort blijft beschermd",
-             "reason": "Thermostaatdoelen en handmatige Panasonic-standen blijven behouden. Dit activeert geen nieuwe klimaatregeling."},
+            {"id": "safety", "name": "Elektrische beveiliging, fabrikantbeveiliging en legionella", "active": True,
+             "power_label": "Altijd beschermd",
+             "reason": "Echte elektrische grenzen, Panasonic-beveiliging en het bestaande wekelijkse sterilisatieprogramma gaan altijd voor."},
+            {"id": "dhw_comfort", "name": "Noodzakelijk warmwatercomfort", "active": r.dhw.configured,
+             "power_label": "Altijd vóór flexibele zonneverdeling",
+             "reason": "Het normale 50 °C-doel, de bewaakte 46 °C-comfortgrens en noodzakelijke voorraad blijven beschermd. Extra 60 °C staat wél in de verplaatsbare lijst."},
+            {"id": "space_comfort", "name": "Noodzakelijk ruimteverwarmings-/koelcomfort", "active": bool(r.smart_climate.settings.get("enabled")),
+             "power_label": "Altijd vóór flexibele zonneverdeling",
+             "reason": "Comfortgrenzen en Panasonic HEAT/COOL-keuze blijven beschermd; SolarPilot versoepelt ze niet voor energieoptimalisatie."},
         ]
 
     def overview(self):
@@ -215,8 +239,8 @@ class PriorityBoard:
         return {"active": self.active, "revision": self.revision(), "order": self.order(),
                 "wallbox_power": permissions, "rows": rows, "protected": self.protected_rows(),
                 "constraints": self.constraints(),
-                "note": ("Deze centrale lijst bepaalt de automatische verdeling. Bescherming, expliciete boosts en deadlines blijven erboven staan."
-                         if self.active else "Bestaande voorrang uit beta.34. Openen wijzigt niets; pas een bevestigde wijziging activeert de centrale lijst."),
+                "note": ("Deze centrale lijst is de leidende bron voor flexibele energieregeling. Bescherming, expliciete boosts en toegestane deadlines blijven erboven staan."
+                         if self.active else "De bestaande beta.35-volgorde wordt bij migratie ongewijzigd als centrale lijst vastgelegd."),
                 "legacy_note": "Bestaande getallen en globale keuzes blijven bewaard, maar zijn na een centrale wijziging niet langer leidend."}
 
     def guard_extra(self, reading, now):
