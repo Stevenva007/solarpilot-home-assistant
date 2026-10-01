@@ -2,35 +2,101 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - publish-release
 
 permissions:
   contents: write
+
+concurrency:
+  group: solar-pilot-release
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
+
       - name: Public repository privacy/structure
         run: python tools/check_public_repository.py
+
       - name: Handoff dossier consistency
         run: python tools/check_handoff.py
+
       - name: Release/documentation consistency
         run: python tools/check_current_explanation.py
+
+      - name: Install test dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Full test suite
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python -m pytest -q -p no:cacheprovider
+
       - name: Validate Python syntax
         run: python -m compileall -q custom_components/solar_pilot
-      - name: Create GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
+
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: integration
+
+      - name: Hassfest validation
+        uses: home-assistant/actions/hassfest@master
+
+      - name: Prepare release
+        id: release
         shell: bash
         run: |
-          extra=()
-          if [[ "${GITHUB_REF_NAME}" == *beta* || "${GITHUB_REF_NAME}" == *alpha* || "${GITHUB_REF_NAME}" == *rc* ]]; then
-            extra+=(--prerelease)
+          version="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.loads(Path("custom_components/solar_pilot/manifest.json").read_text())["version"])
+          PY
+          )"
+          tag="v${version}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git rev-parse "${tag}^{commit}" >/dev/null 2>&1; then
+            if [[ "$(git rev-parse "${tag}^{commit}")" != "$GITHUB_SHA" ]]; then
+              echo "::error::Tag ${tag} bestaat al maar wijst niet naar deze commit."
+              exit 1
+            fi
+          else
+            git tag -a "${tag}" -m "SolarPilot ${version}"
+            git push origin "${tag}"
           fi
-          gh release create "${GITHUB_REF_NAME}" --generate-notes --verify-tag "${extra[@]}"
+
+          package="SolarPilot-${version}-GitHub-HACS.zip"
+          git archive --format=zip --output="${package}" HEAD
+          echo "package=${package}" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
+          PACKAGE: ${{ steps.release.outputs.package }}
+        shell: bash
+        run: |
+          assets=("$PACKAGE" "docs/BETA37_INSTELLEN.md" "docs/TESTRESULTATEN_BETA37.md")
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${assets[@]}" --clobber
+          else
+            extra=()
+            if [[ "$TAG" == *beta* || "$TAG" == *alpha* || "$TAG" == *rc* ]]; then
+              extra+=(--prerelease)
+            fi
+            gh release create "$TAG" --title "SolarPilot ${TAG}" --generate-notes --verify-tag "${extra[@]}" "${assets[@]}"
+          fi
