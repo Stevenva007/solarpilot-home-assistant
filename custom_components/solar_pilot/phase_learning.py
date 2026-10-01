@@ -135,12 +135,24 @@ class PhaseLearning:
 
     def overview(self, configs=None, extra_configs=None):
         configs={**(configs or {}), **(extra_configs or {})}; devices={}
+        use_control = bool(self.settings.get("use_learned_device_map",False))
+        threshold = float(self.settings.get("learning_min_confidence",.75))
         for device_id,cfg in configs.items():
             if cfg.get("power_entity"):
-                devices[device_id]={"name":cfg.get("name",device_id),**self.profile(device_id),"hint":cfg.get("phase_hint","auto")}
+                profile = self.profile(device_id)
+                reliable = profile.get("classification") != "unknown" and float(profile.get("confidence",0) or 0) >= threshold
+                hint = cfg.get("phase_hint","auto")
+                devices[device_id]={
+                    "name":cfg.get("name",device_id), **profile, "hint":hint,
+                    "learned": profile.get("classification") != "unknown",
+                    "reliable": reliable,
+                    "used_for_advice": reliable and str(hint).lower() == "auto",
+                    "control_allowed": reliable and use_control and str(hint).lower() == "auto",
+                }
         return {"enabled":bool(self.settings.get("learning_enabled",True)),"accepted_events":self.accepted,"rejected_events":self.rejected,
-                "use_for_control":bool(self.settings.get("use_learned_device_map",False)),"minimum_confidence_for_control":float(self.settings.get("learning_min_confidence",.75)),
-                "devices":devices,"note":"Faseherkenning is statistisch. Onbekende restlast blijft zichtbaar en zekeringen blijven de echte beveiliging."}
+                "use_for_control":use_control,"minimum_confidence_for_control":threshold,
+                "devices":devices,
+                "note":"Geleerd en betrouwbaar zijn niet hetzelfde als regeltoestemming. Alleen expliciete fasevrijgave kan een betrouwbare geleerde fase voor regeling gebruiken; zekeringen en echte fasemetingen blijven leidend."}
 
 
 def phase_allocation_from_hint(hint, learned_profile=None, minimum_confidence=.75):
