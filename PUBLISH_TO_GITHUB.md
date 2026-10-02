@@ -1,14 +1,16 @@
 # SolarPilot beta.45 publiceren — bestaande GitHub/HACS-repository
 
-Beta.45 is softwarematig klaar voor publicatie met **1773 geslaagde Python-tests in 10.05 s** en **veertien geslaagde browsercontroles**, met nul fysieke actuatoroproepen. De exacte ACK-adaptercorrectie herkent de live Aquarea Smart Cloud 1.0.61-koppeling (`aquarea`) en `panasonic_cc` via geregistreerde herkomst, zonder naamheuristiek. Beta.45 is nog niet gepubliceerd of geïnstalleerd; nieuwe pakketten en latere live-doelrapportage moeten afzonderlijk worden bevestigd.
+Beta.45 is gepubliceerd op onveranderlijke tag `v1.0.0-beta.45`, commit `507f74183f51b3517b077d05a455e4f169824f69`; [Validate 37029502122](https://github.com/Stevenva007/solarpilot-home-assistant/actions/runs/37029502122) is geslaagd met alle vier jobs. De softwaregate behaalde **1773 Python-tests in 10.05 s** en **veertien browsercontroles**, nul fysieke actuatoroproepen. De exacte ACK-adaptercorrectie herkent Aquarea Smart Cloud 1.0.61 (`aquarea`) en `panasonic_cc` via geregistreerde herkomst, zonder naamheuristiek. Gedownloade pakketten, HACS-installatie, geladen backend/kaart beta.45 en gecontroleerd hervatten van Auto zijn afzonderlijk bevestigd; een nieuwe latere live-doelrapportage blijft open.
 
-Gebruik uitsluitend de bestaande repository `Stevenva007/solarpilot-home-assistant`. Maak geen nieuwe repository, force-push of verplaatste oude tags. Een nieuwe release krijgt tag `v1.0.0-beta.45`; beta.44 en alle oudere tags, ZIP-assets en release-documentassets blijven onveranderd.
+Gebruik uitsluitend de bestaande repository `Stevenva007/solarpilot-home-assistant`. Maak geen nieuwe repository, force-push of verplaatste oude tags. Beta.45 en alle oudere tags, ZIP-assets en release-documentassets blijven onveranderd. Deze latere documentbijwerking op de hoofdbranch vervangt geen releasebestand; een volgende bronrelease vereist een nieuw versienummer.
 
 ## Bewezen live basis
 
-Beta.44 is gepubliceerd onder tag `v1.0.0-beta.44`, commit `5bbfa16cbc9453a818fb825fe16c447792ed63a2`. Validate `37022762657`, ZIP-verificatie, HACS-installatie en geladen backend/kaart zijn bevestigd op Core 2026.9.4. De 1760 Python-tests en veertien browsercontroles horen bij beta.44, niet bij beta.45.
+Na HACS-installatie en normale volledige herstart op Core **2026.9.4** zijn backend/actuele uitleg én kaart afzonderlijk als **1.0.0-beta.45** bevestigd. De boilerstatus meldt exact `target_adapter_domains=['aquarea']`, `ack_poll_min_s=10` en contract `later_ha_report_at_or_after_adapter_delay`. Native taakbron en beveiligingen zijn gecontroleerd; gemeld ruimtebedrijf houdt de extra zonnebuffer beschermd. Powerful, Force DHW en Force Heater stonden uit. Zonder review/manual hold, fout of wachtende opdracht was geen extra review nodig; **Automatisch regelen** is via normale bediening hervat en teruggelezen.
 
-Native taakbron, afzonderlijke maandagdeadline en gerichte review zijn via normale bediening gecontroleerd zonder APP-ticket/herarming/START. Een vroege `ha_state` vóór tien seconden was geen bewijs van de bedoelde guard; de installatie is voor beta.45-controle gepauzeerd. Er worden geen persoonlijke bedientijden, temperatuurwaarden of huishoudschema's gepubliceerd. Gemeten afwascyclusleren blijft uit zonder geschikte exclusieve W-meter.
+Er is geen nieuwe doelopdracht afgedwongen. De bewaarde laatste succesvolle opdracht is nog de oudere beta.44-`ha_state`, geen nieuwe `delayed_ha_state`. Een volgende natuurlijke opdracht en passende latere rapportage blijven afzonderlijk te observeren, zonder fysieke proefstart of geforceerde opwarming. Native taakbron en afzonderlijke maandagdeadline zijn via de normale wizard gecontroleerd zonder APP-ticket/herarming/START. Er worden geen persoonlijke bedientijden, temperatuurwaarden of huishoudschema's gepubliceerd. Gemeten afwascyclusleren blijft uit zonder geschikte exclusieve W-meter.
+
+Beta.44 blijft historische basis onder tag `v1.0.0-beta.44`, commit `5bbfa16cbc9453a818fb825fe16c447792ed63a2`, geslaagde Validate `37022762657`, 1760 tests/veertien browsercontroles. Die resultaten zijn geen beta.45-testtotaal.
 
 ## Lokale controle vóór publicatie
 
@@ -42,11 +44,16 @@ De workflow **Validate** draait op main, pull requests naar main of handmatig; e
 
 ## Pakketcontrole na publicatie
 
-Download beide nieuwe beta.45-ZIP's. Controleer werkelijke SHA-256, manifestversie, padveiligheid, private/cachebestanden en inhoud tegenover de nieuwe tag. Een groene workflow bewijst geen geladen Home Assistant-versie. Vervang geen bestaande tag, ZIP-asset of release-documentasset.
+Beide beta.45-ZIP's zijn daadwerkelijk gedownload en tegen de exacte tag gecontroleerd: verifier `errors=[]`, **254 repositorybestanden** en **100 integratiebestanden**, bytegelijk aan de tag. Manifestversie, padveiligheid en afwezigheid van private/cachebestanden zijn gecontroleerd.
+
+- GitHub/HACS-ZIP: **1797247 bytes**; SHA-256 `d4e81596b92b164e646db5e7a0f904c389c837de98bb5a5cfb35d31fa7a1d32e`.
+- Lokale ZIP: **709748 bytes**; SHA-256 `0ec3b6bdb19584bd55c4068306ca98c3c9463beda13c3cf6660332deda525916`.
+
+De [beta.45-prerelease](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.45) is gepubliceerd op **2 oktober 2026 om 15:48:55 UTC**. Een groene workflow en pakketcontrole bewijzen geen geladen Home Assistant-versie. Vervang geen bestaande tag, ZIP-asset of release-documentasset.
 
 ## Installatie en livecontrole
 
-Maak een actuele volledige back-up; de eerder bevestigde versleutelde NAS-back-up vóór beta.44 is geen herstelproef en bevat niet vanzelf later opgeslagen instellingen. Laat een beschermde cyclus afwerken zonder STOPRESET. Installeer exact beta.45 via HACS en herstart Home Assistant volledig. Bevestig backend en vernieuwde kaart afzonderlijk.
+Een nieuwe versleutelde volledige Home Assistant-back-up op de toegestane NAS voor beta.45 is gereed bevestigd. Dit is geen herstelproef; maak bij latere wijzigingen opnieuw een actuele back-up. Laat een beschermde cyclus afwerken zonder STOPRESET. Installeer exact beta.45 via HACS en herstart Home Assistant volledig. Bevestig backend en vernieuwde kaart afzonderlijk.
 
 Houd **Alleen bekijken** of **Pauze** tijdens broncontrole. Controleer native adapterherkomst, tankmeting, gemeld doel, handmatige/krachtige functies, hygiëne, koeling/ruimteactie, P1/PV en pending opdrachten. Een gerichte review werkt alleen buiten Auto en schrijft zelf geen temperatuur. Herstel Auto pas na veilige installatiecontrole.
 

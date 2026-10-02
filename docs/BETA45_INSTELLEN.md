@@ -1,6 +1,6 @@
 # SolarPilot 1.0.0-beta.45 — instellen en controleren
 
-Beta.45 corrigeert uitsluitend de exacte adapterherkenning voor latere Panasonic-boilerdoelbevestiging. De live koppeling is **Aquarea Smart Cloud 1.0.61**, met domein `aquarea`. Zij schrijft eerst optimistisch het gevraagde doel in Home Assistant en vraagt pas na tien seconden geforceerd op. Beta.44 herkende alleen `panasonic_cc`; haar live `ha_state`-bevestiging na vijf seconden was geen bewijs voor de vertraagde beveiliging.
+Beta.45 is gepubliceerd en beide installatiepakketten zijn gecontroleerd. De release corrigeert uitsluitend de exacte adapterherkenning voor latere Panasonic-boilerdoelbevestiging. De gecontroleerde koppeling is **Aquarea Smart Cloud 1.0.61**, met domein `aquarea`. Zij schrijft eerst optimistisch het gevraagde doel in Home Assistant en vraagt pas na tien seconden geforceerd op. Beta.44 herkende alleen `panasonic_cc`; een vroege `ha_state` vóór tien seconden was geen bewijs voor de vertraagde beveiliging.
 
 ## Bewezen uitgangspunt
 
@@ -8,20 +8,20 @@ Beta.44 is gepubliceerd onder de onveranderlijke tag `v1.0.0-beta.44`, commit `5
 
 De normale wizard en native taakguard zijn gecontroleerd. Verse WATER en PUMP zijn gelezen; PUMP maakte `space_climate_busy=true`. Dit meldt een taak en bewijst geen HEAT/COOL of exclusief compressorvermogen. Opslaan en teruglezen van de afzonderlijke maandagdeadline zijn getest zonder APP-ticket, herarming of START. Bijvoorbeeld maandag 10:00 naast een gewone deadline 13:00 is een optionele productkeuze; hier wordt geen persoonlijk schema gepubliceerd. Gemeten afwascyclusleren blijft uit zonder geschikte exclusieve W-meter.
 
-De gerichte reviewroute is gecontroleerd, maar een vroege `ha_state`-bevestiging vóór tien seconden gebruikte de verkeerde adapterroute. De installatie is daarom voor beta.45-controle gepauzeerd. Beta.45 is nog niet gepubliceerd of geïnstalleerd; een latere doelwaarneming is nog niet live bevestigd. Persoonlijke bedientijden en tank-/doelwaarden worden niet gepubliceerd.
+De eerdere vroege `ha_state` vóór tien seconden gebruikte de verkeerde adapterroute. Beta.45 is inmiddels via HACS geïnstalleerd, na volledige Home Assistant-herstart afzonderlijk als backend/actuele uitleg én kaart bevestigd, en **Automatisch regelen** is na bron- en beveiligingscontrole hervat. De nieuwe status herkent exact `aquarea` met `ack_poll_min_s=10` en contract `later_ha_report_at_or_after_adapter_delay`. Er was geen review/manual hold, fout of wachtende opdracht; een extra review was niet nodig. Powerful, Force DHW en Force Heater stonden uit. Er is geen nieuwe doelopdracht afgedwongen. Een volgende natuurlijke latere doelbevestiging blijft open: de bewaarde beta.44-`ha_state` telt niet als nieuwe beta.45-ACK. Persoonlijke bedientijden en tank-/doelwaarden worden niet gepubliceerd.
 
 ## Softwarecontrole en voorbereiding
 
-De definitieve beta.45-softwaregate is groen: **1773 Python-tests in 10.05 s**, **veertien browsercontroles** met nul fysieke actuatoroproepen, actuele uitleg (`8eb8458f093da416`), handoff, validatie, publieke preflight, beide JavaScript-syntaxcontroles en diffcontrole. Publicatie en liveacceptatie blijven afzonderlijke stappen.
+De definitieve beta.45-softwaregate is groen: **1773 Python-tests in 10.05 s**, **veertien browsercontroles** met nul fysieke actuatoroproepen, actuele uitleg (`8eb8458f093da416`), handoff, validatie, publieke preflight, beide JavaScript-syntaxcontroles en diffcontrole. Validate **37029502122** is geslaagd; tag `v1.0.0-beta.45` verwijst onveranderlijk naar commit `507f74183f51b3517b077d05a455e4f169824f69`. Beide gedownloade pakketten zijn gecontroleerd: **254 repositorybestanden**, **100 integratiebestanden**, bytegelijk aan de tag, verifier `errors=[]`. Werkelijke SHA-256 en pakketgroottes staan in `TESTRESULTATEN_BETA45.md`. HACS, geladen versie en gecontroleerd hervatten zijn afzonderlijk bevestigd; toekomstige latere ACK en fysieke regelroutes blijven afzonderlijke acceptatie.
 
 1. Behoud de gecontroleerde beta.45-bron en het volledige testverslag; zie `TESTRESULTATEN_BETA45.md`. Herhaal de gate bij verdere bronwijzigingen.
-2. Publiceer een nieuwe onveranderlijke tag `v1.0.0-beta.45`; wijzig beta.44 of oudere tags/assets niet.
-3. Controleer de werkelijk gedownloade release-ZIP's tegen die tag en leg SHA-256 vast.
-4. Maak vóór installatie een actuele volledige Home Assistant-back-up. Een eerdere versleutelde volledige NAS-back-up vóór beta.44 is bevestigd, maar is geen herstelproef en bevat niet vanzelf later opgeslagen instellingen.
+2. Gebruik de gepubliceerde onveranderlijke tag `v1.0.0-beta.45`; verplaats geen bestaande tag en vervang geen ZIP- of release-documentasset.
+3. Vergelijk een lokaal installatiepakket met de werkelijk gecontroleerde SHA-256 in `TESTRESULTATEN_BETA45.md`.
+4. Een nieuwe versleutelde volledige Home Assistant-back-up op de toegestane NAS voor beta.45 is gereed bevestigd. Dit is geen herstelproef; maak opnieuw een actuele back-up wanneer de installatie daarna nog verandert.
 5. Laat een actieve beschermde cyclus afwerken. Gebruik geen STOPRESET of nieuwe APP-aanvraag om updateacceptatie af te dwingen.
 6. Noteer modus, boilerstatus, native taakbron, maandagdeadline en toesteltoestanden.
 
-## Upgrade zodra beta.45 is gepubliceerd
+## Upgrade naar de gepubliceerde beta.45
 
 1. Installeer exact `1.0.0-beta.45` via HACS en herstart Home Assistant volledig.
 2. Controleer backendversie en vernieuwde kaart afzonderlijk. Een HACS-download of manifestnummer bewijst niet dat nieuwe code geladen is.
