@@ -5,17 +5,44 @@ The optional effective-session source is an explicit, user-verified HA entity.
 """
 from __future__ import annotations
 from dataclasses import dataclass
+import re
 from .wallbox import state_set
+
+_LEGACY_SOLAR_STATES = frozenset({
+    "zonne-auto · laden",
+    "zonne-auto · wacht op overschot",
+})
+_SOLAR_WAITING_FOR_CAR = "zonne-auto · wacht op auto"
 
 SESSION_DEFAULTS = {
     "session_mode_entity": "",
-    "session_solar_states": "Zonne-auto · laden;Zonne-auto · wacht op overschot",
+    "session_solar_states": (
+        "Zonne-auto · laden;Zonne-auto · wacht op overschot;"
+        "Zonne-auto · wacht op auto"
+    ),
     "session_manual_states": "Manueel laden;Manueel laden · klaar;Manueel / solar uit",
     "session_stopped_states": "Laden gestopt",
     "trust_solar_setting": False,
     "manual_suspend_extra_dhw": True,
 }
 RECLAIM_POLICIES = ("priority", "never", "legacy")
+
+
+def _session_solar_states(config):
+    """Extend only the exact pre-beta.44 default, preserving custom lists."""
+    raw = config.get("session_solar_states", SESSION_DEFAULTS["session_solar_states"])
+    states = state_set(raw)
+    # The saved default is a value list, not a meaningful serialization.  Match
+    # it case-insensitively across the historically accepted simple separators,
+    # but never add a state when any custom value is present or missing.
+    legacy_values = {
+        part.strip().casefold()
+        for part in re.split(r"[;,\r\n]+", str(raw))
+        if part.strip()
+    }
+    if legacy_values == _LEGACY_SOLAR_STATES:
+        return set(_LEGACY_SOLAR_STATES) | {_SOLAR_WAITING_FOR_CAR}
+    return states
 
 
 def discover_session_candidate(hass, config):
@@ -35,7 +62,7 @@ def discover_session_candidate(hass, config):
         rows = getattr(registry, "entities", {})
         rows = list(rows.values()) if hasattr(rows, "values") else []
         known_groups = [
-            state_set(config.get("session_solar_states", SESSION_DEFAULTS["session_solar_states"])),
+            _session_solar_states(config),
             state_set(config.get("session_manual_states", SESSION_DEFAULTS["session_manual_states"])),
             state_set(config.get("session_stopped_states", SESSION_DEFAULTS["session_stopped_states"])),
         ]
@@ -84,7 +111,7 @@ def classify_session(config, raw_mode, session_value):
             return Session("manual", "Manueel laden: EV-vermogen blijft gereserveerd voor de auto", True)
         if value in state_set(config.get("session_stopped_states", SESSION_DEFAULTS["session_stopped_states"])):
             return Session("stopped", "Laden gestopt; alleen werkelijk restoverschot gebruiken", True)
-        if value in state_set(config.get("session_solar_states", SESSION_DEFAULTS["session_solar_states"])) and solar:
+        if value in _session_solar_states(config) and solar:
             return Session(str(raw_mode).strip(), "Effectieve zonnelaadsessie bevestigd", True)
         return Session("unknown", "Effectieve laadsessie onbekend of strijdig; geen EV-vermogen overnemen")
     if solar and config.get("trust_solar_setting", False) is True:

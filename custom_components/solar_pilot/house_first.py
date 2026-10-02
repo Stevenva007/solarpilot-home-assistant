@@ -7,7 +7,9 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 import math
-from .wallbox import WALLBOX_DEFAULTS, GuardResult, Reading, state_set
+from .wallbox import (
+    WALLBOX_DEFAULTS, GuardResult, Reading, confirmed_no_active_request, state_set,
+)
 
 HOUSE_DEFAULTS = {
     "handover_s": 240, "handover_confirm_s": 15, "handover_import_w": 100,
@@ -50,6 +52,12 @@ class HouseFirstGuard:
                                       False, 0, r.issue or "Geen vermogen van Wallbox overnemen")
             return self.result
         self.invalid_since = None
+        if confirmed_no_active_request(r, c):
+            self.history.clear(); self.cooldown_until = 0.0
+            self.result = GuardResult(
+                "idle", "Geen actieve Wallbox-laadvraag: geen vermogen gereserveerd"
+            )
+            return self.result
         if r.mode in ("manual", "unknown", "stopped"):
             self.history.clear(); self.cooldown_until = 0.0
             self.result = GuardResult(r.mode, r.session_reason or "Geen autonome zonnelaadsessie: alleen echte injectie", warning=r.session_reason if r.mode == "unknown" else "")

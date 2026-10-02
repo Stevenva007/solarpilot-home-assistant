@@ -19,7 +19,9 @@ DHW_DEFAULTS = {
     **SCHEDULE_DEFAULTS,
     "enabled": False, "safety_confirmed": False,
     "target_entity": "", "temperature_entity": "", "power_entity": "",
-    "cooling_entities": [], "hygiene_entity": "", "manual_entity": "", "manual_entities": [],
+    "cooling_entities": [], "space_activity_entity": "",
+    "space_activity_active_states": "PUMP", "space_activity_inactive_states": "IDLE;WATER",
+    "hygiene_entity": "", "manual_entity": "", "manual_entities": [],
     "manual_active_states": "on,on-30m,on-60m,on-90m",
     # User-facing thermal policy.
     "normal_c": 50.0, "minimum_c": 46.0,
@@ -83,6 +85,13 @@ def weekday_set(value) -> set[int]:
     except (TypeError, ValueError):
         return set()
     return days if days and all(0 <= x <= 6 for x in days) else set()
+
+
+def state_values(value) -> set[str]:
+    """Return exact case-insensitive status values separated by semicolons."""
+    if not isinstance(value, str):
+        return set()
+    return {part.strip().casefold() for part in value.split(";") if part.strip()}
 
 
 def effective_base_target(settings) -> float:
@@ -185,6 +194,15 @@ def validate_settings(c):
         errors["surplus_hysteresis_w"] = "dhw_range"
     if c["cooling_detection"] not in ("action", "mode"):
         errors["cooling_detection"] = "dhw_range"
+    if c.get("space_activity_entity"):
+        active_raw = c.get("space_activity_active_states")
+        inactive_raw = c.get("space_activity_inactive_states")
+        active = state_values(active_raw)
+        inactive = state_values(inactive_raw)
+        if not isinstance(active_raw, str) or not active or active & inactive:
+            errors["space_activity_active_states"] = "dhw_space_activity_states"
+        if not isinstance(inactive_raw, str) or not inactive or active & inactive:
+            errors["space_activity_inactive_states"] = "dhw_space_activity_states"
     return errors
 
 

@@ -2,8 +2,10 @@
 from dataclasses import replace
 import pytest
 from custom_components.solar_pilot.wallbox import (
-    GuardResult, Reading, WallboxGuard, WALLBOX_DEFAULTS, state_set,
+    GuardResult, Reading, WallboxGuard, WALLBOX_DEFAULTS,
+    confirmed_no_active_request, state_set,
 )
+from custom_components.solar_pilot.house_first import HouseFirstGuard
 from custom_components.solar_pilot.engine import Device, State, Site, plan
 
 
@@ -40,10 +42,71 @@ def test_waiting_car_releases_our_own_loads_without_minimum_power_guess():
     assert v.block_increase and v.release_flexible and v.state == "waiting"
 
 
-def test_zero_power_and_no_demand_is_not_treated_as_waiting_for_sun():
-    g = guard()
-    v = stable(g, reading(power_w=0, demand=False, status="Ready"))
+@pytest.mark.parametrize("guard_type", [WallboxGuard, HouseFirstGuard])
+@pytest.mark.parametrize("mode", ["full_solar", "manual"])
+def test_fresh_zero_power_and_no_demand_releases_immediately(guard_type, mode):
+    g = guard_type({"enabled": True, "mode_entity": "select.ev_mode"})
+    v = g.update(0, reading(power_w=0, demand=False,
+                            status="Waiting for car demand", mode=mode), -5000, 150)
     assert v.state == "idle" and not v.block_increase and v.max_increase_w is None
+    assert "geen vermogen gereserveerd" in v.reason
+
+
+@pytest.mark.parametrize("guard_type", [WallboxGuard, HouseFirstGuard])
+def test_exact_idle_status_releases_even_if_demand_helper_disagrees(guard_type):
+    g = guard_type({"enabled": True, "mode_entity": "select.ev_mode"})
+    v = g.update(0, reading(power_w=0, demand=True, status="Waiting for car demand"),
+                 -5000, 150)
+    assert v.state == "idle" and not v.block_increase
+
+
+@pytest.mark.parametrize("guard_type", [WallboxGuard, HouseFirstGuard])
+def test_confirmed_disconnected_low_power_releases_immediately(guard_type):
+    g = guard_type({"enabled": True, "mode_entity": "select.ev_mode"})
+    v = g.update(0, reading(power_w=0, demand=True, status="Unmapped status",
+                            connected=False), -5000, 150)
+    assert v.state == "idle" and not v.block_increase
+
+
+def test_no_request_release_requires_fresh_low_power_and_explicit_evidence():
+    c = WALLBOX_DEFAULTS
+    assert confirmed_no_active_request(
+        reading(power_w=0, demand=False, status="Waiting for car demand"), c)
+    assert confirmed_no_active_request(
+        reading(power_w=0, demand=True, status="Unmapped status", connected=False), c)
+    assert not confirmed_no_active_request(
+        reading(power_w=50, demand=False, status="Waiting for car demand"), c)
+    assert not confirmed_no_active_request(
+        reading(power_w=0, demand=None, status="Unmapped status"), c)
+    assert not confirmed_no_active_request(
+        reading(power_w=0, demand=False, status="Ready", age_s=301), c)
+    assert not confirmed_no_active_request(
+        reading(power_w=0, demand=False, status="Ready", valid=False), c)
+
+
+@pytest.mark.parametrize(("key", "value"), [
+    ("charging_threshold_w", float("nan")),
+    ("charging_threshold_w", float("inf")),
+    ("charging_threshold_w", float("-inf")),
+    ("stale_s", float("nan")),
+    ("stale_s", float("inf")),
+    ("stale_s", -1),
+])
+def test_no_request_release_rejects_nonfinite_or_invalid_limits(key, value):
+    settings = {**WALLBOX_DEFAULTS, key: value}
+    assert not confirmed_no_active_request(
+        reading(power_w=0, demand=False, status="Waiting for car demand"), settings)
+
+
+@pytest.mark.parametrize("guard_type", [WallboxGuard, HouseFirstGuard])
+def test_active_manual_and_explicit_external_stop_keep_their_session_state(guard_type):
+    g = guard_type({"enabled": True, "mode_entity": "select.ev_mode"})
+    manual = g.update(0, reading(power_w=2000, demand=False, status="Charging", mode="manual"),
+                      -5000, 150)
+    stopped = g.update(5, reading(power_w=0, demand=True, status="Charging", mode="stopped"),
+                       -5000, 150)
+    assert manual.state == "manual"
+    assert stopped.state == "stopped"
 
 
 def test_positive_power_overrides_idle_status_without_freeing_ev_watts():

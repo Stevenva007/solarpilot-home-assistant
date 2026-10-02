@@ -19,11 +19,39 @@ def test_unknown_session_never_grants_credit(value):
     c={**SESSION_DEFAULTS,'session_mode_entity':'sensor.effective'}
     assert classify_session(c,'full_solar',value).mode=='unknown'
 
-@pytest.mark.parametrize('value',['Zonne-auto · laden','Zonne-auto · wacht op overschot'])
+@pytest.mark.parametrize('value',[
+    'Zonne-auto · laden',
+    'Zonne-auto · wacht op overschot',
+    'Zonne-auto · wacht op auto',
+])
 def test_confirmed_session_requires_both_sources(value):
     c={**SESSION_DEFAULTS,'session_mode_entity':'sensor.effective'}
     assert classify_session(c,'full_solar',value).mode=='full_solar'
     assert classify_session(c,'off',value).mode=='unknown'
+
+
+@pytest.mark.parametrize('saved', [
+    'Zonne-auto · laden;Zonne-auto · wacht op overschot',
+    ' zonne-AUTO · WACHT OP OVERSCHOT ; ZONNE-auto · LADEN ',
+    'Zonne-auto · laden,Zonne-auto · wacht op overschot',
+    'Zonne-auto · laden\nZonne-auto · wacht op overschot',
+])
+def test_exact_old_default_list_accepts_new_solar_idle_value(saved):
+    c={**SESSION_DEFAULTS,'session_mode_entity':'sensor.effective',
+       'session_solar_states':saved}
+    session=classify_session(c,'full_solar','Zonne-auto · wacht op auto')
+    assert session.confirmed and session.mode=='full_solar'
+
+
+@pytest.mark.parametrize('custom', [
+    'Zonne-auto · laden',
+    'Zonne-auto · laden;Mijn eigen zonnestatus',
+    'Zonne-auto · laden;Zonne-auto · wacht op overschot;Mijn eigen zonnestatus',
+])
+def test_custom_solar_session_list_is_never_silently_extended(custom):
+    c={**SESSION_DEFAULTS,'session_mode_entity':'sensor.effective',
+       'session_solar_states':custom}
+    assert classify_session(c,'full_solar','Zonne-auto · wacht op auto').mode=='unknown'
 
 
 def test_full_solar_setting_alone_is_not_default_permission():

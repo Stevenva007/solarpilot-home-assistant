@@ -19,7 +19,8 @@ from homeassistant.helpers import entity_registry as er
 
 from .const import DEFAULTS, DEVICE_DEFAULTS, DOMAIN, NAME, VERSION
 from .engine import Action, Device, Plan, Site, State, plan
-from .wallbox import (WALLBOX_DEFAULTS, Reading, WallboxGuard, state_set,
+from .wallbox import (WALLBOX_DEFAULTS, Reading, WallboxGuard,
+                      confirmed_no_active_request, state_set,
                       protected_entity, conflicting_devices)
 
 from .consumer_wallbox import PRIORITY_DEFAULTS, ConsumerWallboxPriority, follows_wallbox
@@ -1009,6 +1010,7 @@ class SolarRuntime:
         full_solar = bool(r.session_confirmed and (r.mode or "").casefold() in state_set(c.get("full_solar_states", "")))
         reclaimable = round(getattr(g, "reclaimable_w", 0), 1)
         reclaim_now = bool(full_solar and r.valid and reclaimable > 0)
+        no_request = confirmed_no_active_request(r, c)
         activity_known = bool(r.valid and r.power_w is not None and math.isfinite(r.power_w)
                               and r.power_w >= 0 and raw_age is not None and math.isfinite(raw_age)
                               and -5 <= raw_age <= c["stale_s"] and math.isfinite(r.age_s)
@@ -1018,6 +1020,8 @@ class SolarRuntime:
         activity = ("unknown" if not activity_known else "charging" if charging_now
                     else "waiting" if native_activity == "waiting" else "stopped")
         reclaim_reason = (
+            "Geen actieve Wallbox-laadvraag: geen vermogen gereserveerd"
+            if no_request else
             "Effectieve zonnelaadsessie bevestigd en stabiel terugneembaar laadvermogen gemeten"
             if reclaim_now else
             r.session_reason if not full_solar else
@@ -2528,6 +2532,12 @@ class SolarRuntime:
                 "reason": increase_reason,
             },
         }
+        allocation = getattr(self.result, "start_power", {}).get(d.id)
+        if not s.on and allocation is not None:
+            requirements["allocated_start_power"] = {
+                "met": bool(measurement_valid and allocation["sufficient"]),
+                **allocation,
+            }
         missing = [key for key, value in requirements.items() if not value["met"]]
         building = bool(not s.on and s.start_since is not None)
         elapsed = max(0.0, now - s.start_since) if building else None
@@ -2556,6 +2566,7 @@ class SolarRuntime:
                                                 if context.get("max_increase_w") is not None else None),
                 "device_increase_limit_w": (round(float(context.get("device_increase_limits", {}).get(d.id)), 1)
                                              if context.get("device_increase_limits", {}).get(d.id) is not None else None),
+                "allocation": dict(allocation) if measurement_valid and allocation is not None else None,
                 "note": ("Actuele vrije netinjectie na batterijontlading en huisreserve; "
                          "hogere prioriteiten, reeds toegezegd vermogen en andere reserves kunnen minder vrijlaten."),
             },

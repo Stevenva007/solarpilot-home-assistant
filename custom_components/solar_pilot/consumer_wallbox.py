@@ -6,7 +6,7 @@ never increase physical grid headroom or authorise a lower-priority start.
 from __future__ import annotations
 from dataclasses import dataclass
 import math
-from .wallbox import Reading, state_set
+from .wallbox import Reading, confirmed_no_active_request, state_set
 
 PRIORITY_DEFAULTS = {
     "priority_min_power_w": 1380.0,  # Confirmed one-phase Full Solar minimum for this installation; remains editable.
@@ -78,6 +78,12 @@ class ConsumerWallboxPriority:
         if self.last_now is not None and (now < self.last_now or now - self.last_now > sample_gap_s):
             self.ready_since = self.low_since = None
         self.last_now = now
+        if confirmed_no_active_request(reading, c):
+            self._reset()
+            self.result = PriorityResult(
+                "no_request", "Geen actieve Wallbox-laadvraag: geen vermogen gereserveerd"
+            )
+            return self.result
         if reading.valid and reading.mode in ("manual", "unknown", "stopped"):
             self._reset()
             self.result = PriorityResult("actual_surplus", reading.session_reason or "Alleen echt restoverschot; auto regelt niet bevestigd terug")
@@ -91,8 +97,7 @@ class ConsumerWallboxPriority:
             self.result = PriorityResult("unknown", "Wallbox/netmeting onzeker: geen nieuwe lagere start", True)
             return self.result
         charging = (reading.power_w or 0) >= float(c.get("charging_threshold_w", 50))
-        no_request_status = (reading.status or "").casefold() in state_set(c.get("idle_states", ""))
-        if not charging and (reading.connected is False or reading.demand is False or no_request_status):
+        if not charging and reading.connected is False:
             self._reset()
             self.result = PriorityResult("no_request", "Geen actieve Wallbox-laadvraag: gewoon zonneoverschot gebruiken")
             return self.result

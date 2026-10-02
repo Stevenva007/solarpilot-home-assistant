@@ -35,6 +35,7 @@ def number(value):
 class PriorityView:
     candidate_ids: set[str] = field(default_factory=set)
     active_ids: set[str] = field(default_factory=set)
+    fitting_ids: set[str] = field(default_factory=set)
     stable_ids: set[str] = field(default_factory=set)
     holds: dict[str, str] = field(default_factory=dict)
     blocks: dict[str, str] = field(default_factory=dict)
@@ -42,6 +43,20 @@ class PriorityView:
     start_power: dict[str, dict] = field(default_factory=dict)
     luxury_block: bool = False
     reason: str = "Geen afwasbeurt vraagt voorrang"
+
+
+@dataclass(frozen=True)
+class DHWLuxuryAllocation:
+    """Evidence-only allocation for an optional 60 °C DHW target."""
+    allowed: bool
+    reason: str
+    usable_surplus_w: float = 0.0
+    required_surplus_w: float = 0.0
+    grid_surplus_w: float = 0.0
+    pv_ceiling_w: float = 0.0
+    unmetered_aeg_reserve_w: float = 0.0
+    unconsumed_commitment_w: float = 0.0
+    optional_import_headroom_w: float | None = None
 
 
 class DishwasherPriority:
@@ -79,8 +94,7 @@ class DishwasherPriority:
         self.since = {i: v for i, v in self.since.items() if i in preferred}
         out.active_ids = {i for i in preferred if states[i].on or i in self.watches}
         # No automatic-preference intervention during Pause/Observe. Running
-        # physical cycles remain a constraint for optional heat, not normal heat.
-        out.luxury_block = bool(out.active_ids)
+        # physical cycles remain a reserved load, not an absolute 60 °C veto.
         if mode != "solar":
             self.since.clear(); self.view = out; return out
         eligible = {i for i in preferred if i in permitted_ids and not states[i].on
@@ -89,12 +103,6 @@ class DishwasherPriority:
                     and states[i].manual_until <= now
                     and now-states[i].last_off >= devices[i].min_off_s}
         out.candidate_ids = eligible
-        # Today's ready request wins over the optional 60 degree buffer, even
-        # while a current lower target is awaiting acknowledgement. It does not
-        # block tomorrow's request or normal/evening warm-water comfort.
-        out.luxury_block = bool(out.active_ids or eligible)
-        if out.luxury_block:
-            out.reason = "Afwasmachine vóór extra 60 °C; gewone warmwater- en vloerregeling blijven voorgaan"
         if comfort_block:
             out.blocks = {i: comfort_block for i in eligible}
             self.since.clear(); self.view = out; return out
@@ -153,6 +161,12 @@ class DishwasherPriority:
             if not fits:
                 self.since.pop(i, None)
                 continue  # Tiny residuals can still be used by the dehumidifier.
+            # A ready idle/pending cycle that fits gets one start opportunity
+            # before optional 60 °C heat. Merely being active is not a veto:
+            # its real/unmetered future draw is handled by dhw_luxury_allocation.
+            out.fitting_ids.add(i)
+            out.luxury_block = True
+            out.reason = "Afwasmachine past in de veilige startpool en krijgt eerst startkans vóór extra 60 °C"
             self.since.setdefault(i, now)
             if due or now-self.since[i] >= d.start_delay_s:
                 out.stable_ids.add(i)
@@ -173,6 +187,113 @@ class DishwasherPriority:
             self.since.pop(i, None)
         self.view = out
         return out
+
+    def dhw_luxury_allocation(self, *, mode, actual_grid, filtered_grid, pv_w,
+                              discharge_w, reserve_w, unmetered_aeg_reserve_w,
+                              surplus_threshold_w, holding_owned_high,
+                              restart_proof_required, capacity_guard_enabled,
+                              capacity_valid, optional_import_headroom_w,
+                              estimated_heat_power_w, states):
+        """Prove that 60 °C fits beside the preferred dishwasher load.
+
+        This deliberately has no Wallbox input: EV consumption is never credit
+        for optional DHW heat. Actual and filtered P1 are both respected, while
+        only not-yet-consumed owned commitments and the explicit unmetered AEG
+        heater reserve are subtracted. The same DHW heater is not reserved a
+        second time; its configured surplus threshold is its own start guard.
+        """
+        blocked = lambda why: DHWLuxuryAllocation(False, why)
+        if mode != "solar":
+            return blocked("Extra 60 °C is alleen beschikbaar in Zonnestroom")
+        if (not isinstance(holding_owned_high, bool)
+                or not isinstance(restart_proof_required, bool)
+                or not isinstance(capacity_guard_enabled, bool)
+                or not isinstance(capacity_valid, bool)):
+            return blocked("Extra 60 °C wacht: afwas-/sitevermogen is niet volledig betrouwbaar bekend")
+        values = [number(v) for v in (actual_grid, filtered_grid, pv_w, discharge_w,
+                                      reserve_w, unmetered_aeg_reserve_w,
+                                      surplus_threshold_w)]
+        if any(v is None for v in values) or not isinstance(states, dict):
+            return blocked("Extra 60 °C wacht: afwas-/sitevermogen is niet volledig betrouwbaar bekend")
+        (actual_grid, filtered_grid, pv_w, discharge_w, reserve_w,
+         unmetered_aeg_reserve_w, surplus_threshold_w) = values
+        if (pv_w < 0 or discharge_w < 0 or reserve_w < 0
+                or unmetered_aeg_reserve_w < 0 or surplus_threshold_w < 0):
+            return blocked("Extra 60 °C wacht: afwas-/sitevermogen is niet volledig betrouwbaar bekend")
+
+        for device_id in self.view.active_ids | self.view.candidate_ids:
+            state = states.get(device_id)
+            if (state is None or not getattr(state, "available", False)
+                    or getattr(state, "fault", "")):
+                return blocked("Extra 60 °C wacht: afwasstatus of -vermogen is niet betrouwbaar bekend")
+
+        commitment = 0.0
+        for state in states.values():
+            if not (getattr(state, "owned", False) and getattr(state, "on", False)):
+                continue
+            target = number(getattr(state, "target_w", None))
+            measured = number(getattr(state, "measured_w", None))
+            if (not getattr(state, "available", False) or getattr(state, "fault", "")
+                    or target is None or measured is None or target < 0 or measured < 0):
+                return blocked("Extra 60 °C wacht: toegewezen toestelvermogen is niet betrouwbaar bekend")
+            commitment += max(0.0, target-measured)
+
+        # Once SolarPilot demonstrably owns 60 °C, do not require the same
+        # heater's start power a second time after it turns on. There still has
+        # to be non-negative real headroom after every *other* reservation. If
+        # the native thermostat may restart without verified heating evidence,
+        # reacquire the full start proof first.
+        full_start_proof = not holding_owned_high or restart_proof_required
+        required = surplus_threshold_w if full_start_proof else 0.0
+        capacity_headroom = number(optional_import_headroom_w)
+        heat_power = number(estimated_heat_power_w)
+        if capacity_guard_enabled:
+            if (not capacity_valid or capacity_headroom is None or heat_power is None
+                    or capacity_headroom < 0 or heat_power < 0):
+                return blocked("Extra 60 °C wacht: kwartierpiekruimte is niet betrouwbaar bekend")
+        grid_surplus = (-max(actual_grid, filtered_grid)-discharge_w-reserve_w
+                        -unmetered_aeg_reserve_w-commitment)
+        pv_ceiling = (pv_w-discharge_w-reserve_w
+                      -unmetered_aeg_reserve_w-commitment)
+        usable = max(0.0, min(grid_surplus, pv_ceiling))
+        details = dict(usable_surplus_w=round(usable, 1),
+                       required_surplus_w=round(required, 1),
+                       grid_surplus_w=round(grid_surplus, 1),
+                       pv_ceiling_w=round(pv_ceiling, 1),
+                       unmetered_aeg_reserve_w=round(unmetered_aeg_reserve_w, 1),
+                       unconsumed_commitment_w=round(commitment, 1),
+                       optional_import_headroom_w=(round(capacity_headroom, 1)
+                                                   if capacity_guard_enabled else None))
+        if self.view.fitting_ids:
+            return DHWLuxuryAllocation(False,
+                "Afwasmachine past in de veilige startpool en krijgt eerst startkans vóór extra 60 °C",
+                **details)
+        # A current verified/owned heater is already represented by the
+        # capacity measurement. Require another full heater only for a new
+        # start or native-thermostat restart, never while it is already on.
+        if (capacity_guard_enabled and full_start_proof
+                and capacity_headroom < heat_power):
+            return DHWLuxuryAllocation(False,
+                (f"Extra 60 °C wacht: {capacity_headroom:.0f} W kwartierpiekruimte; "
+                 f"{heat_power:.0f} W nodig voor de boiler"), **details)
+        available = min(grid_surplus, pv_ceiling)
+        enough = available > required if full_start_proof else available >= 0
+        if not enough:
+            shortage = max(0.0, -available)
+            if shortage:
+                reason = (f"Extra 60 °C wacht: {shortage:.0f} W tekort na reserves; "
+                          "niet-negatieve werkelijke ruimte vereist")
+            else:
+                reason = (f"Extra 60 °C wacht: {usable:.0f} W werkelijk vrij na reserves; "
+                          f"meer dan {required:.0f} W vereist")
+            return DHWLuxuryAllocation(False,
+                reason, **details)
+        prefix = ("Bestaand extra 60 °C-doel houdt ruimte naast de afwasmachine"
+                  if holding_owned_high and not restart_proof_required else
+                  "Extra 60 °C past naast de afwasmachine")
+        return DHWLuxuryAllocation(True,
+            (f"{prefix}: {usable:.0f} W werkelijk vrij na reserves; "
+             "Wallboxvermogen telt niet mee"), **details)
 
     def started(self, i, wall, borrowed, ev_w):
         if borrowed > 0:

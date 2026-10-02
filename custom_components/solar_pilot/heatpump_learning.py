@@ -92,6 +92,24 @@ def classify_heatpump(runtime, local_now):
     if zone_ids and unavailable and not actions:
         return CONTEXT_UNKNOWN, "Panasonic-ruimteactiviteit niet betrouwbaar beschikbaar"
 
+    # Some panasonic_cc versions expose AUTO as heat_cool while hvac_action
+    # temporarily remains idle/off during a reported PUMP task.  A separately
+    # configured task-direction source protects the household baseline without
+    # inventing whether the task is HEAT or COOL or claiming compressor watts.
+    if dhw is not None and hasattr(dhw, "space_activity_status"):
+        try:
+            busy, reason, relevant, source = dhw.space_activity_status()
+        except (AttributeError, KeyError, TypeError, ValueError):
+            busy, reason, relevant, source = None, "", False, {}
+        raw = str(source.get("state") or "").strip().casefold()
+        inactive = {part.strip().casefold() for part in str(
+            getattr(dhw, "settings", {}).get("space_activity_inactive_states", "IDLE;WATER")
+        ).split(";") if part.strip()}
+        if source.get("valid") and raw == "water" and raw in inactive:
+            return CONTEXT_UNKNOWN, "Panasonic meldt WATER als taakrichting; dit is geen bewijs van compressoractiviteit of vermogen"
+        if relevant and busy is not False:
+            return CONTEXT_UNKNOWN, reason or "Panasonic-ruimteactiviteit niet betrouwbaar eenduidig"
+
     return CONTEXT_NORMAL, "Geen actieve Panasonic verwarmings-/koelactie gemeld"
 
 

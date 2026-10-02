@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.43",
+  "version": "1.0.0-beta.44",
   "language": "nl",
   "steps": {
     "init": {
@@ -197,6 +197,9 @@
         "temperature_entity": "Werkelijke watertemperatuur (optioneel bij water_heater/climate)",
         "power_entity": "Optioneel: uitsluitend het elektrische boilervermogen",
         "cooling_entities": "Ruimteklimaatzones voor verwarmings- en koelbewaking",
+        "space_activity_entity": "Optioneel: gemelde warmtepomptaak/richting (alleen lezen)",
+        "space_activity_active_states": "Waarden voor ruimtebedrijf (puntkomma-gescheiden)",
+        "space_activity_inactive_states": "Waarden zonder ruimtebedrijf (puntkomma-gescheiden)",
         "hygiene_entity": "Hygiënecyclus actief: on = alle boileropdrachten blokkeren",
         "manual_entity": "Gecombineerd handmatig/krachtig signaal (optioneel)",
         "safety_confirmed": "Bevestigd: fabrikantregeling, onafhankelijke hygiëne en verbrandingsbeveiliging gecontroleerd",
@@ -209,6 +212,9 @@
         "temperature_entity": "Werkelijk gemeten watertemperatuur in de tank.",
         "power_entity": "Alleen een actuele elektrische vermogensmeter voor sanitair warm water, inW/kW.",
         "cooling_entities": "Bestaande klimaatbronnen voor de woning.",
+        "space_activity_entity": "Optionele alleen-lezen takenrichting van dezelfde warmtepomp.",
+        "space_activity_active_states": "Puntkomma-gescheiden exacte waarden die gemeld ruimtebedrijf betekenen, standaard PUMP.",
+        "space_activity_inactive_states": "Puntkomma-gescheiden exacte waarden die géén ruimtebedrijf betekenen, standaard IDLE;WATER.",
         "hygiene_entity": "Alleen een expliciete betrouwbare melding dat een fabrikant-hygiënecyclus actief is.",
         "manual_entity": "Oud enkelvoudig handmatig/beschermd signaal.",
         "safety_confirmed": "Bevestigt dat de gebruiker de fabrikantgeschiktheid, onafhankelijke hygiëne en verbrandingsrisico-informatie voor deze installatie heeft beoordeeld.",
@@ -1222,6 +1228,7 @@
     "dhw_pv_required": "Koppel eerst het actuele zonnepanelenvermogen in de algemene SolarPilot-instellingen (W/kW).",
     "dhw_target_invalid": "De doelbediening is niet bruikbaar: controleer °C-terugmelding, bereik, stap, ondersteunde doeltemperatuur en dubbele koppeling.",
     "dhw_temperature_invalid": "Een verse werkelijke watertemperatuur in °C ontbreekt. Koppel de juiste sensor.",
+    "dhw_space_activity_states": "Vul niet-lege, verschillende waarden voor ruimtebedrijf en geen ruimtebedrijf in; dezelfde status mag niet in beide lijsten staan.",
     "energy_unit": "Kies een energiesensor met eenheid kWh.",
     "range": "Waarden liggen buiten het toegestane bereik.",
     "daily_runtime": "De maximale daglooptijd moet 0 zijn of minstens gelijk zijn aan de minimale daglooptijd.",
@@ -1789,6 +1796,33 @@
       "short": "Bestaande klimaatbronnen voor de woning.",
       "paragraphs": [
         "Bestaande klimaatbronnen voor de woning. Hun actuele acties bewaken koeling én stellen optionele zonne-opwarming uit bij bezige ruimteverwarming. SolarPilot schrijft hier geen klimaatopdrachten. Een binaire koelhulp bewijst alleen koeling, niet of de vloerverwarming vrij is; koppel echte climate-acties voor de extra taakbewaking.",
+        "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "dhw.space_activity_entity": {
+      "title": "Optioneel: gemelde warmtepomptaak/richting (alleen lezen)",
+      "short": "Optionele alleen-lezen takenrichting van dezelfde warmtepomp.",
+      "paragraphs": [
+        "Optionele alleen-lezen takenrichting van dezelfde warmtepomp. Gebruik een werkelijk gerapporteerde statusbron die ruimtebedrijf van sanitair water en stilstand onderscheidt; geen vermogenssensor, bedieningsselect of afgeleide compressorclaim. Bij Panasonic kan PUMP ruimtebedrijf betekenen en WATER een sanitairwatertaak, maar controleer altijd de ruwe waarden van de gekozen bron.",
+        "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "dhw.space_activity_active_states": {
+      "title": "Waarden voor ruimtebedrijf (puntkomma-gescheiden)",
+      "short": "Puntkomma-gescheiden exacte waarden die gemeld ruimtebedrijf betekenen, standaard PUMP.",
+      "paragraphs": [
+        "Puntkomma-gescheiden exacte waarden die gemeld ruimtebedrijf betekenen, standaard PUMP. Dit blokkeert alleen een nieuwe optionele buffer boven het normale doel en kiest nooit zelf HEAT of COOL.",
+        "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "dhw.space_activity_inactive_states": {
+      "title": "Waarden zonder ruimtebedrijf (puntkomma-gescheiden)",
+      "short": "Puntkomma-gescheiden exacte waarden die géén ruimtebedrijf betekenen, standaard IDLE;WATER.",
+      "paragraphs": [
+        "Puntkomma-gescheiden exacte waarden die géén ruimtebedrijf betekenen, standaard IDLE;WATER. WATER is een gemelde takenrichting en geen bewijs dat de compressor draait, hoeveel vermogen hij gebruikt of dat het vat al opwarmt.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]

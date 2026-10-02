@@ -44,6 +44,22 @@ def test_top_level_native_waiting_status_matches_detailed_classifier(status):
     assert hass.services.calls == []
 
 
+def test_no_request_presentation_overrides_stale_manual_session_wording():
+    runtime, hass = build()
+    runtime.wallbox_settings['enabled'] = True
+    stamp = time.time()
+    runtime.wallbox_guard.reading = Reading(
+        power_w=0, stamp=stamp, demand=False, status='Waiting for car demand',
+        mode='manual', valid=True, age_s=0, session_confirmed=True,
+        session_reason='Manueel laden: EV-vermogen blijft gereserveerd voor de auto',
+        session_value='Manueel laden · klaar', status_stamp=stamp,
+    )
+    row = runtime.wallbox_overview()
+    assert not row['reclaim_allowed_now']
+    assert row['reclaim_reason'] == 'Geen actieve Wallbox-laadvraag: geen vermogen gereserveerd'
+    assert hass.services.calls == []
+
+
 def test_wallbox_native_stop_history_is_read_only_durable_and_survives_resume():
     runtime, hass = build()
     runtime.wallbox_settings['enabled'] = True

@@ -136,6 +136,7 @@ class Plan:
     targets: dict[str, float] = field(default_factory=dict)
     reasons: dict[str, str] = field(default_factory=dict)
     action: Action | None = None
+    start_power: dict[str, dict[str, float | bool]] = field(default_factory=dict)
 
 
 def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
@@ -262,6 +263,17 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
         if (not s.owned and not eligible or d.id in site.no_reclaim_ids) and not boost:
             available = min(available, remaining_solar-credit+protected_credit)
         needed = d.minimum + (d.start_margin_w if not s.on and not boost else 0)
+        if not s.on:
+            # Report the SAME conservative allocation used below, not a second
+            # optimistic calculation from the instantaneous export alone.
+            out.start_power[d.id] = {
+                "available_w": round(max(0.0, available), 2),
+                "required_w": round(needed, 2),
+                "sufficient": available >= needed,
+                "comfort_and_cycle_reserve_w": round(max(0.0, site.comfort_reserve_w), 2),
+                "filtered_free_w": round(max(0.0, -grid - max(0.0, site.battery_discharge_w) - site.reserve_w), 2),
+                "grid_allowed": boost,
+            }
         target = d.quantize(available) if available >= needed else 0.0
         if target:
             out.targets[d.id] = target

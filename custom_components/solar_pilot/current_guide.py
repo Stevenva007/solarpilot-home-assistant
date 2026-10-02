@@ -3,11 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.43'
+GUIDE_VERSION = '1.0.0-beta.44'
 GUIDE_UPDATED = '2026-10-02'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.43',
+ 'version': '1.0.0-beta.44',
  'updated': '2026-10-02',
  'intro': 'Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst '
           'samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en '
@@ -111,15 +111,27 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                'paragraphs': ['SolarPilot bedient de Wallbox niet: geen laadstroom-, fase-, pauze-, start- of '
                               'hervatopdrachten. De laadpaal kan autonoom Full Solar regelen, of door de '
                               'gebruiker manueel/gepland laden. Die situaties worden onderscheiden; de '
-                              'ingestelde Full Solar-optie is geen bewijs dat de huidige sessie ook '
-                              'terugregelt op zon.',
-                              'Koppel een betrouwbare effectieve-sessiebron met volledige waarden voor '
-                              'zonneladen, manueel en gestopt. Een manuele melding wint van een Full '
-                              'Solar-instelling. Een onbekende, te oude of strijdige bron geeft geen '
-                              'overneembaar EV-vermogen vrij. De expliciete terugval Alleen Full '
-                              'Solar-instelling vertrouwen staat standaard UIT; uitsluitend kiezen wanneer die '
-                              'aanname voor jouw gebruik klopt. Geen statuscode gokken en geen mode afleiden '
-                              'uit alleen netimport.',
+                               'ingestelde Full Solar-optie is geen bewijs dat de huidige sessie ook '
+                               'terugregelt op zon.',
+                               'Koppel een betrouwbare effectieve-sessiebron met volledige waarden voor '
+                               'zonneladen, manueel en gestopt. Een manuele melding wint van een Full '
+                               'Solar-instelling. Een onbekende, te oude of strijdige bron geeft geen '
+                               'overneembaar EV-vermogen vrij. De expliciete terugval Alleen Full '
+                               'Solar-instelling vertrouwen staat standaard UIT; uitsluitend kiezen wanneer die '
+                               'aanname voor jouw gebruik klopt. Geen statuscode gokken en geen mode afleiden '
+                               'uit alleen netimport.',
+                               'De standaardlijst met zonne-autostatussen herkent ook Zonne-auto · wacht op '
+                               'auto. Een opgeslagen lijst die exact overeenkomt met de oude standaardwaarden '
+                               'krijgt die nieuwe canonieke waarde compatibel erbij, ongeacht volgorde, '
+                               'hoofdletters of eenvoudige scheidingstekens. Een bewust aangepaste lijst wordt '
+                               'niet stil verbreed. Ook bij een herkende tekst blijft de actuele native Full '
+                               'Solar-modus verplicht.',
+                               'Een verse geldige vermogensmeting onder de ingestelde laaddrempel heft de '
+                               'EV-reservering alleen direct op wanneer ook expliciet geen laadvraag, geen '
+                               'verbonden auto of een bekende inactieve status is gemeld. Dit geldt ook als '
+                               'een afgeleide sessietekst nog achterloopt. Oude, ongeldige, onbekende of '
+                               'strijdige bronnen blijven fail-closed. Deze vrijgave verandert alleen de '
+                               'SolarPilot-begroting en uitleg; zij verstuurt geen Wallbox-opdracht.',
                               'Na een bevestigde centrale wijziging bepaalt de positie vóór of na Auto laden · '
                               'Wallbox de relatieve voorrang. Per toestel kies je Mag de auto minder laten '
                               'laden?: Ja, als het veilig kan of Nee. Ja geeft alleen een voorwaardelijke '
@@ -239,7 +251,15 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Nieuwe optionele verhogingen boven het normale doel wachten standaard zolang de '
                               'gekoppelde ruimteklimaatactie heating, preheating, cooling of defrosting meldt, '
                               'of onbetrouwbaar is. Een HEAT-modus met idle is niet hetzelfde als actieve '
-                              'verwarming. Een al hoger aangevraagd doel wordt niet alleen wegens een nieuwe '
+                              'verwarming. Voor geregistreerde Panasonic-zones kan een optionele, actuele '
+                              'alleen-lezen takenrichting de AUTO/HEAT_COOL-blindspot afdekken: PUMP geldt '
+                              'standaard als gemeld ruimtebedrijf en IDLE/WATER als geen ruimtebedrijf. '
+                              'Ontbrekende, te oude, restored, overlappende of onbekende waarden blokkeren '
+                              'een nieuwe extra buffer fail-closed. Deze bron meldt een taak; zij bewijst '
+                              'geen HEAT/COOL-keuze, compressoractiviteit of elektrisch vermogen. Zonder '
+                              'betrouwbaar richtingsbewijs blijft Panasonic AUTO/HEAT_COOL met idle/off '
+                              'voor deze extra buffer onbekend; andere klimaatadapters worden hierdoor niet '
+                              'breed als actief behandeld. Een al hoger aangevraagd doel wordt niet alleen wegens een nieuwe '
                               'verwarmactie afgebroken; de fabrikant kan de begonnen taak afhandelen. '
                               'Werkelijke koeling, hygiëne, energietekort en andere beschermingen blijven '
                               'afzonderlijk leidend.',
@@ -258,9 +278,23 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Handmatig laden en onbekende, strijdige of oude sessies leveren geen krediet. '
                               'Dit vermogen verhoogt nooit fysieke net- of faseruimte en de Wallbox krijgt geen '
                               'opdrachten van SolarPilot. Comfortgrens, actieve/verwachte koeling, '
-                              'fabrikantsterilisatie en overige beveiligingen houden voorrang. De extra 60 '
-                              '°C-fase krijgt nooit EV-krediet: meer dan 3500 W werkelijke restinjectie is '
-                              'nodig en een startklare Wallbox krijgt eerst de kans om te laden.',
+                               'fabrikantsterilisatie en overige beveiligingen houden voorrang. De extra 60 '
+                               '°C-fase krijgt nooit EV-krediet: de ingestelde overschotdrempel moet uit '
+                               'werkelijke restinjectie passen en een startklare Wallbox krijgt eerst de kans '
+                               'om te laden.',
+                               'Een lopende voorkeurs-afwasmachine is voor extra 60 °C geen algemeen veto. '
+                               'SolarPilot trekt eerst huisreserve, batterijontlading, nog niet verbruikt '
+                               'toegezegd toestelvermogen en — zonder exclusieve AEG-meter — de conservatieve '
+                               'nominale afwasreserve af. De bruikbare ruimte is bovendien begrensd door zowel '
+                               'de actuele en gefilterde netmeting als de echte PV-productie. Een startklare '
+                               'afwas die aantoonbaar past krijgt eerst één startkans; blijft daarna voldoende '
+                               'werkelijk overschot over, dan mag de 60 °C-buffer naast een lopende beurt '
+                               'werken. Onvolledige of onbetrouwbare vermogensinformatie blokkeert deze luxe '
+                               'fail-closed. Wanneer kwartierpiekbewaking voor optionele DHW actief is, moet '
+                               'een nieuwe start of onbevestigde native herstart bovendien het geschatte '
+                               'boilervermogen in de geldige piekruimte passen. Een bewezen reeds actieve, '
+                               'door SolarPilot beheerde 60 °C-verwarming wordt daarbij niet dubbel '
+                               'gereserveerd.',
                               'Het gewone zonnedoel is standaard eveneens 50 °C, vanaf 1000 W actuele '
                               'PV-productie. Omdat dit gelijk is aan het normale doel, geeft het geen extra '
                               'temperatuurverhoging. Een bewust hoger gewoon zonnedoel blijft een '
@@ -762,10 +796,15 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'klimaat-/plannercatalogi. Het gegenereerde frontend-catalogusbestand en de '
                               'korte native HA-veldtoelichtingen worden tijdens dezelfde release vernieuwd en '
                               'gecontroleerd. De klassieke HA-formulieren blijven beschikbaar als terugval; '
-                              'hun icoonpresentatie hangt af van Home Assistant. De vaste klikbare vraagtekens '
-                              'horen bij de geïntegreerde SolarPilot-configuratiewizard en de directe '
-                              'dashboardinstellingen.',
-                              'De lokale uitlegcode en catalogus worden pas bij gebruik geladen; ze bevatten '
+                               'hun icoonpresentatie hangt af van Home Assistant. De vaste klikbare vraagtekens '
+                               'horen bij de geïntegreerde SolarPilot-configuratiewizard en de directe '
+                               'dashboardinstellingen.',
+                               'Bij opslaan leest de geïntegreerde wizard uitsluitend benoemde invoervelden '
+                               'binnen het actuele formulier. Daardoor blijft hij bruikbaar in Home '
+                               'Assistant-frontends waarin de algemene form.elements-verzameling niet is '
+                               'geïmplementeerd. Browservalidatie en de bestaande Home Assistant-optiesflow '
+                               'blijven leidend; een leesfout geeft zichtbare feedback en bewaart niets.',
+                               'De lokale uitlegcode en catalogus worden pas bij gebruik geladen; ze bevatten '
                               'geen privédata. Er worden geen extra externe API-aanvragen voor hulp, '
                               'nachtregeling of avondplanning gedaan.'],
                'bullets': []},
@@ -869,13 +908,18 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'centrale lijst de relatieve volgorde; de gewone comfortbescherming blijft '
                               'gelden. Een voorkeur-AEG blijft vóór de extra boilerwarmte. De toestemming voor '
                               'het benutten van EV-zonnevermogen staat dan uitsluitend in die centrale editor.',
-                              'Een vandaag werkelijk startklare APP-aanvraag of een al lopende beurt blokkeert '
-                              'extra 60 °C. Een aanvraag voor morgen doet dat vandaag niet. De gewone 50 °C en '
-                              'een benodigde avondvoorraad tot de gekozen limiet blijven beschikbaar. Een '
-                              'eerder zelf aangevraagd extra hoog doel valt volgens de bestaande vertraging en '
-                              'bescherming terug; fabrikantsterilisatie en handmatige functies worden niet '
-                              'verlaagd. Afwasvoorrang verandert geen vloer-, compressor-, Powerful-, '
-                              'Force-DHW- of andere warmtepompopdracht.',
+                               'Een vandaag startklare APP-aanvraag die aantoonbaar in de veilige startpool past '
+                               'krijgt één startkans vóór extra 60 °C. Een aanvraag voor morgen doet dat vandaag '
+                               'niet. Een al lopende beurt is geen algemeen verbod: haar nog niet gemeten '
+                               'nominale afwasvermogen wordt als reserve afgetrokken. Alleen wanneer na die '
+                               'reserve, huisreserve, batterijontlading en open toesteltoezeggingen nog genoeg '
+                               'werkelijke net- én PV-ruimte overblijft, mag extra 60 °C daarnaast werken. De '
+                               'gewone 50 °C en een benodigde avondvoorraad tot de gekozen limiet blijven '
+                               'beschikbaar. Een '
+                               'eerder zelf aangevraagd extra hoog doel valt volgens de bestaande vertraging en '
+                               'bescherming terug; fabrikantsterilisatie en handmatige functies worden niet '
+                               'verlaagd. Afwasvoorrang verandert geen vloer-, compressor-, Powerful-, '
+                               'Force-DHW- of andere warmtepompopdracht.',
                               'De ontvochtiger mag kleine restjes gebruiken zolang er niet genoeg beschikbaar '
                               'kan worden gemaakt voor de afwas. Pas na de afwas-startstabiliteit wordt een '
                               'benodigde lagere, eigen, daadwerkelijk gemeten onderbreekbare last vrijgegeven. '
@@ -1247,12 +1291,24 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'onder Auto laden staat, maar geldt daar effectief als Nee. Verplaatsen is '
                               'nooit een nieuw actuatorrecht. De Wallbox blijft read-only: SolarPilot '
                               'verstuurt geen start, stop, laadmodus of laadstroom naar de laadpaal.',
-                              'Wanneer de boiler door herkende handmatige Panasonic-bediening in manual hold '
+                              'Wanneer het gemelde boilerdoel afwijkt van de laatste bevestiging, blijft de '
+                              'regeling gepauzeerd voor controle. Dit bewijst niet wie het doel heeft gewijzigd: '
+                              'een vertraagde cloudmelding is ook mogelijk. Voor panasonic_cc wordt de eerste '
+                              'lokale, optimistische temperatuurterugmelding niet als bevestiging gebruikt; '
+                              'een passende nieuwe bronrapportage moet na minimaal tien seconden volgen. '
+                              'Ook die bron kan cloudcache bevatten en is geen onafhankelijke fysieke meting. '
+                              'Wanneer de boiler in deze beschermende manual hold '
                               'staat, toont beta.42 een gerichte Hervat-knop. Die knop werkt alleen buiten '
                               'Automatisch regelen en zonder al wachtende opdracht, beëindigt uitsluitend de '
                               'SolarPilot-rust en schrijft niet meteen een temperatuur. Na hercontrole kan '
                               'pas een volgende gewone regelcyclus volgens alle bestaande vrijgaven en '
                               'veiligheidslocks handelen.',
+                              'Powerful/Krachtig wordt niet automatisch als boilerboost gebruikt. De Panasonic '
+                              'K T-CAP-servicehandleiding PAPAMY2310071CE, onderdeel 14.11, beschrijft deze '
+                              'functie uitsluitend voor ruimteverwarming en het verhogen van zone-waterdoelen. '
+                              'Dat is geen bewijs van sneller sanitair water verwarmen. SolarPilot verandert '
+                              'de afzonderlijke installateursinstelling DHW capacity niet en verzint geen '
+                              'leerresultaat, COP of besparing voor een niet uitgevoerde boilerboost.',
                               'Export bundelt de belangrijke instellingen, meetdekking, beslissingen, modellen, '
                               'leerresultaten en fouten. Namen worden standaard gepseudonimiseerd en SolarPilot '
                               'uploadt het bestand niet automatisch.'],
@@ -1343,6 +1399,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                                'toestelvermogen blijven zichtbaar onderscheiden. Actief betekent niet dat het '
                                'verbruik op dat moment uitsluitend uit zonnepanelen komt of dat SolarPilot de '
                                'start veroorzaakte. Ontbrekende of oude gegevens blijven onbekend.',
+                               'De startuitleg toont naast de ruwe vrije injectie ook de effectieve toewijzing '
+                               'voor precies dat toestel. Die toewijzing komt uit dezelfde engineberekening als '
+                               'het startbesluit en is dus al verminderd met hogere prioriteiten, comfort- en '
+                               'cyclusreserves en eerder toegezegd vermogen. Benodigd, beschikbaar en '
+                               'voldoende/onvoldoende blijven afzonderlijk zichtbaar. Dat alle algemene '
+                               'controles groen zijn bewijst niet dat deze toewijzing groot genoeg is; de '
+                               'actuele beslisreden blijft leidend.',
                                'De Wallbox blijft volledig read-only. De huidige native fabrikantstatus kan '
                                'uitleggen waarop de laadpaal nu wacht. SolarPilot bewaart lokaal maximaal dertig '
                                'waargenomen eindes van laadperioden. Een historische stopreden wordt alleen aan '
@@ -1352,6 +1415,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                                'status worden nooit tot een bevestigde stopoorzaak gemaakt. De tijd is de '
                                'Home Assistant-waarneming, niet noodzakelijk het fysieke stopmoment. Deze '
                                'registratie verleent geen recht om de Wallbox te starten, stoppen of wijzigen.',
+                               'Voor de actuele begroting betekent verse lage laadkracht plus een expliciete '
+                               'native melding geen laadvraag, geen verbonden auto of bekende inactieve status '
+                               'dat geen EV-vermogen wordt gereserveerd. Alleen lage laadkracht of een oude '
+                               'afgeleide sessietekst is onvoldoende. De canonieke zonne-autostatus Zonne-auto '
+                               '· wacht op auto wordt door nieuwe standaardlijsten herkend; exact oude '
+                               'standaardlijsten migreren compatibel, terwijl eigen waardelijsten onaangeroerd '
+                               'blijven. Native Full Solar blijft voor zonneclassificatie vereist.',
                                'Terug en Vooruit in de browser herstellen alleen SolarPilot-schermen en '
                                'dialogen op dezelfde Home Assistant-URL. Een gewijzigd formulier vraagt eerst '
                                'bevestiging voordat het wordt weggegooid; opslaan of een lopende actie wordt '

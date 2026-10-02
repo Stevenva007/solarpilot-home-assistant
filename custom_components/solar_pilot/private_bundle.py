@@ -34,7 +34,8 @@ _ENTITY_FIELDS: dict[str, set[str]] = {
     "forecast": {"current_hour_entity", "next_hour_entity", "remaining_today_entity", "tomorrow_entity"},
     "local_pv": {"forecast_power_entity", "sun_entity"},
     "economy": {"import_price_entity", "export_price_entity"},
-    "dhw": {"target_entity", "temperature_entity", "power_entity", "hygiene_entity", "manual_entity"},
+    "dhw": {"target_entity", "temperature_entity", "power_entity", "space_activity_entity",
+            "hygiene_entity", "manual_entity"},
     "smart_climate": {"weather_entity", "outside_temp_entity"},
     "wallbox": {"power_entity", "status_entity", "demand_entity", "mode_entity"},
 }
@@ -46,6 +47,7 @@ _ENTITY_LIST_FIELDS: dict[str, set[str]] = {
 # Non-entity suggestion keys accepted from a private profile.
 _VALUE_FIELDS: dict[str, set[str]] = {
     "site": {"grid_sign", "battery_sign"},
+    "dhw": {"space_activity_active_states", "space_activity_inactive_states"},
     "wallbox": {"name"},
 }
 
@@ -152,6 +154,8 @@ def private_group_suggestions(hass, group: str, bundle: dict[str, Any] | None = 
                 out[key] = valid
     for key in _VALUE_FIELDS.get(group, set()):
         value = raw.get(key)
+        if group == "dhw" and key.startswith("space_activity_") and not isinstance(value, str):
+            continue
         if value not in (None, "", []):
             out[key] = deepcopy(value)
     return out

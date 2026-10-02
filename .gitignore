@@ -21,3 +21,6 @@ custom_components/solar_pilot/userfiles/*
 # Local analysis exports are private; never publish them.
 SolarPilot-analyse-*.json
 SolarPilot-analyse-*.zip
+
+# Local browser-test evidence is generated and must not enter release packages.
+/outputs/

@@ -307,8 +307,20 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                        'waarde, niet alleen het ingestelde doel. Sensorpositie, stratificatie en '
                        'waterafname beperken de zekerheid.',
  'cooling_entities': 'Alle relevante ruimtekoelzones. Echte of onzekere koeling verhindert extra hoge '
-                     'tankopwarming. Een kort idle-signaal tijdens sanitairwaterproductie is niet '
-                     'automatisch het einde van de koelvraag.',
+                      'tankopwarming. Een kort idle-signaal tijdens sanitairwaterproductie is niet '
+                      'automatisch het einde van de koelvraag.',
+ 'space_activity_entity': 'Optionele alleen-lezen takenrichting van dezelfde warmtepomp. Gebruik een '
+                          'werkelijk gerapporteerde statusbron die ruimtebedrijf van sanitair water en '
+                          'stilstand onderscheidt; geen vermogenssensor, bedieningsselect of afgeleide '
+                          'compressorclaim. Bij Panasonic kan PUMP ruimtebedrijf betekenen en WATER een '
+                          'sanitairwatertaak, maar controleer altijd de ruwe waarden van de gekozen bron.',
+ 'space_activity_active_states': 'Puntkomma-gescheiden exacte waarden die gemeld ruimtebedrijf betekenen, '
+                                 'standaard PUMP. Dit blokkeert alleen een nieuwe optionele buffer boven het '
+                                 'normale doel en kiest nooit zelf HEAT of COOL.',
+ 'space_activity_inactive_states': 'Puntkomma-gescheiden exacte waarden die géén ruimtebedrijf betekenen, '
+                                   'standaard IDLE;WATER. WATER is een gemelde takenrichting en geen bewijs '
+                                   'dat de compressor draait, hoeveel vermogen hij gebruikt of dat het vat '
+                                   'al opwarmt.',
  'hygiene_entity': 'Alleen een expliciete betrouwbare melding dat een fabrikant-hygiënecyclus actief '
                    'is. Force DHW of ontdooien is niet vanzelf een hygiënesignaal. Zonder zo’n bron '
                    'blijven het bevestigde fabrikantprogramma en beschermde tijdvenster essentieel.',

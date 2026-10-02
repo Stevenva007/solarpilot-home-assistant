@@ -34,6 +34,27 @@ def state_set(value: str) -> set[str]:
     return {part.strip().casefold() for part in value.split(";") if part.strip()}
 
 
+def confirmed_no_active_request(reading: "Reading", settings: dict) -> bool:
+    """Require fresh low power plus an explicit no-request signal."""
+    if reading.valid is not True or isinstance(reading.power_w, bool):
+        return False
+    try:
+        power = float(reading.power_w)
+        age = float(reading.age_s)
+        threshold = float(settings.get("charging_threshold_w", 50))
+        stale = float(settings.get("stale_s", WALLBOX_DEFAULTS["stale_s"]))
+    except (TypeError, ValueError, OverflowError):
+        return False
+    if (not math.isfinite(threshold) or threshold <= 0
+            or not math.isfinite(stale) or stale < 0
+            or not math.isfinite(power) or power < 0 or power >= threshold
+            or not math.isfinite(age) or age < -5 or age > stale):
+        return False
+    idle_status = ((reading.status or "").casefold()
+                   in state_set(settings.get("idle_states", WALLBOX_DEFAULTS["idle_states"])))
+    return reading.connected is False or reading.demand is False or idle_status
+
+
 def protected_entity(hass, settings: dict, entity_id: str | None) -> bool:
     """Block direct calls to configured read entities and their HA devices.
 
@@ -150,6 +171,11 @@ class WallboxGuard:
                                priority, priority and release, 0.0 if priority else None,
                                r.issue or "Wallbox-metingen onbetrouwbaar")
         self.invalid_since = None
+        if confirmed_no_active_request(r, c):
+            self.history.clear(); self.watch = None; self.phase = None
+            self.cooldown_until = 0.0
+            return GuardResult("idle", "Geen actieve Wallbox-laadvraag: geen vermogen gereserveerd",
+                               warning=warning)
         if r.mode in ("manual", "unknown", "stopped"):
             self.history.clear(); self.watch = None; self.phase = None
             self.cooldown_until = 0.0

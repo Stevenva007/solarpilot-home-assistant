@@ -163,13 +163,13 @@ def test_device_schedule_has_one_outcome_choice_and_hides_it_with_active_priorit
     assert "Configure device · step 4 of 4 · Planning and energy" in EN_TEXT
 
 
-def test_frontend_assets_are_release_bound_to_beta43():
+def test_frontend_assets_are_release_bound_to_beta44():
     option_js = (ROOT / "custom_components" / "solar_pilot" / "frontend" / "option-help.js").read_text(encoding="utf-8")
-    assert CARD.startswith("/* SolarPilot 1.0.0-beta.43.")
-    assert "option-help.js?v=1.0.0-beta.43" in CARD
-    assert option_js.startswith("/* SolarPilot 1.0.0-beta.43.")
-    assert "option-help.json?v=1.0.0-beta.43" in option_js
-    assert json.loads(OPTION_HELP)["version"] == "1.0.0-beta.43"
+    assert CARD.startswith("/* SolarPilot 1.0.0-beta.44.")
+    assert "option-help.js?v=1.0.0-beta.44" in CARD
+    assert option_js.startswith("/* SolarPilot 1.0.0-beta.44.")
+    assert "option-help.json?v=1.0.0-beta.44" in option_js
+    assert json.loads(OPTION_HELP)["version"] == "1.0.0-beta.44"
 
 
 def test_manual_dhw_hold_always_has_a_safe_resume_control():
@@ -179,6 +179,15 @@ def test_manual_dhw_hold_always_has_a_safe_resume_control():
     assert "Kies eerst Pauze wanneer Automatisch regelen actief is" in CARD
     assert "Hervatten verstuurt zelf geen temperatuurwijziging" in CARD
     assert 'aria-checked="${dhw.enabled?\'true\':\'false\'}"' in CARD
+
+
+def test_dhw_overview_uses_reported_target_and_prioritises_wait_status():
+    assert 'spTemp(dhw.actual_target_c)' in CARD
+    assert "const dhwBlocked=" in CARD
+    assert "dhw.control_allowed===false" in CARD
+    assert "SolarPilot-voorstel:" in CARD
+    assert "niet het gemelde toesteldoel" in CARD
+    assert "this._tile('Warm water',dhwTargetText" in CARD
 
 
 def test_visible_mode_and_dhw_wording_matches_current_behaviour():

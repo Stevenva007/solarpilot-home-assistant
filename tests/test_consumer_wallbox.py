@@ -14,9 +14,9 @@ def guard(**settings):
                                     'priority_release_s': 300, **settings})
 
 
-def read(power=0, status='Waiting for green energy', demand=True, **kw):
+def read(power=0, status='Waiting for green energy', demand=True, mode='full_solar', **kw):
     return Reading(power_w=power, stamp=1000, demand=demand, status=status,
-                   mode='full_solar', valid=True, age_s=0, connected=True, **kw)
+                   mode=mode, valid=True, age_s=0, connected=True, **kw)
 
 
 def tick(g, now, export, own=None, r=None):
@@ -62,10 +62,18 @@ def test_sample_gap_restarts_stability():
 
 
 @pytest.mark.parametrize('status', ['Ready','Paused','Scheduled','Waiting for car demand','Locked','Locked, car connected'])
-def test_plugged_but_no_request_never_reserves(status):
+@pytest.mark.parametrize('mode', ['full_solar', 'manual'])
+def test_plugged_but_no_request_never_reserves(status, mode):
     g=guard()
     # Idle status defeats even a stale/misconfigured demand override.
-    x=tick(g,0,6000,r=read(status=status,demand=True))
+    x=tick(g,0,6000,r=read(status=status,demand=True,mode=mode))
+    assert x.state=='no_request' and not x.block_starts
+    assert 'geen vermogen gereserveerd' in x.reason
+
+
+@pytest.mark.parametrize('mode', ['full_solar', 'manual'])
+def test_explicit_no_demand_never_reserves_even_with_unmapped_status(mode):
+    x=tick(guard(),0,6000,r=read(status='New native status',demand=False,mode=mode))
     assert x.state=='no_request' and not x.block_starts
 
 

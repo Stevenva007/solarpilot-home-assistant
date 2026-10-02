@@ -160,12 +160,152 @@ def test_ev_sharing_can_be_disabled_without_losing_priority():
     kw['configs']['dw']['dishwasher_ev_solar_priority']=False
     kw['reading']=replace(kw['reading'],power_w=3000);kw['stable_ev_credit_w']=3000
     v=advance(DishwasherPriority(),kw)
-    assert v.luxury_block and not v.ev_credit
+    assert v.candidate_ids == {'dw'} and not v.fitting_ids and not v.ev_credit
+    assert not v.luxury_block
 
 
 def test_tomorrow_or_unarmed_has_no_priority_claim():
     v=advance(DishwasherPriority(),inputs(permitted_ids=set()))
     assert not v.candidate_ids and not v.luxury_block and not v.holds
+
+
+def dhw_allocation(priority=None, **overrides):
+    priority = priority or DishwasherPriority()
+    values = dict(mode='solar', actual_grid=-6000, filtered_grid=-6000,
+        pv_w=9000, discharge_w=0, reserve_w=150,
+        unmetered_aeg_reserve_w=2000, surplus_threshold_w=3500,
+        holding_owned_high=False, restart_proof_required=False,
+        capacity_guard_enabled=False, capacity_valid=True,
+        optional_import_headroom_w=None, estimated_heat_power_w=3200,
+        states={'dw': State(owned=True, on=True, target_w=2000, measured_w=2000)})
+    values.update(overrides)
+    return priority.dhw_luxury_allocation(**values)
+
+
+def test_active_unmetered_aeg_is_reserved_but_not_an_absolute_60c_veto():
+    p = DishwasherPriority()
+    p.view.active_ids = {'dw'}
+    result = dhw_allocation(p)
+    assert result.allowed
+    assert result.usable_surplus_w == 3850
+    assert result.unmetered_aeg_reserve_w == 2000
+    assert 'Wallboxvermogen telt niet mee' in result.reason
+
+
+def test_new_60c_requires_more_than_threshold_after_house_and_aeg_reserves():
+    at_boundary = dhw_allocation(actual_grid=-5650, filtered_grid=-5650)
+    assert not at_boundary.allowed
+    assert at_boundary.usable_surplus_w == at_boundary.required_surplus_w == 3500
+    holding = dhw_allocation(actual_grid=-2800, filtered_grid=-2800,
+                             holding_owned_high=True)
+    assert holding.allowed
+    assert holding.required_surplus_w == 0
+    assert holding.usable_surplus_w == 650
+
+
+def test_holding_60c_releases_if_other_reserves_exceed_real_export():
+    result = dhw_allocation(actual_grid=-1800, filtered_grid=-1800,
+                            holding_owned_high=True)
+    assert not result.allowed
+    assert result.grid_surplus_w == -350
+
+
+def test_idle_tank_at_native_restart_threshold_reacquires_full_start_proof():
+    result = dhw_allocation(actual_grid=-2800, filtered_grid=-2800,
+        holding_owned_high=True, restart_proof_required=True)
+    assert not result.allowed
+    assert result.required_surplus_w == 3500
+
+
+def test_new_or_native_restart_60c_respects_quarter_hour_capacity():
+    short = dhw_allocation(capacity_guard_enabled=True,
+        optional_import_headroom_w=3199)
+    assert not short.allowed
+    assert short.optional_import_headroom_w == 3199
+    assert '3200 W nodig' in short.reason
+    assert dhw_allocation(capacity_guard_enabled=True,
+        optional_import_headroom_w=3200).allowed
+    restart = dhw_allocation(holding_owned_high=True,
+        restart_proof_required=True, capacity_guard_enabled=True,
+        optional_import_headroom_w=0)
+    assert not restart.allowed and 'kwartierpiekruimte' in restart.reason
+
+
+def test_verified_owned_60c_heater_is_not_counted_twice_by_capacity_guard():
+    result = dhw_allocation(actual_grid=-2800, filtered_grid=-2800,
+        holding_owned_high=True, capacity_guard_enabled=True,
+        optional_import_headroom_w=0)
+    assert result.allowed
+    assert result.optional_import_headroom_w == 0
+
+
+@pytest.mark.parametrize('valid,headroom', [(False, 5000), (True, None),
+                                            (True, float('nan'))])
+def test_capacity_guard_fails_closed_on_unknown_or_invalid_headroom(valid, headroom):
+    result = dhw_allocation(capacity_guard_enabled=True,
+        capacity_valid=valid, optional_import_headroom_w=headroom)
+    assert not result.allowed
+    assert 'niet betrouwbaar bekend' in result.reason
+
+
+def test_dhw_allocation_uses_more_conservative_raw_or_filtered_p1():
+    result = dhw_allocation(actual_grid=-7000, filtered_grid=-5000)
+    assert not result.allowed
+    assert result.grid_surplus_w == result.usable_surplus_w == 2850
+
+
+@pytest.mark.parametrize('key,value', [
+    ('actual_grid', None), ('filtered_grid', None), ('pv_w', None),
+    ('pv_w', float('nan')), ('discharge_w', -1),
+    ('unmetered_aeg_reserve_w', None), ('reserve_w', -1),
+])
+def test_dhw_allocation_fails_closed_on_unknown_or_invalid_evidence(key, value):
+    result = dhw_allocation(**{key: value})
+    assert not result.allowed
+    assert 'niet volledig betrouwbaar bekend' in result.reason
+
+
+def test_dhw_allocation_fails_closed_on_unreliable_owned_commitment():
+    state = State(owned=True, on=True, target_w=1000, measured_w=200)
+    state.available = False
+    result = dhw_allocation(states={'other': state})
+    assert not result.allowed
+    assert 'toegewezen toestelvermogen' in result.reason
+
+
+def test_dhw_allocation_fails_closed_on_unreliable_active_aeg():
+    p = DishwasherPriority()
+    p.view.active_ids = {'dw'}
+    state = State(on=True, available=False)
+    result = dhw_allocation(p, states={'dw': state})
+    assert not result.allowed
+    assert 'afwasstatus of -vermogen' in result.reason
+
+
+def test_owned_unconsumed_commitment_is_reserved_for_dhw_allocation():
+    other = State(owned=True, on=True, target_w=1000, measured_w=200)
+    result = dhw_allocation(actual_grid=-6400, filtered_grid=-6400,
+                            states={'other': other})
+    assert not result.allowed
+    assert result.unconsumed_commitment_w == 800
+    assert result.usable_surplus_w == 3450
+
+
+def test_fitting_idle_aeg_gets_first_chance_even_with_ample_surplus():
+    p = DishwasherPriority()
+    p.view.candidate_ids = p.view.fitting_ids = {'dw'}
+    result = dhw_allocation(p, actual_grid=-10000, filtered_grid=-10000)
+    assert not result.allowed
+    assert 'eerst startkans' in result.reason
+
+
+def test_wallbox_credit_never_increases_dhw_60c_allocation():
+    p = DishwasherPriority()
+    p.view.active_ids = {'dw'}
+    p.view.ev_credit = {'dw': 5000}
+    result = dhw_allocation(p, actual_grid=-5000, filtered_grid=-5000)
+    assert not result.allowed
+    assert result.usable_surplus_w == 2850
 
 @pytest.mark.parametrize('mode',['observe','paused'])
 def test_modes_never_release_lower_or_share_ev(mode):
@@ -296,7 +436,8 @@ async def test_live_mode_not_full_solar_remains_only_real_surplus(monkeypatch):
 async def test_user_can_disable_ev_sharing_now(monkeypatch):
     r,h,c,w=solar_case(monkeypatch,dishwasher_ev_solar_priority=False)
     await r.tick();assert not [x for x in h.services.calls if x[0]=='button']
-    assert r.dishwasher_priority.view.luxury_block
+    assert r.dishwasher_priority.view.candidate_ids == {'a'}
+    assert not r.dishwasher_priority.view.luxury_block
 
 @pytest.mark.asyncio
 async def test_after_priority_start_program_cannot_be_stopped_even_on_grid(monkeypatch):
@@ -340,6 +481,22 @@ def boiler(r,h,target=50,temp=50,protected=False):
     if protected:
         r.dhw.config['hygiene_entity']='binary_sensor.hygiene';h.states.set('binary_sensor.hygiene','on')
 
+
+def test_runtime_dhw_allocation_receives_existing_capacity_guard(monkeypatch):
+    r,h,c,w=solar_case(monkeypatch);boiler(r,h)
+    r.states['a'].on=True
+    r.dishwasher_priority.view.active_ids={'a'}
+    r._dishwasher_unmetered_reserve=2000
+    r.filtered=-6000
+    r.pv_w=9000
+    r.capacity=SimpleNamespace(enabled=True,valid=True,optional_headroom_w=500)
+    r.capacity_settings['respect_optional_dhw']=True
+    local=datetime.fromtimestamp(w[0],timezone.utc)
+    reading=r.dhw.read(-6000,True,0,local)
+    r.dhw._prepare_comfort(local,reading)
+    assert not reading.luxury_allowed
+    assert '500 W kwartierpiekruimte' in reading.luxury_reason
+
 @pytest.mark.asyncio
 async def test_priority_blocks_extra60_but_not_normal50(monkeypatch):
     r,h,c,w=solar_case(monkeypatch);boiler(r,h)
@@ -348,6 +505,127 @@ async def test_priority_blocks_extra60_but_not_normal50(monkeypatch):
     assert not [x for x in h.services.calls if x[0]=='water_heater' and x[2].get('temperature')==60]
     assert r.dhw.policy.result.target_c==50
     assert [x for x in h.services.calls if x[0]=='button']
+
+
+async def running_aeg_with_boiler(monkeypatch, export_w):
+    r,h,c,w=solar_case(monkeypatch)
+    await r.tick()
+    w[0]+=3
+    event(r,h,c,w,'dishwasher_state_entity','Running')
+    await r.tick()
+    assert r.states['a'].on and r.states['a'].owned and not r.pending
+    boiler(r,h)
+    h.services.calls.clear()
+    w[0]+=30
+    h.states.set('sensor.pv',9000,{'unit_of_measurement':'W'})
+    h.states.set('sensor.grid',-export_w,{'unit_of_measurement':'W'})
+    r.filtered=-export_w
+    r.last_issued=-1e12
+    await r.tick()
+    return r,h,c,w
+
+
+@pytest.mark.asyncio
+async def test_active_unmetered_aeg_allows_60c_with_enough_real_surplus(monkeypatch):
+    r,h,_,_=await running_aeg_with_boiler(monkeypatch,6000)
+    assert r._dishwasher_unmetered_reserve == 2000
+    assert r.dhw.reading.luxury_allowed
+    assert r.dhw.policy.result.target_c == 60
+    assert [x for x in h.services.calls
+            if x[0]=='water_heater' and x[2].get('temperature')==60]
+    assert not [x for x in h.services.calls if x[0]=='button']
+
+
+@pytest.mark.asyncio
+async def test_active_unmetered_aeg_blocks_60c_when_reserved_surplus_is_short(monkeypatch):
+    r,h,_,_=await running_aeg_with_boiler(monkeypatch,5500)
+    assert not r.dhw.reading.luxury_allowed
+    assert r.dhw.policy.result.target_c == 50
+    assert '3350 W werkelijk vrij' in r.dhw.reading.luxury_reason
+    assert not [x for x in h.services.calls if x[0]=='water_heater']
+
+
+@pytest.mark.asyncio
+async def test_confirmed_60c_does_not_count_verified_own_heater_twice(monkeypatch):
+    r,h,_,w=await running_aeg_with_boiler(monkeypatch,6000)
+    r.dhw.config['power_entity']=r.dhw.settings['power_entity']='sensor.boiler_power'
+    h.states.set('sensor.boiler_power',3200,{'unit_of_measurement':'W'})
+    tank=h.states.get('water_heater.tank')
+    h.states.set('water_heater.tank','idle',
+        {**tank.attributes,'temperature':60,'hvac_action':'heating'})
+    r.dhw.pending=None
+    r.dhw.owned_target=60
+    h.services.calls.clear()
+    w[0]+=30
+    h.states.set('sensor.grid',-2800,{'unit_of_measurement':'W'})
+    r.filtered=-2800
+    r.last_issued=-1e12
+    await r.tick()
+    assert r.dhw.reading.luxury_allowed
+    assert r.dhw.policy.result.target_c == 60
+    assert not [x for x in h.services.calls if x[0]=='water_heater']
+
+
+@pytest.mark.asyncio
+async def test_confirmed_60c_releases_when_aeg_reserve_exceeds_export(monkeypatch):
+    r,h,_,w=await running_aeg_with_boiler(monkeypatch,6000)
+    r.dhw.config['power_entity']=r.dhw.settings['power_entity']='sensor.boiler_power'
+    h.states.set('sensor.boiler_power',3200,{'unit_of_measurement':'W'})
+    tank=h.states.get('water_heater.tank')
+    h.states.set('water_heater.tank','idle',
+        {**tank.attributes,'temperature':60,'hvac_action':'heating'})
+    r.dhw.pending=None
+    r.dhw.owned_target=60
+    h.services.calls.clear()
+    w[0]+=30
+    h.states.set('sensor.grid',-1800,{'unit_of_measurement':'W'})
+    r.filtered=-1800
+    r.last_issued=-1e12
+    await r.tick()
+    assert not r.dhw.reading.luxury_allowed
+    assert r.dhw.policy.result.target_c == 50
+    assert [x for x in h.services.calls
+            if x[0]=='water_heater' and x[2].get('temperature')==50]
+
+
+@pytest.mark.asyncio
+async def test_holding_60c_without_heating_proof_invents_no_own_power(monkeypatch):
+    r,h,_,w=await running_aeg_with_boiler(monkeypatch,6000)
+    tank=h.states.get('water_heater.tank')
+    h.states.set('water_heater.tank','idle',
+        {**tank.attributes,'temperature':60,'hvac_action':'idle'})
+    r.dhw.pending=None
+    r.dhw.owned_target=60
+    h.services.calls.clear()
+    w[0]+=30
+    h.states.set('sensor.grid',-2800,{'unit_of_measurement':'W'})
+    r.filtered=-2800
+    r.last_issued=-1e12
+    await r.tick()
+    assert not r.dhw.reading.luxury_allowed
+    assert r.dhw.policy.result.target_c == 50
+    assert '650 W werkelijk vrij' in r.dhw.reading.luxury_reason
+
+
+@pytest.mark.asyncio
+async def test_active_aeg_never_weakens_cooling_cap(monkeypatch):
+    r,h,_,w=await running_aeg_with_boiler(monkeypatch,6000)
+    tank=h.states.get('water_heater.tank')
+    h.states.set('water_heater.tank','idle',
+        {**tank.attributes,'temperature':60})
+    r.dhw.pending=None
+    r.dhw.owned_target=60
+    h.services.calls.clear()
+    w[0]+=30
+    h.states.set('climate.floor','cool',{'hvac_action':'cooling'})
+    h.states.set('sensor.grid',-8000,{'unit_of_measurement':'W'})
+    r.filtered=-8000
+    r.last_issued=-1e12
+    await r.tick()
+    assert r.dhw.policy.result.cooling_block
+    assert r.dhw.policy.result.target_c == 50
+    assert [x for x in h.services.calls
+            if x[0]=='water_heater' and x[2].get('temperature')==50]
 
 @pytest.mark.asyncio
 async def test_normal_comfort_is_dispatched_before_dishwasher(monkeypatch):

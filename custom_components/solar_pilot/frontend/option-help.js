@@ -1,11 +1,11 @@
-/* SolarPilot 1.0.0-beta.43. Local option explanations + HA's native options-flow API.
+/* SolarPilot 1.0.0-beta.44. Local option explanations + HA's native options-flow API.
  * No actuator service is called here. HA retains authentication, schema validation,
  * per-device live/deferred guards and final config-entry save. No internal HA DOM is patched.
  */
 let spOptionHelpPromise;
 async function spOptionHelp(){
   if(globalThis.SOLAR_PILOT_HELP_DATA)return globalThis.SOLAR_PILOT_HELP_DATA;
-  if(!spOptionHelpPromise)spOptionHelpPromise=fetch('/solar_pilot_static/option-help.json?v=1.0.0-beta.43',{credentials:'same-origin'})
+  if(!spOptionHelpPromise)spOptionHelpPromise=fetch('/solar_pilot_static/option-help.json?v=1.0.0-beta.44',{credentials:'same-origin'})
     .then(r=>{if(!r.ok)throw new Error('De lokale optie-uitleg kon niet worden geladen.');return r.json();})
     .catch(e=>{spOptionHelpPromise=null;throw e;});
   return spOptionHelpPromise;
@@ -53,7 +53,7 @@ class SolarPilotOptionsDialog extends HTMLElement{
     else if(['text','string'].includes(type))control=`<input id="${id}" name="${spHelpEscape(key)}" data-kind="text" type="${cfg.type==='password'?'password':'text'}" value="${spHelpEscape(value??'')}" ${req}>`;
     else{this._unsupported=true;control='<p class="error">Gebruik de standaard Home Assistant-configuratie voor dit veldtype.</p>';}
     const explanation=this.help.entries[`${this.flow.step_id}.${key}`];const code=this.flow.errors?.[key];return `<div class="field"><div class="label"><label for="${id}">${spHelpEscape(label)}${schema.required?' *':''}</label><button class="help" type="button" data-help="${spHelpEscape(key)}" title="${spHelpEscape(explanation?.short||'Uitleg openen')}" aria-label="Uitleg bij ${spHelpEscape(label)}">?</button></div>${control}${code?`<p class="error inline-error">${spHelpEscape(this.help.errors[code]||code)}</p>`:''}</div>`;}
-  _submit(form){if(this._busy||this._unsupported||!form.reportValidity())return;const values={};for(const el of form.elements){if(!el.name)continue;const type=el.dataset.kind;let value=type==='boolean'?el.checked:type==='multiple'?Array.from(el.selectedOptions).map(o=>o.value):el.value;if(value===''&&!el.required)continue;if(type==='number'){value=Number(value);if(!Number.isFinite(value)){this.error.textContent='Vul een geldig getal in.';return;}}if(type==='time'&&value.length===5)value+=':00';values[el.name]=value;}this._draftStarted=true;this._request(`config/config_entries/options/flow/${encodeURIComponent(this.flow.flow_id)}`,values);}
+  _submit(form){if(this._busy||this._unsupported)return;try{if(!form.reportValidity())return;const values={};for(const el of form.querySelectorAll('input[name],select[name],textarea[name]')){const type=el.dataset.kind;let value=type==='boolean'?el.checked:type==='multiple'?Array.from(el.querySelectorAll('option:checked')).map(o=>o.value):el.value;if(value===''&&!el.required)continue;if(type==='number'){value=Number(value);if(!Number.isFinite(value)){this.error.textContent='Vul een geldig getal in.';return;}}if(type==='time'&&value.length===5)value+=':00';values[el.name]=value;}this._draftStarted=true;this._request(`config/config_entries/options/flow/${encodeURIComponent(this.flow.flow_id)}`,values);}catch(e){this.error.textContent='De invoer kon niet worden gelezen; niets opgeslagen. '+(e.message||String(e));}}
   _click(e){const button=e.target.closest('button');if(!button||button.disabled)return;if(button.hasAttribute('data-help')){e.preventDefault();this.uiHistory?.prepare();if(!this.helpDialog){this.helpDialog=document.createElement('solar-pilot-option-help-dialog');this.shadowRoot.append(this.helpDialog);}const step=this.flow.step_id,key=button.dataset.help;this.helpDialog.open(step,key);this.uiHistory?.track(this.helpDialog,()=>this.helpDialog.open(step,key));return;}if(button.hasAttribute('data-close'))this.close();if(button.hasAttribute('data-menu'))this._request(`config/config_entries/options/flow/${encodeURIComponent(this.flow.flow_id)}`,{next_step_id:button.dataset.menu});}
 }
 if(!customElements.get('solar-pilot-options-dialog'))customElements.define('solar-pilot-options-dialog',SolarPilotOptionsDialog);

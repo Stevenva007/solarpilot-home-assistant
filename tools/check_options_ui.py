@@ -106,6 +106,10 @@ with sync_playwright() as p:
     page.set_viewport_size({'width':1440,'height':1000})
     page.evaluate("c._optionsDialog.shadowRoot.querySelector('h2').textContent='Ochtend & avondvoorraad · fictief voorbeeld';c._optionsDialog.dialog.scrollTop=0")
     page.screenshot(path=str(output/'SolarPilot-beta28-instellingen-desktop.png'))
+    # Regression: the real HA browser raised "Method not implemented" when
+    # reading HTMLFormElement.elements. Read scoped controls instead; no extra
+    # permission, validation bypass or actuator request is introduced.
+    page.evaluate("Object.defineProperty(c._optionsDialog.content.querySelector('form'),'elements',{get(){throw Error('Method not implemented.')}})")
     host.locator('button[type=submit]').dblclick()
     page.wait_for_function("c._optionsDialog.flow===null")
     assert page.evaluate('apiCalls.length')==3
@@ -141,6 +145,7 @@ with sync_playwright() as p:
     assert host.locator('[name=extra_test]').evaluate('e=>e.selectedOptions[0].value')=='sensor.demo'
     host.locator('[name=charging_phases]').select_option('3')
     host.locator('[name=extra_test]').select_option(['sensor.demo','number.demo'])
+    page.evaluate("Object.defineProperty(c._optionsDialog.content.querySelector('form'),'elements',{get(){throw Error('Method not implemented.')}});Object.defineProperty(c._optionsDialog.content.querySelector('[name=extra_test]'),'selectedOptions',{get(){throw Error('Method not implemented.')}})")
     host.locator('button[type=submit]').click()
     last=page.evaluate('apiCalls[apiCalls.length-1].data')
     assert last['charging_phases']=='3' and last['enabled'] is False and 'phases_entity' not in last

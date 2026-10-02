@@ -3,7 +3,8 @@ from copy import deepcopy
 from uuid import uuid4
 import voluptuous as vol
 from homeassistant.helpers import selector
-from .dhw import DHW_DEFAULTS, DHW_NUMBERS, finite, validate_settings, effective_base_target, normalized_settings
+from .dhw import (DHW_DEFAULTS, DHW_NUMBERS, finite, validate_settings,
+                  effective_base_target, normalized_settings, state_values)
 from .wallbox import protected_entity
 from .dhw_schedule import SCHEDULE_DEFAULTS, validate_schedule
 from .first_install import apply_first_install_suggestions
@@ -28,6 +29,9 @@ def source_schema(c):
         optional("temperature_entity", c): entity(["sensor", "water_heater", "climate", "input_number"]),
         optional("power_entity", c): entity(["sensor", "input_number"]),
         optional("cooling_entities", c): entity(["climate", "binary_sensor", "input_boolean"], True),
+        optional("space_activity_entity", c): entity(["sensor", "binary_sensor"]),
+        vol.Required("space_activity_active_states", default=c["space_activity_active_states"]): selector.TextSelector(),
+        vol.Required("space_activity_inactive_states", default=c["space_activity_inactive_states"]): selector.TextSelector(),
         optional("hygiene_entity", c): entity(["binary_sensor", "input_boolean", "switch", "schedule"]),
         optional("manual_entity", c): entity(["binary_sensor", "input_boolean", "switch", "schedule", "select", "input_select"]),
         optional("manual_entities", c): entity(["binary_sensor", "input_boolean", "switch", "schedule", "select", "input_select"], True),
@@ -47,7 +51,8 @@ def sources_errors(hass, c, site, wallbox, devices):
         errors["safety_confirmed"] = "dhw_safety"
     if c["enabled"] and not site.get("pv_entity"):
         errors["base"] = "dhw_pv_required"
-    ids = [c.get(k) for k in ("target_entity", "temperature_entity", "power_entity", "hygiene_entity", "manual_entity")]
+    ids = [c.get(k) for k in ("target_entity", "temperature_entity", "power_entity",
+                              "space_activity_entity", "hygiene_entity", "manual_entity")]
     ids += c.get("manual_entities", [])
     ids += c.get("cooling_entities", [])
     if any(hass.states.get(i) is None for i in ids if i):
@@ -60,6 +65,18 @@ def sources_errors(hass, c, site, wallbox, devices):
             errors["target_entity"] = "duplicate"
     if target in c.get("cooling_entities", []):
         errors["cooling_entities"] = "duplicate"
+    space_activity = c.get("space_activity_entity", "")
+    if space_activity and (space_activity == target or space_activity in c.get("cooling_entities", [])):
+        errors["space_activity_entity"] = "duplicate"
+    if space_activity:
+        active_raw = c.get("space_activity_active_states")
+        inactive_raw = c.get("space_activity_inactive_states")
+        active = state_values(active_raw)
+        inactive = state_values(inactive_raw)
+        if not isinstance(active_raw, str) or not active or active & inactive:
+            errors["space_activity_active_states"] = "dhw_space_activity_states"
+        if not isinstance(inactive_raw, str) or not inactive or active & inactive:
+            errors["space_activity_inactive_states"] = "dhw_space_activity_states"
     reserved = {site.get(k) for k in ("grid_entity", "export_entity", "pv_entity", "battery_power_entity")}
     reserved.update(d.get("power_entity") for d in devices)
     if wallbox.get("enabled"):
@@ -124,7 +141,10 @@ class DHWOptionsMixin:
         c = getattr(self, "_dhw", current)
         errors = {}
         if user_input is not None:
-            c = {**c, **{k: deepcopy(DHW_DEFAULTS[k]) for k in ("target_entity", "temperature_entity", "power_entity", "cooling_entities", "hygiene_entity", "manual_entity", "manual_entities")}, **user_input}
+            c = {**c, **{k: deepcopy(DHW_DEFAULTS[k]) for k in (
+                "target_entity", "temperature_entity", "power_entity", "cooling_entities",
+                "space_activity_entity", "space_activity_active_states", "space_activity_inactive_states",
+                "hygiene_entity", "manual_entity", "manual_entities")}, **user_input}
             site = rt.settings if rt else {**self.config_entry.data, **self._base_options().get("settings", {})}
             errors = sources_errors(self.hass, c, site, self._base_options().get("wallbox", {}), self._base_options().get("devices", []))
             self._dhw = c

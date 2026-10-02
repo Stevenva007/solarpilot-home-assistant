@@ -11,9 +11,17 @@ from zoneinfo import ZoneInfo
 from homeassistant.exceptions import HomeAssistantError
 from .dhw import (DHW_DEFAULTS, DHW_NUMBERS, DHWPolicy, DHWReading,
                   cooling_state, finite, validate_settings, effective_base_target,
-                  hygiene_schedule_active, night_active, normalized_settings)
+                  hygiene_schedule_active, night_active, normalized_settings,
+                  state_values)
 from .wallbox import protected_entity, state_set
 from .dhw_schedule import DHWComfortSchedule
+
+
+# panasonic_cc 2026.8.7 can publish a command-side target observation before a
+# later coordinator observation.  That immediate HA state must not prove the
+# command.  This is deliberately adapter-scoped through the entity registry;
+# other water-heater integrations keep their existing acknowledgement contract.
+PANASONIC_CC_ACK_POLL_MIN_S = 10.0
 
 
 class DHWManager:
@@ -168,6 +176,19 @@ class DHWManager:
         raw = obj.state if domain in ("number", "input_number") else obj.attributes.get("temperature")
         return finite(raw), obj
 
+    def _ack_poll_min_s(self):
+        """Return an adapter-specific delay before an HA state may ACK a write."""
+        entity_id = self.config.get("target_entity", "")
+        if not entity_id.startswith("water_heater."):
+            return 0.0
+        try:
+            from homeassistant.helpers import entity_registry as er
+            registry = er.async_get(self.runtime.hass)
+            row = registry.async_get(entity_id)
+        except (AttributeError, KeyError, TypeError):
+            return 0.0
+        return PANASONIC_CC_ACK_POLL_MIN_S if getattr(row, "platform", "") == "panasonic_cc" else 0.0
+
     def _temperature(self):
         entity_id = self.config.get("temperature_entity") or self.config["target_entity"]
         obj = self._state(entity_id)
@@ -226,35 +247,128 @@ class DHWManager:
 
     def _cooling(self):
         ids = self.config.get("cooling_entities", [])
-        if not ids:
-            return None
         results = []
         for entity_id in ids:
             # Climate cloud reports must be fresh; binary helpers can legitimately
             # be unchanged. Their source template must propagate availability.
             obj = self._state(entity_id, freshness=entity_id.startswith("climate."))
             results.append(cooling_state(obj.state if obj else None, obj.attributes if obj else {}, self.settings["cooling_detection"]))
-        return True if True in results else None if None in results else False
+        if True in results:
+            return True
+        source = self._space_activity_source()
+        if source["configured"]:
+            # PUMP is space activity, not proof of HEAT versus COOL.  Likewise a
+            # stale/unmapped report cannot prove that cooling is absent.  Both
+            # stay unknown so an existing optional high target falls to the
+            # cooling cap without ever claiming active cooling.
+            if source["busy"] is not False:
+                return None
+            for entity_id in ids:
+                if not entity_id.startswith("climate."):
+                    continue
+                obj = self._state(entity_id)
+                action = (str(obj.attributes.get("hvac_action", "")).strip().casefold()
+                          if obj is not None else "")
+                if action in ("heating", "preheating", "cooling", "defrosting"):
+                    return None
+            return None if None in results else False
+        if self._panasonic_auto_blindspot():
+            return None
+        return None if not ids or None in results else False
 
-    def _space_activity(self):
-        """Read existing climate actions, never infer heating from mode alone."""
+    def _entity_platform(self, entity_id):
+        """Read an entity's integration platform without guessing from its name."""
+        try:
+            from homeassistant.helpers import entity_registry as er
+            registry = er.async_get(self.runtime.hass)
+            row = registry.async_get(entity_id)
+        except (AttributeError, KeyError, TypeError):
+            return ""
+        return str(getattr(row, "platform", "") or "").casefold()
+
+    def _space_activity_source(self):
+        """Read a configured task-direction source; never infer HEAT/COOL or power."""
+        entity_id = self.config.get("space_activity_entity", "")
+        if not entity_id:
+            return {"configured": False, "busy": None, "valid": False,
+                    "state": None, "reason": ""}
+        obj = self._state(entity_id)
+        if obj is None or obj.attributes.get("restored"):
+            return {"configured": True, "busy": None, "valid": False,
+                    "state": None,
+                    "reason": "Extra zonnebuffer wacht: gemelde warmtepomptaak ontbreekt, is te oud of is herstelde cache"}
+        active = state_values(self.settings.get("space_activity_active_states", "PUMP"))
+        inactive = state_values(self.settings.get("space_activity_inactive_states", "IDLE;WATER"))
+        raw = str(obj.state).strip()
+        value = raw.casefold()
+        if not active or not inactive or active & inactive:
+            return {"configured": True, "busy": None, "valid": False,
+                    "state": raw,
+                    "reason": "Extra zonnebuffer wacht: actieve en inactieve warmtepomptaken zijn niet eenduidig ingesteld"}
+        if value in active:
+            return {"configured": True, "busy": True, "valid": True,
+                    "state": raw,
+                    "reason": "Extra zonnebuffer wacht: gemelde warmtepomptaak wijst op ruimtebedrijf; dit bewijst geen HEAT/COOL of compressorvermogen"}
+        if value in inactive:
+            return {"configured": True, "busy": False, "valid": True,
+                    "state": raw, "reason": ""}
+        return {"configured": True, "busy": None, "valid": False,
+                "state": raw,
+                "reason": "Extra zonnebuffer wacht: gemelde warmtepomptaak heeft geen eenduidig ingestelde betekenis"}
+
+    def _panasonic_auto_blindspot(self):
+        """Detect only registered panasonic_cc AUTO zones with an idle/off action."""
+        for entity_id in self.config.get("cooling_entities", []):
+            if not entity_id.startswith("climate."):
+                continue
+            obj = self._state(entity_id)
+            if obj is None or self._entity_platform(entity_id) != "panasonic_cc":
+                continue
+            mode = str(obj.state).strip().casefold()
+            action = str(obj.attributes.get("hvac_action", "")).strip().casefold()
+            if mode in ("auto", "heat_cool") and action in ("idle", "off"):
+                return True
+        return False
+
+    def space_activity_status(self):
+        """Return busy/reason/relevance for DHW and advisory heat-pump learning."""
+        source = self._space_activity_source()
         ids = [x for x in self.config.get("cooling_entities", []) if x.startswith("climate.")]
-        if not ids:
-            return None, "Extra zonnebuffer wacht: geen betrouwbare ruimteklimaatactie gekoppeld"
-        unknown = False
+        unknown = bool(source["configured"] and source["busy"] is None)
+        active_action = False
         for entity_id in ids:
             obj = self._state(entity_id)
             if obj is None:
                 unknown = True
                 continue
-            action = str(obj.attributes.get("hvac_action", "")).casefold()
+            action = str(obj.attributes.get("hvac_action", "")).strip().casefold()
             if action in ("heating", "preheating", "cooling", "defrosting"):
-                return True, "Extra zonnebuffer wacht: ruimteverwarming/koeling actief; Panasonic houdt de taakverdeling"
-            if obj.state != "off" and action not in ("idle", "off", "fan", "drying"):
+                active_action = True
+                continue
+            mode = str(obj.state).strip().casefold()
+            if mode != "off" and action not in ("idle", "off", "fan", "drying"):
                 unknown = True
+            if (mode in ("auto", "heat_cool") and action in ("idle", "off")
+                    and self._entity_platform(entity_id) == "panasonic_cc"
+                    and not source["configured"]):
+                unknown = True
+        relevant = bool(source["configured"] or self._panasonic_auto_blindspot())
+        if active_action:
+            if source["configured"] and source["busy"] is False:
+                return None, "Extra zonnebuffer wacht: klimaat- en gemelde warmtepomptaak spreken elkaar tegen", relevant, source
+            return True, "Extra zonnebuffer wacht: ruimteverwarming/koeling actief; Panasonic houdt de taakverdeling", relevant, source
+        if source["busy"] is True:
+            return True, source["reason"], True, source
+        if not ids and not source["configured"]:
+            return None, "Extra zonnebuffer wacht: geen betrouwbare ruimteklimaatactie gekoppeld", False, source
         if unknown:
-            return None, "Extra zonnebuffer wacht: ruimteklimaatactie niet betrouwbaar bekend"
-        return False, ""
+            return None, source["reason"] or "Extra zonnebuffer wacht: ruimteklimaatactie niet betrouwbaar bekend", relevant, source
+        return False, "", relevant, source
+
+    def _space_activity(self):
+        """Read explicit climate actions and a reported task direction, read-only."""
+        busy, reason, _relevant, _source = self.space_activity_status()
+        return busy, reason
 
     def read(self, grid, grid_valid, discharge, local_now=None):
         target, obj = self._target()
@@ -384,9 +498,51 @@ class DHWManager:
                 r.luxury_allowed = False
                 r.luxury_reason = "Extra 60 °C wacht op Wallbox-laadstart of betrouwbare laadstatus"
         preference = getattr(self.runtime, "dishwasher_priority", None)
-        if preference is not None and preference.view.luxury_block:
-            r.luxury_allowed = False
-            r.luxury_reason = preference.view.reason
+        # A running preferred dishwasher is a load to reserve, not a blanket
+        # veto on 60 °C. A ready cycle that demonstrably fits still receives
+        # the first start opportunity. The allocation deliberately excludes any
+        # Wallbox credit and does not reserve this DHW heater a second time.
+        if (preference is not None and r.luxury_allowed
+                and (preference.view.active_ids or preference.view.candidate_ids)):
+            holding_high = (self.owned_target == self.settings["surplus_c"]
+                            and not self.pending)
+            fresh_target = self._state(self.config["target_entity"])
+            action = (str(fresh_target.attributes.get("hvac_action", "")).casefold()
+                      if fresh_target is not None else "")
+            own_power, _ = self.runtime._power(
+                self.config.get("power_entity"), self.settings["stale_s"])
+            verified_heating = (action in ("heating", "preheating")
+                                or (self.exclusive_meter() and own_power is not None
+                                    and own_power > 100))
+            restart_c = self.settings["surplus_c"] + self.settings["tank_differential_c"]
+            restart_proof = (holding_high and
+                             (r.temperature_c is None or r.temperature_c <= restart_c)
+                             and not verified_heating)
+            capacity = getattr(self.runtime, "capacity", None)
+            capacity_guard = bool(capacity and getattr(capacity, "enabled", False)
+                                  and self.runtime.capacity_settings.get(
+                                      "respect_optional_dhw", True))
+            allocation = preference.dhw_luxury_allocation(
+                mode=self.runtime.mode,
+                actual_grid=r.grid_w,
+                filtered_grid=getattr(self.runtime, "filtered", None),
+                pv_w=r.pv_w,
+                discharge_w=r.battery_discharge_w,
+                reserve_w=self.runtime.settings.get("reserve_w"),
+                unmetered_aeg_reserve_w=getattr(
+                    self.runtime, "_dishwasher_unmetered_reserve", None),
+                surplus_threshold_w=self.settings["surplus_threshold_w"],
+                holding_owned_high=holding_high,
+                restart_proof_required=restart_proof,
+                capacity_guard_enabled=capacity_guard,
+                capacity_valid=(bool(getattr(capacity, "valid", False))
+                                if capacity_guard else True),
+                optional_import_headroom_w=r.optional_import_headroom_w,
+                estimated_heat_power_w=self.settings["estimated_heat_power_w"],
+                states=self.runtime.states)
+            if not allocation.allowed:
+                r.luxury_allowed = False
+                r.luxury_reason = allocation.reason
         if hasattr(self.runtime, "priority_board"):
             self.runtime.priority_board.guard_extra(r, time.monotonic())
         target, obj = self._target()
@@ -503,19 +659,36 @@ class DHWManager:
             p = self.pending
             obj = self._state(self.config["target_entity"])
             stamp = getattr(obj, "last_reported", obj.last_updated).timestamp() if obj else 0
-            if r.actual_target_c is not None and abs(r.actual_target_c - p["target"]) < 0.05 and stamp >= p["issued_wall"]:
+            ack_poll_min_s = max(0.0, finite(p.get("ack_poll_min_s")) or 0.0)
+            delayed_report = (now - p["issued"] >= ack_poll_min_s
+                              and stamp >= p["issued_wall"] + ack_poll_min_s)
+            if (r.actual_target_c is not None
+                    and abs(r.actual_target_c - p["target"]) < 0.05
+                    and delayed_report):
                 self.pending = None
                 self.owned_target = None if p["release"] else p["target"]
-                self.last_success = {"target_c": p["target"], "time": datetime.now().astimezone().isoformat()}
-                self.runtime.note(f"Boiler: doel {p['target']:g} °C bevestigd (niet hetzelfde als opgewarmd).")
+                self.last_success = {
+                    "target_c": p["target"],
+                    "time": datetime.now().astimezone().isoformat(),
+                    "confirmation": ("delayed_ha_state" if ack_poll_min_s else "ha_state"),
+                }
+                if ack_poll_min_s:
+                    self.runtime.note(
+                        f"Boiler: doel {p['target']:g} °C na wachttijd teruggelezen in Home Assistant "
+                        "(geen rechtstreeks apparaat- of opwarmbewijs).")
+                else:
+                    self.runtime.note(f"Boiler: doel {p['target']:g} °C bevestigd (niet hetzelfde als opgewarmd).")
                 await self._save()
             elif now - p["issued"] >= self.settings["ack_timeout_s"]:
                 await self._mark_fault("Boileropdracht niet bevestigd; handmatige controle vereist")
             else:
-                self.status = "Wacht op terugmelding boilerdoel"
+                self.status = ("Wacht op latere Panasonic-doelwaarneming; onmiddellijke terugmelding "
+                               "geldt niet als bevestiging" if ack_poll_min_s
+                               else "Wacht op terugmelding boilerdoel")
                 return False
         if self.needs_review or self.fault or self.manual_hold:
-            self.status = self.fault or ("Boilercontrole na herstart vereist" if self.needs_review else "Handmatig overgenomen; hervat pas na boilercontrole")
+            self.status = self.fault or ("Boilercontrole na herstart vereist" if self.needs_review
+                                         else "Boilerregeling uit voorzorg gepauzeerd; hervat pas na boilercontrole")
             return False
         # Observe cannot write, not even minimum/fallback/hygiene-related commands.
         if self.runtime.mode == "observe":
@@ -537,7 +710,7 @@ class DHWManager:
         if self.owned_target is not None and r.actual_target_c is not None and abs(self.owned_target - r.actual_target_c) > 0.05:
             self.owned_target = None
             self.manual_hold = True
-            self.status = "Doel extern gewijzigd: boiler met rust gelaten"
+            self.status = "Boilerdoel wijkt af van laatste bevestiging: regeling uit voorzorg gepauzeerd"
             self.policy.reset_stability()
             await self._save()
             self.runtime.note(self.status)
@@ -592,7 +765,8 @@ class DHWManager:
     async def _send(self, now, desired, release, reason):
         rt = self.runtime
         self.owned_target = desired
-        self.pending = {"target": desired, "issued": now, "issued_wall": time.time(), "release": release}
+        self.pending = {"target": desired, "issued": now, "issued_wall": time.time(), "release": release,
+                        "ack_poll_min_s": self._ack_poll_min_s()}
         self.last_command_wall = self.pending["issued_wall"]
         rt.last_issued = now
         rt.last_issued_wall = self.last_command_wall
@@ -676,6 +850,7 @@ class DHWManager:
 
     def overview(self):
         d, r = self.policy.result, self.reading
+        activity = self._space_activity_source()
         safety_confirmed = bool(self.settings.get("safety_confirmed"))
         control_allowed = bool(self.configured and self.auto_enabled and safety_confirmed
                                and not self.needs_review and not self.manual_hold and not self.fault)
@@ -693,6 +868,14 @@ class DHWManager:
                 "tank_differential_c": self.settings["tank_differential_c"],
                 "normal_target_c": effective_base_target(self.settings),
                 "space_climate_busy": r.space_climate_busy,
+                "space_climate_reason": r.space_climate_reason,
+                "space_activity_source": {
+                    "configured": activity["configured"],
+                    "valid": activity["valid"],
+                    "reported_state": activity["state"],
+                    "space_busy": activity["busy"],
+                    "evidence": "Gemelde takenstatus; geen bewijs van HEAT/COOL, compressoractiviteit of elektrisch vermogen",
+                },
                 "control_contract": "Normaal doel is onafhankelijk; geen boost op comfortgrens of ochtenddeadline",
                 "expected_restart_c": effective_base_target(self.settings) + self.settings["tank_differential_c"],
                 "night": d.night, "cooling": r.cooling, "cooling_block": d.cooling_block,

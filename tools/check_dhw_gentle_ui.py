@@ -51,6 +51,21 @@ with sync_playwright() as p:
     page.locator('solar-pilot-card >> .dhw').screenshot(path=str(OUT/'SolarPilot-beta28-warmwater-desktop.png'))
     page.set_viewport_size({'width':390,'height':844})
     page.locator('solar-pilot-card >> .dhw').screenshot(path=str(OUT/'SolarPilot-beta28-warmwater-mobiel.png'))
+    # A proposed target is never presented as a confirmed device setting.
+    page.evaluate('''() => {
+      const a=structuredClone(c._last.attributes);
+      a.dhw.temperature_c=50;a.dhw.actual_target_c=55;a.dhw.proposed_target_c=50;
+      a.dhw.control_allowed=false;a.dhw.manual_hold=true;
+      a.dhw.status='Boilerdoel wijkt af; regeling gepauzeerd tot controle';
+      a.dhw.reason='Voldoende zonneopbrengst; netstroom aanvullen is toegestaan';
+      c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{state:'Zonnestroom',attributes:a}}};
+    }''')
+    page.locator('solar-pilot-card >> button[data-action=view][data-value=overview]').click()
+    summary=page.locator('solar-pilot-card >> .dhw-overview').inner_text()
+    for needle in ('50 °C → 55 °C','regeling gepauzeerd tot controle','SolarPilot-voorstel: 50 °C','niet het gemelde toesteldoel'):
+        assert needle in summary,needle
+    assert 'Voldoende zonneopbrengst' not in summary
+    page.locator('solar-pilot-card >> .dhw-overview').screenshot(path=str(OUT/'SolarPilot-beta44-boiler-wachtstatus.png'))
     assert page.evaluate('writes.length')==0
     assert not errors,errors
     browser.close()
