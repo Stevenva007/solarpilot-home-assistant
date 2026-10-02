@@ -1,12 +1,18 @@
-# SolarPilot beta.44 publiceren — bestaande GitHub/HACS-repository
+# SolarPilot beta.45 publiceren — bestaande GitHub/HACS-repository
 
-Dit pakket is de volledige cumulatieve bronkandidaat van **1.0.0-beta.44**. Gebruik uitsluitend de bestaande repository `Stevenva007/solarpilot-home-assistant`; maak geen nieuwe repository, force-push of verplaatste oude tags. Publiceer beta.44 als nieuwe prerelease; wijzig de gepubliceerde beta.43- of eerdere tags en assets niet.
+Beta.45 is softwarematig klaar voor publicatie met **1773 geslaagde Python-tests in 10.05 s** en **veertien geslaagde browsercontroles**, met nul fysieke actuatoroproepen. De exacte ACK-adaptercorrectie herkent de live Aquarea Smart Cloud 1.0.61-koppeling (`aquarea`) en `panasonic_cc` via geregistreerde herkomst, zonder naamheuristiek. Beta.45 is nog niet gepubliceerd of geïnstalleerd; nieuwe pakketten en latere live-doelrapportage moeten afzonderlijk worden bevestigd.
 
-De definitieve lokale softwarecontrole op 2 oktober 2026 is groen: **1760 Python-tests in 11.68 s**, **veertien browsercontroles** met nul actuatoroproepen en alle lokale releasechecks. De actuele-uitlegcontrole heeft hash `65b54c9797e55bb4`. Dit is geen claim dat beta.44 al gepubliceerd, geïnstalleerd of werkelijk geladen is; de bewezen live basis blijft beta.43 op Home Assistant Core 2026.9.4. GitHub-CI, nieuwe tag/assets, pakketcontrole, HACS-installatie en geladen backend/kaart moeten afzonderlijk worden bevestigd.
+Gebruik uitsluitend de bestaande repository `Stevenva007/solarpilot-home-assistant`. Maak geen nieuwe repository, force-push of verplaatste oude tags. Een nieuwe release krijgt tag `v1.0.0-beta.45`; beta.44 en alle oudere tags, ZIP-assets en release-documentassets blijven onveranderd.
 
-## Voor publicatie
+## Bewezen live basis
 
-Gebruik de GitHub/HACS-ZIP als bron en controleer lokaal:
+Beta.44 is gepubliceerd onder tag `v1.0.0-beta.44`, commit `5bbfa16cbc9453a818fb825fe16c447792ed63a2`. Validate `37022762657`, ZIP-verificatie, HACS-installatie en geladen backend/kaart zijn bevestigd op Core 2026.9.4. De 1760 Python-tests en veertien browsercontroles horen bij beta.44, niet bij beta.45.
+
+Native taakbron, afzonderlijke maandagdeadline en gerichte review zijn via normale bediening gecontroleerd zonder APP-ticket/herarming/START. Een vroege `ha_state` vóór tien seconden was geen bewijs van de bedoelde guard; de installatie is voor beta.45-controle gepauzeerd. Er worden geen persoonlijke bedientijden, temperatuurwaarden of huishoudschema's gepubliceerd. Gemeten afwascyclusleren blijft uit zonder geschikte exclusieve W-meter.
+
+## Lokale controle vóór publicatie
+
+De lokale softwaregate is groen: volledige suite, veertien browsercontroles, actuele uitleg (`8eb8458f093da416`, 432 optieshulpvelden), handoff, repositoryvalidatie, publieke preflight, beide JavaScript-syntaxcontroles en diffcontrole. Beoordeel de complete beta.45-diff en behoud niet-gerelateerde gebruikerswijzigingen. Herhaal deze controles wanneer de werkelijk samengestelde bron nog verandert:
 
 ```powershell
 $env:PYTHONUTF8="1"
@@ -20,56 +26,38 @@ git -c core.autocrlf=false diff --check
 git status --short
 ```
 
-## Eén commit naar main
+Behoud de werkelijk uitgevoerde resultaten in `docs/TESTRESULTATEN_BETA45.md`; leid geen nieuw totaal af uit losse suites. Laat beta.44-historie en bestaande releasebestanden intact.
 
-Beoordeel de diff en neem uitsluitend beoordeelde SolarPilot-releasewijzigingen op. Behoud eventuele niet-gerelateerde gebruikerswijzigingen. Maak bij voorkeur **één** releasecommit; dit beperkt GitHub Actions- en e-mailruis.
+## Eén beoordeelde releasecommit
+
+Neem uitsluitend beoordeelde SolarPilot-releasewijzigingen op. Maak bij voorkeur één releasecommit om dubbele workflow-/e-mailruis te beperken.
 
 ```powershell
-git add -A
 git diff --cached --stat
-git commit -m "SolarPilot 1.0.0-beta.44 - safe allocation and truthful boiler feedback"
+git commit -m "SolarPilot 1.0.0-beta.45 - recognise actual Aquarea delayed acknowledgement"
 git push origin main
 ```
 
-De workflow **Validate** start alleen op `main`, pull requests naar `main` of handmatig. Er is geen dagelijkse schedule meer. Een nieuwere run op dezelfde ref annuleert een oudere lopende run.
+De workflow **Validate** draait op main, pull requests naar main of handmatig; een nieuwere run op dezelfde ref annuleert een oudere. Na groene repositorytests, pytest, HACS en Hassfest leest de publish-job de manifestversie. Alleen wanneer `v1.0.0-beta.45` niet bestaat, maakt zij de nieuwe tag, beide ZIP's en één prerelease, inclusief beta.45-installatie- en testdocumenten. Een tagpush start geen tweede automatische keten. **Manual Release** is alleen de noodroute voor een bestaande tag zonder release.
 
-Controleer vóór de release dat `docs/TESTRESULTATEN_BETA44.md` uitsluitend werkelijk uitgevoerde resultaten vermeldt en dat alle vereiste software-/releasecontroles definitief groen zijn. Een nieuwe bronwijziging vereist passende hercontrole; leid geen nieuw totaal af door losse testtellingen op te tellen. Laat de historische beta.43-documenten intact.
+## Pakketcontrole na publicatie
 
-Na groene repositorytests, pytest, HACS-validatie en Hassfest leest dezelfde workflow de manifestversie. Wanneer `v1.0.0-beta.44` nog niet bestaat, maakt ze één tag, beide releasepakketten (`local` en `GitHub-HACS`) en één prerelease. De workflow voegt de installatiehandleiding en het testverslag van de actuele manifestversie als release-assets toe. Een tagpush start dus geen tweede automatische Validate-/Release-keten.
+Download beide nieuwe beta.45-ZIP's. Controleer werkelijke SHA-256, manifestversie, padveiligheid, private/cachebestanden en inhoud tegenover de nieuwe tag. Een groene workflow bewijst geen geladen Home Assistant-versie. Vervang geen bestaande tag, ZIP-asset of release-documentasset.
 
-**Manual Release** is alleen de noodroute voor een bestaande tag die nog geen GitHub-release heeft.
+## Installatie en livecontrole
 
-Download na publicatie beide beta.44-ZIP's en controleer hun werkelijke SHA-256, padveiligheid, manifestversie, afwezigheid van private/cachebestanden en inhoud tegenover de nieuwe tag. Een groene workflow bewijst op zichzelf niet dat Home Assistant die bron heeft geïnstalleerd of geladen.
+Maak een actuele volledige back-up; de eerder bevestigde versleutelde NAS-back-up vóór beta.44 is geen herstelproef en bevat niet vanzelf later opgeslagen instellingen. Laat een beschermde cyclus afwerken zonder STOPRESET. Installeer exact beta.45 via HACS en herstart Home Assistant volledig. Bevestig backend en vernieuwde kaart afzonderlijk.
 
-## Home Assistant
+Houd **Alleen bekijken** of **Pauze** tijdens broncontrole. Controleer native adapterherkomst, tankmeting, gemeld doel, handmatige/krachtige functies, hygiëne, koeling/ruimteactie, P1/PV en pending opdrachten. Een gerichte review werkt alleen buiten Auto en schrijft zelf geen temperatuur. Herstel Auto pas na veilige installatiecontrole.
 
-Maak vóór update een volledige back-up. De bestaande versleutelde NAS-back-up is om 16:19 gereed gemeld; dit is geen uitgevoerde herstelproef. Plan de update buiten een actieve beschermde cyclus en laat een lopende cyclus veilig afwerken zonder STOPRESET. De bewezen live basis is beta.43 op Home Assistant Core 2026.9.4. Installeer exact de nieuwe beta.44-release via HACS, herstart Home Assistant en controleer afzonderlijk dat backend én kaart werkelijk `1.0.0-beta.44` tonen. Vernieuw de browser geforceerd als alleen de kaart nog oud is. Begin de controles in **Alleen bekijken** of **Pauze**. Controleer daarna:
+De eerste lokale optimistische echo is voor de exact herkende adapters geen ACK. Een passende latere HA-rapportage na minstens tien seconden moet afzonderlijk worden gezien. Ook `delayed_ha_state` blijft HA/cloudinformatie en geen onafhankelijk LIVE apparaat- of opwarmbewijs; forceer geen doelwijziging alleen om dit veld te vullen.
 
-- **Nu actief** op werkelijke status, met zichtbaar gemeten of geschat vermogen en zonder SolarPilot-/PV-oorzaakclaim;
-- read-only Wallbox-wachtuitleg en maximaal dertig waargenomen laadperiodes, waarbij oude, ontbrekende of niet tijdgecorreleerde native status geen bevestigde stopoorzaak wordt;
-- veilige browsernavigatie binnen SolarPilot, inclusief bevestiging bij niet-opgeslagen werk en blokkering tijdens opslaan/lopende acties;
-- de voorwaartse automatische-voordeelweergave als maximaal negentig dagen opportunity value, los van elektriciteitskost en zonder historische reconstructie;
-- de optionele maandagdeadline: leeg betekent gewone 13:00, `10:00` geldt alleen maandag, en alleen expliciet toepassen op huidig verzoek herberekent dezelfde dag zonder START;
-- de beschermde avondvoorraad tot maximaal de ingestelde 55 °C-limiet: alleen bevestigde native Full Solar, connected+demand, minstens 50 W en status plus vermogen hoogstens 120 seconden oud mag EV-zonnevermogen meewegen; extra 60 °C en manueel/onbekend/oud laden krijgen geen EV-krediet;
-- behoud van bestaande tickets bij update/herstart en geen APP-ticket wanneer APP bij startup al `Enabled` is;
-- de afzonderlijke globale en per-toestelactivering voordat fysieke regeling wordt toegestaan.
-- geen EV-reservering bij verse geldige lage laadkracht én expliciet geen laadvraag, geen verbonden auto of een bekende inactieve status; laag vermogen alleen is onvoldoende;
-- dezelfde effectieve toesteltoewijzing in de startuitleg als in het enginebesluit, afzonderlijk van ruwe vrije injectie;
-- proportionele AEG-/60 °C-reservering in plaats van een algemeen veto, uitsluitend met echte resterende net-/PV-ruimte en zonder Wallboxkrediet voor extra 60 °C;
-- gerapporteerd boilerdoel, voorgesteld doel en beschermende pauze afzonderlijk zichtbaar; de onmiddellijke optimistische Panasonic-terugmelding geldt niet als opdrachtbevestiging;
-- de expliciet gekoppelde, verse native warmtepomptaak als read-only bron: `PUMP` houdt de extra zonnebuffer tegen, terwijl `WATER` een gerapporteerde tapwatertaak is en geen compressor-/elektrisch bewijs. Zonder betrouwbare taakbron is Panasonic AUTO met `hvac_action=off/idle` geen bewijs van afwezig ruimtebedrijf. Onbekende of tegenstrijdige gegevens blijven beschermd;
-- de geïntegreerde optieswizard kan benoemde velden opslaan zonder afhankelijkheid van `form.elements`; opslaan verleent geen nieuw fysiek recht.
+De native taakbron blijft read-only. PUMP meldt ruimtebedrijf, WATER een tapwatertaak, geen HEAT/COOL of elektrisch vermogen. De geïnstalleerde Aquarea-klimaatbron gebruikt gepatchte `current_action`; zij wordt niet als altijd verkeerde AUTO-weergave beschreven. Alle beta.44-prioriteits-, AEG-, comfort-, koel-, hygiëne-, eigendoms- en elektrische grenzen blijven behouden.
 
-De boilerregeling stond na de afwijkende terugmelding rond 15:45 opnieuw in beschermende pauze. Een bewuste handmatige wijziging is niet bevestigd. Na installatie en controle is een gerichte review toegestaan, maar nog niet uitgevoerd. Controleer tankmeting, gerapporteerd doel, hygiëne-/krachtige-/handmatige functies en wachtende opdrachten; gebruik pas daarna buiten **Automatisch regelen** de bestaande hervatknop. Deze schrijft zelf geen temperatuur en start geen regelcyclus. Herstel **Automatisch regelen** pas nadat alle actuele koppelingen en beveiligingen kloppen; de update mag geen bestaande overname stil wissen.
-
-Powerful wordt niet automatisch als boilerboost gebruikt: de gecontroleerde Panasonic K T-CAP-servicehandleiding beschrijft ruimteverwarming, niet een bewezen tapwaterboost. Ook de afzonderlijke installateursinstelling DHW capacity blijft ongewijzigd. Het logo in het Home Assistant/HACS-updatevenster is reeds bij beta.43 bevestigd via ondersteunde lokale brandsproxy-customisatie; dat vereist geen warmtepompcommando of HACS-codepatch. De maandagdeadline 10:00 blijft een nog afzonderlijk toe te passen en te bevestigen keuze.
-
-De begrensde beta.40-AEG-recovery blijft cumulatief aanwezig. Geef haar zo nodig maximaal tien minuten om laat geladen template-/AEG-entiteiten te zien. De migratie verstuurt geen START. Voor een nieuwe afwasaanvraag moet APP/remote-start een nieuwe overgang naar exact `Enabled` maken; als APP al aan stond bij startup, eerst uit en opnieuw aan.
-
-Een echte actieve koelcyclus en een nieuwe fysieke AEG-belading zijn geen vooraf bewezen beta.44-liveacceptatie en mogen niet als uitgevoerd worden vermeld. Gebruik geen fysieke proefstart, APP-herarming, leerreset, Powerful of Wallbox-opdracht om acceptatie af te dwingen. De Wallbox blijft zonder start-, stop-, laadstroom-, fase- of modusrecht.
+Powerful wordt niet automatisch als boilerboost gebruikt; ook DHW capacity blijft ongewijzigd. Geen fysieke proefstart, APP-herarming, Wallbox-opdracht, 60 °C-proef of leerreset voor acceptatie.
 
 ## Rollback
 
-Zet SolarPilot op **Pauze**, laat een lopende beschermde cyclus veilig afwerken en herstel de onveranderlijke beta.43-release of de volledige back-up. Herstart Home Assistant en bevestig backend en kaart beta.43. Controleer APP-ticket, Voorrang, maandagdeadline, klimaat-/DHW-eigendom en Wallbox fail-closed gedrag vóór opnieuw **Automatisch regelen**. Een lopende afwasbeurt wordt niet met STOPRESET beëindigd.
+Kies Pauze, laat beschermde cycli afwerken en herstel onveranderlijke beta.44/back-up. Herstart en bevestig backend/kaart. Beta.44 mist nog de `aquarea`-ACK-herkenning; beschouw een vroege `ha_state` niet als guardbewijs en hervat Auto niet onbeoordeeld.
 
-Zie `docs/BETA44_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA44.md` en `docs/ACTUELE_WERKING.md`. De beta.43-handleidingen en testresultaten blijven onveranderde releasehistorie.
+Zie `docs/BETA45_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA45.md` en `docs/ACTUELE_WERKING.md`.

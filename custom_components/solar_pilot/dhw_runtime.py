@@ -17,11 +17,12 @@ from .wallbox import protected_entity, state_set
 from .dhw_schedule import DHWComfortSchedule
 
 
-# panasonic_cc 2026.8.7 can publish a command-side target observation before a
-# later coordinator observation.  That immediate HA state must not prove the
-# command.  This is deliberately adapter-scoped through the entity registry;
-# other water-heater integrations keep their existing acknowledgement contract.
-PANASONIC_CC_ACK_POLL_MIN_S = 10.0
+# Aquarea publishes a command-side target observation before its delayed refresh;
+# panasonic_cc already used the same conservative delayed-ACK contract. An early
+# HA state must not prove the command. Scope is limited to exact registry/config-
+# entry domains; other water-heater integrations keep their existing contract.
+PANASONIC_ACK_POLL_MIN_S = 10.0
+PANASONIC_ADAPTER_DOMAINS = frozenset({"aquarea", "panasonic_cc"})
 
 
 class DHWManager:
@@ -179,15 +180,10 @@ class DHWManager:
     def _ack_poll_min_s(self):
         """Return an adapter-specific delay before an HA state may ACK a write."""
         entity_id = self.config.get("target_entity", "")
-        if not entity_id.startswith("water_heater."):
+        if not isinstance(entity_id, str) or not entity_id.startswith("water_heater."):
             return 0.0
-        try:
-            from homeassistant.helpers import entity_registry as er
-            registry = er.async_get(self.runtime.hass)
-            row = registry.async_get(entity_id)
-        except (AttributeError, KeyError, TypeError):
-            return 0.0
-        return PANASONIC_CC_ACK_POLL_MIN_S if getattr(row, "platform", "") == "panasonic_cc" else 0.0
+        return (PANASONIC_ACK_POLL_MIN_S
+                if self._is_panasonic_adapter(entity_id) else 0.0)
 
     def _temperature(self):
         entity_id = self.config.get("temperature_entity") or self.config["target_entity"]
@@ -276,15 +272,39 @@ class DHWManager:
             return None
         return None if not ids or None in results else False
 
-    def _entity_platform(self, entity_id):
-        """Read an entity's integration platform without guessing from its name."""
+    def _entity_integration_domains(self, entity_id):
+        """Return exact registry/config-entry domains without name heuristics."""
+        if not isinstance(entity_id, str) or not entity_id:
+            return frozenset()
         try:
             from homeassistant.helpers import entity_registry as er
             registry = er.async_get(self.runtime.hass)
             row = registry.async_get(entity_id)
-        except (AttributeError, KeyError, TypeError):
-            return ""
-        return str(getattr(row, "platform", "") or "").casefold()
+        except (AttributeError, KeyError, TypeError, ValueError):
+            return frozenset()
+        if row is None:
+            return frozenset()
+        domains = set()
+        platform = str(getattr(row, "platform", "") or "").strip().casefold()
+        if platform:
+            domains.add(platform)
+        entry_id = getattr(row, "config_entry_id", None)
+        entries = getattr(self.runtime.hass, "config_entries", None)
+        get_entry = getattr(entries, "async_get_entry", None)
+        if entry_id and callable(get_entry):
+            try:
+                entry = get_entry(entry_id)
+            except (AttributeError, KeyError, TypeError, ValueError):
+                entry = None
+            domain = str(getattr(entry, "domain", "") or "").strip().casefold()
+            if domain:
+                domains.add(domain)
+        return frozenset(domains)
+
+    def _is_panasonic_adapter(self, entity_id):
+        """Match only confirmed Panasonic adapter integration domains."""
+        return bool(PANASONIC_ADAPTER_DOMAINS
+                    & self._entity_integration_domains(entity_id))
 
     def _space_activity_source(self):
         """Read a configured task-direction source; never infer HEAT/COOL or power."""
@@ -317,12 +337,12 @@ class DHWManager:
                 "reason": "Extra zonnebuffer wacht: gemelde warmtepomptaak heeft geen eenduidig ingestelde betekenis"}
 
     def _panasonic_auto_blindspot(self):
-        """Detect only registered panasonic_cc AUTO zones with an idle/off action."""
+        """Detect only exact Panasonic-adapter AUTO zones with idle/off action."""
         for entity_id in self.config.get("cooling_entities", []):
             if not entity_id.startswith("climate."):
                 continue
             obj = self._state(entity_id)
-            if obj is None or self._entity_platform(entity_id) != "panasonic_cc":
+            if obj is None or not self._is_panasonic_adapter(entity_id):
                 continue
             mode = str(obj.state).strip().casefold()
             action = str(obj.attributes.get("hvac_action", "")).strip().casefold()
@@ -349,7 +369,7 @@ class DHWManager:
             if mode != "off" and action not in ("idle", "off", "fan", "drying"):
                 unknown = True
             if (mode in ("auto", "heat_cool") and action in ("idle", "off")
-                    and self._entity_platform(entity_id) == "panasonic_cc"
+                    and self._is_panasonic_adapter(entity_id)
                     and not source["configured"]):
                 unknown = True
         relevant = bool(source["configured"] or self._panasonic_auto_blindspot())
@@ -851,6 +871,9 @@ class DHWManager:
     def overview(self):
         d, r = self.policy.result, self.reading
         activity = self._space_activity_source()
+        target_entity = self.config.get("target_entity", "")
+        target_adapter_domains = sorted(self._entity_integration_domains(target_entity))
+        ack_poll_min_s = self._ack_poll_min_s()
         safety_confirmed = bool(self.settings.get("safety_confirmed"))
         control_allowed = bool(self.configured and self.auto_enabled and safety_confirmed
                                and not self.needs_review and not self.manual_hold and not self.fault)
@@ -861,6 +884,12 @@ class DHWManager:
                 "solar_pilot_owns_target": self.owned_target is not None,
                 "panasonic_autonomous": panasonic_autonomous,
                 "manual_override_active": bool(self.manual_hold),
+                "target_adapter_domains": target_adapter_domains,
+                "ack_poll_min_s": ack_poll_min_s,
+                "ack_poll_min_unit": "s",
+                "ack_confirmation_contract": (
+                    "later_ha_report_at_or_after_adapter_delay"
+                    if ack_poll_min_s else "fresh_ha_report_after_command"),
                 "status": self.status, "reason": d.reason, "stage": d.stage,
                 "temperature_c": r.temperature_c, "actual_target_c": r.actual_target_c,
                 "proposed_target_c": d.target_c, "base_target_c": d.base_target_c,

@@ -3,11 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.44'
+GUIDE_VERSION = '1.0.0-beta.45'
 GUIDE_UPDATED = '2026-10-02'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.44',
+ 'version': '1.0.0-beta.45',
  'updated': '2026-10-02',
  'intro': 'Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst '
           'samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en '
@@ -257,9 +257,11 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Ontbrekende, te oude, restored, overlappende of onbekende waarden blokkeren '
                               'een nieuwe extra buffer fail-closed. Deze bron meldt een taak; zij bewijst '
                               'geen HEAT/COOL-keuze, compressoractiviteit of elektrisch vermogen. Zonder '
-                              'betrouwbaar richtingsbewijs blijft Panasonic AUTO/HEAT_COOL met idle/off '
+                              'betrouwbaar richtingsbewijs blijft een herkende Panasonic AUTO/HEAT_COOL-zone met idle/off '
                               'voor deze extra buffer onbekend; andere klimaatadapters worden hierdoor niet '
-                              'breed als actief behandeld. Een al hoger aangevraagd doel wordt niet alleen wegens een nieuwe '
+                              'breed als actief behandeld. Dit is een conservatieve guard, geen claim dat '
+                              'iedere Aquarea-adapter een verkeerde AUTO-actie toont. Een native adapter kan '
+                              'wel degelijk heating/cooling/idle correct melden. Een al hoger aangevraagd doel wordt niet alleen wegens een nieuwe '
                               'verwarmactie afgebroken; de fabrikant kan de begonnen taak afhandelen. '
                               'Werkelijke koeling, hygiëne, energietekort en andere beschermingen blijven '
                               'afzonderlijk leidend.',
@@ -1293,10 +1295,19 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'verstuurt geen start, stop, laadmodus of laadstroom naar de laadpaal.',
                               'Wanneer het gemelde boilerdoel afwijkt van de laatste bevestiging, blijft de '
                               'regeling gepauzeerd voor controle. Dit bewijst niet wie het doel heeft gewijzigd: '
-                              'een vertraagde cloudmelding is ook mogelijk. Voor panasonic_cc wordt de eerste '
+                              'een vertraagde cloudmelding is ook mogelijk. Vanaf beta.45 worden uitsluitend '
+                              'de exacte geregistreerde adapterdomeinen aquarea en panasonic_cc herkend '
+                              'voor de vertraagde bevestiging van hun water_heater-tankdoel. Geen naam-, '
+                              'label- of apparaatheuristiek. Voor deze adapters wordt de eerste '
                               'lokale, optimistische temperatuurterugmelding niet als bevestiging gebruikt; '
                               'een passende nieuwe bronrapportage moet na minimaal tien seconden volgen. '
                               'Ook die bron kan cloudcache bevatten en is geen onafhankelijke fysieke meting. '
+                              'De live aquarea 1.0.61-koppeling publiceert eerst lokaal het gevraagde doel '
+                              'en doet pas na tien seconden een geforceerde statusopvraag. Beta.44 herkende '
+                              'dit domein nog niet; een ha_state-bevestiging vóór die wachttijd was daarom '
+                              'geen bewijs voor de nieuwe beveiliging. Dit is apart van een werkelijk '
+                              'geladen versienummer of correcte dashboardweergave. Andere water-heateradapters '
+                              'houden hun bestaande bevestigingscontract. '
                               'Wanneer de boiler in deze beschermende manual hold '
                               'staat, toont beta.42 een gerichte Hervat-knop. Die knop werkt alleen buiten '
                               'Automatisch regelen en zonder al wachtende opdracht, beëindigt uitsluitend de '

@@ -92,17 +92,48 @@ async def test_unreliable_or_unmapped_task_direction_blocks_fail_closed(reported
     assert not hass.services.calls
 
 
+@pytest.mark.parametrize("adapter_domain", ["panasonic_cc", "aquarea"])
 @pytest.mark.parametrize("mode", ["auto", "heat_cool"])
-def test_registered_panasonic_auto_idle_is_unknown_without_direction(monkeypatch, mode):
+def test_registered_panasonic_auto_idle_is_unknown_without_direction(
+        monkeypatch, mode, adapter_domain):
     runtime, hass = setup()
     hass.states.set("climate.home", mode, {"hvac_action": "idle"})
-    platforms(monkeypatch, {"climate.home": "panasonic_cc"})
+    platforms(monkeypatch, {"climate.home": adapter_domain})
 
     assert runtime.dhw._space_activity()[0] is None
     assert runtime.dhw._cooling() is None
     runtime.smart_climate.settings["zone_entities"] = ["climate.home"]
     context, _reason = classify_heatpump(runtime, datetime(2026, 9, 22, 12))
     assert context == CONTEXT_UNKNOWN
+
+
+def test_aquarea_config_entry_domain_activates_auto_idle_fallback(monkeypatch):
+    runtime, hass = setup()
+    hass.states.set("climate.home", "auto", {"hvac_action": "idle"})
+    registry = NS(async_get=lambda entity_id: (
+        NS(platform="forwarded_climate", config_entry_id="aquarea-entry")
+        if entity_id == "climate.home" else None))
+    monkeypatch.setattr(er, "async_get", lambda _hass: registry)
+    hass.config_entries = NS(async_get_entry=lambda entry_id: (
+        NS(domain="aquarea") if entry_id == "aquarea-entry" else None))
+
+    assert runtime.dhw._space_activity()[0] is None
+    assert runtime.dhw._cooling() is None
+
+
+@pytest.mark.parametrize("mode,action,cooling,busy", [
+    ("auto", "heating", False, True),
+    ("auto", "cooling", True, True),
+    ("off", "off", False, False),
+])
+def test_aquarea_exact_action_is_not_overwritten_by_domain_fallback(
+        monkeypatch, mode, action, cooling, busy):
+    runtime, hass = setup()
+    hass.states.set("climate.home", mode, {"hvac_action": action})
+    platforms(monkeypatch, {"climate.home": "aquarea"})
+
+    assert runtime.dhw._cooling() is cooling
+    assert runtime.dhw._space_activity()[0] is busy
 
 
 def test_other_adapter_idle_and_explicit_panasonic_off_keep_existing_idle_semantics(monkeypatch):

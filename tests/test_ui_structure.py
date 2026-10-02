@@ -163,13 +163,15 @@ def test_device_schedule_has_one_outcome_choice_and_hides_it_with_active_priorit
     assert "Configure device · step 4 of 4 · Planning and energy" in EN_TEXT
 
 
-def test_frontend_assets_are_release_bound_to_beta44():
+def test_frontend_assets_are_release_bound_to_manifest_version():
+    manifest = json.loads((ROOT / "custom_components" / "solar_pilot" / "manifest.json").read_text(encoding="utf-8"))
+    version = manifest["version"]
     option_js = (ROOT / "custom_components" / "solar_pilot" / "frontend" / "option-help.js").read_text(encoding="utf-8")
-    assert CARD.startswith("/* SolarPilot 1.0.0-beta.44.")
-    assert "option-help.js?v=1.0.0-beta.44" in CARD
-    assert option_js.startswith("/* SolarPilot 1.0.0-beta.44.")
-    assert "option-help.json?v=1.0.0-beta.44" in option_js
-    assert json.loads(OPTION_HELP)["version"] == "1.0.0-beta.44"
+    assert CARD.startswith(f"/* SolarPilot {version}.")
+    assert f"option-help.js?v={version}" in CARD
+    assert option_js.startswith(f"/* SolarPilot {version}.")
+    assert f"option-help.json?v={version}" in option_js
+    assert json.loads(OPTION_HELP)["version"] == version
 
 
 def test_manual_dhw_hold_always_has_a_safe_resume_control():

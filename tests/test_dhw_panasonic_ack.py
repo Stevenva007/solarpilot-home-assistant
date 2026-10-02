@@ -13,8 +13,12 @@ from test_dhw_runtime import setup, updates
 NIGHT = datetime(2026, 9, 22, 2)
 
 
-def _platform(monkeypatch, name):
-    registry = SimpleNamespace(async_get=lambda _entity_id: SimpleNamespace(platform=name))
+def _platform(monkeypatch, name, config_entry_id=None):
+    registry = SimpleNamespace(
+        async_get=lambda _entity_id: SimpleNamespace(
+            platform=name, config_entry_id=config_entry_id),
+        async_get_entity_id=lambda *_args: None,
+    )
     monkeypatch.setattr(er, "async_get", lambda _hass: registry)
 
 
@@ -32,8 +36,10 @@ async def _tick_at(runtime, monotonic):
 
 
 @pytest.mark.asyncio
-async def test_panasonic_optimistic_target_waits_for_later_observation(monkeypatch):
-    _platform(monkeypatch, "panasonic_cc")
+@pytest.mark.parametrize("adapter_domain", ["panasonic_cc", "aquarea"])
+async def test_panasonic_optimistic_target_waits_for_later_observation(
+        monkeypatch, adapter_domain):
+    _platform(monkeypatch, adapter_domain)
     wall = [system_time.time()]
     monkeypatch.setattr(dhw_runtime.time, "time", lambda: wall[0])
     runtime, hass = setup()
@@ -116,6 +122,70 @@ async def test_non_panasonic_adapter_keeps_existing_single_report_ack(monkeypatc
     await _tick_at(runtime, 301)
     assert runtime.dhw.pending is None and runtime.dhw.owned_target == 50
     assert runtime.dhw.last_success["confirmation"] == "ha_state"
+
+
+@pytest.mark.asyncio
+async def test_aquarea_config_entry_domain_is_exact_adapter_fallback(monkeypatch):
+    _platform(monkeypatch, "forwarded_water_heater", config_entry_id="aquarea-entry")
+    runtime, hass = setup()
+    hass.config_entries = SimpleNamespace(async_get_entry=lambda entry_id: (
+        SimpleNamespace(domain="aquarea") if entry_id == "aquarea-entry" else None))
+
+    await runtime.dhw._send(350, 50, False, "exact config-entry fallback")
+
+    assert runtime.dhw.pending["ack_poll_min_s"] == 10
+    overview = runtime.dhw.overview()
+    assert overview["target_adapter_domains"] == ["aquarea", "forwarded_water_heater"]
+    assert overview["ack_poll_min_s"] == 10
+    assert overview["ack_poll_min_unit"] == "s"
+    assert overview["ack_confirmation_contract"] == "later_ha_report_at_or_after_adapter_delay"
+
+
+@pytest.mark.asyncio
+async def test_generic_config_entry_domain_never_gets_panasonic_delay(monkeypatch):
+    _platform(monkeypatch, "generic_water_heater", config_entry_id="generic-entry")
+    runtime, hass = setup()
+    hass.config_entries = SimpleNamespace(async_get_entry=lambda entry_id: (
+        SimpleNamespace(domain="other_cloud") if entry_id == "generic-entry" else None))
+
+    await runtime.dhw._send(360, 50, False, "generic adapter")
+
+    assert runtime.dhw.pending["ack_poll_min_s"] == 0
+    overview = runtime.dhw.overview()
+    assert overview["target_adapter_domains"] == ["generic_water_heater", "other_cloud"]
+    assert overview["ack_poll_min_s"] == 0
+    assert overview["ack_poll_min_unit"] == "s"
+    assert overview["ack_confirmation_contract"] == "fresh_ha_report_after_command"
+
+
+def test_missing_registry_row_fails_to_generic_without_name_guessing(monkeypatch):
+    registry = SimpleNamespace(async_get=lambda _entity_id: None)
+    monkeypatch.setattr(er, "async_get", lambda _hass: registry)
+    runtime, _hass = setup()
+
+    assert runtime.dhw._entity_integration_domains("water_heater.boiler") == frozenset()
+    assert runtime.dhw._ack_poll_min_s() == 0
+
+
+@pytest.mark.parametrize("adapter_domain,delay,contract", [
+    ("aquarea", 10, "later_ha_report_at_or_after_adapter_delay"),
+    ("panasonic_cc", 10, "later_ha_report_at_or_after_adapter_delay"),
+    ("other_cloud", 0, "fresh_ha_report_after_command"),
+])
+def test_overview_reports_exact_adapter_ack_contract(
+        monkeypatch, adapter_domain, delay, contract):
+    entry_id = f"{adapter_domain}-entry"
+    _platform(monkeypatch, adapter_domain, config_entry_id=entry_id)
+    runtime, hass = setup()
+    hass.config_entries = SimpleNamespace(async_get_entry=lambda value: (
+        SimpleNamespace(domain=adapter_domain) if value == entry_id else None))
+
+    overview = runtime.dhw.overview()
+
+    assert overview["target_adapter_domains"] == [adapter_domain]
+    assert overview["ack_poll_min_s"] == delay
+    assert overview["ack_poll_min_unit"] == "s"
+    assert overview["ack_confirmation_contract"] == contract
 
 
 @pytest.mark.asyncio

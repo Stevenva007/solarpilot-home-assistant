@@ -4,13 +4,15 @@ Beta.44 is een cumulatieve transparantie- en vermogensverdelingsrelease. Zij laa
 
 ## Bewezen uitgangspunt
 
-De nieuwste werkelijk gepubliceerde en geladen release is **1.0.0-beta.43** op Home Assistant Core **2026.9.4**. De gerichte boilercontrole is afgerond; **Automatisch regelen** is om 15:02 hersteld en SolarPilot vroeg daarna een doel van 55 °C; de tankmeting lag rond 50 °C. Rond 15:45 volgde opnieuw een beschermende boilerpauze door een afwijkende doelterugmelding. Een bewuste handmatige wijziging is niet bevestigd en de nieuwe gerichte review is nog niet uitgevoerd. Beta.44 is tijdens het schrijven van deze handleiding nog een releasekandidaat. Dit document bewijst dus geen publicatie, installatie of fysieke beta.44-acceptatie.
+**1.0.0-beta.44** is op 2 oktober 2026 gepubliceerd onder de onveranderlijke tag `v1.0.0-beta.44`, commit `5bbfa16cbc9453a818fb825fe16c447792ed63a2`. Validate-workflow `37022762657` is geslaagd; beide ZIP-pakketten zijn gecontroleerd tegen die tag. HACS-installatie, groene Home Assistant-configuratiecontrole, volledige herstart en geladen backend/vernieuwde kaart zijn afzonderlijk bevestigd op Core 2026.9.4.
 
-De definitieve lokale beta.44-softwarecontrole is groen: **1760 Python-tests in 11.68 s**, **veertien browsercontroles** en alle lokale releasechecks. GitHub-CI, tag, releasepakketten, publicatie, HACS-installatie en werkelijk geladen beta.44 zijn nog niet bevestigd.
+Na herstart zijn de nieuwe doelweergave en behouden bescherming bevestigd. Native taakbron, afzonderlijke maandagdeadline en gerichte review zijn via de normale bediening gecontroleerd, zonder nieuwe APP-aanvraag of fysieke proefstart. Een vroege bevestiging vóór tien seconden gebruikte echter `ha_state`: de gecontroleerde Aquarea Smart Cloud 1.0.61-adapter heet `aquarea`, terwijl beta.44 alleen `panasonic_cc` herkent. De installatie is daarom voor beta.45-controle gepauzeerd. Dit is geen livebewijs van de tienseconden-guard; een geladen interface bewijst geen fysieke regelacceptatie.
 
-Het SolarPilot-logo is om 16:34 werkelijk in het Home Assistant/HACS-updatevenster bevestigd, samen met geïnstalleerd en beschikbaar `v1.0.0-beta.43`. Hiervoor is ondersteunde Home Assistant-`entity_picture`-customisatie met de lokale brandsproxy gebruikt en alleen de update-entiteit opnieuw opgevraagd; geen HACS-codepatch of warmtepompcommando. De optionele maandagdeadline van 10:00 en de nieuwe gerichte boilerreview zijn nog niet live toegepast en bevestigd.
+De beta.44-softwarecontrole behaalde **1760 Python-tests in 11.68 s** en **veertien browsercontroles**. GitHub-CI, tag, releasepakketten, publicatie, HACS-installatie en geladen backend/kaart zijn afzonderlijk bevestigd. De aangetoonde ACK-adaptermismatch vraagt beta.45; haar afzonderlijke softwaregate is groen met 1773 tests en veertien browsercontroles, maar publicatie, installatie en latere live-doelrapportage blijven open. Pakketchecks/SHA-256 staan in `TESTRESULTATEN_BETA44.md`; beta.44-tags en release-assets worden niet vervangen.
 
-Om 16:19 is op de bestaande NAS een versleutelde Home Assistant-back-up van **1.24 GB** gereed gemeld, inclusief instellingen, geschiedenis, SSL en alle vijf apps. Alleen deze NAS is als bestemming gebruikt; een herstelproef is niet uitgevoerd.
+Het SolarPilot-logo is in het Home Assistant/HACS-updatevenster bevestigd via ondersteunde lokale brandsproxy-customisatie en uitsluitend een update-entiteit-opvraag; geen HACS-codepatch of warmtepompcommando. Opslaan en teruglezen van de afzonderlijke maandagdeadline zijn getest, zonder hier een persoonlijk schema te publiceren. Gemeten afwascyclusleren blijft uit zonder geschikte exclusieve W-meter.
+
+Een versleutelde volledige Home Assistant-back-up op de toegestane NAS is gereed bevestigd. Er is geen herstelproef uitgevoerd; maak voor een volgende installatie een actuele back-up.
 
 ## Vooraf
 
@@ -20,7 +22,7 @@ Om 16:19 is op de bestaande NAS een versleutelde Home Assistant-back-up van **1.
 4. Noteer de globale modus, per-toestelmodus, actuele APP-aanvraag, boilerstatus en Wallbox-status.
 5. Laat de installatie-specifieke afgeleide Wallbox-bron alleen waarden publiceren die door verse fysieke status-, vermogens- en rapportagebronnen zijn gedekt. Houd private entity-id's buiten publieke bestanden.
 
-## Upgrade zodra beta.44 is gepubliceerd
+## Upgrade naar de gepubliceerde beta.44
 
 1. Installeer exact `1.0.0-beta.44` via de bestaande HACS-repository.
 2. Herstart Home Assistant volledig.
@@ -31,7 +33,7 @@ Om 16:19 is op de bestaande NAS een versleutelde Home Assistant-back-up van **1.
 
 ## Boilerdoel en warmtepomptaak
 
-De geregistreerde Panasonic-adapter kan direct na een temperatuuropdracht alvast het gevraagde doel in Home Assistant tonen. Beta.44 accepteert deze onmiddellijke terugmelding niet als bevestiging: de minimale wachttijd moet verstreken zijn en er moet een doelwaarneming met een later rapportagetijdstip beschikbaar zijn. De latere HA-waarneming kan nog steeds uit cloudcache komen; dit bewijst geen rechtstreeks LIVE warmtepompbericht, compressoractiviteit of bereikte tanktemperatuur. Een afwijkende doelterugmelding blijft aanleiding voor een beschermende pauze en gerichte controle.
+Beta.44 past de latere doelbevestiging uitsluitend op exact geregistreerd `panasonic_cc` toe. De gecontroleerde adapter `aquarea` 1.0.61 publiceert ook optimistisch, maar viel buiten deze herkenning en kreeg een vroege generieke `ha_state`. Beta.45 corrigeert dit exacte domein; beschouw een bevestiging vóór tien seconden niet als guardbewijs. Ook een latere HA-waarneming kan cloudcache zijn en bewijst geen onafhankelijk apparaatbericht, compressoractiviteit of bereikte tanktemperatuur.
 
 Het dashboard toont het **gemelde doel** vóór een eventueel **voorgesteld doel**. Wanneer de regeling stil staat, staat die pauze zichtbaar bij de boiler. Een gewenst doel van 55 °C betekent niet dat de tank al 55 °C is of dat SolarPilot het doel werkelijk heeft toegepast.
 

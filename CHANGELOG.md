@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.0-beta.45 — 2026-10-02
+
+- Corrigeert de exacte adapterherkenning voor vertraagde boilerdoelbevestiging: zowel `aquarea` als `panasonic_cc`, via geregistreerde integratieherkomst en zonder naamheuristiek. De live Aquarea Smart Cloud 1.0.61-koppeling publiceert optimistisch en vraagt pas na tien seconden geforceerd op; beta.44 miste het domein `aquarea`.
+- Accepteert voor deze water-heateradapters geen onmiddellijke lokale doelweergave als opdrachtbevestiging. Een passende latere Home Assistant-rapportage blijft vereist en bewijst geen fysieke opwarming of onafhankelijk LIVE apparaatbericht.
+- Behoudt de native read-only taakbron, alle handmatige/eigendoms-/review-, koel-, hygiëne- en elektrische beveiligingen en het bestaande contract van andere water-heateradapters. Geen nieuwe Powerful-/Force DHW-, Wallbox- of klimaatmodusopdrachten.
+- Werkt versie, actuele uitleg, optieshulp, installatie/rollback en testverslag samen bij. De definitieve softwaregate behaalt **1773 Python-tests in 10.05 s** en **veertien browsercontroles** met nul fysieke actuatoroproepen. Beta.44 blijft een onveranderlijke gepubliceerde en geladen release; beta.45-publicatie, installatie en latere live-doelbevestiging zijn nog open.
+
+## 1.0.0-beta.44 — 2026-10-02
+
+- Maakt de effectieve starttoewijzing na hogere prioriteiten en reserves zichtbaar, naast de ruwe vrije injectie.
+- Reserveert geen EV-vermogen bij verse geldige lage laadkracht plus expliciet geen laadvraag, geen verbonden auto of bekende inactieve status. Herkent Zonne-auto · wacht op auto compatibel zonder eigen waardelijsten te herschrijven; Wallbox blijft read-only.
+- Verdeelt een lopende AEG-beurt en extra 60 °C proportioneel met conservatieve toestel-/comfortreserves, echte net-/PV-ruimte en geen Wallboxkrediet voor extra 60 °C.
+- Scheidt gemeld en voorgesteld boilerdoel en beschermende pauze op het dashboard; ondersteunt een expliciete native taakbron zonder HEAT/COOL- of compressorclaim. De eerste vertraagde ACK-guard herkende alleen `panasonic_cc`; het live domein `aquarea` vereist daarom de beta.45-correctie.
+- Corrigeert opties opslaan zonder afhankelijkheid van `form.elements`. Softwaregate: 1760 Python-tests en veertien browsercontroles; publicatie, pakketten, HACS-installatie en geladen backend/kaart zijn afzonderlijk bevestigd.
+
 ## 1.0.0-beta.43 — 2026-10-02
 
 - Toont werkelijk actieve toestellen en programma's in Overzicht. Werkelijk autoladen krijgt dezelfde actieve rand/status als andere toestellen; een gekozen laadmodus, oude meting of ingeschakelde regeling is geen bewijs van actief verbruik.

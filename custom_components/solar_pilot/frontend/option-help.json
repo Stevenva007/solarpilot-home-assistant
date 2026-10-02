@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.44",
+  "version": "1.0.0-beta.45",
   "language": "nl",
   "steps": {
     "init": {
@@ -1768,7 +1768,7 @@
       "title": "Boilerdoel bedienen (niet de ruimtethermostaat)",
       "short": "De fabrikantentiteit voor het tank-temperatuurdoel.",
       "paragraphs": [
-        "De fabrikantentiteit voor het tank-temperatuurdoel. Niet de ruimtethermostaat of een PV-helper. SolarPilot vraagt een setpoint; Panasonic bepaalt zelf wanneer en hoe het opwarmen begint.",
+        "De fabrikantentiteit voor het tank-temperatuurdoel. Niet de ruimtethermostaat of een PV-helper. SolarPilot vraagt een setpoint; Panasonic bepaalt zelf wanneer en hoe het opwarmen begint. Bij de exact herkende aquarea- en panasonic_cc-water_heaterkoppelingen telt de onmiddellijke lokale doelweergave niet als bevestiging. Een passende latere rapportage na minstens tien seconden is vereist, maar bewijst geen bereikte tanktemperatuur of onafhankelijke fysieke meting.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]

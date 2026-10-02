@@ -92,7 +92,7 @@ def classify_heatpump(runtime, local_now):
     if zone_ids and unavailable and not actions:
         return CONTEXT_UNKNOWN, "Panasonic-ruimteactiviteit niet betrouwbaar beschikbaar"
 
-    # Some panasonic_cc versions expose AUTO as heat_cool while hvac_action
+    # Some supported Panasonic adapter versions expose AUTO as heat_cool while hvac_action
     # temporarily remains idle/off during a reported PUMP task.  A separately
     # configured task-direction source protects the household baseline without
     # inventing whether the task is HEAT or COOL or claiming compressor watts.

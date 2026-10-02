@@ -302,7 +302,10 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                      'geschatte 3200 W. Zonder geschikte meter leeg laten; niets erbij verzinnen.',
  'target_entity': 'De fabrikantentiteit voor het tank-temperatuurdoel. Niet de ruimtethermostaat of een '
                   'PV-helper. SolarPilot vraagt een setpoint; Panasonic bepaalt zelf wanneer en hoe het '
-                  'opwarmen begint.',
+                  'opwarmen begint. Bij de exact herkende aquarea- en panasonic_cc-water_heaterkoppelingen '
+                  'telt de onmiddellijke lokale doelweergave niet als bevestiging. Een passende latere '
+                  'rapportage na minstens tien seconden is vereist, maar bewijst geen bereikte '
+                  'tanktemperatuur of onafhankelijke fysieke meting.',
  'temperature_entity': 'Werkelijk gemeten watertemperatuur in de tank. Het ochtenddoel gebruikt deze '
                        'waarde, niet alleen het ingestelde doel. Sensorpositie, stratificatie en '
                        'waterafname beperken de zekerheid.',
