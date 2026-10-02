@@ -2,7 +2,7 @@ from datetime import datetime
 from types import SimpleNamespace
 import pytest
 from custom_components.solar_pilot.thermal_runtime import SmartClimateManager
-from custom_components.solar_pilot.thermal_climate import SMART_CLIMATE_DEFAULTS, ThermalProfile
+from custom_components.solar_pilot.thermal_climate import ClimateDecision, SMART_CLIMATE_DEFAULTS, ThermalProfile
 from test_runtime import build, Services
 
 
@@ -46,6 +46,67 @@ def mature(manager):
     for entity_id in ('climate.home','climate.salon'):
         p=ThermalProfile(); p.samples=100; p.days={str(x) for x in range(10)}; p.passive_k=[0.01]*20; p.heat_gain=[0.2]*20; p.cool_gain=[0.2]*20; p.response_delays_h=[2]*10
         manager.state.profiles[entity_id]=p
+
+
+@pytest.mark.asyncio
+async def test_global_learning_reset_preserves_live_climate_state_and_sends_no_command():
+    r,h=setup_climate(control=True)
+    state=r.smart_climate.state
+    mature(r.smart_climate)
+    state.weather_bias.errors['12']=[1.0]
+    state.weather_bias.pending={'sample':{'valid_ts':1,'predicted_c':20,'bucket':12}}
+    state.coast_feedback.history=[{'outcome':'correct'}]
+    state.coast_feedback.adjust_h=.5
+    active={'started_ts':10,'targets':{'climate.home':21}}
+    pending={'evaluate_after_ts':20,'action_seen':False}
+    state.coast_feedback.active=active
+    state.coast_feedback.pending=pending
+    decision=ClimateDecision('off','lopende SolarPilot-coast')
+    state.last_sample_wall=101
+    state.last_decision_wall=102
+    state.last_guard_wall=103
+    state.last_forecast_wall=104
+    state.forecast=[{'temperature':20}]
+    state.last_decision=decision
+    state.manual_hold_until=105
+    state.command_day='2026-10-02'
+    state.commands_today=4
+    state.expected_mode={'climate.home':'off'}
+    state.last_command_wall=106
+    state.last_command_mode='off'
+    state.fault='veilig geblokkeerd'
+
+    await r.reset_learning()
+
+    assert r.smart_climate.state is state
+    assert state.profiles=={}
+    assert all(not values for values in state.weather_bias.errors.values())
+    assert state.weather_bias.pending=={}
+    assert state.coast_feedback.history==[]
+    assert state.coast_feedback.adjust_h==0
+    assert state.coast_feedback.active is active
+    assert state.coast_feedback.pending is pending
+    assert state.last_sample_wall==101
+    assert state.last_decision_wall==102
+    assert state.last_guard_wall==103
+    assert state.last_forecast_wall==104
+    assert state.forecast==[{'temperature':20}]
+    assert state.last_decision is decision
+    assert state.manual_hold_until==105
+    assert state.command_day=='2026-10-02'
+    assert state.commands_today==4
+    assert state.expected_mode=={'climate.home':'off'}
+    assert state.last_command_wall==106
+    assert state.last_command_mode=='off'
+    assert state.fault=='veilig geblokkeerd'
+    saved=r.store.data['smart_climate']
+    assert saved['manual_hold_until']==105
+    assert saved['commands_today']==4
+    assert saved['expected_mode']=={'climate.home':'off'}
+    assert saved['last_command_mode']=='off'
+    assert saved['fault']=='veilig geblokkeerd'
+    assert not h.services.calls
+    assert r.logs[0]['message'].startswith('Apparaat-, lokale PV-, fase- en klimaatleerdata gewist.')
 
 
 @pytest.mark.asyncio

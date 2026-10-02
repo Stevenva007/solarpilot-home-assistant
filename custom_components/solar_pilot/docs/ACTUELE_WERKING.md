@@ -1,8 +1,8 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.41
+**Versie:** 1.0.0-beta.42
 **Bijgewerkt:** 2026-10-02
-**Regel-hash:** `f37ff9c0c44f04a9`
+**Regel-hash:** `813423dab59557a1`
 
 Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en leerdata blijven lokaal in Home Assistant en worden bij gewone HACS-updates niet vervangen door programmabestanden.
 
@@ -242,7 +242,7 @@ De publieke HACS-release bevat bewust geen woning- of installatie-specifieke ent
 
 De basispagina's tonen alleen de instellingen die je normaal nodig hebt. Timing, faseherkenning en Wallbox-herkenningsdetails staan bewust onder Geavanceerd. De onderliggende option-keys en regelalgoritmen blijven compatibel met bestaande instellingen.
 
-De dashboardkaart bevat negen herkenbare tabbladen: Overzicht, Voorrang, Toestellen, Warmte & comfort, Planning, Energie, Auto & batterij, Export en Uitleg. Modus en belangrijke waarschuwingen blijven bovenaan. Voorrang bundelt de rangorde en toestemming om autoladen te verminderen. Planning bundelt horizon, planfouten, beschermde cyclusprofielen en what-if-replay. Zo hoeft niet alle informatie op één scherm te staan.
+De dashboardkaart bevat negen herkenbare tabbladen: Overzicht, Voorrang, Toestellen, Warmte & comfort, Planning, Energie, Batterij, Export en Uitleg. Modus en belangrijke waarschuwingen blijven bovenaan. Voorrang bundelt de rangorde en toestemming om autoladen te verminderen. Planning bundelt horizon, planfouten, beschermde cyclusprofielen en what-if-replay. Zo hoeft niet alle informatie op één scherm te staan.
 
 Op mobiele schermen bevat het SolarPilot-paneel een eigen menuknop die het normale Home Assistant-zijmenu opent; op desktop blijft de bestaande Home Assistant-navigatie ongewijzigd.
 
@@ -375,7 +375,7 @@ Duidelijke Panasonic-activiteit wordt vanaf beta.36 apart geclassificeerd als ru
 
 De oorspronkelijke basislastlearner blijft na minimaal vier verschillende dagen per uur en dagtype een live mediaan gebruiken. De nieuwe aanvullende recente variant gebruikt de laatste veertien dagen. Vergelijkingen trainen alleen op dagen VOOR de getoetste dag, nooit op de te voorspellen dag zelf. Na minimaal vier vergelijkingsdagen, minimaal 10% EN 20 W minder absolute fout en jouw toestemming kan de recente variant worden gebruikt. De verandering is per vak maximaal ±25% van het gewone profiel. Bij niet meer voldoen valt dat vak terug naar het gewone profiel. Dit is historische rolling-origin vergelijking, geen garantie voor morgen of causaal gemeten energiebesparing.
 
-Standaard verzamelt en beoordeelt SolarPilot de recente variant, maar vraagt toestemming voordat die wordt toegepast. Alleen de voorspelde basislast wordt daarmee aangepast; de actuele overschotberekening, deadlines, temperaturen, minimumlooptijden, prioriteiten, hygiëne en toestemmingen voor netstroom blijven onaangeroerd. De andere bestaande modellen gebruiken hun eigen al ingestelde vrijgaven. Het oude Lokaal leren schakelt niet automatisch elk afzonderlijk model in of uit.
+Standaard verzamelt en beoordeelt SolarPilot de recente variant, maar vraagt toestemming voordat die wordt toegepast. Alleen de voorspelde basislast wordt daarmee aangepast; de actuele overschotberekening, deadlines, temperaturen, minimumlooptijden, prioriteiten, hygiëne en toestemmingen voor netstroom blijven onaangeroerd. De andere bestaande modellen gebruiken hun eigen al ingestelde vrijgaven. Toestelvermogen en Wallbox-respons leren schakelt niet automatisch elk afzonderlijk model in of uit.
 
 De daglicht-PV-fout (voorspeld of gemeten vermogen minstens 100 W), richting van de fout, gemeten dagen en nieuwe dekking staan apart. De PV-kalibratie toont daarnaast fout en bias voor ochtend, middag en namiddag. Dekking telt alleen korte intervallen tussen opeenvolgende geldige waarnemingen; oude historie wordt niet retrospectief als live dekking ingevuld. Voor de gewone basislast worden warmtepompperioden niet meegeteld. De verschillende fouten en de dekking worden afzonderlijk getoond, niet samengeperst tot één misleidende totaalscore.
 
@@ -429,11 +429,13 @@ Na de automatische omzetting is de centrale lijst leidend en blijft de effectiev
 
 De huishoudelijke basislast leert alleen uit perioden die als gewone huishoudlast zijn geclassificeerd. Duidelijke Panasonic-ruimteverwarming, ruimtekoeling, tapwaterverwarming en sterilisatie worden apart gehouden. Zonder aparte warmtepomp-W-meter mag SolarPilot uit stabiele P1+PV-sprongen een conservatieve vermogensschatting leren, maar uitsluitend voor planning en classificatie. Die schatting wordt nooit van actuele P1-netruimte afgetrokken.
 
-De Wallbox blijft read-only. Een Full Solar-instelling bewijst niet welke laadsessie werkelijk actief is. SolarPilot kan alleen een sessie-entiteit voorstellen wanneer één entiteit op hetzelfde Wallbox-apparaat voldoende bewijs bevat. Zonder bevestigde effectieve sessie wordt geen Wallbox-vermogen toegekend; werkelijk gemeten vrije injectie blijft wel bruikbaar.
+De Wallbox blijft read-only. Een Full Solar-instelling bewijst niet welke laadsessie werkelijk actief is. SolarPilot kan alleen een sessie-entiteit voorstellen wanneer één entiteit op hetzelfde Wallbox-apparaat voldoende bewijs bevat. Zonder bevestigde effectieve sessie wordt geen Wallbox-vermogen toegekend; werkelijk gemeten vrije injectie blijft wel bruikbaar. De afgeleide live-sessiebron moet alleen beschikbaar zijn wanneer haar fysieke status-, vermogen- en ruwe rapportagebronnen bruikbaar, niet restored en hoogstens vijf minuten oud zijn. Een minuutheartbeat maakt die controle zichtbaar. De live configuratiecontrole en herlading bevestigden zo een actuele gestopte sessie zonder EV-vermogenskrediet. Bij een oude, onbekende of strijdige status blijft SolarPilot fail-closed.
 
 De boiler gebruikt vanaf beta.36 één config-entrybron voor de effectieve instellingen. Bij de beta.35-migratie worden de werkelijk gebruikte waarden 50 °C normaal, 46 °C bewaakte comfortgrens, -5 °C Panasonic-differentie, 50 °C zonnebuffer, 60 °C extra PV-buffer en 50 °C maximum tijdens actieve koeling behouden. Het wekelijkse Panasonic-sterilisatieprogramma op 62 °C blijft autonoom. Geconfigureerd, ingeschakeld, vrijgegeven, doelbezit, Panasonic-autonomie en handmatige override zijn afzonderlijk zichtbaar.
 
 Klimaatbetrouwbaarheid wordt niet meer als één algemene 100%-waarde getoond. Passieve temperatuurverandering, zonnewinst, verwarmingsrespons, koelrespons, reactievertraging, weerscorrectie en coast/off-feedback hebben elk een eigen status: Nog niet geleerd, Eerste metingen, Voorlopig of Betrouwbaar. Ontbrekend bewijs maakt de regeling conservatiever en verruimt nooit de comfortgrenzen.
+
+Apparaat-, lokale PV-, fase- en klimaatleerdata wissen is in beta.42 begrensd tot de lokale afgeleide leerlagen: Wallbox-responsstatistiek, toestelvermogenssamples, live-PV-correctie, faseprofielen, klimaatprofielen, weersbias en coast-feedback. Instellingen, historische PV-bootstrap en operationele klimaatveiligheid zoals handmatige rust, commandolimieten, verwacht modus-/OFF-eigendom en een lopende of wachtende coastepisode blijven behouden. De reset publiceert de lege leerstatus maar voert geen regelcyclus of fysieke opdracht uit. Andere modellen, zoals cyclus-, DHW- en plannerleren, worden niet door deze knop gewist.
 
 De lokale PV-kalibratie houdt minimaal vijf geldige vergelijkingsdagen nodig. 13,8 kWp panelen, 10 kW omvormerlimiet en lokale schaduwdetectie blijven behouden. Diagnostiek toont daarnaast fout en bias per ochtend, middag en namiddag. Realtime PV blijft altijd belangrijker dan de forecast.
 
@@ -441,11 +443,13 @@ Analyse-export vermeldt bovenaan de aangevraagde periode én de werkelijk beschi
 
 ## 22. Eenvoudige bediening en éénmalige veilige activering
 
-De dagelijkse modusnamen zijn Alleen bekijken, Automatisch regelen en Pauze. De hoofdgroepen heten Toestellen, Warmte & comfort, Auto & batterij, Voorrang en Export. Technische details blijven beschikbaar via uitleg en instellingen.
+De dagelijkse modusnamen zijn Alleen bekijken, Automatisch regelen en Pauze. De hoofdgroepen heten Toestellen, Warmte & comfort, Batterij, Voorrang en Export. Technische details blijven beschikbaar via uitleg en instellingen.
 
 Bij de eerste start van de actuele migratiereeks wordt het beta.37-activeringsprofiel hoogstens één keer toegepast. Analyse, planner en leerfuncties worden geactiveerd waar dat zonder nieuw actuatorrecht kan. Bronafhankelijke regeling wordt alleen ingeschakeld wanneer de noodzakelijke bestaande koppelingen al aanwezig zijn; DHW vereist de bestaande veiligheidsbevestiging. Een later door de gebruiker uitgeschakelde functie wordt niet bij iedere herstart opnieuw aangezet.
 
-De centrale prioriteitenlijst is de enige leidende flexibele volgorde. Een toestel mag gemeten zonnevermogen gebruiken dat de auto al gebruikt alleen als het boven Auto laden (Wallbox) staat én de afzonderlijke toestemming op Ja staat. De Wallbox blijft read-only: SolarPilot verstuurt geen start, stop, laadmodus of laadstroom naar de laadpaal.
+De centrale prioriteitenlijst is de enige leidende flexibele volgorde. Een toestel mag gemeten zonnevermogen gebruiken dat de auto al gebruikt alleen als het boven Auto laden (Wallbox) staat én de afzonderlijke toestemming op Ja staat. De Voorrang-editor maakt daarom onderscheid tussen de bewaarde keuze en het huidige effectieve resultaat: Ja blijft bewaard wanneer het toestel onder Auto laden staat, maar geldt daar effectief als Nee. Verplaatsen is nooit een nieuw actuatorrecht. De Wallbox blijft read-only: SolarPilot verstuurt geen start, stop, laadmodus of laadstroom naar de laadpaal.
+
+Wanneer de boiler door herkende handmatige Panasonic-bediening in manual hold staat, toont beta.42 een gerichte Hervat-knop. Die knop werkt alleen buiten Automatisch regelen en zonder al wachtende opdracht, beëindigt uitsluitend de SolarPilot-rust en schrijft niet meteen een temperatuur. Na hercontrole kan pas een volgende gewone regelcyclus volgens alle bestaande vrijgaven en veiligheidslocks handelen.
 
 Export bundelt de belangrijke instellingen, meetdekking, beslissingen, modellen, leerresultaten en fouten. Namen worden standaard gepseudonimiseerd en SolarPilot uploadt het bestand niet automatisch.
 

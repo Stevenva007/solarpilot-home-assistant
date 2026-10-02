@@ -3,11 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.41'
+GUIDE_VERSION = '1.0.0-beta.42'
 GUIDE_UPDATED = '2026-10-02'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.41',
+ 'version': '1.0.0-beta.42',
  'updated': '2026-10-02',
  'intro': 'Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst '
           'samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en '
@@ -593,7 +593,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Geavanceerd. De onderliggende option-keys en regelalgoritmen blijven compatibel '
                               'met bestaande instellingen.',
                               'De dashboardkaart bevat negen herkenbare tabbladen: Overzicht, Voorrang, '
-                              'Toestellen, Warmte & comfort, Planning, Energie, Auto & batterij, Export en Uitleg. Modus en '
+                              'Toestellen, Warmte & comfort, Planning, Energie, Batterij, Export en Uitleg. Modus en '
                               'belangrijke waarschuwingen blijven bovenaan. Voorrang bundelt de rangorde en '
                               'toestemming om autoladen te verminderen. Planning bundelt horizon, planfouten, '
                               'beschermde cyclusprofielen en what-if-replay. Zo hoeft niet alle informatie op '
@@ -1018,7 +1018,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'daarmee aangepast; de actuele overschotberekening, deadlines, temperaturen, '
                               'minimumlooptijden, prioriteiten, hygiëne en toestemmingen voor netstroom '
                               'blijven onaangeroerd. De andere bestaande modellen gebruiken hun eigen al '
-                              'ingestelde vrijgaven. Het oude Lokaal leren schakelt niet automatisch elk '
+                              'ingestelde vrijgaven. Toestelvermogen en Wallbox-respons leren schakelt niet automatisch elk '
                               'afzonderlijk model in of uit.',
                               'De daglicht-PV-fout (voorspeld of gemeten vermogen minstens 100 W), richting '
                               'van de fout, gemeten dagen en nieuwe dekking staan apart. De PV-kalibratie '
@@ -1185,7 +1185,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'laadsessie werkelijk actief is. SolarPilot kan alleen een sessie-entiteit '
                               'voorstellen wanneer één entiteit op hetzelfde Wallbox-apparaat voldoende '
                               'bewijs bevat. Zonder bevestigde effectieve sessie wordt geen Wallbox-vermogen '
-                              'toegekend; werkelijk gemeten vrije injectie blijft wel bruikbaar.',
+                              'toegekend; werkelijk gemeten vrije injectie blijft wel bruikbaar. De '
+                              'afgeleide live-sessiebron moet alleen beschikbaar zijn wanneer haar fysieke '
+                              'status-, vermogen- en ruwe rapportagebronnen bruikbaar, niet restored en '
+                              'hoogstens vijf minuten oud zijn. Een minuutheartbeat maakt die controle '
+                              'zichtbaar. De live configuratiecontrole en herlading bevestigden zo een '
+                              'actuele gestopte sessie zonder EV-vermogenskrediet. Bij een oude, onbekende '
+                              'of strijdige status blijft SolarPilot fail-closed.',
                               'De boiler gebruikt vanaf beta.36 één config-entrybron voor de effectieve '
                               'instellingen. Bij de beta.35-migratie worden de werkelijk gebruikte waarden '
                               '50 °C normaal, 46 °C bewaakte comfortgrens, -5 °C Panasonic-differentie, '
@@ -1198,6 +1204,16 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'reactievertraging, weerscorrectie en coast/off-feedback hebben elk een eigen '
                               'status: Nog niet geleerd, Eerste metingen, Voorlopig of Betrouwbaar. Ontbrekend '
                               'bewijs maakt de regeling conservatiever en verruimt nooit de comfortgrenzen.',
+                              'Apparaat-, lokale PV-, fase- en klimaatleerdata wissen is in beta.42 begrensd '
+                              'tot de lokale afgeleide leerlagen: '
+                              'Wallbox-responsstatistiek, toestelvermogenssamples, live-PV-correctie, '
+                              'faseprofielen, klimaatprofielen, weersbias en coast-feedback. Instellingen, '
+                              'historische PV-bootstrap en operationele klimaatveiligheid zoals handmatige '
+                              'rust, commandolimieten, verwacht modus-/OFF-eigendom en een lopende of '
+                              'wachtende coastepisode blijven behouden. De reset publiceert de lege '
+                              'leerstatus maar voert geen regelcyclus of fysieke opdracht uit. Andere '
+                              'modellen, zoals cyclus-, DHW- en plannerleren, worden niet door deze knop '
+                              'gewist.',
                               'De lokale PV-kalibratie houdt minimaal vijf geldige vergelijkingsdagen nodig. '
                               '13,8 kWp panelen, 10 kW omvormerlimiet en lokale schaduwdetectie blijven '
                               'behouden. Diagnostiek toont daarnaast fout en bias per ochtend, middag en '
@@ -1210,7 +1226,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                'bullets': []},
               {'title': '22. Eenvoudige bediening en éénmalige veilige activering',
                'paragraphs': ['De dagelijkse modusnamen zijn Alleen bekijken, Automatisch regelen en Pauze. '
-                              'De hoofdgroepen heten Toestellen, Warmte & comfort, Auto & batterij, Voorrang '
+                              'De hoofdgroepen heten Toestellen, Warmte & comfort, Batterij, Voorrang '
                               'en Export. Technische details blijven beschikbaar via uitleg en instellingen.',
                               'Bij de eerste start van de actuele migratiereeks wordt het beta.37-activeringsprofiel '
                               'hoogstens één keer toegepast. Analyse, planner en leerfuncties worden geactiveerd '
@@ -1221,8 +1237,17 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'De centrale prioriteitenlijst is de enige leidende flexibele volgorde. Een '
                               'toestel mag gemeten zonnevermogen gebruiken dat de auto al gebruikt alleen als '
                               'het boven Auto laden (Wallbox) staat én de afzonderlijke toestemming op Ja '
-                              'staat. De Wallbox blijft read-only: SolarPilot verstuurt geen start, stop, '
-                              'laadmodus of laadstroom naar de laadpaal.',
+                              'staat. De Voorrang-editor maakt daarom onderscheid tussen de bewaarde keuze '
+                              'en het huidige effectieve resultaat: Ja blijft bewaard wanneer het toestel '
+                              'onder Auto laden staat, maar geldt daar effectief als Nee. Verplaatsen is '
+                              'nooit een nieuw actuatorrecht. De Wallbox blijft read-only: SolarPilot '
+                              'verstuurt geen start, stop, laadmodus of laadstroom naar de laadpaal.',
+                              'Wanneer de boiler door herkende handmatige Panasonic-bediening in manual hold '
+                              'staat, toont beta.42 een gerichte Hervat-knop. Die knop werkt alleen buiten '
+                              'Automatisch regelen en zonder al wachtende opdracht, beëindigt uitsluitend de '
+                              'SolarPilot-rust en schrijft niet meteen een temperatuur. Na hercontrole kan '
+                              'pas een volgende gewone regelcyclus volgens alle bestaande vrijgaven en '
+                              'veiligheidslocks handelen.',
                               'Export bundelt de belangrijke instellingen, meetdekking, beslissingen, modellen, '
                               'leerresultaten en fouten. Namen worden standaard gepseudonimiseerd en SolarPilot '
                               'uploadt het bestand niet automatisch.'],

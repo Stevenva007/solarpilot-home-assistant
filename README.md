@@ -1,31 +1,30 @@
-> **Nieuw: beta.41** — maakt de dagelijkse bediening eenduidiger en scherpt drie veilige regelgrenzen aan: één centrale voorrangslijst, controleerbare startvoorwaarden en start-/stopredenen, behoud van handmatig uitgeschakelde klimaatzones en directe terugval van extra boilerwarmte bij echte netafname of koeling.
+> **Nieuw: beta.42** — maakt bestaande veilige bediening eerlijker en herstelbaar: handmatige boilerpauze gericht hervatten, het effectieve resultaat van Voorrang onder Auto laden zichtbaar maken, uitleg/labels rechttrekken en alleen de bedoelde lokale leerlagen veilig wissen.
 
 # SolarPilot
 
 SolarPilot is a local Home Assistant Energy Management System (EMS) for PV surplus, flexible loads, Panasonic Aquarea hot-water policy, Wallbox Full Solar coexistence, phase analysis, capacity-tariff awareness, local PV/shade learning, slow thermal-climate learning, future home batteries and a unified rolling-horizon planner.
 
-> **Status:** beta.41 · public HACS beta. Start nieuwe installaties in **Alleen bekijken**. Do not enable physical control for several devices at once.
+> **Status:** beta.42 · software- en bronrelease-gate groen; live-installatieacceptatie volgt afzonderlijk. Start nieuwe installaties in **Alleen bekijken**. Do not enable physical control for several devices at once.
 
 
 > **Updates zijn cumulatief.** Je hoeft tussenliggende beta-versies niet één voor één te installeren of publiceren. Installeer de nieuwste release over je bestaande SolarPilot-installatie; Home Assistant-configuratie en lokale leerdata blijven behouden.
 
-## Current DHW policy (preserved in beta.41)
+## Current DHW policy (preserved in beta.42)
 
 Normal tank setpoint and monitored comfort floor are independent (new defaults 50/46 °C). No deadband-compensating 52 °C boost or Force DHW. A 50 °C target with a -5 °C native differential can reheat around 45 °C: 46 °C is monitored, not guaranteed and not a hygiene standard. Optional bounded evening solar storage waits for space climate; see `docs/BETA28_INSTELLEN.md`. Existing setpoints and permissions migrate without silent profile activation.
 
 
-## Nieuw in beta.41
+## Nieuw in beta.42
 
-- **Voorrang** toont beschermde regels en verplaatsbare flexlasten in één begrijpelijke stapel. Per toestel staat één keuze **Mag de auto minder laden?**. Zodra de centrale lijst actief is, verdwijnen de oude dubbele rangorde- en Wallboxvelden; een reeds geopend oud formulier kan de centrale keuzes niet terugschrijven.
-- **Toestellen** toont de beslisreden van de regelaar naast controleerbare startvoorwaarden: modus, Auto-deelname, beschikbaarheid/storing, vrijgave, vraag/tijdvenster, minimumrust, cyclusvrijgave, daglimiet, planner-, Wallbox- en runtimeblokkering, benodigd vermogen en stabiliteitstijd. Dit is uitleg van de actuele beslissing, geen extra startrecht.
-- De apparaatgeschiedenis benoemt altijd afzonderlijk **Startreden** en **Stopreden**. Een niet bewezen externe oorzaak wordt als onbekend gelaten en niet gereconstrueerd.
-- Een Panasonic-zone die handmatig of buiten SolarPilot om op **OFF** staat, blijft bij een gewone winterbeslissing OFF. Alleen een echte harde comfortoverschrijding mag precies die zone naar Panasonic **AUTO** vrijgeven; SolarPilot kiest nooit zelf HEAT of COOL. Bij verwijderen worden alleen door SolarPilot zelf in coast gezette zones vrijgegeven.
-- De DHW-overschothysterese geldt alleen zolang een extra hoog doel aantoonbaar door SolarPilot is verstuurd en teruggemeld. Werkelijke netafname boven de ingestelde grens, actieve koeling of een onbeheerde/onbevestigde 60 °C-beslissing laat het extra doel zonder terugvalvertraging vervallen. Handmatige Panasonic-bediening en fabrikantbescherming blijven onaangeroerd.
-- Koppel voor de Wallbox de werkelijke sessiebron met volledige statussen voor zonne-auto, manueel laden en gestopt. Een Full Solar-instelling alleen is geen bewijs van de actieve sessie. De Wallbox blijft volledig read-only.
-- Veilige activering blijft gescheiden: globale modus **Alleen bekijken / Automatisch regelen / Pauze**, per toestel **Uitgesloten / Auto**, plus afzonderlijke bron-, meter- en eigenaarschapcontroles. Een update of het opslaan van Voorrang stuurt op zichzelf geen toestel.
-- De beta.40-afwasmachinerecovery blijft cumulatief behouden: maximaal tien minuten gericht herstel, één complete same-device mapping, geen START tijdens migratie en voor iedere belading opnieuw een fysieke APP-overgang naar exact `Enabled`.
+- **Warmte & comfort** toont bij een herkende handmatige boilerpauze een gerichte **Hervat**-knop. Hervatten kan alleen buiten Automatisch regelen en zonder wachtende opdracht; de knop beëindigt de SolarPilot-rust maar schrijft niet direct een temperatuur.
+- **Voorrang** toont nu naast de bewaarde keuze het effectieve resultaat. Een opgeslagen **Ja** onder **Auto laden** blijft bewaard, maar geldt daar zichtbaar als **Nee** totdat het toestel erboven staat. Dit verleent geen nieuw start- of actuatorrecht.
+- Uitleg en labels benoemen de feitelijke bediening: DHW **Automatisch regelen**, een duidelijke Wallbox-statusomschrijving en onmiddellijke terugval van een luxe-DHW-doel bij echte netafname.
+- **Apparaat-, lokale PV-, fase- en klimaatleerdata wissen** is begrensd tot lokale afgeleide leerlagen. Instellingen, historische bootstrap en operationele klimaatveiligheid/commandoboekhouding blijven behouden; de reset voert geen regelcyclus of fysieke opdracht uit.
+- De bewezen beta.41-regels blijven cumulatief behouden: handmatig OFF gezette klimaatzones blijven eigendom van de gebruiker, extra boilerwarmte vereist SolarPilot-eigendom, centrale start-/stopuitleg blijft doorslaggevend en de Wallbox blijft read-only.
+- De beta.40-afwasmachinerecovery blijft ongewijzigd behouden: maximaal tien minuten gericht herstel, één complete same-device mapping, geen START tijdens migratie en voor iedere belading opnieuw een fysieke APP-overgang naar exact `Enabled`.
+- De live basis is Home Assistant Core `2026.9.4` met SolarPilot `1.0.0-beta.41` werkelijk geladen. De Wallbox-broncontrole/reload bevestigde een actuele gestopte sessie zonder EV-vermogenskrediet. Beta.42 moet na installatie opnieuw als backend én kaart worden bevestigd; een echte koelcyclus en echte AEG-belading zijn nog geen bewezen beta.42-liveacceptatie.
 
-Zie `docs/BETA41_INSTELLEN.md` en `docs/TESTRESULTATEN_BETA41.md`.
+Zie `docs/BETA42_INSTELLEN.md` en `docs/TESTRESULTATEN_BETA42.md`.
 
 ## Behouden uit beta.40: gericht AEG-herstel
 

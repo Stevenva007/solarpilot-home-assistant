@@ -464,7 +464,8 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                  'zonne-wachttijd; een lage tank of ochtenddeadline mag nooit de stabiliteit voor 55/60 '
                  '°C omzeilen. Dit is geen compressorlooptijd.',
  'fall_delay_s': 'Wachttijd bij gewoon minder zon vóór setpointverlaging, aanbevolen 300 s. Filtert '
-                 'korte wolken, maar kan tijdelijk netstroom betekenen. Nacht-, koel-, hygiëne- en '
+                 'korte wolken, maar kan tijdelijk netstroom betekenen. Werkelijke netafname boven '
+                 'de ingestelde grens omzeilt deze wachttijd. Nacht-, koel-, hygiëne- en '
                  'storingsgrenzen hebben hun eigen, snellere bescherming.',
  'pv_hysteresis_w': 'Terugvalband onder de PV-productiedrempel. Bij 1000 W startgrens en 100 W '
                     'hysterese kan een reeds toegelaten 50 °C-fase tot circa 900 W blijven bestaan. '
@@ -485,9 +486,10 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                          'reconstrueren. Geen gedeelde warmtepomp-/net-/EV-meter gebruiken. Zonder '
                          'passende meter wordt niets bijgeteld; geschatte 3200 W is geen '
                          'compensatiemeting.',
- 'max_surplus_import_w': 'Zachte importgrens om een lopende extra hoge zonnefase terug te nemen, '
-                         'standaard 100 W met gewone terugvalvertraging. Geldt niet als verbod op '
-                         'noodzakelijk ochtend- of minimumcomfort. Geen elektrische beveiliging.',
+ 'max_surplus_import_w': 'Bij werkelijke netafname boven deze grens laat SolarPilot een door zichzelf '
+                         'beheerd extra 60 °C-doel onmiddellijk los; de gewone terugvalvertraging geldt '
+                         'dan niet. Standaard 100 W. Noodzakelijk ochtend- en minimumcomfort worden '
+                         'apart beoordeeld. Dit is geen elektrische beveiliging.',
  'average_demand_entity': 'Bron voor het lopende kwartiergemiddelde van de volledige aansluiting. Niet '
                           'het actuele vermogen en niet een kWh-teller. Hiermee wordt het resterende '
                           'kwartierbudget geschat.',
@@ -879,7 +881,7 @@ HELP_NOTES.update({'dishwasher_phase_entity': 'Aanvullende oorspronkelijke Cycle
                               'Daarna mag met afzonderlijke nettoestemming gestart worden zonder vijf extra '
                               'minuten zonnevertraging. Het is een START-deadline, niet een tijdstip waarop '
                               'alles klaar moet zijn. Deur, verbinding, autorisatie, softwarelimieten en '
-                              'Zonnestroommodus blijven verplicht; storingen kunnen een start verhinderen.',
+                              'Automatisch regelen blijven verplicht; storingen kunnen een start verhinderen.',
  'dishwasher_after_deadline': 'Wat gebeurt er als je een nieuwe APP-belading op of na de uiterste starttijd '
                               'klaarzet? Standaard Volgende dag: vandaag niet meer automatisch starten, '
                               'morgen eerst zon en uiterlijk morgen 13:00 met eventuele netstroom. Het gaat '
@@ -1116,7 +1118,7 @@ HELP_NOTES.update({'appliance_type': 'Dit is de herkenbare categorie: afwasmachi
  'manage_device:section': 'Instellingen opent de basis en bescherming; Koppelingen opent de '
                           'oorspronkelijke actuator en terugmelding; Planning opent de energie- en '
                           'prioriteitskeuzes. Je doorloopt de resterende wizard en bevestigt aan '
-                          'het einde. Bekijken is altijd mogelijk tijdens Zonnestroom en doet op '
+                          'het einde. Bekijken is altijd mogelijk terwijl Automatisch regelen actief is en doet op '
                           'zichzelf niets met toestellen.',
  'replace:device_id': 'Selecteer alleen het oude SolarPilot-toestel dat vervangen wordt. De '
                       'opvolger krijgt een nieuw ID zodat oude metingen of een oude '

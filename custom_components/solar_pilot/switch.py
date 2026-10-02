@@ -10,7 +10,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 def _entities(r):
     entities = [SolarSwitch(r, "others_first", "Andere toestellen voorrang"),
-                SolarSwitch(r, "learning", "Lokaal leren")]
+                SolarSwitch(r, "learning", "Toestelvermogen en Wallbox-respons leren")]
     if r.dhw.configured:
         entities.append(SolarSwitch(r, "dhw_enabled", "Boiler automatisch regelen"))
     return entities

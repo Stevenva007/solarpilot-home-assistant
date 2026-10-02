@@ -1,11 +1,11 @@
-/* SolarPilot 1.0.0-beta.41. Local option explanations + HA's native options-flow API.
+/* SolarPilot 1.0.0-beta.42. Local option explanations + HA's native options-flow API.
  * No actuator service is called here. HA retains authentication, schema validation,
  * per-device live/deferred guards and final config-entry save. No internal HA DOM is patched.
  */
 let spOptionHelpPromise;
 async function spOptionHelp(){
   if(globalThis.SOLAR_PILOT_HELP_DATA)return globalThis.SOLAR_PILOT_HELP_DATA;
-  if(!spOptionHelpPromise)spOptionHelpPromise=fetch('/solar_pilot_static/option-help.json?v=1.0.0-beta.41',{credentials:'same-origin'})
+  if(!spOptionHelpPromise)spOptionHelpPromise=fetch('/solar_pilot_static/option-help.json?v=1.0.0-beta.42',{credentials:'same-origin'})
     .then(r=>{if(!r.ok)throw new Error('De lokale optie-uitleg kon niet worden geladen.');return r.json();})
     .catch(e=>{spOptionHelpPromise=null;throw e;});
   return spOptionHelpPromise;
@@ -55,7 +55,7 @@ class SolarPilotDeviceManagerDialog extends HTMLElement{
   close(){this._open=false;this.dialog.close();}
   disconnectedCallback(){this.close();}
   update(data){this.data=data||{};if(!this._open)return;const sig=JSON.stringify(this.data);if(sig===this._sig)return;this._sig=sig;const scroll=this.dialog.scrollTop;const x=this.data;const admin=!!this.hass?.user?.is_admin;
-    this.shadowRoot.querySelector('.body').innerHTML=`<p>Bekijken kan tijdens Zonnestroom. Gewone wijzigingen worden zonder volledige herlading toegepast. Koppelingen en bescherming van een lopende cyclus blijven staan tot veilig toepassen mogelijk is.</p><p class="muted">${spHelpEscape(x.status||'')}${x.error?' · '+spHelpEscape(x.error):''}</p>${admin?'<div class="actions"><button data-go="add" class="primary">Toestel toevoegen</button><button data-go="pending_changes">Wachtende wijzigingen</button></div>':''}
+    this.shadowRoot.querySelector('.body').innerHTML=`<p>Bekijken kan ook terwijl Automatisch regelen actief is. Gewone wijzigingen worden zonder volledige herlading toegepast. Koppelingen en bescherming van een lopende cyclus blijven staan tot veilig toepassen mogelijk is.</p><p class="muted">${spHelpEscape(x.status||'')}${x.error?' · '+spHelpEscape(x.error):''}</p>${admin?'<div class="actions"><button data-go="add" class="primary">Toestel toevoegen</button><button data-go="pending_changes">Wachtende wijzigingen</button></div>':''}
     ${(x.pending||[]).length?`<p class="description">${x.pending.map(p=>spHelpEscape(p.name)+': '+spHelpEscape(p.reason)).join('<br>')}</p>`:''}
     ${(x.devices||[]).map(d=>`<section class="device"><h3>${spHelpEscape(d.name)}</h3><p>${spHelpEscape(({dishwasher:'Afwasmachine',washing_machine:'Wasmachine',tumble_dryer:'Droogkast'})[d.appliance_type]||'Toestel')} · ${spHelpEscape(d.on?'Actief':d.mode==='disabled'?'Uitgesloten':'Auto')} ${d.pending?' · wijziging wacht':''}</p>${d.pending?'<p>'+spHelpEscape(d.pending)+'</p>':''}<div class="actions">${admin?`<button data-go="manage_device" data-id="${spHelpEscape(d.id)}" data-section="settings">Instellingen</button><button data-go="manage_device" data-id="${spHelpEscape(d.id)}" data-section="connections">Koppelingen</button><button data-go="manage_device" data-id="${spHelpEscape(d.id)}" data-section="planning">Planning</button>`:''}<button data-history="${spHelpEscape(d.id)}">Geschiedenis</button>${admin?`<button data-go="replace" data-id="${spHelpEscape(d.id)}">Vervangen</button>`:''}</div></section>`).join('')||'<p>Nog geen SolarPilot-toestellen toegevoegd.</p>'}
     ${(x.archives||[]).length?'<h3>Gearchiveerde toestellen</h3>':''}${(x.archives||[]).map(d=>`<section class="device archive"><strong>${spHelpEscape(d.name)}</strong><p>Geen bediening of starttoestemming. Bewaarde geschiedenis binnen de ingestelde termijn; eerdere leergegevens staan in de analyse-export.</p><button data-history="${spHelpEscape(d.id)}">Bewaarde geschiedenis</button></section>`).join('')}

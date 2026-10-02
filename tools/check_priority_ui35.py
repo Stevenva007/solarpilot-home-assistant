@@ -35,6 +35,9 @@ with sync_playwright() as p:
     overview_text=page.locator('solar-pilot-card >> ha-card').inner_text()
     assert 'Voorrang en autoladen' in overview_text
     assert overview_text.count('Mag de auto minder laden?')==page.evaluate('server.rows.length+server.protected.length')
+    below_overview=page.locator('solar-pilot-card >> .priority-row').filter(has_text='Flexlast · voorbeeld')
+    assert 'Mag de auto minder laden? Nee · Auto laden staat hoger' in below_overview.inner_text()
+    assert 'Toestemming is bewaard; wordt gebruikt als je dit toestel boven Auto laden zet.' in below_overview.inner_text()
     assert 'legacy' not in overview_text.lower() and 'oude expliciete' not in overview_text.lower()
     assert page.evaluate('commands.length===0&&calls.length===0')
     page.screenshot(path=str(OUT/'SolarPilot-beta35-voorrang-desktop.png'),full_page=True)
@@ -47,6 +50,10 @@ with sync_playwright() as p:
     permission_labels = dialog.inner_text().count('Mag de auto minder laden?')
     expected_labels = page.evaluate('server.rows.length+server.protected.length')
     assert permission_labels == expected_labels, (permission_labels, expected_labels)
+    below_editor=editor.locator('[data-row="device:flex_load"]')
+    assert 'Nee · Auto laden staat hoger.' in below_editor.inner_text()
+    assert 'Toestemming is bewaard; wordt gebruikt als je dit toestel boven Auto laden zet.' in below_editor.inner_text()
+    assert below_editor.locator('[data-power]').input_value()=='yes'
     assert 'legacy' not in dialog.inner_text().lower() and 'oude expliciete' not in dialog.inner_text().lower()
     assert editor.locator('[data-save]').is_disabled()
     # Explicit movement and permission edit: no save, no device command.

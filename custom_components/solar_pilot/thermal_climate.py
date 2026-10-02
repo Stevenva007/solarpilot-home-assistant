@@ -708,6 +708,13 @@ class CoastFeedback:
         self.scored = max(0, int(data.get("scored", 0) or 0))
         self.total_coast_h = max(0.0, finite(data.get("total_coast_h")) or 0.0)
 
+    def reset_learning(self):
+        """Forget learned coast outcomes without abandoning a live control episode."""
+        self.history = []
+        self.adjust_h = 0.0
+        self.scored = 0
+        self.total_coast_h = 0.0
+
     def effective_window(self, settings):
         base = float(settings.get("min_coast_window_h", 8.0))
         if not settings.get("coast_feedback_enabled", True):
@@ -1007,6 +1014,12 @@ class SmartClimateState:
 
     def profile(self, entity_id):
         return self.profiles.setdefault(entity_id, ThermalProfile())
+
+    def reset_learning(self):
+        """Clear learned climate models while preserving operational safety state."""
+        self.profiles = {}
+        self.weather_bias.reset()
+        self.coast_feedback.reset_learning()
 
     def snapshot(self):
         return {

@@ -1,6 +1,6 @@
 # SolarPilot · Configuratiestructuur
 
-**Geldig voor 1.0.0-beta.41.** Dit document beschrijft waar instellingen staan. Voor de inhoudelijke EMS-regels geldt uitsluitend `ACTUELE_WERKING.md`.
+**Geldig voor 1.0.0-beta.42.** Dit document beschrijft waar instellingen staan. Voor de inhoudelijke EMS-regels geldt uitsluitend `ACTUELE_WERKING.md`.
 
 ## Configuratiecentrum
 
@@ -25,6 +25,8 @@ Het eenmalige AEG-herstel is een afzonderlijke migratie, geen instelling voor al
 ### Warmte & comfort
 
 **Sanitair warm water** bevat de Panasonic-bronnen en het gewone 50 °C-doel, de bewaakte 46 °C-grens en de afzonderlijke extra zonnebuffer (standaard 60 °C), nachtvenster, koelblokkering en sterilisatiebescherming.
+
+Na herkende handmatige Panasonic-bediening toont de boilerkaart een gerichte **Hervat**-actie. Gebruik die in **Pauze** of **Alleen bekijken**. Zij beëindigt alleen de SolarPilot-rust en stuurt niet direct een temperatuur; tijdens **Automatisch regelen** of een wachtende opdracht blijft hervatten geblokkeerd.
 
 **Ruimteklimaat · basis** koppelt de Panasonic-zones, weather-entiteit, actuele buitentemperatuur en de belangrijkste comfortbanden. SolarPilot stuurt nooit HEAT of COOL; Panasonic AUTO beslist dat zelf.
 
@@ -75,6 +77,8 @@ Wallbox blijft alleen-lezen. Onder **Wallbox · koppeling** kies je de effectiev
 
 Forecast.Solar, lokaal PV-/schaduwmodel en planner. Actuele meters blijven altijd belangrijker dan forecast of historische patronen.
 
+**Apparaat-, lokale PV-, fase- en klimaatleerdata wissen** is een begrensde onderhoudsactie voor lokale afgeleide leerlagen: Wallbox-respons, toestelvermogenssamples, live-PV-correctie, faseprofielen, klimaatprofielen, weersbias en coast-feedback. De actie wist geen instellingen of historische PV-bootstrap, laat operationele klimaatveiligheid en andere modellen staan en voert geen regelcyclus of fysieke opdracht uit.
+
 ### Export
 
 Eén hoofdactie **Analysebestand downloaden** maakt het volledige onderzoeksbestand voor periodieke controle. Standaard wordt zeven dagen gevraagd en worden namen gepseudonimiseerd. Extra periode-/naamkeuzes staan onder de geavanceerde exportopties.
@@ -93,7 +97,7 @@ De gewone kaart heeft negen hoofdtabs:
 - **Warmte & comfort** — boiler én het volledige klimaat-Control Center;
 - **Planning** — gezamenlijke 24–48-uursplanning, dagdoelen, beschermde cyclusprofielen, planfouten, what-if-replay, tijdlijn en plannerinstellingen;
 - **Energie** — kwartierpiek, fasen, forecast en lokaal PV-model;
-- **Auto & batterij** — Wallbox, batterijvloot en batterijscenario's;
+- **Batterij** — Wallbox, batterijvloot en batterijscenario's;
 - **Export** — één lokaal onderzoeksbestand met expliciete periode- en privacykeuze;
 - **Uitleg** — de release-gebonden actuele werking.
 
@@ -127,10 +131,10 @@ Open onderaan het SolarPilot-dashboard **Configureren met uitleg ?**. De wizard 
 **Wallbox** bevat ook automatisch laadprofiel, optionele laadstroom-/fasebron, handmatig fase-/stroomprofiel en afgeleid zonnelaadminimum. ICP is niet de laadlimiet.
 
 
-## Dagelijkse bediening in beta.41
+## Dagelijkse bediening in beta.42
 
-**Overzicht · Voorrang · Toestellen · Warmte & comfort · Planning · Energie · Auto & batterij · Export · Uitleg**
+**Overzicht · Voorrang · Toestellen · Warmte & comfort · Planning · Energie · Batterij · Export · Uitleg**
 
-Voorrang bundelt toestellen, Wallbox en extra boilerwarmte. Vaste comfort- en hygiënebescherming staat zichtbaar erboven. Export bundelt het samenstellen van één lokaal onderzoeksbestand met bestaande privacy- en tijdvensterkeuze. Toestelbeheer, PV-diagnose en Leren & vragen blijven afzonderlijk beschikbaar; alle algemene exportverwijzingen komen op Export uit.
+Voorrang bundelt toestellen, Wallbox en extra boilerwarmte. Vaste comfort- en hygiënebescherming staat zichtbaar erboven. Een bewaarde toestemming Ja onder Auto laden blijft bewaard, maar wordt daar als effectief Nee getoond; pas de positie boven Auto laden kan haar actief maken en ook dan blijven alle startvoorwaarden gelden. Export bundelt het samenstellen van één lokaal onderzoeksbestand met bestaande privacy- en tijdvensterkeuze. Toestelbeheer, PV-diagnose en Leren & vragen blijven afzonderlijk beschikbaar; alle algemene exportverwijzingen komen op Export uit.
 
 Activeer in lagen: controleer eerst alles in **Alleen bekijken**, kies pas daarna globaal **Automatisch regelen** en zet vervolgens alleen gecontroleerde toestellen afzonderlijk op **Auto**. **Pauze** voorkomt nieuwe gewone opdrachten maar onderbreekt geen beschermde lopende cyclus. Een update, migratie, uitlegscherm of opgeslagen Voorrang stuurt op zichzelf geen toestel en verleent geen nieuwe batterij-, klimaat-, DHW- of AEG-bevoegdheid.

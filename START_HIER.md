@@ -1,6 +1,6 @@
-> **Actuele release: beta.41.** Deze release maakt Voorrang en toestelbeslissingen begrijpelijker, bewaart handmatig uitgeschakelde klimaatzones en laat extra boilerwarmte veilig en direct terugvallen bij echte netafname of koeling. De beta.40-AEG-recovery blijft ongewijzigd behouden: geen START tijdens migratie, één complete same-device mapping en APP-vrijgave per belading.
+> **Actuele software-release: beta.42.** Deze release voegt een veilige hervatroute na handmatige boilerbediening toe, toont de effectieve Voorrang-uitkomst onder Auto laden, corrigeert uitleg/labels en begrenst het wissen van leergegevens. De beta.40-AEG-recovery en beta.41-klimaat-/DHW-grenzen blijven ongewijzigd behouden. De werkelijk geladen live versie blijft beta.41 totdat de upgrade hieronder is uitgevoerd en gecontroleerd.
 
-# SolarPilot beta.41 — installatie en upgrade
+# SolarPilot beta.42 — installatie en upgrade
 
 Dit is de aanbevolen eerste installatie.
 
@@ -64,28 +64,28 @@ onder warmtepompcomfort en boven Wallbox, lagere verbruikers en extra 60 °C.
 [APP en deadline](docs/BETA31_INSTELLEN.md) zijn cumulatief inbegrepen.
 Volledige faseprofielplanning blijft uitgesteld tot de latere Shelly-update.
 
-## Beta.41-upgrade: controleer eerst, activeer daarna gericht
+## Beta.42-upgrade: controleer eerst, activeer daarna gericht
 
-1. Installeer beta.41 via HACS en herstart Home Assistant.
-2. Controleer dat de SolarPilot-status werkelijk `1.0.0-beta.41` toont. Vernieuw de browser geforceerd wanneer alleen de kaart nog een oudere versie toont.
-3. Open **Voorrang**. Beschermde regels staan vast bovenaan; toestellen, **Auto laden** en extra warm water staan in één flexibele lijst. Controleer per toestel de keuze **Mag de auto minder laden?**. Opslaan stuurt op zichzelf geen toestel.
-4. Open **Toestellen**. Controleer bij een nog niet gestart toestel de beslisreden, startvoorwaarden, benodigd vermogen en stabiliteitstijd. De samenvatting van de regelaar blijft doorslaggevend; een groen lijstje alleen is geen startgarantie.
-5. Controleer onder **Auto & batterij → Wallbox** de werkelijke sessiebron. Gebruik de bron die volledige waarden onderscheidt voor zonne-auto, manueel laden en gestopt; de Full Solar-instelling alleen is geen bewijs van de actieve sessie. SolarPilot blijft read-only.
-6. Controleer **Warmte & comfort** eerst in **Alleen bekijken**. Een handmatig OFF gezette zone hoort bij een gewone AUTO-beslissing OFF te blijven. Alleen een echte harde comfortoverschrijding mag die ene zone naar Panasonic AUTO vrijgeven.
-7. Controleer bij warm water dat een door SolarPilot beheerd extra doel bij actieve koeling of echte netafname zonder terugvalvertraging naar het gewone/koelbegrensde doel terugvalt. Bij een handmatige Panasonic-override schrijft SolarPilot niets.
-8. Kies daarna pas globaal **Automatisch regelen** en zet uitsluitend de gecontroleerde toestellen afzonderlijk op **Auto**. Laat andere toestellen **Uitgesloten**.
+1. Installeer beta.42 via HACS en herstart Home Assistant.
+2. Controleer dat de SolarPilot-status werkelijk `1.0.0-beta.42` toont. Vernieuw de browser geforceerd wanneer alleen de kaart nog een oudere versie toont. De vóór-upgrade bewezen basis was beta.41 op Home Assistant Core `2026.9.4`; dat bewijst niet dat beta.42 al geladen is.
+3. Open **Warmte & comfort** in **Pauze** of **Alleen bekijken**. Bij een herkende handmatige boilerpauze mag **Hervat** alleen de SolarPilot-rust beëindigen: geen directe temperatuurwrite en niet tijdens Automatisch regelen of een wachtende opdracht.
+4. Open **Voorrang**. Controleer de opgeslagen keuze én de effectieve uitkomst. Een toestel met opgeslagen **Ja** onder **Auto laden** moet zichtbaar effectief **Nee** melden totdat je het erboven plaatst. Opslaan stuurt op zichzelf geen toestel.
+5. Open **Leren & modelkwaliteit**. Gebruik **Apparaat-, lokale PV-, fase- en klimaatleerdata wissen** alleen bewust: lokale afgeleide Wallbox-, toestelvermogen-, PV-, fase- en klimaatleerlagen worden gewist, maar instellingen en operationele klimaatveiligheid blijven staan. De knop mag geen regelcyclus of fysieke opdracht uitvoeren.
+6. Controleer onder **Batterij → Wallbox** de werkelijke sessiebron. Gebruik een actuele bron die zonne-auto, manueel laden en gestopt onderscheidt; de Full Solar-instelling alleen is geen bewijs. De live bron is met fysieke bronversheid en heartbeat als actueel gestopt geval gecontroleerd; bevestig na upgrade ook de andere werkelijke sessietoestanden. Onbekend of oud blijft fail-closed.
+7. Controleer **Warmte & comfort** eerst zonder fysieke uitbreiding. Handmatig OFF blijft beschermd. De koelroute en onmiddellijke DHW-terugval tijdens een echte koelcyclus zijn nog een expliciete liveacceptatiestap.
+8. Kies daarna pas globaal **Automatisch regelen** en zet uitsluitend de gecontroleerde toestellen afzonderlijk op **Auto**. Laat andere toestellen **Uitgesloten**. De oude 60/50-boilerautomatiseringen zijn in de bewezen live basis uitgeschakeld en mogen niet parallel opnieuw worden aangezet.
 
-Zie `docs/BETA41_INSTELLEN.md` voor de volledige controle en rollback.
+Zie `docs/BETA42_INSTELLEN.md` voor de volledige controle en rollback.
 
 
 ## Behouden uit beta.40: laat AEG-profiel veilig herstellen
 
 Beta.40 houdt de bestaande legacy-recovery na SolarPilot-start maximaal tien minuten gericht actief wanneer Home Assistant de template-markers of AEG-entiteiten later laadt. Alleen één complete same-device mapping wordt opgeslagen; de migratie zelf maakt geen APP-aanvraag en verstuurt geen START. Voor de echte controle:
 
-1. Controleer dat de SolarPilot-status werkelijk `1.0.0-beta.41` toont en wacht na de herstart maximaal tien minuten wanneer het AEG-profiel nog door de behouden herstelroute moet worden aangemaakt.
+1. Controleer dat de SolarPilot-status werkelijk `1.0.0-beta.42` toont en wacht na de herstart maximaal tien minuten wanneer het AEG-profiel nog door de behouden herstelroute moet worden aangemaakt.
 2. Controleer **SolarPilot → Toestellen**, **Voorrang** en de rolstatus in `dishwasher_setup`.
 3. Kies het AEG-programma, sluit de deur en zet APP/remote-start uit en opnieuw aan zodat exact `Enabled` als nieuwe overgang wordt gezien.
 4. Controleer geplande dag/deadline en wachtrede. Een onveranderde Ready To Start/deur/programmakeuze mag niet alleen door ouderdom afvallen zolang ConnectivityState actueel blijft.
 5. Er mag maximaal één native START worden verstuurd. Een lopende Washing/Rinsing/Drying/Ado Drying-fase blijft beschermd tot het echte End Of Cycle.
 
-Zie `docs/BETA40_INSTELLEN.md` voor de oorspronkelijke herstelachtergrond en `docs/BETA41_INSTELLEN.md` voor de actuele upgrade- en rollbackprocedure.
+Zie `docs/BETA40_INSTELLEN.md` voor de oorspronkelijke herstelachtergrond en `docs/BETA42_INSTELLEN.md` voor de actuele upgrade- en rollbackprocedure. Een echte AEG-belading is nog niet als beta.42-liveacceptatie uitgevoerd.

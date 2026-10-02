@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.0-beta.42 — 2026-10-02
+
+- Voegt bij een herkende handmatige boilerpauze een gerichte **Hervat**-actie toe. Zij is alleen beschikbaar buiten Automatisch regelen en zonder wachtende opdracht, beëindigt uitsluitend de SolarPilot-rust en schrijft niet direct een temperatuur.
+- Toont onder **Voorrang** de effectieve uitkomst naast de bewaarde Wallbox-toestemming. Een opgeslagen Ja blijft bewaard, maar is onder Auto laden zichtbaar niet effectief; verplaatsen of opslaan verleent geen actuatorrecht.
+- Corrigeert zichtbare DHW- en Wallbox-termen en de hulptekst voor onmiddellijke terugval bij echte netafname, zodat interface en werkelijk beleid hetzelfde zeggen.
+- Begrensd wissen van leergegevens wist alleen de bedoelde lokale afgeleide Wallbox-, toestelvermogen-, PV-, fase- en klimaatleerlagen. Instellingen, historische bootstrap, operationele klimaatveiligheid en andere modellen blijven behouden; resetten stuurt geen apparaat.
+- Behoudt alle beta.41-klimaat-/DHW-eigendomsgrenzen en de beta.40-AEG-recovery zonder verruiming van fysieke rechten.
+- Legt de bewezen live basis vast: SolarPilot beta.41 draaide werkelijk op Home Assistant Core 2026.9.4, veilige modules waren gericht geactiveerd en de oude 60/50-boilerautomatiseringen stonden uit.
+- Claimt nog geen fysieke beta.42-test van actieve koeling of een echte AEG-belading. De live Wallbox-broncontrole/reload bevestigde actuele gestopte bronversheid zonder EV-krediet; zonne-auto- en manuele overgangen blijven nog te doorlopen en onbekend of oud blijft fail-closed.
+- Definitieve samengevoegde suite: **1472 tests geslaagd in 8.88 s**; alle elf browsercontroles en de bron-/documentreleasechecks zijn groen. Release-ZIP's worden pas na de publicatieworkflow inhoudelijk en op checksum gecontroleerd.
+
 ## 1.0.0-beta.41 — 2026-10-02
 
 - Maakt **Voorrang** één duidelijke verticale bron van waarheid: beschermde regels staan vast, flexibele regels zijn verplaatsbaar en per toestel staat één begrijpelijke uitkomst voor **Mag de auto minder laden?**.

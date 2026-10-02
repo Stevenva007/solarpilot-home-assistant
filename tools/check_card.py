@@ -20,6 +20,13 @@ with sync_playwright() as p:
     assert page.locator("solar-pilot-card >> .overview-view").count() == 1
     assert "Wat doet het EMS nu?" in page.locator("solar-pilot-card >> .overview-view").inner_text()
     assert "Lokale PV-voorspelling" in page.locator("solar-pilot-card >> .overview-view").inner_text()
+    page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');window.wallboxClean=structuredClone(c._last.attributes);
+      const a=structuredClone(c._last.attributes);a.wallbox.power_w=0;a.wallbox.effective_mode='stopped';
+      const state=c._hass.states[c._entity];c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{...state,attributes:a}}};}""")
+    wallbox_tile=page.locator('solar-pilot-card >> .overview-view .tile').filter(has_text='Wallbox')
+    assert '0 W · Gestopt' in wallbox_tile.inner_text()
+    page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');const state=c._hass.states[c._entity];
+      c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{...state,attributes:window.wallboxClean}}};}""")
 
     # Managed loads + Wallbox are grouped together; Wallbox remains read-only.
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="loads"]').click()
@@ -27,6 +34,7 @@ with sync_playwright() as p:
     assert page.locator("solar-pilot-card >> .external").count() == 2
     assert page.locator("solar-pilot-card >> .external button").count() == 0
     assert "ALLEEN LEZEN" in page.locator("solar-pilot-card >> .external:not(.wallbox-priority)").inner_text()
+    assert "Volledig zonneladen" in page.locator("solar-pilot-card >> .external:not(.wallbox-priority)").inner_text()
     assert page.locator("solar-pilot-card >> .phasepill").count() == 2
 
     # Comfort is one logical page containing DHW + the complete climate Control Center.
@@ -36,6 +44,25 @@ with sync_playwright() as p:
     assert "46,2 °C" in page.locator("solar-pilot-card >> .dhw").inner_text()
     page.locator("solar-pilot-card >> details.dhw-rules summary").click()
     assert page.locator("solar-pilot-card >> input[data-dhw-setting]").count() == 9
+    assert page.locator('solar-pilot-card >> [data-action="dhw_enabled"]').get_attribute('aria-checked') == 'true'
+    # A manual hold remains recoverable even when no general review flag is set.
+    page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');window.cleanDhw=structuredClone(c._last.attributes);
+      const a=structuredClone(c._last.attributes);a.mode='solar';a.dhw.needs_review=false;a.dhw.manual_override_active=true;a.dhw.manual_hold=true;a.dhw.pending=false;
+      const state=c._hass.states[c._entity];c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{...state,attributes:a}}};}""")
+    resume=page.locator('solar-pilot-card >> [data-action="dhw_review"]')
+    assert resume.is_visible() and resume.is_disabled()
+    assert 'Kies eerst Pauze' in page.locator('solar-pilot-card >> .dhw').inner_text()
+    page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');const a=structuredClone(c._last.attributes);a.mode='paused';a.dhw.pending=true;
+      const state=c._hass.states[c._entity];c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{...state,attributes:a}}};}""")
+    assert resume.is_disabled()
+    page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');const a=structuredClone(c._last.attributes);a.dhw.pending=false;
+      const state=c._hass.states[c._entity];c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{...state,attributes:a}}};window.resumeCalls=[];c._hass.callService=async(domain,service,data)=>resumeCalls.push({domain,service,data});window.confirm=()=>true;}""")
+    assert resume.is_enabled()
+    resume.click()
+    page.wait_for_timeout(20)
+    assert page.evaluate('window.resumeCalls[0]') == {"domain":"button","service":"press","data":{"entity_id":"button.voorbeeld_boilercontrole"}}
+    page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');const state=c._hass.states[c._entity];
+      c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{...state,attributes:window.cleanDhw}}};}""")
     climate_text = page.locator("solar-pilot-card >> .climate").text_content()
     for label in ("Meldingen", "Bevindingen & leren", "Instellingen", "Uitleg", "Lokale weerscorrectie", "Coast-evaluatie"):
         assert label in climate_text, label
@@ -100,10 +127,11 @@ with sync_playwright() as p:
         assert label in energy_text, label
     assert "L3" in energy_text and "P95" in energy_text
 
-    # Storage page separates physical battery fleet from what-if analysis.
+    # Battery page separates physical fleet from what-if analysis; the Wallbox remains under Devices.
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="storage"]').click()
     storage_text = page.locator("solar-pilot-card >> .view").inner_text()
     assert "Batterijvloot" in storage_text and "Batterijscenario" in storage_text
+    assert page.locator('solar-pilot-card >> button[data-value="storage"]').inner_text() == "Batterij"
 
     # Canonical guide has its own tab and the dedicated card still exists.
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="guide"]').click()
@@ -133,6 +161,14 @@ with sync_playwright() as p:
     assert page.evaluate("window.calls.length") == 0
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="energy"]').click()
     page.locator('solar-pilot-card >> details.learning summary').click()
+    learning_text=page.locator('solar-pilot-card >> details.learning').inner_text()
+    assert 'Toestelvermogen en Wallbox-respons leren' in learning_text
+    assert 'Apparaat-, lokale PV-, fase- en klimaatleerdata wissen' in learning_text
+    page.evaluate("window.confirmText='';window.confirm=msg=>{window.confirmText=msg;return false}")
+    page.locator('solar-pilot-card >> button[data-action="reset_learning"]').click()
+    assert 'klimaat-OFF-eigendom' in page.evaluate('window.confirmText')
+    assert page.evaluate("window.calls.length") == 0
+    page.evaluate("window.confirm=()=>true")
     page.locator('solar-pilot-card >> button[data-action="learning"]').click()
     assert page.evaluate("window.calls[0]") == {"domain":"switch","service":"turn_off","data":{"entity_id":"switch.voorbeeld_lokaal_leren"}}
 

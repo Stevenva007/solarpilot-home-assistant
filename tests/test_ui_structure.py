@@ -39,7 +39,7 @@ def test_progressive_disclosure_steps_exist():
 def test_card_uses_six_logical_views_and_keeps_modes_global():
     for key in ("overview", "loads", "comfort", "energy", "storage", "guide"):
         assert f'data-value="{key}"' in CARD or f"value: '{key}'" in CARD or f'"{key}"' in CARD
-    for label in ("Overzicht", "Toestellen", "Warmte & comfort", "Energie", "Auto & batterij", "Uitleg"):
+    for label in ("Overzicht", "Toestellen", "Warmte & comfort", "Energie", "Batterij", "Uitleg"):
         assert label in CARD
     for label in ("Alleen bekijken", "Automatisch regelen", "Pauze"):
         assert label in CARD
@@ -102,6 +102,9 @@ def test_priority_is_one_plain_language_stack_with_car_effect_per_rule():
     ):
         assert text in CARD
     assert "priority-stack" in CARD and "row locked" in CARD
+    assert "Nee · Auto laden staat hoger" in CARD
+    assert "Toestemming is bewaard; wordt gebruikt als je dit toestel boven Auto laden zet." in CARD
+    assert "'Ja · alleen na bevestigde veilige terugregeling'" not in CARD
 
 
 def test_device_cards_explain_start_state_and_history_always_names_both_reasons():
@@ -142,10 +145,72 @@ def test_device_schedule_has_one_outcome_choice_and_hides_it_with_active_priorit
     assert "Configure device · step 4 of 4 · Planning and energy" in EN_TEXT
 
 
-def test_frontend_assets_are_release_bound_to_beta41():
+def test_frontend_assets_are_release_bound_to_beta42():
     option_js = (ROOT / "custom_components" / "solar_pilot" / "frontend" / "option-help.js").read_text(encoding="utf-8")
-    assert CARD.startswith("/* SolarPilot 1.0.0-beta.41.")
-    assert "option-help.js?v=1.0.0-beta.41" in CARD
-    assert option_js.startswith("/* SolarPilot 1.0.0-beta.41.")
-    assert "option-help.json?v=1.0.0-beta.41" in option_js
-    assert json.loads(OPTION_HELP)["version"] == "1.0.0-beta.41"
+    assert CARD.startswith("/* SolarPilot 1.0.0-beta.42.")
+    assert "option-help.js?v=1.0.0-beta.42" in CARD
+    assert option_js.startswith("/* SolarPilot 1.0.0-beta.42.")
+    assert "option-help.json?v=1.0.0-beta.42" in option_js
+    assert json.loads(OPTION_HELP)["version"] == "1.0.0-beta.42"
+
+
+def test_manual_dhw_hold_always_has_a_safe_resume_control():
+    assert "dhw.needs_review||dhw.manual_override_active||dhw.manual_hold" in CARD
+    assert "a.mode==='solar'||!!dhw.pending" in CARD
+    assert "Automatische boilerregeling hervatten" in CARD
+    assert "Kies eerst Pauze wanneer Automatisch regelen actief is" in CARD
+    assert "Hervatten verstuurt zelf geen temperatuurwijziging" in CARD
+    assert 'aria-checked="${dhw.enabled?\'true\':\'false\'}"' in CARD
+
+
+def test_visible_mode_and_dhw_wording_matches_current_behaviour():
+    visible_text = "\n".join((NL_TEXT, EN_TEXT, CARD, OPTION_HELP))
+    for stale in (
+        "Status description",
+        "actief alleen in Zonnestroom",
+        "standaard 100 W met gewone terugvalvertraging",
+    ):
+        assert stale not in visible_text
+    assert "Boilerregeling vrijgeven (alleen actief bij Automatisch regelen)" in NL_TEXT
+    assert "de gewone terugvalvertraging geldt dan niet" in NL_TEXT
+    assert '"solar": "Automatisch regelen"' in NL_TEXT
+
+
+def test_learning_and_history_labels_describe_their_real_scope():
+    native_labels = "\n".join(
+        (ROOT / "custom_components" / "solar_pilot" / name).read_text(encoding="utf-8")
+        for name in ("switch.py", "button.py", "runtime.py")
+    )
+    for expected in (
+        "meetgaten niet meegeteld",
+        "Toestelvermogen en Wallbox-respons leren",
+        "Deze schakelaar geldt alleen voor toestelvermogens en Wallbox-respons",
+        "Apparaat-, lokale PV-, fase- en klimaatleerdata wissen",
+        "Actieve bediening, klimaat-OFF-eigendom, handmatige bescherming en veiligheidsinstellingen blijven behouden",
+    ):
+        assert expected in CARD
+    assert "<small>geen meetgaten</small>" not in CARD
+    assert "<strong>Lokaal leren</strong>" not in CARD
+    assert "Toestelvermogen en Wallbox-respons leren" in native_labels
+    assert "Apparaat-, lokale PV-, fase- en klimaatleerdata wissen" in native_labels
+    assert "Lokaal leren ingeschakeld" not in native_labels
+
+
+def test_battery_tab_does_not_imply_the_wallbox_is_duplicated_there():
+    nav = CARD.split("_nav(){", 1)[1].split("_globalAlerts", 1)[0]
+    assert '["storage","Batterij"]' in nav
+    assert '["storage","Auto & batterij"]' not in nav
+    assert "<h2>Thuisbatterijen</h2>" in CARD
+
+
+def test_wallbox_classifier_values_are_rendered_in_plain_dutch():
+    for technical, readable in (
+        ("stopped", "Gestopt"),
+        ("solar", "Zonneladen"),
+        ("full_solar", "Volledig zonneladen"),
+        ("manual", "Handmatig laden"),
+        ("unknown", "Onbekend"),
+    ):
+        assert f"{technical}:'{readable}'" in CARD
+    assert "spWallboxMode(wb.effective_mode||wb.state)" in CARD
+    assert "spWallboxMode(wb.configured_mode||wb.reported_mode)" in CARD

@@ -184,7 +184,7 @@
           "enabled": "Wallbox-monitor inschakelen",
           "name": "Naam",
           "power_entity": "Werkelijk laadvermogen (W of kW)",
-          "status_entity": "Status description",
+          "status_entity": "Status van de laadpaal (tekst)",
           "demand_entity": "Optionele expliciete laadvraagsensor",
           "mode_entity": "Zonnelaadmodus — alleen uitlezen",
           "charging_threshold_w": "Drempel om werkelijk laden te herkennen (W)",
@@ -231,7 +231,7 @@
         "title": "Sanitair warm water · koppelingen",
         "description": "SolarPilot wijzigt alleen het tapwaterdoel. Normaal doel en bewaakte comfortgrens zijn onafhankelijk. Geen Force DHW of verhoging om de fabrikantdifferentie te omzeilen; Panasonic houdt compressor, hygiëne en taakverdeling in handen.",
         "data": {
-          "enabled": "Boilerregeling vrijgeven (actief alleen in Zonnestroom)",
+          "enabled": "Boilerregeling vrijgeven (alleen actief bij Automatisch regelen)",
           "target_entity": "Boilerdoel bedienen (niet de ruimtethermostaat)",
           "temperature_entity": "Werkelijke watertemperatuur (optioneel bij water_heater/climate)",
           "power_entity": "Optioneel: uitsluitend het elektrische boilervermogen",
@@ -310,7 +310,7 @@
           "cooling_clear_s": "Na koeling/onzekere koelstatus nog blokkeren (s)",
           "stale_s": "Maximum leeftijd temperatuur- en klimaatrapport (s)",
           "ack_timeout_s": "Maximum wachten op doelbevestiging (s)",
-          "max_surplus_import_w": "Bij meer netafname de 60°C-fase verlaten (W; geen elektrische beveiliging)",
+          "max_surplus_import_w": "Netafname waarboven het extra 60 °C-doel meteen wordt losgelaten (W; geen elektrische beveiliging)",
           "cooling_detection": "Herkenning actieve koeling",
           "compensate_own_power": "Eigen gemeten boilerverbruik meetellen bij vasthouden 60°C-fase (niet bij starten)",
           "optional_raise_interval_s": "Minimum tijd tussen extra doelverhogingen (s)",
@@ -324,7 +324,7 @@
           "cooling_clear_s": "Hoelang geen echte/onzekere koeling meer mag zijn voordat extra hoge tankopwarming weer kan.",
           "stale_s": "Maximale ouderdom van een ontvangen bronrapport.",
           "ack_timeout_s": "Maximale wachttijd op een echte terugmelding na een opdracht.",
-          "max_surplus_import_w": "Zachte importgrens om een lopende extra hoge zonnefase terug te nemen, standaard 100 W met gewone terugvalvertraging.",
+          "max_surplus_import_w": "Bij werkelijke netafname boven deze grens laat SolarPilot een door zichzelf beheerd extra 60 °C-doel onmiddellijk los; de gewone terugvalvertraging geldt dan niet.",
           "cooling_detection": "Actie kijkt primair naar werkelijk cooling.",
           "compensate_own_power": "Tijdens een reeds eigen hoge fase mag een exclusieve actuele boilervermogensmeter het door de boiler zelf gebruikte zonnevermogen reconstrueren.",
           "optional_raise_interval_s": "Rust tussen extra doelverhogingen boven het normale doel, standaard 1800 seconden (30 minuten), gerekend vanaf de laatste verstuurde doelopdracht.",
@@ -1223,7 +1223,7 @@
       },
       "manage_device": {
         "title": "Toestel beheren",
-        "description": "Deze schermen zijn ook tijdens Zonnestroom toegankelijk. Bij het uiteindelijke opslaan zie je welke wijzigingen direct kunnen en welke wachten.",
+        "description": "Deze schermen zijn ook toegankelijk terwijl Automatisch regelen actief is. Bij het uiteindelijke opslaan zie je welke wijzigingen direct kunnen en welke wachten.",
         "data": {
           "device_id": "Toestel",
           "section": "Wat wil je aanpassen?"
@@ -1245,7 +1245,7 @@
       "number_range": "Het ingestelde bereik of de stap past niet op de gekozen number-entiteit.",
       "cycle_requires_ready": "Een niet-onderbreekbare cyclus vereist het type Script en een vraag-/klaarsignaal.",
       "number_unit": "Kies een vermogens-/stroomregelaar met eenheid W, kW, A of %. Geen temperatuur of andere grootheid. Bij W moet de wattfactor 1 zijn; bij kW 1000.",
-      "wallbox_demand_required": "Koppel Status description of een expliciete laadvraagsensor. 0 W alleen bewijst niet dat de auto klaar is.",
+      "wallbox_demand_required": "Koppel Status van de laadpaal (tekst) of een expliciete laadvraagsensor. 0 W alleen bewijst niet dat de auto klaar is.",
       "wallbox_state_overlap": "Een status mag niet tegelijk als laadvraag en als geen laadvraag zijn opgenomen.",
       "wallbox_duplicate": "De Wallbox staat ook als bestuurbaar toestel gekoppeld. Verwijder eerst die koppeling; één regelaar per laadpaal.",
       "reclaim_requirements": "Overname vereist een eigen vermogensmeter, een onderbreekbaar toestel en een minimale looptijd niet langer dan de overnametermijn. Gebruik dit alleen bij direct voorspelbaar elektrisch verbruik.",
@@ -1295,8 +1295,8 @@
       "mode": {
         "name": "Modus",
         "state": {
-          "observe": "Observatie",
-          "solar": "Zonnestroom",
+          "observe": "Alleen bekijken",
+          "solar": "Automatisch regelen",
           "paused": "Pauze"
         }
       },

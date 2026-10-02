@@ -9,7 +9,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 def _entities(r):
     buttons = [SolarButton(r, "reset", "Herstartcontrole en fouten wissen"),
-               SolarButton(r, "reset_learning", "Leergegevens wissen"),
+               SolarButton(r, "reset_learning", "Apparaat-, lokale PV-, fase- en klimaatleerdata wissen"),
                SolarButton(r, "prepare_remove", "Verwijderen voorbereiden")]
     if r.dhw.configured:
         buttons += [SolarButton(r, "dhw_review", "Boilercontrole afronden"),

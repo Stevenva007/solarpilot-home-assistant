@@ -1,4 +1,10 @@
-from custom_components.solar_pilot.thermal_climate import ThermalProfile, decide_mode, SMART_CLIMATE_DEFAULTS
+from custom_components.solar_pilot.thermal_climate import (
+    ClimateDecision,
+    SMART_CLIMATE_DEFAULTS,
+    SmartClimateState,
+    ThermalProfile,
+    decide_mode,
+)
 
 
 def zone(temp=21, target=21, mode='auto', name='Woonkamer', action='idle'):
@@ -12,6 +18,65 @@ def mature_profile(k=0.04, heat=0.20, cool=0.20, delay=2.0):
     p=ThermalProfile(); p.samples=100; p.days=set(str(x) for x in range(10))
     p.passive_k=[k]*20; p.heat_gain=[heat]*20; p.cool_gain=[cool]*20; p.response_delays_h=[delay]*10
     return p
+
+
+def test_smart_climate_learning_reset_preserves_operational_and_safety_state():
+    state = SmartClimateState()
+    state.profiles['climate.zone'] = mature_profile()
+    state.weather_bias.errors['12'] = [1.2]
+    state.weather_bias.days['12'] = {'2026-10-01'}
+    state.weather_bias.pending = {'sample': {'valid_ts': 1, 'predicted_c': 20, 'bucket': 12}}
+    state.weather_bias.total_samples = 1
+    active = {'started_ts': 10, 'targets': {'climate.zone': 21}}
+    pending = {'evaluate_after_ts': 20, 'action_seen': False}
+    state.coast_feedback.active = active
+    state.coast_feedback.pending = pending
+    state.coast_feedback.history = [{'outcome': 'te_lang'}]
+    state.coast_feedback.adjust_h = 1.0
+    state.coast_feedback.scored = 3
+    state.coast_feedback.total_coast_h = 12.5
+
+    decision = ClimateDecision('off', 'actieve coast')
+    state.last_sample_wall = 101.0
+    state.last_decision_wall = 102.0
+    state.last_guard_wall = 103.0
+    state.last_forecast_wall = 104.0
+    state.forecast = [{'temperature': 20}]
+    state.last_decision = decision
+    state.manual_hold_until = 105.0
+    state.command_day = '2026-10-02'
+    state.commands_today = 4
+    state.expected_mode = {'climate.zone': 'off'}
+    state.last_command_wall = 106.0
+    state.last_command_mode = 'off'
+    state.fault = 'veilig geblokkeerd'
+
+    state.reset_learning()
+
+    assert state.profiles == {}
+    assert all(not values for values in state.weather_bias.errors.values())
+    assert all(not days for days in state.weather_bias.days.values())
+    assert state.weather_bias.pending == {}
+    assert state.weather_bias.total_samples == 0
+    assert state.coast_feedback.active is active
+    assert state.coast_feedback.pending is pending
+    assert state.coast_feedback.history == []
+    assert state.coast_feedback.adjust_h == 0.0
+    assert state.coast_feedback.scored == 0
+    assert state.coast_feedback.total_coast_h == 0.0
+    assert state.last_sample_wall == 101.0
+    assert state.last_decision_wall == 102.0
+    assert state.last_guard_wall == 103.0
+    assert state.last_forecast_wall == 104.0
+    assert state.forecast == [{'temperature': 20}]
+    assert state.last_decision is decision
+    assert state.manual_hold_until == 105.0
+    assert state.command_day == '2026-10-02'
+    assert state.commands_today == 4
+    assert state.expected_mode == {'climate.zone': 'off'}
+    assert state.last_command_wall == 106.0
+    assert state.last_command_mode == 'off'
+    assert state.fault == 'veilig geblokkeerd'
 
 
 def test_hard_cold_comfort_breach_requests_auto_not_heat():

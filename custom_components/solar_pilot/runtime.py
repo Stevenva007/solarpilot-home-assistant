@@ -2625,7 +2625,9 @@ class SolarRuntime:
         async with self._lock:
             self.learning.enabled = bool(enabled)
             await self.store.async_save(self._snapshot())
-            self.note("Lokaal leren ingeschakeld." if enabled else "Lokaal leren uitgeschakeld; vaste instellingen.")
+            self.note("Leren van toestelvermogen en Wallbox-respons ingeschakeld."
+                      if enabled else
+                      "Leren van toestelvermogen en Wallbox-respons uitgeschakeld; vaste instellingen.")
         await self.tick()
 
     async def reset_learning(self):
@@ -2633,10 +2635,10 @@ class SolarRuntime:
             self.learning.reset()
             self.local_pv.reset_live()
             self.phase_learning.reset()
-            self.smart_climate.state = self.smart_climate.state.__class__()
+            self.smart_climate.state.reset_learning()
             await self.store.async_save(self._snapshot())
-            self.note("Lokale leergegevens gewist. Historische bootstrap en veiligheidsinstellingen blijven behouden.")
-        await self.tick()
+            self.note("Apparaat-, lokale PV-, fase- en klimaatleerdata gewist. Operationele toestand, historische PV-bootstrap en veiligheidsinstellingen blijven behouden.")
+        self.publish()
 
     def learning_overview(self):
         return {**self.learning.overview(self.wallbox_settings["stable_s"]),
