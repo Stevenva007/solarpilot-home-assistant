@@ -1,7 +1,7 @@
 """SolarPilot constants. No network or third-party Python dependencies."""
 DOMAIN = "solar_pilot"
 NAME = "SolarPilot"
-VERSION = "1.0.0-beta.42"
+VERSION = "1.0.0-beta.43"
 PLATFORMS = ["sensor", "binary_sensor", "select", "number", "button", "switch"]
 MODES = ["observe", "solar", "paused"]
 DEVICE_MODES = ["auto", "disabled"]

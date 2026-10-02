@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 import math
 import time
+from zoneinfo import ZoneInfo
 from time import perf_counter
 
 from homeassistant.core import callback
@@ -23,6 +24,8 @@ from .wallbox import (WALLBOX_DEFAULTS, Reading, WallboxGuard, state_set,
 
 from .consumer_wallbox import PRIORITY_DEFAULTS, ConsumerWallboxPriority, follows_wallbox
 from .electricity_cost import DailyElectricityCost
+from .savings import SavingsHistory
+from .wallbox_activity import WallboxActivityHistory, classify_native_status
 from .consumer_history_runtime import ConsumerHistoryRecorder
 from .dishwasher_app import DishwasherApp
 from .dishwasher_priority import DishwasherPriority, enabled as dishwasher_has_priority
@@ -77,6 +80,7 @@ class SolarRuntime:
         self.capacity = capacity_decision(datetime.now().astimezone(), None, None, None, {"enabled": False})
         self.phase = phase_decision((None, None, None), {"enabled": False})
         self.ems_stats = fresh_daily_stats()
+        self.savings_history = SavingsHistory()
         self.electricity_cost = DailyElectricityCost()
         self.planner_hold_since = {}
         self.unified_planner = UnifiedPlanner(self.planner_settings, self.historical_seed)
@@ -93,6 +97,8 @@ class SolarRuntime:
         self.reclaim_blocks = {}
         self._yield_to_wallbox = False
         self.wallbox_guard = self._make_wallbox_guard()
+        self.wallbox_activity = WallboxActivityHistory(stale_s=self.wallbox_settings["stale_s"],
+            charging_threshold_w=self.wallbox_settings["charging_threshold_w"])
         self.configs = {d["id"]: normalize_dishwasher({**DEVICE_DEFAULTS, **d}) for d in entry.options.get("devices", [])}
         self.dishwasher = DishwasherControl()
         self.dishwasher_priority = DishwasherPriority()
@@ -273,6 +279,8 @@ class SolarRuntime:
             "manual_forced": {i: bool(s.manual_forced) for i, s in self.states.items() if s.manual_forced},
             "manual_stop_requested": {i: bool(s.manual_stop_requested) for i, s in self.states.items() if s.manual_stop_requested},
             "energy_kwh": self.energy_kwh, "ems_stats": self.ems_stats,
+            "savings_history": self.savings_history.snapshot(),
+            "wallbox_activity": self.wallbox_activity.snapshot(),
             "electricity_cost": self.electricity_cost.snapshot(),
             "daily_runtime": {i: {"date": self.runtime_day, "seconds": round(s.daily_runtime_s, 3), "energy_kwh": round(s.daily_energy_kwh, 6)} for i, s in self.states.items()},
             "leases": {**self.recovery, **{i: {"watts": s.target_w, "name": self.configs[i]["name"]}
@@ -433,6 +441,8 @@ class SolarRuntime:
         self.energy_kwh = max(0, float(data.get("energy_kwh", 0)))
         stored_stats = data.get("ems_stats", {})
         self.ems_stats = dict(stored_stats) if isinstance(stored_stats, dict) else fresh_daily_stats()
+        self.savings_history.restore(data.get("savings_history"))
+        self.wallbox_activity.restore(data.get("wallbox_activity"))
         daily = data.get("daily_runtime", {})
         dates = {str(v.get("date", "")) for v in daily.values() if isinstance(v, dict)}
         self.runtime_day = next(iter(dates)) if len(dates) == 1 else ""
@@ -850,6 +860,11 @@ class SolarRuntime:
         stats = dict(self.ems_stats)
         pv = stats.get("pv_kwh", 0.0) or 0.0
         stats["self_consumption_pct"] = None if pv <= 0 else round(100 * (stats.get("pv_self_used_kwh", 0.0) or 0.0) / pv, 1)
+        try:
+            value_day = datetime.now(ZoneInfo(getattr(getattr(self.hass, "config", None),
+                                                     "time_zone", "Europe/Brussels"))).date().isoformat()
+        except (TypeError, ValueError, KeyError):
+            value_day = datetime.now().astimezone().date().isoformat()
         return {
             "capacity": self.capacity.__dict__, "phase": self.phase.__dict__,
             "legacy_conflicts": conflicts, "ready": not warnings, "warnings": warnings, "advice": advice,
@@ -867,6 +882,9 @@ class SolarRuntime:
                         "price_sources": dict(getattr(self, "planner_price_sources", {"import":"vaste prijs","export":"vaste prijs"})),
                         "adaptive_power_guard": self.planner_settings.get("adaptive_power_guard", True)},
             "today": stats,
+            "savings": self.savings_history.report(stats, economy_enabled=e["enabled"],
+                power_estimated=self.energy_estimated,
+                current_date=value_day),
             "electricity_today": dict(self.electricity_cost.cached),
         }
 
@@ -914,22 +932,26 @@ class SolarRuntime:
         watts = value * (1000 if unit == "kW" else 1)
         return watts, stamp
 
-    def _wallbox_text(self, entity_id, require_fresh=True):
+    def _wallbox_text_report(self, entity_id, require_fresh=True):
         obj = self.hass.states.get(entity_id) if entity_id else None
         if obj is None or obj.state in ("unknown", "unavailable", ""):
-            return None
+            return None, None
         stamp = getattr(obj, "last_reported", obj.last_updated).timestamp()
         age = time.time() - stamp
         if require_fresh and (age > self.wallbox_settings["stale_s"] or age < -5):
-            return None
-        return obj.state
+            return None, stamp
+        return obj.state, stamp
+
+    def _wallbox_text(self, entity_id, require_fresh=True):
+        value, _stamp = self._wallbox_text_report(entity_id, require_fresh)
+        return value
 
     def _wallbox_reading(self):
         c = self.wallbox_settings
         if not c["enabled"]:
             return Reading()
         power, stamp = self._power(c.get("power_entity"), c["stale_s"])
-        status = self._wallbox_text(c.get("status_entity"))
+        status, status_stamp = self._wallbox_text_report(c.get("status_entity"))
         mode = self._wallbox_text(c.get("mode_entity"))
         if c.get("demand_entity"):
             # Explicit binary/manual request. Its template must propagate source
@@ -963,15 +985,38 @@ class SolarRuntime:
         return Reading(power, stamp, demand, status, session.mode, not bool(issue), issue,
                        max(0, time.time()-stamp) if stamp else math.inf, connected,
                        raw_mode=mode, session_reason=session.reason, session_confirmed=session.confirmed,
-                       session_value=session_value)
+                       session_value=session_value, status_stamp=status_stamp)
+
+    def _observe_wallbox_activity(self, reading, grid_w, discharge_w):
+        """Record native reports only; do not influence charging or priority."""
+        history = self.wallbox_activity
+        previous_end = history.events[-1] if history.events else None
+        was_ongoing = history.ongoing is not None
+        history.stale_s = self.wallbox_settings["stale_s"]
+        history.charging_threshold_w = self.wallbox_settings["charging_threshold_w"]
+        history.update(reading, time.time(), grid_w=grid_w, pv_w=self.pv_w,
+            free_w=max(0.0, -grid_w-discharge_w-self.settings["reserve_w"]) if grid_w is not None else None,
+            enabled=self.wallbox_settings["enabled"])
+        latest_end = history.events[-1] if history.events else None
+        if self.data_loaded and (latest_end != previous_end or was_ongoing != (history.ongoing is not None)):
+            self.store.async_delay_save(self._snapshot, 1)
 
     def wallbox_overview(self):
         c, g = self.wallbox_settings, self.wallbox_guard
         r, v = g.reading, g.result
-        age = max(0, int(time.time() - r.stamp)) if r.stamp else None
+        raw_age = time.time() - r.stamp if r.stamp else None
+        age = max(0, int(raw_age)) if raw_age is not None and math.isfinite(raw_age) else None
         full_solar = bool(r.session_confirmed and (r.mode or "").casefold() in state_set(c.get("full_solar_states", "")))
         reclaimable = round(getattr(g, "reclaimable_w", 0), 1)
         reclaim_now = bool(full_solar and r.valid and reclaimable > 0)
+        activity_known = bool(r.valid and r.power_w is not None and math.isfinite(r.power_w)
+                              and r.power_w >= 0 and raw_age is not None and math.isfinite(raw_age)
+                              and -5 <= raw_age <= c["stale_s"] and math.isfinite(r.age_s)
+                              and -5 <= r.age_s <= c["stale_s"])
+        charging_now = bool(activity_known and r.power_w >= c["charging_threshold_w"])
+        native_activity = classify_native_status(r.status, r.demand)[0]
+        activity = ("unknown" if not activity_known else "charging" if charging_now
+                    else "waiting" if native_activity == "waiting" else "stopped")
         reclaim_reason = (
             "Effectieve zonnelaadsessie bevestigd en stabiel terugneembaar laadvermogen gemeten"
             if reclaim_now else
@@ -995,6 +1040,9 @@ class SolarRuntime:
                 "handover": self.handover.overview(time.monotonic()) if self.handover else self.last_handover,
                 "reclaim_blocks": dict(self.reclaim_blocks),
                 "read_only": True, "state": v.state, "reason": v.reason,
+                "activity": activity, "active": charging_now, "activity_known": activity_known,
+                "activity_details": self.wallbox_activity.overview(),
+                "charging_threshold_w": c["charging_threshold_w"],
                 "power_w": r.power_w if r.valid else None, "last_report_age_s": age,
                 "demand": r.demand, "reported_status": r.status, "reported_mode": r.mode,
                 "warning": v.warning, "block_increase": v.block_increase,
@@ -1064,6 +1112,11 @@ class SolarRuntime:
         if any(w in str(attrs.get("friendly_name", "")).casefold() for w in ("geschat", "estimated")):
             return False
         return True  # Physical identity/overlap still requires user's mapping check.
+
+    def _power_is_estimated(self, device_id):
+        """Qualify presentation/accounting only; never alter control eligibility."""
+        state = self.states.get(device_id)
+        return bool(state and state.fault) or not self._reclaim_meter(device_id)
 
     def devices(self):
         valid_fields = {f.name for f in fields(Device)}
@@ -1772,6 +1825,7 @@ class SolarRuntime:
             profile["maximum_power_w"] if profile["current_source"] == "Wallbox-integratie" else None)
         previous_wb_state = self.wallbox_guard.result.state
         wallbox_reading = self._wallbox_reading()
+        self._observe_wallbox_activity(wallbox_reading, grid if valid else None, discharge)
         if wallbox_reading.valid:
             self.learning.observe_report(wallbox_reading.stamp)
         self.wallbox_guard.settings["stable_s"] = self.learning.effective_stable_s(self.wallbox_settings["stable_s"])
@@ -1933,7 +1987,8 @@ class SolarRuntime:
                 watts, stamp = self._power(self.configs[i]["power_entity"])
                 if watts is not None:
                     self.learning.observe_device(i, self.configs[i], watts, now, stamp)
-        self.energy_estimated = any(s.owned and s.on and (not self.configs[i].get("power_entity") or bool(s.fault)) for i, s in self.states.items())
+        self.energy_estimated = any(s.owned and s.on and self._power_is_estimated(i)
+                                    for i, s in self.states.items())
         if valid and 0 < dt <= max(30, self.settings["interval_s"] * 2) and not self.pending:
             self.energy_kwh += max(0, self.managed_w) * dt / 3_600_000
         imp_price, exp_price = self._economy_prices()
@@ -1942,11 +1997,16 @@ class SolarRuntime:
         self.electricity_cost.update(now=local_now, grid_w=grid if valid else None, pv_w=self.pv_w,
             import_price=imp_price, export_price=exp_price, storage_present=storage_present,
             max_gap_s=max(30, self.settings["interval_s"]*2))
+        self.savings_history.capture(self.ems_stats, economy_enabled=self.economy_settings["enabled"],
+                                    power_estimated=self.energy_estimated)
         self.ems_stats = accounting_step(
             self.ems_stats, day=local_now.date().isoformat(), dt_s=dt,
             grid_w=grid if valid else None, pv_w=self.pv_w, managed_w=self.managed_w,
             battery_discharge_w=discharge,
             import_price_eur_kwh=imp_price or 0.0, export_price_eur_kwh=exp_price or 0.0)
+        self.savings_history.capture(self.ems_stats, economy_enabled=self.economy_settings["enabled"],
+                                    power_estimated=self.energy_estimated)
+        self._record_automatic_value(local_now, dt, grid, valid, discharge, imp_price, exp_price)
         if valid:
             self.battery_analysis.step(dt, grid)
         if (self.removal_requested and not self.pending and not self.handover and not dhw_sent
@@ -2358,6 +2418,22 @@ class SolarRuntime:
         unique = f'{self.entry.entry_id}_{device_id + "_" if device_id else ""}{suffix}'
         return er.async_get(self.hass).async_get_entity_id(kind, DOMAIN, unique)
 
+    def _record_automatic_value(self, local_now, dt, grid, valid, discharge, import_price, export_price):
+        """Account only current automatic consumer intervals, never issue a command."""
+        if self.mode != "solar" or not valid or self.pending or self.recovery or self.faults:
+            return
+        now = time.monotonic()
+        active = [i for i, s in self.states.items() if s.owned and s.on and s.available
+                  and not s.fault and not s.manual_forced and s.boost_until <= now
+                  and self.device_modes.get(i) == "auto"]
+        self.savings_history.record_automatic_interval(
+            day=local_now.date().isoformat(), dt_s=dt, grid_w=grid, pv_w=self.pv_w,
+            automatic_w=sum(max(0.0, self.states[i].measured_w) for i in active),
+            battery_discharge_w=discharge, import_price_eur_kwh=import_price,
+            export_price_eur_kwh=export_price,
+            power_estimated=any(self._power_is_estimated(i) for i in active),
+            timestamp=local_now.timestamp(), max_gap_s=max(30, self.settings["interval_s"]*2))
+
     def _device_start_diagnostics(self, d, s, cfg, now):
         """Explain current start inputs without replacing the engine verdict."""
         mode = self.device_modes.get(d.id, "disabled")
@@ -2489,6 +2565,9 @@ class SolarRuntime:
                 "remaining_s": stable_remaining,
             },
         }
+        if cfg.get("kind") == "dishwasher":
+            pool = self.dishwasher_priority.view.start_power.get(d.id)
+            diagnostics["power"]["solar_start_pool"] = dict(pool) if measurement_valid and pool else None
         return requirements, diagnostics
 
     def overview(self):
@@ -2508,7 +2587,7 @@ class SolarRuntime:
                 "dishwasher_cancel_entity": self.entity_id("button", "dishwasher_cancel", d.id) if cfg.get("kind") == "dishwasher" else None,
                 "mode": self.device_modes.get(d.id, "disabled"),
                 "owned": s.owned, "on": s.on, "available": s.available,
-                "power_w": round(s.measured_w, 1), "estimated": not bool(cfg.get("power_entity")),
+                "power_w": round(s.measured_w, 1), "estimated": self._power_is_estimated(d.id),
                 "target_w": round(self.result.targets.get(d.id, 0), 1),
                 "reason": self.result.reasons.get(d.id, "Initialiseren"),
                 "start_requirements": start_requirements,

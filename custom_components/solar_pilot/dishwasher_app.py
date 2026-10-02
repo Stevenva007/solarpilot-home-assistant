@@ -21,6 +21,7 @@ from .dishwasher import Reading, accepted, norm, fresh, read, settings
 APP_DEFAULTS = {
     "dishwasher_arming_mode": "manual",
     "dishwasher_start_deadline": "13:00:00",
+    "dishwasher_monday_start_deadline": "",
     "dishwasher_after_deadline": "next_day",
     "dishwasher_deadline_grid_allowed": True,
     "dishwasher_deadline_grace_min": 120,
@@ -29,16 +30,22 @@ APP_DEFAULTS = {
 }
 
 
+def deadline_time(cfg, day):
+    """Return the configured deadline for one local calendar day."""
+    value = (cfg.get("dishwasher_monday_start_deadline")
+             if day.weekday() == 0 else None)
+    return clock_time.fromisoformat(str(value or cfg.get("dishwasher_start_deadline", "13:00:00")))
+
+
 def request_window(wall, cfg, zone="Europe/Brussels"):
     """Bind a request ONCE. Tomorrow means next calendar day, not next fair day."""
     tz = ZoneInfo(zone)
     now = datetime.fromtimestamp(wall, tz)
-    deadline_time = clock_time.fromisoformat(str(cfg.get("dishwasher_start_deadline", "13:00:00")))
-    deadline = datetime.combine(now.date(), deadline_time, tz)
+    deadline = datetime.combine(now.date(), deadline_time(cfg, now.date()), tz)
     tomorrow = now >= deadline and cfg.get("dishwasher_after_deadline", "next_day") == "next_day"
     day = now.date() + timedelta(days=1) if tomorrow else now.date()
     if tomorrow:
-        deadline = datetime.combine(day, deadline_time, tz)
+        deadline = datetime.combine(day, deadline_time(cfg, day), tz)
     # Same-day alternative: a late request is due now, not expired at noon.
     if not tomorrow and now >= deadline:
         deadline = now

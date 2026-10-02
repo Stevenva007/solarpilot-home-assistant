@@ -137,7 +137,9 @@ with sync_playwright() as p:
     editor.locator('[data-close]').first.click()
     assert not dialog.is_visible()
     # Non-admin sees priority overview, but no editing button usable.
-    page.evaluate('c.hass={...c._hass,user:{is_admin:false}}')
+    # Supply a fresh HA state snapshot together with this fixture's changed
+    # user; clicking the already-selected tab is no longer a forced rerender.
+    page.evaluate('''()=>{c.hass={...c._hass,user:{is_admin:false},states:{...c._hass.states,[c._entity]:{...c._last}}};}''')
     page.locator('solar-pilot-card >> .nav [data-value=priorities]').click()
     assert page.locator('solar-pilot-card >> [data-action=priority_edit]').is_disabled()
     assert not errors,errors

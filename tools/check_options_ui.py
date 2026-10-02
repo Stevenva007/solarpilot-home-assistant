@@ -145,7 +145,15 @@ with sync_playwright() as p:
     last=page.evaluate('apiCalls[apiCalls.length-1].data')
     assert last['charging_phases']=='3' and last['enabled'] is False and 'phases_entity' not in last
     assert sorted(last['extra_test'])==['number.demo','sensor.demo']
+    # This fixture returns another form instead of completing the save. Closing
+    # its changed, staged values must explicitly confirm that they may be lost.
+    def discard_fictitious_options(dialog):
+        assert dialog.type == 'confirm'
+        assert dialog.message == 'Niet-opgeslagen wijzigingen weggooien?'
+        dialog.accept()
+    page.once('dialog', discard_fictitious_options)
     host.locator('.close').first.click()
+    page.wait_for_function('!c._optionsDialog.dialog.open && !c._uiHistory.constructor.bus.moving')
 
     # Unsupported selector refuses to submit rather than silently dropping a field.
     page.evaluate('''async()=>{window.apiHandler=async()=>({type:'form',flow_id:'fictieve-flow',step_id:'wallbox',data_schema:[{name:'future_field',required:true,selector:{future_widget:{}}}]});await c._openOptions();}''')

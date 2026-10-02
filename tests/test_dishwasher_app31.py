@@ -21,6 +21,37 @@ def test_next_day_default(hour,day):
     assert w['grid_allowed']
     assert w['expires']>w['deadline']
 
+@pytest.mark.parametrize(('when', 'planned_day', 'deadline'), [
+    ('2026-09-28T09:59', '2026-09-28', '2026-09-28T10:00:00'),
+    ('2026-09-28T10:00', '2026-09-29', '2026-09-29T13:00:00'),
+    ('2026-09-28T18:00', '2026-09-29', '2026-09-29T13:00:00'),
+    ('2026-09-27T13:01', '2026-09-28', '2026-09-28T10:00:00'),
+    ('2026-09-29T12:59', '2026-09-29', '2026-09-29T13:00:00'),
+])
+def test_optional_monday_deadline_before_at_after_and_other_days(when, planned_day, deadline):
+    cfg = {'dishwasher_monday_start_deadline': '10:00:00'}
+    window = request_window(stamp(when), cfg)
+    assert window['planned_day'] == planned_day
+    assert datetime.fromtimestamp(window['deadline'], ZONE).isoformat().startswith(deadline)
+
+
+def test_blank_monday_override_preserves_existing_daily_deadline():
+    window = request_window(stamp('2026-09-28T12:00'), {
+        'dishwasher_start_deadline': '13:00:00',
+        'dishwasher_monday_start_deadline': '',
+    })
+    assert window['planned_day'] == '2026-09-28'
+    assert window['deadline'] == stamp('2026-09-28T13:00')
+
+
+@pytest.mark.parametrize(('when', 'expected'), [
+    ('2026-03-29T14:00', '2026-03-30T10:00:00+02:00'),
+    ('2026-10-25T14:00', '2026-10-26T10:00:00+01:00'),
+])
+def test_sunday_to_monday_override_keeps_local_time_across_dst(when, expected):
+    window = request_window(stamp(when), {'dishwasher_monday_start_deadline': '10:00:00'})
+    assert datetime.fromtimestamp(window['deadline'], ZONE).isoformat() == expected
+
 @pytest.mark.parametrize('text,day',[('2026-10-24T20:00','2026-10-25'),('2027-03-27T20:00','2027-03-28'),('2026-12-31T20:00','2027-01-01')])
 def test_local_deadline_across_dst_and_year(text,day):
     w=request_window(stamp(text),{})
@@ -32,6 +63,16 @@ def test_same_day_explicit_alternative(hour):
     now=stamp('2026-09-29T'+hour)
     w=request_window(now,{'dishwasher_after_deadline':'same_day'})
     assert w['not_before']==w['deadline']==now
+
+
+def test_same_day_alternative_at_monday_cutoff_is_due_now():
+    now = stamp('2026-09-28T10:00')
+    window = request_window(now, {
+        'dishwasher_monday_start_deadline': '10:00:00',
+        'dishwasher_after_deadline': 'same_day',
+    })
+    assert window['planned_day'] == '2026-09-28'
+    assert window['not_before'] == window['deadline'] == now
 
 
 def configured(monkeypatch,when='2026-09-29T09:00',**values):
@@ -101,6 +142,18 @@ async def test_tomorrow_no_sun_waits_then_grid_deadline(monkeypatch):
     assert 'deadline' in r.pending['reason']
     # Uses no native AEG timer and never controls a plug.
     assert not [x for x in h.services.calls if x[0] in ('number','switch')]
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(('grid_allowed', 'starts'), [(True, True), (False, False)])
+async def test_monday_ten_deadline_uses_existing_grid_permission(monkeypatch, grid_allowed, starts):
+    r,h,c,w=configured(monkeypatch,'2026-09-27T14:00',
+        dishwasher_monday_start_deadline='10:00:00',
+        dishwasher_deadline_grid_allowed=grid_allowed)
+    ready(r,h,c,w);h.states.set('sensor.grid',600,{'unit_of_measurement':'W'});await r.tick()
+    move(h,w,'2026-09-28T09:59');await r.tick()
+    assert not [x for x in h.services.calls if x[0]=='button']
+    move(h,w,'2026-09-28T10:00');await r.tick()
+    assert bool([x for x in h.services.calls if x[0]=='button']) is starts
 
 @pytest.mark.asyncio
 async def test_deadline_not_shifted_when_repeated_cloud_reports_or_next_tick(monkeypatch):
@@ -238,6 +291,13 @@ def test_app_requires_exact_enabled_mapping(monkeypatch,bad):
     r,h,c,w=configured(monkeypatch);c['dishwasher_remote_states']=bad;c['dishwasher_mapping_confirmed']=False
     assert config_errors(h,c)['dishwasher_remote_states']=='dishwasher_exact_remote'
 
+def test_optional_monday_deadline_is_validated_but_blank_is_allowed(monkeypatch):
+    r,h,c,w=configured(monkeypatch)
+    c['dishwasher_monday_start_deadline'] = ''
+    assert 'dishwasher_monday_start_deadline' not in config_errors(h,c)
+    c['dishwasher_monday_start_deadline'] = 'Monday morning'
+    assert config_errors(h,c)['dishwasher_monday_start_deadline'] == 'time'
+
 @pytest.mark.asyncio
 async def test_complete_data_in_analysis_snapshot(monkeypatch):
     r,h,c,w=configured(monkeypatch);ready(r,h,c,w)
@@ -254,6 +314,40 @@ async def test_restart_keeps_waiting_day_and_never_rearms_old_enabled(monkeypatc
     assert r2.dishwasher_app.data['a']['request']['deadline']==q['deadline']
     assert not [x for x in h2.services.calls if x[0]=='button']
     await r2.close()
+
+@pytest.mark.asyncio
+async def test_existing_monday_ticket_keeps_frozen_deadline_after_override_upgrade(monkeypatch):
+    r,h,c,w=configured(monkeypatch,'2026-09-27T14:00')
+    ready(r,h,c,w);await r.tick()
+    saved=deepcopy(r._snapshot())
+    old_request=deepcopy(saved['dishwasher_app']['a']['request'])
+    assert old_request['planned_day']=='2026-09-28'
+    assert old_request['deadline']==stamp('2026-09-28T13:00')
+    r2,h2,c2,w2=configured(monkeypatch,'2026-09-27T20:00',dishwasher_monday_start_deadline='10:00:00')
+    h2.states.set('sensor.dw_remote','Enabled');h2.states.set('sensor.grid',800,{'unit_of_measurement':'W'})
+    r2.store.data=saved;await r2.start()
+    assert r2.dishwasher_app.data['a']['request']==old_request
+    assert not [x for x in h2.services.calls if x[0]=='button']
+    await r2.close()
+
+@pytest.mark.asyncio
+async def test_monday_override_does_not_rearm_an_attempted_start(monkeypatch):
+    r,h,c,w=configured(monkeypatch,'2026-09-28T09:00')
+    ready(r,h,c,w);await r.tick();saved=deepcopy(r._snapshot())
+    assert saved['dishwasher']['tickets']['a']['attempted']
+    r2,h2,c2,w2=configured(monkeypatch,'2026-09-28T09:05',dishwasher_monday_start_deadline='10:00:00')
+    h2.states.set('sensor.dw_remote','Enabled');r2.store.data=saved
+    await r2.start()
+    assert not [x for x in h2.services.calls if x[0]=='button']
+    await r2.close()
+
+@pytest.mark.asyncio
+async def test_running_friday_stays_protected_across_monday_deadline(monkeypatch):
+    r,h,c,w=configured(monkeypatch,'2026-10-02T09:00',dishwasher_monday_start_deadline='10:00:00')
+    ready(r,h,c,w);event(r,h,c,w,'dishwasher_state_entity','Running');await r.tick()
+    move(h,w,'2026-10-05T10:00');await r.tick()
+    assert r.states['a'].on and not r.dishwasher_app.data['a'].get('request')
+    assert not [x for x in h.services.calls if x[0]=='button']
 
 @pytest.mark.asyncio
 async def test_restart_without_previous_ticket_does_not_start_existing_ready_enabled(monkeypatch):

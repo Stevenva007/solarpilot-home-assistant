@@ -673,7 +673,7 @@
       },
       "dishwasher_states": {
         "title": "Dishwasher · readiness and feedback",
-        "description": "APP-modus gebruikt uitsluitend exact Enabled als éénmalige toestemming. Standaard: vóór 13:00 vandaag; vanaf 13:00 de volgende kalenderdag. Ook op een bewolkte geplande dag geldt de deadline met netstroom indien toegestaan. Bestaande handmatige profielen blijven handmatig totdat je dit bewust wijzigt.",
+        "description": "The APP button authorizes one load. Preparing before the latest start time schedules today; at or after it schedules the next calendar day. The ordinary deadline is 13:00; an optional Monday deadline can be set below. The planned day and deadline then remain fixed. Grid power may supplement solar only when allowed; all start safety checks remain required.",
         "data": {
           "dishwasher_ready_states": "Raw ready-before-start states (semicolon-separated)",
           "dishwasher_running_states": "Raw active-cycle states, including drying/paused",
@@ -686,7 +686,8 @@
           "dishwasher_ticket_hours": "One-cycle preparation valid for (hours)",
           "dishwasher_mapping_confirmed": "Confirmed: correct START button, raw feedback and remote start tested",
           "dishwasher_arming_mode": "Toestemming voor één afwasbeurt",
-          "dishwasher_start_deadline": "Uiterlijk starten op de geplande dag",
+          "dishwasher_start_deadline": "Ordinary latest start time",
+          "dishwasher_monday_start_deadline": "Monday: separate latest start time (optional)",
           "dishwasher_after_deadline": "Na deze starttijd klaargezet",
           "dishwasher_deadline_grid_allowed": "Netstroom toestaan bij de startdeadline",
           "dishwasher_deadline_grace_min": "Nog proberen na geblokkeerde deadline (minuten)",
@@ -695,6 +696,7 @@
           "dishwasher_ev_solar_priority": "Prefer dishwasher over current solar EV power — temporary grid use is possible"
         },
         "data_description": {
+          "dishwasher_monday_start_deadline": "Optional separate Monday START deadline; leave empty to use the ordinary latest start time on Mondays too.",
           "dishwasher_priority_enabled": "Preset on. Normal hot water and space heating are never switched off for a dishwasher. The dishwasher wins over lower automatic loads and the optional 60 C buffer. Existing compressor runtimes and running programmes remain protected. Disable to return to ordinary consumer ranking.",
           "dishwasher_ev_solar_priority": "Preset on for this requested profile. With fresh Full Solar, actual PV and stable power readings, a protected cycle may start using solar power currently consumed by the EV. Full Solar must reduce itself; no EV command is sent. Immediate grid, peak and phase limits still apply as if the EV did not react. Temporary or later grid use cannot be excluded. The cycle is not aborted on failed reaction; a warning blocks future EV-based starts until review. Off uses only real remaining export before the deadline."
         }

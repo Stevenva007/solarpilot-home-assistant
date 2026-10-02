@@ -42,6 +42,35 @@ def test_connectivity_heartbeat_rejects_stale_device():
     assert not dw.read(h,c).ready
 
 
+def test_stale_cloud_report_is_visible_without_losing_the_existing_request():
+    r, h, c = setup()
+    r.dishwasher.arm(c, dw.read(h, c), time.time())
+    h.states.set('sensor.dw_connection', 'Connected', reported_age=1080)
+    reading = dw.read(h, c)
+    r.dishwasher.readings['a'] = reading
+    overview = r.dishwasher.overview(c)
+    assert not reading.ready and reading.active is None
+    assert overview['ticket_armed'] and not overview['prepared']
+    assert not overview['gates']['connection']
+    assert overview['connection_report']['state'] == 'Connected'
+    assert overview['connection_report']['age_s'] == pytest.approx(1080, abs=1)
+    assert overview['connection_report']['maximum_age_s'] == 300
+    assert not overview['connection_report']['current']
+    assert not h.services.calls
+
+
+def test_successful_cloud_refresh_keeps_same_ticket_without_creating_start_permission():
+    r, h, c = setup()
+    r.dishwasher.arm(c, dw.read(h, c), time.time())
+    ticket = dict(r.dishwasher.tickets['a'])
+    h.states.set('sensor.dw_connection', 'Connected', reported_age=1080)
+    assert not dw.read(h, c).ready
+    h.states.set('sensor.dw_connection', 'Connected')
+    assert dw.read(h, c).ready
+    assert r.dishwasher.tickets['a'] == ticket
+    assert not h.services.calls
+
+
 @pytest.mark.parametrize('eid', ['sensor.dw_phase','sensor.dw_remote','binary_sensor.dw_door','select.dw_program'])
 def test_unchanged_static_guard_may_be_old_when_connectivity_is_fresh(eid):
     r,h,c=setup(); old=h.states.get(eid);h.states.set(eid,old.state,age=3600)

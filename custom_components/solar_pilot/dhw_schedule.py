@@ -367,7 +367,8 @@ class DHWComfortSchedule:
                     and not p.urgent):
                 p.target_c, p.stage = self.evening_target, "evening"
                 p.reason = (f"Avondvoorraad voor {str(c['morning_time'])[:5]}: laatste bruikbare zon; "
-                            "begrensd voorraadadvies vóór Wallbox, Panasonic verdeelt de taken")
+                            "begrensde warmwatervoorraad vóór Wallbox. Bij bevestigd zonneladen mag de auto "
+                            "minder laden; Panasonic bepaalt zelf wanneer het water opwarmt")
         elif night:
             self.evening_target = None
         p.warning = "; ".join(dict.fromkeys(warnings))

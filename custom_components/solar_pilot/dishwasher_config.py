@@ -63,7 +63,12 @@ class DishwasherOptionsMixin:
         d = normalize_config(self._device)
         errors = {}
         if user_input is not None:
+            # An omitted optional time means "use the ordinary daily deadline".
+            # Remove a previous override before merging so clearing the field works.
+            d.pop("dishwasher_monday_start_deadline", None)
             d.update(user_input)
+            if not d.get("dishwasher_monday_start_deadline"):
+                d.pop("dishwasher_monday_start_deadline", None)
             errors = config_errors(self.hass, d)
             if not errors:
                 self._device = d
@@ -77,6 +82,7 @@ class DishwasherOptionsMixin:
             {"value": "app", "label": "Fysieke Delay Start / APP-knop — geen extra klaarzetten"},
             {"value": "manual", "label": "Handmatig één beurt klaarzetten in SolarPilot"}]})
         schema[vol.Required("dishwasher_start_deadline", default=d["dishwasher_start_deadline"])] = selector.TimeSelector()
+        schema[_optional("dishwasher_monday_start_deadline", d)] = selector.TimeSelector()
         schema[vol.Required("dishwasher_after_deadline", default=d["dishwasher_after_deadline"])] = selector.SelectSelector({"options": [
             {"value": "next_day", "label": "Volgende dag, eerst zon (standaard)"},
             {"value": "same_day", "label": "Nog dezelfde dag, zo nodig direct netstroom"}]})

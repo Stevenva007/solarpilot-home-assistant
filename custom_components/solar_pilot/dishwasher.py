@@ -29,6 +29,7 @@ DISHWASHER_DEFAULTS = {
     "dishwasher_delay_entity": "",
     "dishwasher_phase_entity": "", "dishwasher_alert_mode": "state",
     "dishwasher_arming_mode": "manual", "dishwasher_start_deadline": "13:00:00",
+    "dishwasher_monday_start_deadline": "",
     "dishwasher_after_deadline": "next_day", "dishwasher_deadline_grid_allowed": True,
     "dishwasher_deadline_grace_min": 120,
     "dishwasher_alert_entity": "",
@@ -97,10 +98,13 @@ def config_errors(hass, cfg):
         except AttributeError:
             errors["base"] = "dishwasher_same_device"
     from datetime import time as clock_time
-    try:
-        clock_time.fromisoformat(str(c["dishwasher_start_deadline"]))
-    except ValueError:
-        errors["dishwasher_start_deadline"] = "time"
+    for key in ("dishwasher_start_deadline", "dishwasher_monday_start_deadline"):
+        if key == "dishwasher_monday_start_deadline" and c.get(key) in (None, ""):
+            continue
+        try:
+            clock_time.fromisoformat(str(c[key]))
+        except (TypeError, ValueError):
+            errors[key] = "time"
     for key, allowed in (("dishwasher_arming_mode", ("manual", "app")),
                          ("dishwasher_after_deadline", ("next_day", "same_day")),
                          ("dishwasher_alert_mode", ("state", "aeg_attributes"))):
@@ -147,6 +151,9 @@ class Reading:
     program: str = ""
     phase: str = ""
     gates: dict = field(default_factory=dict)
+    connection_state: str = ""
+    connection_age_s: float | None = None
+    connection_max_age_s: float = 300.0
 
 
 def read(hass, cfg, wall=None):
@@ -158,6 +165,14 @@ def read(hass, cfg, wall=None):
     link = fresh(hass, c.get("dishwasher_connection_entity"), age, wall)
     obj = known(hass, c.get("dishwasher_state_entity"))
     r = Reading(raw=str(getattr(obj, "state", "")))
+    report = hass.states.get(c.get("dishwasher_connection_entity", ""))
+    r.connection_state = str(getattr(report, "state", ""))[:80]
+    r.connection_max_age_s = float(age)
+    try:
+        elapsed = wall - getattr(report, "last_reported", report.last_updated).timestamp()
+        r.connection_age_s = round(elapsed, 1) if math.isfinite(elapsed) else None
+    except (AttributeError, ValueError, TypeError):
+        pass
     r.gates["connection"] = bool(link and norm(link.state) in accepted(c["dishwasher_connected_states"]))
     if not r.gates["connection"]:
         r.reason = "Afwasmachine offline of verbindingsterugmelding te oud"
@@ -361,6 +376,9 @@ class DishwasherControl:
         profiles = self.profiles.get(i, [])
         return {"ready": r.ready, "prepared": allowed, "ticket_armed": bool(ticket.get("armed")),
                 "attempted": bool(ticket.get("attempted")), "gate_reason": reason, "gates": dict(r.gates),
+                "connection_report": {"state": r.connection_state, "age_s": r.connection_age_s,
+                                      "maximum_age_s": r.connection_max_age_s,
+                                      "current": bool(r.gates.get("connection"))},
                 "phase": r.phase, "program": r.program, "source_age_s": round(max(0, wall-r.stamp), 1) if r.stamp else None,
                 "profile_count": len(profiles), "last_measured_profile": profiles[-1] if profiles else None,
                 "profile_note": "Exclusief gemeten cyclusprofielen" if profiles else "Nog geen volledig gemeten cyclus; fasen zijn onbekend, niet 0 W",

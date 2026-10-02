@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import logging
-from datetime import datetime, time as clock_time
+from datetime import datetime
 from zoneinfo import ZoneInfo
 import time
 from uuid import uuid4
@@ -18,11 +18,13 @@ from homeassistant.exceptions import HomeAssistantError
 
 from .const import DEVICE_DEFAULTS
 from .dishwasher import normalize_config
+from .dishwasher_app import deadline_time
 from .engine import State
 
 PENDING = "_live_pending"
 ARCHIVED = "_archived_devices"
-SCHEDULE_KEYS = frozenset({"dishwasher_start_deadline", "dishwasher_after_deadline",
+SCHEDULE_KEYS = frozenset({"dishwasher_start_deadline", "dishwasher_monday_start_deadline",
+    "dishwasher_after_deadline",
     "dishwasher_deadline_grid_allowed", "dishwasher_deadline_grace_min"})
 # Running devices keep all source/permission/protection and programme settings.
 # Only display identity and relative future allocation can change in place.
@@ -79,7 +81,8 @@ def replacement_profile(old):
     carry = {"name", "kind", "appliance_type", "priority", "start_delay_s", "stop_delay_s",
         "daily_deadline", "deadline_grid_allowed", "time_window_enabled", "time_window_start",
         "time_window_end", "wallbox_precedence", "wallbox_power_policy", "dishwasher_arming_mode",
-        "dishwasher_start_deadline", "dishwasher_after_deadline", "dishwasher_deadline_grid_allowed",
+        "dishwasher_start_deadline", "dishwasher_monday_start_deadline",
+        "dishwasher_after_deadline", "dishwasher_deadline_grid_allowed",
         "dishwasher_deadline_grace_min", "dishwasher_priority_enabled", "dishwasher_ev_solar_priority"}
     result = {**DEVICE_DEFAULTS, **{k: deepcopy(v) for k,v in old.items() if k in carry}, "id": uuid4().hex}
     if result.get("kind") == "dishwasher":
@@ -286,7 +289,7 @@ class LiveOptions:
             cfg = devices[i]
             day = datetime.fromisoformat(q["planned_day"]).date()
             zone = ZoneInfo(q.get("zone", self.r.dishwasher_app.zone))
-            deadline = datetime.combine(day, clock_time.fromisoformat(str(cfg.get("dishwasher_start_deadline", "13:00:00"))), zone)
+            deadline = datetime.combine(day, deadline_time(cfg, day), zone)
             # Explicit choice updates this fixed planned day, never re-arms/re-dates it.
             q.update(deadline=deadline.timestamp(), expires=deadline.timestamp()+max(1,int(cfg.get("dishwasher_deadline_grace_min",120)))*60,
                      grid_allowed=bool(cfg.get("dishwasher_deadline_grid_allowed",True)), policy_locked=True)

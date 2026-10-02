@@ -1,8 +1,8 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.42
+**Versie:** 1.0.0-beta.43
 **Bijgewerkt:** 2026-10-02
-**Regel-hash:** `813423dab59557a1`
+**Regel-hash:** `2072294edfd69fb0`
 
 Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en leerdata blijven lokaal in Home Assistant en worden bij gewone HACS-updates niet vervangen door programmabestanden.
 
@@ -92,7 +92,7 @@ Nieuwe optionele verhogingen boven het normale doel wachten standaard zolang de 
 
 Voor extra verhogingen geldt standaard 300 seconden stabiele zonnevoorwaarde en minstens 1800 seconden sinds de laatste verstuurde doelopdracht. Verlagingen wegens echte netafname, nacht, koelbegrenzing of pauze hoeven niet op dat extra verhogingsinterval te wachten. Het gewone doel herstellen wordt evenmin uitgesteld. Dit zijn rustregels voor setpoints, geen gegarandeerde compressorlooptijden.
 
-Gewoon warmtepompcomfort staat vóór de autonome Full Solar-Wallbox. Voor noodzakelijke avondvoorraad mag actueel bevestigd Full Solar-laadvermogen alleen in de comfortbeoordeling als vrijmaakbaar zonnevermogen tellen; het verhoogt nooit fysieke net- of faseruimte. De Wallbox krijgt geen opdrachten van SolarPilot. De extra 60 °C-fase heeft deze voorrang niet: meer dan 3500 W werkelijke restinjectie is nodig; een startklare Wallbox krijgt eerst de kans om te laden.
+Gewoon warmtepompcomfort staat vóór de autonome Full Solar-Wallbox. Voor de beschermde avondvoorraad, nooit hoger dan de ingestelde limiet en maximaal 55 °C, mag SolarPilot actueel gemeten EV-zonnevermogen alleen in de comfortbeoordeling als vrijmaakbaar tellen. Daarvoor moet de native Full Solar-sessie expliciet ingeschakeld, verbonden en vragend zijn, minstens 50 W laden en moeten zowel sessiestatus als vermogen hoogstens 120 seconden oud zijn. Handmatig laden en onbekende, strijdige of oude sessies leveren geen krediet. Dit vermogen verhoogt nooit fysieke net- of faseruimte en de Wallbox krijgt geen opdrachten van SolarPilot. Comfortgrens, actieve/verwachte koeling, fabrikantsterilisatie en overige beveiligingen houden voorrang. De extra 60 °C-fase krijgt nooit EV-krediet: meer dan 3500 W werkelijke restinjectie is nodig en een startklare Wallbox krijgt eerst de kans om te laden.
 
 Het gewone zonnedoel is standaard eveneens 50 °C, vanaf 1000 W actuele PV-productie. Omdat dit gelijk is aan het normale doel, geeft het geen extra temperatuurverhoging. Een bewust hoger gewoon zonnedoel blijft een productievoorwaarde en kan netstroom vragen. Voor echt extra 60 °C telt alleen overschot. Om een eigen hoge fase vast te houden kan uitsluitend een aparte betrouwbare elektrische tankvermogensmeter compenseren, nooit geschatte watts of een gedeelde meter.
 
@@ -473,7 +473,7 @@ De status toont per verplichte rol missing, selected of ambiguous en telt afwijz
 
 De beta.39-reparatiemigratie blijft uitsluitend een profiel wijzigen dat aantoonbaar door beta.38 zelf als recovered is gemarkeerd. Handmatig aangemaakte of bewust aangepaste afwasmachineprofielen worden niet generiek herschreven. Wanneer beta.38 de verkorte Running;Paused-lijst heeft opgeslagen, wordt de volledige eerder afgesproken faselijst hersteld. Wanneer beta.38 automatisch een AEG Alerts-bron in attribuutmodus koos maar die bron geen technische DISH_ALARM-vlaggen levert, wordt alleen die automatische optionele blokkade verwijderd. Deze reparatie maakt geen APP-ticket en verstuurt geen START.
 
-Een werkelijk hersteld profiel houdt alle bestaande APP-regels: exact Remote Control Enabled is de fysieke aanvraag, vóór 13:00 geldt vandaag en vanaf 13:00 de volgende kalenderdag, met de bestaande 13:00-deadline/nettoestemming. Startup met APP al Enabled telt niet als nieuwe aanvraag. Eén belading krijgt maximaal één START en een onzekere opdracht wordt niet blind herhaald.
+Een werkelijk hersteld profiel houdt alle bestaande APP-regels: exact Remote Control Enabled is de fysieke aanvraag. De gewone startdeadline blijft 13:00. Beta.43 kan optioneel uitsluitend voor maandag een andere lokale deadline gebruiken; leeg betekent ook op maandag de gewone 13:00. Startup met APP al Enabled telt niet als nieuwe aanvraag. Eén belading krijgt maximaal één START en een onzekere opdracht wordt niet blind herhaald.
 
 Geen enkele herstel- of reparatiemigratie verstuurt zelf een START of wijzigt een programma. Een lopende cyclus blijft beschermd; End Of Cycle wordt eventgestuurd bewaard, AirDry blijft onderdeel van de cyclus en Off of Disconnected alleen bewijst geen einde. De status meldt of herstel/reparatie is uitgevoerd, al eerder gebeurde of niet veilig/eenduidig toepasbaar was.
 
@@ -482,7 +482,23 @@ Geen enkele herstel- of reparatiemigratie verstuurt zelf een START of wijzigt ee
 - De afgesproken comfortvolgorde blijft behouden: noodzakelijke warmte/warm water blijven beschermd; een voorkeurs-afwasmachine kan vóór de Wallbox staan; lagere flexibele lasten en de extra 60 °C-buffer volgen de centrale lijst.
 - Een afwasstart blijft afhankelijk van gesloten deur, Ready To Start, geldig programma, veilige/bruikbare alarmcontrole indien gekoppeld, elektrische ruimte en een geldige nieuwe APP-aanvraag.
 
-## 24. Release- en documentatieregel
+## 24. Actueel overzicht, Wallboxwaarneming, navigatie, waardeschatting en maandagdeadline
+
+Het blok Nu actief toont uitsluitend toestellen waarvan de actuele gekoppelde status werkelijk actief is. Bij de Wallbox is vers, geldig laadvermogen nodig; een ingestelde laadmodus alleen bewijst geen laadactiviteit. Gemeten en geschat toestelvermogen blijven zichtbaar onderscheiden. Actief betekent niet dat het verbruik op dat moment uitsluitend uit zonnepanelen komt of dat SolarPilot de start veroorzaakte. Ontbrekende of oude gegevens blijven onbekend.
+
+De Wallbox blijft volledig read-only. De huidige native fabrikantstatus kan uitleggen waarop de laadpaal nu wacht. SolarPilot bewaart lokaal maximaal dertig waargenomen eindes van laadperioden. Een historische stopreden wordt alleen aan de stop gekoppeld wanneer een exact bekende native status ná het laatste laadrapport en binnen vijf seconden van het stop-vermogensrapport is ontvangen. Een meetgat, herstart, toekomstige of onlogische opgeslagen tijd en een oude status worden nooit tot een bevestigde stopoorzaak gemaakt. De tijd is de Home Assistant-waarneming, niet noodzakelijk het fysieke stopmoment. Deze registratie verleent geen recht om de Wallbox te starten, stoppen of wijzigen.
+
+Terug en Vooruit in de browser herstellen alleen SolarPilot-schermen en dialogen op dezelfde Home Assistant-URL. Een gewijzigd formulier vraagt eerst bevestiging voordat het wordt weggegooid; opslaan of een lopende actie wordt niet door navigatie onderbroken. SolarPilot wijzigt de Home Assistant-router niet, speelt geen formulierdata opnieuw af en gebruikt navigatie nooit als toestelopdracht.
+
+Het geschatte voordeel van automatische sturing is een aparte, voorwaartse telling van maximaal negentig bewaarde kalenderdagen. Alleen een door SolarPilot beheerde, werkelijk actieve verbruiker op Auto telt mee; handmatige starts, boosts, autonoom autoladen, boiler en klimaat zijn uitgesloten. Per bruikbaar meetinterval is de formule toegerekende zonnestroom maal (afnameprijs min injectievergoeding). Netafname en batterijontlading worden eerst conservatief toegerekend. Ontbrekende meters of prijzen worden niet als nul aangevuld en oude perioden worden niet achteraf gereconstrueerd. Dit is een opportunity-value-schatting, geen bewezen extra besparing door SolarPilot en geen bedrag dat nogmaals van de elektriciteitskost mag worden afgetrokken.
+
+De optionele maandagdeadline van de afwasmachine staat standaard leeg. Leeg betekent dat ook maandag de gewone 13:00 geldt. Alleen een bewust ingevulde lokale tijd, bijvoorbeeld 10:00, wijzigt maandag; alle andere weekdagen houden de gewone deadline. Een bestaand APP-ticket behoudt bij een update zijn vaste geplande dag en deadline. Alleen wanneer de gebruiker expliciet kiest om de wijziging op het huidige verzoek toe te passen, wordt dezelfde geplande dag herberekend; dat maakt geen nieuw ticket en verstuurt geen START. Tijdens een lopende beschermde cyclus wacht de instelling tot het bevestigde einde.
+
+- APP moet per nieuwe belading fysiek opnieuw van uit naar exact Enabled gaan; Enabled bij startup is geen nieuwe aanvraag.
+- Deur, programma, Ready To Start, verbinding, alarmcontrole, elektrische grenzen en toestemming voor netstroom op de deadline blijven ongewijzigd verplicht.
+- Een bestaande of gemigreerde aanvraag wordt nooit alleen door de nieuwe maandaginstelling opnieuw klaargezet of gestart.
+
+## 25. Release- en documentatieregel
 
 Deze actuele uitleg is onderdeel van de release zelf. Dezelfde inhoud wordt als Markdown meegeleverd én in Home Assistant getoond. Een releasecontrole faalt wanneer versie of gegenereerde uitleg niet overeenkomt met de integratieversie.
 

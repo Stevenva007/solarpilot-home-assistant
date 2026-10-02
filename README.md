@@ -1,30 +1,31 @@
-> **Nieuw: beta.42** — maakt bestaande veilige bediening eerlijker en herstelbaar: handmatige boilerpauze gericht hervatten, het effectieve resultaat van Voorrang onder Auto laden zichtbaar maken, uitleg/labels rechttrekken en alleen de bedoelde lokale leerlagen veilig wissen.
+> **Nieuw: beta.43** — maakt actuele activiteit en besparingsschattingen controleerbaar, bewaart read-only Wallbox-waarnemingen zonder oorzaken te verzinnen, beveiligt browsernavigatie met open formulieren en voegt een optionele maandagdeadline voor de AEG-afwasmachine toe.
 
 # SolarPilot
 
 SolarPilot is a local Home Assistant Energy Management System (EMS) for PV surplus, flexible loads, Panasonic Aquarea hot-water policy, Wallbox Full Solar coexistence, phase analysis, capacity-tariff awareness, local PV/shade learning, slow thermal-climate learning, future home batteries and a unified rolling-horizon planner.
 
-> **Status:** beta.42 · software- en bronrelease-gate groen; live-installatieacceptatie volgt afzonderlijk. Start nieuwe installaties in **Alleen bekijken**. Do not enable physical control for several devices at once.
+> **Status:** beta.43 · releasevoorbereiding; de definitieve samengevoegde software- en workflowcontrole volgt vóór publicatie. De bewezen live basis is beta.42 op Home Assistant Core 2026.9.4. Start nieuwe installaties in **Alleen bekijken**. Do not enable physical control for several devices at once.
 
 
 > **Updates zijn cumulatief.** Je hoeft tussenliggende beta-versies niet één voor één te installeren of publiceren. Installeer de nieuwste release over je bestaande SolarPilot-installatie; Home Assistant-configuratie en lokale leerdata blijven behouden.
 
-## Current DHW policy (preserved in beta.42)
+## Current DHW policy (preserved in beta.43)
 
 Normal tank setpoint and monitored comfort floor are independent (new defaults 50/46 °C). No deadband-compensating 52 °C boost or Force DHW. A 50 °C target with a -5 °C native differential can reheat around 45 °C: 46 °C is monitored, not guaranteed and not a hygiene standard. Optional bounded evening solar storage waits for space climate; see `docs/BETA28_INSTELLEN.md`. Existing setpoints and permissions migrate without silent profile activation.
 
 
-## Nieuw in beta.42
+## Nieuw in beta.43
 
-- **Warmte & comfort** toont bij een herkende handmatige boilerpauze een gerichte **Hervat**-knop. Hervatten kan alleen buiten Automatisch regelen en zonder wachtende opdracht; de knop beëindigt de SolarPilot-rust maar schrijft niet direct een temperatuur.
-- **Voorrang** toont nu naast de bewaarde keuze het effectieve resultaat. Een opgeslagen **Ja** onder **Auto laden** blijft bewaard, maar geldt daar zichtbaar als **Nee** totdat het toestel erboven staat. Dit verleent geen nieuw start- of actuatorrecht.
-- Uitleg en labels benoemen de feitelijke bediening: DHW **Automatisch regelen**, een duidelijke Wallbox-statusomschrijving en onmiddellijke terugval van een luxe-DHW-doel bij echte netafname.
-- **Apparaat-, lokale PV-, fase- en klimaatleerdata wissen** is begrensd tot lokale afgeleide leerlagen. Instellingen, historische bootstrap en operationele klimaatveiligheid/commandoboekhouding blijven behouden; de reset voert geen regelcyclus of fysieke opdracht uit.
-- De bewezen beta.41-regels blijven cumulatief behouden: handmatig OFF gezette klimaatzones blijven eigendom van de gebruiker, extra boilerwarmte vereist SolarPilot-eigendom, centrale start-/stopuitleg blijft doorslaggevend en de Wallbox blijft read-only.
-- De beta.40-afwasmachinerecovery blijft ongewijzigd behouden: maximaal tien minuten gericht herstel, één complete same-device mapping, geen START tijdens migratie en voor iedere belading opnieuw een fysieke APP-overgang naar exact `Enabled`.
-- De live basis is Home Assistant Core `2026.9.4` met SolarPilot `1.0.0-beta.41` werkelijk geladen. De Wallbox-broncontrole/reload bevestigde een actuele gestopte sessie zonder EV-vermogenskrediet. Beta.42 moet na installatie opnieuw als backend én kaart worden bevestigd; een echte koelcyclus en echte AEG-belading zijn nog geen bewezen beta.42-liveacceptatie.
+- **Nu actief** gebruikt de werkelijk waargenomen toestelstatus en maakt gemeten versus geschat vermogen zichtbaar. Activiteit bewijst niet dat alle energie op dat moment van PV komt of dat SolarPilot de start veroorzaakte.
+- De Wallbox blijft read-only, maar toont nu de actuele bekende wachtstatus en maximaal dertig lokaal waargenomen laadperiodes. Een historische native stopreden wordt alleen gekoppeld bij een aantoonbaar nieuwe status uit dezelfde rapportagebatch; gaten, herstarts of oude/onlogische tijden blijven onbekend.
+- Browser **Terug** en **Vooruit** herstellen uitsluitend SolarPilot-schermen op dezelfde Home Assistant-URL. Niet-opgeslagen formulieren vragen bevestiging en opslaan of een lopende actie wordt niet onderbroken.
+- De aparte automatische-voordeelweergave bewaart maximaal negentig dagen vanaf activering. Het is een opportunity-value-schatting op bruikbare meetintervallen, geen bewezen extra besparing en geen bedrag dat nogmaals van de elektriciteitskost mag worden afgetrokken.
+- De AEG-afwasmachine krijgt een optionele afzonderlijke maandagdeadline. Leeg houdt ook maandag de gewone 13:00; bijvoorbeeld 10:00 geldt alleen op maandag. Bestaande tickets blijven bevroren tenzij je expliciet dezelfde geplande dag laat herberekenen; dat maakt geen ticket en verstuurt geen START.
+- De beschermde avondvoorraad tot de ingestelde limiet en maximaal 55 °C mag alleen actuele, expliciet bevestigde Full Solar-lading als vrijmaakbaar zonnevermogen meewegen: verbonden en vragend, minstens 50 W, sessiestatus én vermogen hoogstens 120 seconden oud. Handmatig/onbekend/oud laden telt niet; extra 60 °C krijgt nooit EV-krediet en comfort-, koel- en fabrikantbeveiliging blijven hoger.
+- Alle beta.42-veiligheidsgrenzen blijven cumulatief behouden: gerichte DHW-Hervat, eerlijke effectieve Voorrang, begrensde leerreset, handmatig OFF gezette klimaatzones, extra boilerwarmte alleen onder eigendom en een volledig read-only Wallbox.
+- De bewezen live basis is Home Assistant Core `2026.9.4` met SolarPilot `1.0.0-beta.42` werkelijk geladen. Beta.43 moet na installatie opnieuw als backend én kaart worden bevestigd; een echte actieve koelcyclus en een nieuwe fysieke AEG-belading worden niet vooraf als getest geclaimd.
 
-Zie `docs/BETA42_INSTELLEN.md` en `docs/TESTRESULTATEN_BETA42.md`.
+Zie `docs/BETA43_INSTELLEN.md` en `docs/TESTRESULTATEN_BETA43.md`.
 
 ## Behouden uit beta.40: gericht AEG-herstel
 

@@ -185,6 +185,53 @@ async def test_deadline_scope_fixed_day_and_permission(monkeypatch,scope,grid):
     assert r.dishwasher_app.due(r.configs['a'],w[0]) == (grid if scope=='current' else q['grid_allowed'])
 
 
+@pytest.mark.parametrize('scope',['future','current'])
+@pytest.mark.asyncio
+async def test_monday_override_retimes_only_after_explicit_current_scope(monkeypatch,scope):
+    r,h,c,w=configured(monkeypatch,'2026-09-27T14:00');ready(r,h,c,w);await r.tick()
+    q=deepcopy(r.dishwasher_app.data['a']['request'])
+    assert q['planned_day']=='2026-09-28' and q['deadline']==stamp('2026-09-28T13:00')
+    b,d=desired(r,dishwasher_monday_start_deadline='10:00:00')
+    assert r.live_options.needs_request_choice(b,d)==['a']
+    await r.live_options.submit(b,d,scope)
+    actual=r.dishwasher_app.data['a']['request']
+    assert actual['planned_day']=='2026-09-28' and actual['policy_locked']
+    assert actual['deadline']==(stamp('2026-09-28T10:00') if scope=='current' else q['deadline'])
+    assert r.dishwasher.tickets['a']['deadline']==actual['deadline']
+    assert r.configs['a']['dishwasher_monday_start_deadline']=='10:00:00'
+    assert not h.services.calls
+
+
+@pytest.mark.parametrize('scope',['future','current'])
+@pytest.mark.asyncio
+async def test_clearing_monday_override_uses_normal_deadline_only_for_confirmed_current_scope(monkeypatch,scope):
+    r,h,c,w=configured(monkeypatch,'2026-09-27T14:00',dishwasher_monday_start_deadline='10:00:00')
+    ready(r,h,c,w);q=deepcopy(r.dishwasher_app.data['a']['request'])
+    assert q['deadline']==stamp('2026-09-28T10:00')
+    b,d=desired(r,dishwasher_monday_start_deadline='')
+    await r.live_options.submit(b,d,scope)
+    actual=r.dishwasher_app.data['a']['request']
+    assert actual['planned_day']=='2026-09-28'
+    assert actual['deadline']==(stamp('2026-09-28T13:00') if scope=='current' else q['deadline'])
+    assert r.configs['a']['dishwasher_monday_start_deadline']==''
+    assert not h.services.calls
+
+
+@pytest.mark.asyncio
+async def test_monday_override_normal_set_and_clear_persist_without_request(monkeypatch):
+    r,h,c,w=configured(monkeypatch,'2026-09-27T12:00')
+    b,d=desired(r,dishwasher_monday_start_deadline='10:00:00')
+    await r.live_options.submit(b,d)
+    assert r.entry.options['devices'][0]['dishwasher_monday_start_deadline']=='10:00:00'
+    assert r.configs['a']['dishwasher_monday_start_deadline']=='10:00:00'
+    b=deepcopy(r.entry.options);d=deepcopy(b)
+    d['devices'][0].pop('dishwasher_monday_start_deadline')
+    await r.live_options.submit(b,d)
+    assert 'dishwasher_monday_start_deadline' not in r.entry.options['devices'][0]
+    assert r.configs['a']['dishwasher_monday_start_deadline']==''
+    assert not h.services.calls
+
+
 @pytest.mark.asyncio
 async def test_automatic_update_never_synthesises_app_permission(monkeypatch):
     r,h,c,w=configured(monkeypatch)
@@ -213,6 +260,24 @@ async def test_running_dishwasher_keeps_listener_and_catches_short_end(monkeypat
     assert r.configs['a']['dishwasher_state_entity']=='sensor.new_phase'
     assert r.device_modes['a']=='disabled'
     assert r.live_options.archives['a']['dishwasher']['cycle']['status']=='completed'
+    assert not [call for call in h.services.calls if call[0] in ('button','switch','script')]
+
+
+@pytest.mark.asyncio
+async def test_running_dishwasher_defers_monday_override_until_confirmed_end(monkeypatch):
+    r,h,c,w=configured(monkeypatch,'2026-10-02T09:00')
+    event(r,h,c,w,'dishwasher_state_entity','Running');await r.tick()
+    b,d=desired(r,dishwasher_monday_start_deadline='10:00:00')
+    await r.live_options.submit(b,d)
+    assert 'device:a' in r.entry.options[PENDING]
+    assert r.configs['a']['dishwasher_monday_start_deadline']==''
+    await r.live_options.process_pending()
+    assert r.configs['a']['dishwasher_monday_start_deadline']==''
+    event(r,h,c,w,'dishwasher_state_entity','End Of Cycle')
+    w[0]+=4;event(r,h,c,w,'dishwasher_state_entity','Off')
+    await r.tick()
+    assert not r.entry.options[PENDING]
+    assert r.configs['a']['dishwasher_monday_start_deadline']=='10:00:00'
     assert not [call for call in h.services.calls if call[0] in ('button','switch','script')]
 
 
@@ -378,7 +443,8 @@ async def test_central_planning_save_preserves_absent_hidden_priority_keys():
     assert not h.services.calls
 
 
-@pytest.mark.parametrize('setting,value',[('name','New'),('kind','dishwasher'),('appliance_type','tumble_dryer')])
+@pytest.mark.parametrize('setting,value',[('name','New'),('kind','dishwasher'),('appliance_type','tumble_dryer'),
+    ('dishwasher_monday_start_deadline','10:00:00')])
 def test_replacement_profile_preserves_only_preferences(setting,value):
     old={'id':'old','name':'Old','kind':'switch','power_entity':'sensor.p',
          'control_entity':'switch.s','nominal_w':1500,'dishwasher_mapping_confirmed':True,

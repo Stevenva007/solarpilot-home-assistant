@@ -614,6 +614,22 @@ def test_recovery_is_reported_separately_from_solar_mode():
     assert requirements["recovery_clear"]["active"]
 
 
+def test_dishwasher_start_pool_is_read_only_and_hidden_with_invalid_site_measurement():
+    from test_dishwasher import setup
+    r, h, cfg = setup()
+    pool = {"available_solar_w": 1450.0, "wallbox_solar_w": 1000.0,
+            "source": "dishwasher_priority.evaluate", "not_a_start_guarantee": True}
+    r.dishwasher_priority.view.start_power['a'] = dict(pool)
+    r._start_context = {"measurement_valid": True}
+    row = r.overview()[0]
+    assert row['start_diagnostics']['power']['solar_start_pool'] == pool
+    row['start_diagnostics']['power']['solar_start_pool']['wallbox_solar_w'] = 9999
+    assert r.dishwasher_priority.view.start_power['a'] == pool
+    assert not r.dishwasher_priority.view.ev_credit and not h.services.calls
+    r._start_context['measurement_valid'] = False
+    assert r.overview()[0]['start_diagnostics']['power']['solar_start_pool'] is None
+
+
 @pytest.mark.asyncio
 async def test_manual_start_and_stop_are_explicit_and_confirmed():
     r, h = build()

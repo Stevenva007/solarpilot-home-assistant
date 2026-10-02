@@ -77,6 +77,7 @@ class Reading:
     session_reason: str = ""
     session_confirmed: bool = False
     session_value: str | None = None
+    status_stamp: float | None = None
 
 
 @dataclass(frozen=True)

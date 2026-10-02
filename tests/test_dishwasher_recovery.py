@@ -70,6 +70,7 @@ def test_beta38_recovers_missing_legacy_aeg_profile(monkeypatch):
     assert d["dishwasher_arming_mode"] == "app"
     assert d["dishwasher_remote_states"] == "Enabled"
     assert d["dishwasher_start_deadline"] == "13:00:00"
+    assert d["dishwasher_monday_start_deadline"] == ""
     assert d["dishwasher_after_deadline"] == "next_day"
     assert d["dishwasher_deadline_grid_allowed"] is True
     assert d["dishwasher_mapping_confirmed"] is True

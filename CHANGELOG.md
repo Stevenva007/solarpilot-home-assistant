@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.0-beta.43 — 2026-10-02
+
+- Toont werkelijk actieve toestellen en programma's in Overzicht. Werkelijk autoladen krijgt dezelfde actieve rand/status als andere toestellen; een gekozen laadmodus, oude meting of ingeschakelde regeling is geen bewijs van actief verbruik.
+- Toont bij de Wallbox een actuele fabrikantwachtreden, de afzonderlijke SolarPilot-verdelingsregel en de laatst waargenomen laadstop. Bewaart maximaal 30 laadperioden; ontbrekende oorzaken, herstarts en meetonderbrekingen worden niet als bewezen laadstops ingevuld. Wallbox-bediening blijft uitgesloten.
+- Voegt een zichtbare Terug-knop en veilige browser-/muis-Terug/Vooruit toe. Niet-opgeslagen invoer wordt beschermd; Vooruit herhaalt geen opslag of toestelopdracht.
+- Houdt een aparte, maximaal 90 dagen bewaarde schatting bij van het financiële voordeel van automatisch gestuurd zonverbruik. Handmatige starts/boosts zijn uitgesloten; een ontbrekende vergelijking zonder SolarPilot blijft nadrukkelijk geen bewezen extra besparing.
+- Voegt een optionele maandag-startdeadline voor de afwasmachine toe. Andere dagen houden hun gewone deadline; bestaande aanvragen veranderen uitsluitend na expliciete bevestiging, zonder herarming of herhaalde START.
+- Maakt de startvermogensuitleg precies: vrije zonnestroom, voorwaardelijk beschikbaar vermogen van autoladen en het totaal voor dit toestel. Een ontvangen APP-aanvraag wordt niet als ontbrekend aangeduid alleen omdat de verbindingsterugmelding oud is; een lopende cyclus toont geen startchecklist.
+- Maakt de avondvoorraad warm water apart zichtbaar onder Voorrang: deze mag indien nodig zonnestroom gebruiken waarmee de auto nu laadt, uitsluitend bij een bevestigde, actuele zonnelaadsessie. Het ingestelde maximum (standaard 55 °C) en alle comfort-, koel-, sterilisatie- en elektrische grenzen blijven gelden. Extra 60 °C blijft alleen echt restoverschot gebruiken; SolarPilot bedient de Wallbox niet.
+- Publiceert onder een nieuw beta-versienummer met bijbehorende actuele uitleg, installatie/rollback en testverslag. Bestaande tags en releasepakketten blijven ongewijzigd. Softwareverificatie en werkelijke live acceptatie worden afzonderlijk vastgelegd.
+
 ## 1.0.0-beta.42 — 2026-10-02
 
 - Voegt bij een herkende handmatige boilerpauze een gerichte **Hervat**-actie toe. Zij is alleen beschikbaar buiten Automatisch regelen en zonder wachtende opdracht, beëindigt uitsluitend de SolarPilot-rust en schrijft niet direct een temperatuur.

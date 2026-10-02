@@ -151,9 +151,12 @@ async def test_morning_no_solar_still_allowed_but_never_heat_pump_power_switch()
     assert len(calls)==1 and calls[0][1]=='set_temperature'
     assert 50<=calls[0][2]['temperature']<=55
 
-def wb_context(r,power=0,mode='full_solar',demand=True,status='Waiting for green energy',valid=True):
+def wb_context(r,power=0,mode='full_solar',demand=True,status='Waiting for green energy',valid=True,
+               connected=True,confirmed=True,age=0,stamp=None):
     r.wallbox_settings.update(enabled=True,charging_threshold_w=50,full_solar_states='full_solar',idle_states='Ready;Paused')
-    r._wallbox_reading=lambda:NSWB(power_w=power,mode=mode,demand=demand,status=status,valid=valid,connected=True)
+    r._wallbox_reading=lambda:NSWB(power_w=power,mode=mode,demand=demand,status=status,valid=valid,
+        connected=connected,session_confirmed=confirmed,age_s=age,
+        stamp=__import__('time').time()-age if stamp is None else stamp)
 NSWB=SimpleNamespace
 
 def test_ev_watts_help_evening_but_never_become_sixty_export():

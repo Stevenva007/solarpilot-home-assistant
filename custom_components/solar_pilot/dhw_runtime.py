@@ -353,8 +353,21 @@ class DHWManager:
         wc = self.runtime.wallbox_settings
         # Comfort before EV: reclaimed watts are for THIS comfort test only.
         # Neither physical site capacity nor the 60 °C surplus is inflated.
-        full = wb.valid and (wb.mode or "").casefold() in state_set(wc.get("full_solar_states", "full_solar"))
-        ev_w = max(0.0, wb.power_w or 0.0) if full else 0.0
+        # A configured Full Solar setting alone is not proof of an autonomous
+        # session. Require the same fresh, confirmed session as other transfers;
+        # no power is borrowed from manual, stale, unknown or idle charging.
+        power = finite(wb.power_w)
+        age = finite(getattr(wb, "age_s", None))
+        stamp = finite(getattr(wb, "stamp", None))
+        wall_age = time.time()-stamp if stamp is not None else None
+        max_age = min(wc.get("stale_s", 300), wc.get("reclaim_max_age_s", 120))
+        full = (wc.get("enabled") and wb.valid and getattr(wb, "session_confirmed", False)
+                and (wb.mode or "").casefold() in state_set(wc.get("full_solar_states", "full_solar"))
+                and wb.connected is True and wb.demand is True
+                and power is not None and power >= wc.get("charging_threshold_w", 50)
+                and age is not None and -5 <= age <= max_age
+                and wall_age is not None and -5 <= wall_age <= max_age)
+        ev_w = power if full else 0.0
         before_ev = (min(r.pv_w, max(0.0, -(r.grid_w or 0.0)-r.battery_discharge_w+ev_w))
                      if r.pv_w is not None and r.grid_w is not None else None)
         ev_idle = wb.valid and (wb.connected is False or wb.demand is False

@@ -201,6 +201,10 @@ class PriorityBoard:
             {"id": "dhw_comfort", "name": "Normaal warm water en noodzakelijke ochtendvoorraad", "active": r.dhw.configured,
              "power_label": "Wallbox-vermogen: ja, comfort gaat voor",
              "reason": "Het gewone 50 °C-doel, de 46 °C-bewaking en noodzakelijke voorraad blijven beschermd. De extra 60 °C-buffer staat apart in de verplaatsbare lijst."},
+            {"id": "dhw_evening", "name": f"Avondvoorraad warm water (maximaal {r.dhw.settings.get('evening_cap_c', 55):g} °C)",
+             "active": bool(r.dhw.configured and r.dhw.auto_enabled and r.dhw.settings.get("evening_enabled")),
+             "power_label": "Wallbox-vermogen: ja, bij bevestigd zonneladen",
+             "reason": "De avondvoorraad mag indien nodig zonnestroom gebruiken waarmee de auto nu laadt. De Wallbox vermindert het laden zelf; SolarPilot geeft geen laadcommando. Temperatuurlimiet, koeling, woningcomfort, sterilisatie en kwartierpiekbewaking blijven gelden."},
         ]
 
     def overview(self):

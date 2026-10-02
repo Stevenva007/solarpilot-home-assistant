@@ -84,10 +84,25 @@ def test_beta26_mobile_menu_and_manual_consumer_controls_are_visible():
 
 
 def test_beta26_active_consumers_have_clear_visual_state_badges():
-    for text in ("AAN · SOLARPILOT", "AAN · EXTERN", "MANUEEL", "VERBRUIKT"):
+    for text in ("ACTIEF · SOLARPILOT", "ACTIEF · EXTERN", "ACTIEF · HANDMATIG", "VERBRUIKT"):
         assert text in CARD
     assert ".device.on" in CARD
     assert ".runstate.active" in CARD
+
+
+def test_active_overview_and_wallbox_have_measured_status_not_configured_mode():
+    for text in ("Nu actief", "AUTO LAADT", "WACHT OP LAADSTROOM", "LAADSTATUS ONBEKEND",
+                 "STATUS ONBEKEND", "geschat vermogen", "gemeten vermogen", "wallbox-device.on"):
+        assert text in CARD
+    assert "_activeLoads(c)" in CARD and "_wallboxActivity(wb)" in CARD
+
+
+def test_automatic_savings_are_qualified_separate_from_electricity_cost():
+    for text in ("Voordeel van automatisch gestuurd zonverbruik", "Vandaag · geschat voordeel",
+                 "Bewaarde periode · geschat voordeel", "Nog niet vast te stellen",
+                 "Handmatige starts en boosts tellen niet mee", "ook handmatige bediening",
+                 "niet automatisch extra winst voor SolarPilot"):
+        assert text in CARD
 
 
 def test_beta26_battery_what_if_shows_roundtrip_loss_assumption():
@@ -111,7 +126,10 @@ def test_device_cards_explain_start_state_and_history_always_names_both_reasons(
     for text in (
         "<h2>Toestellen</h2>", "De gezamenlijke rangorde beheer je via Voorrang",
         "Waarom dit toestel nog niet gestart is", "start_diagnostics", "start_requirements",
-        "Benodigd voor start", "Vrije injectie gemeten", "Stabiel nodig", "Nog nodig",
+        "Benodigd voor start", "Vrije zonnestroom na huisreserve", "Stabiel nodig", "Nog nodig",
+        "Van autoladen beschikbaar", "Zonnevermogen voor dit toestel", "solar_start_pool",
+        "APP-startvraag", "ontvangen; wacht op bevestigde toestelstatus.",
+        "Een lopende afwasbeurt wordt niet opnieuw gestart",
         "Nog ongeveer", "betrouwbare actuele energiemeting", "herstartcontrole is nog bezig",
         "recovery_clear", "reliable_energy_measurement", "general_increase_permission",
         "Een veiligheidscontrole houdt nieuwe starts tegen",
@@ -145,13 +163,13 @@ def test_device_schedule_has_one_outcome_choice_and_hides_it_with_active_priorit
     assert "Configure device · step 4 of 4 · Planning and energy" in EN_TEXT
 
 
-def test_frontend_assets_are_release_bound_to_beta42():
+def test_frontend_assets_are_release_bound_to_beta43():
     option_js = (ROOT / "custom_components" / "solar_pilot" / "frontend" / "option-help.js").read_text(encoding="utf-8")
-    assert CARD.startswith("/* SolarPilot 1.0.0-beta.42.")
-    assert "option-help.js?v=1.0.0-beta.42" in CARD
-    assert option_js.startswith("/* SolarPilot 1.0.0-beta.42.")
-    assert "option-help.json?v=1.0.0-beta.42" in option_js
-    assert json.loads(OPTION_HELP)["version"] == "1.0.0-beta.42"
+    assert CARD.startswith("/* SolarPilot 1.0.0-beta.43.")
+    assert "option-help.js?v=1.0.0-beta.43" in CARD
+    assert option_js.startswith("/* SolarPilot 1.0.0-beta.43.")
+    assert "option-help.json?v=1.0.0-beta.43" in option_js
+    assert json.loads(OPTION_HELP)["version"] == "1.0.0-beta.43"
 
 
 def test_manual_dhw_hold_always_has_a_safe_resume_control():
@@ -212,5 +230,6 @@ def test_wallbox_classifier_values_are_rendered_in_plain_dutch():
         ("unknown", "Onbekend"),
     ):
         assert f"{technical}:'{readable}'" in CARD
-    assert "spWallboxMode(wb.effective_mode||wb.state)" in CARD
+    assert "spWallboxMode(c.wb.effective_mode)" in CARD
+    assert "_wallboxActivity(wb).label" in CARD
     assert "spWallboxMode(wb.configured_mode||wb.reported_mode)" in CARD

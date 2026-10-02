@@ -98,6 +98,63 @@ def test_positive_stable_ev_credit_does_not_exceed_real_power_or_pv():
     assert not advance(DishwasherPriority(),kw).ev_credit
 
 
+def test_start_power_diagnostics_include_wallbox_even_below_start_threshold():
+    kw = inputs(actual_grid=-600, filtered_grid=-600, lower_measured={})
+    kw['reading'] = replace(kw['reading'], power_w=1000)
+    kw['stable_ev_credit_w'] = 1000
+    p = DishwasherPriority()
+    v = advance(p, kw)
+    pool = v.start_power['dw']
+    assert pool['net_solar_after_reserves_w'] == 450
+    assert pool['wallbox_solar_w'] == 1000
+    assert pool['available_solar_w'] == 1450
+    assert pool['required_start_w'] == 2100
+    assert pool['not_a_start_guarantee']
+    assert pool['source'] == 'dishwasher_priority.evaluate'
+    assert not v.ev_credit and not v.stable_ids and not p.since
+
+
+def test_start_power_diagnostics_use_same_pv_and_comfort_caps_as_admission():
+    kw = inputs(actual_grid=-2000, filtered_grid=-2000, lower_measured={},
+                pv_w=1800, comfort_reserve_w=300)
+    kw['reading'] = replace(kw['reading'], power_w=2500)
+    kw['stable_ev_credit_w'] = 2500
+    v = advance(DishwasherPriority(), kw)
+    pool = v.start_power['dw']
+    assert pool['net_solar_after_reserves_w'] == 1550
+    assert pool['wallbox_solar_w'] == 2500
+    assert pool['pv_ceiling_w'] == pool['available_solar_w'] == 1650
+    assert pool['comfort_reserve_w'] == 300
+    assert not v.ev_credit and not v.stable_ids
+
+
+@pytest.mark.parametrize('cause', ['manual', 'stale', 'permission', 'latched_failure'])
+def test_start_power_diagnostics_never_count_forbidden_wallbox_watts(cause):
+    kw = inputs(actual_grid=-600, filtered_grid=-600, lower_measured={})
+    kw['reading'] = replace(kw['reading'], power_w=3000)
+    kw['stable_ev_credit_w'] = 3000
+    p = DishwasherPriority()
+    if cause == 'manual':
+        kw['reading'] = replace(kw['reading'], mode='disabled')
+    elif cause == 'stale':
+        kw['reading'] = replace(kw['reading'], age_s=121)
+    elif cause == 'permission':
+        kw['configs']['dw']['dishwasher_ev_solar_priority'] = False
+    else:
+        p.ev_blocks['dw'] = 'Vorige reactie niet bevestigd'
+    pool = advance(p, kw).start_power['dw']
+    assert pool['wallbox_solar_w'] == 0
+    assert pool['available_solar_w'] == 450
+
+
+@pytest.mark.parametrize('change', [{'permitted_ids': set()}, {'site_ready': False},
+                                  {'mode': 'observe'}, {'actual_grid': None},
+                                  {'comfort_block': 'Gewoon comfort eerst'}])
+def test_no_current_start_pool_is_invented_without_verified_candidate(change):
+    p = DishwasherPriority()
+    assert not p.evaluate(**inputs(**change)).start_power
+
+
 def test_ev_sharing_can_be_disabled_without_losing_priority():
     kw=inputs(actual_grid=0,filtered_grid=0,lower_measured={})
     kw['configs']['dw']['dishwasher_ev_solar_priority']=False

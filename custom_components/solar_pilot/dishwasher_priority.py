@@ -39,6 +39,7 @@ class PriorityView:
     holds: dict[str, str] = field(default_factory=dict)
     blocks: dict[str, str] = field(default_factory=dict)
     ev_credit: dict[str, float] = field(default_factory=dict)
+    start_power: dict[str, dict] = field(default_factory=dict)
     luxury_block: bool = False
     reason: str = "Geen afwasbeurt vraagt voorrang"
 
@@ -131,6 +132,22 @@ class DishwasherPriority:
                                          and i not in self.ev_blocks) else 0.0
             # Actual PV is a hard ceiling for the attribution, not a forecast.
             potential = min(max(0.0, pv_w-discharge_w-reserve_w), free+own_low+allowed_credit)
+            # Diagnostic snapshot of these exact inputs, including a pool that
+            # is still too small. Do not promote it to a command allocation:
+            # EV credit below the fit gate must remain absent from ev_credit.
+            out.start_power[i] = {
+                "available_solar_w": round(max(0.0, potential), 1),
+                "net_solar_after_reserves_w": round(free, 1),
+                "wallbox_solar_w": round(allowed_credit, 1),
+                "lower_loads_releasable_w": round(own_low, 1),
+                "pv_ceiling_w": round(max(0.0, pv_w-discharge_w-reserve_w), 1),
+                "comfort_reserve_w": round(comfort_reserve_w, 1),
+                "unconsumed_commitment_w": round(other_commitment, 1),
+                "import_headroom_after_release_w": round(max(0.0, cap_after_release), 1),
+                "required_start_w": round(d.minimum+d.start_margin_w, 1),
+                "source": "dishwasher_priority.evaluate",
+                "not_a_start_guarantee": True,
+            }
             due = states[i].deadline_force
             fits = cap_after_release >= d.minimum and (due or potential >= d.minimum+d.start_margin_w)
             if not fits:
@@ -200,6 +217,7 @@ class DishwasherPriority:
         return {"enabled": i in self.view.candidate_ids or i in self.view.active_ids,
                 "order": PRIORITY_LABEL, "solar_stable": i in self.view.stable_ids,
                 "conditional_ev_w": round(self.view.ev_credit.get(i, 0), 1),
+                "start_power": dict(self.view.start_power.get(i, {})),
                 "reason": self.view.blocks.get(i, self.view.reason),
                 "wallbox_response": dict(self.watches.get(i, {})),
                 "ev_start_block": self.ev_blocks.get(i, ""),

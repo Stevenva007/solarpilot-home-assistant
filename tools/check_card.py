@@ -18,13 +18,14 @@ with sync_playwright() as p:
 
     assert page.locator("solar-pilot-card >> .nav button").count() == 9
     assert page.locator("solar-pilot-card >> .overview-view").count() == 1
-    assert "Wat doet het EMS nu?" in page.locator("solar-pilot-card >> .overview-view").inner_text()
+    assert "Wat regelen SolarPilot en de toestellen nu?" in page.locator("solar-pilot-card >> .overview-view").inner_text()
     assert "Lokale PV-voorspelling" in page.locator("solar-pilot-card >> .overview-view").inner_text()
     page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');window.wallboxClean=structuredClone(c._last.attributes);
       const a=structuredClone(c._last.attributes);a.wallbox.power_w=0;a.wallbox.effective_mode='stopped';
+      a.wallbox.activity_known=true;a.wallbox.demand=false;a.wallbox.connected=true;
       const state=c._hass.states[c._entity];c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{...state,attributes:a}}};}""")
     wallbox_tile=page.locator('solar-pilot-card >> .overview-view .tile').filter(has_text='Wallbox')
-    assert '0 W · Gestopt' in wallbox_tile.inner_text()
+    assert 'AUTO LAADT NIET · 0 W' in wallbox_tile.inner_text()
     page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');const state=c._hass.states[c._entity];
       c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{...state,attributes:window.wallboxClean}}};}""")
 
@@ -33,7 +34,7 @@ with sync_playwright() as p:
     assert page.locator("solar-pilot-card >> .device").count() == 3
     assert page.locator("solar-pilot-card >> .external").count() == 2
     assert page.locator("solar-pilot-card >> .external button").count() == 0
-    assert "ALLEEN LEZEN" in page.locator("solar-pilot-card >> .external:not(.wallbox-priority)").inner_text()
+    assert "WALLBOX REGELT ZELF" in page.locator("solar-pilot-card >> .external:not(.wallbox-priority)").inner_text()
     assert "Volledig zonneladen" in page.locator("solar-pilot-card >> .external:not(.wallbox-priority)").inner_text()
     assert page.locator("solar-pilot-card >> .phasepill").count() == 2
 
