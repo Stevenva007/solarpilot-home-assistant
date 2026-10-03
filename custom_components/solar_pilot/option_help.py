@@ -316,10 +316,15 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                           'werkelijk gerapporteerde statusbron die ruimtebedrijf van sanitair water en '
                           'stilstand onderscheidt; geen vermogenssensor, bedieningsselect of afgeleide '
                           'compressorclaim. Bij Panasonic kan PUMP ruimtebedrijf betekenen en WATER een '
-                          'sanitairwatertaak, maar controleer altijd de ruwe waarden van de gekozen bron.',
+                          'sanitairwatertaak. Bij exact geregistreerde aquarea gaat een actuele native '
+                          'hvac_action voor; een algemene PUMP-taak mag idle/off niet als actieve '
+                          'verwarming of koeling vervangen. Voor panasonic_cc AUTO kan een actuele '
+                          'IDLE/WATER-taak de onduidelijkheid opheffen. Controleer de ruwe bronwaarden.',
  'space_activity_active_states': 'Puntkomma-gescheiden exacte waarden die gemeld ruimtebedrijf betekenen, '
-                                 'standaard PUMP. Dit blokkeert alleen een nieuwe optionele buffer boven het '
-                                 'normale doel en kiest nooit zelf HEAT of COOL.',
+                                 'standaard PUMP. Dit blijft taakinfo, geen bewijs van actieve verwarming, '
+                                 'koeling of compressorvermogen. Een betrouwbare aquarea idle/off-actie '
+                                 'houdt voorrang; bij onduidelijke panasonic_cc AUTO voorkomt PUMP vrijgave '
+                                 'van een nieuwe optionele buffer. SolarPilot kiest nooit HEAT of COOL.',
  'space_activity_inactive_states': 'Puntkomma-gescheiden exacte waarden die géén ruimtebedrijf betekenen, '
                                    'standaard IDLE;WATER. WATER is een gemelde takenrichting en geen bewijs '
                                    'dat de compressor draait, hoeveel vermogen hij gebruikt of dat het vat '
@@ -488,14 +493,15 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
  'surplus_hysteresis_w': 'Terugvalband onder de echte injectiedrempel voor een lopende hoge fase. Bij '
                          '3500/300 W is de gewone terugvalgrens circa 3200 W. Netafname- en '
                          'koelbewaking blijven daarnaast gelden.',
- 'cooling_clear_s': 'Hoelang geen echte/onzekere koeling meer mag zijn voordat extra hoge tankopwarming '
-                    'weer kan. Aanbevolen 1800 s (30 minuten). Recente koeling die voor tankopwarming '
-                    'idle wordt, wordt niet meteen als vrijgave gezien; na herstart blijft recent '
-                    'bekende koeling beschermd.',
+ 'cooling_clear_s': 'Rusttijd na bewezen koeling voordat extra hoge tankopwarming weer kan. Aanbevolen '
+                    '1800 s (30 minuten). Onbekende informatie blokkeert zolang zij ontbreekt, maar '
+                    'start of verlengt deze klok niet. Recent bewezen koeling die voor tankopwarming '
+                    'idle wordt, blijft beschermd, ook na herstart. Vóór beta.46 bewaarde koeltijden '
+                    'worden bij upgrade conservatief behouden; een bestaande uitloop kan dus nog gelden.',
  'cooling_detection': 'Actie kijkt primair naar werkelijk cooling. Bij een geldige idle-actie blokkeert '
                       'alleen geselecteerde COOL niet permanent. Modus is strenger en blokkeert zolang '
-                      'COOL gekozen is. Onzekere gegevens geven geen hoge temperatuurvrijgave; uitloop '
-                      'blijft gelden.',
+                      'COOL gekozen is. Onzekere gegevens geven geen hoge temperatuurvrijgave; zij '
+                      'starten zelf geen nieuwe uitloop na herstel van de bron.',
  'compensate_own_power': 'Tijdens een reeds eigen hoge fase mag een exclusieve actuele '
                          'boilervermogensmeter het door de boiler zelf gebruikte zonnevermogen '
                          'reconstrueren. Geen gedeelde warmtepomp-/net-/EV-meter gebruiken. Zonder '
@@ -708,7 +714,10 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
  'respect_space_climate': 'AAN: een nieuwe extra zonnebuffer boven het normale doel wacht zolang een '
                           'gekoppelde klimaatbron werkelijk heating/cooling/preheating/defrosting meldt '
                           'of geen betrouwbare actie doorgeeft. Een geselecteerde HEAT-modus met idle '
-                          'is niet hetzelfde als actieve verwarming. Een al aangevraagd hoger doel '
+                          'is niet hetzelfde als actieve verwarming. Een actuele native aquarea idle/off '
+                          'blijft ook in AUTO/HEAT_COOL betrouwbaar; algemene PUMP-taakinfo vervangt '
+                          'die actie niet. Oudere panasonic_cc AUTO vereist voor vrijgave een actuele '
+                          'expliciete IDLE/WATER-taak. Een al aangevraagd hoger doel '
                           'wordt niet uitsluitend om een nieuwe verwarmactie afgebroken. UIT heft '
                           'alleen deze extra voorzichtigheid op, nooit koel-, hygiëne- of andere '
                           'bescherming.',

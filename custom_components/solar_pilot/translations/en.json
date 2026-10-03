@@ -202,13 +202,13 @@
       },
       "dhw_stability": {
         "title": "Sanitair warm water · terugmelding en stabiliteit",
-        "description": "Solar stability and time between optional increases reduce setpoint churn. New extra heating waits while space climate is busy or unknown; the normal target remains available. Hygiene, manual controls and existing protections stay authoritative.",
+        "description": "Solar stability and time between optional increases reduce setpoint churn. New extra heating waits for genuinely active or unreliable space climate. Fresh native aquarea idle/off remains valid despite a generic PUMP task. Only confirmed cooling extends the cooling wait; the normal target and existing protections remain authoritative.",
         "data": {
           "rise_delay_s": "Voldoende zon/overschot gedurende (s)",
           "fall_delay_s": "Wait after solar power or surplus falls (s)",
           "pv_hysteresis_w": "Terugvalmarge zonneopbrengst (W)",
           "surplus_hysteresis_w": "Terugvalmarge overschot (W)",
-          "cooling_clear_s": "Na koeling/onzekere koelstatus nog blokkeren (s)",
+          "cooling_clear_s": "Wait after confirmed cooling (s)",
           "stale_s": "Maximum leeftijd temperatuur- en klimaatrapport (s)",
           "ack_timeout_s": "Maximum wachten op doelbevestiging (s)",
           "max_surplus_import_w": "Grid import above which the extra 60 °C target is released immediately (W; not electrical protection)",

@@ -248,28 +248,23 @@ class DHWManager:
             # Climate cloud reports must be fresh; binary helpers can legitimately
             # be unchanged. Their source template must propagate availability.
             obj = self._state(entity_id, freshness=entity_id.startswith("climate."))
+            if obj is not None and obj.attributes.get("restored"):
+                obj = None
             results.append(cooling_state(obj.state if obj else None, obj.attributes if obj else {}, self.settings["cooling_detection"]))
         if True in results:
             return True
         source = self._space_activity_source()
-        if source["configured"]:
-            # PUMP is space activity, not proof of HEAT versus COOL.  Likewise a
-            # stale/unmapped report cannot prove that cooling is absent.  Both
-            # stay unknown so an existing optional high target falls to the
-            # cooling cap without ever claiming active cooling.
+        # A reported task (PUMP/WATER) is not an HVAC action. In particular,
+        # PUMP must not erase a fresh explicit heating/idle action from the
+        # installed Aquarea adapter, or invent cooling from generic activity.
+        if self._panasonic_auto_blindspot():
             if source["busy"] is not False:
                 return None
-            for entity_id in ids:
-                if not entity_id.startswith("climate."):
-                    continue
-                obj = self._state(entity_id)
-                action = (str(obj.attributes.get("hvac_action", "")).strip().casefold()
-                          if obj is not None else "")
-                if action in ("heating", "preheating", "cooling", "defrosting"):
-                    return None
-            return None if None in results else False
-        if self._panasonic_auto_blindspot():
-            return None
+        if source["configured"]:
+            if source["busy"] is not False and not self._verified_space_actions():
+                return None
+            if not ids:
+                return False if source["busy"] is False else None
         return None if not ids or None in results else False
 
     def _entity_integration_domains(self, entity_id):
@@ -337,12 +332,17 @@ class DHWManager:
                 "reason": "Extra zonnebuffer wacht: gemelde warmtepomptaak heeft geen eenduidig ingestelde betekenis"}
 
     def _panasonic_auto_blindspot(self):
-        """Detect only exact Panasonic-adapter AUTO zones with idle/off action."""
+        """Detect the legacy panasonic_cc AUTO idle/off mapping only.
+
+        The installed aquarea adapter reports its native current_action. Its
+        fresh idle action is usable; sharing a manufacturer or ACK contract
+        does not make it share another adapter's legacy action blindspot.
+        """
         for entity_id in self.config.get("cooling_entities", []):
             if not entity_id.startswith("climate."):
                 continue
             obj = self._state(entity_id)
-            if obj is None or not self._is_panasonic_adapter(entity_id):
+            if obj is None or "panasonic_cc" not in self._entity_integration_domains(entity_id):
                 continue
             mode = str(obj.state).strip().casefold()
             action = str(obj.attributes.get("hvac_action", "")).strip().casefold()
@@ -356,6 +356,9 @@ class DHWManager:
         ids = [x for x in self.config.get("cooling_entities", []) if x.startswith("climate.")]
         unknown = bool(source["configured"] and source["busy"] is None)
         active_action = False
+        # Keep the existing conservative learning context independent of the
+        # optional-temperature guard, including registered Aquarea AUTO idle.
+        uncertain_panasonic_load = False
         for entity_id in ids:
             obj = self._state(entity_id)
             if obj is None:
@@ -372,7 +375,8 @@ class DHWManager:
                     and self._is_panasonic_adapter(entity_id)
                     and not source["configured"]):
                 unknown = True
-        relevant = bool(source["configured"] or self._panasonic_auto_blindspot())
+                uncertain_panasonic_load = True
+        relevant = bool(source["configured"] or uncertain_panasonic_load)
         if active_action:
             if source["configured"] and source["busy"] is False:
                 return None, "Extra zonnebuffer wacht: klimaat- en gemelde warmtepomptaak spreken elkaar tegen", relevant, source
@@ -389,6 +393,62 @@ class DHWManager:
         """Read explicit climate actions and a reported task direction, read-only."""
         busy, reason, _relevant, _source = self.space_activity_status()
         return busy, reason
+
+    def _verified_space_actions(self):
+        """Can the known native adapter disambiguate a generic task report?
+
+        This exception is scoped to the verified aquarea current_action route.
+        Do not weaken a task guard for another/unregistered adapter. Explicitly
+        off zones require no manufacturer-specific action contract.
+        """
+        ids = [entity_id for entity_id in self.config.get("cooling_entities", [])
+               if entity_id.startswith("climate.")]
+        if not ids:
+            return False
+        for entity_id in ids:
+            obj = self._state(entity_id)
+            if obj is None or obj.attributes.get("restored"):
+                return False
+            mode = str(obj.state).strip().casefold()
+            action = str(obj.attributes.get("hvac_action", "")).strip().casefold()
+            if mode == "off" and action in ("", "idle", "off"):
+                continue
+            if ("aquarea" not in self._entity_integration_domains(entity_id)
+                    or action not in ("heating", "preheating", "cooling", "defrosting",
+                                      "idle", "off", "fan", "drying")):
+                return False
+        return True
+
+    def _space_raise_guard(self):
+        """Guard optional raises using actual climate actions, not task labels.
+
+        Keep space_activity_status separate: PUMP remains useful unknown-load
+        evidence for learning even when a fresh idle action permits DHW.
+        """
+        ids = [entity_id for entity_id in self.config.get("cooling_entities", [])
+               if entity_id.startswith("climate.")]
+        if not ids:
+            return self._space_activity()
+        source = self._space_activity_source()
+        if source["configured"] and source["busy"] is not False and not self._verified_space_actions():
+            return self._space_activity()
+        unknown = False
+        for entity_id in ids:
+            obj = self._state(entity_id)
+            if obj is None or obj.attributes.get("restored"):
+                unknown = True
+                continue
+            action = str(obj.attributes.get("hvac_action", "")).strip().casefold()
+            if action in ("heating", "preheating", "cooling", "defrosting"):
+                return True, "Extra zonnebuffer wacht: actuele ruimteverwarming/koeling actief; Panasonic houdt de taakverdeling"
+            mode = str(obj.state).strip().casefold()
+            if mode != "off" and action not in ("idle", "off", "fan", "drying"):
+                unknown = True
+        if self._panasonic_auto_blindspot() and self._space_activity_source()["busy"] is not False:
+            unknown = True
+        if unknown:
+            return None, "Extra zonnebuffer wacht: actuele ruimteklimaatactie ontbreekt of is niet betrouwbaar"
+        return False, ""
 
     def read(self, grid, grid_valid, discharge, local_now=None):
         target, obj = self._target()
@@ -408,7 +468,7 @@ class DHWManager:
                                   bool(reason := self._protected(obj, local_now)), reason,
                                   optional_headroom)
         self.reading.battery_discharge_w = max(0.0, float(discharge or 0.0))
-        self.reading.space_climate_busy, self.reading.space_climate_reason = self._space_activity()
+        self.reading.space_climate_busy, self.reading.space_climate_reason = self._space_raise_guard()
         return self.reading
 
     def _comfort_forecast(self, local_now):
@@ -567,7 +627,7 @@ class DHWManager:
             self.runtime.priority_board.guard_extra(r, time.monotonic())
         target, obj = self._target()
         heating = bool(obj and (obj.state == "heating" or obj.attributes.get("hvac_action") == "heating"))
-        if r.cooling is not False:
+        if r.cooling is True:
             self._cooling_wall = time.time()
         # A known cooling period interrupted by DHW is not a cooling-clear event.
         elif (heating or self.comfort.model.heating_now) and self._cooling_wall is not None:

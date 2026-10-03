@@ -285,7 +285,9 @@ class DHWPolicy:
         base_target = effective_base_target(c)
         night = night_active(c, local_now)
         low = r.temperature_c is not None and r.temperature_c < c["minimum_c"]
-        if r.cooling is not False:
+        # Unknown data can block this decision, but is not a cooling event and
+        # must not manufacture another cooling-clear interval after recovery.
+        if r.cooling is True:
             self.last_cooling = now
         cooling_block = (r.cooling is not False or
                          self.last_cooling is not None and now - self.last_cooling < c["cooling_clear_s"])
@@ -367,7 +369,12 @@ class DHWPolicy:
         if cooling_block and desired > c["cooling_cap_c"]:
             desired = c["cooling_cap_c"]
         if cooling_block and not night and solar:
-            reason += "; extra verhoging begrensd door koeling/koelcontrole"
+            if r.cooling is True:
+                reason += "; extra verhoging begrensd door actieve koeling"
+            elif r.cooling is None:
+                reason += "; extra verhoging wacht op betrouwbare actuele koelinformatie"
+            elif not r.predicted_cooling:
+                reason += "; extra verhoging wacht op uitloop na gemelde koeling"
         if r.pv_w is None and not night and r.comfort_target_c is None and r.standby_c is None:
             reason = f"Zonnemeting ontbreekt: normaal doel {base_target:g} °C blijft beschikbaar"
 

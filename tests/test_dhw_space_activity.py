@@ -39,20 +39,21 @@ def platforms(monkeypatch, values):
 
 
 @pytest.mark.asyncio
-async def test_reported_pump_blocks_extra_buffer_as_unknown_without_claiming_cooling():
+async def test_reported_pump_is_advisory_when_aquarea_reports_fresh_idle(monkeypatch):
     runtime, hass = bind_direction()
     hass.states.set("sensor.task_direction", "PUMP")
     hass.states.set("sensor.unrelated_pump_status", "On")
+    platforms(monkeypatch, {"climate.home": "aquarea"})
 
     busy, reason = runtime.dhw._space_activity()
     assert busy is True and "ruimtebedrijf" in reason
     assert "compressorvermogen" in reason
-    assert runtime.dhw._cooling() is None
+    assert runtime.dhw._cooling() is False
 
     await tick(runtime)
-    assert runtime.dhw.policy.result.cooling_block
-    assert runtime.dhw.policy.result.target_c == 50
-    assert not hass.services.calls
+    assert not runtime.dhw.policy.result.cooling_block
+    assert runtime.dhw.policy.result.target_c == 60
+    assert hass.services.calls[-1][2]["temperature"] == 60
 
 
 @pytest.mark.asyncio
@@ -80,9 +81,10 @@ async def test_explicit_idle_or_water_allows_surplus_without_using_pump_status(r
     ("unavailable", {}, 0),
     ("MYSTERY", {}, 0),
 ])
-async def test_unreliable_or_unmapped_task_direction_blocks_fail_closed(reported, attrs, age):
+async def test_unreliable_task_and_missing_climate_action_block_fail_closed(reported, attrs, age):
     runtime, hass = bind_direction()
     hass.states.set("sensor.task_direction", reported, attrs, age=age)
+    hass.states.set("climate.home", "unavailable")
 
     busy, reason = runtime.dhw._space_activity()
     assert busy is None and "wacht" in reason
@@ -101,13 +103,14 @@ def test_registered_panasonic_auto_idle_is_unknown_without_direction(
     platforms(monkeypatch, {"climate.home": adapter_domain})
 
     assert runtime.dhw._space_activity()[0] is None
-    assert runtime.dhw._cooling() is None
+    assert runtime.dhw._cooling() is (None if adapter_domain == "panasonic_cc" else False)
+    assert runtime.dhw._space_raise_guard()[0] is (None if adapter_domain == "panasonic_cc" else False)
     runtime.smart_climate.settings["zone_entities"] = ["climate.home"]
     context, _reason = classify_heatpump(runtime, datetime(2026, 9, 22, 12))
     assert context == CONTEXT_UNKNOWN
 
 
-def test_aquarea_config_entry_domain_activates_auto_idle_fallback(monkeypatch):
+def test_aquarea_config_entry_keeps_learning_conservative_but_trusts_native_idle(monkeypatch):
     runtime, hass = setup()
     hass.states.set("climate.home", "auto", {"hvac_action": "idle"})
     registry = NS(async_get=lambda entity_id: (
@@ -118,7 +121,8 @@ def test_aquarea_config_entry_domain_activates_auto_idle_fallback(monkeypatch):
         NS(domain="aquarea") if entry_id == "aquarea-entry" else None))
 
     assert runtime.dhw._space_activity()[0] is None
-    assert runtime.dhw._cooling() is None
+    assert runtime.dhw._cooling() is False
+    assert runtime.dhw._space_raise_guard() == (False, "")
 
 
 @pytest.mark.parametrize("mode,action,cooling,busy", [
@@ -180,9 +184,11 @@ def test_explicit_action_still_classifies_before_generic_pump_direction():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("reported", ["PUMP", "MYSTERY"])
-async def test_owned_sixty_falls_directly_to_cooling_cap_when_direction_is_not_safe(reported):
+async def test_owned_sixty_falls_directly_when_legacy_direction_is_not_safe(reported, monkeypatch):
     runtime, hass = bind_direction({"fall_delay_s": 120})
     hass.states.set("sensor.task_direction", reported)
+    hass.states.set("climate.home", "auto", {"hvac_action": "idle"})
+    platforms(monkeypatch, {"climate.home": "panasonic_cc"})
     updates(hass, "water_heater.boiler", temperature=60)
     runtime.dhw.owned_target = 60
     runtime.dhw.policy.current = 60

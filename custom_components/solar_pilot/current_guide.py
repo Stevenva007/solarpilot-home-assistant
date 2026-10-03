@@ -3,12 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.45'
-GUIDE_UPDATED = '2026-10-02'
+GUIDE_VERSION = '1.0.0-beta.46'
+GUIDE_UPDATED = '2026-10-03'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.45',
- 'updated': '2026-10-02',
+ 'version': '1.0.0-beta.46',
+ 'updated': '2026-10-03',
  'intro': 'Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst '
           'samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en '
           'leerdata blijven lokaal in Home Assistant en worden bij gewone HACS-updates niet vervangen door '
@@ -250,20 +250,22 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'bereikt is bewijst geen energiebron.',
                               'Nieuwe optionele verhogingen boven het normale doel wachten standaard zolang de '
                               'gekoppelde ruimteklimaatactie heating, preheating, cooling of defrosting meldt, '
-                              'of onbetrouwbaar is. Een HEAT-modus met idle is niet hetzelfde als actieve '
-                              'verwarming. Voor geregistreerde Panasonic-zones kan een optionele, actuele '
-                              'alleen-lezen takenrichting de AUTO/HEAT_COOL-blindspot afdekken: PUMP geldt '
-                              'standaard als gemeld ruimtebedrijf en IDLE/WATER als geen ruimtebedrijf. '
-                              'Ontbrekende, te oude, restored, overlappende of onbekende waarden blokkeren '
-                              'een nieuwe extra buffer fail-closed. Deze bron meldt een taak; zij bewijst '
-                              'geen HEAT/COOL-keuze, compressoractiviteit of elektrisch vermogen. Zonder '
-                              'betrouwbaar richtingsbewijs blijft een herkende Panasonic AUTO/HEAT_COOL-zone met idle/off '
-                              'voor deze extra buffer onbekend; andere klimaatadapters worden hierdoor niet '
-                              'breed als actief behandeld. Dit is een conservatieve guard, geen claim dat '
-                              'iedere Aquarea-adapter een verkeerde AUTO-actie toont. Een native adapter kan '
-                              'wel degelijk heating/cooling/idle correct melden. Een al hoger aangevraagd doel wordt niet alleen wegens een nieuwe '
-                              'verwarmactie afgebroken; de fabrikant kan de begonnen taak afhandelen. '
-                              'Werkelijke koeling, hygiëne, energietekort en andere beschermingen blijven '
+                              'of de noodzakelijke klimaatbron onbetrouwbaar is. Een gekozen HEAT-, AUTO- of '
+                              'HEAT_COOL-modus bewijst niet dat de warmtepomp nu verwarmt of koelt. Voor de '
+                              'exact geregistreerde aquarea-klimaatadapter is een actuele native '
+                              'hvac_action idle/off betrouwbaar, ook in AUTO/HEAT_COOL. Een algemene taakmelding '
+                              'PUMP, of een oude of niet herkende optionele taakmelding, mag die betrouwbare '
+                              'actie niet overschrijven. PUMP blijft zichtbaar als gemeld ruimtebedrijf, '
+                              'zonder daaruit verwarmen, koelen of compressorvermogen af te leiden. '
+                              'De oudere panasonic_cc-adapter kan in AUTO/HEAT_COOL idle/off melden bij '
+                              'mogelijk ruimtebedrijf. Daarvoor blijft een actuele, expliciete taakbron '
+                              'nodig: IDLE/WATER kan de onduidelijkheid opheffen; PUMP of een ontbrekende, '
+                              'oude, restored, overlappende of onbekende taakwaarde geeft geen vrijgave. '
+                              'Een werkelijk ontbrekende, oude, restored of onbeschikbare klimaatbron '
+                              'blokkeert de optionele buffer ook bij een geruststellende taakmelding. '
+                              'Echte koeling heeft altijd voorrang. Een al hoger aangevraagd doel wordt niet '
+                              'alleen wegens een nieuwe verwarmactie afgebroken; de fabrikant kan de begonnen '
+                              'taak afhandelen. Hygiëne, energietekort en andere beschermingen blijven '
                               'afzonderlijk leidend.',
                               'Voor extra verhogingen geldt standaard 300 seconden stabiele zonnevoorwaarde en '
                               'minstens 1800 seconden sinds de laatste verstuurde doelopdracht. Verlagingen '
@@ -304,9 +306,16 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'overschot. Om een eigen hoge fase vast te houden kan uitsluitend een aparte '
                               'betrouwbare elektrische tankvermogensmeter compenseren, nooit geschatte watts '
                               'of een gedeelde meter.',
-                              'Actieve/onzekere koeling begrenst de extra doelen tot de ingestelde koellimiet, '
-                              'standaard 50 °C, met standaard 1800 seconden uitloop. Een warmwatercyclus die '
-                              'recent koelen onderbreekt telt niet meteen als einde van de koelvraag. '
+                              'Actieve of onzekere koeling begrenst de extra doelen tot de ingestelde '
+                              'koellimiet, standaard 50 °C. Alleen bewezen koeling start of verlengt de '
+                              'ingestelde uitloop, standaard 1800 seconden. Onbekende informatie blokkeert '
+                              'zolang zij ontbreekt, maar maakt geen nieuwe dertigminutenwachttijd zodra '
+                              'de bronnen weer betrouwbaar zijn. Een warmwatercyclus die recent bewezen '
+                              'koelen onderbreekt telt niet meteen als einde van de koelvraag. '
+                              'Een vóór beta.46 opgeslagen koel-/onzekerheidstijd blijft bij upgrade '
+                              'conservatief behouden, omdat de oorspronkelijke oorzaak niet betrouwbaar '
+                              'te reconstrueren is. Daardoor kan een bestaande uitloop of bescherming '
+                              'tijdens een native warmwatertaak nog tijdelijk blijven gelden. '
                               'Optionele voorspelde koelvraag kan extra opwarming uitstellen; dit kiest nooit '
                               'HEAT/COOL en activeert geen nieuwe ruimteklimaatbediening.',
                               'Bestaande configuraties worden voorzichtig gemigreerd: het vroeger uit minimum, '

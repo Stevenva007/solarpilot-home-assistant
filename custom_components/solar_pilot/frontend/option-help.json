@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.45",
+  "version": "1.0.0-beta.46",
   "language": "nl",
   "steps": {
     "init": {
@@ -268,13 +268,13 @@
     },
     "dhw_stability": {
       "title": "Sanitair warm water · terugmelding en stabiliteit",
-      "description": "De zonnestabiliteit en minimale tijd tussen extra verhogingen beperken onrust. Nieuwe extra buffers wachten bij actief of onbekend ruimteklimaat; het normale doel blijft beschikbaar. Fabrikant-hygiëne, handmatige functies, koellimiet en bestaande beveiligingen blijven leidend.",
+      "description": "De zonnestabiliteit en minimale tijd tussen extra verhogingen beperken onrust. Nieuwe extra buffers wachten bij werkelijk actief of onbetrouwbaar ruimteklimaat. Een actuele native aquarea idle/off blijft geldig, ook bij een algemene PUMP-taak. Alleen bewezen koeling verlengt de koelrusttijd; het normale doel en bestaande beveiligingen blijven behouden.",
       "data": {
         "rise_delay_s": "Voldoende zon/overschot gedurende (s)",
         "fall_delay_s": "Wachten bij wegvallende zon/overschot (s)",
         "pv_hysteresis_w": "Terugvalmarge zonneopbrengst (W)",
         "surplus_hysteresis_w": "Terugvalmarge overschot (W)",
-        "cooling_clear_s": "Na koeling/onzekere koelstatus nog blokkeren (s)",
+        "cooling_clear_s": "Rusttijd na bewezen koeling (s)",
         "stale_s": "Maximum leeftijd temperatuur- en klimaatrapport (s)",
         "ack_timeout_s": "Maximum wachten op doelbevestiging (s)",
         "max_surplus_import_w": "Netafname waarboven het extra 60 °C-doel meteen wordt losgelaten (W; geen elektrische beveiliging)",
@@ -288,7 +288,7 @@
         "fall_delay_s": "Wachttijd bij gewoon minder zon vóór setpointverlaging, aanbevolen 300 s.",
         "pv_hysteresis_w": "Terugvalband onder de PV-productiedrempel.",
         "surplus_hysteresis_w": "Terugvalband onder de echte injectiedrempel voor een lopende hoge fase.",
-        "cooling_clear_s": "Hoelang geen echte/onzekere koeling meer mag zijn voordat extra hoge tankopwarming weer kan.",
+        "cooling_clear_s": "Rusttijd na bewezen koeling voordat extra hoge tankopwarming weer kan.",
         "stale_s": "Maximale ouderdom van een ontvangen bronrapport.",
         "ack_timeout_s": "Maximale wachttijd op een echte terugmelding na een opdracht.",
         "max_surplus_import_w": "Bij werkelijke netafname boven deze grens laat SolarPilot een door zichzelf beheerd extra 60 °C-doel onmiddellijk los; de gewone terugvalvertraging geldt dan niet.",
@@ -1804,7 +1804,7 @@
       "title": "Optioneel: gemelde warmtepomptaak/richting (alleen lezen)",
       "short": "Optionele alleen-lezen takenrichting van dezelfde warmtepomp.",
       "paragraphs": [
-        "Optionele alleen-lezen takenrichting van dezelfde warmtepomp. Gebruik een werkelijk gerapporteerde statusbron die ruimtebedrijf van sanitair water en stilstand onderscheidt; geen vermogenssensor, bedieningsselect of afgeleide compressorclaim. Bij Panasonic kan PUMP ruimtebedrijf betekenen en WATER een sanitairwatertaak, maar controleer altijd de ruwe waarden van de gekozen bron.",
+        "Optionele alleen-lezen takenrichting van dezelfde warmtepomp. Gebruik een werkelijk gerapporteerde statusbron die ruimtebedrijf van sanitair water en stilstand onderscheidt; geen vermogenssensor, bedieningsselect of afgeleide compressorclaim. Bij Panasonic kan PUMP ruimtebedrijf betekenen en WATER een sanitairwatertaak. Bij exact geregistreerde aquarea gaat een actuele native hvac_action voor; een algemene PUMP-taak mag idle/off niet als actieve verwarming of koeling vervangen. Voor panasonic_cc AUTO kan een actuele IDLE/WATER-taak de onduidelijkheid opheffen. Controleer de ruwe bronwaarden.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -1813,7 +1813,7 @@
       "title": "Waarden voor ruimtebedrijf (puntkomma-gescheiden)",
       "short": "Puntkomma-gescheiden exacte waarden die gemeld ruimtebedrijf betekenen, standaard PUMP.",
       "paragraphs": [
-        "Puntkomma-gescheiden exacte waarden die gemeld ruimtebedrijf betekenen, standaard PUMP. Dit blokkeert alleen een nieuwe optionele buffer boven het normale doel en kiest nooit zelf HEAT of COOL.",
+        "Puntkomma-gescheiden exacte waarden die gemeld ruimtebedrijf betekenen, standaard PUMP. Dit blijft taakinfo, geen bewijs van actieve verwarming, koeling of compressorvermogen. Een betrouwbare aquarea idle/off-actie houdt voorrang; bij onduidelijke panasonic_cc AUTO voorkomt PUMP vrijgave van een nieuwe optionele buffer. SolarPilot kiest nooit HEAT of COOL.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -2071,10 +2071,10 @@
       ]
     },
     "dhw_stability.cooling_clear_s": {
-      "title": "Na koeling/onzekere koelstatus nog blokkeren (s)",
-      "short": "Hoelang geen echte/onzekere koeling meer mag zijn voordat extra hoge tankopwarming weer kan.",
+      "title": "Rusttijd na bewezen koeling (s)",
+      "short": "Rusttijd na bewezen koeling voordat extra hoge tankopwarming weer kan.",
       "paragraphs": [
-        "Hoelang geen echte/onzekere koeling meer mag zijn voordat extra hoge tankopwarming weer kan. Aanbevolen 1800 s (30 minuten). Recente koeling die voor tankopwarming idle wordt, wordt niet meteen als vrijgave gezien; na herstart blijft recent bekende koeling beschermd.",
+        "Rusttijd na bewezen koeling voordat extra hoge tankopwarming weer kan. Aanbevolen 1800 s (30 minuten). Onbekende informatie blokkeert zolang zij ontbreekt, maar start of verlengt deze klok niet. Recent bewezen koeling die voor tankopwarming idle wordt, blijft beschermd, ook na herstart. Vóór beta.46 bewaarde koeltijden worden bij upgrade conservatief behouden; een bestaande uitloop kan dus nog gelden.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -2110,7 +2110,7 @@
       "title": "Herkenning actieve koeling",
       "short": "Actie kijkt primair naar werkelijk cooling.",
       "paragraphs": [
-        "Actie kijkt primair naar werkelijk cooling. Bij een geldige idle-actie blokkeert alleen geselecteerde COOL niet permanent. Modus is strenger en blokkeert zolang COOL gekozen is. Onzekere gegevens geven geen hoge temperatuurvrijgave; uitloop blijft gelden.",
+        "Actie kijkt primair naar werkelijk cooling. Bij een geldige idle-actie blokkeert alleen geselecteerde COOL niet permanent. Modus is strenger en blokkeert zolang COOL gekozen is. Onzekere gegevens geven geen hoge temperatuurvrijgave; zij starten zelf geen nieuwe uitloop na herstel van de bron.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -2137,7 +2137,7 @@
       "title": "Extra zonne-opwarming uitstellen zolang ruimteverwarming/koeling actief is",
       "short": "AAN: een nieuwe extra zonnebuffer boven het normale doel wacht zolang een gekoppelde klimaatbron werkelijk heating/cooling/preheating/defrosting meldt of geen betrouwbare actie doorgeeft.",
       "paragraphs": [
-        "AAN: een nieuwe extra zonnebuffer boven het normale doel wacht zolang een gekoppelde klimaatbron werkelijk heating/cooling/preheating/defrosting meldt of geen betrouwbare actie doorgeeft. Een geselecteerde HEAT-modus met idle is niet hetzelfde als actieve verwarming. Een al aangevraagd hoger doel wordt niet uitsluitend om een nieuwe verwarmactie afgebroken. UIT heft alleen deze extra voorzichtigheid op, nooit koel-, hygiëne- of andere bescherming.",
+        "AAN: een nieuwe extra zonnebuffer boven het normale doel wacht zolang een gekoppelde klimaatbron werkelijk heating/cooling/preheating/defrosting meldt of geen betrouwbare actie doorgeeft. Een geselecteerde HEAT-modus met idle is niet hetzelfde als actieve verwarming. Een actuele native aquarea idle/off blijft ook in AUTO/HEAT_COOL betrouwbaar; algemene PUMP-taakinfo vervangt die actie niet. Oudere panasonic_cc AUTO vereist voor vrijgave een actuele expliciete IDLE/WATER-taak. Een al aangevraagd hoger doel wordt niet uitsluitend om een nieuwe verwarmactie afgebroken. UIT heft alleen deze extra voorzichtigheid op, nooit koel-, hygiëne- of andere bescherming.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]

@@ -87,11 +87,11 @@ def test_cooling_clear_hold():
     assert evaluate(p,now=60,pv=5000,export=4000).target_c == 60
 
 
-def test_unknown_cooling_also_extends_hold():
+def test_unknown_cooling_blocks_current_decision_without_inventing_cooling_history():
     p=make(cooling_clear_s=60)
-    evaluate(p,now=0,pv=5000,export=4000,cooling=None)
-    for t in (20,40): evaluate(p,now=t,pv=5000,export=4000)
-    assert evaluate(p,now=60,pv=5000,export=4000).target_c == 60
+    assert evaluate(p,now=0,pv=5000,export=4000,cooling=None).target_c == 50
+    assert p.last_cooling is None
+    assert evaluate(p,now=20,pv=5000,export=4000).target_c == 60
 
 
 def test_hygiene_has_no_target_even_at_night_or_with_cooling():

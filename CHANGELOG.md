@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.46 — 2026-10-03
+
+- Corrigeert de onnodige extra-DHW-blokkering in Panasonic AUTO/HEAT_COOL: bij exact geregistreerde `aquarea` is een actuele native `hvac_action=idle/off` betrouwbaar. Een algemene `PUMP`-taak of oude/niet herkende optionele taakdata overschrijft die actie niet.
+- Behoudt fail-closed bescherming voor ontbrekende, oude, restored of onbeschikbare klimaatbronnen en de oudere `panasonic_cc`-AUTO-ambiguïteit; daarvoor blijft actuele expliciete `IDLE/WATER`-taakinformatie vereist. Echte koeling en actieve ruimteverwarming/preheating/defrosting houden hun bestaande voorrang.
+- Laat alleen bewezen koeling de koeluitloop starten of verlengen. Onbekende informatie blokkeert terwijl zij ontbreekt, maar veroorzaakt na betrouwbaar bronherstel geen nieuw verzonnen halfuur wachttijd.
+- Behoudt ruwe taakdiagnostiek en conservatief leren: `PUMP` bewijst geen compressoractie en wordt geen normale rustsample. Alle beta.45-ACK-, review-, eigendoms-, comfort-, hygiëne-, AEG-, prioriteits- en Wallboxgrenzen blijven intact.
+- Werkt versie, actuele uitleg, optieshulp, installatie/rollback en het actuele overdrachtsdossier samen bij. De volledige samengestelde suite behaalt **1813 geslaagde Python-tests in 6.79 s**; lokale release-/syntaxcontroles zijn groen. Browsercontroles zijn niet opnieuw uitgevoerd. Details staan in `docs/TESTRESULTATEN_BETA46.md`; live installatie en fysieke opwarming worden niet geclaimd.
+
 ## 1.0.0-beta.45 — 2026-10-02
 
 - Corrigeert de exacte adapterherkenning voor vertraagde boilerdoelbevestiging: zowel `aquarea` als `panasonic_cc`, via geregistreerde integratieherkomst en zonder naamheuristiek. De live Aquarea Smart Cloud 1.0.61-koppeling publiceert optimistisch en vraagt pas na tien seconden geforceerd op; beta.44 miste het domein `aquarea`.
