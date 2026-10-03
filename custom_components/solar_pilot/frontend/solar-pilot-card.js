@@ -1,4 +1,4 @@
-/* SolarPilot 1.0.0-beta.46. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+/* SolarPilot 1.0.0-beta.47. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
 const spEscape = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const spPower = value => value == null || !Number.isFinite(Number(value)) ? "—" : Math.abs(Number(value)) >= 1000 ? `${(Number(value)/1000).toLocaleString("nl-BE",{maximumFractionDigits:2})} kW` : `${Math.round(Number(value))} W`;
 const spTemp = value => value == null || !Number.isFinite(Number(value)) ? "—" : `${Number(value).toLocaleString("nl-BE",{maximumFractionDigits:1})} °C`;
@@ -548,7 +548,10 @@ class SolarPilotCard extends HTMLElement {
   }
   _globalAlerts(c){
     const {a,ems}=c;
-    return `${!this._last?this._notice('Geen SolarPilot-status gevonden. Voeg eerst de integratie toe.',true):''}${a.problem?this._notice(`<strong>Aandacht nodig</strong><br>${spEscape(a.problem)}${a.reset_entity?'<br><button data-action="reset" class="mini">Controle afronden</button>':''}`,true):''}${this._error?`<div role="alert" class="error">${spEscape(this._error)}</div>`:''}${ems.legacy_conflicts?.length?this._notice(`<strong>Dubbele regeling geblokkeerd</strong><br>${ems.legacy_conflicts.map(x=>spEscape(x.name)).join(' · ')}<br>Automatisch regelen blijft geblokkeerd tot deze vervangen regelaars uit staan.`,true):''}`;
+    const automaticRestart=a.restart_recovery_pending===true;
+    const recoveryNames=Array.isArray(a.restart_recovery_devices)?a.restart_recovery_devices:[];
+    const problem=a.problem||(automaticRestart?`Wacht op betrouwbare toestelstatus${recoveryNames.length?': '+recoveryNames.join(' · '):''}; SolarPilot controleert automatisch opnieuw.`:'');
+    return `${!this._last?this._notice('Geen SolarPilot-status gevonden. Voeg eerst de integratie toe.',true):''}${problem?this._notice(`<strong>${automaticRestart?'Automatische herstartcontrole':'Aandacht nodig'}</strong><br>${spEscape(problem)}${!automaticRestart&&a.reset_entity?'<br><button data-action="reset" class="mini">Controle afronden</button>':''}`,!automaticRestart):''}${this._error?`<div role="alert" class="error">${spEscape(this._error)}</div>`:''}${ems.legacy_conflicts?.length?this._notice(`<strong>Dubbele regeling geblokkeerd</strong><br>${ems.legacy_conflicts.map(x=>spEscape(x.name)).join(' · ')}<br>Automatisch regelen blijft geblokkeerd tot deze vervangen regelaars uit staan.`,true):''}`;
   }
   _modeBar(a){
     const mode=a.mode||"observe";
@@ -849,7 +852,7 @@ class SolarPilotCard extends HTMLElement {
   }
   async _loadOptionHelpers(){
     if(!customElements.get('solar-pilot-option-help-dialog')){
-      if(!this._optionLoad)this._optionLoad=import('/solar_pilot_static/option-help.js?v=1.0.0-beta.46').catch(e=>{this._optionLoad=null;throw e;});
+      if(!this._optionLoad)this._optionLoad=import('/solar_pilot_static/option-help.js?v=1.0.0-beta.47').catch(e=>{this._optionLoad=null;throw e;});
       await this._optionLoad;
     }
   }

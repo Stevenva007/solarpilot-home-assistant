@@ -1,14 +1,25 @@
-> **Actuele bron: beta.46** — corrigeert de extra-warmwaterblokkering wanneer de native `aquarea`-klimaatbron betrouwbaar `idle/off` meldt, maar een algemene `PUMP`-taak of AUTO-modus dit tegenhoudt. Echte koeling, ruimtecomfort en overige beveiligingen blijven leidend. De definitieve volledige suite behaalt **1813 geslaagde Python-tests in 6.79 s**; lokale release-/syntaxcontroles zijn groen. Browsercontroles zijn hier niet opnieuw uitgevoerd. Publicatiecontrole staat op GitHub; zie `docs/TESTRESULTATEN_BETA46.md`. Live installatie en fysieke opwarming zijn in deze werksessie niet bevestigd.
+> **Actuele bron: beta.47** — werkt het automatische herstel na Home Assistant-herstart uit. SolarPilot leest de echte toestanden en hervat alleen bestaande toegestane regeling zonder oude opdrachten te herhalen. De volledige suite behaalt **1884 geslaagde Python-tests in 5.67 s**, inclusief 71 nieuwe herstartregressies. Drie JavaScript-rendergevallen via Node VM zijn groen; volledige browserproeven zijn niet uitgevoerd. Test-/publicatiestatus: `docs/TESTRESULTATEN_BETA47.md`. Live installatie en fysieke opwarming zijn in deze werksessie niet bevestigd.
 
 # SolarPilot
 
 SolarPilot is a local Home Assistant Energy Management System (EMS) for PV surplus, flexible loads, Panasonic Aquarea hot-water policy, Wallbox Full Solar coexistence, phase analysis, capacity-tariff awareness, local PV/shade learning, slow thermal-climate learning, future home batteries and a unified rolling-horizon planner.
 
-De bestaande beta.45-hoofdbranch op commit `9cddb043f4e6b1547eaa9487e057692ffb1d1a5b` is de absolute codebasis. De eerdere gepubliceerde [beta.45-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.45), tagcommit `507f74183f51b3517b077d05a455e4f169824f69`, blijft beschikbaar voor rollback. Een publicatie of geslaagde softwaretest bewijst geen geladen Home Assistant-versie of fysieke opwarming.
+De absolute codebasis is beta.46 op commit `c9ea80de746d0f0f25f5b127bcafaaf88f624b65`. De onveranderlijke [beta.46-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.46) blijft beschikbaar voor rollback. Een softwaretest of publicatie bewijst geen geladen Home Assistant-versie of fysieke toestelactie.
 
 > **Updates zijn cumulatief.** Je hoeft tussenliggende beta-versies niet één voor één te installeren of publiceren. Installeer de nieuwste release over je bestaande SolarPilot-installatie; Home Assistant-configuratie en lokale leerdata blijven behouden.
 
-## Nieuw in beta.46
+## Nieuw in beta.47
+
+- Een gewone herstart wordt automatisch opnieuw gecontroleerd totdat de eerder beheerde toestelstatussen betrouwbaar zijn. Daarna hervat de opgeslagen gebruikersmodus; een tijdelijk niet geladen bron vraagt geen handmatige bevestiging.
+- De oorspronkelijke hervatkeuze blijft bewaard over tussentijdse opslag of een volgende herstart. Een bewuste latere keuze voor Alleen bekijken of Pauze vervangt die keuze. Minimum aan-/uittijden starten bij de nieuwe echte waarneming.
+- De boiler controleert temperatuur, doel en beschermingsbronnen automatisch zonder oude doelopdracht te herhalen. Een routinecontrole wacht modulelokaal; echte fout, handmatige overname of gewijzigd doel blijft beschermd. Een pending boileropdracht vereist een nieuwe rapportage ná herstart en de bestaande adapterwachttijd.
+- Een afwasmachine met onzekere eerdere START krijgt nooit een tweede START. Alleen betrouwbaar lopend of voltooid bewijs kan de specifieke herstartonzekerheid automatisch oplossen; andere fouten blijven behouden.
+
+Eenmalig kan oude Alleen bekijken-opslag zonder hervatmarker haar verloren Auto-keuze herstellen: uitsluitend zonder echte fout/handmatige boilerbescherming en met een onderbroken lease van een bekend Auto-toestel of schoon routine-boilerjournal. Nieuwe expliciete Alleen bekijken-/Pauze-keuzes blijven beschermd door de opgeslagen marker.
+
+Zie `docs/BETA47_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA47.md` en het actuele `OVERDRACHT.md`.
+
+## Behouden uit beta.46
 
 - Een actuele native `hvac_action=idle/off` van exact geregistreerde `aquarea` houdt ook in AUTO/HEAT_COOL voorrang op een algemene `PUMP`-taak. Oude of niet herkende optionele taakdata maakt deze betrouwbare klimaatactie niet onbruikbaar.
 - Echte `cooling` blokkeert extra warmte; actieve `heating/preheating/defrosting` behoudt de ingestelde ruimtecomfortvoorrang. Ontbrekende, oude, restored of onbeschikbare klimaatbronnen blijven beschermd. De oudere `panasonic_cc`-AUTO-ambiguïteit blijft een actuele expliciete `IDLE/WATER`-taak vereisen.
@@ -30,7 +41,7 @@ Zie `docs/BETA46_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA46.md` en het actuele `
 
 Beta.44-publicatie, pakketcontrole en geladen versie staan in `docs/BETA44_INSTELLEN.md` en `docs/TESTRESULTATEN_BETA44.md`; uitleg-hash `65b54c9797e55bb4` hoort bij die historische softwaregate. [Beta.44-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.44). Bestaande tags en release-assets blijven onveranderlijk.
 
-## Current DHW policy (beta.46)
+## Current DHW policy (beta.47)
 
 For Panasonic K T-CAP models, Powerful is **not automatically used as a tank boost**: Panasonic service manual PAPAMY2310071CE §14.11 describes space-heating water-target shifts, not a DHW boost. The separate installer setting DHW capacity is not changed. [Panasonic-original service manual](https://paltaja.lt/wp-content/uploads/panasonic-k-t-cap-manual.pdf).
 

@@ -110,6 +110,9 @@ class SolarRuntime:
         self.priorities = {}
         self.device_modes = {}
         self.recovery = {}
+        self.restart_requested_mode = None
+        self._restart_faults = {}
+        self._restart_notice = False
         self.faults = {}
         self.listeners = set()
         self.logs = deque(maxlen=30)
@@ -260,6 +263,9 @@ class SolarRuntime:
     def _snapshot(self):
         return {
             "mode": self.mode,
+            "restart_requested_mode": self.restart_requested_mode,
+            "faults": dict(self.faults),
+            "restart_faults": dict(self._restart_faults),
             "live_options": self.live_options.snapshot(),
             "learning_hub": self.learning_hub.snapshot(),
             "dishwasher": self.dishwasher.snapshot(),
@@ -467,68 +473,180 @@ class SolarRuntime:
             if i in self.states:
                 self.states[i].manual_stop_requested = bool(requested)
 
-        # Reconcile durable leases against the real Home Assistant state. A restart
-        # is not an instruction to turn equipment off and no old command is replayed.
-        # Known ON/OFF states resume from reality; only an unavailable/ambiguous
-        # endpoint still needs manual review. Minimum on/off times restart
-        # conservatively from this observation rather than inventing downtime.
+        stored_faults = data.get("faults", {})
+        self.faults = {i: str(reason) for i, reason in stored_faults.items()
+                       if i in self.configs and reason} if isinstance(stored_faults, dict) else {}
+        stored_restart_faults = data.get("restart_faults", {})
+        self._restart_faults = {i: reason for i, reason in stored_restart_faults.items()
+                               if self.faults.get(i) == reason} if isinstance(stored_restart_faults, dict) else {}
+        # A consumed START ticket is also durable evidence of an interrupted
+        # transaction, even if an older store did not contain its lease.
+        leases = dict(leases)
+        for i, cfg in self.configs.items():
+            if cfg.get("kind") == "dishwasher" and self.dishwasher.tickets.get(i, {}).get("attempted"):
+                leases.setdefault(i, {"watts": cfg["nominal_w"], "name": cfg["name"]})
+        clean_interruption = (not self.faults and not self.dhw.fault and not self.dhw.manual_hold
+                              and not self.dhw.needs_review
+                              and (any(i in self.configs and self.device_modes.get(i) == "auto" for i in leases)
+                                   or bool(getattr(self.dhw, "restart_recovery", None))))
+        requested_mode = data.get("restart_requested_mode") or str(data.get("mode", "observe"))
+        if requested_mode not in ("observe", "solar", "paused"):
+            requested_mode = "observe"
+        # beta.46 stored its temporary Observe mode and lost the previous intent.
+        # Recover that interrupted installation once; later explicit choices have
+        # the new journal key (including null) and are never inferred again.
+        if "restart_requested_mode" not in data and requested_mode == "observe" and clean_interruption:
+            requested_mode = "solar"
+            self.note("Beta.47: door herstartcontrole onderbroken regeling automatisch hervatten zodra de gegevens betrouwbaar zijn.")
+        self.restart_requested_mode = requested_mode
         reconcile_now = time.monotonic()
         for i, lease in leases.items():
             if i not in self.configs:
                 continue
-            cfg, st = self.configs[i], self.states[i]
-            active = self._active(cfg)
-            if cfg.get("kind") == "dishwasher" and self.dishwasher.tickets.get(i, {}).get("attempted"):
-                if active is True:
-                    self.dishwasher.confirmed(i)
-                else:
-                    self.faults[i] = "START-uitkomst onzeker na herstart; controleer de afwasmachine en zet daarna opnieuw klaar"
-                    self.recovery[i] = lease
-                    continue
-            if active is True:
-                try:
-                    target = max(float(lease.get("watts", 0) or 0), float(cfg.get("nominal_w", 0) or 0))
-                except (TypeError, ValueError):
-                    target = float(cfg.get("nominal_w", 0) or 0)
-                st.owned, st.on, st.available = True, True, True
-                st.target_w = target
-                st.last_on = reconcile_now
-                st.observed_once = True
-                self.note(f'{cfg["name"]}: herstartcontrole automatisch — toestel staat aan; beheer hervat zonder schakelopdracht.')
-            elif active is False:
-                st.owned, st.on, st.available = False, False, True
-                st.target_w = 0
-                st.last_off = reconcile_now
-                st.manual_forced = False
-                st.manual_stop_requested = False
-                st.observed_once = True
-                self.note(f'{cfg["name"]}: herstartcontrole automatisch — toestel staat uit; normale regeling hervat.')
-            else:
+            if not self._reconcile_restart_lease(i, lease, reconcile_now):
                 self.recovery[i] = lease
-                self.note(f'{cfg["name"]}: herstartcontrole niet automatisch mogelijk; toestelstatus is onbekend of onbeschikbaar.')
+                self.note(f'{self.configs[i]["name"]}: herstartcontrole wacht automatisch op betrouwbare toestelstatus.')
 
         for i, cfg in self.configs.items():
             if cfg.get("kind") == "dishwasher":
                 self.states[i].cycle_armed = bool(self.dishwasher.tickets.get(i, {}).get("armed"))
                 self.states[i].manual_forced = False
                 self.states[i].manual_stop_requested = False
-                if self.dishwasher.tickets.get(i, {}).get("attempted") and i not in self.recovery:
-                    self.faults[i] = "START-uitkomst onzeker na herstart; controleer eerst de afwasmachine"
-        requested_mode = str(data.get("mode", "observe"))
-        if requested_mode not in ("observe", "solar", "paused"):
-            requested_mode = "observe"
         if self.recovery:
             self.mode = "observe"
-            await self.notify("SolarPilot kon na de herstart niet alle eerder beheerde toestelstatussen betrouwbaar uitlezen. Alleen de betrokken onzekere toestand vereist controle; er is geen automatische uitschakelopdracht verzonden.")
+            names = ", ".join(self.configs[i]["name"] for i in self.recovery)
+            await self.notify("SolarPilot wacht na de herstart op betrouwbare status van: " + names + ". De controle wordt automatisch herhaald. Draaiende beschermde programma's worden niet gestopt en eerdere opdrachten worden niet opnieuw verzonden.", restart=True)
         elif requested_mode == "solar" and not self.dhw.needs_review and not self.legacy_conflicts():
             self.mode = "solar"
+            self.restart_requested_mode = None
             self.note("Herstartcontrole automatisch afgerond; Zonnestroommodus hervat op basis van actuele toestelstatussen.")
         else:
             self.mode = requested_mode if requested_mode != "solar" else "observe"
+            if requested_mode != "solar":
+                self.restart_requested_mode = None
             self.note(f"Herstartcontrole automatisch afgerond; modus {self.mode} hervat.")
+        await self.store.async_save(self._snapshot())
         self.dishwasher_app.start()
         await self.tick()
         self._remove_timer = async_track_time_interval(self.hass, self.tick, timedelta(seconds=self.settings["interval_s"]))
+
+    def _restart_active(self, cfg):
+        """Read real state without trusting a restored actuator placeholder.
+
+        Switches are stateful: a long unchanged ON report is valid. Appliance
+        heartbeats and number bounds keep their existing adapter contracts.
+        """
+        if cfg.get("kind") == "dishwasher":
+            return self._active(cfg)
+        key = "active_entity" if cfg["kind"] == "script" else "control_entity"
+        obj = self.hass.states.get(cfg.get(key, ""))
+        if obj is None or obj.attributes.get("restored"):
+            return None
+        active = self._active(cfg)
+        if active and cfg["kind"] == "number":
+            number_obj = self.hass.states.get(cfg.get("number_entity", ""))
+            value = self._number(cfg.get("number_entity"))
+            if number_obj is None or number_obj.attributes.get("restored") or value is None:
+                return None
+            if cfg.get("control_unit") and number_obj.attributes.get("unit_of_measurement") != cfg["control_unit"]:
+                return None
+            try:
+                if not (float(number_obj.attributes["min"]) <= cfg["min_units"] <= value
+                        <= cfg["max_units"] <= float(number_obj.attributes["max"])):
+                    return None
+            except (KeyError, TypeError, ValueError):
+                return None
+        return active
+
+    @property
+    def restart_recovery_pending(self):
+        return bool(self.recovery) and not self._restart_faults and not self.faults
+
+    def _reconcile_restart_lease(self, device_id, lease, now):
+        """Adopt a durable lease from current evidence; never issue a command."""
+        cfg, st = self.configs[device_id], self.states[device_id]
+        active = self._restart_active(cfg)
+        if cfg.get("kind") == "dishwasher":
+            reading = self.dishwasher.readings[device_id]
+            if active is True or (active is False and reading.finished):
+                # START may have been saved before the native event consumed its
+                # APP request. A completed/restored running cycle must consume
+                # that request too, or a later Idle report could re-arm it.
+                self.dishwasher_app.event(cfg, cfg.get("dishwasher_state_entity"), reading.raw, time.time())
+                self.dishwasher_app.cancel(cfg, "Herstart: APP-aanvraag verbruikt door bevestigde cyclus")
+        if cfg.get("kind") == "dishwasher" and self.dishwasher.tickets.get(device_id, {}).get("attempted"):
+            reading = self.dishwasher.readings[device_id]
+            if active is True:
+                self.dishwasher.confirmed(device_id)
+            elif active is False and reading.finished:
+                self.dishwasher.review(device_id)
+            else:
+                reason = "START-uitkomst onzeker na herstart; wacht op bevestigde cyclus of controleer de afwasmachine"
+                if device_id not in self.faults:
+                    self.faults[device_id] = reason
+                    self._restart_faults[device_id] = reason
+                return False
+            reason = self._restart_faults.pop(device_id, None)
+            if reason and self.faults.get(device_id) == reason:
+                self.faults.pop(device_id, None)
+        if active is None:
+            return False
+        if active:
+            try:
+                target = max(float(lease.get("watts", 0) or 0), float(cfg["nominal_w"]))
+            except (AttributeError, TypeError, ValueError):
+                target = float(cfg["nominal_w"])
+            if not math.isfinite(target):
+                target = float(cfg["nominal_w"])
+            if cfg["kind"] == "number" and not self._target_matches(cfg, target):
+                # A changed physical setpoint belongs to its current operator.
+                # Reading it is not permission to adopt it and immediately
+                # reduce it under SolarPilot's normal minimum-power plan.
+                st.owned, st.on, st.available = False, True, True
+                st.target_w = 0
+                st.last_on = now
+                st.manual_until = now + cfg["manual_hold_s"]
+                st.manual_forced = st.manual_stop_requested = False
+                st.observed_once = True
+                self.note(f'{cfg["name"]}: instelling tijdens herstart gewijzigd; huidige bediening blijft vrij zonder opdracht.')
+                return True
+            st.owned, st.on, st.available = True, True, True
+            st.target_w = target
+            st.last_on = now
+            if cfg["non_interruptible"]:
+                st.cycle_armed = False
+            self.note(f'{cfg["name"]}: herstartcontrole automatisch — toestel staat aan; beheer hervat zonder schakelopdracht.')
+        else:
+            st.owned, st.on, st.available = False, False, True
+            st.target_w = 0
+            st.last_off = now
+            st.manual_forced = st.manual_stop_requested = False
+            self.note(f'{cfg["name"]}: herstartcontrole automatisch — toestel staat uit; normale regeling hervat.')
+        st.observed_once = True
+        return True
+
+    async def _retry_restart_recovery(self, now):
+        changed = False
+        for device_id, lease in tuple(self.recovery.items()):
+            if device_id in self.configs and self._reconcile_restart_lease(device_id, lease, now):
+                self.recovery.pop(device_id, None)
+                changed = True
+        requested = self.restart_requested_mode
+        if not self.recovery and requested is not None:
+            if requested != "solar" or (not self.dhw.needs_review and not self.legacy_conflicts()):
+                self.mode = requested
+                self.restart_requested_mode = None
+                for st in self.states.values():
+                    st.start_since = None
+                self.note(f"Herstartcontrole automatisch afgerond; modus {self.mode} hervat.")
+                changed = True
+        if changed:
+            await self.store.async_save(self._snapshot())
+        if not self.recovery and self._restart_notice and not self.dhw.needs_review and not self.faults:
+            self._restart_notice = False
+            if self.hass.services.has_service("persistent_notification", "dismiss"):
+                await self.hass.services.async_call("persistent_notification", "dismiss", {
+                    "notification_id": f"{DOMAIN}_{self.entry.entry_id}"}, blocking=False)
 
     async def close(self):
         self._closed = True
@@ -556,7 +674,8 @@ class SolarRuntime:
         if hasattr(self, "analysis"):
             self.analysis.event("runtime", message)
 
-    async def notify(self, message):
+    async def notify(self, message, restart=False):
+        self._restart_notice = restart
         if self.hass.services.has_service("persistent_notification", "create"):
             await self.hass.services.async_call("persistent_notification", "create", {
                 "title": NAME, "message": message,
@@ -1739,6 +1858,7 @@ class SolarRuntime:
                 _LOGGER.exception("SolarPilot regelcyclus gestopt door fout")
                 self.problem = "Interne fout: regeling gepauzeerd; controleer het Home Assistant-logboek"
                 self.mode = "paused"
+                self.restart_requested_mode = None
             try:
                 await self.learning_hub.tick()
             except Exception as err:
@@ -1756,6 +1876,7 @@ class SolarRuntime:
         dt = max(0.0, now - self.last_tick)
         self.last_tick = now
         await self._confirm_pending(now)
+        await self._retry_restart_recovery(now)
         zone = getattr(getattr(self.hass, "config", None), "time_zone", "Europe/Brussels")
         try:
             from zoneinfo import ZoneInfo
@@ -2025,7 +2146,10 @@ class SolarRuntime:
         if now - self.energy_saved_at >= 300:
             self.energy_saved_at = now
             self.store.async_delay_save(self._snapshot, 1)
-        self.problem = ("Herstartcontrole vereist" if self.recovery else
+        self.problem = (("Herstartcontrole: wacht automatisch op toestelstatus — "
+                         + ", ".join(self.configs[i]["name"] for i in self.recovery))
+                        if self.restart_recovery_pending else
+                        "Herstartcontrole vereist" if self.recovery else
                         "Opdrachtfout: handmatige controle nodig" if ambiguous else
                         "Net- of batterijmeting ontbreekt, is te oud of heeft een verkeerde eenheid" if not valid else "")
         if not self.problem and wb.state == "unavailable":
@@ -2223,6 +2347,7 @@ class SolarRuntime:
             self.removal_requested = True
             self._removal_ready_noted = False
             self.mode = "paused"
+            self.restart_requested_mode = None
             for st in self.states.values():
                 st.boost_until = 0
                 st.start_since = None
@@ -2249,6 +2374,8 @@ class SolarRuntime:
                         s.boost_until = 0
                         s.manual_forced = False
             self.mode = mode
+            self.restart_requested_mode = None
+            self.store.async_delay_save(self._snapshot, 1)
             self.note(f"Modus: {mode}.")
         await self.tick()
 
@@ -2372,6 +2499,7 @@ class SolarRuntime:
                 raise HomeAssistantError("Kies eerst Pauze en wacht op lopende opdrachten")
             s = self.states[device_id]
             self.recovery.pop(device_id, None)
+            self._restart_faults.pop(device_id, None)
             self.faults.pop(device_id, None)
             s.owned = False
             s.target_w = 0
@@ -2408,6 +2536,7 @@ class SolarRuntime:
                         self.states[i].cycle_armed = False
             self.faults.clear()
             self.recovery.clear()
+            self._restart_faults.clear()
             self.reclaim_blocks.clear()
             self.dishwasher_priority.ev_blocks.clear()
             self.dishwasher_priority.watches = {i:v for i,v in self.dishwasher_priority.watches.items()

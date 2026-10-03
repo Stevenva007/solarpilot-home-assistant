@@ -36,6 +36,7 @@ class DHWManager:
         self.pending = None
         self.owned_target = None
         self.needs_review = False
+        self.restart_recovery = None
         self.manual_hold = False
         self.fault = ""
         self.status = "Niet geconfigureerd"
@@ -59,7 +60,10 @@ class DHWManager:
 
     @property
     def busy(self):
-        return self.pending is not None or self.owned_target is not None
+        # A deferred restart still carries an unresolved historical target or
+        # command. Safe removal must wait for its read-only reconciliation,
+        # even though unrelated consumers need not be globally blocked.
+        return self.pending is not None or self.owned_target is not None or bool(self.restart_recovery)
 
     @property
     def blocks_increase(self):
@@ -71,6 +75,7 @@ class DHWManager:
                 "enabled": self.auto_enabled, "tunables": self.tunables,
                 "pending": self.pending, "owned_target": self.owned_target,
                 "needs_review": self.needs_review, "manual_hold": self.manual_hold,
+                "restart_recovery": self.restart_recovery,
                 "fault": self.fault, "last_success": self.last_success,
                 "comfort": self.comfort.snapshot(), "cooling_wall": self._cooling_wall,
                 "last_command_wall": self.last_command_wall}
@@ -99,12 +104,127 @@ class DHWManager:
                 self.policy.last_cooling = time.monotonic()-(time.time()-saved)
         self.manual_hold = bool(data.get("manual_hold")) if same_binding else False
         self.fault = str(data.get("fault", ""))
-        self.needs_review = bool(data.get("needs_review") or data.get("pending") or data.get("owned_target") is not None)
+        restart = data.get("restart_recovery")
+        has_restart = bool(data.get("needs_review") or data.get("pending")
+                           or data.get("owned_target") is not None or restart)
+        self.needs_review = has_restart
+        self.restart_recovery = None
+        if has_restart and same_binding and not self.fault and not self.manual_hold:
+            # A normal restart is not a manual override. Keep only a read-only
+            # reconciliation journal; never resurrect a pre-restart monotonic
+            # deadline or replay a temperature command. Older releases dropped
+            # ownership while retaining needs_review: those clean same-binding
+            # states can also recover against the actual current target.
+            saved = restart if isinstance(restart, dict) else data
+            owned = finite(saved.get("owned_target"))
+            pending = saved.get("pending")
+            valid = ((restart is None or isinstance(restart, dict) and restart.get("schema") == 1)
+                     and (saved.get("owned_target") is None or owned is not None))
+            if pending is not None:
+                valid = valid and isinstance(pending, dict)
+                if valid:
+                    target = finite(pending.get("target"))
+                    issued_wall = finite(pending.get("issued_wall"))
+                    valid = (target is not None and issued_wall is not None
+                             and 0 < issued_wall <= time.time() + 5
+                             and isinstance(pending.get("release", False), bool))
+                    if valid:
+                        pending = {"target": target, "issued_wall": issued_wall,
+                                   "release": bool(pending.get("release")),
+                                   "ack_poll_min_s": max(0.0, finite(pending.get("ack_poll_min_s")) or 0.0)}
+            if valid:
+                self.restart_recovery = {
+                    "schema": 1, "owned_target": owned, "pending": pending,
+                    "started_wall": time.time(),
+                    "reason": "Boilerherstart: wacht op betrouwbare actuele temperatuur- en doelterugmelding",
+                }
+                self.needs_review = False
         # Do not replay a target or a pending physical call after a restart.
         self.owned_target = None
         self.pending = None
         if self.needs_review:
             self.status = "Boilercontrole na herstart vereist; huidige instelling blijft onaangeroerd"
+        elif self.restart_recovery:
+            self.status = self.restart_recovery["reason"]
+
+    async def reconcile_restart(self, local_now=None):
+        """Resolve only an ordinary restart, using current reports without writes.
+
+        Real faults, explicit holds and changed bindings require their existing
+        review. Missing sources merely defer this module; its journal does not
+        turn unrelated consumers into a global restart lock.
+        """
+        recovery = self.restart_recovery
+        if not recovery or self.needs_review or self.fault or self.manual_hold:
+            return False
+        if local_now is None:
+            zone = getattr(getattr(self.runtime.hass, "config", None), "time_zone", "Europe/Brussels")
+            local_now = datetime.now(ZoneInfo(zone))
+
+        def wait(reason):
+            recovery["reason"] = reason
+            self.status = reason
+            return False
+
+        target_obj = self._state(self.config.get("target_entity"))
+        temperature_id = self.config.get("temperature_entity") or self.config.get("target_entity")
+        temperature_obj = self._state(temperature_id)
+        target, _ = self._target()
+        if (target_obj is None or temperature_obj is None
+                or target_obj.attributes.get("restored") or temperature_obj.attributes.get("restored")
+                or target is None or self._temperature() is None):
+            return wait("Boilerherstart: wacht op betrouwbare actuele temperatuur- en doelterugmelding")
+        guard_ids = [self.config.get("hygiene_entity"), self.config.get("manual_entity"),
+                     *self.config.get("manual_entities", [])]
+        for entity_id in filter(None, guard_ids):
+            obj = self._state(entity_id, freshness=False)
+            if obj is None or obj.attributes.get("restored"):
+                return wait("Boilerherstart: wacht op betrouwbare hygiëne- en handmatige status")
+        if error := self.check_target(target):
+            return wait("Boilerherstart: " + error)
+
+        if protected := self._protected(target_obj, local_now):
+            # Factory sterilisation, Powerful and native OFF retain control.
+            # Forget only SolarPilot's historical ownership, without lowering
+            # the current factory/manual target or switching anything on.
+            self.restart_recovery = None
+            self.owned_target = None
+            self.policy.reset_stability()
+            self.status = protected
+            await self._save()
+            self.runtime.note("Boilerherstart automatisch gecontroleerd; fabrikant-/handmatige regeling blijft vrij zonder opdracht.")
+            return True
+
+        pending = recovery.get("pending")
+        if pending:
+            stamp = getattr(target_obj, "last_reported", target_obj.last_updated).timestamp()
+            delay = max(self._ack_poll_min_s(), pending.get("ack_poll_min_s", 0.0))
+            # The command-side echo from before the restart cannot become an
+            # ACK by waiting. Require a genuinely later HA report in this run.
+            if stamp <= recovery["started_wall"] or stamp < pending["issued_wall"] + delay:
+                return wait("Boilerherstart: wacht op latere doelrapportage; oude opdracht wordt niet herhaald")
+            expected = pending["target"]
+        else:
+            expected = recovery.get("owned_target")
+        self.restart_recovery = None
+        self.policy.reset_stability()
+        if expected is not None and abs(target - expected) > .05:
+            self.manual_hold = True
+            self.owned_target = None
+            self.status = "Boilerdoel gewijzigd tijdens herstart: bestaande bediening krijgt voorrang; geen opdracht herhaald"
+            self.runtime.note(self.status)
+        else:
+            self.owned_target = (None if pending and pending.get("release")
+                                 else target if expected is not None else None)
+            if pending:
+                self.last_success = {
+                    "target_c": target, "time": datetime.now().astimezone().isoformat(),
+                    "confirmation": "restart_delayed_ha_state" if delay else "restart_ha_state",
+                }
+            self.status = "Boilerherstart automatisch gecontroleerd; actuele toestand behouden zonder doelopdracht"
+            self.runtime.note(self.status)
+        await self._save()
+        return True
 
     def _persist_canonical(self):
         """Persist the effective DHW state as the single config-entry truth."""
@@ -724,6 +844,7 @@ class DHWManager:
         if local_now is None:
             zone = getattr(getattr(self.runtime.hass, "config", None), "time_zone", "Europe/Brussels")
             local_now = datetime.now(ZoneInfo(zone))
+        await self.reconcile_restart(local_now)
         r = self.read(grid, valid, discharge, local_now)
         self._prepare_comfort(local_now, r)
         self.policy.settings = {**self.settings, "sample_gap_s": max(30, self.runtime.settings["interval_s"] * 2)}
@@ -766,6 +887,9 @@ class DHWManager:
                                "geldt niet als bevestiging" if ack_poll_min_s
                                else "Wacht op terugmelding boilerdoel")
                 return False
+        if self.restart_recovery:
+            self.status = self.restart_recovery["reason"]
+            return False
         if self.needs_review or self.fault or self.manual_hold:
             self.status = self.fault or ("Boilercontrole na herstart vereist" if self.needs_review
                                          else "Boilerregeling uit voorzorg gepauzeerd; hervat pas na boilercontrole")
@@ -909,6 +1033,7 @@ class DHWManager:
                 raise HomeAssistantError("Controleer actuele temperaturen en rond hygiëne/krachtige modus eerst af")
             self.owned_target = None
             self.needs_review = self.manual_hold = False
+            self.restart_recovery = None
             self.fault = ""
             self.policy.reset_stability()
             await self._save()
@@ -923,6 +1048,7 @@ class DHWManager:
             self.manual_hold = True
             self.owned_target = None
             self.needs_review = False
+            self.restart_recovery = None
             self.fault = ""
             await self._save()
             self.runtime.note("Boiler handmatig overgenomen: GEEN temperatuur- of uitschakelopdracht.")
@@ -936,7 +1062,8 @@ class DHWManager:
         ack_poll_min_s = self._ack_poll_min_s()
         safety_confirmed = bool(self.settings.get("safety_confirmed"))
         control_allowed = bool(self.configured and self.auto_enabled and safety_confirmed
-                               and not self.needs_review and not self.manual_hold and not self.fault)
+                               and not self.needs_review and not self.manual_hold and not self.fault
+                               and not self.restart_recovery)
         panasonic_autonomous = bool(r.protected or not control_allowed or self.owned_target is None)
         return {"configured": self.configured, "enabled": self.auto_enabled,
                 "safety_confirmed": safety_confirmed,
@@ -972,6 +1099,8 @@ class DHWManager:
                 "optional_import_headroom_w": r.optional_import_headroom_w,
                 "low_temperature": d.low_temperature, "pending": bool(self.pending),
                 "owned": self.owned_target is not None, "needs_review": self.needs_review,
+                "restart_recovery_pending": bool(self.restart_recovery),
+                "restart_recovery_reason": (self.restart_recovery or {}).get("reason", ""),
                 "manual_hold": self.manual_hold, "fault": self.fault,
                 "pv_w": r.pv_w, "measured_solar_export_w": r.export_w,
                 "before_boiler_w": r.before_boiler_w,

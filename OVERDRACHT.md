@@ -1,10 +1,10 @@
 <!-- solarpilot-handoff-schema: 1 -->
-<!-- solarpilot-handoff-version: 1.0.0-beta.46 -->
+<!-- solarpilot-handoff-version: 1.0.0-beta.47 -->
 
 # OVERDRACHT — SolarPilot
 
 Laatst bijgewerkt: **3 oktober 2026**
-Actuele ontwikkelde bron: **v1.0.0-beta.46**, op de bestaande beta.45-hoofdbranch `9cddb043f4e6b1547eaa9487e057692ffb1d1a5b`. Deze release corrigeert de onnodige extra-DHW-blokkering door algemene taak-/AUTO-informatie bij betrouwbare native `aquarea`-actie `idle/off`. De definitieve softwaregate behaalt **1813 geslaagde Python-tests in 6.79 s**; uitleg-hash **`787cd40eaad0b73a`**, **432 optieshulpvelden** en alle lokale release-/syntaxcontroles zijn groen. Publicatiecontrole staat bij de beta.46-release en Validate-workflow op GitHub; zie `docs/TESTRESULTATEN_BETA46.md`. De vóór deze werksessie bevestigde installatie is beta.45; beta.46 is hier niet live geïnstalleerd of fysiek getest. Dit dossier beschrijft uitsluitend de actuele werking; releasehistoriek staat in `CHANGELOG.md`, Git en oudere releasedocumenten.
+Actuele ontwikkelde bron: **v1.0.0-beta.47**, op beta.46-commit `c9ea80de746d0f0f25f5b127bcafaaf88f624b65`. Deze release werkt het automatische herstel na Home Assistant-herstart uit. De volledige samengestelde softwaregate behaalt **1884 geslaagde Python-tests in 5.67 s**, inclusief **71 nieuwe herstartregressies**. Actuele uitleg **`e0f26acd2b5c961e`**, **432 optieshulpvelden**, Pythoncompile en beide JavaScript-syntaxcontroles zijn groen; drie echte Node VM-rendergevallen zijn geslaagd. Volledig verslag en publicatiecontrole: `docs/TESTRESULTATEN_BETA47.md`. Beta.47 is hier niet live geïnstalleerd of fysiek getest. Dit dossier beschrijft de actuele werking; releasehistoriek staat in `CHANGELOG.md`, Git en oudere releasedocumenten.
 
 ## 1. Projectdoel in gewone taal
 
@@ -12,15 +12,16 @@ SolarPilot verdeelt zonnestroom tussen autonoom autoladen, warmtepomp/tapwater e
 
 ## 2. Actuele basis
 
-De absolute codebasis is de bestaande beta.45-hoofdbranch op commit `9cddb043f4e6b1547eaa9487e057692ffb1d1a5b`. De laatst vóór deze werksessie gecontroleerde gepubliceerde en geladen release is [beta.45](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.45), onveranderlijke tag op commit `507f74183f51b3517b077d05a455e4f169824f69`. Gebruik deze release of een gecontroleerde volledige back-up voor rollback.
-
+De absolute codebasis is beta.46 op commit `c9ea80de746d0f0f25f5b127bcafaaf88f624b65`. De onveranderlijke [beta.46-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.46) blijft de rollbackbasis. Gebruik geen oudere export als ontwikkelbasis.
 Beta.46 verandert de voorrang tussen klimaatbewijs en algemene taakinfo voor de optionele warmwaterbuffer. De exact geregistreerde native `aquarea`-klimaatactie is leidend wanneer zij actueel en betrouwbaar is. De oudere `panasonic_cc`-AUTO-ambiguïteit blijft beschermd. De beta.45-vertraagde tankdoelbevestiging blijft intact: exact `aquarea`/`panasonic_cc`, minstens tien seconden en een passende nieuwe HA-rapportage; geen onmiddellijke optimistische echo. Een eerdere ACK of geladen versienummer bewijst geen nieuwe latere ACK of fysieke opwarming.
 
 In deze werksessie is geen live Home Assistant-toegang. Softwaregate, GitHub-publicatie, pakketten, HACS-bestanden, geladen backend/kaart, doelbevestiging en fysieke opwarming zijn afzonderlijke bewijslagen. Bestaande gebruikersinstellingen, leerdata, toestellen en prioriteiten blijven behouden.
 
 ## 3. Absolute ontwerpregels die niet stilzwijgend mogen wijzigen
 
-- Behoud werkende functies, gebruikersinstellingen, leerdata en bestaande koppelingen. Veilige eenduidige migraties mogen geen nieuwe fysieke opdracht geven.
+- Behoud werkende functies, gebruikersinstellingen, leerdata en bestaande koppelingen. Veilige eenduidige migraties mogen geen oude fysieke opdracht herhalen. Een gewone herstartcontrole vereist geen gebruikersbevestiging; zij wacht automatisch op betrouwbaar actueel bewijs.
+- De opgeslagen hervatkeuze blijft persistent over herstarts en tijdelijke Observe. Een bewuste latere Alleen bekijken/Pauze-keuze vervangt haar. Alleen oude opslag zonder hervatmarker en met aantoonbaar onderbroken beheerstatus mag de verloren Auto-keuze éénmalig herstellen.
+- Echte fouten, manual hold, veranderd tankdoel en onduidelijke START-uitkomst blijven beschermd. Er is geen algemene automatische foutreset of tweede AEG-START.
 - Fabrikantbeveiliging, autonome Panasonic-sterilisatie, elektrische grenzen en noodzakelijk comfort gaan vóór energieoptimalisatie.
 - De centrale flexibele prioriteitenlijst is de enige leidende rangorde. Nieuwe gewone toestellen komen onderaan tot de gebruiker ze verplaatst. Veiligheid en noodzakelijk comfort zijn niet versleepbaar.
 - Een toestel mag autozonnevermogen meewegen alleen vóór **Auto laden (Wallbox)** én met afzonderlijke toestemming. Een bewaarde Ja onder Auto laden blijft bewaard maar geldt effectief als Nee. De toestelwizard mag geen tweede rangorde terugschrijven.
@@ -43,6 +44,18 @@ In deze werksessie is geen live Home Assistant-toegang. Softwaregate, GitHub-pub
 ### Bediening en uitleg
 
 Dagelijkse modi: **Alleen bekijken**, **Automatisch regelen**, **Pauze**. Dashboardgroepen: Overzicht, Voorrang, Toestellen, Warmte & comfort, Planning, Energie, Batterij, Export en Uitleg. Het configuratiecentrum bevat ook **Auto & batterij**. `current_guide.py` is de enige actuele gebruikersuitlegbron; dezelfde tekst staat in Home Assistant en beide `ACTUELE_WERKING.md`-bestanden. Opties hebben releasegebonden hulp. Browser Terug/Vooruit herstelt SolarPilot-schermen en beschermt onopgeslagen formulieren zonder acties te herhalen.
+
+### Automatisch herstel na herstart
+
+Eerder beheerde toestellen worden tegen de echte betrouwbare status gereconcilieerd. Bekend ON wordt zonder herstelopdracht opnieuw herkend; bekend OFF laat eigendom los. Numerieke actuatoren worden alleen bij een passende actuele instelling opnieuw als eigendom herkend. Een veranderd numeriek doel laat eigendom los en houdt de bestaande handmatige rusttijd aan, zonder herstelwrite of onmiddellijke overschrijving. Minimum aan-/uittijden starten conservatief bij de nieuwe waarneming; daarna blijven gewone zon-, fase-, piek- en veiligheidsbesluiten gelden.
+
+Ontbrekende, restored of onbeschikbare status laat de herstartcontrole wachten en opnieuw proberen tijdens elke normale regelronde (`interval_s`). Er wordt geen blinde OFF/START verstuurd. De gewone globale modus wacht totdat de betrokken leaseherstelcontroles klaar zijn; lopende beschermde programma's worden niet onderbroken. Daarna hervat de opgeslagen gebruikersmodus. De hervatkeuze is afzonderlijk persistent (`restart_requested_mode`), zodat tijdelijke Observe tijdens wachten haar niet verliest; een bewuste later gekozen Observe/Pause of verwijderen wist die hervatkeuze.
+
+Alleen oudere opslag zonder `restart_requested_mode`, in Observe en zonder echte fout/manual hold/needs_review kan de verloren Auto-keuze éénmalig herstellen: er moet een onderbroken lease van een bekend, geconfigureerd Auto-toestel of een schoon routine-DHW-hersteljournal bestaan. Een nieuw opgeslagen veld, inclusief null, voorkomt latere afleiding bij bewuste gebruikersmodus. Gewone eerste installatie zonder onderbroken beheer blijft Alleen bekijken.
+
+Voor AEG wordt een onzekere eerdere START niet herhaald. Betrouwbaar lopend of voltooid bewijs kan uitsluitend de specifiek gemarkeerde herstartonzekerheid oplossen; Idle of onduidelijkheid blijft beschermd. Een bevestigde lopende of voltooide AEG-cyclus verbruikt ook de bestaande APP-aanvraag; later Idle kan die oude belading niet herarmen. Andere fouten blijven bewaard en vereisen hun bestaande controle. Nieuwe beta.47-routineherstelmeldingen worden na geslaagd herstel automatisch opgeruimd zonder algemene foutmeldingen weg te vegen. Een oude beta.46-melding kan cosmetisch blijven staan; zij is zelf geen regelblokkering en mag na bevestigd herstel gesloten worden. Het overzicht toont tijdens gewone bronwacht **Automatische herstartcontrole** met automatische wachtrede, zonder resetknop. Alleen `restart_recovery_pending=true` verbergt die bediening; echte fouten/START-onzekerheid behouden hun waarschuwing en controle.
+
+De boiler heeft een read-only `restart_recovery`-journal dat een gewone same-binding herstart automatisch afwerkt. Het doel, de tankmeting, bronversheid en handmatige/hygiënebronnen moeten bruikbaar zijn. Een passend beheerd doel wordt zonder doelwrite herkend. Een pending opdracht wordt niet opnieuw verstuurd en vereist een nieuwe rapportage ná de actuele herstart en ná de bestaande adapterwachttijd. Een veranderd doel wordt manual hold; echte fout of bewuste handmatige overname blijft beschermd. Fabrikantsterilisatie, krachtige bediening en native OFF behouden hun doel zonder SolarPilot-write. Routine-DHW-herstel wacht modulelokaal en geeft geen blijvende globale herstartblokkering. `restart_recovery_pending/reason` maken dit zichtbaar; een echte `needs_review` blijft afzonderlijk. Een open boilerjournal telt als busy bij veilig verwijderen, zodat onduidelijk herstel niet als vrijgegeven wordt getoond.
 
 ### Centrale voorrang en toestellen
 
@@ -100,7 +113,7 @@ AEG-rollen zijn same-device; optionele cyclephase/starttijd/alarm mogen alleen m
 
 ## 6. Belangrijke ontwerpbeslissingen + waarom
 
-- **Werkelijk bestaande beta.45-bron als basis** voorkomt regressie door een oudere export.
+- **Werkelijk bestaande beta.46-bron als basis** voorkomt regressie door een oudere export.
 - **Native klimaatactie vóór algemene taakinfo** voorkomt een onnodige DHW-blokkering bij betrouwbaar idle zonder echte koel-/verwarmprioriteit te versoepelen.
 - **Exacte adapterherkomst** beperkt vertrouwen tot `aquarea`; oudere `panasonic_cc` AUTO blijft beschermd. Geen algemene claim dat elke Panasonic-adapter dezelfde actiebetrouwbaarheid heeft.
 - **Onbekend is geen bewezen koeling** behoudt onmiddellijke bescherming zonder fictief koelverleden en extra wachttijd na bronherstel.
@@ -114,7 +127,8 @@ AEG-rollen zijn same-device; optionele cyclephase/starttijd/alarm mogen alleen m
 
 ## 7. Automatische processen
 
-- Start/reload reconcilieert bestaande opslag en echte toestanden vóór nieuwe opdrachten; geen dubbele START of doelwrite.
+- Start/reload reconcilieert bestaande opslag en echte toestanden zonder oude opdrachten te herhalen. Tijdelijk ontbrekende status wordt bij gewone volgende ticks opnieuw gecontroleerd; hervatkeuze en echte fouten blijven persistent.
+- De boiler controleert een routineherstart automatisch read-only; pending doelen vereisen nieuw postrestart bronbewijs. Echte manual hold/fout/veranderd doel blijft beschermd.
 - Migraties behouden prioriteit/configuratie/leerdata; éénmalige veilige analyse-activering overschrijft latere gebruikerskeuzes niet.
 - Legacy-AEG-herstel/reparatie blijft idempotent, gemarkeerd en beperkt; post-start listeners stoppen na succes/timeout/unload.
 - De actuele regelcyclus bewaakt bronversheid, klimaat-/koelbewijs, eigendom, pending ACK, hygiëne, reserves, minimumlooptijden en elektrische ruimte.
@@ -128,11 +142,11 @@ Nooit wachtwoorden, tokens, API-sleutels, private keys, exacte adressen, ruwe pr
 
 ## 9. Testprocedure + actuele teststatus
 
-De definitieve volledige samengestelde beta.46-suite is groen met **1813 geslaagde Python-tests in 6.79 s**. De bestaande beta.45-basis werd vooraf lokaal gecontroleerd met 1773 tests in 6.69 s; veertig nieuwe gerichte regressies zijn vervolgens opgenomen in de volledige beta.46-suite. Geen afgeleid totaal uit losse suites.
+De definitieve volledige samengestelde beta.47-suite is groen met **1884 geslaagde Python-tests in 5.67 s**. Zij bevat **71 nieuwe herstartregressies**: 35 gewone runtime-/lease-/modusgevallen en 36 boilergevallen. Geen afgeleid totaal uit losse suites. Gerichte herstart-/eigendom-/APP-/DHW-dekking en alle bestaande klimaat-/koel-/ACK-/AEG-/prioriteits-/Wallboxgrenzen zijn opgenomen.
 
-Actuele-uitlegcontrole (hash **`787cd40eaad0b73a`**, **432 optieshulpvelden**), handoff, repositoryvalidatie, publieke preflight, Pythoncompile, beide JavaScript-syntaxcontroles en diffcontrole zijn groen. Gerichte dekking: aquarea-AUTO/HEAT_COOL idle/off tegenover PUMP/oude/ongemapte taak, echte koeling/verwarming, restored/stale/missing klimaat, oudere panasonic_cc-ambiguïteit, koeltimerherstel, bewaarde oude koeltijden, conservatief leren en alle bestaande ACK-/comfort-/AEG-/Wallboxgrenzen. Volledig verslag: `docs/TESTRESULTATEN_BETA46.md`.
+Actuele-uitlegcontrole (hash **`e0f26acd2b5c961e`**, **432 hulpvelden**), Pythoncompile van **65 bestanden** en beide JavaScript-syntaxcontroles zijn groen. Drie uitgevoerde Node VM-rendergevallen gebruiken de echte alertmethode voor automatische bronwacht, echte foutbediening en ge-escapete namen. Handoff, repositoryvalidatie, publieke preflight en diffcontrole zijn eindgates; publicatie en pakketverificatie worden afzonderlijk tegen de onveranderlijke GitHub-tag gecontroleerd. Volledig verslag: `docs/TESTRESULTATEN_BETA47.md`.
 
-In deze omgeving is geen Chromium beschikbaar en de browserdownload leverde een afgebroken ZIP. De veertien historische browserresultaten zijn niet als beta.46-browserresultaat herhaald. JavaScript-syntax en Python-/UI-structuurcontroles zijn wel geslaagd. Er is geen live Home Assistant-toegang; geen fysieke opdrachten, installatie, compressorstart of bereikte tanktemperatuur zijn in deze werksessie bevestigd. Externe publicatie en pakketverificatie worden afzonderlijk bij de onveranderlijke GitHub-release/workflow gecontroleerd.
+De veertien volledige browsercontroles zijn niet uitgevoerd: er is geen werkende Chromium-installatie. Node VM en Python-/UI-structuurtests zijn geen browseracceptatie. Er is geen live Home Assistant-toegang; geen fysieke opdrachten, installatie, compressorstart of bereikte tanktemperatuur zijn in deze werksessie bevestigd.
 
 ## 10. Bekende problemen / beperkingen
 
@@ -140,7 +154,7 @@ In deze omgeving is geen Chromium beschikbaar en de browserdownload leverde een 
 - Een actuele native idle/off-actie geeft geen fysieke compressor- of tankenergiegarantie; `PUMP/WATER` meldt slechts een taak.
 - Latere HA/cloud-doelrapportage is geen onafhankelijke fysieke ACK. Een nieuwe natuurlijke latere doelbevestiging en tankopwarming blijven installatieacceptatie.
 - De oudere `panasonic_cc` AUTO/HEAT_COOL-mapping blijft zonder expliciete actuele taakinfo ambigu.
-- Geen Chromium/browsergate uitgevoerd in deze werksessie; geen live klimaat-/koelroute of beta.46-opwarming getest.
+- Geen browsergate of live herstart-/klimaat-/koelroute in deze werksessie bevestigd; geen fysieke beta.47-acceptatie.
 - Een 50 °C-doel met -5 °C-differentie kan 46 °C niet garanderen; het profiel is geen hygiënegarantie.
 - Zonder exclusieve afwas-/tankmeter blijven vermogen en programmafasen conservatief geschat; geen fictieve gemeten cycli.
 - Onvolledige/ambigue AEG-mapping en een bewust onbetrouwbare alarmbron blijven fail-closed. De retry eindigt na tien minuten.
@@ -148,8 +162,8 @@ In deze omgeving is geen Chromium beschikbaar en de browserdownload leverde een 
 
 ## 11. Concrete openstaande ontwikkeling
 
-- Publicatiecontrole staat op GitHub bij de onveranderlijke beta.46-tag/release en Validate-workflow; beide gepubliceerde pakketten moeten tegen de exacte tag worden gecontroleerd.
-- Gebruiker installeert beta.46 en controleert geladen backend/kaart en actuele native klimaatactie naast taakdata. In deze werksessie is geen live HA-toegang.
+- Publicatiecontrole staat op GitHub bij de onveranderlijke beta.47-tag/release en Validate-workflow; beide gepubliceerde pakketten moeten tegen de exacte tag worden gecontroleerd.
+- Gebruiker installeert beta.47 en controleert geladen backend/kaart, automatisch routineherstel en actuele native klimaatactie naast taakdata. In deze werksessie is geen live HA-toegang.
 - Observeer een volgende natuurlijke toegestane doelopdracht met passende latere rapportage en werkelijke tankrespons; forceer geen doel, Powerful, APP-aanvraag of START voor bewijs.
 - Eventueel de veertien browsercontroles later opnieuw uitvoeren in een omgeving met Chromium.
 - Exclusieve Shelly-afwasmeting toevoegen wanneer hardware beschikbaar is; tot dan fasen/energie niet verzinnen.
@@ -157,9 +171,9 @@ In deze omgeving is geen Chromium beschikbaar en de browserdownload leverde een 
 
 ## 12. Installatie/upgrade en rollback
 
-Zie `START_HIER.md` en `docs/BETA46_INSTELLEN.md`: actuele volledige back-up, beschermde cyclus afwerken, exact beta.46 via HACS/lokaal pakket, volledige HA-herstart, backend én vernieuwde kaart controleren, bron-/reviewcontrole in Alleen bekijken/Pauze en pas daarna gewone regeling hervatten. Bestaande instellingen, leerdata, APP-tickets en `userfiles` blijven behouden. Een bestaande manual hold wordt niet automatisch gewist.
+Zie `START_HIER.md` en `docs/BETA47_INSTELLEN.md`: actuele volledige back-up, beschermde cyclus afwerken, exact beta.47 via HACS/lokaal pakket, volledige HA-herstart, backend én vernieuwde kaart controleren, bron-/reviewcontrole in Alleen bekijken/Pauze en pas daarna gewone regeling hervatten. Bestaande instellingen, leerdata, APP-tickets en `userfiles` blijven behouden. Een gewone herstartcontrole rondt automatisch af; echte manual hold/fout of gewijzigd doel wordt niet automatisch gewist.
 
-Rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.45 of gecontroleerde volledige back-up herstellen → Home Assistant herstart → backend/kaart, eigendom, bronnen en beveiligingen controleren**. Beta.45 behoudt de vertraagde `aquarea`-ACK maar bevat nog de te brede taak-/AUTO-blokkering. Geen STOPRESET vanuit SolarPilot, extra APP-aanvraag, Powerful of Wallbox-opdracht om upgrade/rollback te forceren.
+Rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.46 of gecontroleerde volledige back-up herstellen → Home Assistant herstart → backend/kaart, eigendom, bronnen en beveiligingen controleren**. Beta.46 behoudt de DHW-zonnebufferherstelling maar heeft nog niet het uitgebreidere automatische herstartherstel van beta.47. Geen STOPRESET vanuit SolarPilot, extra APP-aanvraag, Powerful of Wallbox-opdracht om upgrade/rollback te forceren.
 
 ## 13. Belangrijkste bestanden
 
@@ -171,23 +185,25 @@ Rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.45 of g
 - `savings.py`, planner/PV/fasemodules: schattingen, dekking en begrensd lokaal leren.
 - `current_guide.py`, `option_help.py`, translations en gegenereerde uitleg/help: één releasegebonden gebruikersbeschrijving.
 - `tests/`, `tools/check_*.py`, `tools/validate_repository.py`: regressies, consistentie en openbare releasechecks.
-- `CHANGELOG.md`, `START_HIER.md`, `docs/BETA46_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA46.md` en dit dossier: huidige release; oudere releasedocumenten blijven historie.
+- `CHANGELOG.md`, `START_HIER.md`, `docs/BETA47_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA47.md` en dit dossier: huidige release; oudere releasedocumenten blijven historie.
 
 ## 14. Release-checklist
 
-1. Actuele handoff lezen en absolute beta.45-basis bevestigen.
-2. Manifest, const, current guide en beide frontendversies gelijk aan beta.46 houden.
+1. Actuele handoff lezen en absolute beta.46-basis bevestigen.
+2. Manifest, const, current guide en beide frontendversies gelijk aan beta.47 houden.
 3. Actuele uitleg/optiehulp genereren en alle relevante lokale gates uitvoeren; werkelijke beperkingen opnemen.
 4. Code, changelog, gebruikersuitleg, installatie/rollback, testverslag en OVERDRACHT samen actualiseren.
 5. Publieke preflight en diffcontrole groen; geen caches/private data in commit/pakket.
-6. Alleen na geslaagde gate naar de bestaande repository uploaden. Nieuwe beta.46-tag/workflow/release; oude tags en assets onveranderd laten.
+6. Alleen na geslaagde gate naar de bestaande repository uploaden. Nieuwe beta.47-tag/workflow/release; oude tags en assets onveranderd laten.
 7. Beide gepubliceerde ZIP's downloaden, inhoud tegen exact tag vergelijken en werkelijke grootte/SHA-256 vastleggen.
 8. Publicatie niet gelijkstellen aan HACS-installatie, geladen backend/kaart, ACK of fysieke opwarming.
 
 ## 15. AI-handoff
 
-Werk voort op de bestaande beta.45-hoofdbranch `9cddb043f4e6b1547eaa9487e057692ffb1d1a5b` en de hier ontwikkelde beta.46. De gebruiker heeft de herstelling én upload naar de bestaande GitHub-repository na testen uitdrukkelijk gevraagd. Vraag geen herhaalde uploadtoestemming; voltooi eerst de softwaregate en pakket-/documentconsistentie.
+Werk voort op beta.46-commit `c9ea80de746d0f0f25f5b127bcafaaf88f624b65` en de hier ontwikkelde beta.47. De gebruiker heeft de herstelling én upload naar de bestaande GitHub-repository na testen uitdrukkelijk gevraagd. Vraag geen herhaalde uploadtoestemming; voltooi eerst de softwaregate en pakket-/documentconsistentie.
 
-De kernregel is een juiste bewijshiërarchie: actuele native `aquarea`-actie voor de optionele DHW-guard, algemene taakinfo apart voor diagnostiek/leren, oudere `panasonic_cc` AUTO conservatief, werkelijk ontbrekende klimaatdata beschermd en alleen bewezen koeling in de koeltimer. Behoud alle ACK-, manual hold-, eigendoms-, hygiëne-, AEG-, prioriteits-, temperatuur- en Wallboxgrenzen. Maak geen nieuw 55 °C-tussenprofiel of automatisch force-commando.
+Beta.47 hervat gewone herstartcontrole automatisch op basis van nieuwe echte bronwaarnemingen, met persistent gebruikersintentie en modulelokale routine-DHW-controle. Dit herhaalt geen fysieke opdrachten en wist geen echte manual hold/fouten. Oudere opslag zonder intentiemarker heeft uitsluitend bij onderbroken beheertaken een eenmalige reparatie; nieuwe expliciete keuzes blijven beschermd.
 
-Gebruik uitsluitend aangetoonde software-/publicatieresultaten in `TESTRESULTATEN_BETA46.md`. In deze werksessie zijn browserproeven en live HA-/hardwareacceptatie niet uitgevoerd. Geen fysieke proefopdracht of leerreset gebruiken om een diagnoseveld te vullen; installatie-/opwarmbewijs blijft afzonderlijk.
+De behouden kernregel is een juiste bewijshiërarchie: actuele native `aquarea`-actie voor de optionele DHW-guard, algemene taakinfo apart voor diagnostiek/leren, oudere `panasonic_cc` AUTO conservatief, werkelijk ontbrekende klimaatdata beschermd en alleen bewezen koeling in de koeltimer. Behoud alle ACK-, manual hold-, eigendoms-, hygiëne-, AEG-, prioriteits-, temperatuur- en Wallboxgrenzen. Maak geen nieuw 55 °C-tussenprofiel of automatisch force-commando.
+
+Gebruik uitsluitend aangetoonde software-/publicatieresultaten in `TESTRESULTATEN_BETA47.md`. In deze werksessie zijn browserproeven en live HA-/hardwareacceptatie niet uitgevoerd. Geen fysieke proefopdracht of leerreset gebruiken om een diagnoseveld te vullen; installatie-/opwarmbewijs blijft afzonderlijk.

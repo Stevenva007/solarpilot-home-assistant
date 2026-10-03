@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0-beta.47 — 2026-10-03
+
+- Herhaalt gewone herstartcontrole automatisch wanneer eerder beheerde toestelbronnen later laden en hervat daarna de bewaarde gebruikersmodus. Die hervatkeuze blijft persistent; een bewuste latere Alleen bekijken-/Pauze-keuze vervangt haar. Minimumlooptijden beginnen bij de echte nieuwe waarneming.
+- Laat een gewone boilerherstartcontrole modulelokaal automatisch afronden met verse temperatuur-, doel- en beschermingsdata, zonder oude doelopdracht te herhalen. Pending doelen vereisen een nieuwe rapportage na herstart en de bestaande adapterwachttijd; gewijzigd doel, echte fout en handmatige overname blijven beschermd.
+- Lost uitsluitend een door herstart ontstane AEG-START-onzekerheid op wanneer betrouwbaar lopend of voltooid bewijs terugkeert. Geen tweede START, geen nieuwe APP-aanvraag en geen algemene foutreset.
+- Respecteert tijdens herstart gewijzigde numerieke instellingen door eigendom los te laten en de bestaande handmatige rusttijd te behouden. Bevestigde lopende/voltooide AEG-cycli verbruiken ook hun APP-aanvraag; later Idle kan geen oude belading herarmen. Open boilerherstel telt als busy voor veilig verwijderen.
+- Repareert éénmalig oude tijdelijke Observe-opslag zonder hervatmarker: alleen zonder echte fout/handmatige boilerbescherming én met een onderbroken lease van een bekend Auto-toestel of schoon routine-DHW-hersteljournal. De nieuwe marker, ook leeg, beschermt latere expliciete Observe-/Pauze-keuzes tegen opnieuw afleiden van Auto.
+- Behoudt echte handmatige/fabrikantbescherming, fouten, onzeker opdrachtbewijs, minimumlooptijden, beschermde cycli en alle beta.46-DHW-/klimaat-/Wallboxgrenzen.
+- Vernieuwt versie, actuele Home Assistant-uitleg, optieshulp, handoff, installatie/rollback en testverslag. De volledige samengestelde suite behaalt **1884 geslaagde Python-tests in 5.67 s**, inclusief 71 nieuwe herstartregressies; drie Node VM-rendergevallen zijn groen. Volledige browserproeven zijn niet uitgevoerd. Details staan in `docs/TESTRESULTATEN_BETA47.md`; live installatie of fysieke toestelactie wordt niet geclaimd.
+
 ## 1.0.0-beta.46 — 2026-10-03
 
 - Corrigeert de onnodige extra-DHW-blokkering in Panasonic AUTO/HEAT_COOL: bij exact geregistreerde `aquarea` is een actuele native `hvac_action=idle/off` betrouwbaar. Een algemene `PUMP`-taak of oude/niet herkende optionele taakdata overschrijft die actie niet.

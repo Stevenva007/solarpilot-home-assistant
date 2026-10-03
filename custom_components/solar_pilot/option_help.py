@@ -305,7 +305,9 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                   'opwarmen begint. Bij de exact herkende aquarea- en panasonic_cc-water_heaterkoppelingen '
                   'telt de onmiddellijke lokale doelweergave niet als bevestiging. Een passende latere '
                   'rapportage na minstens tien seconden is vereist, maar bewijst geen bereikte '
-                  'tanktemperatuur of onafhankelijke fysieke meting.',
+                  'tanktemperatuur of onafhankelijke fysieke meting. Na een gewone herstart controleert '
+                  'SolarPilot het actuele doel automatisch zonder de oude opdracht te herhalen. Een '
+                  'werkelijke handmatige overname of fout blijft beschermd.',
  'temperature_entity': 'Werkelijk gemeten watertemperatuur in de tank. Het ochtenddoel gebruikt deze '
                        'waarde, niet alleen het ingestelde doel. Sensorpositie, stratificatie en '
                        'waterafname beperken de zekerheid.',

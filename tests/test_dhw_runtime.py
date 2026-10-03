@@ -343,13 +343,16 @@ async def test_pending_other_command_delays_boiler_write():
 
 
 @pytest.mark.asyncio
-async def test_restart_requires_review_no_replay():
+async def test_restart_waits_for_new_pending_report_without_replay_or_global_review():
     r,h=setup();await tick(r)
     data=r.dhw.snapshot()
     other=DHWManager(r);other.restore(data);r.dhw=other;r.mode='observe'
     await tick(r)
-    assert other.needs_review and len(h.services.calls)==1
-    with pytest.raises(HomeAssistantError): await r.set_mode('solar')
+    assert not other.needs_review and other.restart_recovery and len(h.services.calls)==1
+    assert not other.blocks_increase
+    r.mode='solar'
+    await tick(r)
+    assert other.restart_recovery and len(h.services.calls)==1
 
 
 @pytest.mark.asyncio

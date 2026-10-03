@@ -3,11 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.46'
+GUIDE_VERSION = '1.0.0-beta.47'
 GUIDE_UPDATED = '2026-10-03'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.46',
+ 'version': '1.0.0-beta.47',
  'updated': '2026-10-03',
  'intro': 'Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst '
           'samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en '
@@ -29,8 +29,10 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                            'Onzekere opdrachten worden niet eindeloos herhaald.',
                            'Na een herstart leest SolarPilot eerst de echte toestelstatussen. Bekende '
                            'aan/uit-toestanden worden automatisch gereconcilieerd en de eerder opgeslagen '
-                           'modus wordt hervat zonder oude schakelopdrachten te herhalen. Alleen een '
-                           'onbeschikbare of onzekere status vraagt nog handmatige controle.']},
+                           'modus wordt hervat zonder oude schakelopdrachten te herhalen. Een tijdelijk '
+                           'ontbrekende status wordt bij volgende gewone regelrondes automatisch opnieuw '
+                           'gecontroleerd. Een normale herstart vraagt geen handmatige bevestiging. Echte '
+                           'fouten, handmatige overname en een onzekere uitgevoerde START blijven beschermd.']},
               {'title': '2. Overschot, prioriteiten en planner',
                'paragraphs': ['De netmeter bepaalt echte import of injectie. SolarPilot houdt tegelijk '
                               'rekening met de lasten die het zelf beheert, zodat een succesvolle inschakeling '
@@ -637,7 +639,22 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'schakelt nooit fysieke klimaatbediening, fase-afbouw of boilerregeling vrij. '
                               'Een eerste installatie begint veilig in Observatie; na latere Home '
                               'Assistant-herstarts wordt de opgeslagen modus alleen hervat nadat de actuele '
-                              'toestelstatussen automatisch zijn gereconcilieerd.',
+                              'toestelstatussen automatisch zijn gereconcilieerd. Als een eerder beheerd '
+                              'toestel later laadt, blijft SolarPilot wachten en controleert het automatisch '
+                              'opnieuw; daarna hervat de oorspronkelijke modus. Een later gekozen Alleen '
+                              'bekijken of Pauze vervangt die bewaarde hervatkeuze. Minimum aan-/uittijden '
+                              'starten conservatief bij de echte nieuwe waarneming en oude opdrachten '
+                              'worden niet herhaald. Een numerieke toestelinstelling die tijdens de herstart '
+                              'veranderd is, blijft bij haar huidige bediening: SolarPilot laat eigendom '
+                              'los en respecteert de bestaande handmatige rusttijd zonder herstelwrite. '
+                              'Een na herstart bevestigde lopende of voltooide AEG-cyclus verbruikt ook '
+                              'haar bestaande APP-aanvraag, zodat later Idle geen oude belading opnieuw '
+                              'klaarzet. Alleen oude Alleen bekijken-opslag zonder de nieuwe '
+                              'hervatmarker kan éénmaal haar verloren Auto-keuze herstellen: uitsluitend '
+                              'zonder echte fout of handmatige boilerbescherming en met een onderbroken '
+                              'lease van een bekend Auto-toestel of een schoon routine-boilerhersteljournal. '
+                              'Daarna voorkomt de expliciet opgeslagen marker, ook wanneer zij leeg is, '
+                              'dat een bewuste Alleen bekijken- of Pauze-keuze ooit opnieuw wordt afgeleid.',
                               "De basispagina's tonen alleen de instellingen die je normaal nodig hebt. "
                               'Timing, faseherkenning en Wallbox-herkenningsdetails staan bewust onder '
                               'Geavanceerd. De onderliggende option-keys en regelalgoritmen blijven compatibel '
@@ -1317,6 +1334,19 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'geen bewijs voor de nieuwe beveiliging. Dit is apart van een werkelijk '
                               'geladen versienummer of correcte dashboardweergave. Andere water-heateradapters '
                               'houden hun bestaande bevestigingscontract. '
+                              'Na een gewone herstart controleert de boiler zijn actuele temperatuur, '
+                              'doel, doelbron en handmatige/hygiënestatus automatisch. Een tijdelijke '
+                              'bronuitval laat alleen deze module wachten; een routinematige boilercontrole '
+                              'is geen blijvende globale blokkering. Een passend eerder beheerd doel wordt '
+                              'zonder doelopdracht opnieuw herkend. Voor een nog niet bevestigde opdracht '
+                              'is een nieuwe doelrapportage ná deze herstart en ná de eigen adapterwachttijd '
+                              'nodig. Er wordt geen oude opdracht herhaald. Een afwijkend doel krijgt '
+                              'handmatige bescherming; een echte fout of bewuste handmatige overname '
+                              'wordt niet automatisch gewist. Een fabrikant-/krachtige cyclus behoudt '
+                              'haar huidige doel zonder SolarPilot-write. De herstelreden blijft zichtbaar '
+                              'tot deze gewone controle is afgerond. Een open boilerhersteljournal telt '
+                              'ook mee als bezig bij veilig verwijderen; het wordt niet als vrijgegeven '
+                              'getoond terwijl de toestand nog onduidelijk is.',
                               'Wanneer de boiler in deze beschermende manual hold '
                               'staat, toont beta.42 een gerichte Hervat-knop. Die knop werkt alleen buiten '
                               'Automatisch regelen en zonder al wachtende opdracht, beëindigt uitsluitend de '
