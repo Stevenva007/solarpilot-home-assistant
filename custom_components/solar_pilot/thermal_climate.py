@@ -15,8 +15,11 @@ rewritten by this module. No open-window logic is part of this climate model.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
+from itertools import islice
 from statistics import median
 import math
+import time
 
 
 SMART_CLIMATE_DEFAULTS = {
@@ -128,9 +131,9 @@ CLIMATE_SETTING_SPECS = {
         lower_effect="Constantere temperatuur, maar minder mogelijkheid om energie te besparen door coasten.",
         higher_effect="Meer coastkansen en mogelijk minder verbruik, maar grotere voelbare temperatuurschommeling."),
     "hard_band_c": dict(group="Comfort & planning", label="Harde comfortgrens", type="number", min=0.3, max=5.0, step=0.1, unit="±°C",
-        description="Bij overschrijding wordt AUTO meteen weer vrijgegeven, ook buiten het normale beslisritme.",
+        description="Bij overschrijding mag alleen een aantoonbaar eigen OFF/coast-zone meteen naar AUTO worden vrijgegeven. Handmatige OFF en vaste HEAT/COOL blijven beschermd.",
         recommendation="±1,0 °C houdt een duidelijke veiligheidsmarge rond de zachte comfortband.",
-        lower_effect="AUTO grijpt sneller opnieuw in; meer comfortbescherming maar minder besparingsruimte.",
+        lower_effect="Eigen coast wordt sneller beëindigd; meer comfortbescherming maar minder besparingsruimte.",
         higher_effect="Meer tolerantie voor afwijking; potentieel minder verbruik maar groter comfort-risico."),
     "shoulder_band_c": dict(group="Comfort & planning", label="Tussenseizoen-band", type="number", min=0.5, max=6.0, step=0.5, unit="°C",
         description="Bepaalt wanneer de buitentemperatuur nog als tussenseizoen rond het binnendoel wordt gezien.",
@@ -168,10 +171,10 @@ CLIMATE_SETTING_SPECS = {
         lower_effect="Minder vervroegen; minder kans op onnodig verbruik.",
         higher_effect="Meer kans om eigen PV te gebruiken, maar ook grotere kans dat je energie gebruikt die later niet nodig bleek."),
     "manual_hold_h": dict(group="Comfort & planning", label="Rust na handmatige modewijziging", type="number", min=1, max=72, step=1, unit="uur",
-        description="Hoe lang SolarPilot na een handmatige Panasonic-modewijziging niet probeert terug te sturen.",
-        recommendation="12 uur respecteert een bewuste handmatige keuze zonder het systeem dagenlang uit te schakelen.",
-        lower_effect="SolarPilot neemt sneller opnieuw over.",
-        higher_effect="Handmatige keuzes blijven langer onaangeroerd, maar automatisering hervat later."),
+        description="Tijdelijke rust per zone na een handmatige modewijziging. Handmatige OFF blijft onbeperkt beschermd tot je zelf AUTO kiest; vaste HEAT/COOL wordt evenmin overschreven.",
+        recommendation="12 uur is de bestaande tijdelijke rust. Deze tijd maakt een handmatige OFF-zone nooit automatisch actief.",
+        lower_effect="Kortere tijdelijke rust; de blijvende bescherming van handmatige OFF en vaste HEAT/COOL verandert niet.",
+        higher_effect="Langere tijdelijke rust; handmatige OFF blijft ook daarna uit tot je zelf AUTO kiest."),
 
     "sample_interval_s": dict(group="Leren & kwaliteit", label="Thermisch leersample", type="number", min=300, max=3600, step=300, unit="s",
         description="Minimumtijd tussen thermische leerpunten.",
@@ -189,10 +192,10 @@ CLIMATE_SETTING_SPECS = {
         lower_effect="Sneller leren met meer risico op overfitting aan één weerssituatie.",
         higher_effect="Meer seizoens-/weersvariatie nodig voordat het model veel vertrouwen krijgt."),
     "model_confidence_min": dict(group="Leren & kwaliteit", label="Minimum modelzekerheid voor coast", type="number", min=0.25, max=0.95, step=0.05, unit="0–1",
-        description="Onder dit vertrouwen start SolarPilot geen nieuwe automatische coastperiode.",
-        recommendation="0,55 laat leren eerst bewijs opbouwen zonder extreem lang te wachten.",
+        description="Minimumzekerheid voor de onderdelen die de voorspelling werkelijk nodig heeft: passief en gebruikte zonnewinst, plus verwarm-/koelrespons en gedeelde reactievertraging bij een voorspelde grensoverschrijding.",
+        recommendation="0,55 behoudt de bestaande drempel. Ontbrekende ongebruikte koelervaring blokkeert een voldoende geleerd verwarmingspad niet; ontbrekend benodigd bewijs wel.",
         lower_effect="Sneller automatische coast, maar meer kans op foutieve voorspellingen.",
-        higher_effect="Conservatiever; minder coast tot het model veel bewijs heeft."),
+        higher_effect="Conservatiever; minder coast tot de werkelijk benodigde modelonderdelen voldoende bewijs hebben."),
 
     "solar_preconditioning_enabled": dict(group="Zonnewinst & PV", label="PV mag noodzakelijke AUTO-herstart vervroegen", type="boolean",
         description="Vervroegt alleen een reeds voorspelde noodzakelijke AUTO-herstart; verandert geen thermostaatdoel.",
@@ -288,7 +291,7 @@ CLIMATE_SETTING_SPECS = {
         higher_effect="Meer coast-eindes kunnen als te voorzichtig worden gezien."),
 
     "max_commands_per_day": dict(group="Bescherming", label="Maximum gewone AUTO/OFF-opdrachten per dag", type="number", min=1, max=6, step=1, unit="opdrachten",
-        description="Begrenst gewone SolarPilot-modeopdrachten per dag; harde comfortrecovery mag altijd AUTO vrijgeven.",
+        description="Begrenst gewone SolarPilot-modeopdrachten per dag. Harde comfortrecovery mag alleen een eigen OFF/coast-zone eerder naar AUTO vrijgeven, met behoud van eigendom-, bron- en pending guards; handmatige OFF en vaste HEAT/COOL blijven beschermd.",
         recommendation="2 past bij de gewenste halve-dag/dagregeling.",
         lower_effect="Nog rustiger, maar minder mogelijkheden om een gewone beslissing later op de dag te corrigeren.",
         higher_effect="Meer flexibiliteit, maar ook meer kans op onnodig schakelen."),
@@ -306,10 +309,12 @@ CLIMATE_SETTING_SPECS = {
 
 
 def finite(value):
+    if isinstance(value, bool):
+        return None
     try:
         v = float(value)
         return v if math.isfinite(v) else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
@@ -320,6 +325,61 @@ def _clamp(v, lo, hi):
 def _med(values, default=None):
     vals = [float(v) for v in values if finite(v) is not None]
     return median(vals) if vals else default
+
+
+def _stored_counter(value, default=0):
+    """Accept finite whole counters without allocating or trusting huge values."""
+    number = None if isinstance(value, bool) else finite(value)
+    if number is None or number < 0 or number != math.floor(number):
+        return default
+    return int(min(number, 2_147_483_647))
+
+
+def _stored_numbers(value, limit, lo=None, hi=None):
+    if not isinstance(value, (list, tuple)):
+        return []
+    out = []
+    for raw in value[-limit:]:
+        number = None if isinstance(raw, bool) else finite(raw)
+        if number is not None and (lo is None or number >= lo) and (hi is None or number <= hi):
+            out.append(number)
+    return out
+
+
+def _stored_days(value, limit):
+    if not isinstance(value, (list, tuple, set)):
+        return set()
+    days = set()
+    rows = list(islice(value, limit)) if isinstance(value, set) else value[-limit:]
+    for raw in rows:
+        if not isinstance(raw, str):
+            continue
+        try:
+            parsed = date.fromisoformat(raw)
+        except ValueError:
+            continue
+        days.add(parsed.isoformat())
+    return days
+
+
+def _stored_json_value_valid(value, depth=0, budget=None):
+    """Keep saved history serializable without traversing unbounded trees."""
+    budget = [1000] if budget is None else budget
+    budget[0] -= 1
+    if depth > 6 or budget[0] < 0:
+        return False
+    if value is None or isinstance(value, (str, bool)):
+        return True
+    if isinstance(value, (int, float)):
+        return finite(value) is not None
+    if isinstance(value, dict):
+        return len(value) <= 100 and all(
+            isinstance(key, str) and _stored_json_value_valid(item, depth + 1, budget)
+            for key, item in value.items())
+    if isinstance(value, (list, tuple)):
+        return len(value) <= 100 and all(
+            _stored_json_value_valid(item, depth + 1, budget) for item in value)
+    return False
 
 
 @dataclass
@@ -349,18 +409,26 @@ class ThermalProfile:
     def restore(self, data):
         if not isinstance(data, dict):
             return
-        limits = {"passive_k": 240, "heat_gain": 240, "cool_gain": 240,
-                  "solar_gain_per_kw": 240, "response_delays_h": 60}
-        for name, limit in limits.items():
-            vals = []
-            for x in data.get(name, []):
-                v = finite(x)
-                if v is not None:
-                    vals.append(v)
-            setattr(self, name, vals[-limit:])
-        self.days = set(str(x) for x in data.get("days", []))
-        self.samples = int(data.get("samples", 0) or 0)
-        self.last = data.get("last") if isinstance(data.get("last"), dict) else None
+        # These ranges match observe()'s acceptance bounds. An invalid saved
+        # value is dropped, rather than clamped into a fictitious observation.
+        limits = {"passive_k": (240, .25), "heat_gain": (240, 3.),
+                  "cool_gain": (240, 3.), "solar_gain_per_kw": (240, .5),
+                  "response_delays_h": (60, 12.)}
+        for name, (limit, upper) in limits.items():
+            setattr(self, name, _stored_numbers(data.get(name), limit, 0., upper))
+        self.days = _stored_days(data.get("days"), 120)
+        self.samples = _stored_counter(data.get("samples"))
+        self.last = None
+        self.action_started = None
+        last = data.get("last")
+        if isinstance(last, dict):
+            stamp, indoor, outdoor = (None if isinstance(last.get(key), bool) else finite(last.get(key))
+                                      for key in ("t", "indoor", "outdoor"))
+            action = last.get("action")
+            if (stamp is not None and stamp >= 0 and indoor is not None and outdoor is not None
+                    and isinstance(action, str) and action):
+                self.last = {"t": stamp, "indoor": indoor, "outdoor": outdoor,
+                             "action": action, "pv_w": max(0., finite(last.get("pv_w")) or 0.)}
 
     def coefficients(self):
         """Compatibility tuple: passive k, heat gain, cool gain, response delay."""
@@ -404,6 +472,7 @@ class ThermalProfile:
             return {
                 "confidence": round(confidence, 3),
                 "samples": count,
+                "required_samples": need,
                 "status": self.confidence_status(confidence, count),
             }
 
@@ -412,6 +481,10 @@ class ThermalProfile:
         heating = component(self.heat_gain, 6)
         cooling = component(self.cool_gain, 6)
         delay = component(self.response_delays_h, 4, use_days=False)
+        # Older journals did not retain the action that produced each delay.
+        # Preserve those observations, without presenting them as a separately
+        # verified heating or cooling delay.
+        delay["evidence_scope"] = "shared_heating_or_cooling"
         return {
             "passive_temperature_change": passive,
             "solar_gain": solar,
@@ -421,16 +494,54 @@ class ThermalProfile:
         }
 
     def confidence(self, settings):
-        """Conservative control confidence, not a generic data-completeness score."""
+        """Compatibility score for callers requiring both active directions."""
         parts = self.confidence_components(settings)
         passive = parts["passive_temperature_change"]["confidence"]
         heating = parts["heating_response"]["confidence"]
         cooling = parts["cooling_response"]["confidence"]
         delay = parts["response_delay"]["confidence"]
-        # A generic AUTO/coast confidence may not hide a missing active response.
-        # Until both heating and cooling have controlled evidence, optimisation
-        # remains conservative. Hard comfort overrides are evaluated separately.
+        # Keep the complete-model score conservative. Scoped coast decisions
+        # use readiness() so an irrelevant season does not hide useful learning.
         return min(passive, heating, cooling, delay)
+
+    def readiness(self, settings, *, directions=(), use_solar=False):
+        """Describe the evidence needed for this particular OFF forecast.
+
+        A passive forecast does not require an unrelated cooling season. When
+        that forecast crosses a comfort boundary, starting a coast additionally
+        requires the relevant observed active response and a measured delay.
+        Coefficient fallbacks remain available for advice, but cannot qualify
+        their missing observations as control evidence.
+        """
+        parts = self.confidence_components(settings)
+        directions = [x for x in ("heating", "cooling") if x in directions]
+        required = ["passive_temperature_change"]
+        if use_solar:
+            required.append("solar_gain")
+        required.extend(f"{direction}_response" for direction in directions)
+        if directions:
+            required.append("response_delay")
+        min_conf = float(settings.get("model_confidence_min", 0.55))
+        missing = [key for key in required
+                   if parts[key]["confidence"] < min_conf
+                   or parts[key]["samples"] < parts[key]["required_samples"]]
+        labels = {
+            "passive_temperature_change": "passief temperatuurverloop",
+            "solar_gain": "zonnewinst",
+            "heating_response": "verwarmingsreactie",
+            "cooling_response": "koelreactie",
+            "response_delay": "gemeten reactievertraging",
+        }
+        return {
+            "confidence": min(parts[key]["confidence"] for key in required),
+            "control_ready": not missing,
+            "required_components": required,
+            "missing_components": missing,
+            "block_reason": ("Nog onvoldoende praktijkbewijs voor "
+                             + ", ".join(labels[key] for key in missing)) if missing else "",
+            "directions": directions,
+            "solar_required": bool(use_solar),
+        }
 
     def solar_confidence(self, settings):
         min_samples = max(6, min(48, int(settings.get("learning_min_samples", 24)) // 2 or 6))
@@ -573,19 +684,24 @@ class ForecastBiasProfile:
     def restore(self, data):
         if not isinstance(data, dict):
             return
+        errors = data.get("errors") if isinstance(data.get("errors"), dict) else {}
+        days = data.get("days") if isinstance(data.get("days"), dict) else {}
         for h in self.BUCKETS:
             key = str(h)
-            self.errors[key] = [float(x) for x in data.get("errors", {}).get(key, [])[-120:] if finite(x) is not None]
-            self.days[key] = set(str(x) for x in data.get("days", {}).get(key, [])[-90:])
+            self.errors[key] = _stored_numbers(errors.get(key), 120, -10., 10.)
+            self.days[key] = _stored_days(days.get(key), 90)
         self.pending = {}
-        for row in data.get("pending", [])[-240:]:
+        pending = data.get("pending")
+        for row in pending[-240:] if isinstance(pending, (list, tuple)) else []:
             if not isinstance(row, dict):
                 continue
-            valid_ts = finite(row.get("valid_ts")); predicted = finite(row.get("predicted_c")); bucket = int(row.get("bucket", 0) or 0)
-            if valid_ts is None or predicted is None or bucket not in self.BUCKETS:
+            valid_ts = None if isinstance(row.get("valid_ts"), bool) else finite(row.get("valid_ts"))
+            predicted = None if isinstance(row.get("predicted_c"), bool) else finite(row.get("predicted_c"))
+            bucket = _stored_counter(row.get("bucket"))
+            if valid_ts is None or valid_ts <= 0 or predicted is None or bucket not in self.BUCKETS:
                 continue
             self.pending[f"{int(valid_ts//1800)}:{bucket}"] = {"valid_ts": valid_ts, "predicted_c": predicted, "bucket": bucket}
-        self.total_samples = max(0, int(data.get("total_samples", 0) or 0))
+        self.total_samples = _stored_counter(data.get("total_samples"))
 
     def reset(self):
         self.__init__()
@@ -696,17 +812,23 @@ class CoastFeedback:
             "scored": self.scored, "total_coast_h": self.total_coast_h,
         }
 
-    def restore(self, data):
+    def restore(self, data, settings=None):
         if not isinstance(data, dict):
             return
         # Active/pending episodes are not resumed across HA restarts: the runtime
         # reconciles device state separately and should not score a discontinuous run.
         self.active = None
         self.pending = None
-        self.history = [x for x in data.get("history", [])[-40:] if isinstance(x, dict)]
-        self.adjust_h = finite(data.get("adjust_h")) or 0.0
-        self.scored = max(0, int(data.get("scored", 0) or 0))
-        self.total_coast_h = max(0.0, finite(data.get("total_coast_h")) or 0.0)
+        history = data.get("history")
+        self.history = [dict(x) for x in history[-40:]
+                        if isinstance(x, dict) and isinstance(x.get("outcome"), str)
+                        and _stored_json_value_valid(x)] if isinstance(history, (list, tuple)) else []
+        c = {**SMART_CLIMATE_DEFAULTS, **(settings or {})}
+        lo = _clamp(finite(c.get("coast_feedback_min_adjust_h")) or 0., -8., 0.)
+        hi = _clamp(finite(c.get("coast_feedback_max_adjust_h")) or 0., 0., 8.)
+        self.adjust_h = _clamp(finite(data.get("adjust_h")) or 0., lo, hi)
+        self.scored = _stored_counter(data.get("scored"))
+        self.total_coast_h = min(2_147_483_647., max(0.0, finite(data.get("total_coast_h")) or 0.0))
 
     def reset_learning(self):
         """Forget learned coast outcomes without abandoning a live control episode."""
@@ -856,6 +978,12 @@ class ClimateDecision:
     comfort_direction: str = ""
     effective_coast_window_h: float | None = None
     solar_gain_used: bool = False
+    forecast_confidence: float = 0.0
+    control_ready: bool = False
+    required_components: list[str] = field(default_factory=list)
+    missing_components: list[str] = field(default_factory=list)
+    readiness_by_zone: dict[str, dict] = field(default_factory=dict)
+    block_reason: str = ""
 
 
 def _season_context(c, outside_hourly, target_avg):
@@ -893,41 +1021,39 @@ def decide_mode(*, settings, zones, outside_hourly, profiles, current_season_mod
     target_avg = sum(float(z["target"]) for z in zones) / len(zones)
     season, season_strength, avg24 = _season_context(c, outside_hourly, target_avg)
 
-    fixed = [z for z in zones if str(z.get("mode", "")).casefold() in ("heat", "cool")]
-    if fixed:
-        modes = ", ".join(sorted({str(z.get("mode", "")).upper() for z in fixed}))
-        return ClimateDecision("hold", f"Panasonic staat handmatig op {modes}; SolarPilot wijzigt nooit zelf HEAT/COOL",
-                               season_context=season, season_strength=season_strength)
-
-    below = [z for z in zones if z["current"] < z["target"] - hard]
-    above = [z for z in zones if z["current"] > z["target"] + hard]
-    if below and above:
-        return ClimateDecision("auto", "Zones zitten aan beide kanten van de harde comfortband; Panasonic AUTO vrijgeven en zelf laten beslissen",
-                               True, season_context=season, season_strength=season_strength)
-    if below:
-        return ClimateDecision("auto", f"Harde comfortondergrens onderschreden in {below[0]['name']}; Panasonic AUTO onmiddellijk vrijgeven",
-                               True, season_context=season, season_strength=season_strength, comfort_direction="heating")
-    if above:
-        return ClimateDecision("auto", f"Harde comfortbovengrens overschreden in {above[0]['name']}; Panasonic AUTO onmiddellijk vrijgeven",
-                               True, season_context=season, season_strength=season_strength, comfort_direction="cooling")
-
-    confs = [profiles[z["entity_id"]].confidence(c) for z in zones if z["entity_id"] in profiles]
-    confidence = min(confs) if confs else 0.0
     off_mins, off_maxs, low_crossings, high_crossings, low_leads, high_leads = [], [], [], [], [], []
     solar_used = False
     solar_rows = list(solar_hourly_w or [])
+    positive_solar = bool(c.get("solar_gain_enabled")) and any((finite(x) or 0) > 0 for x in solar_rows)
+    effective_window = max(1.0, float(c.get("min_coast_window_h", 8.0)) + float(coast_window_adjust_h or 0.0))
+    forecast_hours = [finite(x) for x in (outside_hourly or [])]
+    forecast_ready = (len(forecast_hours) >= math.ceil(effective_window * (1.0 + 0.75 * season_strength))
+                      and all(x is not None for x in forecast_hours))
+    readiness_by_zone = {}
     for z in zones:
         profile = profiles.get(z["entity_id"], ThermalProfile())
-        use_solar = bool(c.get("solar_gain_enabled")) and profile.solar_confidence(c) >= 0.35 and bool(solar_rows)
+        # Advice may show a provisional forecast, but a sunny OFF period may not
+        # be authorised by silently omitting an unlearned source of warming.
+        use_solar = positive_solar and len(profile.solar_gain_per_kw) >= 6
         pred = profile.predict(z["current"], z["target"], outside_hourly, "off",
                                solar_hourly_w=solar_rows if use_solar else None, settings=c)
         solar_used = solar_used or use_solar
-        if not pred:
-            continue
-        off_mins.append(min(pred)); off_maxs.append(max(pred))
         low = z["target"] - soft; high = z["target"] + soft
         low_cross = next((idx + 1 for idx, val in enumerate(pred) if val < low), None)
         high_cross = next((idx + 1 for idx, val in enumerate(pred) if val > high), None)
+        directions = (["heating"] if low_cross is not None else []) + (["cooling"] if high_cross is not None else [])
+        forecast_evidence = profile.readiness(c, use_solar=positive_solar)
+        evidence = profile.readiness(c, directions=directions, use_solar=positive_solar)
+        evidence["forecast_confidence"] = forecast_evidence["confidence"]
+        if not forecast_ready:
+            evidence["required_components"].append("hourly_forecast")
+            evidence["missing_components"].append("hourly_forecast")
+            evidence["control_ready"] = False
+            evidence["block_reason"] = "Bruikbare uurvoorspelling voor een volledige coastperiode ontbreekt"
+        readiness_by_zone[z["entity_id"]] = evidence
+        if not pred:
+            continue
+        off_mins.append(min(pred)); off_maxs.append(max(pred))
         _k, _heat, _cool, delay = profile.coefficients()
         lead = delay + float(c.get("thermal_start_margin_h", 2.0))
         if solar_precondition:
@@ -943,28 +1069,61 @@ def decide_mode(*, settings, zones, outside_hourly, profiles, current_season_mod
     high_cross = min(high_crossings) if high_crossings else None
     low_lead = max(low_leads) if low_leads else None
     high_lead = max(high_leads) if high_leads else None
-    effective_window = max(1.0, float(c.get("min_coast_window_h", 8.0)) + float(coast_window_adjust_h or 0.0))
+    confidence = min(x["confidence"] for x in readiness_by_zone.values())
+    forecast_confidence = min(x["forecast_confidence"] for x in readiness_by_zone.values())
+    required = list(dict.fromkeys(key for row in readiness_by_zone.values() for key in row["required_components"]))
+    missing = list(dict.fromkeys(key for row in readiness_by_zone.values() for key in row["missing_components"]))
+    model_ready = all(x["control_ready"] for x in readiness_by_zone.values())
+    blockers = list(dict.fromkeys(x["block_reason"] for x in readiness_by_zone.values() if x["block_reason"]))
+    block_reason = "; ".join(blockers)
+
+    def result(mode, reason, *, hard_override=False, crossing=None, lead=None,
+               direction="", window=None, control_ready=None, blocked=""):
+        return ClimateDecision(
+            mode, reason, hard_override, confidence, pred_min, pred_max,
+            crossing, lead, season, season_strength, direction,
+            effective_window if window is None else window, solar_used,
+            forecast_confidence, model_ready if control_ready is None else control_ready,
+            required, missing, readiness_by_zone, blocked or block_reason,
+        )
+
+    fixed = [z for z in zones if str(z.get("mode", "")).casefold() in ("heat", "cool")]
+    if fixed:
+        modes = ", ".join(sorted({str(z.get("mode", "")).upper() for z in fixed}))
+        reason = f"Panasonic staat handmatig op {modes}; SolarPilot wijzigt nooit zelf HEAT/COOL"
+        return result("hold", reason, control_ready=False, blocked=reason)
+
+    below = [z for z in zones if z["current"] < z["target"] - hard]
+    above = [z for z in zones if z["current"] > z["target"] + hard]
+    if below and above:
+        return result("auto", "Zones zitten aan beide kanten van de harde comfortband; Panasonic AUTO vrijgeven en zelf laten beslissen",
+                      hard_override=True)
+    if below:
+        return result("auto", f"Harde comfortondergrens onderschreden in {below[0]['name']}; Panasonic AUTO onmiddellijk vrijgeven",
+                      hard_override=True, direction="heating")
+    if above:
+        return result("auto", f"Harde comfortbovengrens overschreden in {above[0]['name']}; Panasonic AUTO onmiddellijk vrijgeven",
+                      hard_override=True, direction="cooling")
 
     if season in ("winter", "summer") and not bool(c.get("allow_winter_summer_coast", False)):
         label = "winter" if season == "winter" else "zomer"
         avg_txt = f" (24 u buiten gemiddeld {avg24:.1f} °C)" if avg24 is not None else ""
-        return ClimateDecision("auto", f"Duidelijke {label}vraag{avg_txt}; besparings-coasting bewust niet streng toepassen en Panasonic AUTO laten regelen",
-                               False, confidence, pred_min, pred_max, season_context=season,
-                               season_strength=season_strength, effective_coast_window_h=effective_window,
-                               solar_gain_used=solar_used)
+        reason = (f"Buitenverwachting past bij {label}context{avg_txt}; automatische coast is voor deze context uitgeschakeld. "
+                  "Dit bewijst geen actuele warmte- of koelvraag; handmatige OFF-zones blijven uit.")
+        return result("auto", reason, control_ready=False,
+                      blocked="Automatische coast is voor deze buitencontext uitgeschakeld")
 
-    min_conf = float(c.get("model_confidence_min", 0.55))
-    if confidence < min_conf:
-        return ClimateDecision("hold", f"Thermisch model leert nog ({confidence*100:.0f}% < {min_conf*100:.0f}%); geen automatische coastperiode starten",
-                               False, confidence, pred_min, pred_max, season_context=season,
-                               season_strength=season_strength, effective_coast_window_h=effective_window,
-                               solar_gain_used=solar_used)
+    if not model_ready:
+        # An already owned coast must not remain OFF while the evidence needed
+        # for a safe return disappears. The runtime still excludes manual OFF
+        # zones from this AUTO release; starting a new coast remains forbidden.
+        mode = "auto" if any(str(z.get("mode", "")).casefold() == "off" for z in zones) else "hold"
+        return result(mode, block_reason + "; geen nieuwe automatische coastperiode", control_ready=False)
 
     if low_cross is not None and high_cross is not None:
-        return ClimateDecision("auto", "Gemengde tussenseizoensverwachting kan zowel warmte als koeling vragen; Panasonic AUTO actief laten",
-                               False, confidence, pred_min, pred_max, min(low_cross, high_cross),
-                               max(low_lead or 0.0, high_lead or 0.0), season, season_strength,
-                               effective_coast_window_h=effective_window, solar_gain_used=solar_used)
+        return result("auto", "Gemengde tussenseizoensverwachting kan beide comfortgrenzen bereiken; Panasonic AUTO beschikbaar houden",
+                      crossing=min(low_cross, high_cross), lead=max(low_lead or 0.0, high_lead or 0.0),
+                      control_ready=False, blocked="Gemengde verwachting laat geen eenduidige coastperiode toe")
 
     if low_cross is not None:
         crossing, lead, direction, direction_label = low_cross, float(low_lead or 0.0), "heating", "ondergrens"
@@ -975,22 +1134,19 @@ def decide_mode(*, settings, zones, outside_hourly, profiles, current_season_mod
 
     if crossing is None:
         suffix = " Zonnewinst is meegewogen." if solar_used else ""
-        return ClimateDecision("off", "Tussenseizoen: bouwschil blijft binnen de voorspelde comfortband; lange coastperiode is verantwoord." + suffix,
-                               False, confidence, pred_min, pred_max, None, None, season, season_strength,
-                               effective_coast_window_h=effective_window, solar_gain_used=solar_used)
+        return result("off", "Tussenseizoen: bouwschil blijft binnen de voorspelde comfortband; lange coastperiode is verantwoord." + suffix)
 
     # Near the edges of shoulder season require a longer useful OFF window. The
     # learned coast feedback only adjusts this minimum window within hard bounds.
     effective_window *= (1.0 + 0.75 * season_strength)
     spare = crossing - float(lead or 0.0)
     if spare < effective_window:
-        return ClimateDecision("auto", f"Voorspelde {direction_label} over circa {crossing:.0f} uur; te weinig nuttige coasttijd vóór Panasonic AUTO weer nodig is",
-                               False, confidence, pred_min, pred_max, crossing, lead, season, season_strength, direction,
-                               round(effective_window, 2), solar_used)
+        return result("auto", f"Voorspelde {direction_label} over circa {crossing:.0f} uur; te weinig nuttige coasttijd vóór Panasonic AUTO weer nodig is",
+                      crossing=crossing, lead=lead, direction=direction, window=round(effective_window, 2),
+                      control_ready=False, blocked="Te weinig bruikbare coasttijd vóór de verwachte comfortgrens")
 
-    return ClimateDecision("off", f"Tussenseizoen: circa {spare:.0f} uur bruikbare coasttijd vóór Panasonic AUTO opnieuw nodig wordt",
-                           False, confidence, pred_min, pred_max, crossing, lead, season, season_strength, direction,
-                           round(effective_window, 2), solar_used)
+    return result("off", f"Tussenseizoen: circa {spare:.0f} uur bruikbare coasttijd vóór Panasonic AUTO opnieuw nodig wordt",
+                  crossing=crossing, lead=lead, direction=direction, window=round(effective_window, 2))
 
 
 class SmartClimateState:
@@ -1034,18 +1190,31 @@ class SmartClimateState:
             "fault": self.fault,
         }
 
-    def restore(self, data, zone_entities=()):
+    def restore(self, data, zone_entities=(), settings=None):
         if not isinstance(data, dict):
             return
-        for entity_id, raw in data.get("profiles", {}).items():
-            if not zone_entities or entity_id in zone_entities:
+        profiles = data.get("profiles")
+        profile_ids = (zone_entities or list(islice(profiles, 100))) if isinstance(profiles, dict) else []
+        for entity_id in profile_ids:
+            raw = profiles.get(entity_id) if isinstance(entity_id, str) else None
+            if isinstance(entity_id, str) and isinstance(raw, dict) and (not zone_entities or entity_id in zone_entities):
                 self.profile(entity_id).restore(raw)
         self.weather_bias.restore(data.get("weather_bias", {}))
-        self.coast_feedback.restore(data.get("coast_feedback", {}))
-        # Monotonic-style holds/command ages are intentionally not resumed after restart.
-        self.manual_hold_until = 0.0
+        self.coast_feedback.restore(data.get("coast_feedback", {}), settings)
+        # This hold is a wall-clock timestamp, so a restart is not permission
+        # to cancel a user's remaining rest period. Reject non-finite/expired
+        # values and bound a future journal to the currently configured period.
+        saved_hold = finite(data.get("manual_hold_until"))
+        hold_h = finite((settings or SMART_CLIMATE_DEFAULTS).get("manual_hold_h"))
+        hold_h = SMART_CLIMATE_DEFAULTS["manual_hold_h"] if hold_h is None else _clamp(hold_h, 0.0, 72.0)
+        now = time.time()
+        self.manual_hold_until = min(saved_hold, now + hold_h * 3600) if saved_hold is not None and saved_hold > now else 0.0
         self.command_day = str(data.get("command_day", ""))
-        self.commands_today = int(data.get("commands_today", 0) or 0)
-        self.expected_mode = dict(data.get("expected_mode", {}))
+        daily_limit = _stored_counter((settings or SMART_CLIMATE_DEFAULTS).get("max_commands_per_day"), 2)
+        self.commands_today = _stored_counter(data.get("commands_today", 0), daily_limit)
+        expected = data.get("expected_mode")
+        expected_ids = (zone_entities or list(islice(expected, 100))) if isinstance(expected, dict) else []
+        self.expected_mode = {eid: expected[eid] for eid in expected_ids
+                              if isinstance(eid, str) and expected.get(eid) in ("off", "auto")}
         self.last_command_mode = str(data.get("last_command_mode", ""))
         self.fault = str(data.get("fault", ""))

@@ -14,7 +14,8 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
  'manual_start': 'Vraagt na bevestiging handmatige bediening door SolarPilot. De toestelinformatie, '
                  'rusttijden en beveiligingen moeten bruikbaar zijn. Netstroom kan nodig zijn. De '
                  'status en reden blijven zichtbaar; deze knop is geen manier om fysieke bescherming te '
-                 'omzeilen.',
+                 'omzeilen. Een fout of interlock blijft blokkeren; bestaande minimumlooptijden en '
+                 'beschermde cycli blijven gelden.',
  'manual_stop': 'Beëindigt de handmatige SolarPilot-vraag met bevestiging. Het vrijgeven van een '
                 'beschermde of nog minimaal lopende cyclus kan wachten; de knop is geen noodstop of '
                 'hoofdvoedingsschakelaar.',
@@ -536,7 +537,9 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                     'contractsituatie. Dit getal begrenst niet het totale toegestane fysieke vermogen.',
  'import_price_entity': 'Actueel afnametarief in geld per kWh. Gebruik een eigen betrouwbare '
                         'energieprijsbron, niet een kostentotaal. Bij dynamische prijzen wordt waar '
-                        'beschikbaar de passende prijsreeks gebruikt.',
+                        'beschikbaar de passende prijsreeks gebruikt. Onbeschikbare, restored, toekomstige '
+                        'of meer dan 36 uur oude prijsbronnen vallen terug op het vaste tarief; ontbrekende '
+                        'rijen verschuiven het tijdrooster niet.',
  'export_price_entity': 'Actuele vergoeding voor injectie per kWh. Geen hoeveelheid geëxporteerde '
                         'energie. Een negatieve waarde betekent dat terugleveren geld kan kosten.',
  'fixed_import_eur_kwh': 'Terugvalprijs per kWh netafname als geen geldige prijsbron bestaat. Gebruik '
@@ -603,7 +606,8 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                      'waarnemingen en verleent nooit zelfstandig nieuwe bedieningsrechten.',
  'monitor_power_entities': 'Aanvullende afzonderlijke vermogensmeters om fase-attributie te leren '
                            'zonder deze toestellen te bedienen. Geen verzamellijst van PV, net en '
-                           'virtuele dubbeltellers gebruiken.',
+                           'virtuele dubbeltellers gebruiken. Een gecontroleerde toestelstap vereist '
+                           'bruikbare beginmetingen en stabiele andere meters om als eigen fasebewijs te tellen.',
  'learning_min_delta_w': 'Minimale duidelijke vermogenssprong om faseherkenning te leren. Kleine '
                          'sprongen zijn moeilijk van gewone huisruis te onderscheiden.',
  'learning_settle_s': 'Wachttijd na een vermogenssprong om de bijbehorende fasemetingen te laten '

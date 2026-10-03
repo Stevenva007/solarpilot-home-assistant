@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 import pytest
 from custom_components.solar_pilot.thermal_runtime import SmartClimateManager
@@ -9,7 +9,8 @@ from test_runtime import build, Services
 class ClimateServices(Services):
     def __init__(self,states):
         super().__init__(states)
-        self.forecast=[{'datetime':f'2026-09-22T{h%24:02d}:00:00+02:00','temperature':21,'condition':'partlycloudy','humidity':60} for h in range(48)]
+        now=datetime.now(timezone.utc)
+        self.forecast=[{'datetime':(now+timedelta(hours=h+1)).isoformat(),'temperature':21,'condition':'partlycloudy','humidity':60} for h in range(48)]
     async def async_call(self,domain,action,data=None,blocking=False,target=None,return_response=False,**kwargs):
         data=data or {}
         if domain=='weather' and action=='get_forecasts':
@@ -118,8 +119,9 @@ async def test_smart_climate_fetches_hourly_forecast_but_advisory_mode_does_not_
 
 
 @pytest.mark.asyncio
-async def test_hard_comfort_breach_releases_auto_not_heat_or_cool_and_keeps_target():
+async def test_hard_comfort_breach_releases_owned_coast_not_heat_or_cool_and_keeps_target():
     r,h=setup_climate(control=True,temp=19.5,target=21,mode='off')
+    r.smart_climate.state.expected_mode={'climate.home':'off','climate.salon':'off'}
     await r.smart_climate.tick(local_now=datetime(2026,9,22,8),allow_command=True)
     climate_calls=[c for c in h.services.calls if c[0]=='climate']
     assert len(climate_calls)==2
@@ -180,7 +182,7 @@ async def test_removal_releases_owned_coast_without_waking_manual_off_zone():
 
 
 @pytest.mark.asyncio
-async def test_hard_cold_breach_releases_only_breaching_manual_off_zone():
+async def test_hard_cold_breach_preserves_manual_off_zone():
     r,h=setup_climate(control=True,temp=21,target=21,mode='auto')
     attrs=dict(h.states.get('climate.home').attributes)
     attrs['current_temperature']=19.8
@@ -189,9 +191,8 @@ async def test_hard_cold_breach_releases_only_breaching_manual_off_zone():
     await r.smart_climate.tick(local_now=datetime(2026,10,2,8),allow_command=True)
 
     climate_calls=[c for c in h.services.calls if c[0]=='climate']
-    assert r.smart_climate.state.last_decision.hard_override
-    assert len(climate_calls)==1
-    assert climate_calls[0][2]=={'entity_id':'climate.home','hvac_mode':'auto'}
+    assert not climate_calls
+    assert h.states.get('climate.home').state=='off'
     assert h.states.get('climate.salon').state=='auto'
 
 

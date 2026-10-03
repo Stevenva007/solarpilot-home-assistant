@@ -62,10 +62,12 @@ DHW_NUMBERS = {
 
 
 def finite(value):
+    if isinstance(value, bool):
+        return None
     try:
         value = float(value)
         return value if math.isfinite(value) else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 

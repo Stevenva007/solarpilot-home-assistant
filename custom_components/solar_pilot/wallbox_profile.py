@@ -63,8 +63,14 @@ class WallboxProfile:
         obj = self.hass.states.get(entity_id) if entity_id else None
         if obj is None or obj.state in ("unknown", "unavailable", ""):
             return None, "bron ontbreekt"
+        if obj.attributes.get("restored"):
+            return None, "bron nog niet opnieuw bevestigd"
         stamp = getattr(obj, "last_reported", None) or getattr(obj, "last_updated", None)
-        if stamp is None or not -5 <= wall-stamp.timestamp() <= self.settings.get("stale_s", 300):
+        try:
+            age = wall - stamp.timestamp()
+        except (AttributeError, TypeError, ValueError, OverflowError):
+            return None, "bron verouderd"
+        if not math.isfinite(age) or not -5 <= age <= self.settings.get("stale_s", 300):
             return None, "bron verouderd"
         return obj, ""
 

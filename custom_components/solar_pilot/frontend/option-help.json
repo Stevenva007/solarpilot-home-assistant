@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.47",
+  "version": "1.0.0-beta.48",
   "language": "nl",
   "steps": {
     "init": {
@@ -523,7 +523,7 @@
         "weather_entity": "Levert de uurverwachting waarmee het gebouw over de ingestelde horizon vooruit wordt doorgerekend.",
         "outside_temp_entity": "Werkelijke buitentemperatuur voor leren en controle.",
         "soft_band_c": "Normale band rond het Panasonic-doel waarbinnen coasten comfortabel wordt geacht.",
-        "hard_band_c": "Bij overschrijding wordt AUTO meteen weer vrijgegeven, ook buiten het normale beslisritme.",
+        "hard_band_c": "Bij overschrijding mag alleen een aantoonbaar eigen OFF/coast-zone meteen naar AUTO worden vrijgegeven.",
         "decision_interval_h": "Hoe vaak een gewone lange-termijnbeslissing opnieuw wordt gemaakt.",
         "forecast_horizon_h": "Hoe ver vooruit de binnentemperatuur wordt gesimuleerd."
       }
@@ -788,15 +788,15 @@
         "min_coast_window_h": "Minimale voorspelde nuttige OFF-periode voordat SolarPilot een nieuwe coast start.",
         "min_state_hold_h": "Minimumtijd voordat een gewone tegengestelde AUTO/OFF-opdracht mag volgen.",
         "thermal_start_margin_h": "Extra tijd bovenop de geleerde reactievertraging om AUTO vóór een voorspelde comfortgrens vrij te geven.",
-        "manual_hold_h": "Hoe lang SolarPilot na een handmatige Panasonic-modewijziging niet probeert terug te sturen.",
+        "manual_hold_h": "Tijdelijke rust per zone na een handmatige modewijziging.",
         "sample_interval_s": "Minimumtijd tussen thermische leerpunten.",
         "learning_min_samples": "Minimaal aantal bruikbare waarnemingen voordat een geleerd profiel gebruikt mag worden.",
         "learning_min_days": "Verschillende dagen wegen apart mee zodat één uitzonderlijke dag niet domineert.",
-        "model_confidence_min": "Onder dit vertrouwen start SolarPilot geen nieuwe automatische coastperiode.",
+        "model_confidence_min": "Minimumzekerheid voor de onderdelen die de voorspelling werkelijk nodig heeft: passief en gebruikte zonnewinst, plus verwarm-/koelrespons en gedeelde reactievertraging bij een voorspelde grensoverschrijding.",
         "solar_preconditioning_enabled": "Vervroegt alleen een reeds voorspelde noodzakelijke AUTO-herstart; verandert geen thermostaatdoel.",
         "precondition_min_pv_w": "PV-productie waaronder PV-voorconditionering niet actief wordt.",
         "solar_precondition_extra_lead_h": "Als PV-voorconditionering aanstaat kan een toch al noodzakelijke AUTO-herstart hiermee vervroegd worden.",
-        "max_commands_per_day": "Begrenst gewone SolarPilot-modeopdrachten per dag; harde comfortrecovery mag altijd AUTO vrijgeven.",
+        "max_commands_per_day": "Begrenst gewone SolarPilot-modeopdrachten per dag.",
         "stale_s": "Maximale ouderdom van een ontvangen bronrapport."
       }
     },
@@ -2254,7 +2254,7 @@
       "title": "Actuele aankoopprijs €/kWh — optioneel",
       "short": "Actueel afnametarief in geld per kWh.",
       "paragraphs": [
-        "Actueel afnametarief in geld per kWh. Gebruik een eigen betrouwbare energieprijsbron, niet een kostentotaal. Bij dynamische prijzen wordt waar beschikbaar de passende prijsreeks gebruikt.",
+        "Actueel afnametarief in geld per kWh. Gebruik een eigen betrouwbare energieprijsbron, niet een kostentotaal. Bij dynamische prijzen wordt waar beschikbaar de passende prijsreeks gebruikt. Onbeschikbare, restored, toekomstige of meer dan 36 uur oude prijsbronnen vallen terug op het vaste tarief; ontbrekende rijen verschuiven het tijdrooster niet.",
         "De dagkost is netafnamekost minus injectievergoeding. Direct zonneverbruik verlaagt de import al en wordt niet dubbel afgetrokken. Ontbrekende meetdekking blijft zichtbaar.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -2906,11 +2906,11 @@
     },
     "smart_climate.hard_band_c": {
       "title": "Harde comfortgrens (±°C)",
-      "short": "Bij overschrijding wordt AUTO meteen weer vrijgegeven, ook buiten het normale beslisritme.",
+      "short": "Bij overschrijding mag alleen een aantoonbaar eigen OFF/coast-zone meteen naar AUTO worden vrijgegeven.",
       "paragraphs": [
-        "Bij overschrijding wordt AUTO meteen weer vrijgegeven, ook buiten het normale beslisritme.",
+        "Bij overschrijding mag alleen een aantoonbaar eigen OFF/coast-zone meteen naar AUTO worden vrijgegeven. Handmatige OFF en vaste HEAT/COOL blijven beschermd.",
         "Uitgangspunt: ±1,0 °C houdt een duidelijke veiligheidsmarge rond de zachte comfortband.",
-        "Lagere waarde: AUTO grijpt sneller opnieuw in; meer comfortbescherming maar minder besparingsruimte.",
+        "Lagere waarde: Eigen coast wordt sneller beëindigd; meer comfortbescherming maar minder besparingsruimte.",
         "Hogere waarde: Meer tolerantie voor afwijking; potentieel minder verbruik maar groter comfort-risico.",
         "Eenheid: ±°C.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
@@ -3263,7 +3263,7 @@
       "title": "Extra read-only apparaatvermogens",
       "short": "Aanvullende afzonderlijke vermogensmeters om fase-attributie te leren zonder deze toestellen te bedienen.",
       "paragraphs": [
-        "Aanvullende afzonderlijke vermogensmeters om fase-attributie te leren zonder deze toestellen te bedienen. Geen verzamellijst van PV, net en virtuele dubbeltellers gebruiken.",
+        "Aanvullende afzonderlijke vermogensmeters om fase-attributie te leren zonder deze toestellen te bedienen. Geen verzamellijst van PV, net en virtuele dubbeltellers gebruiken. Een gecontroleerde toestelstap vereist bruikbare beginmetingen en stabiele andere meters om als eigen fasebewijs te tellen.",
         "De meter kan import en injectie over fasen verrekenen, maar iedere fase behoudt haar eigen fysieke stroomgrens. Software is geen elektrische beveiliging.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -3416,12 +3416,12 @@
     },
     "smart_climate_advanced.manual_hold_h": {
       "title": "Rust na handmatige modewijziging (uren)",
-      "short": "Hoe lang SolarPilot na een handmatige Panasonic-modewijziging niet probeert terug te sturen.",
+      "short": "Tijdelijke rust per zone na een handmatige modewijziging.",
       "paragraphs": [
-        "Hoe lang SolarPilot na een handmatige Panasonic-modewijziging niet probeert terug te sturen.",
-        "Uitgangspunt: 12 uur respecteert een bewuste handmatige keuze zonder het systeem dagenlang uit te schakelen.",
-        "Lagere waarde: SolarPilot neemt sneller opnieuw over.",
-        "Hogere waarde: Handmatige keuzes blijven langer onaangeroerd, maar automatisering hervat later.",
+        "Tijdelijke rust per zone na een handmatige modewijziging. Handmatige OFF blijft onbeperkt beschermd tot je zelf AUTO kiest; vaste HEAT/COOL wordt evenmin overschreven.",
+        "Uitgangspunt: 12 uur is de bestaande tijdelijke rust. Deze tijd maakt een handmatige OFF-zone nooit automatisch actief.",
+        "Lagere waarde: Kortere tijdelijke rust; de blijvende bescherming van handmatige OFF en vaste HEAT/COOL verandert niet.",
+        "Hogere waarde: Langere tijdelijke rust; handmatige OFF blijft ook daarna uit tot je zelf AUTO kiest.",
         "Eenheid: uur.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -3464,12 +3464,12 @@
     },
     "smart_climate_advanced.model_confidence_min": {
       "title": "Minimum modelzekerheid voor automatische coast",
-      "short": "Onder dit vertrouwen start SolarPilot geen nieuwe automatische coastperiode.",
+      "short": "Minimumzekerheid voor de onderdelen die de voorspelling werkelijk nodig heeft: passief en gebruikte zonnewinst, plus verwarm-/koelrespons en gedeelde reactievertraging bij een voorspelde grensoverschrijding.",
       "paragraphs": [
-        "Onder dit vertrouwen start SolarPilot geen nieuwe automatische coastperiode.",
-        "Uitgangspunt: 0,55 laat leren eerst bewijs opbouwen zonder extreem lang te wachten.",
+        "Minimumzekerheid voor de onderdelen die de voorspelling werkelijk nodig heeft: passief en gebruikte zonnewinst, plus verwarm-/koelrespons en gedeelde reactievertraging bij een voorspelde grensoverschrijding.",
+        "Uitgangspunt: 0,55 behoudt de bestaande drempel. Ontbrekende ongebruikte koelervaring blokkeert een voldoende geleerd verwarmingspad niet; ontbrekend benodigd bewijs wel.",
         "Lagere waarde: Sneller automatische coast, maar meer kans op foutieve voorspellingen.",
-        "Hogere waarde: Conservatiever; minder coast tot het model veel bewijs heeft.",
+        "Hogere waarde: Conservatiever; minder coast tot de werkelijk benodigde modelonderdelen voldoende bewijs hebben.",
         "Eenheid: 0–1.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -3511,9 +3511,9 @@
     },
     "smart_climate_advanced.max_commands_per_day": {
       "title": "Max gewone AUTO/OFF-opdrachten per dag",
-      "short": "Begrenst gewone SolarPilot-modeopdrachten per dag; harde comfortrecovery mag altijd AUTO vrijgeven.",
+      "short": "Begrenst gewone SolarPilot-modeopdrachten per dag.",
       "paragraphs": [
-        "Begrenst gewone SolarPilot-modeopdrachten per dag; harde comfortrecovery mag altijd AUTO vrijgeven.",
+        "Begrenst gewone SolarPilot-modeopdrachten per dag. Harde comfortrecovery mag alleen een eigen OFF/coast-zone eerder naar AUTO vrijgeven, met behoud van eigendom-, bron- en pending guards; handmatige OFF en vaste HEAT/COOL blijven beschermd.",
         "Uitgangspunt: 2 past bij de gewenste halve-dag/dagregeling.",
         "Lagere waarde: Nog rustiger, maar minder mogelijkheden om een gewone beslissing later op de dag te corrigeren.",
         "Hogere waarde: Meer flexibiliteit, maar ook meer kans op onnodig schakelen.",
@@ -4870,12 +4870,12 @@
     },
     "smart_climate.manual_hold_h": {
       "title": "Rust na handmatige modewijziging",
-      "short": "Hoe lang SolarPilot na een handmatige Panasonic-modewijziging niet probeert terug te sturen.",
+      "short": "Tijdelijke rust per zone na een handmatige modewijziging.",
       "paragraphs": [
-        "Hoe lang SolarPilot na een handmatige Panasonic-modewijziging niet probeert terug te sturen.",
-        "Uitgangspunt: 12 uur respecteert een bewuste handmatige keuze zonder het systeem dagenlang uit te schakelen.",
-        "Lagere waarde: SolarPilot neemt sneller opnieuw over.",
-        "Hogere waarde: Handmatige keuzes blijven langer onaangeroerd, maar automatisering hervat later.",
+        "Tijdelijke rust per zone na een handmatige modewijziging. Handmatige OFF blijft onbeperkt beschermd tot je zelf AUTO kiest; vaste HEAT/COOL wordt evenmin overschreven.",
+        "Uitgangspunt: 12 uur is de bestaande tijdelijke rust. Deze tijd maakt een handmatige OFF-zone nooit automatisch actief.",
+        "Lagere waarde: Kortere tijdelijke rust; de blijvende bescherming van handmatige OFF en vaste HEAT/COOL verandert niet.",
+        "Hogere waarde: Langere tijdelijke rust; handmatige OFF blijft ook daarna uit tot je zelf AUTO kiest.",
         "Eenheid: uur.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -4918,12 +4918,12 @@
     },
     "smart_climate.model_confidence_min": {
       "title": "Minimum modelzekerheid voor coast",
-      "short": "Onder dit vertrouwen start SolarPilot geen nieuwe automatische coastperiode.",
+      "short": "Minimumzekerheid voor de onderdelen die de voorspelling werkelijk nodig heeft: passief en gebruikte zonnewinst, plus verwarm-/koelrespons en gedeelde reactievertraging bij een voorspelde grensoverschrijding.",
       "paragraphs": [
-        "Onder dit vertrouwen start SolarPilot geen nieuwe automatische coastperiode.",
-        "Uitgangspunt: 0,55 laat leren eerst bewijs opbouwen zonder extreem lang te wachten.",
+        "Minimumzekerheid voor de onderdelen die de voorspelling werkelijk nodig heeft: passief en gebruikte zonnewinst, plus verwarm-/koelrespons en gedeelde reactievertraging bij een voorspelde grensoverschrijding.",
+        "Uitgangspunt: 0,55 behoudt de bestaande drempel. Ontbrekende ongebruikte koelervaring blokkeert een voldoende geleerd verwarmingspad niet; ontbrekend benodigd bewijs wel.",
         "Lagere waarde: Sneller automatische coast, maar meer kans op foutieve voorspellingen.",
-        "Hogere waarde: Conservatiever; minder coast tot het model veel bewijs heeft.",
+        "Hogere waarde: Conservatiever; minder coast tot de werkelijk benodigde modelonderdelen voldoende bewijs hebben.",
         "Eenheid: 0–1.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -5141,9 +5141,9 @@
     },
     "smart_climate.max_commands_per_day": {
       "title": "Maximum gewone AUTO/OFF-opdrachten per dag",
-      "short": "Begrenst gewone SolarPilot-modeopdrachten per dag; harde comfortrecovery mag altijd AUTO vrijgeven.",
+      "short": "Begrenst gewone SolarPilot-modeopdrachten per dag.",
       "paragraphs": [
-        "Begrenst gewone SolarPilot-modeopdrachten per dag; harde comfortrecovery mag altijd AUTO vrijgeven.",
+        "Begrenst gewone SolarPilot-modeopdrachten per dag. Harde comfortrecovery mag alleen een eigen OFF/coast-zone eerder naar AUTO vrijgeven, met behoud van eigendom-, bron- en pending guards; handmatige OFF en vaste HEAT/COOL blijven beschermd.",
         "Uitgangspunt: 2 past bij de gewenste halve-dag/dagregeling.",
         "Lagere waarde: Nog rustiger, maar minder mogelijkheden om een gewone beslissing later op de dag te corrigeren.",
         "Hogere waarde: Meer flexibiliteit, maar ook meer kans op onnodig schakelen.",
@@ -5219,7 +5219,7 @@
       "title": "Manueel starten",
       "short": "Vraagt na bevestiging handmatige bediening door SolarPilot.",
       "paragraphs": [
-        "Vraagt na bevestiging handmatige bediening door SolarPilot. De toestelinformatie, rusttijden en beveiligingen moeten bruikbaar zijn. Netstroom kan nodig zijn. De status en reden blijven zichtbaar; deze knop is geen manier om fysieke bescherming te omzeilen.",
+        "Vraagt na bevestiging handmatige bediening door SolarPilot. De toestelinformatie, rusttijden en beveiligingen moeten bruikbaar zijn. Netstroom kan nodig zijn. De status en reden blijven zichtbaar; deze knop is geen manier om fysieke bescherming te omzeilen. Een fout of interlock blijft blokkeren; bestaande minimumlooptijden en beschermde cycli blijven gelden.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },

@@ -274,7 +274,8 @@ class DHWManager:
 
     def _state(self, entity_id, freshness=True):
         obj = self.runtime.hass.states.get(entity_id) if entity_id else None
-        if obj is None or obj.state in ("unknown", "unavailable", ""):
+        if (obj is None or obj.state in ("unknown", "unavailable", "")
+                or obj.attributes.get("restored")):
             return None
         if freshness:
             stamp = getattr(obj, "last_reported", obj.last_updated).timestamp()
@@ -290,10 +291,14 @@ class DHWManager:
         return unit
 
     def _target(self):
-        obj = self._state(self.config["target_entity"], freshness=False)
+        entity_id = self.config["target_entity"]
+        # Native climate/boiler reports carry the operating mode as well as the
+        # target. An old cached mode cannot establish that factory protection
+        # has ended. Numeric helpers may legitimately remain unchanged.
+        obj = self._state(entity_id, freshness=entity_id.startswith(("climate.", "water_heater.")))
         if obj is None or self._unit(obj) != "°C":
             return None, obj
-        domain = self.config["target_entity"].split(".")[0]
+        domain = entity_id.split(".")[0]
         raw = obj.state if domain in ("number", "input_number") else obj.attributes.get("temperature")
         return finite(raw), obj
 
@@ -1003,21 +1008,24 @@ class DHWManager:
     async def set_number(self, key, value):
         if key not in DHW_NUMBERS:
             raise HomeAssistantError("Onbekende boilerinstelling")
+        value = finite(value)
+        if value is None:
+            raise HomeAssistantError("Ongeldige boilerinstelling: waarde moet een eindig getal zijn")
         async with self.runtime._lock:
-            candidate = {**self.settings, key: float(value)}
+            candidate = {**self.settings, key: value}
             if validate_settings(candidate):
                 raise HomeAssistantError("Ongeldige boilerinstelling: controleer comfortgrens ≤ normaal doel ≤ zonnedoel ≤ overschotdoel, koellimiet en bereiken")
             targets = []
             if key == "normal_c":
                 targets.append(effective_base_target(candidate))
             elif key in ("solar_c", "surplus_c", "cooling_cap_c"):
-                targets.append(float(value))
+                targets.append(value)
             for target in targets:
                 if error := self.check_target(target):
                     raise HomeAssistantError(error)
             self.settings = candidate
             self.config = dict(candidate)
-            self.tunables[key] = float(value)
+            self.tunables[key] = value
             self._persist_canonical()
             self.policy.reset_stability()
             await self._save()

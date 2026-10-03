@@ -171,7 +171,8 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
         handover_lock = (site.handover_device == d.id and s.owned and s.on
                          and site.valid and not emergency and not blocked_site
                          and s.enabled and s.demand and s.interlock and not s.fault)
-        manual_lock = s.manual_forced and site.valid and not emergency and site.mode != "paused"
+        manual_lock = (s.manual_forced and site.valid and not emergency and site.mode != "paused"
+                       and s.interlock and not s.fault)
         if s.owned and s.on and (manual_lock or d.non_interruptible or site.now - s.last_on < d.min_on_s or handover_lock):
             # A number load may be reduced to its valid minimum while running.
             amount = (site.handover_target_w if handover_lock else

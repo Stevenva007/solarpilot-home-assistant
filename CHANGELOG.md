@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.0-beta.48 — 2026-10-03
+
+- Wijzigt bewust het beleid voor handmatige OFF-zones: zij blijven uit tot de gebruiker zelf AUTO kiest, ook bij harde comfortoverschrijding, verlopen rusttijd, herstart of verwijderen. De oudere harde-comfortuitzondering vervalt; alleen bewezen eigen OFF/coast-zones mogen automatisch worden vrijgegeven.
+- Herstelt klimaatopdrachtbeheer met per-zone persistent eigendom/bescherming en geen replay van pending of onzekere opdrachten. Een vertraagde AUTO-terugmelding na gebruikers-OFF die pending AUTO annuleerde herstelt geen automatische controle; expliciete gebruikers-AUTO blijft vereist. Ontbrekende/ongeldige ruimteactie wordt niet als idle-leerbewijs gebruikt.
+- Beoordeelt coastzekerheid op de werkelijk benodigde voorspelde respons: passief en zon waar gebruikt, verwarm-/koelrespons plus bestaande reactievertraging bij relevante comfortgrens. Ontbrekende ongebruikte koelervaring blokkeert een voldoende geleerd verwarmingspad niet; de legacy volledige confidence blijft vergelijkingsinformatie.
+- Maakt modelstatus, actuele relevante zekerheid en echte samples/dagen/episodes zichtbaar en benoemt winter-/zomerweer als context zonder actieve vraag te claimen. Winter-/zomercoast blijft standaard uit.
+- Verwerpt restored, toekomstige en ongeldige operationele bronwaarden voor vermogen, Wallbox en boiler. Een onzekere AEG-START wordt alleen met een nieuwe betrouwbare fase-terugmelding van ná START opgelost. Handmatige toestelvraag kan een fout of interlock niet overrulen; bestaande minimumlooptijden en beschermde cycli blijven gelden.
+- Laat ongeldige of meer dan 36 uur oude dynamische prijsbronnen terugvallen op het ingestelde vaste tarief en behoudt tijdposities bij ontbrekende prijsrijen.
+- Voorkomt foutieve geleerde fasetoewijzing wanneer andere gemeten toestellen tijdens een gecontroleerde vermogensstap veranderen. Bij upgrade worden uitsluitend oude gecontroleerde fasewaarnemingen zonder dit isolatiebewijs niet hergebruikt; geldige passieve/nieuwe geïsoleerde waarnemingen, handmatige hints en instellingen blijven behouden. Ongeldige opgeslagen leerregels worden afzonderlijk overgeslagen zonder geldige andere gegevens te wissen.
+- Behoudt beta.47-herstartherstel en bestaande actuatorgrenzen zonder algemene leerreset of nieuwe DHW-/AEG-/Wallboxopdracht. Werkt actuele uitleg, optieshulp, overdracht, installatie/rollback en testverslag samen bij. De definitieve samengestelde suite behaalt **2170 geslaagde tests in 8.72 s**, inclusief acht werkelijke Node VM-kaartweergaven; lokale release-/syntaxcontroles zijn groen. Volledige browserproeven zijn niet opnieuw uitgevoerd. Details: `docs/TESTRESULTATEN_BETA48.md`; geen live installatie of fysieke klimaatrespons geclaimd.
+
 ## 1.0.0-beta.47 — 2026-10-03
 
 - Herhaalt gewone herstartcontrole automatisch wanneer eerder beheerde toestelbronnen later laden en hervat daarna de bewaarde gebruikersmodus. Die hervatkeuze blijft persistent; een bewuste latere Alleen bekijken-/Pauze-keuze vervangt haar. Minimumlooptijden beginnen bij de echte nieuwe waarneming.

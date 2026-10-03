@@ -520,6 +520,8 @@ class LiveOptions:
         elif group == "smart_climate":
             from .thermal_climate import SMART_CLIMATE_DEFAULTS
             r.smart_climate.settings={**SMART_CLIMATE_DEFAULTS,**value}
+            if r.smart_climate._started:
+                r.smart_climate.start()
         elif group in ("batteries","battery_fleet"):
             from .battery_fleet import BATTERY_DEFAULTS, BATTERY_FLEET_DEFAULTS
             if group=="batteries":r.battery_fleet.configs={b["id"]:{**BATTERY_DEFAULTS,**b} for b in (value or [])}

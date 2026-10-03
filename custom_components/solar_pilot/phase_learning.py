@@ -43,26 +43,44 @@ class PhaseLearning:
     def restore(self, data, valid_ids=None):
         if not isinstance(data, dict): return
         valid_ids = set(valid_ids or [])
-        for device_id, profile in data.get("profiles", {}).items():
+        profiles = data.get("profiles", {})
+        if not isinstance(profiles, dict): profiles = {}
+        for device_id, profile in list(profiles.items())[:100]:
             if (valid_ids and device_id not in valid_ids) or not isinstance(profile, dict): continue
             obs = []
-            for item in profile.get("observations", [])[-40:]:
+            observations = profile.get("observations", [])
+            if not isinstance(observations, list): continue
+            for item in observations[-40:]:
                 if not isinstance(item, dict): continue
+                # Earlier controlled records did not check other appliance
+                # meters. Their apparently strong phase attribution cannot be
+                # repaired afterwards; keep independent passive evidence and
+                # relearn only that unverified controlled contribution.
+                if item.get("source") == "controlled" and item.get("isolated_meters") is not True:
+                    continue
                 shares = item.get("shares")
                 if not isinstance(shares, list) or len(shares) != 3: continue
-                if all(_finite(v) is not None and 0 <= float(v) <= 1 for v in shares):
+                delta = _finite(item.get("device_delta_w",0))
+                weight = _finite(item.get("weight",1))
+                if (delta is not None and weight is not None and weight > 0
+                        and all(_finite(v) is not None and 0 <= float(v) <= 1 for v in shares)
+                        and abs(sum(float(v) for v in shares)-1) <= .005):
                     obs.append({"shares":[round(float(v),4) for v in shares],
-                                "device_delta_w":round(abs(float(item.get("device_delta_w",0) or 0)),1),
+                                "device_delta_w":round(abs(delta),1),
                                 "day":str(item.get("day","")), "source":str(item.get("source","passive")),
-                                "weight":max(.5,min(3.0,float(item.get("weight",1) or 1)))})
+                                "weight":max(.5,min(3.0,weight)),
+                                **({"isolated_meters": True} if item.get("source") == "controlled" else {})})
             if obs: self.profiles[device_id] = {"observations": obs}
-        self.accepted = max(0, int(data.get("accepted",0))); self.rejected = max(0, int(data.get("rejected",0)))
+        self.accepted = max(0, int(_finite(data.get("accepted",0)) or 0))
+        self.rejected = max(0, int(_finite(data.get("rejected",0)) or 0))
 
     def begin_controlled(self, device_id, now, phase_values, device_w):
         if not self.settings.get("learning_enabled", True): return
         vals = tuple(_finite(v) for v in phase_values or ()); watts = _finite(device_w)
         if len(vals) != 3 or any(v is None for v in vals) or watts is None: return
-        self.pending[device_id] = {"started":float(now), "phase":vals, "device_w":watts}
+        self.pending[device_id] = {"started":float(now), "phase":vals, "device_w":watts,
+                                   "other_powers": {i: w for i, w in self.last_device_w.items()
+                                                    if i != device_id}}
 
     def _record(self, device_id, device_delta, phase_delta, day, source="passive", weight=1.0):
         magnitude = abs(device_delta); min_delta = max(50.0,float(self.settings.get("learning_min_delta_w",250)))
@@ -74,7 +92,8 @@ class PhaseLearning:
         shares = [v/total for v in effects]
         profile = self.profiles.setdefault(device_id,{"observations":[]})
         profile["observations"].append({"shares":[round(v,4) for v in shares], "device_delta_w":round(magnitude,1),
-                                         "day":str(day), "source":source, "weight":round(float(weight),2)})
+                                         "day":str(day), "source":source, "weight":round(float(weight),2),
+                                         **({"isolated_meters": True} if source == "controlled" else {})})
         del profile["observations"][:-40]; self.accepted += 1; return True
 
     def observe(self, *, now, day, phase_values, device_powers):
@@ -87,6 +106,17 @@ class PhaseLearning:
         for device_id,event in list(self.pending.items()):
             age=now-event["started"]
             if age>max_window: self.pending.pop(device_id,None); self.rejected+=1; continue
+            # A command does not prove an isolated electrical transition. Other
+            # measured appliances can change while this command settles, even
+            # before its own consumption rises. Reject that entire observation
+            # rather than learning their phase load as part of this appliance.
+            baseline = event.get("other_powers", {})
+            other_ids = (set(baseline) | set(cleaned)) - {device_id}
+            missing = any(i not in baseline or i not in cleaned for i in other_ids)
+            other_delta = sum(abs(cleaned[i] - baseline[i]) for i in other_ids
+                              if i in baseline and i in cleaned)
+            if missing or other_delta >= float(self.settings.get("learning_min_delta_w",250)):
+                self.pending.pop(device_id,None); self.rejected+=1; finalized.add(device_id); continue
             if age<settle or device_id not in cleaned: continue
             device_delta=cleaned[device_id]-event["device_w"]; phase_delta=tuple(vals[n]-event["phase"][n] for n in range(3))
             if abs(device_delta)>=float(self.settings.get("learning_min_delta_w",250)):

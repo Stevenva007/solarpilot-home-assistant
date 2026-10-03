@@ -527,6 +527,7 @@ class SolarRuntime:
             self.note(f"Herstartcontrole automatisch afgerond; modus {self.mode} hervat.")
         await self.store.async_save(self._snapshot())
         self.dishwasher_app.start()
+        self.smart_climate.start()
         await self.tick()
         self._remove_timer = async_track_time_interval(self.hass, self.tick, timedelta(seconds=self.settings["interval_s"]))
 
@@ -566,6 +567,20 @@ class SolarRuntime:
         """Adopt a durable lease from current evidence; never issue a command."""
         cfg, st = self.configs[device_id], self.states[device_id]
         active = self._restart_active(cfg)
+        ticket = self.dishwasher.tickets.get(device_id, {}) if cfg.get("kind") == "dishwasher" else {}
+        if ticket.get("attempted"):
+            reading = self.dishwasher.readings[device_id]
+            try:
+                sent_at, reported_at = float(ticket.get("sent_at")), float(reading.stamp)
+                post_command = math.isfinite(sent_at) and math.isfinite(reported_at) and reported_at > sent_at
+            except (TypeError, ValueError):
+                post_command = False
+            if not post_command:
+                reason = "START-uitkomst onzeker na herstart; wacht op een nieuwe cyclusrapportage na de opdracht"
+                if device_id not in self.faults:
+                    self.faults[device_id] = reason
+                    self._restart_faults[device_id] = reason
+                return False
         if cfg.get("kind") == "dishwasher":
             reading = self.dishwasher.readings[device_id]
             if active is True or (active is False and reading.finished):
@@ -651,6 +666,7 @@ class SolarRuntime:
     async def close(self):
         self._closed = True
         self.dishwasher_app.close()
+        self.smart_climate.close()
         if self._remove_timer:
             self._remove_timer()
         async with self._lock:
@@ -694,7 +710,7 @@ class SolarRuntime:
         if not entity_id:
             return None
         obj = self.hass.states.get(entity_id)
-        if obj is None or obj.state in ("unknown", "unavailable", ""):
+        if obj is None or obj.state in ("unknown", "unavailable", "") or self._reported_wall(obj) is None:
             return None
         try:
             value = float(obj.state)
@@ -705,7 +721,7 @@ class SolarRuntime:
         if allowed_units is not None and obj.attributes.get("unit_of_measurement") not in allowed_units:
             return None
         if stale_s is not None:
-            stamp = getattr(obj, "last_reported", obj.last_updated).timestamp()
+            stamp = self._reported_wall(obj)
             if not -5 <= time.time() - stamp <= stale_s:
                 return None
         return value
@@ -1012,7 +1028,7 @@ class SolarRuntime:
         if not entity_id:
             return True
         obj = self.hass.states.get(entity_id)
-        if obj is None or obj.state not in ("on", "off"):
+        if obj is None or obj.state not in ("on", "off") or self._reported_wall(obj) is None:
             return None
         return obj.state == "on"
 
@@ -1026,13 +1042,27 @@ class SolarRuntime:
 
     def _number(self, entity_id):
         obj = self.hass.states.get(entity_id) if entity_id else None
-        if obj is None:
+        if obj is None or self._reported_wall(obj) is None:
             return None
         try:
             value = float(obj.state)
         except (TypeError, ValueError):
             return None
         return value if math.isfinite(value) else None
+
+    @staticmethod
+    def _reported_wall(obj):
+        """Reject placeholders and invalid reports without aging static helpers."""
+        if obj is None or obj.attributes.get("restored"):
+            return None
+        stamp = getattr(obj, "last_reported", None) or getattr(obj, "last_updated", None)
+        try:
+            wall = stamp.timestamp()
+            if isinstance(wall, bool) or not isinstance(wall, (int, float)):
+                return None
+            return wall if math.isfinite(wall) and 0 <= wall <= time.time() + 5 else None
+        except (AttributeError, TypeError, ValueError, OSError, OverflowError):
+            return None
 
     def _power(self, entity_id, stale_s=None):
         """Power only. Never silently interpret kWh as kW or refresh frozen data."""
@@ -1045,7 +1075,9 @@ class SolarRuntime:
         unit = obj.attributes.get("unit_of_measurement")
         if unit not in ("W", "kW"):
             return None, 0.0
-        stamp = getattr(obj, "last_reported", obj.last_updated).timestamp()
+        stamp = self._reported_wall(obj)
+        if stamp is None:
+            return None, 0.0
         age = time.time() - stamp
         if age > (self.settings["stale_s"] if stale_s is None else stale_s) or age < -5:
             return None, stamp
@@ -1056,7 +1088,9 @@ class SolarRuntime:
         obj = self.hass.states.get(entity_id) if entity_id else None
         if obj is None or obj.state in ("unknown", "unavailable", ""):
             return None, None
-        stamp = getattr(obj, "last_reported", obj.last_updated).timestamp()
+        stamp = self._reported_wall(obj)
+        if stamp is None:
+            return None, None
         age = time.time() - stamp
         if require_fresh and (age > self.wallbox_settings["stale_s"] or age < -5):
             return None, stamp
@@ -1488,6 +1522,12 @@ class SolarRuntime:
             if obj is None:
                 return None, "vaste prijs"
             attrs = obj.attributes
+            report = self._reported_wall(obj)
+            dynamic = any(isinstance(attrs.get(key), (list, dict)) for key in (
+                "raw_today", "today", "raw_tomorrow", "tomorrow", "prices"))
+            if (report is None or obj.state in ("unknown", "unavailable", "")
+                    or (dynamic and time.time() - report > 36 * 3600)):
+                return [fallback] * slots, "vaste prijs"
             tzinfo = local_now.tzinfo
             timestamped = []
             simple_by_day = {}
@@ -1503,13 +1543,17 @@ class SolarRuntime:
                 for row in rows:
                     value = self._price_value(row)
                     stamp = self._price_timestamp(row, tzinfo)
-                    if value is not None and stamp is not None:
-                        timestamped.append((stamp, value)); has_ts = True
+                    if stamp is not None:
+                        end = None
+                        if isinstance(row, dict):
+                            end = self._price_timestamp({"start": row.get("end", row.get("end_time"))}, tzinfo)
+                            if end is not None and end <= stamp:
+                                end = stamp  # Explicit invalid duration has no coverage.
+                        timestamped.append((stamp, value, end)); has_ts = True
                 if has_ts:
                     continue
                 vals = [self._price_value(row) for row in rows]
-                vals = [v for v in vals if v is not None]
-                if not vals:
+                if not vals or not any(v is not None for v in vals):
                     continue
                 if "tomorrow" in key:
                     simple_by_day[1] = vals
@@ -1520,16 +1564,19 @@ class SolarRuntime:
 
             if timestamped:
                 timestamped.sort(key=lambda x: x[0])
+                steps = [(b[0] - a[0]).total_seconds() for a, b in zip(timestamped, timestamped[1:])
+                         if b[0] > a[0]]
+                last_duration = min(3600, min(steps)) if steps else slot_min * 60
                 result = []
                 for start_dt in starts:
-                    candidates = [x for x in timestamped if x[0] <= start_dt]
+                    candidates = [(i, x) for i, x in enumerate(timestamped) if x[0] <= start_dt]
                     if candidates:
-                        result.append(candidates[-1][1])
+                        index, row = candidates[-1]
+                        end = row[2] or (timestamped[index + 1][0] if index + 1 < len(timestamped)
+                                         else row[0] + timedelta(seconds=last_duration))
+                        result.append(row[1] if start_dt < end and row[1] is not None else fallback)
                     else:
-                        # If the first tariff block starts a few minutes after the
-                        # planner boundary, use that first known block rather than
-                        # accidentally indexing from midnight.
-                        result.append(timestamped[0][1])
+                        result.append(fallback)
                 return result, "tijdgestempelde prijsreeks"
 
             if simple_by_day:
@@ -1543,7 +1590,7 @@ class SolarRuntime:
                     cadence = 1440.0 / len(vals)
                     minute_of_day = start_dt.hour * 60 + start_dt.minute
                     idx = min(len(vals) - 1, max(0, int(minute_of_day // cadence)))
-                    result.append(vals[idx])
+                    result.append(vals[idx] if vals[idx] is not None else fallback)
                 return result, "dagprijsreeks"
 
             if generic_simple:
@@ -1554,18 +1601,18 @@ class SolarRuntime:
                     cadence = 1440.0 / len(generic_simple)
                     for start_dt in starts:
                         idx = min(len(generic_simple) - 1, int((start_dt.hour * 60 + start_dt.minute) // cadence))
-                        result.append(generic_simple[idx])
+                        result.append(generic_simple[idx] if generic_simple[idx] is not None else fallback)
                 else:
                     for i in range(slots):
                         idx = min(len(generic_simple) - 1, int(i * slot_min / 60))
-                        result.append(generic_simple[idx])
+                        result.append(generic_simple[idx] if generic_simple[idx] is not None else fallback)
                 return result, "generieke prijsreeks"
             return None, "vaste prijs"
 
-        dyn, import_source = parse(self.economy_settings.get("import_price_entity"), imp)
+        dyn, import_source = parse(self.economy_settings.get("import_price_entity"), float(self.economy_settings.get("fixed_import_eur_kwh", .30)))
         if dyn:
             imports = dyn
-        dyn, export_source = parse(self.economy_settings.get("export_price_entity"), exp)
+        dyn, export_source = parse(self.economy_settings.get("export_price_entity"), float(self.economy_settings.get("fixed_export_eur_kwh", .03)))
         if dyn:
             exports = dyn
         self.planner_price_sources = {"import": import_source, "export": export_source}
@@ -1982,6 +2029,7 @@ class SolarRuntime:
             self.store.async_delay_save(self._snapshot, 1)
         dhw_sent = await self.dhw.tick(now, grid, valid, discharge,
             allow_command=(not self.pending and not self.handover and
+                           not self.smart_climate.busy and not self.battery_fleet.busy and
                            now - self.last_issued >= self.settings["settle_s"]),
             local_now=local_now)
         extra_start_blocks = self.priority_board.extra_start_blocks(now)
@@ -1990,6 +2038,7 @@ class SolarRuntime:
         climate_sent = await self.smart_climate.tick(
             local_now=local_now,
             allow_command=(self.mode == "solar" and not self.pending and not self.handover
+                           and not self.battery_fleet.busy
                            and not dhw_sent and not self.dhw.pending and not self.dhw.blocks_increase and not self.dhw.reading.protected
                            and not self.recovery))
         if (self.removal_requested and not climate_sent and not dhw_sent and not self.pending
@@ -1999,7 +2048,7 @@ class SolarRuntime:
         phase_global_block = self.phase.block_increase and not use_phase_map
         non_ev_can_increase = can_increase
         can_increase = (can_increase and not wb.block_increase and not phase_global_block and not self.handover
-                        and not dhw_sent and not climate_sent and not self.dhw.blocks_increase)
+                        and not dhw_sent and not climate_sent and not self.smart_climate.busy and not self.dhw.blocks_increase)
         transfer = self.handover
         waiting = transfer is not None and transfer.status == "waiting"
         rollback = transfer is not None and transfer.status == "rollback"
@@ -2076,7 +2125,8 @@ class SolarRuntime:
                 device_increase_limits={i:max(0.0,v-other_commitment) for i,v in site.device_increase_limits.items()},
                 reclaimable_w=0, bridge_w=0,
                 can_increase=(non_ev_can_increase and not phase_global_block and not self.handover
-                              and not dhw_sent and not climate_sent and not self.dhw.blocks_increase))
+                              and not dhw_sent and not climate_sent and not self.smart_climate.busy
+                              and not self.dhw.blocks_increase))
             candidate = plan(deadline_site, due_devices, deepcopy(self.states))
             if candidate.action and candidate.action.watts > 0:
                 self.result.action = replace(candidate.action, reason="AEG-startdeadline bereikt; zo nodig netstroom toegestaan")
@@ -2135,14 +2185,17 @@ class SolarRuntime:
         if valid:
             self.battery_analysis.step(dt, grid)
         if (self.removal_requested and not self.pending and not self.handover and not dhw_sent
-                and not climate_sent and not self.result.action):
+                and not climate_sent and not self.smart_climate.busy and not self.battery_fleet.busy
+                and not self.result.action):
             battery_sent = await self.battery_fleet.prepare_for_removal()
         else:
             battery_sent = await self.battery_fleet.tick(
                 grid_w=grid if valid else None,
                 capacity_allowed_grid_w=(self.capacity.allowed_grid_w if self.capacity_settings.get("enabled") and self.capacity.valid else None),
-                allow_command=(self.mode == "solar" and valid and not self.pending and not self.handover
-                               and not dhw_sent and not climate_sent and not self.result.action and not self.recovery))
+                allow_command=(self.mode == "solar" and not self.removal_requested
+                               and valid and not self.pending and not self.handover
+                               and not dhw_sent and not climate_sent and not self.smart_climate.busy
+                               and not self.result.action and not self.recovery))
         if now - self.energy_saved_at >= 300:
             self.energy_saved_at = now
             self.store.async_delay_save(self._snapshot, 1)

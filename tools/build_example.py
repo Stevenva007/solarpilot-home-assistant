@@ -52,6 +52,38 @@ def planner_catalog(settings):
 def climate_catalog(settings):
     return [{"key": key, "value": settings.get(key), "default": CLIMATE_DEFAULTS.get(key), **spec}
             for key, spec in CLIMATE_SPECS.items()]
+
+def climate_demo_profile(samples, days, passive_k, heat_gain, delay_h, solar_gain):
+    """Fictitious heating-only evidence, using the actual confidence contract."""
+    profile = thermal_mod.ThermalProfile(
+        passive_k=[passive_k] * 60, heat_gain=[heat_gain] * 24,
+        cool_gain=[], solar_gain_per_kw=[solar_gain] * 38,
+        response_delays_h=[delay_h] * 6,
+        days={f"2026-09-{day + 1:02d}" for day in range(days)}, samples=samples,
+    )
+    confidence = profile.confidence(CLIMATE_DEFAULTS)
+    k, heat, cool, delay = profile.coefficients()
+    details = {
+        "samples": profile.samples, "days": len(profile.days),
+        "confidence": confidence,
+        "reliability_status": profile.confidence_status(confidence, samples),
+        "confidence_components": profile.confidence_components(CLIMATE_DEFAULTS),
+        "passive_k_per_h": k, "thermal_time_constant_h": round(1 / k, 1),
+        "heat_gain_c_h": heat, "heat_gain_learned": True,
+        "cool_gain_c_h": cool, "cool_gain_learned": False,
+        "response_delay_h": delay, "response_delay_learned": True,
+        "solar_gain_c_h_per_kw_pv": profile.solar_coefficient(),
+        "solar_gain_samples": len(profile.solar_gain_per_kw),
+        "solar_gain_confidence": profile.solar_confidence(CLIMATE_DEFAULTS),
+    }
+    readiness = profile.readiness(CLIMATE_DEFAULTS, directions=("heating",), use_solar=True)
+    readiness["forecast_confidence"] = profile.readiness(CLIMATE_DEFAULTS, use_solar=True)["confidence"]
+    return details, readiness
+
+demo_profile_1, demo_readiness_1 = climate_demo_profile(126, 16, .028, .11, 2.5, .028)
+demo_profile_2, demo_readiness_2 = climate_demo_profile(118, 15, .031, .10, 2.7, .021)
+demo_coast_confidence = demo_readiness_2["confidence"]
+demo_required_components = demo_readiness_2["required_components"]
 guide_attributes = {
     "solar_pilot_guide": True,
     "title": guide_mod.CURRENT_GUIDE["title"],
@@ -148,14 +180,16 @@ attributes = {
         },
         "smart_climate": {
             "enabled": True, "control_enabled": False, "outside_c": 20.5, "forecast_hours": 48, "forecast_error":"",
-            "decision": {"mode":"off","reason":"Tussenseizoen: circa 18 uur bruikbare coasttijd vóór Panasonic AUTO opnieuw nodig wordt; aangeleerde zonnewinst is meegewogen","hard_override":False,"confidence":0.78,"predicted_min_c":20.4,"predicted_max_c":21.3,"crossing_h":22,"required_lead_h":4.0,"season_context":"shoulder","season_strength":0.10,"comfort_direction":"heating","effective_coast_window_h":8.5,"solar_gain_used":True},
-            "season_context":"shoulder", "manual_fixed_mode":False, "manual_hold_remaining_h":0, "commands_today":0, "last_command_mode":"", "model_confidence":0.78,
+            "decision": {"mode":"off","reason":"Tussenseizoen: circa 18 uur bruikbare coasttijd vóór Panasonic AUTO opnieuw nodig wordt; aangeleerde zonnewinst is meegewogen","hard_override":False,"confidence":demo_coast_confidence,"forecast_confidence":demo_readiness_2["forecast_confidence"],"control_ready":True,"required_components":demo_required_components,"missing_components":[],"readiness_by_zone":{"climate.heat_pump_zone_2":demo_readiness_2},"block_reason":"","predicted_min_c":20.4,"predicted_max_c":21.3,"crossing_h":22,"required_lead_h":4.0,"season_context":"shoulder","season_strength":0.10,"comfort_direction":"heating","effective_coast_window_h":8.5,"solar_gain_used":True},
+            "season_context":"shoulder", "manual_fixed_mode":False, "manual_hold_remaining_h":0, "commands_today":0, "last_command_mode":"", "model_confidence":demo_coast_confidence,
+            "complete_model_confidence":0, "manual_off_zones":["climate.heat_pump_zone_1"], "zone_holds":{}, "pending_commands":[],
+            "reliability":{"automatic_coast":{"confidence":demo_coast_confidence,"control_ready":True,"block_reason":"","status":"Betrouwbaar"}},
             "zones":[
-                {"entity_id":"climate.heat_pump_zone_1","name":"Zone 1","current":21.0,"target":21.0,"mode":"off","action":"idle","hvac_modes":["heat","off","cool","auto"]},
-                {"entity_id":"climate.heat_pump_zone_2","name":"Zone 2","current":21.1,"target":21.0,"mode":"off","action":"idle","hvac_modes":["heat","off","cool","auto"]}],
+                {"entity_id":"climate.heat_pump_zone_1","name":"Zone 1","current":21.0,"target":21.0,"mode":"off","action":"off","action_known":True,"manual_off":True,"hvac_modes":["heat","off","cool","auto"]},
+                {"entity_id":"climate.heat_pump_zone_2","name":"Zone 2","current":21.1,"target":21.0,"mode":"off","action":"off","action_known":True,"manual_off":False,"hvac_modes":["heat","off","cool","auto"]}],
             "profiles": {
-                "climate.heat_pump_zone_1":{"samples":126,"days":16,"confidence":0.86,"passive_k_per_h":0.028,"thermal_time_constant_h":35.7,"heat_gain_c_h":0.11,"cool_gain_c_h":0.10,"response_delay_h":2.5,"solar_gain_c_h_per_kw_pv":0.028,"solar_gain_samples":38,"solar_gain_confidence":0.79},
-                "climate.heat_pump_zone_2":{"samples":118,"days":15,"confidence":0.83,"passive_k_per_h":0.031,"thermal_time_constant_h":32.3,"heat_gain_c_h":0.10,"cool_gain_c_h":0.11,"response_delay_h":2.7,"solar_gain_c_h_per_kw_pv":0.021,"solar_gain_samples":34,"solar_gain_confidence":0.71}
+                "climate.heat_pump_zone_1":demo_profile_1,
+                "climate.heat_pump_zone_2":demo_profile_2,
             },
             "weather_bias": {"enabled":True,"total_samples":52,"pending":4,"horizons":[
                 {"horizon_h":6,"bias_c":0.3,"applied_c":0.3,"confidence":0.82,"samples":18,"days":9},

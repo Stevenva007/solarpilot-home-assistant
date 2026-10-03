@@ -21,6 +21,13 @@ def module(name):
 ha = module("homeassistant")
 core = module("homeassistant.core")
 core.callback = lambda f: f
+class Context:
+    def __init__(self, user_id=None, parent_id=None, id=None):
+        from uuid import uuid4
+        self.id = id or uuid4().hex
+        self.user_id = user_id
+        self.parent_id = parent_id
+core.Context = Context
 exceptions = module("homeassistant.exceptions")
 class HomeAssistantError(Exception):
     pass
