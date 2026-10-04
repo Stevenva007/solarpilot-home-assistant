@@ -355,74 +355,31 @@ class SmartClimateManager:
         return out
 
     def _solar_hourly(self, local_now, hours):
-        """Build a conservative hourly PV proxy for thermal solar-gain prediction.
+        """Keep missing PV intervals unknown in the thermal irradiation proxy.
 
-        Current/next-hour values use the live local PV model when sufficiently
-        trusted. Longer horizons use the historical local hourly shape scaled by
-        Forecast.Solar's remaining-today/tomorrow energy. This is an irradiation
-        proxy only; it never becomes the realtime dispatch meter.
+        The modern source supplies exact elapsed-hour intervals. Independent
+        legacy energy sources can supply a coarse hourly shape; weather rows and
+        cached local estimates alone cannot establish that future PV is zero.
         """
         rows = self._current_forecast_rows(hours)
         if not rows:
             self.last_solar_hourly = []
             return []
-        seed = getattr(self.runtime, "historical_seed", {}) or {}
-        profile = seed.get("pv_profile", {}).get("median_normalized_pct_by_hour", {}) or {}
-        forecast_vals = self.runtime._forecast_values() if hasattr(self.runtime, "_forecast_values") else {}
-        today_kwh = finite(forecast_vals.get("remaining_today_kwh"))
-        tomorrow_kwh = finite(forecast_vals.get("tomorrow_kwh"))
-
-        parsed = []
-        for idx, row in enumerate(rows):
-            valid_ts = finite(row.get("valid_ts"))
-            if valid_ts is not None:
-                try:
-                    dt = datetime.fromtimestamp(valid_ts, tz=local_now.tzinfo or timezone.utc)
-                except Exception:
-                    dt = local_now + timedelta(hours=idx + 1)
-            else:
-                dt = local_now + timedelta(hours=idx + 1)
-            try:
-                weight = max(0.0, float(profile.get(str(dt.hour), 0.0) or 0.0))
-            except Exception:
-                weight = 0.0
-            parsed.append({"dt": dt, "weight": weight, "w": 0.0})
-
-        today = local_now.date()
-        tomorrow = today + timedelta(days=1)
-        for date_value, energy_kwh in ((today, today_kwh), (tomorrow, tomorrow_kwh)):
-            candidates = [r for r in parsed if r["dt"].date() == date_value]
-            if energy_kwh is None or not candidates:
-                continue
-            total_weight = sum(r["weight"] for r in candidates)
-            if total_weight <= 0:
-                continue
-            for r in candidates:
-                # kWh apportioned to one-hour bucket -> average W for that hour.
-                r["w"] = energy_kwh * 1000.0 * r["weight"] / total_weight
-
-        # Current / next hour are more valuable than the coarse long-horizon shape.
-        local_pv = self.runtime.local_pv.overview() if getattr(self.runtime, "local_pv", None) else {}
-        min_conf = float(getattr(self.runtime, "local_pv_settings", {}).get("min_confidence", .55))
-        if parsed and local_pv.get("confidence", 0) >= min_conf and local_pv.get("corrected_power_w") is not None:
-            parsed[0]["w"] = max(0.0, float(local_pv["corrected_power_w"]))
-        elif parsed and hasattr(self.runtime, "_forecast_power"):
-            current_power = self.runtime._forecast_power()
-            if current_power is not None:
-                parsed[0]["w"] = max(0.0, float(current_power))
-        if len(parsed) > 1:
-            corrected_next = local_pv.get("corrected_next_hour_kwh") if local_pv.get("confidence", 0) >= min_conf else None
-            next_kwh = corrected_next if corrected_next is not None else finite(forecast_vals.get("next_hour_kwh"))
-            if next_kwh is not None:
-                parsed[1]["w"] = max(0.0, float(next_kwh) * 1000.0)
-
+        anchor = local_now.replace(minute=0, second=0, microsecond=0)
+        if anchor.tzinfo is None:
+            anchor = anchor.replace(tzinfo=timezone.utc)
+        indices = [int((row["valid_ts"] - anchor.timestamp()) // 3600) for row in rows]
+        legacy = self.runtime._legacy_planner_pv_hourly(anchor, max(indices) + 1)
         modern = getattr(self.runtime, "pv_forecast", None)
-        if modern is not None and modern.source.valid:
-            for row in parsed:
-                values = modern.hourly(row["dt"],1)
-                if values and values[0] is not None:
-                    row["w"] = values[0]
-        self.last_solar_hourly = [round(r["w"], 1) for r in parsed]
+        out = []
+        for row, index in zip(rows, indices):
+            dt = datetime.fromtimestamp(row["valid_ts"], tz=anchor.tzinfo)
+            values = modern.hourly(dt, 1) if modern is not None else []
+            value = finite(values[0]) if values else None
+            if value is None and 0 <= index < len(legacy):
+                value = legacy[index]
+            out.append(round(value, 1) if value is not None else None)
+        self.last_solar_hourly = out
         return list(self.last_solar_hourly)
 
     def _observe(self, zones, outside, local_now):
@@ -450,6 +407,9 @@ class SmartClimateManager:
         if not expected:
             return False
         zones = self._zones()
+        live_ids = {z["entity_id"] for z in zones}
+        if any(eid not in live_ids for eid, mode in expected.items() if mode in ("off", "auto")):
+            return True
         if not zones:
             return True
         for z in zones:
@@ -469,6 +429,9 @@ class SmartClimateManager:
         if not expected:
             return False
         zones = self._zones()
+        live_ids = {z["entity_id"] for z in zones}
+        if any(eid not in live_ids for eid, mode in expected.items() if mode in ("off", "auto")):
+            return False
         if not zones:
             return False
         pairs = [(str(expected.get(z["entity_id"], "")).casefold(), str(z.get("mode", "")).casefold()) for z in zones]
@@ -731,6 +694,9 @@ class SmartClimateManager:
         if (key == "zone_entities" and list(value) != list(self.settings.get(key, []) or [])
                 and self.removal_blocked()):
             raise HomeAssistantError("Klimaatzones zijn nog in beheer of wachten op een modebevestiging. Geef de bestaande eigen pauze eerst veilig terug aan Panasonic vóór je de koppeling wijzigt.")
+        if (key in ("enabled", "control_enabled") and not value and self.settings.get(key)
+                and self.removal_blocked()):
+            raise HomeAssistantError("Klimaatregeling is nog in beheer of wacht op een modebevestiging. Kies eerst Pauze en wacht tot de eigen klimaatpauze veilig aan Panasonic is teruggegeven vóór je de regeling uitschakelt.")
         candidate = {**self.settings, key: value}
         self._validate_candidate(candidate)
         old_weather = self.settings.get("weather_entity")
@@ -821,6 +787,16 @@ class SmartClimateManager:
         if due or hard_breach or guard_due or self.state.last_decision.hard_override or command_candidate:
             outside_hourly = self._outside_hourly()
             solar_hourly = self._solar_hourly(local_now, len(outside_hourly)) if self.settings.get("solar_gain_enabled") else []
+            # Evaluate only a complete common horizon when PV ends before the
+            # weather source. Never skip an internal PV gap or invent its tail.
+            # decide_mode still requires a full minimum useful coast period.
+            if solar_hourly:
+                known = [i for i, value in enumerate(solar_hourly) if value is not None]
+                if known:
+                    end = known[-1] + 1
+                    if end < len(solar_hourly) and all(value is not None for value in solar_hourly[:end]):
+                        outside_hourly = outside_hourly[:end]
+                        solar_hourly = solar_hourly[:end]
             pv_precondition = bool(
                 self.settings.get("solar_preconditioning_enabled")
                 and (self.runtime.pv_w or 0) >= float(self.settings.get("precondition_min_pv_w", 3000))
@@ -965,12 +941,16 @@ class SmartClimateManager:
                 "status": self.state.profile(zones[0]["entity_id"]).confidence_status(coast_conf, coast_samples) if zones else "Nog niet geleerd",
             },
         }
-        solar_nonzero = [x for x in self.last_solar_hourly if x > 0]
+        solar_values = self.last_solar_hourly
+        covered = [x for x in solar_values if x is not None]
+        first_day = solar_values[:24]
         solar_summary = {
             "enabled": bool(self.settings.get("solar_gain_enabled")),
-            "forecast_hours": len(self.last_solar_hourly),
-            "next_24h_kwh_proxy": round(sum(self.last_solar_hourly[:24]) / 1000.0, 2) if self.last_solar_hourly else None,
-            "peak_w_proxy": round(max(solar_nonzero), 0) if solar_nonzero else 0.0,
+            "forecast_hours": len(solar_values),
+            "covered_hours": len(covered),
+            "next_24h_kwh_proxy": (round(sum(first_day) / 1000.0, 2)
+                                    if len(first_day) == 24 and all(x is not None for x in first_day) else None),
+            "peak_w_proxy": round(max(covered), 0) if covered and len(covered) == len(solar_values) else None,
             "note": "PV is alleen een lokale instralingsproxy voor het thermische model; niet hetzelfde als zonnewarmte door ramen.",
         }
         return {
@@ -985,6 +965,7 @@ class SmartClimateManager:
             "fault": self.state.fault,
             "decision": {
                 "mode": d.desired_mode, "reason": d.reason, "hard_override": d.hard_override,
+                "evaluated_forecast_h": d.evaluated_forecast_h,
                 "confidence": round(d.prediction_confidence, 3), "predicted_min_c": d.predicted_min_c,
                 "predicted_max_c": d.predicted_max_c, "crossing_h": d.crossing_h,
                 "required_lead_h": d.required_lead_h, "season_context": d.season_context,

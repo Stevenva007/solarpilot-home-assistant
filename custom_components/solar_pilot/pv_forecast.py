@@ -61,7 +61,7 @@ class PVForecast:
             currentfactor,confidence,days,why=self.model.factor(now,az,el)
             horizon=[]
             for h in range(4):
-                dt=now+timedelta(hours=h);t=dt.timestamp();val=self.source.raw_at(t,ts)
+                t=ts+h*3600;dt=datetime.fromtimestamp(t,now.tzinfo);val=self.source.raw_at(t,ts)
                 pa,pe=(az,el) if not h else self.position(dt)
                 factor,conf,ndays,origin=self.model.factor(dt,pa,pe)
                 horizon.append({"hours":h,"time":dt.isoformat(),"raw_w":None if val is None else round(val,1),
@@ -69,13 +69,17 @@ class PVForecast:
                     "factor":round(factor,3),"confidence":round(conf,3),"days":ndays,"source":origin})
             midnight=(now+timedelta(days=1)).replace(hour=0,minute=0,second=0,microsecond=0)
             after=(midnight+timedelta(days=1))
-            windows={"remaining_today":(now,midnight),"tomorrow":(midnight,after),
-                     "current_hour":(now.replace(minute=0,second=0,microsecond=0),now.replace(minute=0,second=0,microsecond=0)+timedelta(hours=1)),
-                     "next_hour":(now.replace(minute=0,second=0,microsecond=0)+timedelta(hours=1),now.replace(minute=0,second=0,microsecond=0)+timedelta(hours=2))}
+            hour_start=now.replace(minute=0,second=0,microsecond=0).timestamp()
+            # Calendar days can contain 23 or 25 hours. Hour counters and power
+            # horizons each describe one real elapsed hour, including DST folds.
+            windows={"remaining_today":(now.timestamp(),midnight.timestamp()),
+                     "tomorrow":(midnight.timestamp(),after.timestamp()),
+                     "current_hour":(hour_start,hour_start+3600),
+                     "next_hour":(hour_start+3600,hour_start+7200)}
             totals={};energy_modes={}
             for k,(a,b) in windows.items():
-                raw_energy=self.source.series.energy(a.timestamp(),b.timestamp()) if self.source.valid else None
-                corrected=self.source.series.energy(a.timestamp(),b.timestamp(),lambda t,w:self._correct(t,w,now.tzinfo)) if raw_energy is not None else None
+                raw_energy=self.source.series.energy(a,b) if self.source.valid else None
+                corrected=self.source.series.energy(a,b,lambda t,w:self._correct(t,w,now.tzinfo)) if raw_energy is not None else None
                 if raw_energy is None:
                     role={"remaining_today":"remaining_entity","tomorrow":"tomorrow_entity","current_hour":"current_hour_entity","next_hour":"next_hour_entity"}[k]
                     raw_energy=self.source.scalars.get(role)
@@ -114,7 +118,7 @@ class PVForecast:
 
     def hourly(self, now, hours):
         """Average W over exact future hours; None for uncovered hours."""
-        key=(now.replace(second=0,microsecond=0).isoformat(),hours)
+        key=(now.isoformat(),hours)
         if key in self.hourly_cache:return self.hourly_cache[key]
         result=[]
         for h in range(hours):

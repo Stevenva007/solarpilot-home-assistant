@@ -1,5 +1,6 @@
 """Common native entities; no frontend timers or external JavaScript required."""
 from homeassistant.helpers.entity import Entity, DeviceInfo
+from homeassistant.core import callback
 from .const import DOMAIN, NAME, VERSION
 
 
@@ -11,6 +12,7 @@ class SolarEntity(Entity):
         self.runtime = runtime
         self.key = device_id
         self.suffix = suffix
+        self._solar_pilot_subscribed = False
         self._attr_name = name
         self._attr_unique_id = f'{runtime.entry.entry_id}_{device_id + "_" if device_id else ""}{suffix}'
         if device_id:
@@ -27,9 +29,43 @@ class SolarEntity(Entity):
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
-        self.async_on_remove(self.runtime.subscribe(self._live_write))
+        if self._inactive():
+            # HA marks the entity ADDED and writes its first state after this
+            # hook returns. A non-eager task removes it only after that finish.
+            self.runtime.entry.async_create_task(
+                self.hass, self._remove_late_entity(), "SolarPilot late virtual entity removal",
+                eager_start=False)
+            return
+        self._subscribe_runtime()
+
+    def _subscribe_runtime(self):
+        if self._solar_pilot_subscribed or self._inactive():
+            return
+        unsubscribe = self.runtime.subscribe(self._live_write)
+        self._solar_pilot_subscribed = True
+
+        def remove_listener():
+            self._solar_pilot_subscribed = False
+            unsubscribe()
+
+        self.async_on_remove(remove_listener)
+
+    def _inactive(self):
+        return (getattr(self, "_solar_pilot_retired", False) or self.runtime._closed
+                or bool(self.key and self.key not in self.runtime.configs))
+
+    async def _remove_late_entity(self):
+        if not self._inactive():
+            self._subscribe_runtime()
+            self.async_write_ha_state()
+            return
+        await self.async_remove(force_remove=True)
+        self.runtime.platforms.retire_registry(self)
+
+    @callback
+    def async_write_ha_state(self):
+        if not self._inactive():
+            super().async_write_ha_state()
 
     def _live_write(self):
-        if self.key and self.key not in self.runtime.configs:
-            return
         self.async_write_ha_state()

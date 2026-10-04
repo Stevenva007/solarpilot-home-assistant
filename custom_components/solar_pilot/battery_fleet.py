@@ -49,10 +49,12 @@ BATTERY_DEFAULTS = {
 
 
 def finite(value):
+    if isinstance(value, bool):
+        return None
     try:
         out = float(value)
         return out if math.isfinite(out) else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
@@ -71,6 +73,7 @@ class BatteryReading:
     max_discharge_w: float
     controllable: bool = False
     phase_hint: str = "unknown"
+    power_stamp: float = 0.0
 
     @property
     def discharge_w(self):
@@ -164,67 +167,92 @@ def recommend(settings, readings, grid_w, capacity_allowed_grid_w=None):
         return BatteryFleetRecommendation(False, reason="Geen geldige batterijmetingen")
 
     strategy = c.get("strategy", "loads_first")
-    target = 0.0
-    reason = "Batterij in rust"
-    export = max(0.0, -grid)
-    imp = max(0.0, grid)
-    goal = float(c.get("grid_target_w", 0.0))
-
-    # Loads-first / hybrid: use only the residual after ordinary flexible loads.
-    # `goal` permits an intentional small import/export bias without changing the
-    # deterministic appliance controller.
-    if strategy in ("loads_first", "hybrid", "advisory"):
-        if grid < goal - float(c["charge_reserve_w"]):
-            request = (goal - float(c["charge_reserve_w"])) - grid
-            target = -min(max(0.0, request), agg["charge_available_w"])
-            reason = f"Netvermogen {grid:.0f} W ligt onder batterijdoel: batterij kan laden"
-        elif grid > goal + float(c["discharge_reserve_w"]):
-            request = grid - (goal + float(c["discharge_reserve_w"]))
-            target = min(max(0.0, request), agg["discharge_available_w"])
-            reason = f"Netvermogen {grid:.0f} W ligt boven batterijdoel: batterij kan ontladen"
-
-    # Peak shaving can be a dedicated strategy or an extra requirement in hybrid.
+    goal = finite(c.get("grid_target_w"))
+    charge_reserve = finite(c.get("charge_reserve_w"))
+    discharge_reserve = finite(c.get("discharge_reserve_w"))
+    if (goal is None or charge_reserve is None or discharge_reserve is None
+            or charge_reserve < 0 or discharge_reserve < 0):
+        return BatteryFleetRecommendation(False, reason="Batterijdoel/reserve ongeldig; geen batterijadvies")
     cap = finite(capacity_allowed_grid_w)
-    if strategy in ("peak_shaving", "hybrid") and cap is not None and grid > cap:
-        needed = min(grid - cap, agg["discharge_available_w"])
-        if needed > target:
-            target = needed
-            reason = f"Kwartierpiekbudget vraagt ongeveer {needed:.0f} W batterijontlading"
-    if strategy == "peak_shaving" and target == 0 and export > float(c["charge_reserve_w"]):
-        target = -min(export - float(c["charge_reserve_w"]), agg["charge_available_w"])
-        reason = f"Buiten piekbeperking: resterende injectie {export:.0f} W kan batterij laden"
 
-    if target < 0 and grid > 0 and not c.get("allow_grid_charge"):
-        target = 0.0
-        reason = "Netladen niet toegestaan"
-    if target > 0 and grid < 0 and not c.get("allow_export_discharge"):
-        target = min(target, max(0.0, grid + target)) if target + grid > 0 else 0.0
-        if target <= 0:
-            reason = "Ontladen naar het net niet toegestaan"
+    def desired(rows):
+        # P1 already contains current battery flow. Reconstruct the site without
+        # only the batteries whose targets this allocation can replace. External
+        # and faulted battery flow remains in the control residual.
+        baseline = grid + sum(r.power_w or 0.0 for r in rows if r.valid)
+        available = aggregate(rows)
+        target, reason = 0.0, "Batterij in rust"
+        if strategy in ("loads_first", "hybrid", "advisory"):
+            if baseline < goal - charge_reserve:
+                target = -min(goal - charge_reserve - baseline, available["charge_available_w"])
+                reason = f"Netvermogen zonder vervangbare batterijdoelen {baseline:.0f} W: batterij kan laden"
+            elif baseline > goal + discharge_reserve:
+                target = min(baseline - goal - discharge_reserve, available["discharge_available_w"])
+                reason = f"Netvermogen zonder vervangbare batterijdoelen {baseline:.0f} W: batterij kan ontladen"
+        if strategy in ("peak_shaving", "hybrid") and cap is not None and baseline > cap:
+            needed = min(baseline - cap, available["discharge_available_w"])
+            if needed > target:
+                target = needed
+                reason = f"Kwartierpiekbudget vraagt ongeveer {needed:.0f} W batterijontlading"
+        if strategy == "peak_shaving" and target == 0 and baseline < -charge_reserve:
+            target = -min(-baseline - charge_reserve, available["charge_available_w"])
+            reason = "Resterende injectie kan batterij laden"
+        # Bound the projected new P1, rather than the old residual P1.
+        if target < 0 and c.get("allow_grid_charge") is not True:
+            target = max(target, min(0.0, baseline))
+        if target > 0 and c.get("allow_export_discharge") is not True:
+            target = min(target, max(0.0, baseline))
+        return target, reason
 
-    advisory_alloc = _allocate(readings, target, controllable_only=False)
-    control_alloc = _allocate(readings, target, controllable_only=True)
-    advisory_target = sum(advisory_alloc.values())
-    return BatteryFleetRecommendation(True, advisory_target, advisory_alloc, reason, control_alloc)
+    advisory_request, reason = desired(readings)
+    controlled = [r for r in readings if r.valid and r.controllable]
+    control_request, _control_reason = desired(controlled)
+    advisory_alloc = _allocate(readings, advisory_request)
+    control_alloc = _allocate(readings, control_request, controllable_only=True)
+    return BatteryFleetRecommendation(True, sum(advisory_alloc.values()), advisory_alloc, reason, control_alloc)
 
 
 class BatteryFleetState:
     """Small persisted command journal used by the runtime adapter."""
     def __init__(self):
         self.last_command_mono = None
+        self.last_command_wall = 0.0
         self.pending = None
         self.faults = {}
+        self.expected_numbers = {}
         self.last_recommendation = None
 
     def snapshot(self):
         # monotonic timestamps are not restored as deadlines; pending is review-only.
-        return {"pending": self.pending, "faults": dict(self.faults)}
+        return {"pending": self.pending, "faults": dict(self.faults),
+                "last_command_wall": self.last_command_wall,
+                "expected_numbers": dict(self.expected_numbers)}
 
     def restore(self, data):
         if not isinstance(data, dict):
             return
-        self.faults = dict(data.get("faults", {}))
-        if data.get("pending"):
+        faults = data.get("faults", {})
+        self.faults = ({key: str(reason) for key, reason in faults.items()
+                        if isinstance(key, str) and reason} if isinstance(faults, dict) else
+                       {"restart": "Opgeslagen batterijfouten ongeldig; handmatige controle vereist"})
+        if data.get("pending") is not None:
             self.faults["restart"] = "Batterijopdracht was bezig tijdens herstart; handmatige controle vereist"
+        wall = finite(data.get("last_command_wall"))
+        self.last_command_wall = wall if wall is not None and 0 <= wall <= time.time() + 5 else 0.0
+        expected = data.get("expected_numbers", {})
+        self.expected_numbers = {}
+        if not isinstance(expected, dict):
+            self.faults["restart"] = "Opgeslagen batterij-eigendom ongeldig; handmatige controle vereist"
+        else:
+            for key, raw in expected.items():
+                if not isinstance(key, str) or not isinstance(raw, dict):
+                    self.faults["restart"] = "Opgeslagen batterij-eigendom ongeldig; handmatige controle vereist"
+                    continue
+                entity_id, target = raw.get("entity_id"), finite(raw.get("target_w"))
+                if (isinstance(entity_id, str) and entity_id.startswith(("number.", "input_number."))
+                        and target is not None):
+                    self.expected_numbers[key] = {"entity_id": entity_id, "target_w": target}
+                else:
+                    self.faults["restart"] = "Opgeslagen batterij-eigendom ongeldig; handmatige controle vereist"
         self.pending = None
         self.last_command_mono = time.monotonic()

@@ -134,9 +134,10 @@ class ForecastSolarSource:
 
     def _entity_value(self, entity_id, kind, now):
         obj = self.hass.states.get(entity_id) if entity_id else None
-        if obj is None:
+        if obj is None or obj.attributes.get("restored"):
             return None, None
-        value = finite(obj.state); ts = stamp(getattr(obj,"last_reported",getattr(obj,"last_updated",None)))
+        value = finite(obj.state)
+        ts = stamp(getattr(obj,"last_reported",None) or getattr(obj,"last_updated",None))
         if value is None or value < 0 or ts is None or not -5 <= now-ts <= self.settings["stale_s"]:
             return None, ts
         unit = obj.attributes.get("unit_of_measurement")

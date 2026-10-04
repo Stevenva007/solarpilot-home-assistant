@@ -29,6 +29,9 @@ def zone(*, entity_id="climate.zone", current=21., target=21., mode="auto"):
 
 
 def decide(p, outside=None, *, mode="auto", solar=None, settings=None):
+    # These component-isolation cases model a known dark PV forecast by default.
+    # Missing PV-source behavior has separate explicit regressions.
+    solar = [0.] * 48 if solar is None else solar
     return decide_mode(settings={**SETTINGS, **(settings or {})}, zones=[zone(mode=mode)],
                        outside_hourly=[21.] * 48 if outside is None else outside,
                        profiles={"climate.zone": p}, solar_hourly_w=solar)
@@ -45,10 +48,10 @@ def hot_later():
 @pytest.mark.parametrize("field", ["indoor_c", "outdoor_c"])
 def test_boolean_temperature_is_neither_a_measurement_nor_a_learning_sample(field):
     p = profile()
-    p.observe(wall_ts=1000, day="2026-10-01", indoor_c=21, outdoor_c=14, hvac_action="idle")
+    p.observe(wall_ts=1000, day="2026-10-01", indoor_c=21, outdoor_c=14, hvac_action="idle", pv_w=0)
     before = deepcopy(p.snapshot())
     args = {"wall_ts": 1900, "day": "2026-10-01", "indoor_c": 21,
-            "outdoor_c": 14, "hvac_action": "idle", field: True}
+            "outdoor_c": 14, "hvac_action": "idle", "pv_w": 0, field: True}
     assert model.finite(True) is None and model.finite(False) is None
     assert not p.observe(**args)
     assert p.snapshot() == before
@@ -119,7 +122,8 @@ def test_each_zone_uses_its_own_relevant_direction_before_combining_a_mixed_fore
              zone(entity_id="climate.low", current=20, target=20)]
     profiles = {"climate.high": profile(heating=True, delay=True),
                 "climate.low": profile(cooling=True, delay=True)}
-    d = decide_mode(settings=SETTINGS, zones=zones, outside_hourly=[21.] * 48, profiles=profiles)
+    d = decide_mode(settings=SETTINGS, zones=zones, outside_hourly=[21.] * 48,
+                    profiles=profiles, solar_hourly_w=[0.] * 48)
     assert d.desired_mode == "auto" and not d.control_ready
     assert d.prediction_confidence == .98 and not d.missing_components
     assert d.readiness_by_zone["climate.high"]["directions"] == ["heating"]
@@ -225,7 +229,7 @@ def test_restart_preserves_valid_wall_clock_manual_hold_and_bounds_invalid_journ
 
 def test_an_actual_stable_heating_action_does_not_fabricate_a_measured_response_delay():
     p = profile()
-    p.observe(wall_ts=0, day="2026-10-01", indoor_c=21, outdoor_c=14, hvac_action="idle")
+    p.observe(wall_ts=0, day="2026-10-01", indoor_c=21, outdoor_c=14, hvac_action="idle", pv_w=0)
     for sample in range(1, 10):
         p.observe(wall_ts=sample * 900, day="2026-10-01", indoor_c=21,
                   outdoor_c=14, hvac_action="heating", pv_w=0)

@@ -114,6 +114,8 @@ async def test_pending_battery_command_blocks_new_climate_auto_release():
 @pytest.mark.asyncio
 async def test_pending_battery_command_blocks_new_boiler_target_until_ack():
     runtime, hass = setup_dhw()
+    # This case isolates serialization; settling is tested separately.
+    runtime.settings["settle_s"] = 0
     battery_runtime, battery_hass = setup_battery(
         global_control=True, profile_control=True, exclusive=True)
     for key in ("battery_fleet", "batteries"):
@@ -133,6 +135,7 @@ async def test_pending_battery_command_blocks_new_boiler_target_until_ack():
     hass.states.set("sensor.bat_power", -1800, {"unit_of_measurement": "W"})
     await runtime.tick()
     assert not runtime.battery_fleet.busy
+    hass.states.set("sensor.grid", -4500, {"unit_of_measurement": "W"})
     await runtime.tick()
     assert [call for call in hass.services.calls if call[1] == "set_temperature"] == [
         ("water_heater", "set_temperature", {"entity_id": "water_heater.boiler", "temperature": 60.0}),

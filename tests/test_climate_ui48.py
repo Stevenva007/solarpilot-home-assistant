@@ -190,3 +190,56 @@ def test_actual_card_identifies_missing_forecast_as_a_source_problem():
     assert "Wacht op uurvoorspelling" in text
     assert "Geen bruikbare uurvoorspelling beschikbaar" in text
     assert "Wacht op metingen" not in text
+
+
+def test_actual_card_identifies_missing_solar_forecast_without_resetting_learned_model():
+    payload = climate_payload()
+    add_passive_profile(payload, heating_ready=True)
+    payload["decision"].update(control_ready=False, missing_components=["solar_forecast"], block_reason="PV-verwachting voor de pauze ontbreekt.")
+    payload["decision"]["readiness_by_zone"]["climate.salon"]["missing_components"]=["solar_forecast"]
+    payload["solar_gain"] = {"next_24h_kwh_proxy": None, "peak_w_proxy": None}
+    _, text = render_climate(payload)
+    assert "Wacht op PV-verwachting" in text
+    assert "PV-verwachting voor de pauze ontbreekt" in text
+    assert "Wacht op metingen" not in text
+    assert "Betrouwbaar · 98%" in text
+    assert "Nog geen bruikbare zonneproxy" in text
+    assert "PV-verwachting Actuele voorspellingsbron" in text
+    assert "Bewaarde modelmetingen blijven behouden" in text
+
+
+def test_actual_card_reports_both_missing_forecasts_as_source_problems():
+    payload = climate_payload()
+    add_passive_profile(payload, heating_ready=True)
+    payload["decision"].update(control_ready=False, missing_components=["hourly_forecast", "solar_forecast"], block_reason="Uurvoorspelling en PV-verwachting ontbreken.")
+    _, text = render_climate(payload)
+    assert "Wacht op voorspellingen" in text
+    assert "Wacht op metingen" not in text
+
+
+def test_actual_card_keeps_missing_learning_visible_when_solar_forecast_is_also_missing():
+    payload = climate_payload()
+    add_passive_profile(payload)
+    payload["decision"]["missing_components"].append("solar_forecast")
+    _, text = render_climate(payload)
+    assert "Wacht op metingen" in text
+    assert "Wacht op PV-verwachting" not in text
+
+
+def test_actual_card_limits_temperature_prediction_to_evaluated_forecast_hours():
+    payload = climate_payload()
+    add_passive_profile(payload, heating_ready=True)
+    payload["settings"]["horizon_h"]=48
+    payload["decision"]["evaluated_forecast_h"]=8
+    _, text = render_climate(payload)
+    assert "Alleen de komende 8 uur beoordeeld" in text
+    assert "geen grens binnen deze periode" in text
+    assert "komende 48" not in text
+
+
+def test_actual_card_does_not_claim_a_checked_comfort_horizon_without_forecast():
+    payload = climate_payload()
+    payload["decision"]["evaluated_forecast_h"]=0
+    _, text = render_climate(payload)
+    assert "Geen bruikbare voorspellingshorizon" in text
+    assert "geen temperatuurgrens beoordeeld" in text

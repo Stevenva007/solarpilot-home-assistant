@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0-beta.49 — 2026-10-04
+
+- Serialiseert pending batterijopdrachten met gewone laststarts/verhogingen, AEG-deadline-START, vermogensoverdracht en veilige klimaatvrijgave bij verwijderen. Nieuw P1-bewijs en de bestaande wachttijd blijven na batterijactie vereist; veilige reductie en beschermde cycli blijven behouden.
+- Vereist verse passende batterijvermogenrapportage van ná de opdracht, duurzame intentie vóór actuatie en geldige actuele SoC. Neutrale verwijdering vraagt werkelijk neutraal vermogen én een neutraal numeriek doel; ontbrekende bronnen en fouten geven geen automatische retry. Ondersteunde input_number-actuatoren gebruiken hun juiste domein; gekoppelde Wallbox-actuatoren/scripts worden geweigerd.
+- Behoudt ontbrekende forecasturen/staart als onbekend, zonder fictief nulbewijs in voorspelling of kwaliteit. Verstreken UTC-tijd voorkomt dubbele/overgeslagen planuren bij zomer-/wintertijd. Replay vraagt volledige werkelijke lokale dagen van 92/96/100 kwartieren en bewaart nulprijzen.
+- Behoudt structuur, eenheden en enums bij consistente pseudonimisering van exportnamen, IDs en verwijzingen, inclusief korte en historische labels.
+- Beveiligt setup/unload en startafbreking tegen achterblijvende callbacks of opslag van gedeeltelijk geladen gegevens. Ongeldige afzonderlijke pending-/optie-/archiefrecords blokkeren geldige andere records niet. Klimaatdeactivatie en zonebindingswijzigingen wachten ook bij een tijdelijk onbereikbare eigen coastzone.
+- Vereist veilige vrijgave vóór overschakelen naar Alleen bekijken. Pauze geeft uitsluitend eigen coast of een passend bevestigd eigen numeriek batterijdoel terug; handmatige bediening/scripts blijven beschermd. Vervangende batterijdoelen verrekenen eigen gemeten flow, readonly/foutstromen en native actuatorgrenzen. Ontbrekend actueel PV-vermogen wordt geen thermische nulmeting.
+- Behoudt alle beta.48-beschermingen, instellingen en geldige leerdata zonder algemene reset of nieuw actuatorrecht. Actuele uitleg, optieshulp, handoff, installatie/rollback en testverslag worden samen bijgewerkt. De definitieve samengestelde suite behaalt **2464 geslaagde tests in 13.90 s**, inclusief dertien werkelijke Node VM-klimaatkaartweergaven. Lokale release-/syntaxcontroles zijn groen; volledige browserproeven zijn niet opnieuw uitgevoerd. Details: `docs/TESTRESULTATEN_BETA49.md`; geen live installatie of fysieke toestelactie geclaimd.
+
 ## 1.0.0-beta.48 — 2026-10-03
 
 - Wijzigt bewust het beleid voor handmatige OFF-zones: zij blijven uit tot de gebruiker zelf AUTO kiest, ook bij harde comfortoverschrijding, verlopen rusttijd, herstart of verwijderen. De oudere harde-comfortuitzondering vervalt; alleen bewezen eigen OFF/coast-zones mogen automatisch worden vrijgegeven.

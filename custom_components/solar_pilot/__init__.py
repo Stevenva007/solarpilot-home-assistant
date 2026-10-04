@@ -1,6 +1,7 @@
 """SolarPilot integration entry point."""
 from __future__ import annotations
 
+import logging
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
@@ -27,13 +28,14 @@ from .dhw import DHW_NUMBERS
 
 SERVICE_SET_CLIMATE_SETTING = "set_climate_setting"
 SERVICE_SET_PLANNER_SETTING = "set_planner_setting"
+_LOGGER = logging.getLogger(__name__)
 
 
 async def _handle_set_climate_setting(hass: HomeAssistant, call) -> None:
     entry_id = str(call.data.get("config_entry_id") or "")
     entries = list(hass.config_entries.async_entries(DOMAIN))
     entry = next((e for e in entries if not entry_id or e.entry_id == entry_id), None)
-    if entry is None or getattr(entry, "runtime_data", None) is None:
+    if entry is None or getattr(entry, "runtime_data", None) is None or entry.runtime_data._closed:
         raise ValueError("SolarPilot-configuratie niet geladen")
     await entry.runtime_data.smart_climate.async_set_setting(call.data["setting"], call.data.get("value"))
 
@@ -42,12 +44,42 @@ async def _handle_set_planner_setting(hass: HomeAssistant, call) -> None:
     entry_id = str(call.data.get("config_entry_id") or "")
     entries = list(hass.config_entries.async_entries(DOMAIN))
     entry = next((e for e in entries if not entry_id or e.entry_id == entry_id), None)
-    if entry is None or getattr(entry, "runtime_data", None) is None:
+    if entry is None or getattr(entry, "runtime_data", None) is None or entry.runtime_data._closed:
         raise ValueError("SolarPilot-configuratie niet geladen")
     await entry.runtime_data.async_set_planner_setting(call.data["setting"], call.data.get("value"))
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Roll back partial startup without flushing incompletely restored storage."""
+    previous = getattr(entry, "runtime_data", None)
+    try:
+        return await _async_setup_entry(hass, entry)
+    except BaseException:
+        runtime = getattr(entry, "runtime_data", None)
+        if runtime is not None and runtime is not previous:
+            retry = getattr(runtime, "dishwasher_recovery_retry", None)
+            try:
+                if retry is not None:
+                    retry.close()
+            except Exception:
+                _LOGGER.exception("SolarPilot herstel-listener kon na mislukte start niet sluiten")
+            try:
+                await runtime.close(persist=False)
+            except Exception:
+                _LOGGER.exception("SolarPilot kon na mislukte start niet volledig sluiten")
+            try:
+                await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+            except Exception:
+                _LOGGER.exception("SolarPilot platforms konden na mislukte start niet sluiten")
+            try:
+                async_unregister_frontend(hass, final=False)
+            except Exception:
+                _LOGGER.exception("SolarPilot frontend kon na mislukte start niet sluiten")
+            entry.runtime_data = None
+        raise
+
+
+async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Optional installation-specific data lives outside the public repository.
     # Importing it only fills still-empty settings and enables safe monitoring /
     # advisory modules. Physical control permissions remain off and the runtime
@@ -135,6 +167,8 @@ async def _options_updated(hass, entry):
     runtime = getattr(entry, "runtime_data", None)
     if runtime is not None and not runtime._closed:
         async with runtime._lock:
+            if runtime._closed:
+                return
             runtime._skip_options_reload_once = False
             await runtime.live_options.accept(dict(entry.options))
         runtime.publish()
@@ -146,19 +180,25 @@ async def async_unload_entry(hass, entry):
     runtime = entry.runtime_data
     # Do not silently lose control of a running load on reload/removal.
     # Use the dedicated Prepare for removal action first.
-    if not runtime.removal_overview()["ready"] and (
-        runtime.dhw.busy or runtime.pending or runtime.battery_fleet.busy
-        or any(s.owned for s in runtime.states.values())
-        or runtime.smart_climate.removal_blocked()
-        or runtime.battery_fleet.removal_blocked()
-    ):
-        return False
+    async with runtime._lock:
+        if not runtime.removal_overview()["ready"] and (
+            runtime.dhw.busy or runtime.pending or runtime.battery_fleet.busy
+            or any(s.owned for s in runtime.states.values())
+            or runtime.smart_climate.removal_blocked()
+            or runtime.battery_fleet.removal_blocked()
+        ):
+            return False
+        if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+            return False
+        # No tick or queued option update may reopen work after the successful
+        # platform unload. close() performs recorder cleanup outside this lock.
+        runtime._closed = True
     retry = getattr(runtime, "dishwasher_recovery_retry", None)
     if retry is not None:
         retry.close()
     await runtime.close()
     async_unregister_frontend(hass, final=False)
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    return True
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:

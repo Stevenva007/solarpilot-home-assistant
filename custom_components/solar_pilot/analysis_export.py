@@ -38,6 +38,25 @@ ATTRS = {"unit_of_measurement", "device_class", "state_class", "friendly_name", 
          "preset_mode", "preset_modes", "min_temp", "max_temp", "target_temp_step", "is_on", "humidity",
          "cloud_coverage", "wind_speed", "attribution", "cycle_phase", "program", "remaining_time"}
 
+# These values describe the report or device protocol, rather than household
+# names. A consumer called "auto", "W" or "temperature" must not rewrite them.
+MACHINE_VALUE_FIELDS = {
+    "schema", "schema_version", "release", "version", "type", "domain", "kind",
+    "unit_of_measurement", "device_class", "state_class", "media_type", "service",
+    "platform", "manufacturer", "model", "software_version", "hardware_version",
+    "state", "mode", "action", "hvac_action", "hvac_modes", "operation_mode",
+    "operation_list", "preset_mode", "preset_modes", "stage", "cycle_phase",
+    "command_mode", "last_command_mode", "requested_mode", "expected_mode", "device_modes",
+}
+DEVICE_REFERENCE_MAPS = {
+    "devices", "batteries", "configs", "states", "targets", "reasons", "priorities",
+    "device_modes", "others_first", "faults", "restart_faults", "leases", "recovery",
+    "reclaim_blocks", "cycle_armed", "manual_forced", "manual_stop_requested",
+    "daily_runtime", "energy_kwh", "tickets", "profiles", "models", "watches",
+    "ev_blocks", "dishwasher_app", "allocations", "control_allocations", "expected_numbers",
+}
+DEVICE_ID_FIELDS = {"id", "device_id", "consumer_id", "battery_id", "replaces_device_id"}
+
 
 def storage_key(entry_id):
     return f"{DOMAIN}.{entry_id}.analysis"
@@ -87,6 +106,74 @@ def entity_refs(value):
         if ENTITY_RE.fullmatch(value):
             result.add(value)
     return result
+
+
+def pseudonymize(payload, references, labels):
+    """Rewrite values and reference keys without corrupting diagnostic keys."""
+    # Historical friendly names can differ from the current entity label. Keep
+    # their entity joins while removing both old and current household labels.
+    def collect(value, owner=None):
+        if isinstance(value, dict):
+            candidate = value.get("entity_id")
+            if isinstance(candidate, str):
+                owner = candidate
+            label = value.get("friendly_name")
+            if isinstance(label, str) and label.strip():
+                labels.setdefault(label, references.get(owner, "Bron " + str(len(labels)+1)))
+            for key, item in value.items():
+                collect(item, key if key in references else owner)
+        elif isinstance(value, list):
+            for item in value:
+                collect(item, owner)
+    collect(payload)
+    name_pattern = re.compile(r"(?<!\w)(?:" + "|".join(re.escape(label) for label in sorted(labels, key=len, reverse=True)) + r")(?!\w)") if labels else None
+    consumer_references = {key: value for key, value in references.items() if not ENTITY_RE.fullmatch(key)}
+    consumer_pattern = re.compile(r"(?<!\w)(?:" + "|".join(re.escape(key) for key in sorted(consumer_references, key=len, reverse=True)) + r")(?!\w)") if consumer_references else None
+
+    def prose(value):
+        # Do not substitute names inside entity IDs, even if a household label
+        # happens to equal a domain such as "sensor".
+        parts, end = [], 0
+        for match in ENTITY_RE.finditer(value):
+            text = value[end:match.start()]
+            parts.append(name_pattern.sub(lambda found: labels[found.group()], text) if name_pattern else text)
+            parts.append(references.get(match.group(), match.group()))
+            end = match.end()
+        text = value[end:]
+        parts.append(name_pattern.sub(lambda found: labels[found.group()], text) if name_pattern else text)
+        return "".join(parts)
+
+    def rewrite(value, key="", machine_scope=False):
+        if isinstance(value, dict):
+            out = {}
+            for field, item in value.items():
+                result_key = field
+                if ENTITY_RE.fullmatch(field) or key in DEVICE_REFERENCE_MAPS:
+                    result_key = references.get(field, field)
+                else:
+                    qualified = re.fullmatch(r"(device|consumer|battery):(.+)", field)
+                    if qualified and qualified[2] in consumer_references:
+                        result_key = qualified[1] + ":" + consumer_references[qualified[2]]
+                out[result_key] = rewrite(item, field, machine_scope or field == "units" or field in MACHINE_VALUE_FIELDS or field.endswith("_mode"))
+            return out
+        if isinstance(value, list):
+            return [rewrite(item, key, machine_scope) for item in value]
+        if not isinstance(value, str):
+            return value
+        if ENTITY_RE.fullmatch(value) and value in references:
+            return references[value]
+        if key in ("name", "friendly_name") and value in labels:
+            return labels[value]
+        if (key in DEVICE_ID_FIELDS or key.endswith("_device_id") or key.endswith("_battery_id")) and value in consumer_references:
+            return consumer_references[value]
+        if machine_scope or key in MACHINE_VALUE_FIELDS or key.endswith("_mode"):
+            return ENTITY_RE.sub(lambda found: references.get(found.group(), found.group()), value)
+        result = prose(value)
+        if consumer_pattern:
+            result = consumer_pattern.sub(lambda found: consumer_references[found.group()], result)
+        return result
+
+    return rewrite(payload)
 
 
 def iso(ts):
@@ -298,11 +385,11 @@ class AnalysisRecorder:
         return {"schema_version": SCHEMA_VERSION, "started": self.started, "samples": list(self.samples),
                 "changes": list(self.changes), "events": list(self.events), "dropped": dict(self.dropped)}
 
-    async def close(self):
+    async def close(self, *, persist=True):
         if self.log_handler is not None:
             logging.getLogger("custom_components.solar_pilot").removeHandler(self.log_handler)
             self.log_handler = None
-        if self.loaded:
+        if self.loaded and persist:
             self.event("shutdown", "SolarPilot registratie afgesloten")
             try:
                 await self.store.async_save(self.snapshot())
@@ -446,6 +533,8 @@ class AnalysisRecorder:
         for row in options.get("_live_pending",{}).values():
             proposed=row.get("new") if isinstance(row,dict) else None
             if isinstance(proposed,dict) and proposed.get("id"):configs[proposed["id"]]=proposed
+        batteries = {row["id"]: row for row in options.get("batteries", [])
+                     if isinstance(row, dict) and isinstance(row.get("id"), str) and row["id"]}
         if not include_names:
             salt = secrets.token_hex(12)
             aliases = {eid: eid.split(".")[0] + ".source_" + hashlib.sha256((salt+eid).encode()).hexdigest()[:10] for eid in refs}
@@ -453,20 +542,19 @@ class AnalysisRecorder:
             text = json.dumps(payload, ensure_ascii=False, allow_nan=False)
             for eid in set(ENTITY_RE.findall(text)) - set(aliases):
                 aliases[eid] = eid.split(".")[0] + ".source_" + hashlib.sha256((salt+eid).encode()).hexdigest()[:10]
-            labels = {str(c.get("name")): "Verbruiker " + str(n+1) for n, c in enumerate(configs.values()) if len(str(c.get("name", ""))) >= 4}
-            aliases.update(labels)
+            labels = {c["name"]: "Verbruiker " + str(n+1) for n, c in enumerate(configs.values()) if isinstance(c.get("name"), str) and c["name"].strip()}
+            labels.update({c["name"]: "Batterij " + str(n+1) for n, c in enumerate(batteries.values()) if isinstance(c.get("name"), str) and c["name"].strip()})
             for eid, state in current.items():
                 label = state.get("attributes", {}).get("friendly_name")
-                if isinstance(label, str) and len(label) >= 4:
-                    aliases[label] = aliases[eid]
+                if isinstance(label, str) and label.strip():
+                    labels.setdefault(label, aliases[eid])
             # Direct and embedded entity references are rewritten consistently.
             for i in configs:
-                if len(i) >= 8:
+                if i:
                     aliases[i] = "consumer_" + hashlib.sha256((salt+i).encode()).hexdigest()[:8]
-            for original in sorted(aliases, key=len, reverse=True):
-                # JSON escaping preserves exact quotes/backslashes in labels.
-                text = text.replace(json.dumps(original, ensure_ascii=False)[1:-1], json.dumps(aliases[original], ensure_ascii=False)[1:-1])
-            payload = json.loads(text)
+            for i in batteries:
+                aliases.setdefault(i, "battery_" + hashlib.sha256((salt+i).encode()).hexdigest()[:8])
+            payload = pseudonymize(payload, aliases, labels)
         return payload
 
 

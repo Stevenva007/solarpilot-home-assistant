@@ -663,16 +663,28 @@ class SolarRuntime:
                 await self.hass.services.async_call("persistent_notification", "dismiss", {
                     "notification_id": f"{DOMAIN}_{self.entry.entry_id}"}, blocking=False)
 
-    async def close(self):
+    async def close(self, *, persist=True):
         self._closed = True
         self.dishwasher_app.close()
         self.smart_climate.close()
         if self._remove_timer:
             self._remove_timer()
+            self._remove_timer = None
         async with self._lock:
-            await self.consumer_history.close()
-            await self.analysis.close()
-            await self.store.async_save(self._snapshot())
+            if not persist:
+                # A failed setup must not flush partly restored models/leases.
+                # HA Store has no public cancel-only operation; these bounded
+                # cleanup hooks remove its delayed and final-write listeners
+                # without deleting or replacing any saved data.
+                for store in (self.store, self.consumer_history.store, self.analysis.store):
+                    for name in ("_async_cleanup_delay_listener", "_async_cleanup_final_write_listener"):
+                        cleanup = getattr(store, name, None)
+                        if callable(cleanup):
+                            cleanup()
+            await self.consumer_history.close(persist=persist)
+            await self.analysis.close(persist=persist)
+            if persist:
+                await self.store.async_save(self._snapshot())
 
     @callback
     def subscribe(self, listener):
@@ -1441,42 +1453,83 @@ class SolarRuntime:
 
     def _planner_pv_hourly(self, local_now):
         hours=max(6,int(self.planner_settings.get("horizon_h",36)))
-        fallback=self._legacy_planner_pv_hourly(local_now)
-        covered=self.pv_forecast.hourly(local_now,hours)
-        return [v if v is not None else (fallback[i] if i<len(fallback) else 0.) for i,v in enumerate(covered)]
+        slot_min=max(5,int(self.planner_settings.get("slot_min",15)))
+        start=local_now.replace(minute=(local_now.minute//slot_min)*slot_min,second=0,microsecond=0)
+        fallback=self._legacy_planner_pv_hourly(start)
+        covered=self.pv_forecast.hourly(start,hours)
+        return [(covered[i] if i<len(covered) and covered[i] is not None else fallback[i])
+                for i in range(hours)]
 
-    def _legacy_planner_pv_hourly(self, local_now):
-        """Build an explainable hourly PV horizon from the available forecast + local shadow model."""
-        hours=max(6,int(self.planner_settings.get("horizon_h",36)))
-        # Reuse the thermal module's solar proxy when available: it already combines
-        # Forecast.Solar totals, the historic shape and trusted local corrections.
-        try:
-            rows=self.smart_climate._solar_hourly(local_now,hours)
-            if rows: return list(rows)
-        except Exception:
-            pass
-        f=self._forecast_values(); local=self.local_pv.overview(); seed=self.historical_seed.get("pv_profile",{}).get("median_normalized_pct_by_hour",{}) or {}
-        today=max(0.0,float(f.get("remaining_today_kwh") or 0)); tomorrow=max(0.0,float(f.get("tomorrow_kwh") or 0))
-        out=[]
-        for dayoff,energy in ((0,today),(1,tomorrow)):
-            d=(local_now+timedelta(days=dayoff)).date(); hrs=[local_now+timedelta(hours=i+1) for i in range(hours) if (local_now+timedelta(hours=i+1)).date()==d]
-            weights=[max(0.0,float(seed.get(str(x.hour),0) or 0)) for x in hrs]; total=sum(weights)
-            for w in weights: out.append(0.0 if total<=0 else energy*1000*w/total)
-        out=(out+[0.0]*hours)[:hours]
-        if out and local.get("confidence",0)>=float(self.local_pv_settings.get("min_confidence",.55)) and local.get("corrected_power_w") is not None: out[0]=max(0.0,float(local["corrected_power_w"]))
+    def _legacy_planner_pv_hourly(self, local_now, hours=None):
+        """Use only independently configured legacy forecasts for missing hours.
+
+        A missing modern interval cannot be filled from its own aggregate totals
+        or a weather proxy which silently substitutes zero for unknown PV.
+        """
+        hours=max(1,int(hours)) if hours is not None else max(6,int(self.planner_settings.get("horizon_h",36)))
+        out=[None]*hours
+        settings=self.forecast_settings
+        if not settings.get("enabled"):
+            return out
+        values={}
+        for key in ("current_hour", "next_hour", "remaining_today", "tomorrow"):
+            eid=settings.get(key+"_entity")
+            value=self._scalar(eid,{"Wh","kWh"},settings.get("stale_s",7200))
+            obj=self.hass.states.get(eid) if eid else None
+            values[key]=(value*(.001 if obj.attributes.get("unit_of_measurement")=="Wh" else 1.)
+                         if value is not None and value>=0 else None)
+        pv_seed=self.historical_seed.get("pv_profile",{})
+        raw_seed=(pv_seed.get("median_normalized_pct_by_hour",{}) if isinstance(pv_seed,dict) else {})
+        seed=raw_seed if isinstance(raw_seed,dict) else {}
+        def weight(dt):
+            raw=seed.get(str(dt.hour))
+            try:value=float(raw) if not isinstance(raw,bool) else float("nan")
+            except (TypeError,ValueError,OverflowError):return None
+            return value if math.isfinite(value) and value>=0 else None
+        instants=[datetime.fromtimestamp(local_now.timestamp()+i*3600,tz=local_now.tzinfo) for i in range(hours)]
+        for dayoff,key in ((0,"remaining_today"),(1,"tomorrow")):
+            energy=values[key]
+            date_value=local_now.date()+timedelta(days=dayoff)
+            indices=[i for i,dt in enumerate(instants) if dt.date()==date_value]
+            if energy is None or not indices:
+                continue
+            if energy==0:
+                for i in indices:out[i]=0.
+                continue
+            start=local_now if dayoff==0 else local_now.replace(hour=0,minute=0,second=0,microsecond=0)+timedelta(days=dayoff)
+            end=start.replace(hour=0,minute=0,second=0,microsecond=0)+timedelta(days=1)
+            count=int((end.timestamp()-start.timestamp()+3599)//3600)
+            all_weights=[weight(datetime.fromtimestamp(start.timestamp()+i*3600,tz=start.tzinfo)) for i in range(count)]
+            if not all_weights or any(v is None for v in all_weights) or sum(all_weights)<=0:
+                continue
+            total=sum(all_weights)
+            for i in indices:
+                w=weight(instants[i])
+                if w is not None:out[i]=energy*1000*w/total
+        for i,key in enumerate(("current_hour","next_hour")):
+            if i<hours and values[key] is not None:
+                out[i]=values[key]*1000.
         return out
 
     @staticmethod
     def _price_value(row):
+        if isinstance(row, bool):
+            return None
         if isinstance(row, (int, float)):
-            return float(row) if math.isfinite(float(row)) else None
+            try:
+                value = float(row)
+                return value if math.isfinite(value) else None
+            except (ValueError, OverflowError):
+                return None
         if isinstance(row, dict):
             for key in ("price", "value", "total", "energy_price", "marketprice"):
                 if key in row:
                     try:
+                        if isinstance(row[key], bool):
+                            return None
                         value = float(row[key])
                         return value if math.isfinite(value) else None
-                    except (TypeError, ValueError):
+                    except (TypeError, ValueError, OverflowError):
                         pass
         return None
 
@@ -1497,7 +1550,7 @@ class SolarRuntime:
                     if dt.tzinfo is None:
                         dt = dt.replace(tzinfo=tzinfo)
                 return dt.astimezone(tzinfo) if tzinfo else dt
-            except (TypeError, ValueError, OSError):
+            except (TypeError, ValueError, OverflowError, OSError):
                 continue
         return None
 
@@ -1515,7 +1568,8 @@ class SolarRuntime:
         slot_min = max(5, int(self.planner_settings.get("slot_min", 15)))
         minute = (local_now.minute // slot_min) * slot_min
         plan_start = local_now.replace(minute=minute, second=0, microsecond=0)
-        starts = [plan_start + timedelta(minutes=i * slot_min) for i in range(slots)]
+        starts = [datetime.fromtimestamp(plan_start.timestamp()+i*slot_min*60,tz=plan_start.tzinfo)
+                  for i in range(slots)]
 
         def parse(entity_id, fallback):
             obj = self.hass.states.get(entity_id) if entity_id else None
@@ -1539,7 +1593,8 @@ class SolarRuntime:
                     rows = [{"start": k, "value": v} for k, v in rows.items()]
                 if not isinstance(rows, list) or not rows:
                     continue
-                has_ts = False
+                has_ts = any(isinstance(row, dict) and any(key in row for key in (
+                    "start", "start_time", "datetime", "time", "timestamp", "date")) for row in rows)
                 for row in rows:
                     value = self._price_value(row)
                     stamp = self._price_timestamp(row, tzinfo)
@@ -1547,7 +1602,7 @@ class SolarRuntime:
                         end = None
                         if isinstance(row, dict):
                             end = self._price_timestamp({"start": row.get("end", row.get("end_time"))}, tzinfo)
-                            if end is not None and end <= stamp:
+                            if end is not None and end.timestamp() <= stamp.timestamp():
                                 end = stamp  # Explicit invalid duration has no coverage.
                         timestamped.append((stamp, value, end)); has_ts = True
                 if has_ts:
@@ -1563,18 +1618,19 @@ class SolarRuntime:
                     generic_simple = vals
 
             if timestamped:
-                timestamped.sort(key=lambda x: x[0])
-                steps = [(b[0] - a[0]).total_seconds() for a, b in zip(timestamped, timestamped[1:])
-                         if b[0] > a[0]]
+                timestamped.sort(key=lambda x: x[0].timestamp())
+                steps = [b[0].timestamp()-a[0].timestamp() for a,b in zip(timestamped,timestamped[1:])
+                         if b[0].timestamp()>a[0].timestamp()]
                 last_duration = min(3600, min(steps)) if steps else slot_min * 60
                 result = []
                 for start_dt in starts:
-                    candidates = [(i, x) for i, x in enumerate(timestamped) if x[0] <= start_dt]
+                    candidates = [(i,x) for i,x in enumerate(timestamped) if x[0].timestamp()<=start_dt.timestamp()]
                     if candidates:
                         index, row = candidates[-1]
-                        end = row[2] or (timestamped[index + 1][0] if index + 1 < len(timestamped)
-                                         else row[0] + timedelta(seconds=last_duration))
-                        result.append(row[1] if start_dt < end and row[1] is not None else fallback)
+                        end = (row[2].timestamp() if row[2] is not None else
+                               timestamped[index+1][0].timestamp() if index+1<len(timestamped)
+                               else row[0].timestamp()+last_duration)
+                        result.append(row[1] if start_dt.timestamp()<end and row[1] is not None else fallback)
                     else:
                         result.append(fallback)
                 return result, "tijdgestempelde prijsreeks"
@@ -1587,9 +1643,12 @@ class SolarRuntime:
                     vals = simple_by_day.get(dayoff)
                     if not vals:
                         result.append(fallback); continue
-                    cadence = 1440.0 / len(vals)
-                    minute_of_day = start_dt.hour * 60 + start_dt.minute
-                    idx = min(len(vals) - 1, max(0, int(minute_of_day // cadence)))
+                    midnight=start_dt.replace(hour=0,minute=0,second=0,microsecond=0)
+                    day_s=(midnight+timedelta(days=1)).timestamp()-midnight.timestamp()
+                    cadence=day_s/len(vals)
+                    if day_s!=86400 and cadence not in (900,1800,3600):
+                        result.append(fallback);continue  # Ambiguous DST array: require real time positions.
+                    idx=min(len(vals)-1,max(0,int((start_dt.timestamp()-midnight.timestamp())//cadence)))
                     result.append(vals[idx] if vals[idx] is not None else fallback)
                 return result, "dagprijsreeks"
 
@@ -1600,14 +1659,17 @@ class SolarRuntime:
                 if len(generic_simple) in (24, 48, 96):
                     cadence = 1440.0 / len(generic_simple)
                     for start_dt in starts:
+                        midnight=start_dt.replace(hour=0,minute=0,second=0,microsecond=0)
+                        if (midnight+timedelta(days=1)).timestamp()-midnight.timestamp()!=86400:
+                            result.append(fallback);continue
                         idx = min(len(generic_simple) - 1, int((start_dt.hour * 60 + start_dt.minute) // cadence))
                         result.append(generic_simple[idx] if generic_simple[idx] is not None else fallback)
                 else:
                     for i in range(slots):
-                        idx = min(len(generic_simple) - 1, int(i * slot_min / 60))
-                        result.append(generic_simple[idx] if generic_simple[idx] is not None else fallback)
+                        idx = int(i * slot_min / 60)
+                        result.append(generic_simple[idx] if idx<len(generic_simple) and generic_simple[idx] is not None else fallback)
                 return result, "generieke prijsreeks"
-            return None, "vaste prijs"
+            return ([fallback] * slots if dynamic else None), "vaste prijs"
 
         dyn, import_source = parse(self.economy_settings.get("import_price_entity"), float(self.economy_settings.get("fixed_import_eur_kwh", .30)))
         if dyn:
@@ -1710,10 +1772,19 @@ class SolarRuntime:
             raise HomeAssistantError("Onbekende plannerinstelling")
         spec=PLANNER_SETTING_SPECS[key]
         if spec.get("type")=="boolean":
-            value=bool(value)
+            if isinstance(value,str):
+                text=value.strip().casefold()
+                if text in ("true","1","yes","on","aan"):value=True
+                elif text in ("false","0","no","off","uit"):value=False
+                else:raise HomeAssistantError("Ongeldige aan/uit-keuze")
+            elif not isinstance(value,bool):
+                if isinstance(value,(int,float)) and value in (0,1):value=bool(value)
+                else:raise HomeAssistantError("Ongeldige aan/uit-keuze")
         elif spec.get("type")=="number":
+            if isinstance(value,bool):raise HomeAssistantError("Ongeldige numerieke waarde")
             try:value=float(value)
-            except (TypeError,ValueError):raise HomeAssistantError("Ongeldige numerieke waarde")
+            except (TypeError,ValueError,OverflowError):raise HomeAssistantError("Ongeldige numerieke waarde")
+            if not math.isfinite(value):raise HomeAssistantError("Ongeldige numerieke waarde")
             if value<float(spec.get("min",value)) or value>float(spec.get("max",value)):
                 raise HomeAssistantError("Waarde buiten toegestane grens")
             if key in ("horizon_h","slot_min","replan_min","base_load_min_days","quality_retention_days","replay_retention_days"): value=int(round(value))
@@ -1986,7 +2057,7 @@ class SolarRuntime:
         elif self.invalid_since is None:
             self.invalid_since = now
         ambiguous = bool(self.faults) or any(s.owned and (not s.available or bool(s.fault)) for s in self.states.values())
-        can_increase = (not self.pending and not self.recovery and not ambiguous
+        can_increase = (not self.pending and not self.battery_fleet.busy and not self.recovery and not ambiguous
                         and now - self.last_issued >= self.settings["settle_s"]
                         and reported > self.last_issued_wall)
         profile = self.wallbox_profile.update()
@@ -2041,8 +2112,8 @@ class SolarRuntime:
                            and not self.battery_fleet.busy
                            and not dhw_sent and not self.dhw.pending and not self.dhw.blocks_increase and not self.dhw.reading.protected
                            and not self.recovery))
-        if (self.removal_requested and not climate_sent and not dhw_sent and not self.pending
-                and not self.handover and not self.dhw.busy):
+        if ((self.removal_requested or self.mode == "paused") and not climate_sent and not dhw_sent and not self.pending
+                and not self.handover and not self.dhw.busy and not self.battery_fleet.busy):
             climate_sent = await self.smart_climate.prepare_for_removal()
         use_phase_map = bool(self.phase_settings.get("use_learned_device_map", False))
         phase_global_block = self.phase.block_increase and not use_phase_map
@@ -2188,6 +2259,10 @@ class SolarRuntime:
                 and not climate_sent and not self.smart_climate.busy and not self.battery_fleet.busy
                 and not self.result.action):
             battery_sent = await self.battery_fleet.prepare_for_removal()
+        elif (self.mode == "paused" and not self.pending and not self.handover and not dhw_sent
+                and not climate_sent and not self.smart_climate.busy and not self.battery_fleet.busy
+                and not self.result.action):
+            battery_sent = await self.battery_fleet.release_owned_targets()
         else:
             battery_sent = await self.battery_fleet.tick(
                 grid_w=grid if valid else None,
@@ -2418,7 +2493,9 @@ class SolarRuntime:
             if mode == "solar" and self.legacy_conflicts():
                 names = ", ".join(x["name"] for x in self.legacy_conflicts())
                 raise HomeAssistantError("Schakel eerst de vervangen regelaars uit: " + names)
-            if mode == "observe" and (self.dhw.busy or self.pending or any(s.owned for s in self.states.values())):
+            if mode == "observe" and (self.dhw.busy or self.pending
+                    or self.smart_climate.removal_blocked() or self.battery_fleet.removal_blocked()
+                    or any(s.owned for s in self.states.values())):
                 raise HomeAssistantError("Kies eerst Pauze. Wacht tot de beheerde toestellen veilig zijn vrijgegeven.")
             if mode != self.mode:
                 for s in self.states.values():

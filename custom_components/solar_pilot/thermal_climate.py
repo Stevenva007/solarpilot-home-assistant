@@ -425,10 +425,12 @@ class ThermalProfile:
             stamp, indoor, outdoor = (None if isinstance(last.get(key), bool) else finite(last.get(key))
                                       for key in ("t", "indoor", "outdoor"))
             action = last.get("action")
+            pv = finite(last.get("pv_w"))
             if (stamp is not None and stamp >= 0 and indoor is not None and outdoor is not None
                     and isinstance(action, str) and action):
                 self.last = {"t": stamp, "indoor": indoor, "outdoor": outdoor,
-                             "action": action, "pv_w": max(0., finite(last.get("pv_w")) or 0.)}
+                             "action": action,
+                             "pv_w": max(0., pv) if pv is not None else None}
 
     def coefficients(self):
         """Compatibility tuple: passive k, heat gain, cool gain, response delay."""
@@ -549,11 +551,12 @@ class ThermalProfile:
 
     def observe(self, *, wall_ts, day, indoor_c, outdoor_c, hvac_action,
                 pv_w=None, settings=None):
-        """Learn from Panasonic's actual hvac_action and optional PV proxy."""
+        """Learn from actual HVAC action with every selected source known."""
         c = {**SMART_CLIMATE_DEFAULTS, **(settings or {})}
         indoor = finite(indoor_c)
         outdoor = finite(outdoor_c)
-        pv = max(0.0, finite(pv_w) or 0.0)
+        pv = finite(pv_w)
+        pv = max(0.0, pv) if pv is not None else None
         if indoor is None or outdoor is None:
             return False
         cur = {
@@ -562,6 +565,13 @@ class ThermalProfile:
         }
         prev = self.last
         self.last = cur
+        # An unknown PV report is not evidence of darkness. Retain that missing
+        # endpoint so the next known report cannot bridge this unobserved period.
+        # Learned coefficients/history survive; only an incomplete response
+        # interval is discarded when the selected solar model needs PV.
+        if c.get("solar_gain_enabled") and (pv is None or (prev and finite(prev.get("pv_w")) is None)):
+            self.action_started = None
+            return False
         if not prev:
             return False
         dt_h = (cur["t"] - float(prev.get("t", cur["t"]))) / 3600.0
@@ -592,7 +602,7 @@ class ThermalProfile:
         min_pv = float(c.get("solar_gain_min_pv_w", 800.0))
         k, _, _, _ = self.coefficients()
         passive = k * delta
-        solar_coeff = self.solar_coefficient()
+        solar_coeff = self.solar_coefficient() if c.get("solar_gain_enabled") else 0.0
         solar_effect = min(float(c.get("solar_gain_max_c_h", 0.35)), solar_coeff * prev_pv / 1000.0)
 
         if action in ("idle", "off", "none"):
@@ -984,6 +994,7 @@ class ClimateDecision:
     missing_components: list[str] = field(default_factory=list)
     readiness_by_zone: dict[str, dict] = field(default_factory=dict)
     block_reason: str = ""
+    evaluated_forecast_h: int = 0
 
 
 def _season_context(c, outside_hourly, target_avg):
@@ -1024,11 +1035,20 @@ def decide_mode(*, settings, zones, outside_hourly, profiles, current_season_mod
     off_mins, off_maxs, low_crossings, high_crossings, low_leads, high_leads = [], [], [], [], [], []
     solar_used = False
     solar_rows = list(solar_hourly_w or [])
-    positive_solar = bool(c.get("solar_gain_enabled")) and any((finite(x) or 0) > 0 for x in solar_rows)
     effective_window = max(1.0, float(c.get("min_coast_window_h", 8.0)) + float(coast_window_adjust_h or 0.0))
     forecast_hours = [finite(x) for x in (outside_hourly or [])]
-    forecast_ready = (len(forecast_hours) >= math.ceil(effective_window * (1.0 + 0.75 * season_strength))
+    required_forecast_hours = math.ceil(effective_window * (1.0 + 0.75 * season_strength))
+    forecast_ready = (len(forecast_hours) >= required_forecast_hours
                       and all(x is not None for x in forecast_hours))
+    solar_hours = [finite(x) for x in solar_rows[:len(forecast_hours)]]
+    # predict() scans the supplied outside horizon for eventual comfort bounds.
+    # PV must cover that same horizon, not silently become zero after a shorter
+    # minimum coast window. A caller supplying a shorter complete horizon may
+    # still qualify when it covers the minimum useful coast period.
+    solar_forecast_ready = (not c.get("solar_gain_enabled") or
+                            (len(solar_rows) >= max(required_forecast_hours, len(forecast_hours))
+                             and all(x is not None for x in solar_hours)))
+    positive_solar = bool(c.get("solar_gain_enabled")) and any(x is not None and x > 0 for x in solar_hours)
     readiness_by_zone = {}
     for z in zones:
         profile = profiles.get(z["entity_id"], ThermalProfile())
@@ -1045,11 +1065,19 @@ def decide_mode(*, settings, zones, outside_hourly, profiles, current_season_mod
         forecast_evidence = profile.readiness(c, use_solar=positive_solar)
         evidence = profile.readiness(c, directions=directions, use_solar=positive_solar)
         evidence["forecast_confidence"] = forecast_evidence["confidence"]
+        evidence["forecast_hours"] = len(forecast_hours)
+        forecast_blockers = []
         if not forecast_ready:
             evidence["required_components"].append("hourly_forecast")
             evidence["missing_components"].append("hourly_forecast")
+            forecast_blockers.append("Bruikbare uurvoorspelling voor een volledige coastperiode ontbreekt")
+        if not solar_forecast_ready:
+            evidence["required_components"].append("solar_forecast")
+            evidence["missing_components"].append("solar_forecast")
+            forecast_blockers.append("Bruikbare PV-uurverwachting voor een volledige coastperiode ontbreekt")
+        if forecast_blockers:
             evidence["control_ready"] = False
-            evidence["block_reason"] = "Bruikbare uurvoorspelling voor een volledige coastperiode ontbreekt"
+            evidence["block_reason"] = "; ".join([x for x in [evidence["block_reason"], *forecast_blockers] if x])
         readiness_by_zone[z["entity_id"]] = evidence
         if not pred:
             continue
@@ -1085,6 +1113,7 @@ def decide_mode(*, settings, zones, outside_hourly, profiles, current_season_mod
             effective_window if window is None else window, solar_used,
             forecast_confidence, model_ready if control_ready is None else control_ready,
             required, missing, readiness_by_zone, blocked or block_reason,
+            evaluated_forecast_h=len(forecast_hours),
         )
 
     fixed = [z for z in zones if str(z.get("mode", "")).casefold() in ("heat", "cool")]
@@ -1134,7 +1163,7 @@ def decide_mode(*, settings, zones, outside_hourly, profiles, current_season_mod
 
     if crossing is None:
         suffix = " Zonnewinst is meegewogen." if solar_used else ""
-        return result("off", "Tussenseizoen: bouwschil blijft binnen de voorspelde comfortband; lange coastperiode is verantwoord." + suffix)
+        return result("off", f"Tussenseizoen: bouwschil blijft binnen de voorspelde comfortband voor de komende {len(forecast_hours)} uur; lange coastperiode is verantwoord." + suffix)
 
     # Near the edges of shoulder season require a longer useful OFF window. The
     # learned coast feedback only adjusts this minimum window within hard bounds.

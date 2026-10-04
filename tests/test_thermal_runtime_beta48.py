@@ -453,6 +453,7 @@ async def test_owned_coast_release_preserves_other_zone_manual_off(monkeypatch):
 @pytest.mark.asyncio
 async def test_explicit_user_auto_returns_control_for_that_zone_only(monkeypatch):
     runtime, hass = setup_climate(control=True, temp=21, target=21, mode="off")
+    runtime.smart_climate.settings["solar_gain_enabled"] = False  # Ownership fixture without PV.
     wall = clock(monkeypatch, hass)
     forecast(hass, wall[0])
     manager = runtime.smart_climate
@@ -477,6 +478,7 @@ async def test_explicit_user_auto_returns_control_for_that_zone_only(monkeypatch
 @pytest.mark.asyncio
 async def test_owned_coast_can_return_to_auto_and_later_model_can_coast_again(monkeypatch):
     runtime, hass = setup_climate(control=True, temp=21, target=21, mode="auto")
+    runtime.smart_climate.settings["solar_gain_enabled"] = False  # Ownership fixture without PV.
     wall = clock(monkeypatch, hass)
     forecast(hass, wall[0])
     manager = runtime.smart_climate

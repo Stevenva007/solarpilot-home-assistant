@@ -51,6 +51,121 @@ def test_pseudonyms_consistent_default_not_names():
     assert not data['privacy']['entity_names_included']
 
 
+def test_pseudonyms_do_not_rewrite_schema_or_measurement_keys():
+    r,h=report_context()
+    r.configs['a']['name']='temperature'
+    h.states.get('sensor.grid').attributes['friendly_name']='schema'
+    report=r.analysis.build()
+    assert report['schema']=='solarpilot.analysis'
+    assert report['units']['temperature']=='degC'
+    assert 'temperature' not in next(iter(report['effective_configuration']['devices'].values()))['name']
+
+
+def test_short_device_and_entity_names_are_private_by_default():
+    r,h=report_context()
+    r.configs['a']['name']='EV'
+    h.states.get('sensor.grid').attributes['friendly_name']='WC'
+    report=r.analysis.build()
+    assert next(iter(report['effective_configuration']['devices'].values()))['name']!='EV'
+    assert all(row.get('attributes',{}).get('friendly_name')!='WC' for row in report['entities'].values())
+
+
+def test_default_export_hides_old_friendly_names_after_entity_rename():
+    r,h=report_context()
+    wall=time.time()
+    h.states.get('sensor.grid').attributes['friendly_name']='Nieuwe meter'
+    r.analysis.changes.append({'ts':wall-1,'entity_id':'sensor.grid','attributes':{'friendly_name':'Oude privémeter'}})
+    report=r.analysis.build()
+    assert 'Oude privémeter' not in json.dumps(report,ensure_ascii=False)
+
+
+@pytest.mark.parametrize('label',['auto','W','sensor'])
+def test_private_labels_preserve_protocol_modes_units_and_entity_joins(label):
+    r,h=report_context()
+    r.configs['a']['name']=label
+    r.note(f'{label} gebruikt sensor.grid; Wattmeting en automatische regeling.')
+    r.smart_climate.state.expected_mode={'climate.zone':'auto'}
+    report=r.analysis.build()
+    assert next(iter(report['effective_configuration']['devices'].values()))['name']!=label
+    assert report['units']['power']=='W'
+    assert report['components']['runtime_and_models']['smart_climate']['expected_mode']
+    assert set(report['components']['runtime_and_models']['smart_climate']['expected_mode'].values())=={'auto'}
+    grid=report['configuration']['site']['grid_entity']
+    assert grid.startswith('sensor.source_') and grid in report['entities']
+    assert 'Wattmeting' in json.dumps(report,ensure_ascii=False)
+
+
+def test_pseudonyms_preserve_escaped_labels_and_replace_only_complete_words():
+    r,h=report_context()
+    label='WC'
+    private_name='Meter "privé" \\ kelder'
+    r.configs['a']['name']=label
+    h.states.get('sensor.grid').attributes['friendly_name']=private_name
+    r.note(f'WC meet WClicht; {private_name} leest sensor.grid')
+    report=r.analysis.build()
+    text=json.dumps(report,ensure_ascii=False)
+    assert 'WClicht' in text
+    assert json.dumps(private_name,ensure_ascii=False)[1:-1] not in text
+    assert next(iter(report['effective_configuration']['devices'].values()))['name']!='WC'
+
+
+def test_pseudonyms_accept_multiple_entity_references_in_diagnostic_data():
+    r,h=report_context()
+    r.analysis.event('diagnostic','Meerdere bronnen',{'entity_id':['sensor.grid','sensor.pv'],'friendly_name':'Privégroep'})
+    report=r.analysis.build()
+    event=next(row for row in report['telemetry']['events'] if row['kind']=='diagnostic')
+    assert all(entity.startswith('sensor.source_') for entity in event['data']['entity_id'])
+    assert event['data']['friendly_name']!='Privégroep'
+
+
+def test_short_consumer_ids_are_pseudonymized_consistently_in_all_device_maps():
+    r,h=report_context()
+    r.device_modes['a']='auto'
+    report=r.analysis.build()
+    devices=report['effective_configuration']['devices']
+    alias=next(iter(devices))
+    assert alias.startswith('consumer_') and alias!='a'
+    assert devices[alias]['id']==alias
+    assert report['configuration']['options']['devices'][0]['id']==alias
+    assert alias in report['telemetry']['fast'][0]['devices']
+    assert alias in report['components']['runtime_and_models']['device_modes']
+    assert alias in report['components']['consumer_history']['devices']
+
+
+@pytest.mark.parametrize('device_id',['auto','schema','temperature','W'])
+def test_consumer_id_collisions_preserve_machine_fields_and_nested_mode_values(device_id):
+    r,h=report_context()
+    raw=json.loads(json.dumps(r.analysis.prepare()).replace('"a"',json.dumps(device_id)))
+    raw['components']['runtime_and_models']['mode']='auto'
+    raw['components']['runtime_and_models']['device_modes']={device_id:'auto'}
+    report=ae.AnalysisRecorder.finalize(raw)
+    alias=next(iter(report['effective_configuration']['devices']))
+    assert alias.startswith('consumer_')
+    assert report['schema']=='solarpilot.analysis'
+    assert report['units']['power']=='W' and report['units']['temperature']=='degC'
+    assert report['components']['runtime_and_models']['mode']=='auto'
+    assert report['components']['runtime_and_models']['device_modes']=={alias:'auto'}
+
+
+def test_battery_names_and_stable_ids_are_private_with_consistent_alias_joins():
+    r,h=report_context()
+    private_id='marstek_kapsalon'
+    private_name='Marstek van privé-kapsalon'
+    r.entry.options['batteries']=[{'id':private_id,'name':private_name,'power_entity':'sensor.battery_power','soc_entity':'sensor.battery_soc'}]
+    raw=r.analysis.prepare()
+    raw['components']['runtime_and_models']['battery_fleet']={'faults':{private_id:'Controle gevraagd'},'pending':{'battery_id':private_id},'expected_numbers':{private_id:{'entity_id':'number.battery','target':500}}}
+    raw['components']['energy_planning_climate']['battery_fleet']={'batteries':[{'id':private_id,'name':private_name,'power_w':500}]}
+    report=ae.AnalysisRecorder.finalize(raw)
+    battery=report['configuration']['options']['batteries'][0]
+    alias=battery['id']
+    assert alias.startswith('battery_') and private_id not in json.dumps(report)
+    assert private_name not in json.dumps(report,ensure_ascii=False)
+    journal=report['components']['runtime_and_models']['battery_fleet']
+    assert journal['pending']['battery_id']==alias
+    assert alias in journal['faults'] and alias in journal['expected_numbers']
+    assert report['components']['energy_planning_climate']['battery_fleet']['batteries'][0]['id']==alias
+
+
 def test_names_explicit_option_still_filters_secrets():
     r,h=report_context();r.entry.options['debug']={'password':'PRIVATE_PASSWORD','token':'PRIVATE_TOKEN','latitude':51.123}
     r.note('Bearer SuperSecretValue https://example.com/secret?key=secret')

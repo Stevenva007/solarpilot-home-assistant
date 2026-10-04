@@ -1,10 +1,10 @@
 <!-- solarpilot-handoff-schema: 1 -->
-<!-- solarpilot-handoff-version: 1.0.0-beta.48 -->
+<!-- solarpilot-handoff-version: 1.0.0-beta.49 -->
 
 # OVERDRACHT — SolarPilot
 
-Laatst bijgewerkt: **3 oktober 2026**
-Actuele ontwikkelde bron: **v1.0.0-beta.48**, op beta.47-commit `468291ad4a1f8050e71d2a842e434d93ecb8a104`. Deze release herstelt de klimaatregeling: blijvende bescherming van handmatige OFF-zones, geen opdrachtreplay en modelzekerheid voor de werkelijk benodigde respons met zichtbare bewijsstatus. De definitieve software-/publicatiestatus staat in `docs/TESTRESULTATEN_BETA48.md`. Beta.48 is hier niet live geïnstalleerd of fysiek getest. Dit dossier beschrijft de actuele werking; releasehistoriek staat in `CHANGELOG.md`, Git en oudere releasedocumenten.
+Laatst bijgewerkt: **4 oktober 2026**
+Actuele ontwikkelde bron: **v1.0.0-beta.49**, op gepubliceerde beta.48-commit `a7df7688806ee128242058631a000c640e1243dd`. Deze release herstelt aanvullende bewezen fouten in batterijserialisatie/bronbewijs, forecast en tijdroosters, export en veilig opstarten/herladen. Alle beta.48-regels voor manual OFF, relevante modelzekerheid en opdrachtveiligheid blijven behouden. De definitieve software-/publicatiestatus staat in `docs/TESTRESULTATEN_BETA49.md`. Beta.49 is hier niet live geïnstalleerd of fysiek getest. Dit dossier beschrijft de actuele werking; releasehistoriek staat in `CHANGELOG.md`, Git en oudere releasedocumenten.
 
 ## 1. Projectdoel in gewone taal
 
@@ -12,7 +12,7 @@ SolarPilot verdeelt zonnestroom tussen autonoom autoladen, warmtepomp/tapwater e
 
 ## 2. Actuele basis
 
-De absolute codebasis is beta.47 op commit `468291ad4a1f8050e71d2a842e434d93ecb8a104`. De onveranderlijke [beta.47-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.47) blijft de rollbackbasis. Gebruik geen oudere export als ontwikkelbasis.
+De absolute codebasis is gepubliceerde beta.48 op commit `a7df7688806ee128242058631a000c640e1243dd`, tree `11ade811d25f296ab84d6e0209776a615ab0099d`. De onveranderlijke [beta.48-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.48) en haar werkelijk geslaagde publicatie-/pakketverificatie zijn de rollbackbasis. Gebruik geen oudere export als ontwikkelbasis.
 Beta.46 verandert de voorrang tussen klimaatbewijs en algemene taakinfo voor de optionele warmwaterbuffer. De exact geregistreerde native `aquarea`-klimaatactie is leidend wanneer zij actueel en betrouwbaar is. De oudere `panasonic_cc`-AUTO-ambiguïteit blijft beschermd. De beta.45-vertraagde tankdoelbevestiging blijft intact: exact `aquarea`/`panasonic_cc`, minstens tien seconden en een passende nieuwe HA-rapportage; geen onmiddellijke optimistische echo. Een eerdere ACK of geladen versienummer bewijst geen nieuwe latere ACK of fysieke opwarming.
 
 In deze werksessie is geen live Home Assistant-toegang. Softwaregate, GitHub-publicatie, pakketten, HACS-bestanden, geladen backend/kaart, doelbevestiging en fysieke opwarming zijn afzonderlijke bewijslagen. Bestaande gebruikersinstellingen, geldige leerdata, toestellen en prioriteiten blijven behouden. Alleen ongeldige opgeslagen leerregels en oudere gecontroleerde fasewaarnemingen zonder isolatiebewijs worden gericht niet hergebruikt; geen algemene leerreset.
@@ -46,7 +46,7 @@ In deze werksessie is geen live Home Assistant-toegang. Softwaregate, GitHub-pub
 
 ### Bediening en uitleg
 
-Dagelijkse modi: **Alleen bekijken**, **Automatisch regelen**, **Pauze**. Dashboardgroepen: Overzicht, Voorrang, Toestellen, Warmte & comfort, Planning, Energie, Batterij, Export en Uitleg. Het configuratiecentrum bevat ook **Auto & batterij**. `current_guide.py` is de enige actuele gebruikersuitlegbron; dezelfde tekst staat in Home Assistant en beide `ACTUELE_WERKING.md`-bestanden. Opties hebben releasegebonden hulp. Browser Terug/Vooruit herstelt SolarPilot-schermen en beschermt onopgeslagen formulieren zonder acties te herhalen.
+Dagelijkse modi: **Alleen bekijken**, **Automatisch regelen**, **Pauze**. Dashboardgroepen: Overzicht, Voorrang, Toestellen, Warmte & comfort, Planning, Energie, Batterij, Export en Uitleg. Het configuratiecentrum bevat ook **Auto & batterij**. `current_guide.py` is de enige actuele gebruikersuitlegbron; dezelfde tekst staat in Home Assistant en beide `ACTUELE_WERKING.md`-bestanden. Opties hebben releasegebonden hulp. Alleen bekijken wordt bij nog actief/pending beheer geweigerd: eerst Pauze en veilige vrijgave. Pauze mag uitsluitend bewezen eigen climateOFF naar AUTO teruggeven en een ACKed eigen numeriek batterijdoel neutraliseren zolang het actuele doel exact past; manualOFF, overgenomen/onbekende/foutieve doelen en willekeurige scripts blijven beschermd; ontbrekend eigendom-/bronbewijs is geen vrijgave. Browser Terug/Vooruit herstelt SolarPilot-schermen en beschermt onopgeslagen formulieren zonder acties te herhalen.
 
 ### Automatisch herstel na herstart
 
@@ -65,6 +65,12 @@ De boiler heeft een read-only `restart_recovery`-journal dat een gewone same-bin
 De verticale lijst bevat vaste beschermde regels en verplaatsbare flexibele toestellen, Auto laden en extra warm water. De positie bepaalt de echte volgorde. Wallbox-toestemming toont bewaarde keuze én effectieve uitkomst. Centrale schema's beschermen de volgorde tegen oude toestelwizardvelden.
 
 De samenvatting per toestel blijft de actuele engine-`result.reason`. De startuitleg toont invoer, benodigd vermogen en effectieve toewijzing na hogere prioriteiten, comfort, lopende cycli en toezeggingen. Ruwe injectie is apart zichtbaar; een complete checklist is geen zelfstandige startgarantie. Ook handmatige gewone toestelvraag kan een fout of interlock niet overrulen. Minimumlooptijden en beschermde cycli blijven intact. Geschiedenis toont geregistreerde start-/stoptijden, draaitijd en afzonderlijke Startreden/Stopreden; ontbrekende externe oorzaken, meetgaten en oude sessies blijven onbekend.
+
+### Batterijopdrachten en gedeeld bronbewijs
+
+Een pending batterijopdracht blokkeert gewone laststarts/verhogingen, AEG-deadline-START en nieuwe vermogensoverdracht. Veilige gewone lastreductie behoudt normale rustregels; beschermde afwascycli blijven afwerken. Klimaatvrijgave bij verwijderen wacht eveneens op batterijbevestiging. Commandointentie wordt vóór actuatie duurzaam opgeslagen. Direct vóór call worden native doel/eenheid/bounds, mapping, expliciete toestemming en Wallboxgrens opnieuw gecontroleerd; tussentijdse wijziging breekt af met duurzaam opgeslagen controlefout zonder fysieke aanroep of wijziging van handmatig doel. Alleen passende verse batterijpower van ná issue en een passend numeriek doel bewijzen HA-bevestiging; daarna moeten nieuw P1-bewijs en de bestaande wachttijd beschikbaar zijn. Oude P1-ruimte wordt niet hergebruikt.
+
+Native SoC-sensoren vereisen %, eindige 0..100 en echte verse rapportage; geldige input_number-helpers mogen onveranderd zijn, maar niet restored/toekomstig/ongeldig. input_number-doelen gebruiken hun correcte domein. Native numeriek bereik en stap moeten exact neutraal nul ondersteunen; anders blijft het profiel read-only. Wallbox-gebonden actuatoren/geselecteerde scripts worden geweigerd; willekeurige scriptinhoud blijft door de gebruiker te controleren. Verwijderen vraagt verse neutrale power en bij numerieke aansturing exact nul als werkelijk doel; stilte bij niet-neutraal doel is geen vrijgave. Ontbrekende power/fout geeft geen retry of onterechte klaarstatus; bekend neutraal kan read-only worden afgehandeld. Een vervangend laad-/ontlaaddoel verrekenen met de werkelijk aanwezige eigen gestuurde flow voorkomt dubbel tellen en 0↔flow-pendelen in de berekening. Read-only/foutprofielen behouden hun gemeten residual zonder nieuw bedieningsrecht; native actuatorgrenzen voorkomen herhaalde afgekapte writes.
 
 ### AEG-afwasmachine
 
@@ -98,9 +104,9 @@ Panasonic blijft eigenaar van HEAT/COOL. Handmatige OFF-zones blijven uit totdat
 
 De coastbeoordeling gebruikt passieve respons plus zonnewinst wanneer gebruikt; bij voorspelde ondergrens verwarmrespons en bestaande reactievertraging, bij bovengrens koelrespons en reactievertraging en bij beide richtingen beide responses. Zonder voorspelde overschrijding is een ongebruikte actieve respons geen verplichte gate. Handmatige OFF-zones vallen buiten automatisch plannen; hun ontbrekende modelbewijs blokkeert niet op zichzelf een vrijgegeven AUTO-zone. Iedere concrete opdracht wordt vlak voor verzenden opnieuw met actuele zones en guards beoordeeld. Alleen opeenvolgende actuele/toekomstige forecasturen met passende weer-/PV-tijdposities geven nieuwe coastvrijgave. Bij ontbrekende forecast mag alleen bewezen eigen coast veilig AUTO hervatten zonder gewone daglimiet/minimumvasthoudtijd; manualOFF, vaste HEAT/COOL en gebruikersrust blijven beschermd. Coastfeedback start/telt uitsluitend na latere minimaal-tienseconden-HA-bevestiging van alle targetzones; mislukte/onbevestigde opdrachten leveren geen episode op en worden na herstart niet gereconstrueerd. Zonebindingwijzigingen wachten op veilig afronden van eigen coast/pending zodat beheer niet stil verweesd wordt. De legacy volledige confidence blijft apart beschikbaar. De bestaande reactievertraging blijft gedeelde historische leerervaring; geen afzonderlijk bewezen vertraging per richting uit oude samples afleiden. Modelstatus, relevante zekerheid en echte samples/dagen/episodes zijn zichtbaar; ontbrekend relevant bewijs houdt coast conservatief uit. Winter-/zomercontext beschrijft weer ten opzichte van binnendoel, geen actuele vraag; winter-/zomercoast blijft standaard uit. De ingestelde reactievertraging blijft als fallback zichtbaar waar nog niet geleerd. Warmtepompleren blijft gescheiden van gewone huishoudbasislast; modellen leren uitsluitend uit voldoende echte meetdagen/cycli.
 
-PV gebruikt werkelijk geconfigureerd paneelvermogen, omvormerlimiet, lokale schaduw en kalibratie; actuele PV blijft waarheid. Fase- en plannerregels verzinnen geen capaciteit. De planner combineert horizon, deadlines, gemeten of verklaarbaar geschat vermogen en conservatieve cyclusreserves. Ontbrekende duur-/fasemetingen worden niet optimistisch ingevuld. Gecontroleerde fasewaarnemingen vereisen bruikbare beginmetingen en stabiele andere gekoppelde meters. Oude gecontroleerde waarnemingen zonder dit opgeslagen isolatiebewijs worden bij upgrade niet hergebruikt; geldige passieve/nieuwe geïsoleerde waarnemingen en handmatige hints blijven behouden. Malformed opgeslagen leerregels worden afzonderlijk overgeslagen zonder geldige andere regels te wissen.
+PV gebruikt werkelijk geconfigureerd paneelvermogen, omvormerlimiet, lokale schaduw en kalibratie; actuele PV blijft waarheid. Ontbrekende forecaststaart/gaten blijven onbekend en worden geen nulbewijs of kunstmatig lage forecastfout. Een volledig gemeenschappelijk weer-/PV-venster mag worden gebruikt wanneer het de nodige coastvoorspelling dekt; ontbrekende staart wordt niet ingevuld, interne gaten blokkeren. Ontbrekend actueel PV-vermogen geeft geen thermisch 0W-leerbewijs. Met zonnewinst ingeschakeld moeten beide interval-eindpunten bekende PV hebben; ontbrekend bewijs onderbreekt slechts het interval en behoudt geldige opgeslagen modellen. Zonder expliciet ingeschakelde zonnewinst mag leren zonder PV en zonder aftrek van een zonnecoëfficiënt doorgaan. Plan-/forecaststappen volgen verstreken UTC-tijd met lokale labels/deadlines. Replay vraagt volledige lokale dagen van 92/96/100 werkelijk gedekte kwartieren; partiale dagen geven geen volledige-dagprestatieclaim. Fase- en plannerregels verzinnen geen capaciteit. De planner combineert horizon, deadlines, gemeten of verklaarbaar geschat vermogen en conservatieve cyclusreserves. Ontbrekende duur-/fasemetingen worden niet optimistisch ingevuld. Gecontroleerde fasewaarnemingen vereisen bruikbare beginmetingen en stabiele andere gekoppelde meters. Oude gecontroleerde waarnemingen zonder dit opgeslagen isolatiebewijs worden bij upgrade niet hergebruikt; geldige passieve/nieuwe geïsoleerde waarnemingen en handmatige hints blijven behouden. Malformed opgeslagen leerregels worden afzonderlijk overgeslagen zonder geldige andere regels te wissen.
 
-Kosten tonen netto afname/injectie, directe PV en dag-/horizonwaarden met meetdekking. Onbeschikbare, restored, toekomstige of meer dan 36 uur oude dynamische prijsbronnen vallen terug op het ingestelde vaste tarief. Ontbrekende rijen verschuiven de tijdposities niet; ontbrekende tijd/prijs wordt geen verzonnen reekswaarde. De aparte automatische-voordeelregistratie bewaart maximaal negentig dagen en is een opportunity-value-schatting, geen bewezen extra besparing die nogmaals van de kosten af mag. Batterijscenario's zijn adviserend; fysieke batterijregeling blijft aparte dubbele opt-in met eigenaarschap. Analyse-export benoemt werkelijke dekking, gaten, bootstrap, live leerdata, modellen en besluiten; export wordt niet automatisch geüpload.
+Kosten tonen netto afname/injectie, directe PV en dag-/horizonwaarden met meetdekking. Onbeschikbare, restored, toekomstige of meer dan 36 uur oude dynamische prijsbronnen vallen terug op het ingestelde vaste tarief. Ontbrekende rijen verschuiven de tijdposities niet; ontbrekende tijd/prijs wordt geen verzonnen reekswaarde. Geldige nulprijzen blijven nul. Booleans en niet als eindig getal te verwerken prijzen en ongeldige tijden worden niet als gratis tarief herinterpreteerd en gebruiken vaste fallback. De aparte automatische-voordeelregistratie bewaart maximaal negentig dagen en is een opportunity-value-schatting, geen bewezen extra besparing die nogmaals van de kosten af mag. Batterijscenario's zijn adviserend; fysieke batterijregeling blijft aparte dubbele opt-in met eigenaarschap. Analyse-export benoemt werkelijke dekking, gaten, bootstrap, live leerdata, modellen en besluiten; export wordt niet automatisch geüpload. Pseudoniemen behouden consistente IDs/verwijzingen en korte/historische labels, met schema-/sleutel-/eenheids-/enumbehoud. Setup/unload sluiten oude callbacks en taken af; startafbreking schrijft geen gedeeltelijk geladen toestand over goede opslag. Ongeldige afzonderlijke pending-/optie-/archiefrecords houden geldige siblings intact. Klimaatdeactivatie en bindingswijziging wachten ook bij onbereikbare eigen OFF/pending-zones.
 
 ### Wallbox
 
@@ -118,7 +124,7 @@ AEG-rollen zijn same-device; optionele cyclephase/starttijd/alarm mogen alleen m
 
 ## 6. Belangrijke ontwerpbeslissingen + waarom
 
-- **Werkelijk bestaande beta.47-bron als basis** voorkomt regressie door een oudere export.
+- **Werkelijk gepubliceerde beta.48-bron als basis** voorkomt regressie door een oudere export.
 - **Native klimaatactie vóór algemene taakinfo** voorkomt een onnodige DHW-blokkering bij betrouwbaar idle zonder echte koel-/verwarmprioriteit te versoepelen.
 - **Exacte adapterherkomst** beperkt vertrouwen tot `aquarea`; oudere `panasonic_cc` AUTO blijft beschermd. Geen algemene claim dat elke Panasonic-adapter dezelfde actiebetrouwbaarheid heeft.
 - **Onbekend is geen bewezen koeling** behoudt onmiddellijke bescherming zonder fictief koelverleden en extra wachttijd na bronherstel.
@@ -148,11 +154,11 @@ Nooit wachtwoorden, tokens, API-sleutels, private keys, exacte adressen, ruwe pr
 
 ## 9. Testprocedure + actuele teststatus
 
-De definitieve volledige samengestelde beta.48-suite behaalt **2170 geslaagde tests in 8.72 s**, exitcode 0. Dit omvat acht werkelijke Node VM-kaartweergaven. De Python-bronsyntax van 65 bestanden, JSON-syntax van vier bestanden en beide JavaScript-syntaxcontroles zijn geslaagd. Actuele uitleg/hulp (hash `7e00ab66b2698a93`, 432 hulpvelden), handoff, repositoryvalidatie, publieke preflight en diffcontrole zijn groen. Het offline voorbeeld is met fictieve gegevens opnieuw opgebouwd zonder HA-verbinding of toestelopdracht. Volledig verslag: `docs/TESTRESULTATEN_BETA48.md`; de historische 1884 beta.47-tests worden niet als nieuwe uitvoering opgevoerd.
+De definitieve volledige samengestelde beta.49-suite behaalt **2464 geslaagde tests in 13.90 s**, nul fouten en nul overgeslagen tests. Dit omvat dertien werkelijke Node VM-klimaatkaartweergaven, inclusief werkelijke versus ingestelde horizon zonder fictieve dekking. De Python-bronsyntax van 65 modules, JSON-syntax van vier bestanden en beide JavaScript-syntaxcontroles zijn geslaagd. Actuele uitleg/hulp (hash `8b9a30084c8ddf0f`, 432 hulpvelden), handoff, repositoryvalidatie, publieke preflight en diffcontrole zijn groen. Het offline voorbeeld is opnieuw met fictieve gegevens opgebouwd zonder HA-verbinding of toestelopdracht. Volledig verslag: `docs/TESTRESULTATEN_BETA49.md`; de historische 2170 beta.48-tests zijn geen nieuwe uitvoering.
 
-De regressiedekking omvat blijvende manual OFF-bescherming inclusief harde comfortgrenzen, geen overschrijven van vaste HEAT/COOL, pending/onzekere opdrachten zonder replay, relevante responsconfidence en transparante status/counts, geen ontbrekende activiteit als idle leren, behouden geldige data/instellingen, per-zone persistent herstel en alle beta.47-herstart-/DHW-/AEG-/prioriteits-/Wallboxgrenzen. Ook bronversheid/restored/ongeldige waarden, post-START-fasebewijs, fout/interlock boven handmatige vraag, dynamische-prijsgaten/vaste terugval, geïsoleerd faseleren met selectief opslagherstel en wederzijdse DHW-/klimaat-/batterijserialisatie met read-only pending afhandeling zijn gedekt. Pakketverificatie blijft een afzonderlijke controle tegen de exacte gepubliceerde tag.
+De regressiedekking omvat pending batterij versus gewone laststarts/verhogingen, AEG-deadline en vermogensoverdracht; nieuw P1-bewijs na batterijactie; duurzame intentie, verse postissue vermogensbevestiging, geldige SoC en werkelijk neutrale verwijdering; onzekere/fouttoestanden zonder blinde retry; input_number-domein en Wallbox-scriptgrens. Ook ontbrekende PV-/weervoorspelling zonder nulbewijs, UTC/DST-roosters, volledige 92/96/100-kwartierreplay, nulprijzen, gestructureerde consistente exportpseudoniemen, veilige setup/unload/startafbreking, geldig-sibling-behoud bij ongeldige opgeslagen records en klimaatdeactivatie/bindingswijziging bij eigen OFF/pending/onbereikbare zone. Alle beta.48-veiligheidsregels blijven onderdeel van de samengestelde gate.
 
-Geen live Home Assistant-toegang; installatie, fysieke AUTO/OFF-overgangen en verwarm-/koelrespons zijn niet in deze werksessie bevestigd. Volledige browserproeven zijn niet opnieuw uitgevoerd; Node VM-weergaven bewijzen geen geladen live kaart. Publicatie en pakketverificatie zijn afzonderlijke bewijslagen; hun controle staat bij de onveranderlijke GitHub-release en workflow.
+Geen live Home Assistant-toegang; installatie of fysieke toestelrespons zijn niet in deze werksessie bevestigd. Volledige browserproeven zijn niet opnieuw uitgevoerd; dertien werkelijke Node VM-weergaven bewijzen geen geladen live kaart. Publicatie en pakketverificatie blijven afzonderlijke bewijslagen; hun controle staat bij de onveranderlijke GitHub-release en workflow.
 
 ## 10. Bekende problemen / beperkingen
 
@@ -160,7 +166,7 @@ Geen live Home Assistant-toegang; installatie, fysieke AUTO/OFF-overgangen en ve
 - Een actuele native idle/off-actie geeft geen fysieke compressor- of tankenergiegarantie; `PUMP/WATER` meldt slechts een taak.
 - Latere HA/cloud-doelrapportage is geen onafhankelijke fysieke ACK. Een nieuwe natuurlijke latere doelbevestiging en tankopwarming blijven installatieacceptatie.
 - De oudere `panasonic_cc` AUTO/HEAT_COOL-mapping blijft zonder expliciete actuele taakinfo ambigu.
-- Geen browsergate of live herstart-/klimaat-/koelroute in deze werksessie bevestigd; geen fysieke beta.48-acceptatie.
+- Geen browsergate of live herstart-/klimaat-/koelroute in deze werksessie bevestigd; geen fysieke beta.49-acceptatie.
 - Een 50 °C-doel met -5 °C-differentie kan 46 °C niet garanderen; het profiel is geen hygiënegarantie.
 - Zonder exclusieve afwas-/tankmeter blijven vermogen en programmafasen conservatief geschat; geen fictieve gemeten cycli.
 - Onvolledige/ambigue AEG-mapping en een bewust onbetrouwbare alarmbron blijven fail-closed. De retry eindigt na tien minuten.
@@ -168,8 +174,8 @@ Geen live Home Assistant-toegang; installatie, fysieke AUTO/OFF-overgangen en ve
 
 ## 11. Concrete openstaande ontwikkeling
 
-- Publicatiecontrole staat op GitHub bij de onveranderlijke beta.48-tag/release en Validate-workflow; beide gepubliceerde pakketten moeten tegen de exacte tag worden gecontroleerd.
-- Gebruiker installeert beta.48 en controleert geladen backend/kaart, automatisch routineherstel en actuele native klimaatactie naast taakdata. In deze werksessie is geen live HA-toegang.
+- Beta.48-publicatie en beide pakketten zijn werkelijk gecontroleerd. Gebruik voor de afzonderlijke beta.49-publicatie-/pakketcontrole de exacte onveranderlijke tag, GitHub-release en Validate-workflow; hun actuele bewijs staat daar. Een eerdere releasecontrole bewijst geen latere publicatie.
+- Gebruiker installeert beta.49 en controleert geladen backend/kaart, automatisch routineherstel en actuele native klimaatactie naast taakdata. In deze werksessie is geen live HA-toegang.
 - Observeer een volgende natuurlijke toegestane doelopdracht met passende latere rapportage en werkelijke tankrespons; forceer geen doel, Powerful, APP-aanvraag of START voor bewijs.
 - Eventueel de veertien browsercontroles later opnieuw uitvoeren in een omgeving met Chromium.
 - Exclusieve Shelly-afwasmeting toevoegen wanneer hardware beschikbaar is; tot dan fasen/energie niet verzinnen.
@@ -177,9 +183,9 @@ Geen live Home Assistant-toegang; installatie, fysieke AUTO/OFF-overgangen en ve
 
 ## 12. Installatie/upgrade en rollback
 
-Zie `START_HIER.md` en `docs/BETA48_INSTELLEN.md`: actuele volledige back-up, beschermde cyclus afwerken, exact beta.48 via HACS/lokaal pakket, volledige HA-herstart, backend én vernieuwde kaart controleren, bron-/reviewcontrole in Alleen bekijken/Pauze en pas daarna gewone regeling hervatten. Bestaande instellingen, leerdata, APP-tickets en `userfiles` blijven behouden. Een gewone herstartcontrole rondt automatisch af; echte manual hold/fout of gewijzigd doel wordt niet automatisch gewist.
+Zie `START_HIER.md` en `docs/BETA49_INSTELLEN.md`: actuele volledige back-up, beschermde cyclus afwerken, exact beta.49 via HACS/lokaal pakket, volledige HA-herstart, backend én vernieuwde kaart controleren, bron-/reviewcontrole in Alleen bekijken/Pauze en pas daarna gewone regeling hervatten. Bestaande instellingen, leerdata, APP-tickets en `userfiles` blijven behouden. Een gewone herstartcontrole rondt automatisch af; echte manual hold/fout of gewijzigd doel wordt niet automatisch gewist.
 
-Rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.47 of gecontroleerde volledige back-up herstellen → Home Assistant herstart → backend/kaart, eigendom, bronnen en beveiligingen controleren**. Beta.47 behoudt het herstartherstel maar heeft nog niet de blijvende manual OFF- en relevante-confidencecorrecties van beta.48; beoordeel handmatige zones vóór hervatten in die oudere versie. Geen STOPRESET vanuit SolarPilot, extra APP-aanvraag, Powerful of Wallbox-opdracht om upgrade/rollback te forceren.
+Rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.48 of gecontroleerde volledige back-up herstellen → Home Assistant herstart → backend/kaart, eigendom, bronnen en beveiligingen controleren**. Beta.48 behoudt manual OFF, relevante confidence en herstartherstel, maar bevat nog niet de aanvullende batterij-/forecast-/tijdrooster-/exportcorrecties van beta.49. Geen STOPRESET vanuit SolarPilot, extra APP-aanvraag, Powerful of Wallbox-opdracht om upgrade/rollback te forceren.
 
 ## 13. Belangrijkste bestanden
 
@@ -191,27 +197,27 @@ Rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.47 of g
 - `savings.py`, planner/PV/fasemodules: schattingen, dekking en begrensd lokaal leren.
 - `current_guide.py`, `option_help.py`, translations en gegenereerde uitleg/help: één releasegebonden gebruikersbeschrijving.
 - `tests/`, `tools/check_*.py`, `tools/validate_repository.py`: regressies, consistentie en openbare releasechecks.
-- `CHANGELOG.md`, `START_HIER.md`, `docs/BETA48_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA48.md` en dit dossier: huidige release; oudere releasedocumenten blijven historie.
+- `CHANGELOG.md`, `START_HIER.md`, `docs/BETA49_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA49.md` en dit dossier: huidige release; oudere releasedocumenten blijven historie.
 
 ## 14. Release-checklist
 
-1. Actuele handoff lezen en absolute beta.47-basis bevestigen.
-2. Manifest, const, current guide en beide frontendversies gelijk aan beta.48 houden.
+1. Actuele handoff lezen en absolute gepubliceerde beta.48-basis bevestigen.
+2. Manifest, const, current guide en beide frontendversies gelijk aan beta.49 houden.
 3. Actuele uitleg/optiehulp genereren en alle relevante lokale gates uitvoeren; werkelijke beperkingen opnemen.
 4. Code, changelog, gebruikersuitleg, installatie/rollback, testverslag en OVERDRACHT samen actualiseren.
 5. Publieke preflight en diffcontrole groen; geen caches/private data in commit/pakket.
-6. Alleen na geslaagde gate naar de bestaande repository uploaden. Nieuwe beta.48-tag/workflow/release; oude tags en assets onveranderd laten.
+6. Alleen na geslaagde gate naar de bestaande repository uploaden. Nieuwe beta.49-tag/workflow/release; oude tags en assets onveranderd laten.
 7. Beide gepubliceerde ZIP's downloaden, inhoud tegen exact tag vergelijken en werkelijke grootte/SHA-256 vastleggen.
 8. Publicatie niet gelijkstellen aan HACS-installatie, geladen backend/kaart, ACK of fysieke opwarming.
 
 ## 15. AI-handoff
 
-Werk voort op beta.47-commit `468291ad4a1f8050e71d2a842e434d93ecb8a104` en de hier ontwikkelde beta.48. De gebruiker heeft de herstelling én upload naar de bestaande GitHub-repository na testen uitdrukkelijk gevraagd. Vraag geen herhaalde uploadtoestemming; voltooi eerst de softwaregate en pakket-/documentconsistentie.
+Werk voort op gepubliceerde beta.48-commit `a7df7688806ee128242058631a000c640e1243dd` en de hier ontwikkelde beta.49. De gebruiker heeft de herstelling én upload naar de bestaande GitHub-repository na testen uitdrukkelijk gevraagd. Vraag geen herhaalde uploadtoestemming; voltooi eerst de softwaregate en pakket-/documentconsistentie.
 
-Beta.48 bewaart manual OFF onbeperkt, herhaalt geen onzekere klimaatopdracht en toont zekerheid voor de benodigde respons afzonderlijk van de legacy volledige score. Geen datareset of fysieke ACK claimen.
+Beta.49 behoudt alle beta.48-regels voor manual OFF, geen onzekere opdrachtreplay en relevante modelzekerheid. De aanvullende audit sluit batterij-/P1-serialisatie, forecast-/DST-/replaybewijs, exportstructuur en levenscyclus-/opslagfouten. Geen algemene datareset, verruimde actuatortoestemming of fysieke ACK claimen.
 
 De behouden beta.47-regels hervatten gewone herstartcontrole automatisch op basis van nieuwe echte bronwaarnemingen, met persistent gebruikersintentie en modulelokale routine-DHW-controle. Dit herhaalt geen fysieke opdrachten en wist geen echte manual hold/fouten. Oudere opslag zonder intentiemarker heeft uitsluitend bij onderbroken beheertaken een eenmalige reparatie; nieuwe expliciete keuzes blijven beschermd.
 
 De behouden kernregel is een juiste bewijshiërarchie: actuele native `aquarea`-actie voor de optionele DHW-guard, algemene taakinfo apart voor diagnostiek/leren, oudere `panasonic_cc` AUTO conservatief, werkelijk ontbrekende klimaatdata beschermd en alleen bewezen koeling in de koeltimer. Behoud alle ACK-, manual hold-, eigendoms-, hygiëne-, AEG-, prioriteits-, temperatuur- en Wallboxgrenzen. Maak geen nieuw 55 °C-tussenprofiel of automatisch force-commando.
 
-Gebruik uitsluitend aangetoonde software-/publicatieresultaten in `TESTRESULTATEN_BETA48.md`. In deze werksessie zijn browserproeven en live HA-/hardwareacceptatie niet uitgevoerd. Geen fysieke proefopdracht of leerreset gebruiken om een diagnoseveld te vullen; installatie-/opwarmbewijs blijft afzonderlijk.
+Gebruik uitsluitend aangetoonde software-/publicatieresultaten in `TESTRESULTATEN_BETA49.md`. In deze werksessie zijn browserproeven en live HA-/hardwareacceptatie niet uitgevoerd. Geen fysieke proefopdracht of leerreset gebruiken om een diagnoseveld te vullen; installatie-/opwarmbewijs blijft afzonderlijk.

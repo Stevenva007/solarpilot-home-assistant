@@ -109,7 +109,7 @@ def test_recent_replay_is_cached_between_dashboard_reads():
     p=UnifiedPlanner({**UNIFIED_PLANNER_DEFAULTS,'horizon_h':6,'slot_min':15,'replay_enabled':True}, {'base_load_profile':{'median_w_by_hour':{str(h):500 for h in range(24)}}})
     start=datetime(2026,9,20,0,0,tzinfo=timezone.utc)
     for day in range(2):
-        for slot in range(48):
+        for slot in range(96):
             now=start+__import__('datetime').timedelta(days=day,minutes=slot*15)
             p.replay.observe(local_now=now,pv_w=2000,base_w=500,grid_w=-1500,import_price=.3,export_price=.03,capacity_target_w=3500)
     devices=[{'id':'a','name':'Load','priority':10,'enabled':True,'forecast_deferrable':True,'daily_energy_goal_kwh':1.0,'power_w':1000,

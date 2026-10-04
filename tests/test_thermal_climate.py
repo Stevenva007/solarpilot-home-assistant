@@ -124,7 +124,7 @@ def test_shoulder_season_can_coast_when_model_predicts_comfort():
     p=mature_profile(k=0.01)
     d=decide_mode(settings={**SMART_CLIMATE_DEFAULTS,'enabled':True},
                   zones=[zone(21,21,'auto')], outside_hourly=[21]*48,
-                  profiles={'climate.zone':p})
+                  profiles={'climate.zone':p}, solar_hourly_w=[0] * 48)
     assert d.desired_mode=='off'
     assert d.season_context=='shoulder'
     assert 'coast' in d.reason.lower()
@@ -142,17 +142,17 @@ def test_imminent_shoulder_crossing_releases_auto_before_hard_breach():
     outside=[21]*6 + [14]*8 + [21]*10 + [21]*24
     d=decide_mode(settings={**SMART_CLIMATE_DEFAULTS,'enabled':True,'shoulder_band_c':3,'season_extreme_delta_c':8},
                   zones=[zone(21,21,'off')], outside_hourly=outside,
-                  profiles={'climate.zone':p})
+                  profiles={'climate.zone':p}, solar_hourly_w=[0] * 48)
     assert d.desired_mode=='auto'
     assert d.crossing_h is not None
 
 
 def test_thermal_profile_learns_from_panasonic_hvac_action_while_auto():
     p=ThermalProfile()
-    p.observe(wall_ts=0,day='2026-09-01',indoor_c=21,outdoor_c=11,hvac_action='idle')
-    p.observe(wall_ts=1800,day='2026-09-01',indoor_c=20.9,outdoor_c=11,hvac_action='idle')
-    p.observe(wall_ts=3600,day='2026-09-01',indoor_c=20.95,outdoor_c=11,hvac_action='heating')
-    p.observe(wall_ts=5400,day='2026-09-01',indoor_c=21.15,outdoor_c=11,hvac_action='heating')
+    p.observe(wall_ts=0,day='2026-09-01',indoor_c=21,outdoor_c=11,hvac_action='idle',pv_w=0)
+    p.observe(wall_ts=1800,day='2026-09-01',indoor_c=20.9,outdoor_c=11,hvac_action='idle',pv_w=0)
+    p.observe(wall_ts=3600,day='2026-09-01',indoor_c=20.95,outdoor_c=11,hvac_action='heating',pv_w=0)
+    p.observe(wall_ts=5400,day='2026-09-01',indoor_c=21.15,outdoor_c=11,hvac_action='heating',pv_w=0)
     assert p.samples >= 3
     assert p.passive_k
 

@@ -3,12 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.48'
-GUIDE_UPDATED = '2026-10-03'
+GUIDE_VERSION = '1.0.0-beta.49'
+GUIDE_UPDATED = '2026-10-04'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.48',
- 'updated': '2026-10-03',
+ 'version': '1.0.0-beta.49',
+ 'updated': '2026-10-04',
  'intro': 'Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst '
           'samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en '
           'leerdata blijven lokaal in Home Assistant en worden bij gewone HACS-updates niet vervangen door '
@@ -25,10 +25,23 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Alleen bekijken (technisch: observe) berekent en leert maar stuurt geen gewone '
                               'flexibele toestellen. Automatisch regelen (technisch: solar) voert de toegestane '
                               'regeling uit. Pauze start niets nieuws en bouwt eigen onderbreekbare lasten veilig '
-                              'af, met behoud van minimumlooptijden en beschermde cycli.',
+                              'af, met behoud van minimumlooptijden en beschermde cycli. Tijdens actief '
+                              'beheer kan Alleen bekijken worden geweigerd: kies eerst Pauze en wacht tot '
+                              'beheerde toestellen veilig zijn vrijgegeven. Pauze mag alleen bewezen eigen '
+                              'OFF/coast-zones naar Panasonic AUTO teruggeven en een bevestigd eigen '
+                              'numeriek batterijdoel neutraliseren zolang het actuele doel nog exact past. '
+                              'Handmatige OFF, overgenomen, onbekende of foutieve doelen en willekeurige '
+                              'scripts worden niet op basis van een aanname overschreven. Ontbrekend '
+                              'eigendom- of bronbewijs blijft beschermd.',
                               'Er wordt maximaal één gewone fysieke wijziging tegelijk uitgevoerd en daarna op '
                               'terugmelding en nieuwe meetinformatie gewacht. Nieuwe apparaten staan standaard '
-                              'Uitgesloten totdat ze bewust op Auto worden gezet.'],
+                              'Uitgesloten totdat ze bewust op Auto worden gezet.',
+                              'Een pending batterijopdracht blokkeert nieuwe gewone laststarts/verhogingen, '
+                              'AEG-deadline-START en nieuwe vermogensoverdracht. Ook veilige klimaatvrijgave '
+                              'bij verwijderen wacht op die bevestiging. Bestaande beschermde cycli blijven '
+                              'afwerken; veilige reductie van gewone lasten behoudt haar normale rustregels. '
+                              'Na batterijactie is naast powerbevestiging ook een nieuwe P1-rapportage en '
+                              'de normale wachttijd nodig; oude netruimte wordt niet opnieuw uitgegeven.'],
                'bullets': ['Eén actuator heeft maar één eigenaar.',
                            'Een EMS-berekening is geen elektrische beveiliging.',
                            'Onzekere opdrachten worden niet eindeloos herhaald.',
@@ -108,7 +121,10 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                            'netresultaat. Daarmee vergelijkt de Planning-tab enkele alternatieve '
                            'plannerstrategieën op dezelfde meetdata. Dit is een plannerreplay en geen exacte '
                            'fysieke simulatie van elk historisch apparaat; verschillen worden daarom alleen '
-                           'als richtinggevend advies getoond.',
+                           'als richtinggevend advies getoond. Alleen volledig gedekte lokale dagen '
+                           'tellen als dagreplay: 92 kwartieren bij de korte zomertijdwisseldag, normaal '
+                           '96 en 100 bij de lange wintertijdwisseldag. Gaten of een gedeeltelijke dag '
+                           'worden niet als volledige dagprestatie voorgesteld.',
                            'Voor grotere plannerwijzigingen bevat het pakket daarnaast een offline historische '
                            'vergelijking die dezelfde Unified Planner met de huidige en een voorgestelde '
                            'instelling op dezelfde meetachtergrond kan draaien. Ook die backtest is '
@@ -373,13 +389,21 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Forecast.Solar-sensor; beide staan ter controle in de diagnose. Correctie = '
                               'ruwe waarde × geleerde factor, begrensd op de AC-limiet. Nu, +1, +2 en +3 uur '
                               'worden afzonderlijk getoond. Zonder gedekte curve of aparte +1-sensor blijven '
-                              'ontbrekende toekomstige waarden onbekend, niet 0 W.',
+                              'ontbrekende toekomstige waarden onbekend, niet 0 W. Ook een ontbrekende '
+                              'staart of gat in de curve blijft onbekend; ontbrekend forecastbewijs wordt '
+                              'geen nulwaarde of kunstmatig lage fout in de kwaliteitsscore. Een evaluatie '
+                              'mag zich beperken tot een volledig gemeenschappelijk weer-/PV-tijdvenster '
+                              'dat de noodzakelijke coastvoorspelling dekt; de ontbrekende staart wordt '
+                              'daarmee niet als bekend ingevuld en interne gaten blijven blokkeren.',
                               'Resterende en toekomstige energie worden met echte tijdstempels en lokale '
                               'middernacht uit de curve geïntegreerd, in kWh. Er wordt geen vaste 24 uur '
                               'aangenomen bij zomer-/wintertijd. Als alleen een dagtotaal beschikbaar is, '
                               'wordt dat ongewijzigd en als ruw fallbacktotaal getoond; een huidige '
                               'correctiefactor wordt niet blind op morgen toegepast. De volledige ruwe energie '
-                              'vandaag blijft eveneens beschikbaar voor diagnose.',
+                              'vandaag blijft eveneens beschikbaar voor diagnose. Plan- en forecaststappen '
+                              'volgen verstreken UTC-tijd met lokale tijdlabels; de klokwisseling maakt '
+                              'geen dubbel verzonnen of overgeslagen uur. Lokale kalenderdeadlines behouden '
+                              'hun bestaande tijdzonebetekenis.',
                               'Per minuut wordt maximaal één verse meetwaarneming verzameld. Een kwartier '
                               'wordt alleen geleerd met minstens 12 bruikbare waarnemingen, minimaal 11 '
                               'minuten spreiding, geen grote hiaten en geen ongeldige stukken. De eerste 10 '
@@ -474,6 +498,36 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'minimale tijd tussen batterijopdrachten geldt pas nadat werkelijk een eerdere '
                               'batterijopdracht is verzonden; een verse runtime wordt dus niet afhankelijk van '
                               'systeem-uptime kunstmatig geblokkeerd.',
+                              'Commandointentie wordt duurzaam vóór actuatie bewaard. Vlak voor verzending '
+                              'worden native doel/eenheid/grenzen, koppeling, expliciete toestemmingen en '
+                              'Wallboxbescherming opnieuw gecontroleerd. Een tussentijdse wijziging breekt '
+                              'de opdracht af zonder fysieke aanroep en bewaart een controlefout; het '
+                              'handmatige native doel blijft behouden. Alleen een verse '
+                              'passende vermogensrapportage van ná de opdracht kan batterijbevestiging geven; '
+                              'bij numerieke aansturing moet ook het werkelijk gemelde doel passen. Een '
+                              'al eerder passende powerwaarde is geen nieuwe ACK. Dit is HA-bronbewijs, '
+                              'geen onafhankelijke fysieke apparaatbevestiging. Ontbrekende bronnen of '
+                              'fouten geven geen blinde retry of onterechte klaarstatus.',
+                              'Een native SoC-sensor moet procenten (%), een eindige waarde van 0 tot 100 '
+                              'en een verse echte rapportage leveren. Een geldige input_number-helper mag '
+                              'onveranderd blijven, maar niet restored, toekomstig of ongeldig zijn. '
+                              'Een ondersteund input_number-doel gebruikt de juiste Home Assistant-service. '
+                              'Geselecteerde batterij-actuatoren en scripts mogen niet aan het Wallbox-apparaat '
+                              'gekoppeld zijn. Controleer zelf willekeurige scriptinhoud en terugmelding; '
+                              'een scriptnaam of apparaatkoppeling bewijst de werking niet.',
+                              'Voor verwijderen is verse werkelijk neutrale batterijpower nodig; bij '
+                              'numerieke aansturing moet het actuele doel ook exact neutraal zijn. Stil '
+                              'gemeten vermogen bij een niet-neutraal setpoint is geen vrijgave. Ontbrekende '
+                              'power houdt de voorbereiding tegen; een fout geeft geen automatische retry. '
+                              'Een aantoonbaar al neutrale toestand kan read-only worden afgehandeld.',
+                              'Een vervangend laad-/ontlaaddoel houdt rekening met de werkelijk aanwezige '
+                              'eigen gestuurde batterijflow. Zo wordt bestaande flow niet dubbel '
+                              'meegeteld of onterecht op nul gezet bij elke nieuwe berekening. Read-only '
+                              'of foutieve profielen blijven als werkelijk aanwezige stroom meetellen '
+                              'zonder nieuw bedieningsrecht. Native actuatorgrenzen begrenzen het doel '
+                              'voordat een herhaalde te grote of afgekapte opdracht ontstaat. Numerieke '
+                              'actuatoren moeten neutraal nul exact binnen hun native bereik en stap kunnen '
+                              'weergeven; anders blijft dat profiel uitleesbaar zonder fysieke vrijgave.',
                               'De batterij-what-if rekent standaard met 80% round-trip efficiëntie, dus 20% '
                               'totaal batterij-/omvormerverlies over laden en later terugleveren aan de '
                               'woning. De simulator verdeelt dit verlies symmetrisch over laden en ontladen. '
@@ -516,7 +570,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'zonnige momenten vanzelf opwarmt. Die bijdrage is begrensd en wordt pas '
                               'gebruikt wanneer voldoende leerkwaliteit aanwezig is. Een onbekende, '
                               'onbeschikbare, restored of ongeldige ruimteactie wordt niet als idle '
-                              'aangeleerd; geen ontbrekende verwarm-/koelactiviteit verzinnen.',
+                              'aangeleerd; geen ontbrekende verwarm-/koelactiviteit verzinnen. Ook ontbrekend '
+                              'actueel PV-vermogen wordt niet als 0 W in het thermische leerbewijs ingevuld. '
+                              'Bij ingeschakelde zonnewinst moet PV op beide uiteinden van het leerinterval '
+                              'bekend zijn; ontbrekende PV onderbreekt alleen dat interval, niet bestaande '
+                              'geldige samples of coëfficiënten. Twee volgende geldige eindpunten laten '
+                              'leren vanzelf hervatten. Bij expliciet uitgeschakelde zonnewinst mag zonder '
+                              'PV worden geleerd en wordt geen zonnecoëfficiënt afgetrokken.',
                               'De uurverwachting van de weersdienst wordt lokaal gecontroleerd tegen de '
                               'werkelijk gemeten buitentemperatuur. SolarPilot leert afzonderlijk de '
                               'systematische fout rond 6, 12, 24 en 48 uur vooruit en mag de voorspelling '
@@ -643,7 +703,10 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Een onbeschikbare, restored, toekomstige of meer dan 36 uur oude dynamische '
                               'prijsbron valt terug op het ingestelde vaste tarief. Ongeldige rijen schuiven '
                               'de tijdposities van andere prijzen niet op; een ontbrekend tijdstip of '
-                              'ontbrekende prijs krijgt de vaste terugvalprijs in plaats van een verzonnen tarief.',
+                              'ontbrekende prijs krijgt de vaste terugvalprijs in plaats van een verzonnen tarief. '
+                              'Een geldige nulprijs blijft nul en wordt niet als ontbrekend behandeld. '
+                              'Booleans, niet als eindig getal te verwerken prijswaarden en ongeldige '
+                              'tijden geven veilige vaste terugval, geen herinterpreteerd gratis tarief.',
                               'Rechtstreeks PV-verbruik kan zonder batterij uit productie en export worden '
                               'geschat. Bij een gekoppelde thuisbatterij wordt dit niet ten onrechte als '
                               'bewezen direct zonneverbruik getoond; netkosten blijven wel bruikbaar. De '
@@ -1104,7 +1167,10 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'meettijd. Doorlooptijden zijn geen CPU-percentages en bewijzen niet wat de '
                               'fysieke apparaten verbruiken.',
                               'Standaard worden entiteitsnamen en apparaatlabels per bestand gepseudonimiseerd '
-                              'met consistente koppelingen tussen instellingen en metingen. Een expliciete '
+                              'met consistente koppelingen tussen instellingen en metingen. IDs en verwijzingen '
+                              'blijven onderling gekoppeld; schema-sleutels, eenheden, enums en analysebetekenis '
+                              'blijven behouden. Ook korte en historische labels krijgen dezelfde bescherming. '
+                              'Een expliciete '
                               'checkbox kan de werkelijke namen opnemen. Tokens/wachtwoorden, netwerkadressen, '
                               'accountgegevens en locatievelden worden gefilterd; camera-, person-, tracker-, '
                               'slot- en media-entiteiten worden niet geëxporteerd. De export bevat wel '
@@ -1239,7 +1305,9 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Net-/fase- of andere centrale gevoelige bronwijzigingen wachten zolang een '
                               'opdracht/overdracht nog bevestigd moet worden. Boiler- of '
                               'klimaatbindingswijzigingen wachten op gerichte vrijgave, inclusief '
-                              'fabrikantbescherming. Het wijzigen van tarieven of een analysevoorkeur vraagt '
+                              'fabrikantbescherming. Klimaat deactiveren of zones wijzigen wacht ook bij '
+                              'een tijdelijk onbereikbare eigen OFF/coast-zone; onbekend is geen veilige '
+                              'vrijgave om eigendom te vergeten. Het wijzigen van tarieven of een analysevoorkeur vraagt '
                               'dat niet. Onbekend/onbereikbaar is geen bevestigde rusttoestand. Wachtende '
                               'voorstellen zijn zichtbaar en afzonderlijk annuleerbaar. De overige regeling '
                               'loopt door.',
@@ -1260,7 +1328,11 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'actuator-/meterbindings worden afgewezen in plaats van overschreven. Een '
                               'voorstel mag geen bron overnemen die al door een ander wachtend voorstel wordt '
                               'gereserveerd. Opslaan is geen toestemming om normale apparaatbeveiligingen te '
-                              'omzeilen.',
+                              'omzeilen. Ongeldige afzonderlijke opgeslagen pending-, optie- of archiefrecords '
+                              'worden veilig afgehandeld zonder geldige andere records te wissen.',
+                              'Setup en unload sluiten oude callbacks en taken veilig af. Een afgebroken '
+                              'start schrijft geen gedeeltelijk geladen gegevens over goede opslag. '
+                              'Gewone opgeslagen instellingen en leerdata blijven behouden.',
                               'Een software-update via HACS vereist nog steeds een Home Assistant-herstart. '
                               'Deze verbetering betreft het latere wijzigen van instellingen in de '
                               'geïnstalleerde versie. De softwareproeven gebruiken fictieve Home '

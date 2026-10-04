@@ -92,9 +92,9 @@ class ConsumerHistoryRecorder:
         result["time_resolution_s"] = self.interval_s
         return result
 
-    async def close(self):
+    async def close(self, *, persist=True):
         self.model.pause_recording()
-        if self.loaded:
+        if self.loaded and persist:
             try:
                 await self.store.async_save(self._checkpoint())
             except Exception:

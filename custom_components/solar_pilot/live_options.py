@@ -39,7 +39,39 @@ SENSITIVE_GROUPS = {"settings", "capacity", "phase", "wallbox", "dhw", "smart_cl
 
 
 def keyed(rows):
-    return {x["id"]: deepcopy(x) for x in rows or [] if isinstance(x, dict) and x.get("id")}
+    if not isinstance(rows, (list, tuple)):
+        return {}
+    return {x["id"]: deepcopy(x) for x in rows or []
+            if isinstance(x, dict) and isinstance(x.get("id"), str) and x["id"]}
+
+
+def pending_rows(value):
+    """Quarantine damaged proposals without changing effective bindings."""
+    reason = "Opgeslagen voorstel ongeldig; annuleer dit voorstel en voer de wijziging opnieuw in"
+    if not isinstance(value, dict):
+        return {"invalid:stored": {"kind": "invalid", "reason": reason}}
+    queue = {}
+    for index, (key, raw) in enumerate(value.items()):
+        valid = isinstance(key, str) and isinstance(raw, dict) and "old" in raw and "new" in raw
+        kind = raw.get("kind") if isinstance(raw, dict) else None
+        if valid and kind == "device":
+            device_id, old, new = raw.get("id"), raw.get("old"), raw.get("new")
+            valid = (isinstance(device_id, str) and bool(device_id) and key == "device:" + device_id
+                     and isinstance(old, dict) and old.get("id") == device_id
+                     and (new is None or isinstance(new, dict) and isinstance(new.get("id"), str)
+                          and bool(new["id"]) and (new["id"] == device_id or
+                          raw.get("replacement") is True and new.get("replaces_device_id") == device_id)))
+        elif valid and kind == "group":
+            group = raw.get("group")
+            valid = isinstance(group, str) and bool(group) and key == "group:" + group
+            if valid and group in DISPLAY_GROUPS | SENSITIVE_GROUPS:
+                shape = list if group == "batteries" else dict
+                valid = all(raw.get(field) is None or isinstance(raw.get(field), shape) for field in ("old", "new"))
+        else:
+            valid = False
+        safe_key = key if isinstance(key, str) else f"invalid:{index}"
+        queue[safe_key] = deepcopy(raw) if valid else {"kind": "invalid", "reason": reason}
+    return queue
 
 
 def changed_keys(a, b):
@@ -103,7 +135,9 @@ class LiveOptions:
 
     def restore(self, data):
         if isinstance(data, dict):
-            self.archives = deepcopy(data.get("archives", {}))
+            archives = data.get("archives")
+            self.archives = {key: deepcopy(row) for key, row in archives.items()
+                             if isinstance(key, str) and isinstance(row, dict)} if isinstance(archives, dict) else {}
             self.last_message = str(data.get("last_message", self.last_message))
 
     def snapshot(self):
@@ -149,7 +183,7 @@ class LiveOptions:
         keys = changed_keys(old if isinstance(old, dict) else {}, new if isinstance(new, dict) else {})
         if group in DISPLAY_GROUPS:
             return ""
-        if r.pending or r.handover or r.dhw.pending or r.battery_fleet.busy:
+        if r.pending or r.handover or r.dhw.pending or r.smart_climate.busy or r.battery_fleet.busy:
             return "Wacht op de al verstuurde opdracht/overdracht"
         if group == "wallbox" and (r.dishwasher_priority.watches or r.handover):
             return "Wallbox-vermogensoverdracht wordt nog bevestigd"
@@ -158,7 +192,9 @@ class LiveOptions:
             if binding and (r.dhw.busy or r.dhw.reading.protected):
                 return "Boilerkoppeling wacht op gerichte vrijgave/hygiëne-einde; andere toestellen blijven werken"
         if group == "smart_climate":
-            if any(k.endswith("entity") or k.endswith("entities") for k in keys) and r.smart_climate.removal_blocked():
+            deactivating = any(k in keys and not (new or {}).get(k, False)
+                               for k in ("enabled", "control_enabled"))
+            if (deactivating or any(k.endswith("entity") or k.endswith("entities") for k in keys)) and r.smart_climate.removal_blocked():
                 return "Klimaatkoppeling wacht op vrijgave van de bestaande zones"
         if group in ("batteries", "battery_fleet") and r.battery_fleet.removal_blocked():
             return "Batterijbinding wacht op bevestigde neutrale toestand"
@@ -170,7 +206,7 @@ class LiveOptions:
         current = deepcopy(dict(self.r.entry.options))
         target = merge_three(base, desired, current)
         out = deepcopy(current)
-        queue = deepcopy(current.get(PENDING, {}))
+        queue = pending_rows(current.get(PENDING, {}))
         effects = []
         old, new = keyed(current.get("devices")), keyed(target.get("devices"))
         effective = deepcopy(old)
@@ -530,10 +566,12 @@ class LiveOptions:
 
     async def process_pending(self):
         """Retry only when a normal tick observes a safe boundary; never stop a device."""
-        options=deepcopy(dict(self.r.entry.options)); queue=options.get(PENDING,{})
+        options=deepcopy(dict(self.r.entry.options)); queue=pending_rows(options.get(PENDING,{}))
         if not queue:return
         changed=False
         for key,item in list(queue.items()):
+            if item.get("kind") == "invalid":
+                continue
             if item.get("kind")=="device":
                 i=item["id"];old=keyed(options.get("devices")).get(i)
                 if old != item["old"]:
@@ -563,7 +601,7 @@ class LiveOptions:
             self._persist(options);await self.accept(options);self.r.note(self.last_message)
 
     async def cancel_pending(self, keys):
-        options=deepcopy(dict(self.r.entry.options));queue=options.get(PENDING,{})
+        options=deepcopy(dict(self.r.entry.options));queue=pending_rows(options.get(PENDING,{}))
         for key in keys:queue.pop(key,None)
         options[PENDING]=queue
         self._persist(options);await self.accept(options)
@@ -572,7 +610,7 @@ class LiveOptions:
         return options
 
     def overview(self):
-        pending=self.r.entry.options.get(PENDING,{})
+        pending=pending_rows(self.r.entry.options.get(PENDING,{}))
         rows=[]
         for i,c in self.r.configs.items():
             rows.append({"id":i,"name":c.get("name",i),"kind":c.get("kind"),"appliance_type":c.get("appliance_type","dishwasher" if c.get("kind")=="dishwasher" else "other"),
@@ -580,4 +618,4 @@ class LiveOptions:
                 "pending":pending.get("device:"+i,{}).get("reason","")})
         return {"editable_while_active":True,"status":self.last_message,"error":self.error,
                 "pending":[{"key":k,"name":v.get("old",{}).get("name",v.get("group",k)) if isinstance(v.get("old"),dict) else v.get("group",k),"reason":v.get("reason","")} for k,v in pending.items()],
-                "devices":rows,"archives":[{"id":c["id"],"name":c.get("name",c["id"]),"archived_at":c.get("archived_at"),"replaced_by":c.get("replaced_by")} for c in self.r.entry.options.get(ARCHIVED,[])]}
+                "devices":rows,"archives":[{"id":c["id"],"name":c.get("name",c["id"]),"archived_at":c.get("archived_at"),"replaced_by":c.get("replaced_by")} for c in keyed(self.r.entry.options.get(ARCHIVED,[])).values()]}

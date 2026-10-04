@@ -635,8 +635,10 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
  'capacity_kwh': 'Bruikbare energiecapaciteit van deze echte batterij. Gebruik de toepasselijke '
                  'bruikbare waarde, niet automatisch het commerciële bruto getal. BMS-grenzen blijven '
                  'onaangeraakt.',
- 'soc_entity': 'Actuele laadtoestand van dit batterijprofiel in procent. Bij ontbrekende gegevens wordt '
-               'niet blind fysiek geregeld.',
+ 'soc_entity': 'Actuele laadtoestand van dit batterijprofiel. Native sensoren vereisen %, een eindige '
+               'waarde van 0 tot 100 en verse echte rapportage. Een geldige input_number-helper mag '
+               'onveranderd blijven maar niet restored, toekomstig of ongeldig zijn. Ontbrekend bewijs '
+               'geeft geen fysieke vrijgave.',
  'power_sign': 'Tekenafspraak van deze batterijvermogensmeter. Laden en ontladen moeten kloppen om '
                'eigenverbruik en terugmelding juist te interpreteren.',
  'min_soc_pct': 'Absolute softwarematige ondergrens voor deze batterij. Geen versoepeling van de '
@@ -649,8 +651,11 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                  'beschikbare energie, netvoorwaarden en fabrikantmogelijkheden.',
  'max_discharge_w': 'Maximaal aangevraagd ontlaadvermogen voor dit batterijprofiel. Mag een echte '
                     'omvormer- of BMS-limiet niet overstijgen.',
- 'control_kind': 'Alleen uitlezen verstuurt niets. Numeriek setpoint of scripts maakt fysieke regeling '
-                 'mogelijk, maar pas met beide toestemmingen en exclusief eigenaarschap.',
+ 'control_kind': 'Alleen uitlezen verstuurt niets. Ondersteund number/input_number-setpoint of scripts '
+                 'maakt fysieke regeling mogelijk, maar pas met beide toestemmingen en exclusief '
+                 'eigenaarschap. De actuator of het geselecteerde script mag niet aan een Wallbox-apparaat '
+                 'gekoppeld zijn; controleer willekeurige scriptinhoud zelf. Numerieke native grenzen '
+                 'en stap moeten neutraal nul exact kunnen weergeven; anders blijft fysieke regeling uit.',
  'exclusive_control_confirmed': 'Bevestigt dat niet tegelijk een andere externe regeling '
                                 'batterijsetpoints schrijft. Alleen werkelijk aanvinken na controle; '
                                 'gelijktijdige regelaars kunnen elkaar tegenwerken.',
@@ -662,7 +667,9 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
  'discharge_script': 'Bestaand script voor werkelijk ontladen van de batterij. Respecteer reserve, '
                      'exporttoestemming en fysieke terugmelding.',
  'idle_script': 'Bestaand script dat eigen batterijsetpoints veilig neutraliseert. Dit is niet vanzelf '
-                'hetzelfde als de batterij stroomloos zetten.',
+                'hetzelfde als de batterij stroomloos zetten. Verwijderen vereist daarna verse gemeten '
+                'neutrale power en, bij numerieke aansturing, een werkelijk neutraal doel; ontbrekend '
+                'bewijs of een fout geeft geen blinde retry.',
  'strategy': 'Strategie voor echte batterijen: adviserend, verbruikers eerst, piekbeperking of '
              'gecombineerd. Geen strategie omzeilt de expliciete bedieningstoestemmingen of '
              'veiligheidsgrenzen.',
@@ -681,9 +688,10 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
  'command_min_interval_s': 'Minimale tijd tussen echte batterijopdrachten. Na een verse start zonder '
                            'vorige opdracht wordt niet fictief gewacht; na een verzonden opdracht '
                            'blijft de intervalbescherming gelden.',
- 'target_tolerance_w': 'Toegestane afwijking tussen gemeten batterijvermogen en aangevraagd doel bij '
-                       'bevestiging. Te groot kan een fout als succes behandelen; te klein kan meetruis '
-                       'als fout zien.',
+ 'target_tolerance_w': 'Toegestane afwijking tussen verse gemeten batterijpower van ná de opdracht en '
+                       'het aangevraagde doel. Een eerder passende meting is geen ACK. Te groot kan een '
+                       'fout als succes behandelen; te klein kan meetruis als fout zien. Bij verwijderen '
+                       'moet het numerieke doel ook exact neutraal zijn.',
  'apply_now': 'Importeert bewust de lokaal aanwezige privéconfiguratie en historische bootstrap. '
               'Controleer wat vervangen wordt. De private bestanden horen nooit in de publieke '
               'GitHub-repository.',
@@ -856,7 +864,7 @@ HELP_NOTES.update({'kind': 'Kies de werkelijk ondersteunde actuator. Het afzonde
                    'meldt afgekapt bereik. Voeg geen persoonlijke vrije tekst of secrets toe.',
  'analysis_export': 'Opent de handmatige analyse-export: laatste uur, 24 uur of zeven dagen. '
                     'Alleen een HA-beheerder kan het JSON-bestand maken. Namen zijn standaard '
-                    'per bestand gepseudonimiseerd; tijden en gebruikspatronen blijven gevoelig. '
+                    'per bestand consistent gepseudonimiseerd, inclusief IDs/verwijzingen en korte/historische labels; schema-sleutels, eenheden en statuswaarden blijven behouden. Tijden en gebruikspatronen blijven gevoelig. '
                     'Controleer het bestand voor delen en plaats het nooit in de publieke '
                     'repository. Uploaden naar ChatGPT doe je zelf.',
  'dishwasher_arm': 'Bevestigt dat één afwasbeurt geladen, gekozen en geschikt is voor externe '
@@ -1207,6 +1215,6 @@ HELP_NOTES.update({
     "wallbox_energy_choice": "Kies één duidelijke uitkomst: de auto mag binnen de veiligheidsgrenzen minder laden, alleen vrij zonneoverschot telt, of de strengere route voor een kort en gemeten toestel geldt.",
     "wallbox_power_policy": "Op Voorrang kies je per verbruiker of de auto minder mag laden. Een toestel moet ook aan alle meet-, sessie- en veiligheidsvoorwaarden voldoen.",
     "dishwasher_priority_enabled": "Het bestaande AEG-voorkeursprofiel blijft behouden. Gewoon warmtepompcomfort gaat voor; de standaard afwasvolgorde is vóór de Wallbox en extra boilerwarmte. Na een bevestigde centrale wijziging bepaalt de lijst Voorrang de toestelvolgorde. De afwas blijft vóór de extra zonnebuffer en een lopende beurt wordt nooit afgebroken. Het oude groepsgetal is dan niet meer leidend.",
-    "analysis_export": "Open Export → Export samenstellen voor één lokaal JSON-onderzoeksbestand. Kies 1 uur, 24 uur of 7 dagen. Instellingen, centrale voorrang, metingen, modellen en bewaarde beslissingen worden meegenomen voor zover aanwezig. Namen worden standaard gepseudonimiseerd; controleer altijd vóór delen. Geen automatische upload, geen toestelopdracht en geen herstelbare Home Assistant-back-up.",
+    "analysis_export": "Open Export → Export samenstellen voor één lokaal JSON-onderzoeksbestand. Kies 1 uur, 24 uur of 7 dagen. Instellingen, centrale voorrang, metingen, modellen en bewaarde beslissingen worden meegenomen voor zover aanwezig. Namen, IDs en verwijzingen worden standaard consistent gepseudonimiseerd; schema-sleutels, eenheden en statuswaarden blijven behouden. Controleer altijd vóór delen. Geen automatische upload, geen toestelopdracht en geen herstelbare Home Assistant-back-up.",
     "priority_board": "Alle regels staan onder elkaar. Beschermde regels staan vast; apparaten, Auto laden en extra warm water zijn binnen de veilige grenzen verplaatsbaar. Per regel staat ‘Mag de auto minder laden?’. Dat is nooit een garantie dat er nu vermogen beschikbaar is. Opslaan vraagt bevestiging en stuurt op zichzelf geen toestel."
 })

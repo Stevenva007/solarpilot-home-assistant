@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.48",
+  "version": "1.0.0-beta.49",
   "language": "nl",
   "steps": {
     "init": {
@@ -567,7 +567,7 @@
         "command_min_interval_s": "Minimale tijd tussen echte batterijopdrachten.",
         "settle_s": "Wachttijd na een fysieke wijziging voordat een volgende verhoging mag worden uitgevoerd.",
         "ack_timeout_s": "Maximale wachttijd op een echte terugmelding na een opdracht.",
-        "target_tolerance_w": "Toegestane afwijking tussen gemeten batterijvermogen en aangevraagd doel bij bevestiging."
+        "target_tolerance_w": "Toegestane afwijking tussen verse gemeten batterijpower van ná de opdracht en het aangevraagde doel."
       }
     },
     "battery_add": {
@@ -614,7 +614,7 @@
         "name": "De herkenbare naam van deze koppeling in SolarPilot.",
         "enabled": "Activeert het onderdeel battery profile.",
         "capacity_kwh": "Bruikbare energiecapaciteit van deze echte batterij.",
-        "soc_entity": "Actuele laadtoestand van dit batterijprofiel in procent.",
+        "soc_entity": "Actuele laadtoestand van dit batterijprofiel.",
         "power_entity": "Werkelijk actueel vermogen van dit ene apparaat, in W of kW.",
         "power_sign": "Tekenafspraak van deze batterijvermogensmeter.",
         "min_soc_pct": "Absolute softwarematige ondergrens voor deze batterij.",
@@ -3041,9 +3041,9 @@
     },
     "battery_settings.target_tolerance_w": {
       "title": "Bevestigingstolerantie (W)",
-      "short": "Toegestane afwijking tussen gemeten batterijvermogen en aangevraagd doel bij bevestiging.",
+      "short": "Toegestane afwijking tussen verse gemeten batterijpower van ná de opdracht en het aangevraagde doel.",
       "paragraphs": [
-        "Toegestane afwijking tussen gemeten batterijvermogen en aangevraagd doel bij bevestiging. Te groot kan een fout als succes behandelen; te klein kan meetruis als fout zien.",
+        "Toegestane afwijking tussen verse gemeten batterijpower van ná de opdracht en het aangevraagde doel. Een eerder passende meting is geen ACK. Te groot kan een fout als succes behandelen; te klein kan meetruis als fout zien. Bij verwijderen moet het numerieke doel ook exact neutraal zijn.",
         "Een simulatie is geen echte batterijbesturing. Echte regeling vereist passende bronnen, terugmelding, globale en individuele toestemming en exclusief extern eigenaarschap.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -3095,9 +3095,9 @@
     },
     "battery_profile.soc_entity": {
       "title": "Laadniveau / SoC (%)",
-      "short": "Actuele laadtoestand van dit batterijprofiel in procent.",
+      "short": "Actuele laadtoestand van dit batterijprofiel.",
       "paragraphs": [
-        "Actuele laadtoestand van dit batterijprofiel in procent. Bij ontbrekende gegevens wordt niet blind fysiek geregeld.",
+        "Actuele laadtoestand van dit batterijprofiel. Native sensoren vereisen %, een eindige waarde van 0 tot 100 en verse echte rapportage. Een geldige input_number-helper mag onveranderd blijven maar niet restored, toekomstig of ongeldig zijn. Ontbrekend bewijs geeft geen fysieke vrijgave.",
         "Een simulatie is geen echte batterijbesturing. Echte regeling vereist passende bronnen, terugmelding, globale en individuele toestemming en exclusief extern eigenaarschap.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -3178,7 +3178,7 @@
       "title": "Bedieningsniveau",
       "short": "Alleen uitlezen verstuurt niets.",
       "paragraphs": [
-        "Alleen uitlezen verstuurt niets. Numeriek setpoint of scripts maakt fysieke regeling mogelijk, maar pas met beide toestemmingen en exclusief eigenaarschap.",
+        "Alleen uitlezen verstuurt niets. Ondersteund number/input_number-setpoint of scripts maakt fysieke regeling mogelijk, maar pas met beide toestemmingen en exclusief eigenaarschap. De actuator of het geselecteerde script mag niet aan een Wallbox-apparaat gekoppeld zijn; controleer willekeurige scriptinhoud zelf. Numerieke native grenzen en stap moeten neutraal nul exact kunnen weergeven; anders blijft fysieke regeling uit.",
         "Een simulatie is geen echte batterijbesturing. Echte regeling vereist passende bronnen, terugmelding, globale en individuele toestemming en exclusief extern eigenaarschap.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -3780,7 +3780,7 @@
       "title": "Script idle / batterij vrijgeven",
       "short": "Bestaand script dat eigen batterijsetpoints veilig neutraliseert.",
       "paragraphs": [
-        "Bestaand script dat eigen batterijsetpoints veilig neutraliseert. Dit is niet vanzelf hetzelfde als de batterij stroomloos zetten.",
+        "Bestaand script dat eigen batterijsetpoints veilig neutraliseert. Dit is niet vanzelf hetzelfde als de batterij stroomloos zetten. Verwijderen vereist daarna verse gemeten neutrale power en, bij numerieke aansturing, een werkelijk neutraal doel; ontbrekend bewijs of een fout geeft geen blinde retry.",
         "Een simulatie is geen echte batterijbesturing. Echte regeling vereist passende bronnen, terugmelding, globale en individuele toestemming en exclusief extern eigenaarschap.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -5243,7 +5243,7 @@
       "title": "Export samenstellen",
       "short": "Open Export → Export samenstellen voor één lokaal JSON-onderzoeksbestand.",
       "paragraphs": [
-        "Open Export → Export samenstellen voor één lokaal JSON-onderzoeksbestand. Kies 1 uur, 24 uur of 7 dagen. Instellingen, centrale voorrang, metingen, modellen en bewaarde beslissingen worden meegenomen voor zover aanwezig. Namen worden standaard gepseudonimiseerd; controleer altijd vóór delen. Geen automatische upload, geen toestelopdracht en geen herstelbare Home Assistant-back-up.",
+        "Open Export → Export samenstellen voor één lokaal JSON-onderzoeksbestand. Kies 1 uur, 24 uur of 7 dagen. Instellingen, centrale voorrang, metingen, modellen en bewaarde beslissingen worden meegenomen voor zover aanwezig. Namen, IDs en verwijzingen worden standaard consistent gepseudonimiseerd; schema-sleutels, eenheden en statuswaarden blijven behouden. Controleer altijd vóór delen. Geen automatische upload, geen toestelopdracht en geen herstelbare Home Assistant-back-up.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },

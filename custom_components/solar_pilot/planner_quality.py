@@ -3,14 +3,27 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import math
+import time
 
 
 def finite(value):
+    if isinstance(value, bool):
+        return None
     try:
         out = float(value)
         return out if math.isfinite(out) else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
+
+
+def _count(value, default=0):
+    number=finite(value)
+    return max(0,min(10**12,int(number))) if number is not None else default
+
+
+def _past_wall(value):
+    number=finite(value)
+    return number if number is not None and 0<=number<=time.time()+5 else 0.0
 
 
 class PlanQualityTracker:
@@ -28,9 +41,41 @@ class PlanQualityTracker:
         if not isinstance(data, dict):
             return
         raw = data.get("days", {})
-        self.days = raw if isinstance(raw, dict) else {}
-        self.last_sample_wall = max(0.0, float(data.get("last_sample_wall", 0) or 0))
-        self.retention_days = max(7, min(90, int(data.get("retention_days", self.retention_days) or self.retention_days)))
+        self.days = {}
+        count_fields=("count","base_count","net_count","exec_total","exec_matches","new_samples",
+                      "daylight_count","hygiene_base_count")
+        sum_fields=("pv_abs","pv_bias","base_abs","base_bias","net_abs","net_bias",
+                    "daylight_abs","daylight_bias","daylight_actual_sum","covered_seconds",
+                    "base_covered_seconds","hygiene_base_abs")
+        for day, row in (raw.items() if isinstance(raw,dict) else []):
+            if not isinstance(day,str) or not isinstance(row,dict):
+                continue
+            try:
+                parsed=datetime.fromisoformat(day).date().isoformat()
+            except (ValueError,TypeError):
+                continue
+            if parsed>(datetime.now().date()+timedelta(days=1)).isoformat():
+                continue
+            clean={key:_count(row.get(key)) for key in count_fields}
+            for key in sum_fields:
+                value=finite(row.get(key))
+                clean[key]=max(-10**15,min(10**15,value)) if value is not None else 0.
+                if "bias" not in key:
+                    clean[key]=max(0.,clean[key])
+            clean["exec_matches"]=min(clean["exec_matches"],clean["exec_total"])
+            contexts=row.get("contexts")
+            clean["contexts"]={str(key)[:80]:_count(value) for key,value in list(contexts.items())[:32]} if isinstance(contexts,dict) else {}
+            first,last=_past_wall(row.get("first_observed_wall")),_past_wall(row.get("last_observed_wall"))
+            if clean["new_samples"] and 0<first<=last:
+                clean.update(first_observed_wall=first,last_observed_wall=last)
+                for key in ("covered_seconds","base_covered_seconds"):
+                    clean[key]=min(clean[key],last-first)
+            else:
+                clean["new_samples"]=0
+                clean["covered_seconds"]=clean["base_covered_seconds"]=0.
+            self.days[parsed]=clean
+        self.last_sample_wall = _past_wall(data.get("last_sample_wall"))
+        self.retention_days = max(7, min(90, _count(data.get("retention_days"), self.retention_days)))
         self.coverage_previous = None  # do not pretend downtime was observed
 
     def observe(self, *, wall_ts, local_now, predicted_pv_w, actual_pv_w,
@@ -191,9 +236,25 @@ class ReplayBuffer:
     def restore(self, data):
         if not isinstance(data, dict):
             return
-        self.retention_days = max(3, int(data.get("retention_days", self.retention_days) or self.retention_days))
+        self.retention_days = max(3, min(30, _count(data.get("retention_days"), self.retention_days)))
         raw = data.get("samples", {})
-        self.samples = raw if isinstance(raw, dict) else {}
+        self.samples = {}
+        for key,row in (raw.items() if isinstance(raw,dict) else []):
+            if not isinstance(key,str) or not isinstance(row,dict):
+                continue
+            try:
+                stamp=datetime.fromisoformat(key)
+                if stamp.tzinfo is None:
+                    continue
+            except (ValueError,TypeError):
+                continue
+            values={field:finite(row.get(field)) for field in ("pv_w","base_w","grid_w")}
+            if any(value is None for value in values.values()) or values["pv_w"]<0 or values["base_w"]<0:
+                continue
+            imp,exp=finite(row.get("import_price")),finite(row.get("export_price"))
+            self.samples[stamp.isoformat()]={**values,"import_price":.30 if imp is None else imp,
+                "export_price":.03 if exp is None else exp,"capacity_target_w":finite(row.get("capacity_target_w")),
+                "time_zone":row.get("time_zone") if isinstance(row.get("time_zone"),str) else None}
 
     def observe(self, *, local_now, pv_w, base_w, grid_w, import_price, export_price, capacity_target_w=None):
         pv, base, grid = finite(pv_w), finite(base_w), finite(grid_w)
@@ -202,11 +263,13 @@ class ReplayBuffer:
         minute = (local_now.minute // 15) * 15
         stamp = local_now.replace(minute=minute, second=0, microsecond=0)
         key = stamp.isoformat()
+        imp, exp = finite(import_price), finite(export_price)
         self.samples[key] = {
             "pv_w": round(max(0.0, pv), 1), "base_w": round(max(0.0, base), 1), "grid_w": round(grid, 1),
-            "import_price": round(float(finite(import_price) or .30), 5),
-            "export_price": round(float(finite(export_price) or .03), 5),
+            "import_price": round(.30 if imp is None else imp, 5),
+            "export_price": round(.03 if exp is None else exp, 5),
             "capacity_target_w": None if finite(capacity_target_w) is None else round(float(capacity_target_w), 1),
+            "time_zone": getattr(local_now.tzinfo, "key", None),
         }
         cutoff = local_now - timedelta(days=self.retention_days)
         for k in list(self.samples):
@@ -226,7 +289,7 @@ class ReplayBuffer:
             try: dt=datetime.fromisoformat(k)
             except ValueError: continue
             out.append((dt, v))
-        out.sort(key=lambda x:x[0])
+        out.sort(key=lambda x:x[0].timestamp())
         return out
 
     def overview(self):

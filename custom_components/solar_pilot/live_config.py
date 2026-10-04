@@ -4,7 +4,7 @@ from copy import deepcopy
 import voluptuous as vol
 from homeassistant.helpers import selector
 from homeassistant.exceptions import HomeAssistantError
-from .live_options import replacement_profile, PENDING
+from .live_options import replacement_profile, PENDING, pending_rows
 
 
 class LiveOptionsMixin:
@@ -54,8 +54,8 @@ class LiveOptionsMixin:
 
     async def async_step_pending_changes(self, user_input=None):
         rt=self._runtime(); opts=dict(self.config_entry.options)
-        pending=opts.get(PENDING,{})
-        choices=[{"value":k,"label":(v.get("old",{}).get("name",v.get("group",k)) if isinstance(v.get("old"),dict) else v.get("group",k))+" — "+v.get("reason","")} for k,v in pending.items()]
+        pending=pending_rows(opts.get(PENDING,{}))
+        choices=[{"value":k,"label":str(v.get("old",{}).get("name",v.get("group",k)) if isinstance(v.get("old"),dict) else v.get("group",k))+" — "+str(v.get("reason",""))} for k,v in pending.items()]
         if user_input is not None and rt is not None:
             async with rt._lock:
                 data=await rt.live_options.cancel_pending(user_input.get("cancel",[]))

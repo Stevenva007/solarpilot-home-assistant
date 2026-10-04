@@ -606,7 +606,7 @@
           "command_min_interval_s": "Minimale tijd tussen echte batterijopdrachten.",
           "settle_s": "Wachttijd na een fysieke wijziging voordat een volgende verhoging mag worden uitgevoerd.",
           "ack_timeout_s": "Maximale wachttijd op een echte terugmelding na een opdracht.",
-          "target_tolerance_w": "Toegestane afwijking tussen gemeten batterijvermogen en aangevraagd doel bij bevestiging."
+          "target_tolerance_w": "Toegestane afwijking tussen verse gemeten batterijpower van ná de opdracht en het aangevraagde doel."
         }
       },
       "battery_add": {
@@ -653,7 +653,7 @@
           "name": "De herkenbare naam van deze koppeling in SolarPilot.",
           "enabled": "Activeert het onderdeel battery profile.",
           "capacity_kwh": "Bruikbare energiecapaciteit van deze echte batterij.",
-          "soc_entity": "Actuele laadtoestand van dit batterijprofiel in procent.",
+          "soc_entity": "Actuele laadtoestand van dit batterijprofiel.",
           "power_entity": "Werkelijk actueel vermogen van dit ene apparaat, in W of kW.",
           "power_sign": "Tekenafspraak van deze batterijvermogensmeter.",
           "min_soc_pct": "Absolute softwarematige ondergrens voor deze batterij.",

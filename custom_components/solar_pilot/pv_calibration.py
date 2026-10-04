@@ -72,8 +72,10 @@ class PVCalibration:
 
     def observe(self, *, now, actual_w, raw_w, meter_stamp, azimuth=None, elevation=None, binding=""):
         ts=now.timestamp()
+        meter_stamp=finite(meter_stamp)
         if self.started is None or ts<self.started:
             self.started=ts; self.window=None; self.samples=[]
+            self.last_observation=None; self.last_meter_stamp=None
         if self.binding is None:
             self.binding=binding
         elif binding != self.binding:
@@ -96,7 +98,8 @@ class PVCalibration:
             reason="Opstartstabilisatie (10 minuten)"
         elif actual is None or raw is None or actual<0 or raw<0:
             reason="Ontbrekende of ongeldige PV-/forecastmeting"
-        elif meter_stamp is None or not -5 <= ts-meter_stamp <= 120 or meter_stamp==self.last_meter_stamp:
+        elif (meter_stamp is None or not -5 <= ts-meter_stamp <= 120
+              or (self.last_meter_stamp is not None and meter_stamp<=self.last_meter_stamp)):
             reason="Geen verse onafhankelijke PV-meting"
         elif actual>float(self.settings["inverter_limit_w"])*1.1:
             reason="Vermogen boven fysieke omvormergrens; outlier"
@@ -106,7 +109,9 @@ class PVCalibration:
             reason="Te weinig zon voor betrouwbare verhouding"
         elif not .15 <= actual/raw <= 1.6:
             reason="Afwijkende verhouding; outlier of dichte bewolking"
-        self.last_meter_stamp=meter_stamp
+        if (meter_stamp is not None and -5<=ts-meter_stamp<=120
+                and (self.last_meter_stamp is None or meter_stamp>self.last_meter_stamp)):
+            self.last_meter_stamp=meter_stamp
         factor,_,_,_=self.factor(now,azimuth,elevation)
         self.samples.append({"ts":ts,"actual":actual,"raw":raw,"factor":factor,"az":finite(azimuth),"el":finite(elevation),"reason":reason})
         self.samples=self.samples[-20:]

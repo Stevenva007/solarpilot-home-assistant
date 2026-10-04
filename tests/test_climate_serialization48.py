@@ -256,7 +256,8 @@ async def test_inactive_module_resolves_pending_timeout_without_learning_or_glob
     await request_auto(runtime)
     manager = runtime.smart_climate
     if inactive == "disabled":
-        await manager.async_set_setting("enabled", False)
+        # Simulate a legacy/external saved setting; the API now rejects disabling a pending command.
+        manager.settings["enabled"] = False
     else:
         # A legacy/options replacement may remove the binding while the saved
         # command still needs reconciliation; it must not become a global lock.
@@ -285,7 +286,8 @@ async def test_disabled_module_confirms_fresh_pending_report_without_learning_or
     wall = attach_climate(runtime, hass, monkeypatch)
     await request_auto(runtime)
     manager = runtime.smart_climate
-    await manager.async_set_setting("enabled", False)
+    # Legacy/external saved settings must still reconcile a pending command.
+    manager.settings["enabled"] = False
     before_model = (manager.state.last_sample_wall, manager.state.last_decision_wall)
     wall[0] += 11
     obj = hass.states.get("climate.home")

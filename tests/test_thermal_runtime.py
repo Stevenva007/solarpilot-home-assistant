@@ -199,6 +199,7 @@ async def test_hard_cold_breach_preserves_manual_off_zone():
 @pytest.mark.asyncio
 async def test_mature_shoulder_model_can_put_zones_in_off_coast():
     r,h=setup_climate(control=True,temp=21,target=21,mode='auto')
+    r.smart_climate.settings['solar_gain_enabled'] = False  # Passive-model fixture, no PV source.
     mature(r.smart_climate)
     await r.smart_climate.tick(local_now=datetime(2026,9,22,8),allow_command=True)
     climate_calls=[c for c in h.services.calls if c[0]=='climate']

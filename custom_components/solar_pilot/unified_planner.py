@@ -8,8 +8,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import math
 import statistics
+import time
 
 from .planner_quality import PlanQualityTracker, ReplayBuffer
 
@@ -47,10 +49,12 @@ UNIFIED_PLANNER_DEFAULTS = {
 
 
 def finite(value):
+    if isinstance(value, bool):
+        return None
     try:
         v = float(value)
         return v if math.isfinite(v) else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
@@ -62,13 +66,21 @@ def _median(values):
 class BaseLoadModel:
     """Small bounded profile learner; no ML dependency and no raw-history hoard."""
     def __init__(self, seed=None):
-        seed = seed or {}
+        seed = seed if isinstance(seed, dict) else {}
         profile = seed.get("base_load_profile", {})
-        self.seed_hour = {int(k): float(v) for k, v in (profile.get("median_w_by_hour", {}) or {}).items()}
-        self.seed_daytype = {
-            str(dt): {int(k): float(v) for k, v in rows.items()}
-            for dt, rows in (profile.get("median_w_by_daytype_hour", {}) or {}).items()
-        }
+        profile = profile if isinstance(profile, dict) else {}
+        def hours(raw):
+            out={}
+            for key, value in (raw.items() if isinstance(raw,dict) else []):
+                if str(key) not in {str(h) for h in range(24)}:
+                    continue
+                number=finite(value)
+                if number is not None and 0<=number<=20000:
+                    out[int(key)]=number
+            return out
+        self.seed_hour = hours(profile.get("median_w_by_hour"))
+        daytypes = profile.get("median_w_by_daytype_hour")
+        self.seed_daytype = {kind: hours(daytypes.get(kind)) for kind in ("weekday","weekend")} if isinstance(daytypes,dict) else {}
         self.bins = {}
         self.last_sample_wall = 0.0
         self.accepted = 0
@@ -82,9 +94,29 @@ class BaseLoadModel:
         if not isinstance(data, dict):
             return
         raw = data.get("bins", {})
-        self.bins = raw if isinstance(raw, dict) else {}
-        self.accepted = max(0, int(data.get("accepted", 0) or 0))
-        self.last_sample_wall = max(0.0, float(data.get("last_sample_wall", 0) or 0))
+        self.bins = {}
+        valid_keys={f"{kind}:{hour}" for kind in ("weekday","weekend") for hour in range(24)}
+        for key, bucket in (raw.items() if isinstance(raw,dict) else []):
+            days=bucket.get("days") if isinstance(bucket,dict) else None
+            if key not in valid_keys or not isinstance(days,dict):
+                continue
+            clean={}
+            for day, values in sorted((k,v) for k,v in days.items() if isinstance(k,str)):
+                try:
+                    parsed=datetime.fromisoformat(day).date().isoformat()
+                except (ValueError,TypeError):
+                    continue
+                if parsed>(datetime.now().date()+timedelta(days=1)).isoformat():
+                    continue
+                samples=[value for item in values[-8:] if (value:=finite(item)) is not None and 0<=value<=20000] if isinstance(values,list) else []
+                if samples:
+                    clean[parsed]=samples
+            if clean:
+                self.bins[key]={"days":{day:clean[day] for day in sorted(clean)[-60:]}}
+        accepted=finite(data.get("accepted"))
+        self.accepted=max(0,min(10**12,int(accepted))) if accepted is not None else 0
+        saved=finite(data.get("last_sample_wall"))
+        self.last_sample_wall=saved if saved is not None and 0<=saved<=time.time()+5 else 0.0
         self._detail_cache = {}
 
     @staticmethod
@@ -228,6 +260,7 @@ class PlannedSlot:
     planned_load_w: float = 0.0
     devices: list[str] = field(default_factory=list)
     battery_w: float = 0.0  # + charge, - discharge advisory
+    pv_available: bool = True
 
     @property
     def net_without_flex_w(self):
@@ -273,15 +306,17 @@ class UnifiedPlan:
         if not dp or not self.slots:
             return False, False, "Geen gepland slot"
         slot_seconds = self.slot_min * 60
-        idx = int(max(0, (local_now - self.slots[0].start).total_seconds()) // slot_seconds)
-        idx = min(idx, len(self.slots) - 1)
+        elapsed = local_now.timestamp() - self.slots[0].start.timestamp()
+        if not 0 <= elapsed < len(self.slots) * slot_seconds:
+            return False, False, "Buiten de geldige planhorizon"
+        idx = int(elapsed // slot_seconds)
         selected = idx in dp.selected_slots
         grid = idx in dp.cheap_grid_slots
         if selected:
             return True, grid, "Gepland in huidig rolling-horizonblok"
         future = [x for x in dp.selected_slots if x > idx]
         if future:
-            eta = (self.slots[future[0]].start - local_now).total_seconds() / 60
+            eta = (self.slots[future[0]].start.timestamp() - local_now.timestamp()) / 60
             return False, False, f"Planner wacht op gunstiger blok over ongeveer {max(0, round(eta))} min"
         return False, False, dp.reason
 
@@ -292,6 +327,8 @@ class UnifiedPlan:
         has_storage = any(abs(s.battery_w) > .01 for s in self.slots)
         avoided = sum(max(0.0, min(s.pv_w, s.base_w+s.planned_load_w))*duration*s.import_price for s in self.slots)
         return {
+            "pv_coverage_pct": round(100 * sum(s.pv_available for s in self.slots) / len(self.slots), 1) if self.slots else 0,
+            "forecast_complete": bool(self.slots) and all(s.pv_available for s in self.slots),
             "cost_breakdown": {"import_cost_eur": round(import_cost, 6),
                 "export_revenue_eur": round(export_revenue, 6),
                 "net_cost_eur": round(import_cost-export_revenue, 6),
@@ -308,7 +345,8 @@ class UnifiedPlan:
                               "contiguous_cycle": v.contiguous_cycle, "cycle_program": v.cycle_program,
                               "cycle_confidence": round(v.cycle_confidence,3), "cycle_duration_min": round(v.cycle_duration_min,1)}
                         for k, v in self.devices.items()},
-            "timeline": [{"start": s.start.isoformat(), "pv_w": round(s.pv_w), "base_w": round(s.base_w),
+            "timeline": [{"start": s.start.isoformat(), "pv_w": round(s.pv_w) if s.pv_available else None,
+                          "pv_available": s.pv_available, "base_w": round(s.base_w),
                           "planned_load_w": round(s.planned_load_w), "battery_w": round(s.battery_w),
                           "net_w": round(s.net_after_plan_w), "devices": list(s.devices),
                           "import_price": round(s.import_price, 4), "export_price": round(s.export_price, 4)}
@@ -343,7 +381,8 @@ class UnifiedPlanner:
     def restore(self, data):
         if not isinstance(data, dict): return
         self.base_load.restore(data.get("base_load", {}))
-        self.plan_runs = max(0, int(data.get("plan_runs", 0) or 0))
+        runs=finite(data.get("plan_runs"))
+        self.plan_runs=max(0,min(10**12,int(runs))) if runs is not None else 0
         self.last_pv_mae_w = finite(data.get("last_pv_mae_w"))
         self.last_base_mae_w = finite(data.get("last_base_mae_w"))
         self.quality.restore(data.get("quality", {}))
@@ -377,14 +416,20 @@ class UnifiedPlanner:
         pv_hours = list(pv_hourly_w or [])
         warnings=[]; findings=[]; slots=[]; base_conf=[]
         for i in range(n):
-            dt = start + timedelta(minutes=i * slot_min)
-            hidx = min(len(pv_hours)-1, max(0, int((dt-start).total_seconds()//3600))) if pv_hours else -1
-            pv = max(0.0, finite(pv_hours[hidx]) or 0.0) if hidx >= 0 else 0.0
+            dt = datetime.fromtimestamp(start.timestamp() + i * slot_min * 60, start.tzinfo)
+            hidx = int(i * slot_min // 60)
+            raw_pv = finite(pv_hours[hidx]) if hidx < len(pv_hours) else None
+            pv_available = raw_pv is not None and raw_pv >= 0
+            # Missing hours reserve no forecast surplus. They remain unknown in
+            # diagnostics and accuracy accounting rather than becoming night.
+            pv = raw_pv if pv_available else 0.0
             base, conf, source = self.base_load.estimate(dt, c.get("base_load_min_days", 4)); base_conf.append(conf)
             imp = import_prices[i] if i < len(import_prices) else import_prices[-1] if import_prices else .30
             exp = export_prices[i] if i < len(export_prices) else export_prices[-1] if export_prices else .03
-            slots.append(PlannedSlot(dt, pv, base, float(imp), float(exp)))
-        if not pv_hours: warnings.append("Geen bruikbare PV-horizon; planner blijft conservatief")
+            slots.append(PlannedSlot(dt, pv, base, float(imp), float(exp), pv_available=pv_available))
+        coverage = sum(s.pv_available for s in slots) / len(slots)
+        if coverage < 1:
+            warnings.append("PV-horizon onvolledig; ontbrekende uren leveren geen gepland overschot of nauwkeurigheidsmeting")
         if base_conf and statistics.mean(base_conf) < .3: warnings.append("Basislastprofiel heeft nog weinig vertrouwen")
 
         plans={}
@@ -533,7 +578,7 @@ class UnifiedPlanner:
             else:
                 exp_kwh += -net*slot_h/1000; cost -= (-net)*slot_h/1000*s.export_price
             selfuse += max(0.0,min(s.pv_w,s.base_w+s.planned_load_w+max(0,s.battery_w)))*slot_h/1000
-        confidence=min(.95,max(.1,statistics.mean(base_conf) if base_conf else .1))
+        confidence=min(.95,max(.1,statistics.mean(base_conf) if base_conf else .1)) * coverage
         self.plan_runs += 1; self.last_plan_wall=datetime.now().timestamp()
         self.plan=UnifiedPlan(start,horizon_h,slot_min,slots,plans,warnings,findings,confidence,imp_kwh,exp_kwh,cost,selfuse)
         return self.plan
@@ -542,7 +587,8 @@ class UnifiedPlanner:
         if not self.plan or not self.plan.slots:
             return None
         slot_s=self.plan.slot_min*60
-        idx=int(max(0,(local_now-self.plan.slots[0].start).total_seconds())//slot_s)
+        elapsed=local_now.timestamp()-self.plan.slots[0].start.timestamp()
+        idx=math.floor(elapsed/slot_s)
         if idx<0 or idx>=len(self.plan.slots):
             return None
         return self.plan.slots[idx]
@@ -552,8 +598,8 @@ class UnifiedPlanner:
                        execution_total=0, execution_matches=0, context="normal"):
         slot=self.current_slot(local_now)
         if slot and self.settings.get("quality_tracking",True):
-            self.quality.observe(wall_ts=wall_ts,local_now=local_now,predicted_pv_w=slot.pv_w,actual_pv_w=actual_pv_w,
-                                 predicted_base_w=slot.base_w,actual_base_w=actual_base_w,predicted_net_w=slot.net_after_plan_w,
+            self.quality.observe(wall_ts=wall_ts,local_now=local_now,predicted_pv_w=slot.pv_w if slot.pv_available else None,actual_pv_w=actual_pv_w,
+                                 predicted_base_w=slot.base_w,actual_base_w=actual_base_w,predicted_net_w=slot.net_after_plan_w if slot.pv_available else None,
                                  actual_net_w=actual_grid_w,execution_total=execution_total,execution_matches=execution_matches,context=context)
             q=self.quality.overview().get("last_7d",{})
             self.last_pv_mae_w=q.get("pv_mae_w"); self.last_base_mae_w=q.get("base_mae_w")
@@ -595,7 +641,34 @@ class UnifiedPlanner:
         by_day={}
         for dt,row in rows:
             by_day.setdefault(dt.date(),[]).append((dt,row))
-        days=[(d,sorted(v,key=lambda x:x[0])) for d,v in sorted(by_day.items()) if len(v)>=48]
+        days=[]
+        for day, samples in sorted(by_day.items()):
+            samples=sorted(samples,key=lambda x:x[0].timestamp())
+            first,last=samples[0][0],samples[-1][0]
+            if first.tzinfo is None or last.tzinfo is None:
+                continue
+            start=first.replace(hour=0,minute=0,second=0,microsecond=0)
+            end=(last+timedelta(days=1)).replace(hour=0,minute=0,second=0,microsecond=0)
+            duration=end.timestamp()-start.timestamp()
+            if duration not in (23*3600,24*3600,25*3600):
+                continue
+            expected={start.timestamp()+i*900 for i in range(int(duration//900))}
+            actual={dt.timestamp() for dt,_ in samples}
+            if len(samples)!=len(expected) or actual!=expected:
+                continue
+            zone=samples[0][1].get("time_zone")
+            try:
+                tz=ZoneInfo(zone) if isinstance(zone,str) else first.tzinfo
+            except (ZoneInfoNotFoundError,ValueError):
+                continue
+            # Historical offset-only snapshots cannot reconstruct clock windows
+            # on DST days. Keep their measurements, without a daily scenario.
+            if first.utcoffset()!=last.utcoffset() and not isinstance(zone,str):
+                continue
+            if any(datetime.fromtimestamp(dt.timestamp(),tz).utcoffset()!=dt.utcoffset() for dt,_ in samples):
+                continue
+            anchor=datetime.fromtimestamp(start.timestamp(),tz)
+            days.append((day,samples,anchor,int(duration//3600)))
         if len(days)<2:
             result={"ready":False,"reason":"Minstens twee voldoende volledige replaydagen nodig","buffer":self.replay.overview(),"scenarios":[]}
             self._replay_cache=result; self._replay_cache_key=cache_key; self._replay_cache_wall=now_wall
@@ -610,20 +683,23 @@ class UnifiedPlanner:
         results=[]
         for label,settings in variants:
             totals={"import_kwh":0.0,"export_kwh":0.0,"cost_eur":0.0,"peak_w":0.0,"planned_kwh":0.0,"days":0}
-            for _,samples in days[-7:]:
-                first=samples[0][0]
+            for _,samples,first,horizon in days[-7:]:
                 # Hourly PV from measured replay; base profile is seeded from measured hour medians.
                 hours={}
                 for dt,row in samples:
-                    hours.setdefault(dt.hour,[]).append(row)
-                pv_hour=[statistics.mean([x["pv_w"] for x in hours.get(h,[])]) if hours.get(h) else 0.0 for h in range(24)]
-                seed={"base_load_profile":{"median_w_by_hour":{str(h):statistics.median([x["base_w"] for x in vals]) for h,vals in hours.items()}}}
-                p=UnifiedPlanner({**settings,"horizon_h":24,"replay_enabled":False,"quality_tracking":False},seed)
-                n=max(1,int(24*60/max(15,int(settings.get("slot_min",15)))))
+                    hours.setdefault(int((dt.timestamp()-first.timestamp())//3600),[]).append(row)
+                pv_hour=[statistics.mean([x["pv_w"] for x in hours[h]]) for h in range(horizon)]
+                clock_hours={}
+                for dt,row in samples:
+                    clock_hours.setdefault(dt.hour,[]).append(row["base_w"])
+                seed={"base_load_profile":{"median_w_by_hour":{str(h):statistics.median(vals) for h,vals in clock_hours.items()}}}
+                p=UnifiedPlanner({**settings,"horizon_h":horizon,"replay_enabled":False,"quality_tracking":False},seed)
+                replay_slot_min=max(5,int(settings.get("slot_min",15)))
+                n=max(1,int(horizon*60/replay_slot_min))
                 imp=[]; exp=[]
                 sample_rows=[x[1] for x in samples]
                 for i in range(n):
-                    src=sample_rows[min(len(sample_rows)-1,int(i*len(sample_rows)/n))]
+                    src=sample_rows[int(i*replay_slot_min//15)]
                     imp.append(float(src.get("import_price",.30))); exp.append(float(src.get("export_price",.03)))
                 devs=[]
                 for d in devices:
