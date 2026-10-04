@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.54 — 2026-10-04
+
+- Regelt de vrijgegeven Panasonic-ruimtezone afzonderlijk tussen AUTO en UIT. Een geldige native UIT-stand bij start is onder automatische zonebediening geen verplichte handmatige uitschakeling; er is geen voorafgaande handmatige AUTO-keuze nodig. Actuele temperaturen en passende comfortvraag blijven bruikbaar terwijl het thermische model nog leert.
+- Voorkomt een permanente AUTO-keuze alleen wegens winter-/zomerweer. Iedere zone beoordeelt of de temperatuur zonder ruimtebedrijf veilig blijft en wanneer AUTO weer nodig is. Een warme ruimte die vanzelf naar het doel afkoelt krijgt niet alleen wegens koud toekomstig buitenweer een koelvraag.
+- Voegt per zone dashboardbediening toe voor expliciet handmatig AUTO of UIT en terugkeer naar automatische regeling. Die bewuste override blijft bewaard over herstarts. Externe native wijzigingen krijgen tijdelijke bescherming; vaste HEAT/COOL, onzekere opdrachten en ontbrekende bronnen worden niet overschreven.
+- Baseert voorspellende hervatting op de werkelijk geleerde relevante verwarm-/koelrespons en vertraging, binnen de echte opeenvolgende forecastdekking. Leerbewijs en voorspelfout blijven afzonderlijk; een sampletelling wordt geen 98% nauwkeurigheid. Een toekomstige hittegolf is zonder passend responsbewijs geen opdracht om nu de bouwschil te koelen. Panasonic kiest HEAT/COOL en het thermostaatdoel blijft behouden.
+- Behoudt beta.53-toestelisolatie, reserves, beschermde cycli, boilerbeleid, bronversheid en opdrachtbevestiging. Code, actuele uitleg/hulp, installatie/rollback, testverslag en overdracht worden samen bijgewerkt. De definitieve volledige suite behaalt **2877 geslaagde tests in 30.62 s**, inclusief 206 nieuwe model-/runtime-/dashboard-/integratie-/servicegevallen. Syntax van 65 Python-productiemodules, vier JSON-bestanden en beide JavaScript-bestanden is groen, evenals publieke preflight, handoff, actuele uitleg en repository-/diffcontrole. Afzonderlijke publicatie-/pakketcontrole staat bij `docs/TESTRESULTATEN_BETA54.md`; eerdere publicatie geldt niet als beta.54-bewijs. Geen live Home Assistant- of fysieke klimaatacceptatie wordt geclaimd.
+
 ## 1.0.0-beta.53 — 2026-10-04
 
 - Beperkt tijdelijke onbeschikbaarheid van een eerder beheerd toestel tot dat toestel. De overige beschikbare toestellen kunnen hun opgeslagen automatische modus hervatten zodra globale net- en veiligheidsbronnen geldig zijn; een ontbrekende status veroorzaakt geen blinde OFF of tweede START.

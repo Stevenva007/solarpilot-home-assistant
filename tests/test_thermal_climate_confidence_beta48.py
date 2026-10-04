@@ -54,7 +54,12 @@ def test_boolean_temperature_is_neither_a_measurement_nor_a_learning_sample(fiel
             "outdoor_c": 14, "hvac_action": "idle", "pv_w": 0, field: True}
     assert model.finite(True) is None and model.finite(False) is None
     assert not p.observe(**args)
-    assert p.snapshot() == before
+    after = p.snapshot()
+    assert {key: value for key, value in after.items() if key != "last"} == {
+        key: value for key, value in before.items() if key != "last"}
+    # A bad endpoint is not evidence of a continuous interval. Retain learned
+    # coefficients, but never bridge that missing measurement on its return.
+    assert p.last is None and p.action_started is None
 
 
 def test_633_passive_observations_are_real_forecast_evidence_without_a_fake_complete_model():

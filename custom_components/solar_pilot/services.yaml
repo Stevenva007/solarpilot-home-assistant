@@ -21,6 +21,38 @@ set_climate_setting:
       selector:
         object:
 
+set_climate_override:
+  name: Ruimte automatisch of handmatig bedienen
+  description: Dashboardbediening per ruimte. Automatisch geeft de regeling terug aan SolarPilot; handmatig AUTO of UIT blijft gelden tot je op het dashboard terugkeert naar Automatisch. De gewone bron- en opdrachtcontrole blijft gelden.
+  fields:
+    config_entry_id:
+      name: Configuratie-ID
+      description: Mag leeg blijven als de ruimte bij precies één geladen SolarPilot-configuratie hoort.
+      required: false
+      selector:
+        text:
+    entity_id:
+      name: Ruimte
+      description: Een klimaatzone die bij SolarPilot is geselecteerd.
+      required: true
+      selector:
+        entity:
+          domain: climate
+    mode:
+      name: Bediening
+      required: true
+      selector:
+        select:
+          options:
+            - label: Automatisch regelen
+              value: automatic
+            - label: Handmatig AUTO
+              value: auto
+            - label: Handmatig UIT
+              value: off
+            - label: Gemelde stand handmatig behouden
+              value: review
+
 set_planner_setting:
   name: Plannerinstelling wijzigen
   description: Wijzig één Unified Planner-instelling. Het dashboard toont uitleg, advies en gevolgen vóór opslaan.

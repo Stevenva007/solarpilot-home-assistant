@@ -3,11 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.53'
+GUIDE_VERSION = '1.0.0-beta.54'
 GUIDE_UPDATED = '2026-10-04'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.53',
+ 'version': '1.0.0-beta.54',
  'updated': '2026-10-04',
  'intro': 'Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst '
           'samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en '
@@ -571,131 +571,130 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                            'terugverdiengarantie.',
                            'Standaardverlies in de what-if: 20% totaal round-trip (80% efficiëntie); dit '
                            'blijft instelbaar.']},
-              {'title': '8. Slim verwarmen en koelen: Panasonic beslist HEAT/COOL',
-               'paragraphs': ['SolarPilot kiest nooit zelf HEAT of COOL. Panasonic AUTO blijft eigenaar van de '
-                              'verwarmings-/koelkeuze. SolarPilot kan alleen AUTO vrijgeven of, vooral in het '
-                              'tussenseizoen, de ruimtezones langdurig op OFF/coast zetten wanneer het '
-                              'thermische model voldoende vertrouwen heeft dat de woning comfortabel blijft. '
-                              'Een handmatig of extern OFF gezette zone blijft onbeperkt uit totdat de '
-                              'gebruiker zelf AUTO kiest. Ook een harde comfortoverschrijding, verlopen '
-                              'handmatige rusttijd, herstart of verwijderen geeft geen recht die zone '
-                              'automatisch in te schakelen. Een comfortwaarschuwing blijft wel zichtbaar.',
-                              'De Panasonic-doeltemperatuur blijft ongewijzigd de comfortreferentie. Een '
-                              'gewone planningsbeslissing gebeurt standaard om de 12 uur en kijkt 48 uur '
-                              'vooruit. Tijdens een coastperiode wordt wel vaker gecontroleerd of AUTO tijdig '
-                              'opnieuw moet worden vrijgegeven vóór de geleerde vloer-/bouwschilvertraging een '
-                              'comfortgrens bereikt.',
-                              'De energiebesparende coastlogica is standaard vooral voor het tussenseizoen. '
-                              'Bij duidelijke winter- of zomercontext blijven door de gebruiker vrijgegeven '
-                              'AUTO-zones normaal in AUTO, omdat de warmtepomp dan zelf beter kan moduleren dan '
-                              'wanneer het EMS agressief heen en weer programmeert. Dit wordt op basis van de '
-                              'weersverwachting en het binnendoel bepaald, niet op vaste kalendermaanden. '
-                              'Die weerscontext bewijst geen werkelijk actieve verwarmings- of koelvraag.',
-                              'Per zone leert SolarPilot passieve warmteoverdracht, verwarmingsrespons, '
-                              'koelrespons en reactievertraging op basis van Panasonic hvac_action. Daarnaast '
-                              'leert SolarPilot de lokale zonnewinst in de woning: werkelijk PV-vermogen wordt '
-                              'als lokale instralingsproxy gebruikt om te schatten hoeveel de woning op '
-                              'zonnige momenten vanzelf opwarmt. Die bijdrage is begrensd en wordt pas '
-                              'gebruikt wanneer voldoende leerkwaliteit aanwezig is. Een onbekende, '
-                              'onbeschikbare, restored of ongeldige ruimteactie wordt niet als idle '
-                              'aangeleerd; geen ontbrekende verwarm-/koelactiviteit verzinnen. Ook ontbrekend '
-                              'actueel PV-vermogen wordt niet als 0 W in het thermische leerbewijs ingevuld. '
-                              'Bij ingeschakelde zonnewinst moet PV op beide uiteinden van het leerinterval '
-                              'bekend zijn; ontbrekende PV onderbreekt alleen dat interval, niet bestaande '
-                              'geldige samples of coëfficiënten. Twee volgende geldige eindpunten laten '
-                              'leren vanzelf hervatten. Bij expliciet uitgeschakelde zonnewinst mag zonder '
-                              'PV worden geleerd en wordt geen zonnecoëfficiënt afgetrokken.',
-                              'De uurverwachting van de weersdienst wordt lokaal gecontroleerd tegen de '
-                              'werkelijk gemeten buitentemperatuur. SolarPilot leert afzonderlijk de '
-                              'systematische fout rond 6, 12, 24 en 48 uur vooruit en mag de voorspelling '
-                              'alleen binnen een instelbare maximumcorrectie bijstellen wanneer voldoende '
-                              'verschillende dagen en vertrouwen beschikbaar zijn.',
-                              'Iedere SolarPilot-coastperiode wordt achteraf geëvalueerd als correct, te lang '
-                              'of te voorzichtig. Na meerdere beoordeelde episodes mag alleen het minimum '
-                              'nuttige coastvenster voorzichtig binnen ingestelde grenzen worden aangepast. '
-                              'Comfortbanden, Panasonic-doeltemperatuur en de keuze HEAT/COOL veranderen '
-                              'hierdoor nooit. Een feedbackepisode begint en telt pas nadat alle betrokken '
-                              'zones hun nieuwe mode met de vereiste latere HA-terugmelding hebben bevestigd. '
-                              'Geen echo, mislukte opdracht of vaste HEAT/COOL levert geen fictieve '
-                              'coastleerervaring op; na herstart wordt zo\'n episode niet gereconstrueerd.',
-                              'Als de actuele buitentemperatuurbron wijzigt, worden het thermische model en de '
-                              'lokale weerscorrectie veilig opnieuw geleerd. Als alleen de forecast-weerdienst '
-                              'wijzigt, leert de weerscorrectie opnieuw; zonder aparte buitensensor wordt dan '
-                              'ook het thermische model opnieuw opgebouwd.',
-                              'Een coastperiode is geen gegarandeerde energiebesparing. Panasonic AUTO kan '
-                              'zelf al langdurig idle blijven wanneer er geen warmtevraag of koelvraag is. Te '
-                              'agressief uitschakelen kan later een grotere inhaalvraag veroorzaken en de '
-                              'efficiëntie verslechteren. Daarom blijft fysieke AUTO/coast-bediening standaard '
-                              'opt-in en moet de praktijkdata aantonen dat ze voor deze woning zinvol is.',
-                              'Ruimteverwarming/koeling heeft voorrang op autonoom EV-laden zodra fysieke '
-                              'klimaatbediening bewust vrijgegeven is. Een gewoon stabiel beheerd DHW-setpoint '
-                              'blokkeert deze klimaatregelaar niet permanent. Openstaande/onzekere opdrachten '
-                              'en beschermde fabrikantcycli blijven wel geserialiseerd en beschermd. De '
-                              'betrouwbaarheid wordt daarom per onderdeel getoond: passieve '
-                              'temperatuurverandering, zonnewinst, verwarmingsrespons, koelrespons, '
-                              'reactievertraging, weerscorrectie en coast/off-feedback. Een ontbrekend '
-                              'onderdeel staat als Nog niet geleerd, Eerste metingen of Voorlopig en kan niet '
-                              'stilzwijgend als 100% worden voorgesteld.',
-                              'Voor een nieuwe automatische coast telt alleen het bewijs dat de actuele '
-                              'voorspelling nodig heeft. Passieve temperatuurverandering en zonnewinst '
-                              'wanneer die wordt gebruikt blijven nodig. Een voorspelde onderschrijding '
-                              'vraagt verwarmingsrespons en de bestaande reactievertraging; een voorspelde '
-                              'overschrijding vraagt koelrespons en die reactievertraging. Als beide '
-                              'richtingen in de voorspelling nodig zijn, tellen beide mee. Zonder '
-                              'voorspelde grensoverschrijding hoeft een niet gebruikte verwarm-/koelrespons '
-                              'de passieve coastbeoordeling niet op nul te zetten. Ontbrekende koelervaring '
-                              'blokkeert dus niet enkel om die reden een voldoende geleerd verwarmingspad.',
-                              'De bestaande reactievertraging is gedeelde leerervaring. Oudere samples '
-                              'leggen niet vast of die vertraging uit verwarmen of koelen kwam; de '
-                              'weergave verzint daarom geen afzonderlijk bewezen vertraging per richting.',
-                              'Het overzicht toont de zekerheid voor de huidige beslissing, de benodigde '
-                              'respons, modelstatus en werkelijk opgeslagen samples/dagen/episodes. De '
-                              'oude volledige score blijft vergelijkingsinformatie voor alle onderdelen, '
-                              'zonder de actuele beslissing stil met een ontbrekend ongebruikt onderdeel '
-                              'te blokkeren. Geen score is een fysieke garantie; onvoldoende relevant '
-                              'bewijs houdt coast conservatief uit. De voorspelling gebruikt alleen '
-                              'opeenvolgende actuele/toekomstige uren met overeenkomende weer- en '
-                              'PV-tijdposities; oude uren, gaten of ontbrekende uren geven geen nieuwe coastvrijgave.',
-                              'Een wachtende of onzekere klimaatopdracht wordt niet opnieuw verstuurd. '
-                              'Een passende nieuwe Home Assistant-standrapportage na minstens tien '
-                              'seconden kan de uitkomst bevestigen; een onmiddellijke lokale echo telt '
-                              'niet. Na herstart moet die rapportage ook nieuw zijn na de herstartwachttijd. '
-                              'Dit is HA-bronbewijs, geen onafhankelijke fysieke apparaatbevestiging. '
-                              'Na 180 seconden zonder passende bevestiging blijft de feitelijke stand '
-                              'behouden en verschijnt een waarschuwing; er volgt geen replay of retry. '
-                              'Een werkelijk OFF gebleven zone blijft beschermd. '
-                              'Een oude lokale toestand of een herstart maakt geen nieuw opdrachtrecht. '
-                              'Als je zelf OFF kiest terwijl een SolarPilot-AUTO nog wacht, mag een '
-                              'vertraagde AUTO-terugmelding het automatische beheer niet herstellen, ook '
-                              'niet na langere tijd. Alleen een expliciete nieuwe gebruikerskeuze voor '
-                              'AUTO in Home Assistant geeft de zone weer vrij. SolarPilot verstuurt geen '
-                              'blinde corrigerende OFF; controleer bij zo\'n vertraagde melding de native stand. '
-                              'Handmatige bescherming en verwacht eigendom blijven per zone bewaard. '
-                              'Een onbekende actie geeft geen nieuwe OFF-vrijgave. Het vrijgeven van een '
-                              'bewezen eigen OFF/coast naar AUTO blijft afzonderlijk mogelijk volgens '
-                              'de bestaande comfort-/herstelregels, zonder die onbekende actie als '
-                              'idle te leren. Bij ontbrekende forecast mag een bewezen eigen coast '
-                              'veilig naar AUTO worden vrijgegeven zonder gewone daglimiet of '
-                              'minimumvasthoudtijd af te wachten. Handmatige OFF, vaste HEAT/COOL en '
-                              'gebruikersrust blijven beschermd. Een wijziging van de gekoppelde zones '
-                              'wacht op veilig afronden van eigen coast of pending opdrachten, zodat '
-                              'beheerde zones niet stil uit de herstelcontrole verdwijnen.'],
-               'bullets': ['Een handmatig gekozen Panasonic HEAT- of COOL-stand wordt nooit door SolarPilot '
-                           'overschreven; de regeling wordt dan adviserend tot de gebruiker zelf terugkeert '
-                           'naar AUTO. Zelf OFF kiezen laat de zone uit.',
-                           'Een harde comfortoverschrijding mag uitsluitend een door SolarPilot zelf '
-                           'beheerde OFF/coast-zone naar AUTO vrijgeven. Een handmatige OFF-zone blijft '
-                           'uit tot de gebruiker AUTO kiest; SolarPilot kiest nooit HEAT of COOL.',
-                           'Nieuwe automatische coastperiodes vereisen voldoende modelzekerheid, een nuttig '
-                           'minimumvenster en standaard een lange AUTO/OFF-vasthoudtijd om pendelen te '
-                           'voorkomen.',
-                           'PV-voorconditionering staat standaard UIT en kan alleen een toch al noodzakelijke '
-                           'AUTO-herstart vervroegen; ze verandert het thermostaatdoel niet.',
-                           'Ook in duidelijke zomer/winter coasten kan afzonderlijk worden toegestaan, maar '
-                           'staat standaard UIT omdat de verwachte energiewinst onzeker is en comfort/COP '
-                           'kunnen verslechteren.',
-                           'Open raam- of deurcontacten worden bewust niet gebruikt door deze klimaatregeling. '
-                           'De gevraagde langzame raamblokkering is dus niet geïmplementeerd.']},
+              {'title': '8. Slim verwarmen en koelen: automatisch AUTO/UIT per ruimte',
+               'paragraphs': ['Bij een onzekere klimaatopdracht biedt het dashboard Gemelde stand behouden zodra betrouwbare AUTO/UIT-gegevens terug zijn. Dit neemt alleen de gemelde stand als vaste handmatige keuze over en beoordeelt die specifieke fout, zonder een modeopdracht. Pending of onbetrouwbare gegevens blijven beschermd. Kies daarna bewust automatische regeling of de handmatige AUTO/UIT-schakelaar.',
+'SolarPilot regelt iedere vrijgegeven Panasonic-ruimtezone afzonderlijk tussen AUTO en '
+                              'UIT. Panasonic kiest zelf verwarmen of koelen; het thermostaatdoel blijft de '
+                              'comfortreferentie en wordt niet door deze regeling verhoogd of verlaagd. Automatische '
+                              'zonebediening staat standaard aan binnen de klimaatmodule, maar fysieke opdrachten '
+                              'vereisen nog steeds een ingeschakelde module, vrijgegeven klimaatbediening en de '
+                              'globale modus Automatisch regelen. Alleen bekijken en Pauze geven geen nieuw '
+                              'automatisch startrecht.',
+                              'Een geldige native UIT-stand bij start wordt bij automatische zonebediening niet als '
+                              'onbeperkte handmatige uitschakeling behandeld. SolarPilot mag die zone vanzelf op '
+                              'AUTO zetten zodra de actuele of verantwoord voorspelde behoefte dit vraagt. Woonkamer '
+                              'en tweede ruimte worden onafhankelijk beoordeeld: behoefte in één ruimte laat een andere '
+                              'veilige ruimte niet automatisch mee inschakelen. Winter- of zomerweer alleen bewijst '
+                              'geen actieve warmtevraag of koelvraag en houdt AUTO niet permanent aan.',
+                              'Op Warmte & comfort heeft iedere zone de schakelaar Handmatig bedienen. Uit betekent '
+                              'dat SolarPilot zelf AUTO/UIT regelt. Aan toont daarnaast AUTO / UIT voor een vaste '
+                              'handmatige keuze. Deze expliciete dashboardoverride blijft bewaard over herstarts tot '
+                              'Handmatig bedienen weer uit wordt gezet. Terugkeren naar automatisch wist de override '
+                              'zonder direct een modusopdracht te sturen of een echte fout te resetten. Een '
+                              'handmatig gekozen UIT-zone blijft uit, ook bij comfortoverschrijding; er volgt wel '
+                              'een waarschuwing.',
+                              'Een buiten het SolarPilot-dashboard gewijzigde native AUTO/UIT-stand krijgt de '
+                              'ingestelde tijdelijke gebruikersrust, standaard twaalf uur. Daarna kan automatische '
+                              'zonebediening hervatten. Een vaste Panasonic HEAT- of COOL-stand blijft adviserend en '
+                              'wordt niet overschreven. Wie expliciet automatische zonebediening uitzet, behoudt de '
+                              'oudere werkwijze waarbij een native handmatige UIT-zone op gebruikers-AUTO wacht. Een '
+                              'echte wachtende of onzekere opdracht blijft beschermd ongeacht het verstrijken van '
+                              'gebruikersrust.',
+                              'Ook wanneer het voorspellende model nog onvoldoende leerbewijs heeft, bewaakt '
+                              'SolarPilot de verse werkelijke ruimtetemperatuur en passende comfortvraag. Het '
+                              'dashboard noemt dit Comfortbewaking tijdens leren. Een warme ruimte die bij koud '
+                              'buitenweer vanzelf naar haar doel afkoelt vraagt niet uitsluitend wegens een '
+                              'geometrische bovengrens AUTO voor koeling. Bij voldoende relevante leergegevens wordt '
+                              'de regeling Voorspellend geregeld: de passieve temperatuurontwikkeling, zonnewinst en '
+                              'de werkelijk benodigde verwarm- of koelrespons bepalen of UIT veilig is en wanneer '
+                              'AUTO beschikbaar moet zijn.',
+                              'Gewone AUTO/UIT-wijzigingen respecteren een minimum aan- en uittijd, standaard één '
+                              'uur, en de bestaande begrensde opdrachtfrequentie. Een werkelijke of verantwoorde '
+                              'dreigende comfortbehoefte kan gewone wachttijd voor automatisch herstel doorbreken; '
+                              'handmatige dashboardkeuze, tijdelijke gebruikersrust, ongeldige bronnen, '
+                              'pending/onzekere opdrachten en fabrikantbescherming blijven leidend. Een opdracht '
+                              'verandert de native modustoegang en is geen rechtstreekse compressorstart of '
+                              'compressorstop.',
+                              'De planner kijkt maximaal de ingestelde horizon vooruit, standaard 48 uur, maar '
+                              'gebruikt uitsluitend werkelijk aanwezige opeenvolgende forecasturen. Oude uren, gaten '
+                              'en een ontbrekende staart blijven onbekend. Vijf beschikbare uren worden dus niet als '
+                              'een beoordeling van de volgende twee dagen getoond. Gewijzigde voorspellingen worden '
+                              'opnieuw beoordeeld terwijl de opdrachtbevestiging en minimumtijden blijven gelden.',
+                              'Voorspellend hervatten rekent met de geleerde relevante verwarm- of koelrespons en '
+                              'reactievertraging om de laatste verantwoorde starttijd te schatten. Een langzame, '
+                              'aantoonbaar geleerde respons kan eerder AUTO vereisen dan een snelle respons. '
+                              'Onvoldoende bewijs geeft een conservatieve actuele comfortregeling en geen verzonnen '
+                              'voorbereidingstijd. Een verwachting van 40 °C over twee dagen bewijst niet op '
+                              'zichzelf dat de bouwschil nu gekoeld moet worden. AUTO met ongewijzigd doel kan '
+                              'bovendien idle blijven of door Panasonic anders worden ingevuld. Doelbewuste '
+                              'bouwschilvoorconditionering vraagt afzonderlijk bewijs van opgeslagen warmte en '
+                              'nakoeling; die fysieke garantie wordt hier niet geclaimd.',
+                              'Per zone leert SolarPilot passieve warmteoverdracht, verwarmingsrespons, koelrespons '
+                              'en reactievertraging uit bruikbare Panasonic-acties. Werkelijk PV-vermogen kan als '
+                              'begrensde lokale instralingsproxy voor zonnewinst worden gebruikt. Onbekende, '
+                              'restored, onbeschikbare of ongeldige acties worden niet als idle geleerd; ontbrekend '
+                              'actueel PV-vermogen wordt niet als 0 W ingevuld. Bij ingeschakelde zonnewinst moeten '
+                              'beide interval-eindpunten bekende PV hebben. Ontbrekende data onderbreekt alleen het '
+                              'betreffende interval en wist geldige bestaande samples niet. Zonder ingeschakelde '
+                              'zonnewinst mag leren zonder PV en zonder zonnecoëfficiënt doorgaan.',
+                              'De uurverwachting wordt lokaal vergeleken met werkelijk gemeten buitentemperatuur. '
+                              'SolarPilot leert weersafwijking rond 6, 12, 24 en 48 uur vooruit en past alleen een '
+                              'begrensde correctie toe bij voldoende echt bewijs. Een expliciet gekozen buitensensor '
+                              'moet verse bruikbare °C-data leveren; bij onbeschikbaarheid of verkeerde eenheid '
+                              'wordt geen andere sensor ongemerkt als dezelfde leerbron ingevoegd. Wijziging van de '
+                              'actuele buitenbron laat thermisch model en weerscorrectie opnieuw leren; alleen een '
+                              'forecastdienst wijzigen vernieuwt de weerscorrectie en zonder aparte buitenbron ook '
+                              'het thermische model.',
+                              'Modelstatus en leerbewijs worden per onderdeel getoond: passieve '
+                              'temperatuurverandering, zonnewinst, verwarmen, koelen, reactievertraging, '
+                              'weerscorrectie en UIT-feedback. Voor verwarmen en koelen tellen eigen samples, eigen '
+                              'meetdagen en consistentie; veel passieve dagen bewijzen geen actieve respons. '
+                              'Voorspellende vrijgave vraagt ook werkelijk gecontroleerde korte '
+                              'responsvoorspellingen. Samples, dagen en episodes zijn meetdekking, geen percentage '
+                              'voorspelnauwkeurigheid. De gemiddelde absolute voorspelfout in °C staat afzonderlijk '
+                              'per passief-/verwarm-/koelpad en wordt vergeleken met de volgende echte meting over '
+                              'vijftien tot negentig minuten. Dit is geen bewijs van 48-uursnauwkeurigheid, '
+                              'bouwschilmassa of tweedaagse voorkoeling. Onbekend foutbewijs blijft onbekend. De '
+                              'oudere volledige score blijft alleen vergelijkingsinformatie; de beslissing gebruikt '
+                              'relevant bewijs zonder ontbrekende ongebruikte koelervaring een geleerd '
+                              'verwarmingspad te laten blokkeren.',
+                              'Praktisch leren gebeurt tijdens normale comfortabele AUTO- en UIT-perioden. '
+                              'Controleer betrouwbare ruimtetemperatuur, native doel, hvac_action, buitentemperatuur '
+                              'en uurforecast, en laat vervolgens gewone regeling lopen. Vergelijk de aangekondigde '
+                              'UIT-temperatuur met latere werkelijke metingen en bekijk de afzonderlijke '
+                              'verwarm-/koelrespons en voorspelfout. Koelervaring ontstaat pas bij werkelijk koelen; '
+                              'gegevens wissen of onnodige extreme proefstanden maakt het model niet zekerder. Voor '
+                              'een latere onderbouwde bouwschilstrategie zijn metingen van warmteopslag en nawerking '
+                              'over meerdere verschillende warme dagen nodig.',
+                              'Iedere bevestigde SolarPilot-UIT-periode kan achteraf worden beoordeeld als correct, '
+                              'te lang of te voorzichtig. Alleen het nuttige minimumvenster mag na voldoende '
+                              'feedback voorzichtig binnen de ingestelde grenzen worden aangepast. Comfortbanden, '
+                              'Panasonic-doel en HEAT/COOL-keuze veranderen daardoor niet. Een mislukte of '
+                              'onbevestigde opdracht levert geen fictieve succesvolle episode; een onderbroken '
+                              'episode wordt na herstart niet als volledige leerervaring gereconstrueerd.',
+                              'Een wachtende of onzekere klimaatopdracht wordt niet opnieuw verstuurd. Passende '
+                              'nieuwe Home Assistant-modusrapportage telt pas na minstens tien seconden na de '
+                              'opdracht en bij herstart ook na de herstartwachttijd; een onmiddellijke lokale echo '
+                              'is geen bevestiging. Na 180 seconden zonder passend nieuw bewijs blijft de actuele '
+                              'stand behouden met een waarschuwing. Geen gebruikersrust, bronterugkeer of herstart '
+                              'maakt zo’n onzekere opdracht opnieuw uitvoerbaar. Bronversheid, temperatuur, native '
+                              'actie en eigendom worden vlak vóór een nieuwe write opnieuw gecontroleerd.',
+                              'Ruimtecomfort houdt voorrang op autonoom EV-laden wanneer klimaatbediening '
+                              'vrijgegeven is. Een stabiel beheerd boilerdoel blokkeert de klimaatregelaar niet '
+                              'permanent; lopende/onzekere opdrachten en beschermde fabrikantcycli blijven '
+                              'geserialiseerd. Beta.53-isolatie van onbeschikbare toestellen en conservatieve '
+                              'vermogensreserves blijven behouden. Automatische UIT-regeling is geen gegarandeerde '
+                              'energiebesparing: te veel uitschakelen kan een grotere inhaalvraag geven. De '
+                              'werkelijke respons en evaluatie moeten laten zien welk UIT-venster voor deze woning '
+                              'zinvol is.'],
+               'bullets': ['Handmatig AUTO/UIT bedien je per zone met de dashboardschakelaars; automatische regeling '
+                           'vraagt geen gewone handmatige AUTO-keuze vooraf.',
+                           'Panasonic kiest HEAT/COOL; SolarPilot wijzigt geen ruimte-doeltemperatuur, Force DHW, '
+                           'Powerful of installateursinstelling.',
+                           'Forecastdekking, leerbewijs en voorspelfout blijven afzonderlijk zichtbaar. Een '
+                           'toekomstig warm uur is geen bewezen huidige koelvraag.',
+                           'Veilige andere zones mogen UIT blijven terwijl één zone AUTO nodig heeft.',
+                           'Open raam- of deurcontacten worden niet gebruikt door deze klimaatregeling.']},
               {'title': "9. Kwartierpiek, kosten en EMS-KPI's",
                'paragraphs': ['SolarPilot kan het actuele kwartiergemiddelde en de maandpiek gebruiken om een '
                               'softwarematig importbudget te berekenen. Voor Vlaanderen is een instelbare '
@@ -1477,55 +1476,55 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'niet-gerelateerde opties worden niet gereset.'],
                'bullets': []},
               {'title': '21. Leren, Wallbox, boiler, klimaat en analyse',
-               'paragraphs': ['De huishoudelijke basislast leert alleen uit perioden die als gewone '
-                              'huishoudlast zijn geclassificeerd. Duidelijke Panasonic-ruimteverwarming, '
-                              'ruimtekoeling, tapwaterverwarming en sterilisatie worden apart gehouden. '
-                              'Zonder aparte warmtepomp-W-meter mag SolarPilot uit stabiele P1+PV-sprongen '
-                              'een conservatieve vermogensschatting leren, maar uitsluitend voor planning en '
-                              'classificatie. Die schatting wordt nooit van actuele P1-netruimte afgetrokken.',
-                              'De Wallbox blijft read-only. Een Full Solar-instelling bewijst niet welke '
-                              'laadsessie werkelijk actief is. SolarPilot kan alleen een sessie-entiteit '
-                              'voorstellen wanneer één entiteit op hetzelfde Wallbox-apparaat voldoende '
-                              'bewijs bevat. Zonder bevestigde effectieve sessie wordt geen Wallbox-vermogen '
-                              'toegekend; werkelijk gemeten vrije injectie blijft wel bruikbaar. De '
-                              'afgeleide live-sessiebron moet alleen beschikbaar zijn wanneer haar fysieke '
-                              'status-, vermogen- en ruwe rapportagebronnen bruikbaar, niet restored en '
-                              'hoogstens vijf minuten oud zijn. Ongeldige of toekomstige rapportagetijden '
-                              'geven evenmin actuele bronvrijgave. Een minuutheartbeat maakt die controle '
-                              'zichtbaar. De live configuratiecontrole en herlading bevestigden zo een '
-                              'actuele gestopte sessie zonder EV-vermogenskrediet. Bij een oude, onbekende '
-                              'of strijdige status blijft SolarPilot fail-closed.',
+               'paragraphs': ['De huishoudelijke basislast leert alleen uit perioden die als gewone huishoudlast '
+                              'zijn geclassificeerd. Duidelijke Panasonic-ruimteverwarming, ruimtekoeling, '
+                              'tapwaterverwarming en sterilisatie worden apart gehouden. Zonder aparte '
+                              'warmtepomp-W-meter mag SolarPilot uit stabiele P1+PV-sprongen een conservatieve '
+                              'vermogensschatting leren, maar uitsluitend voor planning en classificatie. Die '
+                              'schatting wordt nooit van actuele P1-netruimte afgetrokken.',
+                              'De Wallbox blijft read-only. Een Full Solar-instelling bewijst niet welke laadsessie '
+                              'werkelijk actief is. SolarPilot kan alleen een sessie-entiteit voorstellen wanneer '
+                              'één entiteit op hetzelfde Wallbox-apparaat voldoende bewijs bevat. Zonder bevestigde '
+                              'effectieve sessie wordt geen Wallbox-vermogen toegekend; werkelijk gemeten vrije '
+                              'injectie blijft wel bruikbaar. De afgeleide live-sessiebron moet alleen beschikbaar '
+                              'zijn wanneer haar fysieke status-, vermogen- en ruwe rapportagebronnen bruikbaar, '
+                              'niet restored en hoogstens vijf minuten oud zijn. Ongeldige of toekomstige '
+                              'rapportagetijden geven evenmin actuele bronvrijgave. Een minuutheartbeat maakt die '
+                              'controle zichtbaar. De live configuratiecontrole en herlading bevestigden zo een '
+                              'actuele gestopte sessie zonder EV-vermogenskrediet. Bij een oude, onbekende of '
+                              'strijdige status blijft SolarPilot fail-closed.',
                               'De boiler gebruikt vanaf beta.36 één config-entrybron voor de effectieve '
-                              'instellingen. Bij de beta.35-migratie worden de werkelijk gebruikte waarden '
-                              '50 °C normaal, 46 °C bewaakte comfortgrens, -5 °C Panasonic-differentie, '
-                              '50 °C zonnebuffer, 60 °C extra PV-buffer en 50 °C maximum tijdens actieve '
-                              'koeling behouden. Het wekelijkse Panasonic-sterilisatieprogramma op 62 °C '
-                              'blijft autonoom. Geconfigureerd, ingeschakeld, vrijgegeven, doelbezit, '
-                              'Panasonic-autonomie en handmatige override zijn afzonderlijk zichtbaar.',
-                              'Klimaatbetrouwbaarheid wordt niet meer als één algemene 100%-waarde getoond. '
-                              'Passieve temperatuurverandering, zonnewinst, verwarmingsrespons, koelrespons, '
-                              'reactievertraging, weerscorrectie en coast/off-feedback hebben elk een eigen '
-                              'status: Nog niet geleerd, Eerste metingen, Voorlopig of Betrouwbaar. Ontbrekend '
-                              'bewijs maakt de regeling conservatiever en verruimt nooit de comfortgrenzen.',
-                              'Apparaat-, lokale PV-, fase- en klimaatleerdata wissen is in beta.42 begrensd '
-                              'tot de lokale afgeleide leerlagen: '
-                              'Wallbox-responsstatistiek, toestelvermogenssamples, live-PV-correctie, '
-                              'faseprofielen, klimaatprofielen, weersbias en coast-feedback. Instellingen, '
-                              'historische PV-bootstrap en operationele klimaatveiligheid zoals handmatige '
-                              'rust, commandolimieten, verwacht modus-/OFF-eigendom en een lopende of '
-                              'wachtende coastepisode blijven behouden. De reset publiceert de lege '
-                              'leerstatus maar voert geen regelcyclus of fysieke opdracht uit. Andere '
-                              'modellen, zoals cyclus-, DHW- en plannerleren, worden niet door deze knop '
-                              'gewist.',
-                              'De lokale PV-kalibratie houdt minimaal vijf geldige vergelijkingsdagen nodig. '
-                              '13,8 kWp panelen, 10 kW omvormerlimiet en lokale schaduwdetectie blijven '
-                              'behouden. Diagnostiek toont daarnaast fout en bias per ochtend, middag en '
-                              'namiddag. Realtime PV blijft altijd belangrijker dan de forecast.',
-                              'Analyse-export vermeldt bovenaan de aangevraagde periode én de werkelijk '
-                              'beschikbare en gedekte meettijd, gaten, eerste/laatste bruikbare sample, '
-                              'herstarts en snelle telemetrie. Bootstrap/historiek, echte SolarPilot-live '
-                              'leerdata, berekende profielen en actuele metingen worden apart benoemd; een '
-                              'planberekening telt nooit als extra leerdag.'],
+                              'instellingen. Bij de beta.35-migratie worden de werkelijk gebruikte waarden 50 °C '
+                              'normaal, 46 °C bewaakte comfortgrens, -5 °C Panasonic-differentie, 50 °C zonnebuffer, '
+                              '60 °C extra PV-buffer en 50 °C maximum tijdens actieve koeling behouden. Het '
+                              'wekelijkse Panasonic-sterilisatieprogramma op 62 °C blijft autonoom. Geconfigureerd, '
+                              'ingeschakeld, vrijgegeven, doelbezit, Panasonic-autonomie en handmatige override zijn '
+                              'afzonderlijk zichtbaar.',
+                              'Klimaatbetrouwbaarheid is afzonderlijk leerbewijs voor passief, zonnewinst, '
+                              'verwarmen, koelen, vertraging, weerscorrectie en UIT-feedback. Actieve richtingen '
+                              'gebruiken hun eigen meetdagen en consistente samples. De gemiddelde absolute '
+                              'voorspelfout in °C staat apart per gemeten pad en geldt alleen voor de werkelijk '
+                              'beoordeelde korte horizon; geen samplepercentage wordt als voorspelnauwkeurigheid of '
+                              '48-uursgarantie weergegeven. Actuele passende comfortvraag blijft tijdens leren '
+                              'bruikbaar; onvoldoende voorspelbewijs maakt het forecastpad conservatiever en '
+                              'verruimt geen comfortgrens.',
+                              'Apparaat-, lokale PV-, fase- en klimaatleerdata wissen is in beta.42 begrensd tot de '
+                              'lokale afgeleide leerlagen: Wallbox-responsstatistiek, toestelvermogenssamples, '
+                              'live-PV-correctie, faseprofielen, klimaatprofielen, weersbias en coast-feedback. '
+                              'Instellingen, historische PV-bootstrap en operationele klimaatveiligheid zoals '
+                              'handmatige rust, commandolimieten, verwacht modus-/OFF-eigendom en een lopende of '
+                              'wachtende coastepisode blijven behouden. De reset publiceert de lege leerstatus maar '
+                              'voert geen regelcyclus of fysieke opdracht uit. Andere modellen, zoals cyclus-, DHW- '
+                              'en plannerleren, worden niet door deze knop gewist.',
+                              'De lokale PV-kalibratie houdt minimaal vijf geldige vergelijkingsdagen nodig. 13,8 '
+                              'kWp panelen, 10 kW omvormerlimiet en lokale schaduwdetectie blijven behouden. '
+                              'Diagnostiek toont daarnaast fout en bias per ochtend, middag en namiddag. Realtime PV '
+                              'blijft altijd belangrijker dan de forecast.',
+                              'Analyse-export vermeldt bovenaan de aangevraagde periode én de werkelijk beschikbare '
+                              'en gedekte meettijd, gaten, eerste/laatste bruikbare sample, herstarts en snelle '
+                              'telemetrie. Bootstrap/historiek, echte SolarPilot-live leerdata, berekende profielen '
+                              'en actuele metingen worden apart benoemd; een planberekening telt nooit als extra '
+                              'leerdag.'],
                'bullets': []},
               {'title': '22. Eenvoudige bediening en éénmalige veilige activering',
                'paragraphs': ['De dagelijkse modusnamen zijn Alleen bekijken, Automatisch regelen en Pauze. '

@@ -335,18 +335,19 @@
         }
       },
       "smart_climate": {
-        "title": "Ruimteklimaat · Panasonic AUTO & coast",
-        "description": "SolarPilot kiest nooit HEAT of COOL. Panasonic AUTO blijft eigenaar van die keuze. SolarPilot kan vooral in het tussenseizoen langdurig AUTO vrijgeven of de ruimteverwarming/-koeling laten coasten via OFF.",
+        "title": "Ruimteklimaat · automatisch AUTO/UIT",
+        "description": "SolarPilot schakelt de geselecteerde ruimtes automatisch tussen AUTO en UIT op basis van comfort, temperatuurverloop en beschikbare voorspellingen. Panasonic behoudt de keuze tussen verwarmen en koelen. Handmatige AUTO/UIT-bediening staat per ruimte op het dashboard.",
         "data": {
           "enabled": "Thermisch model en advies inschakelen",
-          "control_enabled": "AUTO/coast-programmering daadwerkelijk laten toepassen",
+          "control_enabled": "Ruimtes fysiek via AUTO/UIT laten regelen",
           "zone_entities": "Panasonic-zones (moeten AUTO en OFF ondersteunen)",
           "weather_entity": "Weerentiteit voor uurvoorspelling",
           "outside_temp_entity": "Actuele buitentemperatuur (optioneel)",
           "soft_band_c": "Gewenste comfortband rond thermostaatdoel (±°C)",
           "hard_band_c": "Harde comfortgrens (±°C)",
-          "decision_interval_h": "Normale planningsbeslissing om de (uren)",
-          "forecast_horizon_h": "Voorspellingshorizon (uren)"
+          "decision_interval_h": "Uitgebreide langetermijnplanning om de (uren)",
+          "forecast_horizon_h": "Voorspellingshorizon (uren)",
+          "automatic_zone_control": "Ruimtes automatisch aan en uit regelen"
         }
       },
       "battery": {
@@ -521,26 +522,28 @@
         }
       },
       "smart_climate_advanced": {
-        "title": "Ruimteklimaat · tussenseizoen, leren & geavanceerd",
-        "description": "Tuning voor langzame vloer/bouwschilregeling. In duidelijke zomer/winter blijft Panasonic AUTO standaard gewoon actief; de energiebesparende coastlogica is vooral voor het tussenseizoen.",
+        "title": "Ruimteklimaat · leren & geavanceerd",
+        "description": "Automatische regeling controleert iedere regelronde de actuele behoefte per ruimte. Geleerde respons en beschikbare uurvoorspellingen helpen eerder AUTO vrij te geven. De percentages tonen leerbewijs; voorspelfout wordt afzonderlijk gemeten. AUTO alleen garandeert geen afkoeling van de bouwschil vooraf.",
         "data": {
           "forecast_refresh_s": "Weersvoorspelling vernieuwen om de (s)",
           "shoulder_band_c": "Tussenseizoen-band rond binnendoel (±°C)",
           "season_extreme_delta_c": "Duidelijke zomer/winter vanaf gemiddeld verschil (°C)",
-          "allow_winter_summer_coast": "Ook in duidelijke zomer/winter coasten toestaan",
+          "allow_winter_summer_coast": "Oude coastregeling: ook in zomer/winter",
           "min_coast_window_h": "Minimum nuttige coastperiode (uren)",
-          "min_state_hold_h": "Minimum AUTO/OFF-vasthoudtijd (uren)",
+          "min_state_hold_h": "Oude coastregeling: minimum AUTO/OFF-vasthoudtijd (uren)",
           "thermal_start_margin_h": "Extra herstartmarge boven geleerde vloerreactie (uren)",
-          "manual_hold_h": "Rust na handmatige modewijziging (uren)",
+          "manual_hold_h": "Tijdelijke rust na externe bediening (uren)",
           "sample_interval_s": "Thermisch leersample om de (s)",
           "learning_min_samples": "Minimum leersamples",
           "learning_min_days": "Minimum verschillende leerdagen",
-          "model_confidence_min": "Minimum modelzekerheid voor automatische coast",
+          "model_confidence_min": "Minimum leerbewijs voor voorspellende regeling",
           "solar_preconditioning_enabled": "PV mag noodzakelijke AUTO-herstart vervroegen",
           "precondition_min_pv_w": "Minimum PV voor vervroegde AUTO-vrijgave (W)",
           "solar_precondition_extra_lead_h": "Extra voorsprong met PV (uren)",
           "max_commands_per_day": "Max gewone AUTO/OFF-opdrachten per dag",
-          "stale_s": "Klimaatmeting te oud na (s)"
+          "stale_s": "Klimaatmeting te oud na (s)",
+          "automatic_min_run_h": "Minimum AUTO-periode bij automatische regeling (uren)",
+          "automatic_min_off_h": "Minimum UIT-periode bij automatische regeling (uren)"
         }
       },
       "wallbox_advanced": {

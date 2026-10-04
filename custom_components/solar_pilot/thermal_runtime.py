@@ -1,7 +1,9 @@
-"""Home Assistant runtime wrapper for slow Panasonic AUTO/coast planning."""
+"""Fresh per-room Panasonic AUTO/OFF control with durable command ownership."""
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import asdict, replace
+from statistics import median
 from datetime import datetime, timezone, timedelta
 import time
 from zoneinfo import ZoneInfo
@@ -15,6 +17,8 @@ from .thermal_climate import (
     CLIMATE_SETTING_SPECS,
     SmartClimateState,
     decide_mode,
+    decide_zone,
+    ClimateDecision,
     finite,
 )
 from .wallbox import protected_entity
@@ -31,6 +35,9 @@ class SmartClimateManager:
         self.last_weather_corrections = []
         self.last_solar_hourly = []
         self.manual_off = set()
+        self.dashboard_overrides = {}
+        self.zone_decisions = {}
+        self.zone_command_counts = {}
         self.zone_holds = {}
         self.pending_commands = {}
         self.observed_modes = {}
@@ -42,6 +49,7 @@ class SmartClimateManager:
         self._unsub_services = None
         self._started = False
         self._feedback_batches = {}
+        self._native_intent_versions = {}
 
     COMMAND_TIMEOUT_S = 180
     REPORT_DELAY_S = 10
@@ -59,7 +67,9 @@ class SmartClimateManager:
                 "zone_holds": dict(self.zone_holds),
                 "pending_commands": deepcopy(self.pending_commands),
                 "zone_command_walls": dict(self.zone_command_walls),
-                "command_faults": dict(self.command_faults), "cancelled_auto": dict(self.cancelled_auto)}
+                "command_faults": dict(self.command_faults), "cancelled_auto": dict(self.cancelled_auto),
+                "dashboard_overrides": dict(self.dashboard_overrides),
+                "zone_command_counts": deepcopy(self.zone_command_counts)}
 
     def restore(self, data):
         self.state.restore(data, self.settings.get("zone_entities", []), self.settings)
@@ -81,6 +91,19 @@ class SmartClimateManager:
                                    if eid in selected and (value := finite(raw)) is not None and 0 <= value <= now}
         self.command_faults = {eid: str(reason) for eid, reason in maps["command_faults"].items()
                                if eid in selected and reason}
+        overrides = data.get("dashboard_overrides")
+        self.dashboard_overrides = {eid: mode for eid, mode in (overrides.items() if isinstance(overrides, dict) else [])
+                                    if eid in selected and mode in ("auto", "off")}
+        counts = data.get("zone_command_counts")
+        self.zone_command_counts = {}
+        for eid, raw in (counts.items() if isinstance(counts, dict) else []):
+            if eid not in selected or not isinstance(raw, dict):
+                continue
+            count = finite(raw.get("count"))
+            if count is not None and 0 <= count <= 10000 and count.is_integer():
+                optimized = finite(raw.get("optimization_count", 0))
+                self.zone_command_counts[eid] = {"day": str(raw.get("day", ""))[:10], "count": int(count),
+                                                "optimization_count": int(optimized) if optimized is not None and 0 <= optimized <= 10000 else 0}
         self.pending_commands = {}
         self.cancelled_auto = {eid: value for eid, raw in maps["cancelled_auto"].items()
                                if eid in selected and (value := finite(raw)) is not None and 0 <= value <= now + 5}
@@ -132,8 +155,9 @@ class SmartClimateManager:
     def _dirty(self):
         self.runtime.store.async_delay_save(self.runtime._snapshot, 1)
 
-    def _manual_mode(self, entity_id, mode):
+    def _manual_mode(self, entity_id, mode, *, verified_user=False):
         """An external choice revokes only this zone's control ownership."""
+        self._native_intent_versions[entity_id] = self._native_intent_versions.get(entity_id, 0) + 1
         if mode == "off" and (self.pending_commands.get(entity_id, {}).get("mode") == "auto"
                               or self.state.expected_mode.get(entity_id) == "auto"):
             self.cancelled_auto[entity_id] = time.time()
@@ -141,8 +165,9 @@ class SmartClimateManager:
             self.cancelled_auto.pop(entity_id, None)
         self.pending_commands.pop(entity_id, None)
         self.state.expected_mode.pop(entity_id, None)
-        self.command_faults.pop(entity_id, None)
-        if mode == "auto":
+        if verified_user:
+            self.command_faults.pop(entity_id, None)
+        if mode == "auto" and not self.settings.get("automatic_zone_control", True):
             self.zone_holds.pop(entity_id, None)
         else:
             self.zone_holds[entity_id] = time.time() + float(self.settings.get("manual_hold_h", 12)) * 3600
@@ -153,7 +178,8 @@ class SmartClimateManager:
         self.observed_modes[entity_id] = mode
         self._feedback_batches.clear()
         self.state.coast_feedback.abort_manual(time.time(), self.last_zones, self.settings)
-        self.runtime.note(f"Slim klimaatbeheer: handmatige {mode.upper()} behouden voor {entity_id}; geen comfortregel overschrijft UIT.")
+        suffix = "tijdelijk behouden; daarna hervat automatische regeling" if self.settings.get("automatic_zone_control", True) else "behouden; geen comfortregel overschrijft UIT"
+        self.runtime.note(f"Slim klimaatbeheer: externe {mode.upper()} voor {entity_id} {suffix}.")
         self._dirty()
         self.runtime.publish()
 
@@ -179,6 +205,8 @@ class SmartClimateManager:
             ids = self.settings.get("zone_entities", []) or []
         for eid in ids:
             if eid in (self.settings.get("zone_entities", []) or []):
+                # A requested native service can fail. Only its later fresh
+                # user-context state report can resolve a previous call fault.
                 self._manual_mode(eid, mode)
 
     @callback
@@ -197,7 +225,7 @@ class SmartClimateManager:
         if own:
             return
         if getattr(context, "user_id", None):
-            self._manual_mode(eid, mode)
+            self._manual_mode(eid, mode, verified_user=True)
             return
         old = event.data.get("old_state")
         if old is None or str(old.state).casefold() == mode or eid in self.pending_commands:
@@ -236,7 +264,11 @@ class SmartClimateManager:
                 continue
             current = finite(obj.attributes.get("current_temperature"))
             target = finite(obj.attributes.get("temperature"))
-            if current is None or target is None:
+            if current is None or target is None or not -10 <= current <= 60 or not 5 <= target <= 35:
+                continue
+            native_min = finite(obj.attributes.get("min_temp"))
+            native_max = finite(obj.attributes.get("max_temp"))
+            if (native_min is not None and target < native_min) or (native_max is not None and target > native_max):
                 continue
             out.append({
                 "entity_id": entity_id,
@@ -255,14 +287,21 @@ class SmartClimateManager:
         entity_id = self.settings.get("outside_temp_entity")
         if entity_id:
             obj = self.runtime.hass.states.get(entity_id)
-            if obj is not None and obj.state not in ("unknown", "unavailable", "") and self._fresh(obj):
+            if (obj is not None and obj.state not in ("unknown", "unavailable", "")
+                    and obj.attributes.get("unit_of_measurement") == "°C" and self._fresh(obj)):
                 value = finite(obj.state)
-                if value is not None:
+                if value is not None and -60 <= value <= 60:
                     self.last_outside = value
                     return value
+            # An explicitly selected reference may never silently switch sources.
+            self.last_outside = None
+            return None
         weather_id = self.settings.get("weather_entity")
         obj = self.runtime.hass.states.get(weather_id) if weather_id else None
-        value = finite(obj.attributes.get("temperature")) if obj and self._fresh(obj) and self._temp_unit_ok(obj) else None
+        value = (finite(obj.attributes.get("temperature")) if obj and str(obj.state).casefold() not in ("unknown", "unavailable", "")
+                 and self._fresh(obj) and self._temp_unit_ok(obj) else None)
+        if value is not None and not -60 <= value <= 60:
+            value = None
         self.last_outside = value
         return value
 
@@ -281,7 +320,11 @@ class SmartClimateManager:
 
     async def _refresh_forecast(self):
         weather_id = self.settings.get("weather_entity")
-        if not weather_id or not self.runtime.hass.states.get(weather_id):
+        weather_obj = self.runtime.hass.states.get(weather_id) if weather_id else None
+        if (weather_obj is None or str(weather_obj.state).casefold() in ("unknown", "unavailable", "")
+                or not self._fresh(weather_obj) or not self._temp_unit_ok(weather_obj)):
+            self.state.forecast = []
+            self.last_forecast_error = "Weerbron heeft geen actuele uurvoorspelling in °C"
             return
         if time.time() - self.state.last_forecast_wall < float(self.settings.get("forecast_refresh_s", 3600)):
             return
@@ -290,11 +333,17 @@ class SmartClimateManager:
             response = await self.runtime.hass.services.async_call(
                 "weather", "get_forecasts", {"type": "hourly"},
                 target={"entity_id": weather_id}, blocking=True, return_response=True)
+            weather_obj = self.runtime.hass.states.get(weather_id)
+            if (weather_obj is None or str(weather_obj.state).casefold() in ("unknown", "unavailable", "")
+                    or not self._fresh(weather_obj) or not self._temp_unit_ok(weather_obj)):
+                self.state.forecast = []
+                self.last_forecast_error = "Weerbron wijzigde tijdens ophalen; uurtemperaturen niet gebruikt"
+                return
             rows = (response or {}).get(weather_id, {}).get("forecast", [])
             forecast = []
             for row in rows:
                 temp = finite(row.get("temperature"))
-                if temp is None:
+                if temp is None or not -60 <= temp <= 60:
                     continue
                 valid_ts = self._parse_forecast_ts(row.get("datetime"))
                 if valid_ts is None:
@@ -383,7 +432,20 @@ class SmartClimateManager:
         return list(self.last_solar_hourly)
 
     def _observe(self, zones, outside, local_now):
-        if outside is None or time.time() - self.state.last_sample_wall < float(self.settings.get("sample_interval_s", 900)):
+        selected = set(self.settings.get("zone_entities", []) or [])
+        available = {z["entity_id"] for z in zones}
+        for eid in selected - available:
+            profile = self.state.profile(eid)
+            profile.last = profile.action_started = None
+        for zone in zones:
+            if not zone.get("action_known"):
+                profile = self.state.profile(zone["entity_id"])
+                profile.last = profile.action_started = None
+        if outside is None:
+            for profile in self.state.profiles.values():
+                profile.last = profile.action_started = None
+            return
+        if time.time() - self.state.last_sample_wall < float(self.settings.get("sample_interval_s", 900)):
             return
         self.state.last_sample_wall = time.time()
         self.state.weather_bias.observe(time.time(), outside, local_now.date().isoformat())
@@ -446,6 +508,7 @@ class SmartClimateManager:
             z for z in zones
             if str(expected.get(z["entity_id"], "")).casefold() == "off"
             and str(z.get("mode", "")).casefold() == "off"
+            and self.dashboard_overrides.get(z["entity_id"]) != "off"
         ]
         if owned_off:
             return await self._send_mode("auto", owned_off)
@@ -500,6 +563,10 @@ class SmartClimateManager:
                 if have == pending["mode"] and now >= reference + self.REPORT_DELAY_S and report_wall >= reference + self.REPORT_DELAY_S:
                     self.pending_commands.pop(eid, None)
                     self.command_faults.pop(eid, None)
+                    if self.dashboard_overrides.get(eid) == have:
+                        # A dashboard-fixed state is the user's continuing
+                        # choice, never a coast lease to release at Pause.
+                        self.state.expected_mode.pop(eid, None)
                     group = self._feedback_batches.get(pending.get("feedback_group"))
                     if group is not None:
                         group["confirmed"][eid] = dict(z)
@@ -526,13 +593,24 @@ class SmartClimateManager:
                 expected = self.state.expected_mode.get(eid)
                 if expected and have != expected:
                     self._manual_mode(eid, have)
-                elif have == "off" and expected != "off" and eid not in self.manual_off:
+                elif (have == "off" and expected != "off" and eid not in self.manual_off
+                      and eid not in self.dashboard_overrides and not self.settings.get("automatic_zone_control", True)):
                     self.manual_off.add(eid)
                     dirty = True
                 elif (have == "auto" and eid in self.manual_off and previous == "off"
                       and eid not in self.cancelled_auto):
                     self._manual_mode(eid, "auto")
             self.observed_modes[eid] = have
+        if self.settings.get("automatic_zone_control", True):
+            # Historical OFF intent is not a permanent opt-out of the newly
+            # selected autonomous policy. Actual holds and uncertain commands
+            # retain their durable safety meaning.
+            for eid in list(self.manual_off | set(self.zone_holds)):
+                if now >= self.zone_holds.get(eid, 0) and eid not in self.command_faults and eid not in self.pending_commands:
+                    self.manual_off.discard(eid)
+                    self.zone_holds.pop(eid, None)
+                    self.cancelled_auto.pop(eid, None)
+                    dirty = True
         if dirty:
             self._dirty()
 
@@ -549,6 +627,8 @@ class SmartClimateManager:
         mode = str(decision.desired_mode).casefold()
         eligible = [z for z in zones if z["entity_id"] not in self.pending_commands
                     and z["entity_id"] not in self.manual_off
+                    and z["entity_id"] not in self.dashboard_overrides
+                    and z["entity_id"] not in self.command_faults
                     and time.time() >= self.zone_holds.get(z["entity_id"], 0)]
         if mode == "off":
             return [z for z in eligible if str(z.get("mode", "")).casefold() == "auto" and z.get("action_known")]
@@ -573,7 +653,58 @@ class SmartClimateManager:
                 continue
         return targets
 
-    async def _send_mode(self, mode, zones):
+    def _automatic_eligible(self, entity_id):
+        """Source recovery never grants permission to replay an uncertain call."""
+        if entity_id in self.pending_commands or entity_id in self.command_faults:
+            return False
+        if time.time() < self.zone_holds.get(entity_id, 0):
+            return False
+        return (self.settings.get("automatic_zone_control", True) or entity_id in self.dashboard_overrides
+                or entity_id not in self.manual_off)
+
+    def _dispatch_allowed(self):
+        """Recheck global control after every service await, before a write."""
+        runtime = self.runtime
+        dhw = getattr(runtime, "dhw", None)
+        battery = getattr(runtime, "battery_fleet", None)
+        return bool(
+            not getattr(runtime, "_closed", False)
+            and getattr(runtime, "mode", None) == "solar"
+            and self.settings.get("enabled") and self.settings.get("control_enabled")
+            and not getattr(runtime, "pending", None) and not getattr(runtime, "handover", None)
+            and not getattr(runtime, "restart_blocking", False)
+            and not getattr(battery, "busy", False)
+            and not getattr(dhw, "pending", None) and not getattr(dhw, "blocks_increase", False)
+            and not getattr(getattr(dhw, "reading", None), "protected", False)
+        )
+
+    def _solar_precondition_available(self):
+        if not self.settings.get("solar_preconditioning_enabled"):
+            return False
+        watts, _ = self.runtime._power(self.runtime.settings.get("pv_entity"))
+        return watts is not None and watts >= float(self.settings.get("precondition_min_pv_w", 3000))
+
+    def _planned_sources_unchanged(self, zone, mode, decision):
+        if "_planning_outside" in zone and self._outside() != zone["_planning_outside"]:
+            return False
+        if zone.get("_planning_weather_used"):
+            weather_id = self.settings.get("weather_entity")
+            obj = self.runtime.hass.states.get(weather_id) if weather_id else None
+            if (obj is None or str(obj.state).casefold() in ("unknown", "unavailable", "")
+                    or not self._fresh(obj) or not self._temp_unit_ok(obj)):
+                return False
+        if (mode == "auto" and zone.get("_planning_solar_precondition") and decision is not None
+                and not decision.comfort_required and not decision.urgent_auto
+                and not self._solar_precondition_available()):
+            return False
+        return True
+
+    @staticmethod
+    def _same_zone_inputs(planned, live):
+        return all(planned.get(key) == live.get(key) for key in (
+            "mode", "current", "target", "action", "action_known", "hvac_modes"))
+
+    async def _send_mode(self, mode, zones, *, decisions=None, autonomous=False):
         # Hard invariant: SolarPilot never chooses HEAT or COOL. Panasonic AUTO owns it.
         if mode not in ("auto", "off"):
             return False
@@ -588,23 +719,80 @@ class SmartClimateManager:
         for z in zones:
             eid = z["entity_id"]
             # Earlier service awaits can deliver user events for a later zone.
-            if eid in self.manual_off or eid in self.pending_commands or time.time() < self.zone_holds.get(eid, 0):
+            if not self._automatic_eligible(eid):
                 continue
-            if self._has_fixed_heat_cool(self._zones()):
+            fresh_zones = self._zones()
+            if self._has_fixed_heat_cool(fresh_zones):
                 break
+            live = next((zone for zone in fresh_zones if zone["entity_id"] == eid), None)
+            if (live is None or not self._same_zone_inputs(z, live)
+                    or not live.get("action_known") or str(live["mode"]).casefold() not in ("auto", "off")
+                    or not {"auto", "off"}.issubset({str(x).casefold() for x in live.get("hvac_modes", [])})):
+                continue
+            if autonomous and (not self._dispatch_allowed() or self._outside() is None):
+                break
+            if autonomous and len(fresh_zones) != len(self.settings.get("zone_entities", []) or []):
+                break
+            override = self.dashboard_overrides.get(eid)
+            if autonomous and override and override != mode:
+                continue
+            if autonomous and "_planning_override" in z and z["_planning_override"] != override:
+                continue
+            if autonomous and decisions is not None:
+                decision = decisions.get(eid)
+                if decision is None or decision.desired_mode != mode:
+                    continue
+                if not self._planned_sources_unchanged(z, mode, decision):
+                    continue
+            now = time.time()
             context = Context()
-            batch = self._feedback_batches.setdefault(feedback_group, {
-                "mode": mode, "decision": self.state.last_decision, "zones": {}, "confirmed": {}})
-            batch["zones"][eid] = dict(z)
+            if not self.dashboard_overrides.get(eid):
+                batch = self._feedback_batches.setdefault(feedback_group, {
+                    "mode": mode, "decision": (decisions or {}).get(eid, self.state.last_decision), "zones": {}, "confirmed": {}})
+                batch["zones"][eid] = dict(z)
             # Journal before awaiting: an explicit user event may cancel this
             # intent while the service yields, and must not be overwritten later.
             self._contexts[context.id] = now + self.COMMAND_TIMEOUT_S
             self.pending_commands[eid] = {"mode": mode, "issued_wall": now,
                                           "expires_wall": now + self.COMMAND_TIMEOUT_S,
-                                          "context_id": context.id, "feedback_group": feedback_group}
+                                          "context_id": context.id}
+            if not self.dashboard_overrides.get(eid):
+                self.pending_commands[eid]["feedback_group"] = feedback_group
+            old_expected = self.state.expected_mode.get(eid)
+            old_command_wall = self.zone_command_walls.get(eid)
+            old_counter = deepcopy(self.zone_command_counts.get(eid))
             self.state.expected_mode[eid] = mode
             self.zone_command_walls[eid] = now
-            self._dirty()
+            local_day = self._local_day()
+            counter = self.zone_command_counts.setdefault(eid, {"day": local_day, "count": 0, "optimization_count": 0})
+            if counter["day"] != local_day:
+                counter.update(day=local_day, count=0, optimization_count=0)
+            counter["count"] += 1
+            planned_decision = (decisions or {}).get(eid)
+            if (autonomous and mode == "auto" and not self.dashboard_overrides.get(eid)
+                    and planned_decision is not None and not planned_decision.comfort_required and not planned_decision.urgent_auto):
+                counter["optimization_count"] = counter.get("optimization_count", 0) + 1
+            # Persist the journal before a hardware write. An accepted cloud
+            # command must remain uncertain after an immediate restart.
+            try:
+                await self.runtime.store.async_save(self.runtime._snapshot())
+            except Exception as err:
+                self._cancel_unissued(eid, context.id, feedback_group, old_expected, old_command_wall, old_counter)
+                raise HomeAssistantError(f"Klimaatopdracht niet verzonden: opdrachtjournal kon niet worden opgeslagen: {err}") from err
+            current_zones = self._zones()
+            current_zone = next((row for row in current_zones if row["entity_id"] == eid), None)
+            still_ours = self.pending_commands.get(eid, {}).get("context_id") == context.id
+            if (not still_ours or current_zone is None or not self._same_zone_inputs(z, current_zone)
+                    or not current_zone.get("action_known") or self._has_fixed_heat_cool(current_zones)
+                    or time.time() < self.zone_holds.get(eid, 0) or eid in self.command_faults
+                    or (autonomous and (not self._dispatch_allowed() or self._outside() is None
+                        or len(current_zones) != len(self.settings.get("zone_entities", []) or [])
+                        or z.get("_planning_override") != self.dashboard_overrides.get(eid)
+                        or not self._planned_sources_unchanged(z, mode, (decisions or {}).get(eid)) ))):
+                if still_ours:
+                    self._cancel_unissued(eid, context.id, feedback_group, old_expected, old_command_wall, old_counter)
+                await self.runtime.store.async_save(self.runtime._snapshot())
+                continue
             issued_any = True
             try:
                 await self.runtime.hass.services.async_call(
@@ -633,6 +821,169 @@ class SmartClimateManager:
         self.runtime.note(f"Slim klimaatbeheer: {label} — {self.state.last_decision.reason}")
         self._dirty()
         return True
+
+    def _cancel_unissued(self, entity_id, context_id, feedback_group, old_expected, old_wall, old_counter):
+        """Undo only our unissued intent, preserving any newer user choice."""
+        if self.pending_commands.get(entity_id, {}).get("context_id") != context_id:
+            return
+        self.pending_commands.pop(entity_id, None)
+        if old_expected is None:
+            self.state.expected_mode.pop(entity_id, None)
+        else:
+            self.state.expected_mode[entity_id] = old_expected
+        if old_wall is None:
+            self.zone_command_walls.pop(entity_id, None)
+        else:
+            self.zone_command_walls[entity_id] = old_wall
+        if old_counter is None:
+            self.zone_command_counts.pop(entity_id, None)
+        else:
+            self.zone_command_counts[entity_id] = old_counter
+        self._contexts.pop(context_id, None)
+        group = self._feedback_batches.get(feedback_group)
+        if group:
+            group["zones"].pop(entity_id, None)
+            if not group["zones"]:
+                self._feedback_batches.pop(feedback_group, None)
+
+    async def async_set_override(self, entity_id, mode):
+        """Persist one dashboard choice; the normal tick serializes its write."""
+        if entity_id not in (self.settings.get("zone_entities", []) or []):
+            raise HomeAssistantError("Kies een geselecteerde Panasonic-klimaatzone.")
+        if mode not in ("automatic", "auto", "off", "review"):
+            raise HomeAssistantError("Kies automatic, auto, off of review.")
+        if mode == "review":
+            return await self._review_zone(entity_id)
+        old_override = self.dashboard_overrides.get(entity_id)
+        old_hold = self.zone_holds.get(entity_id)
+        old_cancelled = self.cancelled_auto.get(entity_id)
+        old_manual_off = entity_id in self.manual_off
+        native_version = self._native_intent_versions.get(entity_id, 0)
+        if mode == "automatic":
+            self.dashboard_overrides.pop(entity_id, None)
+        else:
+            zones = self._zones()
+            zone = next((z for z in zones if z["entity_id"] == entity_id), None)
+            if self.busy or entity_id in self.command_faults:
+                raise HomeAssistantError("Deze zone wacht op een opdrachtbevestiging of heeft een onzekere klimaatopdracht.")
+            if (zone is None or not zone.get("action_known")
+                    or str(zone["mode"]).casefold() not in ("auto", "off")
+                    or not {"auto", "off"}.issubset({str(x).casefold() for x in zone.get("hvac_modes", [])})
+                    or self._has_fixed_heat_cool(zones)):
+                raise HomeAssistantError("De klimaatbron moet actuele °C-metingen, een bekende actie en AUTO/OFF rapporteren; handmatige HEAT/COOL blijft beschermd.")
+            if protected_entity(self.runtime.hass, self.runtime.wallbox_settings, entity_id):
+                raise HomeAssistantError("Wallbox-entiteit mag niet als klimaatregeling worden gebruikt")
+            self.dashboard_overrides[entity_id] = mode
+            # An explicit dashboard choice replaces the temporary external hold,
+            # but never clears an unconfirmed call or a command fault.
+            self.zone_holds.pop(entity_id, None)
+            self.manual_off.discard(entity_id)
+            self.cancelled_auto.pop(entity_id, None)
+        try:
+            await self.runtime.store.async_save(self.runtime._snapshot())
+        except Exception as err:
+            # Dashboard services are serialized, but native events can arrive
+            # during this await. Restore our failed choice, retaining a newer
+            # external hold or OFF observation from such an event.
+            if old_override is None:
+                self.dashboard_overrides.pop(entity_id, None)
+            else:
+                self.dashboard_overrides[entity_id] = old_override
+            native_changed = self._native_intent_versions.get(entity_id, 0) != native_version
+            if not native_changed and old_hold is not None:
+                self.zone_holds[entity_id] = old_hold
+            if not native_changed and old_cancelled is not None:
+                self.cancelled_auto[entity_id] = old_cancelled
+            if old_manual_off and not native_changed:
+                self.manual_off.add(entity_id)
+            raise HomeAssistantError(f"Dashboardkeuze niet toegepast: opslaan is mislukt: {err}") from err
+        self._feedback_batches.clear()
+        self.state.coast_feedback.abort_manual(time.time(), self.last_zones, self.settings)
+        self._dirty()
+        self.runtime.note(f"Slim klimaatbeheer: dashboardkeuze {mode.upper()} voor {entity_id} opgeslagen.")
+        self.runtime.publish()
+        return mode
+
+    def _review_source(self, entity_id):
+        zones = self._zones()
+        zone = next((z for z in zones if z["entity_id"] == entity_id), None)
+        if (self.busy or getattr(self.runtime, "pending", None) or getattr(self.runtime, "handover", None)
+                or getattr(getattr(self.runtime, "dhw", None), "pending", None)
+                or getattr(getattr(self.runtime, "battery_fleet", None), "busy", False)):
+            raise HomeAssistantError("Wacht eerst op de latere bevestiging van de lopende klimaatopdracht.")
+        if (zone is None or not zone.get("action_known") or str(zone["mode"]).casefold() not in ("auto", "off")
+                or not {"auto", "off"}.issubset({str(x).casefold() for x in zone.get("hvac_modes", [])})
+                or self._has_fixed_heat_cool(zones)):
+            raise HomeAssistantError("Controle afronden vraagt een actuele °C-bron met AUTO/OFF en een bekende actie; handmatige HEAT/COOL blijft beschermd.")
+        if protected_entity(self.runtime.hass, self.runtime.wallbox_settings, entity_id):
+            raise HomeAssistantError("Wallbox-entiteit mag niet als klimaatregeling worden gebruikt")
+        return zone
+
+    async def _review_zone(self, entity_id):
+        """Review reported state without repeating or correcting an actuator call."""
+        zone = self._review_source(entity_id)
+        if entity_id not in self.command_faults:
+            raise HomeAssistantError("Deze klimaatzone heeft geen onzekere opdracht om af te ronden.")
+        mode = str(zone["mode"]).casefold()
+        old_override = self.dashboard_overrides.get(entity_id)
+        old_fault = self.command_faults[entity_id]
+        old_expected = self.state.expected_mode.get(entity_id)
+        native_version = self._native_intent_versions.get(entity_id, 0)
+        # The explicit review freezes the currently reported mode. Clearing its
+        # fault cannot create a retry while this persistent choice stays fixed.
+        proposal = self.runtime._snapshot()
+        reviewed = deepcopy(proposal["smart_climate"])
+        reviewed["dashboard_overrides"][entity_id] = mode
+        # Persist the manual freeze with its existing fault and uncertainty
+        # guards intact. A crash, changed source or failed corrective save must
+        # never restore a fault-free proposal that could replay the old mode.
+        # The normal delayed snapshot clears these guards only after review
+        # commits in memory; any later actuator call first persists its journal.
+        proposal["smart_climate"] = reviewed
+        try:
+            await self.runtime.store.async_save(proposal)
+            live = self._review_source(entity_id)
+            if (not self._same_zone_inputs(zone, live)
+                    or self._native_intent_versions.get(entity_id, 0) != native_version
+                    or self.dashboard_overrides.get(entity_id) != old_override
+                    or self.command_faults.get(entity_id) != old_fault
+                    or self.state.expected_mode.get(entity_id) != old_expected):
+                raise HomeAssistantError("Klimaatbron of externe keuze wijzigde tijdens de controle; controleer de nieuwe actuele stand opnieuw.")
+        except Exception as err:
+            native_changed = self._native_intent_versions.get(entity_id, 0) != native_version
+            if old_override is None:
+                self.dashboard_overrides.pop(entity_id, None)
+            else:
+                self.dashboard_overrides[entity_id] = old_override
+            self.command_faults[entity_id] = old_fault
+            if not native_changed:
+                if old_expected is None:
+                    self.state.expected_mode.pop(entity_id, None)
+                else:
+                    self.state.expected_mode[entity_id] = old_expected
+            # If the first save succeeded but the source changed while it
+            # yielded, replace the staged manual freeze with current intent.
+            # If this corrective save fails, the first save still contains the
+            # original sticky fault, so it cannot authorize a later mode write.
+            try:
+                await self.runtime.store.async_save(self.runtime._snapshot())
+            except Exception:
+                pass
+            raise HomeAssistantError(f"Klimaatcontrole niet afgerond: {err}") from err
+        # Mutate operational permission only after the reviewed choice was
+        # saved and the same fresh source and native intent were rechecked.
+        self.dashboard_overrides[entity_id] = mode
+        self.command_faults.pop(entity_id, None)
+        self.state.expected_mode.pop(entity_id, None)
+        self.zone_holds.pop(entity_id, None)
+        self.manual_off.discard(entity_id)
+        self.cancelled_auto.pop(entity_id, None)
+        self._feedback_batches.clear()
+        self.state.coast_feedback.abort_manual(time.time(), self.last_zones, self.settings)
+        self._dirty()
+        self.runtime.note(f"Slim klimaatbeheer: actuele {mode.upper()} voor {entity_id} gecontroleerd en vastgezet; geen opdracht verzonden. Hervat automatisch via de dashboardschakelaar.")
+        self.runtime.publish()
+        return mode
 
     def _local_day(self):
         zone = getattr(getattr(self.runtime.hass, "config", None), "time_zone", "Europe/Brussels")
@@ -699,10 +1050,7 @@ class SmartClimateManager:
             raise HomeAssistantError("Klimaatregeling is nog in beheer of wacht op een modebevestiging. Kies eerst Pauze en wacht tot de eigen klimaatpauze veilig aan Panasonic is teruggegeven vóór je de regeling uitschakelt.")
         candidate = {**self.settings, key: value}
         self._validate_candidate(candidate)
-        old_weather = self.settings.get("weather_entity")
-        old_outside = self.settings.get("outside_temp_entity")
-        old_zones = list(self.settings.get("zone_entities", []) or [])
-        self.settings = candidate
+        self.apply_settings(candidate)
 
         # Store in config_entry.options as the canonical configuration. The update
         # listener skips this one reload because the manager has already applied it.
@@ -716,34 +1064,161 @@ class SmartClimateManager:
         else:
             entry.options = opts
 
-        if key == "weather_entity" and value != old_weather:
-            self.state.forecast = []
-            self.state.weather_bias.reset()
-            # Without a separate physical outdoor sensor the weather entity also
-            # supplied the actual outdoor reference used by the thermal model.
-            if not self.settings.get("outside_temp_entity"):
-                self.state.profiles = {}
-                self.last_forecast_error = "Weerbron gewijzigd; weerscorrectie en thermisch model leren opnieuw."
-            else:
-                self.last_forecast_error = "Weerbron gewijzigd; lokale weerscorrectie leert opnieuw."
-        if key == "outside_temp_entity" and value != old_outside:
-            self.state.weather_bias.reset()
-            self.state.profiles = {}
-            self.last_forecast_error = "Buitentemperatuurbron gewijzigd; weerscorrectie en thermisch model leren veilig opnieuw."
-        if key == "zone_entities" and list(value) != old_zones:
-            # Keep profiles for retained zones; new zones start safely with no confidence.
-            self.state.profiles = {eid: p for eid, p in self.state.profiles.items() if eid in value}
-            self.manual_off.intersection_update(value)
-            for mapping in (self.state.expected_mode, self.zone_holds, self.pending_commands,
-                            self.observed_modes, self.zone_command_walls, self.command_faults, self.cancelled_auto):
-                for eid in set(mapping) - set(value):
-                    mapping.pop(eid, None)
-            if self._started:
-                self.start()
         self.runtime.store.async_delay_save(self.runtime._snapshot, 1)
         self.runtime.note(f"Slim klimaatbeheer: instelling '{CLIMATE_SETTING_SPECS[key]['label']}' gewijzigd naar {value}.")
         self.runtime.publish()
         return value
+
+    def apply_settings(self, candidate):
+        """Apply already validated settings through one binding/reset path."""
+        old_weather = self.settings.get("weather_entity")
+        old_outside = self.settings.get("outside_temp_entity")
+        old_zones = list(self.settings.get("zone_entities", []) or [])
+        self.settings = dict(candidate)
+        zones = list(self.settings.get("zone_entities", []) or [])
+        weather_changed = self.settings.get("weather_entity") != old_weather
+        outside_changed = self.settings.get("outside_temp_entity") != old_outside
+        if weather_changed:
+            self.state.forecast = []
+            self.state.last_forecast_wall = 0
+            self.state.weather_bias.reset()
+            self.last_forecast_error = "Weerbron gewijzigd; lokale weerscorrectie leert opnieuw."
+        if outside_changed or (weather_changed and not self.settings.get("outside_temp_entity")):
+            self.state.profiles = {}
+            self.state.weather_bias.reset()
+            self.state.last_sample_wall = 0
+            self.last_outside = None
+            self.last_forecast_error = "Buitentemperatuurbron gewijzigd; weerscorrectie en thermisch model leren veilig opnieuw."
+        if zones != old_zones:
+            # Removed/re-added zones must not inherit a manual choice or counter.
+            self.state.profiles = {eid: p for eid, p in self.state.profiles.items() if eid in zones}
+            self.manual_off.intersection_update(zones)
+            for mapping in (self.state.expected_mode, self.zone_holds, self.pending_commands,
+                            self.observed_modes, self.zone_command_walls, self.command_faults, self.cancelled_auto,
+                            self.dashboard_overrides, self.zone_decisions, self.zone_command_counts, self._native_intent_versions):
+                for eid in set(mapping) - set(zones):
+                    mapping.pop(eid, None)
+            self.last_zones = []
+            self._feedback_batches.clear()
+            self.state.coast_feedback.active = self.state.coast_feedback.pending = None
+            if self._started:
+                self.start()
+        if weather_changed or outside_changed:
+            self.zone_decisions = {}
+            self.last_weather_corrections = self.last_solar_hourly = []
+
+    @staticmethod
+    def _decision_row(decision):
+        row = asdict(decision)
+        row["mode"] = row.pop("desired_mode")
+        return row
+
+    def _summarize_zone_decisions(self):
+        decisions = list(self.zone_decisions.values())
+        if not decisions:
+            return ClimateDecision("hold", "Geen actuele zonebeslissing")
+        first = decisions[0]
+        modes = {d.desired_mode for d in decisions}
+        reasons = "; ".join(
+            f"{next((z['name'] for z in self.last_zones if z['entity_id'] == eid), eid)}: {d.reason}"
+            for eid, d in self.zone_decisions.items())
+        minimum = [d.predicted_min_c for d in decisions if d.predicted_min_c is not None]
+        maximum = [d.predicted_max_c for d in decisions if d.predicted_max_c is not None]
+        return replace(
+            first, desired_mode=first.desired_mode if len(modes) == 1 else "mixed",
+            reason=reasons, hard_override=any(d.hard_override for d in decisions),
+            prediction_confidence=min(d.prediction_confidence for d in decisions),
+            predicted_min_c=min(minimum) if minimum else None,
+            predicted_max_c=max(maximum) if maximum else None,
+            control_ready=all(d.control_ready for d in decisions),
+            evaluated_forecast_h=min(d.evaluated_forecast_h for d in decisions),
+            comfort_required=any(d.comfort_required for d in decisions),
+            urgent_auto=any(d.urgent_auto for d in decisions),
+            stage="predictive" if all(d.stage == "predictive" for d in decisions) else "reactive",
+            required_components=sorted({c for d in decisions for c in d.required_components}),
+            missing_components=sorted({c for d in decisions for c in d.missing_components}),
+            readiness_by_zone={eid: d.readiness_by_zone.get(eid, {}) for eid, d in self.zone_decisions.items()},
+        )
+
+    async def _tick_automatic(self, zones, outside, local_now, allow_command):
+        """Plan each room independently from its current physical inputs."""
+        outside_hourly = self._outside_hourly()
+        solar_hourly = self._solar_hourly(local_now, len(outside_hourly)) if self.settings.get("solar_gain_enabled") else []
+        pv_precondition = self._solar_precondition_available()
+        self.zone_decisions = {}
+        for zone in zones:
+            eid = zone["entity_id"]
+            decision = decide_zone(
+                settings=self.settings, zone=zone, profile=self.state.profile(eid),
+                outside_hourly=outside_hourly, outside_c=outside,
+                solar_precondition=pv_precondition, solar_hourly_w=solar_hourly)
+            override = self.dashboard_overrides.get(eid)
+            if override:
+                decision = replace(decision, desired_mode=override,
+                                   reason=f"Vaste dashboardkeuze {override.upper()}; hervat automatisch via de dashboardschakelaar")
+            self.zone_decisions[eid] = decision
+        self.state.last_decision = self._summarize_zone_decisions()
+        self.state.last_decision_wall = self.state.last_guard_wall = time.time()
+        if (not allow_command or not self.settings.get("control_enabled") or self.busy
+                or self._has_fixed_heat_cool(zones) or time.time() < self.state.manual_hold_until):
+            return False
+        # All decisions are recomputed each tick. No twelve-hour cached AUTO can
+        # restart a room after demand, weather, sources or user intent changed.
+        targets_by_mode = {"auto": [], "off": []}
+        urgent = False
+        for zone in zones:
+            eid = zone["entity_id"]
+            decision = self.zone_decisions[eid]
+            mode = decision.desired_mode
+            if mode not in targets_by_mode or str(zone["mode"]).casefold() == mode or not self._automatic_eligible(eid):
+                continue
+            if not zone.get("action_known"):
+                continue
+            override = self.dashboard_overrides.get(eid)
+            needed_auto = mode == "auto" and (decision.comfort_required or decision.urgent_auto)
+            counter = self.zone_command_counts.get(eid, {})
+            count = counter.get("optimization_count", 0) if counter.get("day") == local_now.date().isoformat() else 0
+            if mode == "auto" and count >= int(self.settings.get("max_commands_per_day", 2)) and not needed_auto and not override:
+                continue
+            min_hold_h = float(self.settings.get(
+                "automatic_min_run_h" if str(zone["mode"]).casefold() == "auto" else "automatic_min_off_h", 1.0))
+            last_command = self.zone_command_walls.get(eid, 0)
+            if last_command and time.time() - last_command < min_hold_h * 3600 and not needed_auto and not override:
+                continue
+            targets_by_mode[mode].append({**zone, "_planning_override": override,
+                                         "_planning_outside": outside,
+                                         "_planning_weather_used": bool(outside_hourly),
+                                         "_planning_solar_precondition": pv_precondition})
+            urgent |= mode == "auto" and decision.urgent_auto
+        # Urgent comfort recovery goes first. Each tick issues one direction;
+        # other zones are reconsidered after the normal delayed confirmation.
+        order = ("auto", "off") if urgent else ("off", "auto")
+        for mode in order:
+            if targets_by_mode[mode]:
+                return await self._send_mode(mode, targets_by_mode[mode],
+                                             decisions=self.zone_decisions, autonomous=True)
+        return False
+
+    async def _tick_dashboard_overrides(self, zones, outside, allow_command):
+        """Fixed dashboard intent remains useful when predictive control is off."""
+        if (not allow_command or not self.settings.get("control_enabled") or self.busy
+                or self._has_fixed_heat_cool(zones) or time.time() < self.state.manual_hold_until):
+            return False
+        decisions = {}
+        targets = {"auto": [], "off": []}
+        for zone in zones:
+            eid = zone["entity_id"]
+            mode = self.dashboard_overrides.get(eid)
+            if mode is None:
+                continue
+            decision = ClimateDecision(mode, f"Vaste dashboardkeuze {mode.upper()}", stage="reactive")
+            self.zone_decisions[eid] = decisions[eid] = decision
+            if str(zone["mode"]).casefold() != mode and self._automatic_eligible(eid):
+                targets[mode].append({**zone, "_planning_override": mode, "_planning_outside": outside})
+        for mode in ("off", "auto"):
+            if targets[mode]:
+                return await self._send_mode(mode, targets[mode], decisions=decisions, autonomous=True)
+        return False
 
     async def tick(self, *, local_now, allow_command=False):
         active = self.settings.get("enabled") and self.configured
@@ -757,6 +1232,9 @@ class SmartClimateManager:
             return False
         outside = self._outside()
         configured_zones = list(self.settings.get("zone_entities", []) or [])
+        # Every outage invalidates the learning endpoint immediately, even when
+        # it occurs between scheduled samples. Its return is not a long sample.
+        self._observe(zones, outside, local_now)
         if not zones or len(zones) != len(configured_zones):
             self.state.fault = "Niet alle geselecteerde klimaatzones hebben actuele, bruikbare temperatuurdata"
             return False
@@ -764,11 +1242,23 @@ class SmartClimateManager:
             self.state.fault = "Actuele buitentemperatuur ontbreekt of is te oud"
             return False
         self.state.fault = ""
-        self._observe(zones, outside, local_now)
         await self._refresh_forecast()
+        # Awaiting a forecast can deliver newer temperatures, native choices,
+        # missing sources or a dashboard mode change. Re-read before planning.
+        zones = self._zones()
+        outside = self._outside()
+        if len(zones) != len(configured_zones) or outside is None:
+            self._observe(zones, outside, local_now)
+            self.state.fault = "Klimaatbron wijzigde tijdens ophalen van de weersvoorspelling; wacht op actuele data"
+            return False
         if not self.busy:
             self.state.coast_feedback.update(zones, self.settings)
             self.state.coast_feedback.observe_after_release(time.time(), zones, self.settings)
+
+        if self.settings.get("automatic_zone_control", True):
+            return await self._tick_automatic(zones, outside, local_now, allow_command)
+        if await self._tick_dashboard_overrides(zones, outside, allow_command):
+            return True
 
         hard = float(self.settings.get("hard_band_c", 1.0))
         planning_zones = [z for z in zones if str(z["mode"]).casefold() != "off"
@@ -852,12 +1342,22 @@ class SmartClimateManager:
             if str(z.get("mode", "")).casefold() == "off"
             and str((self.state.expected_mode or {}).get(z["entity_id"], "")).casefold() != "off"
         ]
-        if manual_off:
+        if manual_off and not self.settings.get("automatic_zone_control", True):
             alerts.append({
                 "severity": "info",
                 "title": "Handmatige OFF-zone behouden",
                 "message": f"{', '.join(manual_off)} blijft UIT, ook buiten de comfortband. Zet de betreffende zone zelf op AUTO om automatische bediening weer toe te staan.",
             })
+        if self.settings.get("automatic_zone_control", True):
+            fixed = [f"{z['name']} {self.dashboard_overrides[z['entity_id']].upper()}" for z in zones
+                     if z["entity_id"] in self.dashboard_overrides]
+            if fixed:
+                alerts.append({"severity": "info", "title": "Vaste dashboardkeuze",
+                               "message": f"{', '.join(fixed)} blijft zo geregeld tot de dashboardschakelaar terug op automatisch staat. Uitvoering wacht op de gewone veilige regelvoorwaarden."})
+            held = [z["name"] for z in zones if time.time() < self.zone_holds.get(z["entity_id"], 0)]
+            if held:
+                alerts.append({"severity": "info", "title": "Externe klimaatkeuze tijdelijk behouden",
+                               "message": f"{', '.join(held)}: automatische bediening hervat na de tijdelijke rustperiode. Een onzekere opdracht wordt nooit automatisch herhaald."})
         unknown = [z["name"] for z in zones if not z.get("action_known")]
         if unknown:
             alerts.append({"severity": "warning", "title": "Klimaatactie ontbreekt",
@@ -876,7 +1376,10 @@ class SmartClimateManager:
         min_conf = float(self.settings.get("model_confidence_min", .55))
         if self.settings.get("enabled") and model_conf < min_conf:
             reason = self.state.last_decision.block_reason or "Benodigde leeronderdelen zijn nog onvolledig"
-            alerts.append({"severity": "info", "title": "Benodigde modelgegevens ontbreken", "message": f"{reason}. Automatisch pauzeren vraagt minstens {min_conf:.0%} voor de benodigde onderdelen."})
+            note = (f"{reason}. De bewaakte basisregeling kan al werken; vooruit plannen vraagt minstens {min_conf:.0%} voor de benodigde onderdelen."
+                    if self.settings.get("automatic_zone_control", True)
+                    else f"{reason}. Automatisch pauzeren vraagt minstens {min_conf:.0%} voor de benodigde onderdelen.")
+            alerts.append({"severity": "info", "title": "Benodigde modelgegevens ontbreken", "message": note})
         if self.settings.get("solar_gain_enabled") and (self.runtime.pv_w is None):
             alerts.append({"severity": "warning", "title": "Zonnewinst zonder PV-bron", "message": "Zonnewinst staat aan maar er is geen actuele PV-meting; zonne-invloed wordt dan niet geleerd."})
         if not self.settings.get("control_enabled"):
@@ -891,7 +1394,18 @@ class SmartClimateManager:
         return out
 
     def overview(self):
-        zones = self.last_zones or self._zones()
+        previous = {z["entity_id"]: z for z in self.last_zones}
+        zones = self._zones()
+        live_ids = {z["entity_id"] for z in zones}
+        zones = [{**z, "valid": True, "available": True} for z in zones]
+        for eid in self.settings.get("zone_entities", []) or []:
+            if eid not in live_ids:
+                obj = self.runtime.hass.states.get(eid)
+                zones.append({"entity_id": eid,
+                              "name": (obj.attributes.get("friendly_name") if obj is not None else None) or previous.get(eid, {}).get("name") or eid,
+                              "current": None, "target": None, "mode": "unavailable",
+                              "action": "unknown", "action_known": False, "hvac_modes": [],
+                              "valid": False, "available": False})
         coeffs = {}
         confidences = []
         for z in zones:
@@ -900,6 +1414,7 @@ class SmartClimateManager:
             conf = p.confidence(self.settings)
             confidences.append(conf)
             components = p.confidence_components(self.settings)
+            directional = p.directional_evidence(self.settings)
             coeffs[z["entity_id"]] = {
                 "samples": p.samples, "days": len(p.days), "confidence": round(conf, 3),
                 "reliability_status": p.confidence_status(conf, p.samples),
@@ -911,6 +1426,12 @@ class SmartClimateManager:
                 "solar_gain_c_h_per_kw_pv": round(p.solar_coefficient(), 4),
                 "solar_gain_samples": len(p.solar_gain_per_kw),
                 "solar_gain_confidence": round(p.solar_confidence(self.settings), 3),
+                "directional_evidence": directional,
+                "heating_delay_h": round(median(p.heating_delays_h), 2) if p.heating_delays_h else None,
+                "cooling_delay_h": round(median(p.cooling_delays_h), 2) if p.cooling_delays_h else None,
+                "heating_delay_learned": directional["heating_delay"]["ready"],
+                "cooling_delay_learned": directional["cooling_delay"]["ready"],
+                "validation": p.validation_summary(),
             }
         d = self.state.last_decision
         weather = self.state.weather_bias.overview(self.settings)
@@ -953,13 +1474,46 @@ class SmartClimateManager:
             "peak_w_proxy": round(max(covered), 0) if covered and len(covered) == len(solar_values) else None,
             "note": "PV is alleen een lokale instralingsproxy voor het thermische model; niet hetzelfde als zonnewarmte door ramen.",
         }
+        zone_rows = []
+        automatic = bool(self.settings.get("automatic_zone_control", True))
+        for zone in zones:
+            eid = zone["entity_id"]
+            decision = self.zone_decisions.get(eid)
+            override = self.dashboard_overrides.get(eid, "")
+            hold_h = max(0, (self.zone_holds.get(eid, 0) - time.time()) / 3600)
+            if eid in self.command_faults or eid in self.pending_commands:
+                stage = "command_uncertain"
+            elif override:
+                stage = "dashboard_override"
+            elif hold_h:
+                stage = "external_hold"
+            elif automatic and self.settings.get("enabled") and self.settings.get("control_enabled"):
+                stage = getattr(decision, "stage", "reactive")
+            else:
+                stage = "disabled"
+            legacy_off = eid in self.manual_off or (str(zone["mode"]).casefold() == "off" and self.state.expected_mode.get(eid) != "off")
+            counter = self.zone_command_counts.get(eid, {})
+            zone_rows.append({
+                **zone, "manual_off": (override == "off" or (eid in self.manual_off and hold_h > 0)) if automatic else legacy_off,
+                "dashboard_override": override, "control_stage": stage,
+                "desired_mode": decision.desired_mode if decision else "hold",
+                "decision_reason": decision.reason if decision else "Wacht op actuele beoordeling",
+                "comfort_required": bool(getattr(decision, "comfort_required", False)),
+                "urgent_auto": bool(getattr(decision, "urgent_auto", False)),
+                "restart_after_h": getattr(decision, "restart_after_h", None),
+                "command_fault": self.command_faults.get(eid, ""),
+                "pending_mode": self.pending_commands.get(eid, {}).get("mode", ""),
+                "hold_remaining_h": hold_h,
+                "owned_mode": self.state.expected_mode.get(eid, ""),
+                "commands_today": counter.get("count", 0) if counter.get("day") == self._local_day() else 0,
+            })
         return {
             "enabled": bool(self.settings.get("enabled")),
             "control_enabled": bool(self.settings.get("control_enabled")),
-            "zones": [{**z, "manual_off": z["entity_id"] in self.manual_off
-                       or (str(z["mode"]).casefold() == "off" and self.state.expected_mode.get(z["entity_id"]) != "off"),
-                       "pending_mode": self.pending_commands.get(z["entity_id"], {}).get("mode", ""),
-                       "hold_remaining_h": max(0, (self.zone_holds.get(z["entity_id"], 0) - time.time()) / 3600)} for z in zones],
+            "automatic_zone_control": automatic,
+            "zones": zone_rows,
+            "zone_decisions": {eid: self._decision_row(decision) for eid, decision in self.zone_decisions.items()},
+            "dashboard_overrides": dict(self.dashboard_overrides),
             "outside_c": self.last_outside,
             "forecast_hours": len(self.state.forecast), "forecast_error": self.last_forecast_error,
             "fault": self.state.fault,
@@ -975,6 +1529,11 @@ class SmartClimateManager:
                 "forecast_confidence": d.forecast_confidence, "control_ready": d.control_ready,
                 "required_components": d.required_components, "missing_components": d.missing_components,
                 "readiness_by_zone": deepcopy(d.readiness_by_zone), "block_reason": d.block_reason,
+                "stage": getattr(d, "stage", "reactive"),
+                "comfort_required": bool(getattr(d, "comfort_required", False)),
+                "urgent_auto": bool(getattr(d, "urgent_auto", False)),
+                "restart_after_h": getattr(d, "restart_after_h", None),
+                "forecast_feasible": getattr(d, "forecast_feasible", None),
             },
             "season_context": d.season_context,
             "manual_fixed_mode": self._has_fixed_heat_cool(zones),
@@ -997,12 +1556,14 @@ class SmartClimateManager:
             "settings": dict(self.settings),
             "settings_catalog": self._settings_catalog(),
             "service": "solar_pilot.set_climate_setting",
-            "note": "Panasonic beslist HEAT versus COOL. SolarPilot wijzigt nooit die keuze of het thermostaatdoel; het kan alleen AUTO vrijgeven of vooral in het tussenseizoen langdurig coasten via OFF.",
+            "note": ("Panasonic kiest verwarmen of koelen. SolarPilot regelt iedere vrijgegeven ruimte tussen AUTO en UIT op basis van actuele behoefte en onderbouwde voorspellingen; het thermostaatdoel blijft behouden."
+                     if automatic else "Panasonic beslist HEAT versus COOL. SolarPilot wijzigt nooit die keuze of het thermostaatdoel; het kan alleen AUTO vrijgeven of vooral in het tussenseizoen langdurig coasten via OFF."),
             "explanation": [
                 "Zonnewinst: werkelijke PV dient als lokale instralingsproxy. SolarPilot leert per zone hoeveel extra opwarming daarmee samenhangt en begrenst de invloed.",
                 "Weerscorrectie: forecastfouten op 6/12/24/48 uur worden lokaal geleerd. Een bias wordt pas toegepast na voldoende verschillende samples en dagen.",
                 "Betrouwbaarheid: passieve drift, zonnewinst, verwarmingsrespons, koelrespons, reactievertraging, weerscorrectie en coast-feedback worden afzonderlijk beoordeeld. Ontbrekende onderdelen worden nooit als 100% weergegeven.",
                 "Coast-evaluatie: een SolarPilot-coast wordt achteraf gescoord als correct, te lang of te voorzichtig. Alleen het minimale nuttige coastvenster mag binnen ingestelde grenzen verschuiven.",
-                "Open ramen/deuren zijn bewust géén onderdeel van deze versie; de regeling blijft gericht op halve-dag/daggedrag van vloer en bouwschil.",
+                ("Actuele temperatuurregeling werkt tijdens het leren. Vooruitkijken gebruikt de werkelijk beschikbare forecasturen en relevante gemeten respons; bouwschilvoorconditionering over twee dagen is niet fysiek bewezen."
+                 if automatic else "Open ramen/deuren zijn bewust géén onderdeel van deze versie; de regeling blijft gericht op halve-dag/daggedrag van vloer en bouwschil."),
             ],
         }

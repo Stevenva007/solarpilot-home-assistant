@@ -634,6 +634,7 @@ class SolarPilotOptions(LiveOptionsMixin, DHWOptionsMixin, DishwasherOptionsMixi
         schema = vol.Schema({
             vol.Required("enabled", default=c["enabled"]): selector.BooleanSelector(),
             vol.Required("control_enabled", default=c["control_enabled"]): selector.BooleanSelector(),
+            vol.Required("automatic_zone_control", default=c["automatic_zone_control"]): selector.BooleanSelector(),
             vol.Optional("zone_entities", default=c.get("zone_entities", [])): selector.EntitySelector({"domain": ["climate"], "multiple": True}),
             optional("weather_entity", c): entity(["weather"]),
             optional("outside_temp_entity", c): entity(["sensor", "input_number"]),
@@ -661,6 +662,8 @@ class SolarPilotOptions(LiveOptionsMixin, DHWOptionsMixin, DishwasherOptionsMixi
                 opts = deepcopy(dict(self._base_options())); opts["smart_climate"] = {**current, **user_input}
                 return await self._save(opts)
         schema = vol.Schema({
+            vol.Required("automatic_min_run_h", default=c["automatic_min_run_h"]): num(.25, 12, .25),
+            vol.Required("automatic_min_off_h", default=c["automatic_min_off_h"]): num(.25, 12, .25),
             vol.Required("forecast_refresh_s", default=c["forecast_refresh_s"]): num(900, 21600, 300),
             vol.Required("shoulder_band_c", default=c["shoulder_band_c"]): num(0.5, 6, 0.5),
             vol.Required("season_extreme_delta_c", default=c["season_extreme_delta_c"]): num(1.5, 12, 0.5),

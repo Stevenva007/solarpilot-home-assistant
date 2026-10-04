@@ -1,8 +1,10 @@
-"""Slow, explainable thermal planning for Panasonic AUTO/coast.
+"""Demand-led room control and explainable Panasonic AUTO/OFF planning.
 
 SolarPilot deliberately never chooses HEAT versus COOL. Panasonic AUTO keeps that
 ownership. SolarPilot can only decide whether AUTO should remain available or a
-long OFF/coast block is safe, primarily in shoulder-season weather.
+OFF block is useful. Automatic room control uses measured demand first and
+direction-specific predictive evidence as it becomes available. The opt-out
+legacy coast policy remains available for existing installations.
 
 The climate model includes three bounded learning layers:
 - solar-gain learning using actual PV as a local irradiation proxy;
@@ -14,7 +16,7 @@ rewritten by this module. No open-window logic is part of this climate model.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from itertools import islice
 from statistics import median
@@ -26,6 +28,7 @@ SMART_CLIMATE_DEFAULTS = {
     # Sources / master switches
     "enabled": False,
     "control_enabled": False,
+    "automatic_zone_control": True,
     "weather_entity": "",
     "outside_temp_entity": "",
     "zone_entities": [],
@@ -44,6 +47,8 @@ SMART_CLIMATE_DEFAULTS = {
     "thermal_start_margin_h": 2.0,
     "solar_precondition_extra_lead_h": 4.0,
     "manual_hold_h": 12.0,
+    "automatic_min_run_h": 1.0,
+    "automatic_min_off_h": 1.0,
 
     # Thermal learning
     "sample_interval_s": 900.0,
@@ -88,15 +93,20 @@ SMART_CLIMATE_DEFAULTS = {
 # no hidden tuning knob exists without an explanation and consequence.
 CLIMATE_SETTING_SPECS = {
     "enabled": dict(group="Basis", label="Thermisch model en advies", type="boolean",
-        description="Leert hoe huis en vloer reageren en maakt een AUTO/coast-advies.",
+        description="Leert het gemeten temperatuurverloop en maakt per ruimte een AUTO/UIT-advies. Bouwschiltemperatuur wordt niet afzonderlijk gemeten of bewezen.",
         recommendation="Aan laten zodra de juiste zones en temperatuurbronnen gekoppeld zijn.",
         on_effect="SolarPilot leert en adviseert; dit stuurt nog niets zonder aparte bedieningstoestemming.",
         off_effect="Geen thermisch leren of klimaatadvies."),
     "control_enabled": dict(group="Basis", label="AUTO/coast werkelijk toepassen", type="boolean",
         description="Geeft SolarPilot toestemming om alleen AUTO of OFF/coast te sturen. Nooit HEAT of COOL.",
-        recommendation="Eerst meerdere dagen in adviesmodus laten leren en pas daarna activeren.",
-        on_effect="SolarPilot kan langdurige coastblokken starten en AUTO tijdig weer vrijgeven.",
+        recommendation="Aan voor de gewenste automatische bediening. Gemeten comfortregeling werkt tijdens leren; lange vooruitplanning wacht op richtinggebonden praktijkbewijs.",
+        on_effect="SolarPilot kan ruimtes zelf UIT zetten en Panasonic AUTO bij relevante behoefte tijdig beschikbaar maken.",
         off_effect="Alles blijft adviserend; Panasonic wordt niet door SolarPilot geschakeld."),
+    "automatic_zone_control": dict(group="Basis", label="Ruimtes automatisch AUTO of UIT", type="boolean",
+        description="SolarPilot schakelt elke gekoppelde ruimte zelf tussen Panasonic AUTO en UIT op basis van comfort en bruikbare voorspellingen. Panasonic kiest verwarmen of koelen; het thermostaatdoel verandert niet.",
+        recommendation="Aan voor automatische ruimtebediening. Gebruik de dashboardschakelaar om een ruimte vast AUTO of UIT te houden; een externe ingreep geeft tijdelijk rust.",
+        on_effect="Ook een reeds uitgeschakelde ruimte kan bij noodzakelijke warmtevraag of koelvraag automatisch AUTO krijgen; zonder behoefte wordt UIT voorgesteld.",
+        off_effect="De eerdere pauzeregeling blijft gelden: alleen een eigen SolarPilot-pauze wordt automatisch hervat; handmatige UIT blijft uit."),
     "weather_entity": dict(group="Koppelingen", label="Weerbron", type="weather_entity",
         description="Levert de uurverwachting waarmee het gebouw over de ingestelde horizon vooruit wordt doorgerekend.",
         recommendation="Gebruik een betrouwbare lokale weather-entiteit met hourly forecasts.",
@@ -111,7 +121,7 @@ CLIMATE_SETTING_SPECS = {
         change_effect="Toevoegen/verwijderen verandert de comfortgrenzen en welke zone de conservatieve beslissing bepaalt."),
 
     "decision_interval_h": dict(group="Comfort & planning", label="Normale planningsbeslissing", type="number", min=6, max=24, step=1, unit="uur",
-        description="Hoe vaak een gewone lange-termijnbeslissing opnieuw wordt gemaakt.",
+        description="Interval voor de oudere pauzeplanner. Automatische ruimtebediening controleert gemeten behoefte bij gewijzigde invoer en het comfortcontrole-interval.",
         recommendation="12 uur past goed bij trage vloer- en bouwmassa.",
         lower_effect="Reageert vaker, maar kan meer schakelmomenten en minder rust geven.",
         higher_effect="Rustiger en stabieler, maar kan later reageren op veranderende vooruitzichten."),
@@ -131,7 +141,7 @@ CLIMATE_SETTING_SPECS = {
         lower_effect="Constantere temperatuur, maar minder mogelijkheid om energie te besparen door coasten.",
         higher_effect="Meer coastkansen en mogelijk minder verbruik, maar grotere voelbare temperatuurschommeling."),
     "hard_band_c": dict(group="Comfort & planning", label="Harde comfortgrens", type="number", min=0.3, max=5.0, step=0.1, unit="±°C",
-        description="Bij overschrijding mag alleen een aantoonbaar eigen OFF/coast-zone meteen naar AUTO worden vrijgegeven. Handmatige OFF en vaste HEAT/COOL blijven beschermd.",
+        description="Bij overschrijding met relevante warmte- of koelvraag vraagt automatische ruimtebediening dringend AUTO. Een van nature herstellende ruimte krijgt geen tegenstrijdige vraag; handmatige ingrepen en vaste HEAT/COOL blijven beschermd. De oudere pauzeplanner hervat alleen een eigen UIT-pauze.",
         recommendation="±1,0 °C houdt een duidelijke veiligheidsmarge rond de zachte comfortband.",
         lower_effect="Eigen coast wordt sneller beëindigd; meer comfortbescherming maar minder besparingsruimte.",
         higher_effect="Meer tolerantie voor afwijking; potentieel minder verbruik maar groter comfort-risico."),
@@ -156,12 +166,12 @@ CLIMATE_SETTING_SPECS = {
         lower_effect="Sneller bijsturen, maar meer risico op onrustig schakelen.",
         higher_effect="Meer rust, maar trager corrigeren als de situatie echt verandert."),
     "allow_winter_summer_coast": dict(group="Comfort & planning", label="Ook in duidelijke zomer/winter coasten", type="boolean",
-        description="Laat de energiebesparende OFF-logica ook buiten het tussenseizoen toe.",
-        recommendation="Uit laten. In duidelijke zomer/winter kan Panasonic AUTO meestal beter moduleren.",
-        on_effect="Meer coastkansen, maar hoger risico op comfortverlies en inefficiënte inhaalvraag.",
-        off_effect="In duidelijke zomer/winter blijft AUTO normaal actief; coastoptimalisatie focust op tussenseizoen."),
+        description="Beïnvloedt alleen de oudere pauzeplanner wanneer automatische ruimtebediening UIT staat. De nieuwe ruimtebediening bepaalt AUTO/UIT uit relevante comfortbehoefte, ook in winter of zomer.",
+        recommendation="Voor de oudere regeling uit laten. Voor automatische ruimtebediening is geen extra seizoentoestemming nodig.",
+        on_effect="De oudere pauzeplanner mag ook buiten het tussenseizoen langere UIT-blokken voorstellen.",
+        off_effect="De oudere pauzeplanner houdt AUTO beschikbaar in duidelijke winter/zomer; de nieuwe behoeftegestuurde regeling blijft actief."),
     "thermal_start_margin_h": dict(group="Comfort & planning", label="Herstartmarge boven vloerreactie", type="number", min=0, max=12, step=0.5, unit="uur",
-        description="Extra tijd bovenop de geleerde reactievertraging om AUTO vóór een voorspelde comfortgrens vrij te geven.",
+        description="Veiligheidsmarge vóór het laatst haalbare AUTO-startmoment uit de geleerde richtingrespons. De oudere planner telt deze tijd bij de gedeelde reactievertraging op.",
         recommendation="2 uur geeft een bruikbare veiligheidsmarge voor vloerverwarming/-koeling.",
         lower_effect="Later AUTO vrijgeven; zuiniger mogelijk, maar groter risico dat de woning achterloopt.",
         higher_effect="Eerder AUTO vrijgeven; veiliger comfort, maar minder coasttijd."),
@@ -171,10 +181,20 @@ CLIMATE_SETTING_SPECS = {
         lower_effect="Minder vervroegen; minder kans op onnodig verbruik.",
         higher_effect="Meer kans om eigen PV te gebruiken, maar ook grotere kans dat je energie gebruikt die later niet nodig bleek."),
     "manual_hold_h": dict(group="Comfort & planning", label="Rust na handmatige modewijziging", type="number", min=1, max=72, step=1, unit="uur",
-        description="Tijdelijke rust per zone na een handmatige modewijziging. Handmatige OFF blijft onbeperkt beschermd tot je zelf AUTO kiest; vaste HEAT/COOL wordt evenmin overschreven.",
-        recommendation="12 uur is de bestaande tijdelijke rust. Deze tijd maakt een handmatige OFF-zone nooit automatisch actief.",
-        lower_effect="Kortere tijdelijke rust; de blijvende bescherming van handmatige OFF en vaste HEAT/COOL verandert niet.",
-        higher_effect="Langere tijdelijke rust; handmatige OFF blijft ook daarna uit tot je zelf AUTO kiest."),
+        description="Tijdelijke rust per zone na een onverwachte externe AUTO/UIT-wijziging. Daarna hervat automatische ruimtebediening; een vaste dashboardskeuze AUTO/UIT blijft gelden tot je die terug op Automatisch zet. Vaste Panasonic HEAT/COOL blijft beschermd.",
+        recommendation="12 uur laat een externe ingreep rustig uitwerken. Gebruik de dashboardschakelaar voor een blijvende keuze.",
+        lower_effect="Automatische ruimtebediening hervat sneller na een externe ingreep.",
+        higher_effect="Automatische ruimtebediening wacht langer na een externe ingreep; de vaste dashboardskeuze blijft ongewijzigd."),
+    "automatic_min_run_h": dict(group="Bescherming", label="Minimum automatische AUTO-periode", type="number", min=0.25, max=12, step=0.25, unit="uur",
+        description="Een door SolarPilot gestart AUTO-venster duurt minstens zo lang voordat de gewone regeling de ruimte UIT zet. Dit is een modevenster, geen gemeten compressorlooptijd.",
+        recommendation="1 uur voorkomt korte AUTO/UIT-cycli; verhoog na praktijkmetingen voor een trage vloer.",
+        lower_effect="Sneller UIT bij verdwenen behoefte, maar meer schakelen.",
+        higher_effect="Meer rust voor het systeem, maar mogelijk langer AUTO beschikbaar."),
+    "automatic_min_off_h": dict(group="Bescherming", label="Minimum automatische UIT-periode", type="number", min=0.25, max=12, step=0.25, unit="uur",
+        description="Na een automatische UIT-opdracht wacht de gewone regeling minstens zo lang vóór AUTO. Een harde comfortgrens kan eerder AUTO vereisen.",
+        recommendation="1 uur geeft hysterese zonder een dag lang op een noodzakelijke herstart te wachten.",
+        lower_effect="Sneller reageren op nieuwe behoefte, maar meer schakelen.",
+        higher_effect="Langere pauzes, maar later hervatten bij gewone comfortvraag."),
 
     "sample_interval_s": dict(group="Leren & kwaliteit", label="Thermisch leersample", type="number", min=300, max=3600, step=300, unit="s",
         description="Minimumtijd tussen thermische leerpunten.",
@@ -192,8 +212,8 @@ CLIMATE_SETTING_SPECS = {
         lower_effect="Sneller leren met meer risico op overfitting aan één weerssituatie.",
         higher_effect="Meer seizoens-/weersvariatie nodig voordat het model veel vertrouwen krijgt."),
     "model_confidence_min": dict(group="Leren & kwaliteit", label="Minimum modelzekerheid voor coast", type="number", min=0.25, max=0.95, step=0.05, unit="0–1",
-        description="Minimumzekerheid voor de onderdelen die de voorspelling werkelijk nodig heeft: passief en gebruikte zonnewinst, plus verwarm-/koelrespons en gedeelde reactievertraging bij een voorspelde grensoverschrijding.",
-        recommendation="0,55 behoudt de bestaande drempel. Ontbrekende ongebruikte koelervaring blokkeert een voldoende geleerd verwarmingspad niet; ontbrekend benodigd bewijs wel.",
+        description="Minimum meetdekking voor benodigde leeronderdelen; dit is geen percentage voorspellingsnauwkeurigheid. Voor de nieuwe vooruitplanning moeten ook richtinggebonden dagen, consistente waarden en controle van volgende metingen beschikbaar zijn.",
+        recommendation="0,55 behouden. Gemeten comfortbediening hoeft hier niet op te wachten; ontbrekende koelervaring wordt nooit vervangen door een verwarmingsvertraging.",
         lower_effect="Sneller automatische coast, maar meer kans op foutieve voorspellingen.",
         higher_effect="Conservatiever; minder coast tot de werkelijk benodigde modelonderdelen voldoende bewijs hebben."),
 
@@ -291,7 +311,7 @@ CLIMATE_SETTING_SPECS = {
         higher_effect="Meer coast-eindes kunnen als te voorzichtig worden gezien."),
 
     "max_commands_per_day": dict(group="Bescherming", label="Maximum gewone AUTO/OFF-opdrachten per dag", type="number", min=1, max=6, step=1, unit="opdrachten",
-        description="Begrenst gewone SolarPilot-modeopdrachten per dag. Harde comfortrecovery mag alleen een eigen OFF/coast-zone eerder naar AUTO vrijgeven, met behoud van eigendom-, bron- en pending guards; handmatige OFF en vaste HEAT/COOL blijven beschermd.",
+        description="Begrenst gewone SolarPilot-modeopdrachten per dag. Noodzakelijke comfort-AUTO mag deze grens passeren met behoud van bron-, handmatige-ingreep- en opdrachtbevestigingscontroles; de oude planner hervat alleen eigen UIT-pauzes.",
         recommendation="2 past bij de gewenste halve-dag/dagregeling.",
         lower_effect="Nog rustiger, maar minder mogelijkheden om een gewone beslissing later op de dag te corrigeren.",
         higher_effect="Meer flexibiliteit, maar ook meer kans op onnodig schakelen."),
@@ -393,9 +413,14 @@ class ThermalProfile:
     last: dict | None = None
     action_started: dict | None = None
     response_delays_h: list[float] = field(default_factory=list)
+    heating_delays_h: list[float] = field(default_factory=list)
+    cooling_delays_h: list[float] = field(default_factory=list)
+    component_days: dict[str, set[str]] = field(default_factory=dict)
+    validation_errors: dict[str, list[float]] = field(default_factory=dict)
+    validation_horizons: dict[str, list[float]] = field(default_factory=dict)
 
     def snapshot(self):
-        return {
+        out = {
             "passive_k": self.passive_k[-240:],
             "heat_gain": self.heat_gain[-240:],
             "cool_gain": self.cool_gain[-240:],
@@ -405,6 +430,18 @@ class ThermalProfile:
             "last": self.last,
             "response_delays_h": self.response_delays_h[-60:],
         }
+        # Older journals round-trip unchanged. Their shared delay observations
+        # are retained, but never relabelled as verified cooling/heating data.
+        for name in ("heating_delays_h", "cooling_delays_h"):
+            if getattr(self, name):
+                out[name] = getattr(self, name)[-60:]
+        if self.component_days:
+            out["component_days"] = {key: sorted(days)[-120:] for key, days in self.component_days.items() if days}
+        for name in ("validation_errors", "validation_horizons"):
+            values = getattr(self, name)
+            if values:
+                out[name] = {key: rows[-240:] for key, rows in values.items() if rows}
+        return out
 
     def restore(self, data):
         if not isinstance(data, dict):
@@ -416,6 +453,18 @@ class ThermalProfile:
                   "response_delays_h": (60, 12.)}
         for name, (limit, upper) in limits.items():
             setattr(self, name, _stored_numbers(data.get(name), limit, 0., upper))
+        for name in ("heating_delays_h", "cooling_delays_h"):
+            setattr(self, name, _stored_numbers(data.get(name), 60, 0., 48.))
+        known = ("passive_temperature_change", "solar_gain", "heating_response", "cooling_response",
+                 "heating_delay", "cooling_delay")
+        days = data.get("component_days")
+        self.component_days = {key: _stored_days(days.get(key), 120) for key in known
+                               if isinstance(days, dict) and _stored_days(days.get(key), 120)}
+        for name, upper in (("validation_errors", 3.), ("validation_horizons", 1.5)):
+            values = data.get(name)
+            setattr(self, name, {key: _stored_numbers(values.get(key), 240, 0., upper)
+                                for key in ("passive", "heating", "cooling")
+                                if isinstance(values, dict) and _stored_numbers(values.get(key), 240, 0., upper)})
         self.days = _stored_days(data.get("days"), 120)
         self.samples = _stored_counter(data.get("samples"))
         self.last = None
@@ -431,6 +480,9 @@ class ThermalProfile:
                 self.last = {"t": stamp, "indoor": indoor, "outdoor": outdoor,
                              "action": action,
                              "pv_w": max(0., pv) if pv is not None else None}
+                slope = finite(last.get("slope_c_h"))
+                if slope is not None and abs(slope) <= 3.:
+                    self.last["slope_c_h"] = slope
 
     def coefficients(self):
         """Compatibility tuple: passive k, heat gain, cool gain, response delay."""
@@ -549,6 +601,75 @@ class ThermalProfile:
         min_samples = max(6, min(48, int(settings.get("learning_min_samples", 24)) // 2 or 6))
         return min(1.0, len(self.solar_gain_per_kw) / min_samples)
 
+    def directional_evidence(self, settings):
+        """Observed coverage and consistency, rather than forecast accuracy.
+
+        Each new component has its own dated provenance. Undated older samples
+        remain useful for advice but cannot prove a newly authorised long pause
+        or anticipatory start in the opposite HVAC direction.
+        """
+        min_samples = max(6, int(settings.get("learning_min_samples", 24)) // 2)
+        min_days = max(2, int(settings.get("learning_min_days", 5)))
+        parts = {}
+        rows = {
+            "passive_temperature_change": (self.passive_k, min_samples),
+            "solar_gain": (self.solar_gain_per_kw, min_samples),
+            "heating_response": (self.heat_gain, 6),
+            "cooling_response": (self.cool_gain, 6),
+            "heating_delay": (self.heating_delays_h, 4),
+            "cooling_delay": (self.cooling_delays_h, 4),
+        }
+        for key, (values, need) in rows.items():
+            days = len(self.component_days.get(key, set()))
+            coverage = min(.98, min(1., len(values) / need) * min(1., days / min_days))
+            middle = _med(values, 0.)
+            relative_error = (_med([abs(x - middle) for x in values], 0.)
+                              / max(.01, abs(middle))) if values else None
+            consistent = bool(values) and relative_error <= .75
+            parts[key] = {"confidence": round(coverage, 3), "samples": len(values),
+                          "required_samples": need, "days": days, "required_days": min_days,
+                          "status": self.confidence_status(coverage, len(values)),
+                          "consistent": consistent,
+                          "median_relative_deviation": round(relative_error, 3) if relative_error is not None else None,
+                          "ready": len(values) >= need and days >= min_days and consistent
+                          and coverage >= float(settings.get("model_confidence_min", .55)),
+                          "meaning": "meetdekking; geen percentage voorspellingsnauwkeurigheid"}
+        return parts
+
+    def validation_summary(self):
+        """One-step predictions made before admitting each new observation."""
+        out = {}
+        for direction in ("passive", "heating", "cooling"):
+            errors = self.validation_errors.get(direction, [])
+            horizons = self.validation_horizons.get(direction, [])
+            out[direction] = {
+                "samples": len(errors),
+                "mean_absolute_error_c": round(sum(errors) / len(errors), 3) if errors else None,
+                "max_horizon_h": round(max(horizons), 2) if horizons else None,
+                "ready": len(errors) >= 12 and sum(errors) / len(errors) <= .25,
+                "note": "Controle op volgende meting; geen bewijs van bouwschiltemperatuur of 48-uursnauwkeurigheid.",
+            }
+        return out
+
+    def predictive_readiness(self, settings, *, directions=(), use_solar=False):
+        parts = self.directional_evidence(settings)
+        required = ["passive_temperature_change"]
+        if use_solar:
+            required.append("solar_gain")
+        for direction in ("heating", "cooling"):
+            if direction in directions:
+                required.extend((f"{direction}_response", f"{direction}_delay"))
+        missing = [key for key in required if not parts[key]["ready"]]
+        validation = self.validation_summary()
+        validations = ["passive", *[d for d in ("heating", "cooling") if d in directions]]
+        missing.extend(f"{d}_validation" for d in validations if not validation[d]["ready"])
+        return {"confidence": min(parts[key]["confidence"] for key in required),
+                "control_ready": not missing, "required_components": required,
+                "missing_components": missing, "directions": list(directions),
+                "solar_required": bool(use_solar), "validation": validation,
+                "block_reason": ("Nog onvoldoende richtinggebonden metingen of gecontroleerde voorspellingen: "
+                                 + ", ".join(missing)) if missing else ""}
+
     def observe(self, *, wall_ts, day, indoor_c, outdoor_c, hvac_action,
                 pv_w=None, settings=None):
         """Learn from actual HVAC action with every selected source known."""
@@ -558,6 +679,7 @@ class ThermalProfile:
         pv = finite(pv_w)
         pv = max(0.0, pv) if pv is not None else None
         if indoor is None or outdoor is None:
+            self.last = self.action_started = None
             return False
         cur = {
             "t": float(wall_ts), "indoor": indoor, "outdoor": outdoor,
@@ -576,10 +698,13 @@ class ThermalProfile:
             return False
         dt_h = (cur["t"] - float(prev.get("t", cur["t"]))) / 3600.0
         if not 0.15 <= dt_h <= 1.5:
+            self.action_started = None
             return False
         slope = (indoor - float(prev["indoor"])) / dt_h
         if abs(slope) > 3.0:
+            self.action_started = None
             return False
+        self.last["slope_c_h"] = slope
         self.days.add(str(day))
         self.samples += 1
         prev_action = str(prev.get("action", "idle")).casefold()
@@ -594,7 +719,23 @@ class ThermalProfile:
                 if 0.0 <= delay <= 12.0:
                     self.response_delays_h.append(delay)
                     self.response_delays_h = self.response_delays_h[-60:]
+                # Keep direction and day provenance separate from the legacy
+                # shared journal. Long measured responses remain up to 48 h;
+                # this is room response, never a measured shell temperature.
+                if 0.0 <= delay <= 48.0:
+                    direction = "heating" if "heat" in cur_action else "cooling"
+                    attr = f"{direction}_delays_h"
+                    setattr(self, attr, (getattr(self, attr) + [delay])[-60:])
+                    self.component_days.setdefault(f"{direction}_delay", set()).add(str(day))
                 self.action_started = None
+        elif self.action_started:
+            self.action_started = None
+
+        # No full-interval HVAC attribution exists when the two endpoints show
+        # different actions. Preserve the transition for delay measurement,
+        # but do not turn its mixed slope into passive/active learning evidence.
+        if cur_action != prev_action:
+            return True
 
         delta = float(prev["outdoor"]) - float(prev["indoor"])
         action = prev_action
@@ -604,6 +745,25 @@ class ThermalProfile:
         passive = k * delta
         solar_coeff = self.solar_coefficient() if c.get("solar_gain_enabled") else 0.0
         solar_effect = min(float(c.get("solar_gain_max_c_h", 0.35)), solar_coeff * prev_pv / 1000.0)
+        direction = "heating" if "heat" in action else "cooling" if "cool" in action else "passive"
+        active_rows = self.heat_gain if direction == "heating" else self.cool_gain
+        if len(self.passive_k) >= 6 and (direction == "passive" or len(active_rows) >= 6):
+            # Unknown sunny gain cannot validate a supposedly complete model.
+            solar_known = (not c.get("solar_gain_enabled") or prev_pv < min_pv
+                           or len(self.solar_gain_per_kw) >= 6)
+            if solar_known:
+                _, heat_gain, cool_gain, _ = self.coefficients()
+                predicted_slope = passive + solar_effect
+                if direction == "heating":
+                    predicted_slope += heat_gain
+                elif direction == "cooling":
+                    predicted_slope -= cool_gain
+                error = abs(indoor - (float(prev["indoor"]) + predicted_slope * dt_h))
+                if error <= 3.:
+                    self.validation_errors.setdefault(direction, []).append(error)
+                    self.validation_horizons.setdefault(direction, []).append(dt_h)
+                    self.validation_errors[direction] = self.validation_errors[direction][-240:]
+                    self.validation_horizons[direction] = self.validation_horizons[direction][-240:]
 
         if action in ("idle", "off", "none"):
             # Learn envelope leakage mainly from low-solar periods; otherwise sunlight
@@ -612,6 +772,7 @@ class ThermalProfile:
                 learned_k = slope / delta
                 if 0 <= learned_k <= 0.25:
                     self.passive_k.append(learned_k)
+                    self.component_days.setdefault("passive_temperature_change", set()).add(str(day))
             if (c.get("solar_gain_enabled") and c.get("solar_gain_learning_enabled")
                     and prev_pv >= min_pv):
                 residual = slope - passive
@@ -619,6 +780,7 @@ class ThermalProfile:
                     gain_per_kw = residual / max(0.25, prev_pv / 1000.0)
                     if 0 <= gain_per_kw <= 0.5:
                         self.solar_gain_per_kw.append(gain_per_kw)
+                        self.component_days.setdefault("solar_gain", set()).add(str(day))
         else:
             # Active HVAC learning subtracts both passive drift and already learned
             # solar gain so sunny hours do not inflate heat-pump response.
@@ -626,13 +788,16 @@ class ThermalProfile:
                 gain = slope - passive - solar_effect
                 if 0 <= gain <= 3.0:
                     self.heat_gain.append(gain)
+                    self.component_days.setdefault("heating_response", set()).add(str(day))
             elif "cool" in action:
                 gain = -(slope - passive - solar_effect)
                 if 0 <= gain <= 3.0:
                     self.cool_gain.append(gain)
+                    self.component_days.setdefault("cooling_response", set()).add(str(day))
 
         for name in ("passive_k", "heat_gain", "cool_gain", "solar_gain_per_kw"):
             setattr(self, name, getattr(self, name)[-240:])
+        self.component_days = {key: set(sorted(days)[-120:]) for key, days in self.component_days.items()}
         return True
 
     def predict(self, initial_c, target_c, outside_hourly, mode="off",
@@ -995,6 +1160,11 @@ class ClimateDecision:
     readiness_by_zone: dict[str, dict] = field(default_factory=dict)
     block_reason: str = ""
     evaluated_forecast_h: int = 0
+    stage: str = "legacy"
+    comfort_required: bool = False
+    urgent_auto: bool = False
+    restart_after_h: float | None = None
+    forecast_feasible: bool | None = None
 
 
 def _season_context(c, outside_hourly, target_avg):
@@ -1016,6 +1186,206 @@ def _season_context(c, outside_hourly, target_avg):
         ctx = "shoulder"
     strength = _clamp(abs(delta) / extreme, 0.0, 1.0)
     return ctx, strength, avg
+
+
+def decide_zone(*, settings, zone, outside_hourly, profile, solar_hourly_w=None,
+                solar_precondition=False, outside_c=None):
+    """Demand-led AUTO/OFF for one room, with a bounded predictive stage.
+
+    Panasonic retains its target and HEAT/COOL selection. The forecast compares
+    an OFF path with possible native-target AUTO windows; it never treats AUTO
+    availability as a guarantee that Panasonic will actively pre-cool a shell.
+    A missing model still permits measured, direction-aware thermostat control.
+    """
+    c = {**SMART_CLIMATE_DEFAULTS, **(settings or {})}
+    current, target = finite(zone.get("current")), finite(zone.get("target"))
+    if not c.get("enabled") or current is None or target is None:
+        return ClimateDecision("hold", "Geen bruikbare ruimtemeting voor automatische bediening", stage="reactive")
+    mode = str(zone.get("mode", "")).casefold()
+    if mode not in ("off", "auto"):
+        return ClimateDecision("hold", "Handmatige Panasonic HEAT/COOL-stand blijft behouden", stage="reactive")
+    raw_weather = [finite(x) for x in list(outside_hourly or [])[:int(c.get("forecast_horizon_h", 48))]]
+    raw_solar = [finite(x) for x in list(solar_hourly_w or [])[:len(raw_weather)]]
+    actual_outside = finite(outside_c)
+    if actual_outside is None:
+        actual_outside = finite((profile.last or {}).get("outdoor"))
+    near = [x for x in raw_weather[:6] if x is not None]
+    outlook = sum(near) / len(near) if near else actual_outside
+    soft = max(.1, float(c.get("soft_band_c", .5)))
+    hard = max(soft, float(c.get("hard_band_c", 1.)))
+    season, strength, _ = _season_context(c, raw_weather, target)
+    # Thermal projections use only a contiguous common source horizon. A
+    # shorter PV tail or an internal missing hour cannot become invented zero
+    # solar gain, or an apparent 48-hour thermal forecast.
+    weather_hours = next((idx for idx, value in enumerate(raw_weather) if value is None), len(raw_weather))
+    solar_hours = next((idx for idx, value in enumerate(raw_solar) if value is None or value < 0), len(raw_solar))
+    common_hours = min(weather_hours, solar_hours) if c.get("solar_gain_enabled") else weather_hours
+    weather, solar = raw_weather[:common_hours], raw_solar[:common_hours]
+    positive_solar = bool(c.get("solar_gain_enabled")) and any(x is not None and x > 0 for x in solar)
+    known_passive = len(profile.passive_k) >= 6
+    # Reactive trends must be observed while HVAC is not changing temperature;
+    # an active heater's rising temperature is not proof of natural overheating.
+    trend = finite((profile.last or {}).get("slope_c_h"))
+    if str(zone.get("action", "")).casefold() not in ("off", "idle", "none"):
+        trend = None
+    drift = None
+    if known_passive and actual_outside is not None:
+        k = _clamp(_med(profile.passive_k, .035), 0., .20)
+        drift = k * (actual_outside - current)
+        if c.get("solar_gain_enabled") and len(profile.solar_gain_per_kw) >= 6 and solar and solar[0] is not None:
+            drift += min(float(c.get("solar_gain_max_c_h", .35)), profile.solar_coefficient() * max(0., solar[0]) / 1000.)
+    warm_outlook = (outlook is not None and outlook > target + .25
+                    or actual_outside is not None and actual_outside > target + .25)
+    cool_outlook = (outlook is not None and outlook < target - .25
+                   or actual_outside is not None and actual_outside < target - .25)
+    cooling_context = warm_outlook or (trend is not None and trend > .03) or (drift is not None and drift > .03)
+    heating_context = cool_outlook or (trend is not None and trend < -.03) or (drift is not None and drift < -.03)
+    # The measured trend can establish that an excursion is recovering without
+    # HVAC; distant outdoor season labels never independently command AUTO.
+    if trend is not None and trend < -.03:
+        cooling_context = False
+    if trend is not None and trend > .03:
+        heating_context = False
+
+    def measured_result(desired, reason, *, direction="", urgent=False):
+        d = ClimateDecision(desired, reason, hard_override=urgent, stage="reactive",
+                            comfort_required=desired == "auto", urgent_auto=urgent,
+                            season_context=season, season_strength=strength,
+                            comfort_direction=direction, evaluated_forecast_h=len(weather))
+        return d
+
+    if current < target - hard and heating_context:
+        return measured_result("auto", "Gemeten harde ondergrens en relevante warmtevraag: Panasonic AUTO nodig", direction="heating", urgent=True)
+    if current > target + hard and cooling_context:
+        return measured_result("auto", "Gemeten harde bovengrens en relevante koelvraag: Panasonic AUTO nodig", direction="cooling", urgent=True)
+    if current < target - soft and heating_context:
+        return measured_result("auto", "Gemeten temperatuur onder de comfortband; Panasonic AUTO voor warmte beschikbaar maken", direction="heating")
+    if current > target + soft and cooling_context:
+        return measured_result("auto", "Gemeten temperatuur boven de comfortband; Panasonic AUTO voor koeling beschikbaar maken", direction="cooling")
+    if mode == "auto" and current < target - .1 and heating_context:
+        return measured_result("auto", "Bestaande warmtevraag loopt tot nabij het Panasonic-doel; AUTO behouden", direction="heating")
+    if mode == "auto" and current > target + .1 and cooling_context:
+        return measured_result("auto", "Bestaande koelvraag loopt tot nabij het Panasonic-doel; AUTO behouden", direction="cooling")
+
+    # Complete *available* horizons can be shorter than the configured 48 h,
+    # but their real coverage is explicit and must still cover a useful pause.
+    min_hours = max(6, math.ceil(float(c.get("min_coast_window_h", 8.))))
+    forecast_ready = len(weather) >= min_hours
+    weather_ready = weather_hours >= min_hours
+    solar_ready = not c.get("solar_gain_enabled") or solar_hours >= min_hours
+    solar_coeff = profile.solar_coefficient() if c.get("solar_gain_enabled") else 0.
+    k = _clamp(_med(profile.passive_k, .035), 0., .20)
+
+    def path(start=None, direction=""):
+        temperature, active_age = current, 0.
+        temperatures = []
+        gain_rows = profile.heat_gain if direction == "heating" else profile.cool_gain
+        delays = profile.heating_delays_h if direction == "heating" else profile.cooling_delays_h
+        gain = _clamp(_med(gain_rows, 0.), 0., 2.)
+        delay = _clamp(_med(delays, 0.), 0., 48.)
+        for idx, outside in enumerate(weather):
+            if outside is None:
+                return []
+            solar_w = max(0., solar[idx]) if idx < len(solar) and solar[idx] is not None else 0.
+            change = k * (outside - temperature) + min(float(c.get("solar_gain_max_c_h", .35)), solar_coeff * solar_w / 1000.)
+            # Actual native-target demand starts the response clock. Merely
+            # enabling AUTO while comfortable cannot magically cool the mass.
+            demand = (direction == "heating" and temperature < target - .1 or
+                      direction == "cooling" and temperature > target + .1)
+            if start is not None and idx >= start and demand:
+                active_age += 1.
+                fraction = min(1., active_age / max(1., delay))
+                active = gain * fraction * (1 if direction == "heating" else -1)
+                # Limit only the HVAC contribution at the native target; don't
+                # clamp weather warming away as the legacy advice model did.
+                projected = temperature + change
+                if direction == "heating":
+                    active = min(active, max(0., target - projected))
+                else:
+                    active = max(active, min(0., target - projected))
+                change += active
+            else:
+                active_age = 0.
+            temperature += change
+            temperatures.append(temperature)
+        return temperatures
+
+    def crossings(temperatures):
+        low_cross = high_cross = None
+        entered = target - soft <= current <= target + soft
+        previous = current
+        for idx, temperature in enumerate(temperatures):
+            if target - soft <= temperature <= target + soft:
+                entered = True
+            # A current excursion may naturally recover. Flag it only if it
+            # worsens, then use the normal band after recovery has occurred.
+            low = temperature < target - soft and (entered or temperature < min(current, previous) - 1e-6)
+            high = temperature > target + soft and (entered or temperature > max(current, previous) + 1e-6)
+            if low and low_cross is None:
+                low_cross = idx + 1
+            if high and high_cross is None:
+                high_cross = idx + 1
+            previous = temperature
+        return low_cross, high_cross
+
+    off_path = path() if forecast_ready else []
+    low_cross, high_cross = crossings(off_path)
+    directions = (["heating"] if low_cross is not None else []) + (["cooling"] if high_cross is not None else [])
+    evidence = profile.predictive_readiness(c, directions=directions, use_solar=positive_solar)
+    missing = list(evidence["missing_components"])
+    if not weather_ready:
+        missing.append("hourly_forecast")
+    if not solar_ready:
+        missing.append("solar_forecast")
+    ready = not missing
+    d = measured_result("off", "Geen relevante gemeten warmte- of koelvraag; ruimte automatisch UIT")
+    d = replace(d, prediction_confidence=evidence["confidence"],
+                forecast_confidence=evidence["confidence"],
+                required_components=evidence["required_components"], missing_components=missing,
+                control_ready=True,  # Measured control remains useful while learning.
+                readiness_by_zone={zone.get("entity_id", ""): {**evidence, "forecast_hours": len(weather)}},
+                block_reason=("Vooruit plannen wacht op: " + ", ".join(missing)) if missing else "")
+    if off_path:
+        d = replace(d, predicted_min_c=round(min(off_path), 3), predicted_max_c=round(max(off_path), 3))
+    if not ready:
+        return replace(d, reason=d.reason + "; korte comfortbewaking tijdens leren, geen onbewezen lange voorconditionering")
+    d = replace(d, stage="predictive", solar_gain_used=positive_solar)
+    if not directions:
+        return replace(d, reason=f"Geleerd passief verloop blijft binnen de comfortband gedurende de beschikbare {len(weather)} uur; ruimte UIT", forecast_feasible=True)
+    if len(directions) != 1:
+        return replace(d, desired_mode="auto", comfort_required=True, forecast_feasible=False,
+                       reason="Voorspelling vraagt zowel warmte als koeling; Panasonic AUTO beschikbaar houden en zelf laten kiezen",
+                       block_reason="Geen eenduidige voorspelde AUTO/UIT-periode")
+    direction = directions[0]
+    crossing = float(low_cross if direction == "heating" else high_cross)
+    # Search the latest feasible native-target AUTO window, including real
+    # response capacity and measured direction-specific delay. The search does
+    # not assume room/shell cooling merely from a distant hot weather forecast.
+    feasible = []
+    for start in range(len(weather)):
+        low, high = crossings(path(start, direction))
+        if low is None and high is None:
+            feasible.append(float(start))
+    d = replace(d, crossing_h=crossing, comfort_direction=direction)
+    if not feasible:
+        return replace(d, desired_mode="auto", comfort_required=True, urgent_auto=True,
+                       forecast_feasible=False, restart_after_h=0., required_lead_h=crossing,
+                       reason="De geleerde respons kan de voorspelde comfortgrens niet aantoonbaar opvangen; Panasonic AUTO nu beschikbaar maken",
+                       block_reason="Voorspelde comfortbescherming niet haalbaar met de geleerde respons; AUTO garandeert geen actieve voorconditionering")
+    start = max(feasible)
+    margin = max(0., float(c.get("thermal_start_margin_h", 2.)))
+    if solar_precondition:
+        margin += max(0., float(c.get("solar_precondition_extra_lead_h", 4.)))
+    start = max(0., start - margin)
+    d = replace(d, restart_after_h=start, required_lead_h=max(0., crossing - start), forecast_feasible=True)
+    # The runtime will re-evaluate on current input changes and regular guards;
+    # one guard of remaining time means release AUTO now, without a timer loop.
+    if start <= max(.25, float(c.get("guard_recheck_s", 900.)) / 3600.):
+        d = replace(d, desired_mode="auto", comfort_required=True, urgent_auto=True,
+                    reason=f"Geleerde {direction}-respons vereist Panasonic AUTO nu vóór de verwachte comfortgrens over circa {crossing:.0f} uur")
+    else:
+        d = replace(d, reason=f"Geen actuele vraag; geleerde respons laat circa {start:.1f} uur UIT toe vóór Panasonic AUTO nodig is")
+    return d
 
 
 def decide_mode(*, settings, zones, outside_hourly, profiles, current_season_mode="", hours_since_season_change=9999,

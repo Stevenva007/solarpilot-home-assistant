@@ -1,12 +1,12 @@
-# SolarPilot beta.53 — installatie en upgrade
+# SolarPilot beta.54 — installatie en upgrade
 
-Beta.53 voorkomt dat één onbeschikbaar eerder beheerd toestel de gewone opstartcontrole voor alle toestellen laat wachten. SolarPilot zet alleen dat toestel tijdelijk opzij, houdt rekening met mogelijk verbruik en hervat de overige beschikbare toestellen als de globale bronnen en veiligheidsvoorwaarden geldig zijn. Het ontbrekende toestel wordt automatisch opnieuw gecontroleerd en keert bij echte betrouwbare status terug, met behoud van deelname, prioriteit en bescherming.
+Beta.54 regelt iedere vrijgegeven Panasonic-ruimtezone afzonderlijk tussen AUTO en UIT. SolarPilot kan een goed geïsoleerde ruimte veilig zonder onnodig ruimtebedrijf laten verdergaan en AUTO weer beschikbaar stellen wanneer actuele of verantwoord voorspelde comfortbehoefte dit vraagt. Panasonic kiest verwarmen/koelen; het thermostaatdoel blijft behouden.
 
-De test-/publicatiestatus staat in [docs/TESTRESULTATEN_BETA53.md](docs/TESTRESULTATEN_BETA53.md). Een fysieke verbindingsstoring blijft bij de gekoppelde HA-integratie te onderzoeken; deze update verandert de softwareafhandeling van die uitval.
+Handmatig AUTO/UIT bedien je met de schakelaars per zone op **Warmte & comfort**. Automatisch regelen vereist geen voorafgaande gewone handmatige AUTO-keuze. De beta.53-isolatie van onbeschikbare toestellen en conservatieve lastreserves blijven behouden. De test-/publicatiestatus staat in [docs/TESTRESULTATEN_BETA54.md](docs/TESTRESULTATEN_BETA54.md).
 
 ## 1. Vooraf
 
-- Maak een actuele volledige Home Assistant-back-up en bewaar de gecontroleerde beta.52-release voor rollback.
+- Maak een actuele volledige Home Assistant-back-up en bewaar de gecontroleerde beta.53-release voor rollback.
 - Laat een lopende beschermde afwas- of andere cyclus afwerken.
 - Gebruik bij een nieuwe installatie **Alleen bekijken** voor de eerste broncontrole. Bij bestaand actief beheer kan die modus eerst **Pauze** en veilige vrijgave vereisen. Alleen bewezen eigen coast en passende bevestigde numerieke batterijdoelen mogen worden vrijgegeven; handmatige bediening blijft beschermd.
 - Updates zijn cumulatief: bestaande Home Assistant-configuratie en lokale leerdata blijven behouden; tussenliggende beta-versies hoeven niet afzonderlijk geïnstalleerd te worden.
@@ -14,14 +14,14 @@ De test-/publicatiestatus staat in [docs/TESTRESULTATEN_BETA53.md](docs/TESTRESU
 ## 2. Via HACS installeren of upgraden
 
 1. Voeg bij een nieuwe installatie in **HACS → Custom repositories** `https://github.com/Stevenva007/solarpilot-home-assistant` toe als type **Integration**.
-2. Download of update naar exact `1.0.0-beta.53` zodra die release beschikbaar is.
+2. Download of update naar exact `1.0.0-beta.54` zodra die release beschikbaar is.
 3. Herstart Home Assistant volledig.
 4. Herlaad de webpagina. Stop op Android de Home Assistant-app volledig en open haar opnieuw; op iOS kun je de weergave naar beneden trekken om te verversen. Controleer backendversie en geladen kaart afzonderlijk. Een download of manifestnummer bewijst geen geladen kaartcode.
 5. Voeg bij een nieuwe installatie **SolarPilot** toe via **Instellingen → Apparaten & diensten** en kies je P1/netbron en optionele PV-bron.
 
 De interface verschijnt automatisch. Er is geen aparte Lovelace-resource of dashboard-YAML nodig. Bij een lokaal pakket vervang je uitsluitend `custom_components/solar_pilot`; bewaar bestaande `userfiles` en Home Assistant-opslag.
 
-Controleer bij een waarschuwing de genoemde toestelbron. **Automatische broncontrole** wacht op betrouwbaar nieuwe data en vraagt geen reset. Bij een verkeerde vereiste bronkoppeling corrigeer je die koppeling; een echte **Opdrachtfout** behoudt de bestaande gerichte controle. Zie [docs/BETA53_INSTELLEN.md](docs/BETA53_INSTELLEN.md); verwijder geen configuratie of leerdata.
+Controleer bij een waarschuwing de genoemde toestelbron. **Automatische broncontrole** wacht op betrouwbaar nieuwe data en vraagt geen reset. Bij een verkeerde vereiste bronkoppeling corrigeer je die koppeling; een echte **Opdrachtfout** behoudt de bestaande gerichte controle. Zie [docs/BETA54_INSTELLEN.md](docs/BETA54_INSTELLEN.md); verwijder geen configuratie of leerdata.
 
 ## 3. Optioneel privéprofiel
 
@@ -47,11 +47,11 @@ Een pending batterijopdracht laat nieuwe gewone lasten, AEG-deadline-START en ve
 
 Ontbrekende forecasturen of staart blijven onbekend. Controleer tijdzone-/dekkinglabels; een onvolledige dag is geen volledige dagreplay en een werkelijk nultarief blijft nul. Export behoudt schema-sleutels, eenheden en statuswaarden bij consistente pseudoniemen. Een afgebroken start of ongeldige afzonderlijke opslagrij mag geldige andere gegevens niet wissen.
 
-Een handmatig/extern OFF gezette zone blijft OFF tot je zelf AUTO kiest. Ook een harde comfortoverschrijding of verlopen rusttijd mag haar niet automatisch inschakelen. Controleer dat alleen eigen SolarPilot-coast-zones automatisch naar AUTO kunnen terugkeren. Een wachtende of onzekere klimaatopdracht wordt niet opnieuw verstuurd.
+Op **Warmte & comfort** staat per zone **Handmatig bedienen**. Uit laat SolarPilot zelf AUTO/UIT kiezen; Aan toont de vaste **AUTO / UIT**-keuze. Die expliciete dashboardoverride blijft bewaard over herstarts tot je Handmatig bedienen weer uit zet. Een native wijziging buiten het dashboard krijgt tijdelijke gebruikersrust, standaard twaalf uur; vaste HEAT/COOL en pending/onzekere opdrachten blijven beschermd. Een geldige oorspronkelijke UIT-stand vraagt onder automatische zonebediening geen handmatige AUTO-fiets.
 
-Het overzicht moet de huidige benodigde respons, relevante modelzekerheid, modelstatus en werkelijk opgeslagen leeraantallen laten zien. Ontbrekende ongebruikte koelervaring mag een voldoende geleerd verwarmingspad niet blokkeren; een voorspelde behoefte aan koelrespons blijft wel echt bewijs vragen. Winter-/zomercoast blijft standaard uit en weerscontext bewijst geen actieve vraag.
+Het overzicht noemt **Comfortbewaking tijdens leren** of **Voorspellend geregeld**, per-zone reden en echte forecastdekking. Actuele passende comfortvraag werkt zonder volledig geleerd model. Leerbewijs, relevante dagen/episodes en gemeten voorspelfout blijven afzonderlijk; samples bewijzen geen 98% nauwkeurigheid. Winter-/zomerweer houdt AUTO niet alleen wegens die context aan. Een toekomstige hittegolf vraagt relevant koelbewijs en echte forecasturen; AUTO met ongewijzigd doel garandeert geen bouwschilvoorkoeling.
 
-Behoud je huidige instellingen en leerdata. Deze update vraagt geen algemene leerreset. De eerdere bescherming van gecontroleerde fasewaarnemingen zonder bewijs van stabiele andere meters blijft gelden; geldige passieve waarnemingen, nieuwe geïsoleerde fasewaarnemingen en handmatige fasekeuzes blijven behouden. Zie [docs/BETA53_INSTELLEN.md](docs/BETA53_INSTELLEN.md) voor de volledige controle.
+Behoud je huidige instellingen en leerdata. Deze update vraagt geen algemene leerreset. De eerdere bescherming van gecontroleerde fasewaarnemingen zonder bewijs van stabiele andere meters blijft gelden; geldige passieve waarnemingen, nieuwe geïsoleerde fasewaarnemingen en handmatige fasekeuzes blijven behouden. Zie [docs/BETA54_INSTELLEN.md](docs/BETA54_INSTELLEN.md) voor de volledige controle.
 
 ## 5. Automatisch herstel na herstart
 
@@ -93,6 +93,6 @@ Laat concurrerende boilerautomatiseringen uit zolang SolarPilot regelt. AEG-APP-
 
 ## 8. Uitleg en rollback
 
-De enige actuele regelbeschrijving staat in [docs/ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en in Home Assistant onder **SolarPilot → Uitleg**. De volledige upgradecontrole staat in [docs/BETA53_INSTELLEN.md](docs/BETA53_INSTELLEN.md).
+De enige actuele regelbeschrijving staat in [docs/ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en in Home Assistant onder **SolarPilot → Uitleg**. De volledige upgradecontrole staat in [docs/BETA54_INSTELLEN.md](docs/BETA54_INSTELLEN.md).
 
-Voor rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.52-release of gecontroleerde back-up herstellen → Home Assistant herstarten → webpagina/app opnieuw openen → backend/kaart en beveiligingen controleren**. Beta.52 behoudt de bronclassificatie en volledige export, maar kan bij een ontbrekende eerder beheerde status nog globaal op de herstartcontrole wachten. Oude release-documenten zijn historische informatie; het actuele `OVERDRACHT.md` beschrijft de huidige bron.
+Voor rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.53-release of gecontroleerde back-up herstellen → Home Assistant herstarten → webpagina/app opnieuw openen → backend/kaart en beveiligingen controleren**. Beta.53 behoudt toestelisolatie en reserves, maar kent de nieuwe dashboardoverride en autonome per-zone AUTO/UIT-regelaar niet. Controleer daarom native ruimtestanden en oudere handmatige vrijgave. Oude release-documenten zijn historische informatie; het actuele `OVERDRACHT.md` beschrijft de huidige bron.

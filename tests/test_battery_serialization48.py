@@ -86,7 +86,9 @@ async def test_pending_battery_command_blocks_new_climate_auto_release():
         "current_temperature": 19.5, "temperature": 21, "temperature_unit": "°C",
         "hvac_action": "off", "hvac_modes": ["auto", "off"],
     })
-    hass.states.set("sensor.outdoor", 21, {"unit_of_measurement": "°C"})
+    # A cold outside reading establishes a real heating need for the automatic
+    # controller; a neutral 21 °C outside reading is not heating evidence.
+    hass.states.set("sensor.outdoor", 5, {"unit_of_measurement": "°C"})
     manager = runtime.smart_climate
     manager.settings.update(enabled=True, control_enabled=True,
                             zone_entities=["climate.home"], outside_temp_entity="sensor.outdoor")

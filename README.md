@@ -1,14 +1,22 @@
-> **Actuele bron: beta.53** — een tijdelijk onbeschikbaar eerder beheerd toestel wordt afzonderlijk opzijgezet, zodat de andere beschikbare toestellen veilig kunnen worden geregeld. Betrouwbare bronterugkeer laat het toestel automatisch opnieuw deelnemen; deelname, prioriteit en bescherming blijven behouden. Test-/publicatiestatus: `docs/TESTRESULTATEN_BETA53.md`.
+> **Actuele bron: beta.54** — vrijgegeven ruimtezones worden afzonderlijk automatisch tussen Panasonic AUTO en UIT geregeld. Handmatig AUTO/UIT staat per zone op het dashboard; echte bron-, opdracht- en fabrikantbescherming blijven gelden. Test-/publicatiestatus: `docs/TESTRESULTATEN_BETA54.md`.
 
 # SolarPilot
 
 SolarPilot is a local Home Assistant Energy Management System (EMS) for PV surplus, flexible loads, Panasonic Aquarea hot-water policy, Wallbox Full Solar coexistence, phase analysis, capacity-tariff awareness, local PV/shade learning, slow thermal-climate learning, future home batteries and a unified rolling-horizon planner.
 
-De absolute codebasis is de gepubliceerde beta.52 op commit `80402cd03b213334608d4ca0956ce662c5021216`, tree `d1cb08369429a66773ad226c2642baac86aecf46`. De onveranderlijke [beta.52-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.52), haar geslaagde publicatieworkflow en gecontroleerde pakketten vormen de rollbackbasis. Een softwaretest of publicatie bewijst geen geladen Home Assistant-versie of fysieke toestelactie.
+De absolute codebasis is de gepubliceerde beta.53 op commit `de4e7f364789ec486447b2c6ee5dce4cbabcbdb3`, tree `ea793e13fa35b8327c269f6754a76ef4c561ed72`. De onveranderlijke [beta.53-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.53), haar geslaagde publicatieworkflow en gecontroleerde pakketten vormen de rollbackbasis. Een softwaretest of publicatie bewijst geen geladen Home Assistant-versie of fysieke toestelactie.
 
 > **Updates zijn cumulatief.** Je hoeft tussenliggende beta-versies niet één voor één te installeren of publiceren. Installeer de nieuwste release over je bestaande SolarPilot-installatie; Home Assistant-configuratie en lokale leerdata blijven behouden.
 
-## Nieuw in beta.53
+## Nieuw in beta.54
+
+- SolarPilot beoordeelt iedere vrijgegeven zone afzonderlijk. Het kan Panasonic AUTO inschakelen wanneer ruimtecomfort dit vraagt en UIT kiezen wanneer de ruimte veilig zonder verwarming/koeling verder kan. Een actuele UIT-stand hoeft niet eerst handmatig naar AUTO te worden gezet.
+- Deze regeling werkt ook in winter-/zomercontext. Buitenweer alleen bewijst geen warmtevraag: een goed geïsoleerde ruimte mag UIT blijven wanneer ze vanzelf comfortabel blijft. Actuele passende comfortvraag werkt ook wanneer het voorspellende model nog onvoldoende leerbewijs heeft.
+- Per zone staat op **Warmte & comfort** de keuze **Handmatig bedienen**, met een **AUTO/UIT**-schakelaar. Een expliciete handmatige keuze blijft bewaard; de schakelaar uitzetten geeft de zone terug aan SolarPilot. Tijdelijke native wijzigingen, vaste HEAT/COOL, bronnen en onzekere opdrachten blijven beschermd.
+- Forecastplanning gebruikt geleerde respons en vertraging en toont echte dekking en leerbewijs. Twee dagen vooruit is alleen een echte beoordeelde horizon bij voldoende opeenvolgende uren. Een voorspelde 40 °C buitentemperatuur bewijst niet dat de bouwschil twee dagen voorkoeling nodig heeft. AUTO beschikbaar stellen verandert geen doeltemperatuur en garandeert geen koelstart.
+- Beta.53-isolatie/reserves en alle boiler-, Wallbox-, afwas- en bronbeschermingen blijven behouden. Zie `docs/BETA54_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA54.md` en `OVERDRACHT.md`.
+
+## Behouden uit beta.53
 
 - Een onbeschikbaar eerder beheerd toestel wacht afzonderlijk op bruikbare status. De overige beschikbare toestellen kunnen de opgeslagen automatische modus hervatten zodra de globale net- en veiligheidsbronnen geldig zijn. Er volgt geen blinde uitschakeling van het ontbrekende toestel.
 - Het ontbrekende toestel blijft automatisch gecontroleerd worden en keert na echte betrouwbare terugmelding vanzelf terug. Eerdere beheerinformatie, deelname, prioriteit, minimumlooptijden en bescherming van lopende programma’s blijven behouden. Een later gekozen Alleen bekijken of Pauze wordt gerespecteerd.
@@ -54,9 +62,9 @@ Zie `docs/BETA50_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA50.md` en het actuele `
 
 Zie `docs/BETA49_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA49.md` en het actuele `OVERDRACHT.md`.
 
-## Behouden uit beta.48
+## Historisch gedrag van beta.48
 
-- Handmatig of extern OFF blijft onbeperkt OFF tot de gebruiker zelf AUTO kiest. Dit vervangt bewust de oudere uitzondering waarbij een harde comfortgrens een handmatige zone kon activeren. Alleen aantoonbaar eigen OFF/coast-zones mogen automatisch worden vrijgegeven.
+- Beta.48 liet handmatig of extern OFF onbeperkt OFF tot gebruikers-AUTO. Beta.54 onderscheidt bij automatische zonebediening een expliciete dashboardoverride, tijdelijke externe bescherming en een geldige automatische UIT-stand. De oudere regel blijft alleen voor expliciet gekozen legacybediening gelden.
 - Pending of onzekere klimaatopdrachten worden niet opnieuw verstuurd. Nieuwe betrouwbare terugmelding en persistent eigendom/bescherming per zone blijven leidend.
 - De coastbeoordeling gebruikt passieve respons en zonnewinst waar gebruikt, plus verwarm-/koelrespons en reactievertraging wanneer de voorspelde comfortgrens die richting nodig heeft. Ontbrekende ongebruikte koelervaring blokkeert een voldoende geleerd verwarmingspad niet.
 - Modelstatus, werkelijk opgeslagen bewijs-/sample-/dag-/episodeaantallen en de zekerheid voor de huidige beslissing zijn zichtbaar. De oude complete score blijft aparte vergelijkingsinformatie; weercontext is geen actuele verwarm-/koelvraag.
@@ -99,7 +107,7 @@ Zie `docs/BETA46_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA46.md` en het actuele `
 
 Beta.44-publicatie, pakketcontrole en geladen versie staan in `docs/BETA44_INSTELLEN.md` en `docs/TESTRESULTATEN_BETA44.md`; uitleg-hash `65b54c9797e55bb4` hoort bij die historische softwaregate. [Beta.44-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.44). Bestaande tags en release-assets blijven onveranderlijk.
 
-## Current DHW policy (beta.53)
+## Current DHW policy (beta.54)
 
 For Panasonic K T-CAP models, Powerful is **not automatically used as a tank boost**: Panasonic service manual PAPAMY2310071CE §14.11 describes space-heating water-target shifts, not a DHW boost. The separate installer setting DHW capacity is not changed. [Panasonic-original service manual](https://paltaja.lt/wp-content/uploads/panasonic-k-t-cap-manual.pdf).
 

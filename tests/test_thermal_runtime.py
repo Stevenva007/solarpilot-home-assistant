@@ -36,7 +36,9 @@ def setup_climate(*, control=False, temp=21, target=21, mode='auto'):
     h.states.set('climate.salon',mode,attrs)
     h.states.set('sensor.outdoor',21,{'unit_of_measurement':'°C'})
     h.states.set('weather.home','partlycloudy',{'temperature':21,'temperature_unit':'°C'})
-    r.entry.options['smart_climate']={**SMART_CLIMATE_DEFAULTS,'enabled':True,'control_enabled':control,
+    # These tests retain the previous opt-out coast policy; beta.54 automatic
+    # zone management has dedicated behavior and integration regressions.
+    r.entry.options['smart_climate']={**SMART_CLIMATE_DEFAULTS,'automatic_zone_control':False,'enabled':True,'control_enabled':control,
         'zone_entities':['climate.home','climate.salon'],'weather_entity':'weather.home',
         'outside_temp_entity':'sensor.outdoor','decision_interval_h':12,'forecast_horizon_h':48}
     r.smart_climate=SmartClimateManager(r)

@@ -27,6 +27,7 @@ from .runtime import SolarRuntime
 from .dhw import DHW_NUMBERS
 
 SERVICE_SET_CLIMATE_SETTING = "set_climate_setting"
+SERVICE_SET_CLIMATE_OVERRIDE = "set_climate_override"
 SERVICE_SET_PLANNER_SETTING = "set_planner_setting"
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,6 +48,28 @@ async def _handle_set_planner_setting(hass: HomeAssistant, call) -> None:
     if entry is None or getattr(entry, "runtime_data", None) is None or entry.runtime_data._closed:
         raise ValueError("SolarPilot-configuratie niet geladen")
     await entry.runtime_data.async_set_planner_setting(call.data["setting"], call.data.get("value"))
+
+
+async def _handle_set_climate_override(hass: HomeAssistant, call) -> None:
+    """Apply dashboard intent to exactly one entry, through its normal tick gate."""
+    entry_id = str(call.data.get("config_entry_id") or "")
+    entity_id = call.data["entity_id"]
+    entries = list(hass.config_entries.async_entries(DOMAIN))
+    candidates = [entry for entry in entries
+                  if (not entry_id or entry.entry_id == entry_id)
+                  and getattr(entry, "runtime_data", None) is not None
+                  and entity_id in (entry.runtime_data.smart_climate.settings.get("zone_entities") or [])]
+    if len(candidates) != 1:
+        raise ValueError("Kies één geladen SolarPilot-configuratie voor deze klimaatzone")
+    runtime = candidates[0].runtime_data
+    async with runtime._lock:
+        if runtime._closed:
+            raise ValueError("SolarPilot-configuratie niet geladen")
+        await runtime.smart_climate.async_set_override(entity_id, call.data["mode"])
+    # Queued dashboard intent shares source, pending-command and electrical
+    # guards with every other action. Never call climate directly in this handler.
+    if call.data["mode"] != "review":
+        await runtime.tick()
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -159,6 +182,17 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 vol.Required("value"): vol.Any(bool, int, float, str),
             }),
         )
+    if not hass.services.has_service(DOMAIN, SERVICE_SET_CLIMATE_OVERRIDE):
+        async def handle_climate_override(call):
+            await _handle_set_climate_override(hass, call)
+        hass.services.async_register(
+            DOMAIN, SERVICE_SET_CLIMATE_OVERRIDE, handle_climate_override,
+            schema=vol.Schema({
+                vol.Optional("config_entry_id", default=""): str,
+                vol.Required("entity_id"): str,
+                vol.Required("mode"): vol.In(("automatic", "auto", "off", "review")),
+            }),
+        )
     entry.async_on_unload(entry.add_update_listener(_options_updated))
     return True
 
@@ -219,6 +253,6 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     # SolarPilot entry still exists.
     if not hass.config_entries.async_entries(DOMAIN):
         async_unregister_frontend(hass, final=True)
-        for service in (SERVICE_SET_CLIMATE_SETTING, SERVICE_SET_PLANNER_SETTING):
+        for service in (SERVICE_SET_CLIMATE_SETTING, SERVICE_SET_PLANNER_SETTING, SERVICE_SET_CLIMATE_OVERRIDE):
             if hass.services.has_service(DOMAIN, service):
                 hass.services.async_remove(DOMAIN, service)

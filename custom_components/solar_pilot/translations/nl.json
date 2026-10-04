@@ -542,29 +542,31 @@
         }
       },
       "smart_climate": {
-        "title": "Ruimteklimaat · Panasonic AUTO & coast",
-        "description": "Koppel hier alleen de hoofdbronnen en comfortbasis. SolarPilot kiest nooit HEAT of COOL: Panasonic AUTO blijft eigenaar van die keuze. Alle klimaatinstellingen zijn daarna ook rechtstreeks wijzigbaar op het dashboard, telkens met korte uitleg, aanbevolen uitgangspunt en gevolg van de wijziging.",
+        "title": "Ruimteklimaat · automatisch AUTO/UIT",
+        "description": "SolarPilot schakelt de geselecteerde ruimtes automatisch tussen AUTO en UIT op basis van comfort, temperatuurverloop en beschikbare voorspellingen. Panasonic behoudt de keuze tussen verwarmen en koelen. Handmatige AUTO/UIT-bediening staat per ruimte op het dashboard.",
         "data": {
           "enabled": "Thermisch model en advies inschakelen",
-          "control_enabled": "AUTO/coast-programmering daadwerkelijk laten toepassen",
+          "control_enabled": "Ruimtes fysiek via AUTO/UIT laten regelen",
           "zone_entities": "Panasonic-zones (moeten AUTO en OFF ondersteunen)",
           "weather_entity": "Weerentiteit voor uurvoorspelling",
           "outside_temp_entity": "Actuele buitentemperatuur (optioneel)",
           "soft_band_c": "Gewenste comfortband rond thermostaatdoel (±°C)",
           "hard_band_c": "Harde comfortgrens (±°C)",
-          "decision_interval_h": "Normale planningsbeslissing om de (uren)",
-          "forecast_horizon_h": "Voorspellingshorizon (uren)"
+          "decision_interval_h": "Uitgebreide langetermijnplanning om de (uren)",
+          "forecast_horizon_h": "Voorspellingshorizon (uren)",
+          "automatic_zone_control": "Ruimtes automatisch aan en uit regelen"
         },
         "data_description": {
-          "enabled": "Leert hoe huis en vloer reageren en maakt een AUTO/coast-advies.",
+          "enabled": "Leert het gemeten temperatuurverloop en maakt per ruimte een AUTO/UIT-advies.",
           "control_enabled": "Geeft SolarPilot toestemming om alleen AUTO of OFF/coast te sturen.",
           "zone_entities": "Zones waarvan doeltemperatuur, binnentemperatuur, AUTO/OFF en hvac_action worden gebruikt.",
           "weather_entity": "Levert de uurverwachting waarmee het gebouw over de ingestelde horizon vooruit wordt doorgerekend.",
           "outside_temp_entity": "Werkelijke buitentemperatuur voor leren en controle.",
           "soft_band_c": "Normale band rond het Panasonic-doel waarbinnen coasten comfortabel wordt geacht.",
-          "hard_band_c": "Bij overschrijding mag alleen een aantoonbaar eigen OFF/coast-zone meteen naar AUTO worden vrijgegeven.",
-          "decision_interval_h": "Hoe vaak een gewone lange-termijnbeslissing opnieuw wordt gemaakt.",
-          "forecast_horizon_h": "Hoe ver vooruit de binnentemperatuur wordt gesimuleerd."
+          "hard_band_c": "Bij overschrijding met relevante warmte- of koelvraag vraagt automatische ruimtebediening dringend AUTO.",
+          "decision_interval_h": "Interval voor de oudere pauzeplanner.",
+          "forecast_horizon_h": "Hoe ver vooruit de binnentemperatuur wordt gesimuleerd.",
+          "automatic_zone_control": "SolarPilot schakelt elke gekoppelde ruimte zelf tussen Panasonic AUTO en UIT op basis van comfort en bruikbare voorspellingen."
         }
       },
       "battery": {
@@ -798,45 +800,49 @@
         }
       },
       "smart_climate_advanced": {
-        "title": "Ruimteklimaat · tussenseizoen, leren & geavanceerd",
-        "description": "Fallback-configuratie voor trage vloer/bouwschilregeling. De volledige set klimaatinstellingen staat overzichtelijker op het SolarPilot-dashboard. SolarPilot leert zonnewinst, lokale weersfout en het resultaat van coastperioden. Raam-/deurcontacten worden bewust niet gebruikt.",
+        "title": "Ruimteklimaat · leren & geavanceerd",
+        "description": "Automatische regeling controleert iedere regelronde de actuele behoefte per ruimte. Geleerde respons en beschikbare uurvoorspellingen helpen eerder AUTO vrij te geven. De percentages tonen leerbewijs; voorspelfout wordt afzonderlijk gemeten. AUTO alleen garandeert geen afkoeling van de bouwschil vooraf.",
         "data": {
           "forecast_refresh_s": "Weersvoorspelling vernieuwen om de (s)",
           "shoulder_band_c": "Tussenseizoen-band rond binnendoel (±°C)",
           "season_extreme_delta_c": "Duidelijke zomer/winter vanaf gemiddeld verschil (°C)",
-          "allow_winter_summer_coast": "Ook in duidelijke zomer/winter coasten toestaan",
+          "allow_winter_summer_coast": "Oude coastregeling: ook in zomer/winter",
           "min_coast_window_h": "Minimum nuttige coastperiode (uren)",
-          "min_state_hold_h": "Minimum AUTO/OFF-vasthoudtijd (uren)",
+          "min_state_hold_h": "Oude coastregeling: minimum AUTO/OFF-vasthoudtijd (uren)",
           "thermal_start_margin_h": "Extra herstartmarge boven geleerde vloerreactie (uren)",
-          "manual_hold_h": "Rust na handmatige modewijziging (uren)",
+          "manual_hold_h": "Tijdelijke rust na externe bediening (uren)",
           "sample_interval_s": "Thermisch leersample om de (s)",
           "learning_min_samples": "Minimum leersamples",
           "learning_min_days": "Minimum verschillende leerdagen",
-          "model_confidence_min": "Minimum modelzekerheid voor automatische coast",
+          "model_confidence_min": "Minimum leerbewijs voor voorspellende regeling",
           "solar_preconditioning_enabled": "PV mag noodzakelijke AUTO-herstart vervroegen",
           "precondition_min_pv_w": "Minimum PV voor vervroegde AUTO-vrijgave (W)",
           "solar_precondition_extra_lead_h": "Extra voorsprong met PV (uren)",
           "max_commands_per_day": "Max gewone AUTO/OFF-opdrachten per dag",
-          "stale_s": "Klimaatmeting te oud na (s)"
+          "stale_s": "Klimaatmeting te oud na (s)",
+          "automatic_min_run_h": "Minimum AUTO-periode bij automatische regeling (uren)",
+          "automatic_min_off_h": "Minimum UIT-periode bij automatische regeling (uren)"
         },
         "data_description": {
           "forecast_refresh_s": "Hoe vaak de hourly weersverwachting opnieuw wordt opgehaald.",
           "shoulder_band_c": "Bepaalt wanneer de buitentemperatuur nog als tussenseizoen rond het binnendoel wordt gezien.",
           "season_extreme_delta_c": "Schaal voor hoe sterk een duidelijke zomer- of wintersituatie is.",
-          "allow_winter_summer_coast": "Laat de energiebesparende OFF-logica ook buiten het tussenseizoen toe.",
+          "allow_winter_summer_coast": "Beïnvloedt alleen de oudere pauzeplanner wanneer automatische ruimtebediening UIT staat.",
           "min_coast_window_h": "Minimale voorspelde nuttige OFF-periode voordat SolarPilot een nieuwe coast start.",
           "min_state_hold_h": "Minimumtijd voordat een gewone tegengestelde AUTO/OFF-opdracht mag volgen.",
-          "thermal_start_margin_h": "Extra tijd bovenop de geleerde reactievertraging om AUTO vóór een voorspelde comfortgrens vrij te geven.",
-          "manual_hold_h": "Tijdelijke rust per zone na een handmatige modewijziging.",
+          "thermal_start_margin_h": "Veiligheidsmarge vóór het laatst haalbare AUTO-startmoment uit de geleerde richtingrespons.",
+          "manual_hold_h": "Tijdelijke rust per zone na een onverwachte externe AUTO/UIT-wijziging.",
           "sample_interval_s": "Minimumtijd tussen thermische leerpunten.",
           "learning_min_samples": "Minimaal aantal bruikbare waarnemingen voordat een geleerd profiel gebruikt mag worden.",
           "learning_min_days": "Verschillende dagen wegen apart mee zodat één uitzonderlijke dag niet domineert.",
-          "model_confidence_min": "Minimumzekerheid voor de onderdelen die de voorspelling werkelijk nodig heeft: passief en gebruikte zonnewinst, plus verwarm-/koelrespons en gedeelde reactievertraging bij een voorspelde grensoverschrijding.",
+          "model_confidence_min": "Minimum meetdekking voor benodigde leeronderdelen; dit is geen percentage voorspellingsnauwkeurigheid.",
           "solar_preconditioning_enabled": "Vervroegt alleen een reeds voorspelde noodzakelijke AUTO-herstart; verandert geen thermostaatdoel.",
           "precondition_min_pv_w": "PV-productie waaronder PV-voorconditionering niet actief wordt.",
           "solar_precondition_extra_lead_h": "Als PV-voorconditionering aanstaat kan een toch al noodzakelijke AUTO-herstart hiermee vervroegd worden.",
           "max_commands_per_day": "Begrenst gewone SolarPilot-modeopdrachten per dag.",
-          "stale_s": "Maximale ouderdom van een ontvangen bronrapport."
+          "stale_s": "Maximale ouderdom van een ontvangen bronrapport.",
+          "automatic_min_run_h": "Een door SolarPilot gestart AUTO-venster duurt minstens zo lang voordat de gewone regeling de ruimte UIT zet.",
+          "automatic_min_off_h": "Na een automatische UIT-opdracht wacht de gewone regeling minstens zo lang vóór AUTO."
         }
       },
       "wallbox_advanced": {
