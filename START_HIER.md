@@ -1,12 +1,12 @@
-# SolarPilot beta.52 — installatie en upgrade
+# SolarPilot beta.53 — installatie en upgrade
 
-Beta.52 onderscheidt tijdelijke bronwacht, verkeerde bronkoppelingen en echte opdrachtfouten. Een tijdelijk oude of onbeschikbare toestelbron wordt automatisch opnieuw gecontroleerd, zonder onterechte Controle afronden-knop. Analyse-export bevat nu ook effectieve read-only configuratiemappings en hun expliciet gekoppelde bronnen. Alle eerdere boiler-, paneel- en veiligheidsreparaties blijven behouden.
+Beta.53 voorkomt dat één onbeschikbaar eerder beheerd toestel de gewone opstartcontrole voor alle toestellen laat wachten. SolarPilot zet alleen dat toestel tijdelijk opzij, houdt rekening met mogelijk verbruik en hervat de overige beschikbare toestellen als de globale bronnen en veiligheidsvoorwaarden geldig zijn. Het ontbrekende toestel wordt automatisch opnieuw gecontroleerd en keert bij echte betrouwbare status terug, met behoud van deelname, prioriteit en bescherming.
 
-De test-/publicatiestatus staat in [docs/TESTRESULTATEN_BETA52.md](docs/TESTRESULTATEN_BETA52.md). De aangeleverde export bewijst een eerdere bronwacht; de live oorzaak van een toestelverbindingsstoring blijft afzonderlijk te controleren.
+De test-/publicatiestatus staat in [docs/TESTRESULTATEN_BETA53.md](docs/TESTRESULTATEN_BETA53.md). Een fysieke verbindingsstoring blijft bij de gekoppelde HA-integratie te onderzoeken; deze update verandert de softwareafhandeling van die uitval.
 
 ## 1. Vooraf
 
-- Maak een actuele volledige Home Assistant-back-up en bewaar de gecontroleerde beta.51-release voor rollback.
+- Maak een actuele volledige Home Assistant-back-up en bewaar de gecontroleerde beta.52-release voor rollback.
 - Laat een lopende beschermde afwas- of andere cyclus afwerken.
 - Gebruik bij een nieuwe installatie **Alleen bekijken** voor de eerste broncontrole. Bij bestaand actief beheer kan die modus eerst **Pauze** en veilige vrijgave vereisen. Alleen bewezen eigen coast en passende bevestigde numerieke batterijdoelen mogen worden vrijgegeven; handmatige bediening blijft beschermd.
 - Updates zijn cumulatief: bestaande Home Assistant-configuratie en lokale leerdata blijven behouden; tussenliggende beta-versies hoeven niet afzonderlijk geïnstalleerd te worden.
@@ -14,14 +14,14 @@ De test-/publicatiestatus staat in [docs/TESTRESULTATEN_BETA52.md](docs/TESTRESU
 ## 2. Via HACS installeren of upgraden
 
 1. Voeg bij een nieuwe installatie in **HACS → Custom repositories** `https://github.com/Stevenva007/solarpilot-home-assistant` toe als type **Integration**.
-2. Download of update naar exact `1.0.0-beta.52` zodra die release beschikbaar is.
+2. Download of update naar exact `1.0.0-beta.53` zodra die release beschikbaar is.
 3. Herstart Home Assistant volledig.
 4. Herlaad de webpagina. Stop op Android de Home Assistant-app volledig en open haar opnieuw; op iOS kun je de weergave naar beneden trekken om te verversen. Controleer backendversie en geladen kaart afzonderlijk. Een download of manifestnummer bewijst geen geladen kaartcode.
 5. Voeg bij een nieuwe installatie **SolarPilot** toe via **Instellingen → Apparaten & diensten** en kies je P1/netbron en optionele PV-bron.
 
 De interface verschijnt automatisch. Er is geen aparte Lovelace-resource of dashboard-YAML nodig. Bij een lokaal pakket vervang je uitsluitend `custom_components/solar_pilot`; bewaar bestaande `userfiles` en Home Assistant-opslag.
 
-Controleer bij een waarschuwing de genoemde toestelbron. **Automatische broncontrole** wacht op betrouwbaar nieuwe data en vraagt geen reset. Bij een verkeerde vereiste bronkoppeling corrigeer je die koppeling; een echte **Opdrachtfout** behoudt de bestaande gerichte controle. Zie [docs/BETA52_INSTELLEN.md](docs/BETA52_INSTELLEN.md); verwijder geen configuratie of leerdata.
+Controleer bij een waarschuwing de genoemde toestelbron. **Automatische broncontrole** wacht op betrouwbaar nieuwe data en vraagt geen reset. Bij een verkeerde vereiste bronkoppeling corrigeer je die koppeling; een echte **Opdrachtfout** behoudt de bestaande gerichte controle. Zie [docs/BETA53_INSTELLEN.md](docs/BETA53_INSTELLEN.md); verwijder geen configuratie of leerdata.
 
 ## 3. Optioneel privéprofiel
 
@@ -51,13 +51,17 @@ Een handmatig/extern OFF gezette zone blijft OFF tot je zelf AUTO kiest. Ook een
 
 Het overzicht moet de huidige benodigde respons, relevante modelzekerheid, modelstatus en werkelijk opgeslagen leeraantallen laten zien. Ontbrekende ongebruikte koelervaring mag een voldoende geleerd verwarmingspad niet blokkeren; een voorspelde behoefte aan koelrespons blijft wel echt bewijs vragen. Winter-/zomercoast blijft standaard uit en weerscontext bewijst geen actieve vraag.
 
-Behoud je huidige instellingen en leerdata. Deze update vraagt geen algemene leerreset. De eerdere bescherming van gecontroleerde fasewaarnemingen zonder bewijs van stabiele andere meters blijft gelden; geldige passieve waarnemingen, nieuwe geïsoleerde fasewaarnemingen en handmatige fasekeuzes blijven behouden. Zie [docs/BETA52_INSTELLEN.md](docs/BETA52_INSTELLEN.md) voor de volledige controle.
+Behoud je huidige instellingen en leerdata. Deze update vraagt geen algemene leerreset. De eerdere bescherming van gecontroleerde fasewaarnemingen zonder bewijs van stabiele andere meters blijft gelden; geldige passieve waarnemingen, nieuwe geïsoleerde fasewaarnemingen en handmatige fasekeuzes blijven behouden. Zie [docs/BETA53_INSTELLEN.md](docs/BETA53_INSTELLEN.md) voor de volledige controle.
 
 ## 5. Automatisch herstel na herstart
 
-SolarPilot herkent de werkelijke aan-/uittoestanden van eerder beheerde toestellen. Als een bron nog niet geladen is, controleert het die automatisch opnieuw tijdens volgende gewone regelrondes. Na herstel hervat de opgeslagen gebruikersmodus; een normale herstart vraagt geen handmatige bevestiging. Een later bewust gekozen Alleen bekijken of Pauze wordt gerespecteerd. Minimum aan-/uittijden beginnen conservatief bij de echte nieuwe waarneming.
+SolarPilot controleert eerder beheerde toestellen afzonderlijk. Bij ontbrekende, restored of onbeschikbare bediening wordt alleen dat toestel tijdelijk opzijgezet. Er volgt geen blinde OFF en onbekend verbruik wordt niet als nul gerekend. De overige beschikbare toestellen kunnen in de opgeslagen automatische modus verder zodra betrouwbare globale P1- en veiligheidsmetingen en hun eigen voorwaarden dit toelaten. Een eerste installatie zonder opgeslagen Auto-keuze blijft Alleen bekijken.
 
-Een bronwacht kan ook ontstaan nadat de herstartcontrole klaar is. Oude, ontbrekende of onbeschikbare toesteldata geeft geen opdrachtvrijgave en geen bewijs van een mislukte opdracht. SolarPilot leest automatisch opnieuw bij gewone regelrondes en verwijdert die tijdelijke wachtreden bij betrouwbaar herstel. **Controle afronden** blijft bedoeld voor een echte fout of vereiste handmatige controle, met behoud van de bestaande toestands- en veiligheidsvoorwaarden.
+Het ontbrekende toestel wordt bij volgende gewone regelrondes automatisch opnieuw gecontroleerd. Zodra echte bruikbare status terugkomt, volgt de gewone herbeoordeling: eigen ON wordt zonder nieuwe start herkend; OFF laat het oude eigendom los; een gewijzigd numeriek doel blijft handmatig beschermd. Minimum aan-/uittijden starten conservatief bij de nieuwe waarneming. Deelname en prioriteit worden niet aangepast. Een later bewust gekozen Alleen bekijken of Pauze blijft gelden.
+
+Een onbeschikbaar toestel kan nog steeds stroom gebruiken of later opnieuw gaan vragen. De P1-meting bevat werkelijk huidig verbruik al; SolarPilot houdt daarnaast een conservatieve reserve voor mogelijk niet gemeten of later toenemend verbruik. Daardoor kunnen andere lasten soms nog wachten op echte vermogensruimte. Dat is een veiligheidsbeperking, geen globale opstartblokkering door het ontbreken van één status. Echte opdrachtfouten, een onzekere START, ongeldige globale bronnen en elektrische begrenzing houden hun bestaande bescherming.
+
+Een bronwacht kan ook ontstaan na de herstart. De kaart toont een gerichte automatische controle zonder resetknop. Betrouwbaar bronherstel ruimt de wachtreden automatisch op; **Controle afronden** blijft bedoeld voor een echte fout of vereiste handmatige controle.
 
 De boilercontrole werkt afzonderlijk. Een passend eerder beheerd tankdoel wordt zonder doelwrite herkend; een routinecontrole wacht op verse temperatuur-/doel-/beschermingsbronnen. Een vóór herstart pending opdracht wordt nooit herhaald en vereist voor bevestiging een nieuwe rapportage ná herstart en de bestaande adapterwachttijd. Echte fouten, bewuste handmatige overname of gewijzigd doel blijven beschermd. Een hygiëne-/krachtige fabrikantcyclus behoudt haar doel.
 
@@ -89,6 +93,6 @@ Laat concurrerende boilerautomatiseringen uit zolang SolarPilot regelt. AEG-APP-
 
 ## 8. Uitleg en rollback
 
-De enige actuele regelbeschrijving staat in [docs/ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en in Home Assistant onder **SolarPilot → Uitleg**. De volledige upgradecontrole staat in [docs/BETA52_INSTELLEN.md](docs/BETA52_INSTELLEN.md).
+De enige actuele regelbeschrijving staat in [docs/ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en in Home Assistant onder **SolarPilot → Uitleg**. De volledige upgradecontrole staat in [docs/BETA53_INSTELLEN.md](docs/BETA53_INSTELLEN.md).
 
-Voor rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.51-release of gecontroleerde back-up herstellen → Home Assistant herstarten → webpagina/app opnieuw openen → backend/kaart en beveiligingen controleren**. Beta.51 behoudt de eerdere boiler- en paneelreparaties, maar heeft nog de onjuiste algemene foutclassificatie bij bronwacht en onvolledige analyse-export van read-only configuratiemappings. Oude release-documenten zijn historische informatie; het actuele `OVERDRACHT.md` beschrijft de huidige bron.
+Voor rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.52-release of gecontroleerde back-up herstellen → Home Assistant herstarten → webpagina/app opnieuw openen → backend/kaart en beveiligingen controleren**. Beta.52 behoudt de bronclassificatie en volledige export, maar kan bij een ontbrekende eerder beheerde status nog globaal op de herstartcontrole wachten. Oude release-documenten zijn historische informatie; het actuele `OVERDRACHT.md` beschrijft de huidige bron.

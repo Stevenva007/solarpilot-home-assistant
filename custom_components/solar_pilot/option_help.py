@@ -3,10 +3,14 @@
 Source text, not executable user configuration. See tools/update_option_help.py.
 No secrets, home-specific entity names or external URLs are embedded here.
 """
-HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de gewone SolarPilot-regeling; '
-                  'Uitgesloten houdt het daarbuiten. Dit is geen directe aan/uit-schakelaar. In '
-                  'Observatie worden geen gewone startopdrachten verstuurd; minimumtijden en beschermde '
-                  'cycli blijven gelden.',
+HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de gewone '
+                               'SolarPilot-regeling; Uitgesloten houdt het daarbuiten. Dit is geen '
+                               'directe aan/uit-schakelaar. Bij tijdelijke onbeschikbaarheid wordt '
+                               'een eerder beheerd toestel automatisch opzijgezet en na betrouwbare '
+                               'bronterugkeer opnieuw beoordeeld; de ingestelde deelname en '
+                               'prioriteit blijven behouden. Alleen bekijken en Pauze blijven '
+                               'leidend, evenals minimumtijden, beschermde cycli en echte '
+                               'opdrachtfouten.',
  'others_first': 'Globale standaard voor gewone verbruikers: Andere eerst of Wallbox eerst. Een '
                  'specifieke voorrang per toestel heeft voorrang op deze standaard. Gewoon '
                  'warmtepompcomfort heeft afzonderlijk voorrang; extra 60 °C gebruikt alleen werkelijk '
@@ -105,9 +109,10 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                      'blokkering mag nooit als toestemming worden opgevat. Test de betekenis van on/off '
                      'voordat je deze als vergrendeling gebruikt.',
  'nominal_w': 'Realistische conservatieve planningswaarde voor het toestel. Gebruik ongeveer het '
-              'werkelijk benodigde vermogen, niet bewust te laag. Een exclusieve meter kan na voldoende '
-              'leren de schatting begrensd verhogen; het ingestelde veld wordt niet vanzelf '
-              'herschreven.',
+              'werkelijk benodigde vermogen, niet bewust te laag. Bij tijdelijke onbeschikbaarheid '
+              'blijft een conservatieve reservering voor mogelijk verbruik gelden; een ontbrekende '
+              'meting is geen nul. Een exclusieve meter kan na voldoende leren de schatting '
+              'begrensd verhogen; het ingestelde veld wordt niet vanzelf herschreven.',
  'min_units': 'Kleinste bruikbare actieve instelling van de numerieke actuator. Dit kan bijvoorbeeld '
               'ampère zijn; het is niet automatisch watt. SolarPilot begint niet op een kleiner '
               'onbruikbaar doel.',

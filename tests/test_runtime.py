@@ -268,12 +268,12 @@ async def test_restart_reconciles_known_off_device_and_normal_rules_may_continue
 
 
 @pytest.mark.asyncio
-async def test_restart_unknown_device_still_requires_review_without_forcing_off():
+async def test_restart_unknown_device_is_isolated_without_forcing_off():
     r, h = build()
     h.states.set("switch.load", "unavailable")
     r.store.data = {"mode": "solar", "leases": {"a": {"watts": 1000, "name": "Testtoestel"}}, "device_modes": {"a": "auto"}}
     await r.start()
-    assert r.recovery and r.mode == "observe"
+    assert r.recovery and r.mode == "solar"
     assert not [call for call in h.services.calls if call[0] == "switch"]
 
 

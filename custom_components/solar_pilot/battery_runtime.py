@@ -356,7 +356,14 @@ class BatteryFleetManager:
         if not self.state.pending:
             await self._manual_number_changes()
         readings = self.read()
-        self.recommendation = recommend(self.settings, readings, grid_w, capacity_allowed_grid_w)
+        # Keep real P1 for discharge/peak decisions; reduce only charging room
+        # by the future commitment of devices temporarily outside control.
+        isolated_reserve = max(0.0, finite(getattr(self.runtime, "isolated_reserve_w", 0)) or 0.0)
+        allocation_settings = dict(self.settings)
+        if isolated_reserve:
+            allocation_settings["charge_reserve_w"] = (
+                float(self.settings["charge_reserve_w"]) + isolated_reserve)
+        self.recommendation = recommend(allocation_settings, readings, grid_w, capacity_allowed_grid_w)
         self.state.last_recommendation = self.recommendation.reason
         pending = self.state.pending
         if pending:

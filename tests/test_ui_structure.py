@@ -130,7 +130,7 @@ def test_device_cards_explain_start_state_and_history_always_names_both_reasons(
         "Van autoladen beschikbaar", "Zonnevermogen voor dit toestel", "solar_start_pool",
         "APP-startvraag", "ontvangen; wacht op bevestigde toestelstatus.",
         "Een lopende afwasbeurt wordt niet opnieuw gestart",
-        "Nog ongeveer", "betrouwbare actuele energiemeting", "herstartcontrole is nog bezig",
+        "Nog ongeveer", "betrouwbare actuele energiemeting", "herstartcontrole voor dit toestel is nog bezig",
         "recovery_clear", "reliable_energy_measurement", "general_increase_permission",
         "Een veiligheidscontrole houdt nieuwe starts tegen",
         "Verbinding actueel", "AEG START beschikbaar",

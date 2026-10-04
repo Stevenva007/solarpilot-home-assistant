@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0-beta.53 — 2026-10-04
+
+- Beperkt tijdelijke onbeschikbaarheid van een eerder beheerd toestel tot dat toestel. De overige beschikbare toestellen kunnen hun opgeslagen automatische modus hervatten zodra globale net- en veiligheidsbronnen geldig zijn; een ontbrekende status veroorzaakt geen blinde OFF of tweede START.
+- Behoudt de eerdere beheerinformatie en controleert automatisch opnieuw. Betrouwbare terugmelding laat het toestel vanzelf terugkeren onder de bestaande deelname, prioriteit, minimumlooptijden, handmatige moduskeuze en bescherming van lopende cycli.
+- Reserveert mogelijk onbekend of later toenemend verbruik conservatief naast het werkelijk in P1 opgenomen verbruik. Ontbrekende lastdata levert geen vrije vermogenscredit op. Echte opdrachtfouten, onzekere opdrachten en ongeldige globale bronnen blijven beschermd.
+- Behoudt actieve elektrische fasebegrenzing bij ontbrekende of ongeldige actuele fasemetingen, ook met een aangeleerde fasekaart. Alle eerdere boiler-, paneel-, export-, klimaat- en veiligheidsreparaties blijven behouden. Actuele uitleg/hulp, installatie/rollback, testverslag en overdracht worden samen bijgewerkt. De definitieve volledige suite behaalt **2671 geslaagde tests in 24.56 s**, inclusief 113 nieuwe runtime-/reserve-/fase-/UI-/statusgevallen. Syntaxcontrole van 65 Python-productiemodules, vier JSON-bestanden en beide JavaScript-bestanden is groen, evenals publieke preflight, handoff, actuele uitleg en repository-/diffcontrole. Publicatie blijft afzonderlijk: `docs/TESTRESULTATEN_BETA53.md`; geen fysieke verbindingsreparatie of live toesteltest wordt geclaimd.
+
 ## 1.0.0-beta.52 — 2026-10-04
 
 - Onderscheidt tijdelijke bronwacht van een echte opdrachtfout. Na oude, ontbrekende of onbeschikbare toesteldata toont de kaart een automatische broncontrole zonder misleidende Controle afronden-knop. Het bestaande opnieuw uitlezen en herstel blijft automatisch; verkeerde vereiste koppelingen vragen gerichte configuratiecontrole.

@@ -580,15 +580,20 @@ class DHWManager:
         target, obj = self._target()
         pv = self.runtime.pv_w
         pv = pv if pv is not None and pv >= 0 else None
-        export = min(pv, max(0, -grid - discharge)) if grid_valid and pv is not None else None
+        # P1 contains current consumption already. Only the isolated device's
+        # possible unconsumed commitment is reserved; it is never solar credit.
+        isolated_reserve = max(0.0, finite(getattr(self.runtime, "isolated_reserve_w", 0)) or 0.0)
+        export = max(0.0, min(pv, max(0, -grid - discharge)) - isolated_reserve) if grid_valid and pv is not None else None
         power, _ = self.runtime._power(self.config.get("power_entity"), self.settings["stale_s"])
         own_power = power if power is not None and power >= 0 and self.exclusive_meter() else None
-        before = (min(pv, max(0, -grid + own_power - discharge))
+        before = (max(0.0, min(pv, max(0, -grid + own_power - discharge)) - isolated_reserve)
                   if grid_valid and pv is not None and own_power is not None else None)
         capacity = getattr(self.runtime, "capacity", None)
         optional_headroom = (capacity.optional_headroom_w if capacity and capacity.enabled
                              and self.runtime.capacity_settings.get("respect_optional_dhw", True)
                              else None)
+        if optional_headroom is not None:
+            optional_headroom = max(0.0, optional_headroom - isolated_reserve)
         self.reading = DHWReading(self._temperature(), target, pv, export, before,
                                   grid if grid_valid else None, self._cooling(),
                                   bool(reason := self._protected(obj, local_now)), reason,
@@ -688,7 +693,8 @@ class DHWManager:
                 and age is not None and -5 <= age <= max_age
                 and wall_age is not None and -5 <= wall_age <= max_age)
         ev_w = power if full else 0.0
-        before_ev = (min(r.pv_w, max(0.0, -(r.grid_w or 0.0)-r.battery_discharge_w+ev_w))
+        isolated_reserve = max(0.0, finite(getattr(self.runtime, "isolated_reserve_w", 0)) or 0.0)
+        before_ev = (max(0.0, min(r.pv_w, max(0.0, -(r.grid_w or 0.0)-r.battery_discharge_w+ev_w)) - isolated_reserve)
                      if r.pv_w is not None and r.grid_w is not None else None)
         ev_idle = wb.valid and (wb.connected is False or wb.demand is False
             or (wb.status or "").casefold() in state_set(wc.get("idle_states", "")))
@@ -734,7 +740,7 @@ class DHWManager:
                 filtered_grid=getattr(self.runtime, "filtered", None),
                 pv_w=r.pv_w,
                 discharge_w=r.battery_discharge_w,
-                reserve_w=self.runtime.settings.get("reserve_w"),
+                reserve_w=(self.runtime.settings.get("reserve_w", 0) + isolated_reserve),
                 unmetered_aeg_reserve_w=getattr(
                     self.runtime, "_dishwasher_unmetered_reserve", None),
                 surplus_threshold_w=self.settings["surplus_threshold_w"],
@@ -745,7 +751,11 @@ class DHWManager:
                                 if capacity_guard else True),
                 optional_import_headroom_w=r.optional_import_headroom_w,
                 estimated_heat_power_w=self.settings["estimated_heat_power_w"],
-                states=self.runtime.states)
+                # Active preferred cycles keep their own stricter protection.
+                # Other isolated loads are covered by the explicit reserve.
+                states={i: s for i, s in self.runtime.states.items()
+                        if i not in getattr(self.runtime, "source_isolated_devices", {})
+                        or i in preference.view.active_ids | preference.view.candidate_ids})
             if not allocation.allowed:
                 r.luxury_allowed = False
                 r.luxury_reason = allocation.reason

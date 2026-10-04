@@ -235,7 +235,7 @@ async def test_invalid_active_report_waits_at_restart_then_fresh_on_is_adopted_r
         "leases": {"a": {"watts": 1000, "name": "Testtoestel"}},
     }
     await runtime.start()
-    assert "a" in runtime.recovery and runtime.mode == "observe"
+    assert "a" in runtime.recovery and runtime.mode == "solar"
     assert not runtime.states["a"].owned
 
     hass.states.set("switch.load", "on")

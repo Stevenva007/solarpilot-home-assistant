@@ -73,7 +73,7 @@ class SolarSensor(SolarEntity, SensorEntity):
         "meter_note", "learning", "profiles", "handover", "dhw", "phase_learning", "phase_attribution",
         "battery_analysis", "local_pv", "sections", "ems", "planner", "cycle_learning",
         "smart_climate", "battery_fleet", "device_management", "priority_board", "historical_phase_profile", "today", "forecast",
-        "capacity", "phase", "economy", "warnings", "advice", "legacy_conflicts", "dishwasher_setup",
+        "capacity", "phase", "economy", "warnings", "advice", "legacy_conflicts", "dishwasher_setup", "isolated_devices",
     })
 
     def __init__(self, runtime, suffix, name, device_id=None):
@@ -255,14 +255,22 @@ class SolarSensor(SolarEntity, SensorEntity):
         if self.suffix in ("wallbox_status", "wallbox_power"):
             return r.wallbox_overview()
         if self.key:
+            isolation = getattr(r, "source_isolated_devices", {}).get(self.key, {})
             return {"solar_pilot_device_id": self.key, "owned": r.states[self.key].owned,
                     "target_w": r.result.targets.get(self.key, 0), "fault": r.states[self.key].fault,
+                    "isolated": bool(isolation), "isolation_reason": isolation.get("reason", ""),
+                    "isolation_reserve_w": isolation.get("reserve_w", 0),
                     "phase": r.phase_learning.profile(self.key), "phase_hint": r.configs[self.key].get("phase_hint", "auto")}
         if self.suffix == "status":
+            isolated = [{"id": device_id, **details}
+                        for device_id, details in getattr(r, "source_isolated_devices", {}).items()]
             return {"solar_pilot": True, "mode": r.mode, "problem": r.problem,
                     "problem_kind": r.problem_kind,
                     "restart_recovery_pending": r.restart_recovery_pending,
+                    "restart_blocking": r.restart_blocking,
                     "restart_recovery_devices": [r.configs[i]["name"] for i in r.recovery],
+                    "isolated_devices": isolated,
+                    "isolated_reserve_w": round(sum(item.get("reserve_w", 0) for item in isolated), 1),
                     "grid_w": r.grid_w, "pv_w": r.pv_w, "free_w": r.result.free_w,
                     "budget_w": r.result.budget_w,
                     "budget_note": "Voorwaardelijk regelbudget; geen gemeten vrije injectie", "managed_w": round(r.managed_w, 1),

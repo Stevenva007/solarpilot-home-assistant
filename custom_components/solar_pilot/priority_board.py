@@ -260,11 +260,13 @@ class PriorityBoard:
         r = self.r
         if not finite(r.grid_w) or not finite(r.filtered):
             return
-        free = max(0.0, -max(r.grid_w, r.filtered) - r.settings["reserve_w"] - max(0, reading.battery_discharge_w or 0))
+        free = max(0.0, -max(r.grid_w, r.filtered) - r.settings["reserve_w"] - max(0, reading.battery_discharge_w or 0)
+                   - max(0.0, getattr(r, "isolated_reserve_w", 0)))
         ranks = self.ranks()
         for d in sorted(r.devices(), key=lambda x: (x.priority, x.id)):
             s = r.states[d.id]
-            if (ranks[device_key(d.id)] >= ranks[EXTRA] or s.on or not s.enabled or not s.available
+            if (d.id in getattr(r, "source_isolated_devices", {})
+                    or ranks[device_key(d.id)] >= ranks[EXTRA] or s.on or not s.enabled or not s.available
                     or not s.demand or not s.interlock or not s.cycle_armed or s.fault
                     or s.manual_until > now or now - s.last_off < d.min_off_s
                     or (s.planner_hold and not s.deadline_force) or d.kind == "dishwasher"):

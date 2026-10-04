@@ -30,7 +30,7 @@ async def test_late_switch_state_reconciles_read_only_and_resumes_saved_solar(la
     runtime.store.data = saved_lease(runtime)
 
     await runtime.start()
-    assert runtime.mode == "observe" and "a" in runtime.recovery
+    assert runtime.mode == "solar" and "a" in runtime.recovery
     assert not actuator_calls(hass)
 
     hass.states.set("switch.load", late_state)
@@ -122,7 +122,7 @@ async def test_missing_or_cached_switch_never_resolves_restart_lease(source):
         await runtime.tick()
 
     assert "a" in runtime.recovery
-    assert runtime.mode == "observe"
+    assert runtime.mode == "solar"
     assert not runtime.states["a"].owned
     assert not actuator_calls(hass)
 
@@ -140,7 +140,7 @@ async def test_solar_resume_intent_survives_second_restart_while_entity_is_missi
     second_hass.states.set("switch.load", "unavailable")
     second.store.data = interrupted
     await second.start()
-    assert second.mode == "observe" and "a" in second.recovery
+    assert second.mode == "solar" and "a" in second.recovery
 
     second_hass.states.set("switch.load", "on")
     await second.tick()
@@ -256,7 +256,7 @@ async def test_restored_number_actuator_or_setting_keeps_restart_pending(cached_
     await runtime.start()
     await runtime.tick()
 
-    assert "a" in runtime.recovery and runtime.mode == "observe"
+    assert "a" in runtime.recovery and runtime.mode == "solar"
     assert not actuator_calls(hass)
 
 

@@ -149,7 +149,7 @@ async def test_restart_wait_still_has_priority_over_transient_sources():
     hass.states.set("switch.load", "unavailable")
     await runtime.start()
     assert runtime.problem_kind == "restart_wait" and runtime.restart_recovery_pending
-    assert runtime.mode == "observe" and not physical_calls(hass)
+    assert runtime.mode == "solar" and not physical_calls(hass)
 
 
 @pytest.mark.asyncio

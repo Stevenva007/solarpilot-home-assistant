@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.52",
+  "version": "1.0.0-beta.53",
   "language": "nl",
   "steps": {
     "init": {
@@ -1428,7 +1428,7 @@
       "title": "Vast / conservatief maximaal elektrisch vermogen (W)",
       "short": "Realistische conservatieve planningswaarde voor het toestel.",
       "paragraphs": [
-        "Realistische conservatieve planningswaarde voor het toestel. Gebruik ongeveer het werkelijk benodigde vermogen, niet bewust te laag. Een exclusieve meter kan na voldoende leren de schatting begrensd verhogen; het ingestelde veld wordt niet vanzelf herschreven.",
+        "Realistische conservatieve planningswaarde voor het toestel. Gebruik ongeveer het werkelijk benodigde vermogen, niet bewust te laag. Bij tijdelijke onbeschikbaarheid blijft een conservatieve reservering voor mogelijk verbruik gelden; een ontbrekende meting is geen nul. Een exclusieve meter kan na voldoende leren de schatting begrensd verhogen; het ingestelde veld wordt niet vanzelf herschreven.",
         "Toestelvoorwaarden, fysieke terugmelding, minimumtijden en beschermde programma’s gaan vóór energie-optimalisatie.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -3789,7 +3789,7 @@
       "title": "Vast / conservatief maximaal elektrisch vermogen (W)",
       "short": "Realistische conservatieve planningswaarde voor het toestel.",
       "paragraphs": [
-        "Realistische conservatieve planningswaarde voor het toestel. Gebruik ongeveer het werkelijk benodigde vermogen, niet bewust te laag. Een exclusieve meter kan na voldoende leren de schatting begrensd verhogen; het ingestelde veld wordt niet vanzelf herschreven.",
+        "Realistische conservatieve planningswaarde voor het toestel. Gebruik ongeveer het werkelijk benodigde vermogen, niet bewust te laag. Bij tijdelijke onbeschikbaarheid blijft een conservatieve reservering voor mogelijk verbruik gelden; een ontbrekende meting is geen nul. Een exclusieve meter kan na voldoende leren de schatting begrensd verhogen; het ingestelde veld wordt niet vanzelf herschreven.",
         "Toestelvoorwaarden, fysieke terugmelding, minimumtijden en beschermde programma’s gaan vóór energie-optimalisatie. Een ingeschakelde stekker bewijst niet dat een compressor continu draait.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -5203,7 +5203,7 @@
       "title": "Automatisch / Uitgesloten",
       "short": "Automatisch laat dit toestel deelnemen aan de gewone SolarPilot-regeling; Uitgesloten houdt het daarbuiten.",
       "paragraphs": [
-        "Automatisch laat dit toestel deelnemen aan de gewone SolarPilot-regeling; Uitgesloten houdt het daarbuiten. Dit is geen directe aan/uit-schakelaar. In Observatie worden geen gewone startopdrachten verstuurd; minimumtijden en beschermde cycli blijven gelden.",
+        "Automatisch laat dit toestel deelnemen aan de gewone SolarPilot-regeling; Uitgesloten houdt het daarbuiten. Dit is geen directe aan/uit-schakelaar. Bij tijdelijke onbeschikbaarheid wordt een eerder beheerd toestel automatisch opzijgezet en na betrouwbare bronterugkeer opnieuw beoordeeld; de ingestelde deelname en prioriteit blijven behouden. Alleen bekijken en Pauze blijven leidend, evenals minimumtijden, beschermde cycli en echte opdrachtfouten.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },

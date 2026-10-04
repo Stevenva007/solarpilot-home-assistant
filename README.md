@@ -1,14 +1,23 @@
-> **Actuele bron: beta.52** — onderscheidt automatische bronwacht van echte opdrachtfouten en houdt effectieve read-only configuratie en gekoppelde bronnen in de analyse-export compleet. Alle eerdere boiler-, paneel- en veiligheidsreparaties blijven behouden. Test-/publicatiestatus: `docs/TESTRESULTATEN_BETA52.md`; de live oorzaak van een toestelverbindingsstoring blijft afzonderlijk te controleren.
+> **Actuele bron: beta.53** — een tijdelijk onbeschikbaar eerder beheerd toestel wordt afzonderlijk opzijgezet, zodat de andere beschikbare toestellen veilig kunnen worden geregeld. Betrouwbare bronterugkeer laat het toestel automatisch opnieuw deelnemen; deelname, prioriteit en bescherming blijven behouden. Test-/publicatiestatus: `docs/TESTRESULTATEN_BETA53.md`.
 
 # SolarPilot
 
 SolarPilot is a local Home Assistant Energy Management System (EMS) for PV surplus, flexible loads, Panasonic Aquarea hot-water policy, Wallbox Full Solar coexistence, phase analysis, capacity-tariff awareness, local PV/shade learning, slow thermal-climate learning, future home batteries and a unified rolling-horizon planner.
 
-De absolute codebasis is de gepubliceerde beta.51 op commit `89fbec5148a759a8b961c158d494104402419fbf`, tree `fe5b74446ee3991ed8fa478355c0307181b55bfb`. De onveranderlijke [beta.51-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.51), haar geslaagde publicatieworkflow en gecontroleerde pakketten vormen de rollbackbasis. Een softwaretest of publicatie bewijst geen geladen Home Assistant-versie of fysieke toestelactie.
+De absolute codebasis is de gepubliceerde beta.52 op commit `80402cd03b213334608d4ca0956ce662c5021216`, tree `d1cb08369429a66773ad226c2642baac86aecf46`. De onveranderlijke [beta.52-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.52), haar geslaagde publicatieworkflow en gecontroleerde pakketten vormen de rollbackbasis. Een softwaretest of publicatie bewijst geen geladen Home Assistant-versie of fysieke toestelactie.
 
 > **Updates zijn cumulatief.** Je hoeft tussenliggende beta-versies niet één voor één te installeren of publiceren. Installeer de nieuwste release over je bestaande SolarPilot-installatie; Home Assistant-configuratie en lokale leerdata blijven behouden.
 
-## Nieuw in beta.52
+## Nieuw in beta.53
+
+- Een onbeschikbaar eerder beheerd toestel wacht afzonderlijk op bruikbare status. De overige beschikbare toestellen kunnen de opgeslagen automatische modus hervatten zodra de globale net- en veiligheidsbronnen geldig zijn. Er volgt geen blinde uitschakeling van het ontbrekende toestel.
+- Het ontbrekende toestel blijft automatisch gecontroleerd worden en keert na echte betrouwbare terugmelding vanzelf terug. Eerdere beheerinformatie, deelname, prioriteit, minimumlooptijden en bescherming van lopende programma’s blijven behouden. Een later gekozen Alleen bekijken of Pauze wordt gerespecteerd.
+- Mogelijk huidig en later verbruik blijft conservatief gereserveerd. Werkelijk verbruik zit al in de P1-meting; onbekende lasten leveren geen gratis vermogen op. Echte opdrachtfouten en onzekere START-opdrachten behouden hun afzonderlijke blokkering.
+- Actieve fasebewaking behoudt de algemene elektrische begrenzing bij ontbrekende of ongeldige actuele fasemetingen, ook met een aangeleerde fasekaart. Instellingen, leerdata, boilerbeleid en volledig read-only Wallbox blijven behouden.
+
+Zie `docs/BETA53_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA53.md` en het actuele `OVERDRACHT.md`. Deze softwarewijziging repareert geen fysieke toestelverbinding.
+
+## Behouden uit beta.52
 
 - Tijdelijke oude, ontbrekende of onbeschikbare toesteldata toont **Automatische broncontrole** en wordt opnieuw uitgelezen bij gewone regelrondes. De kaart biedt hiervoor geen misleidende **Controle afronden** aan. Bronherstel geeft geen recht om een oude opdracht te herhalen.
 - Verkeerde vereiste koppelingen en echte opdrachtfouten krijgen hun eigen melding. Echte fouten, handmatige overname, minimumlooptijden, bronversheid en beschermde cycli behouden hun bestaande voorwaarden.
@@ -59,7 +68,7 @@ Zie `docs/BETA48_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA48.md` en het actuele `
 
 ## Behouden uit beta.47
 
-- Een gewone herstart wordt automatisch opnieuw gecontroleerd totdat de eerder beheerde toestelstatussen betrouwbaar zijn. Daarna hervat de opgeslagen gebruikersmodus; een tijdelijk niet geladen bron vraagt geen handmatige bevestiging.
+- Een gewone herstart blijft automatisch echte toestelstatussen controleren zonder handmatige bevestiging. De actuele individuele bescherming van een tijdelijk onbeschikbaar toestel staat bij beta.53; opgeslagen gebruikersintentie en betrouwbare status blijven leidend.
 - De oorspronkelijke hervatkeuze blijft bewaard over tussentijdse opslag of een volgende herstart. Een bewuste latere keuze voor Alleen bekijken of Pauze vervangt die keuze. Minimum aan-/uittijden starten bij de nieuwe echte waarneming.
 - De boiler controleert temperatuur, doel en beschermingsbronnen automatisch zonder oude doelopdracht te herhalen. Een routinecontrole wacht modulelokaal; echte fout, handmatige overname of gewijzigd doel blijft beschermd. Een pending boileropdracht vereist een nieuwe rapportage ná herstart en de bestaande adapterwachttijd.
 - Een afwasmachine met onzekere eerdere START krijgt nooit een tweede START. Alleen een nieuwe betrouwbare lopende of voltooide fase-terugmelding van ná die START kan de specifieke herstartonzekerheid automatisch oplossen; een oude Washing/Finished-stand niet. Andere fouten blijven behouden.
@@ -90,7 +99,7 @@ Zie `docs/BETA46_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA46.md` en het actuele `
 
 Beta.44-publicatie, pakketcontrole en geladen versie staan in `docs/BETA44_INSTELLEN.md` en `docs/TESTRESULTATEN_BETA44.md`; uitleg-hash `65b54c9797e55bb4` hoort bij die historische softwaregate. [Beta.44-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.44). Bestaande tags en release-assets blijven onveranderlijk.
 
-## Current DHW policy (beta.52)
+## Current DHW policy (beta.53)
 
 For Panasonic K T-CAP models, Powerful is **not automatically used as a tank boost**: Panasonic service manual PAPAMY2310071CE §14.11 describes space-heating water-target shifts, not a DHW boost. The separate installer setting DHW capacity is not changed. [Panasonic-original service manual](https://paltaja.lt/wp-content/uploads/panasonic-k-t-cap-manual.pdf).
 
@@ -161,7 +170,7 @@ A private bundle is optional. Place exactly one local file at:
 /config/custom_components/solar_pilot/userfiles/private_bundle.json
 ```
 
-Then open **SolarPilot → Configure → Advanced & system → Private profile & history** and apply/reload it. The importer only fills still-empty links to Home Assistant entities that actually exist. Monitoring/advisory modules may be enabled with safe defaults, but physical climate control, phase shedding and DHW control remain explicitly protected. A first setup starts in **Alleen bekijken**. On ordinary restart the stored mode resumes only after actual-state reconciliation; unresolved states remain protected. See `IMPORT_PRIVATE_BUNDLE.md`.
+Then open **SolarPilot → Configure → Advanced & system → Private profile & history** and apply/reload it. The importer only fills still-empty links to Home Assistant entities that actually exist. Monitoring/advisory modules may be enabled with safe defaults, but physical climate control, phase shedding and DHW control remain explicitly protected. A first setup starts in **Alleen bekijken**. On ordinary restart actual-state reconciliation protects each unresolved device separately; valid global measurements and all remaining guards are still required before the stored automatic mode can regulate the other devices. See `IMPORT_PRIVATE_BUNDLE.md`.
 
 ## Safe removal
 

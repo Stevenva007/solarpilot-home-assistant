@@ -162,9 +162,7 @@ async def test_estimated_meter_metadata_stays_qualified_in_runtime_and_value(att
         assert report['today']['estimated_benefit_eur'] in (None, 0)
         assert not any(row.get('automatic', {}).get('managed_kwh', 0) > 0
                        for row in runtime.savings_history.records.values())
-        assert hass.services.calls == [
-            ('switch', 'turn_off', {'entity_id': 'switch.load'}),
-        ]
+        assert hass.services.calls == []  # Bad source is locally isolated; no blind STOP.
     else:
         assert report['today']['power_estimated'] is estimated
         assert hass.services.calls == []
