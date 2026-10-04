@@ -127,6 +127,7 @@ class SolarRuntime:
         self.data_loaded = False
         self.energy_estimated = False
         self.problem = ""
+        self.problem_kind = ""
         self.last_tick = time.monotonic()
         self.runtime_day = ""
         self.last_issued = -1e12
@@ -562,6 +563,30 @@ class SolarRuntime:
     @property
     def restart_recovery_pending(self):
         return bool(self.recovery) and not self._restart_faults and not self.faults
+
+    def _owned_source_problem(self):
+        """Describe derived source guards separately from durable command faults.
+
+        These guards are re-evaluated by _observe every round. Resetting the
+        command journal cannot repair an unavailable state or power report.
+        """
+        descriptions = []
+        configuration = False
+        for device_id, st in self.states.items():
+            if not st.owned or device_id in self.faults or (st.available and not st.fault):
+                continue
+            reasons = []
+            if not st.available:
+                reasons.append("toestelstatus of regelaarwaarde ontbreekt of is onbruikbaar")
+            if st.fault:
+                reasons.append(st.fault)
+                configuration |= st.fault != "Vermogensmeting onbetrouwbaar"
+            descriptions.append(self.configs[device_id]["name"] + ": " + "; ".join(reasons))
+        if not descriptions:
+            return "", ""
+        if configuration:
+            return "source_configuration", "Controleer de gekoppelde toestelbronnen en instellingen — " + " · ".join(descriptions)
+        return "source_wait", "Wacht automatisch op betrouwbare toestelgegevens — " + " · ".join(descriptions)
 
     def _reconcile_restart_lease(self, device_id, lease, now):
         """Adopt a durable lease from current evidence; never issue a command."""
@@ -1975,6 +2000,7 @@ class SolarRuntime:
             except Exception:
                 _LOGGER.exception("SolarPilot regelcyclus gestopt door fout")
                 self.problem = "Interne fout: regeling gepauzeerd; controleer het Home Assistant-logboek"
+                self.problem_kind = "internal_fault"
                 self.mode = "paused"
                 self.restart_requested_mode = None
             try:
@@ -2274,12 +2300,21 @@ class SolarRuntime:
         if now - self.energy_saved_at >= 300:
             self.energy_saved_at = now
             self.store.async_delay_save(self._snapshot, 1)
-        self.problem = (("Herstartcontrole: wacht automatisch op toestelstatus — "
-                         + ", ".join(self.configs[i]["name"] for i in self.recovery))
-                        if self.restart_recovery_pending else
-                        "Herstartcontrole vereist" if self.recovery else
-                        "Opdrachtfout: handmatige controle nodig" if ambiguous else
-                        "Net- of batterijmeting ontbreekt, is te oud of heeft een verkeerde eenheid" if not valid else "")
+        self.problem_kind = ""
+        if self.restart_recovery_pending:
+            self.problem_kind = "restart_wait"
+            self.problem = ("Herstartcontrole: wacht automatisch op toestelstatus — "
+                            + ", ".join(self.configs[i]["name"] for i in self.recovery))
+        elif self.recovery:
+            self.problem_kind = "restart_review"
+            self.problem = "Herstartcontrole vereist"
+        elif self.faults:
+            self.problem_kind = "command_fault"
+            self.problem = "Opdrachtfout: handmatige controle nodig"
+        else:
+            self.problem_kind, self.problem = self._owned_source_problem()
+            if not self.problem and not valid:
+                self.problem = "Net- of batterijmeting ontbreekt, is te oud of heeft een verkeerde eenheid"
         if not self.problem and wb.state == "unavailable":
             self.problem = wb.reason
         if not self.problem and self.reclaim_blocks:
@@ -2649,6 +2684,10 @@ class SolarRuntime:
             if self.pending:
                 raise HomeAssistantError("Wacht eerst op de lopende opdracht")
             ids = set(self.recovery) | set(self.faults) | set(self.reclaim_blocks) | set(self.dishwasher_priority.ev_blocks)
+            if not ids and self.problem_kind in ("source_wait", "source_configuration"):
+                # A stale page or direct button call must not claim all devices
+                # were verified OFF when only a derived source guard exists.
+                raise HomeAssistantError(self.problem)
             not_off = [self.configs[i]["name"] if i in self.configs else i for i in ids
                        if i not in self.configs or self._active(self.configs[i]) is not False]
             if not_off:

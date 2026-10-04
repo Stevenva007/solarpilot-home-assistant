@@ -1,10 +1,10 @@
 <!-- solarpilot-handoff-schema: 1 -->
-<!-- solarpilot-handoff-version: 1.0.0-beta.51 -->
+<!-- solarpilot-handoff-version: 1.0.0-beta.52 -->
 
 # OVERDRACHT — SolarPilot
 
 Laatst bijgewerkt: **4 oktober 2026**
-Actuele ontwikkelde bron: **v1.0.0-beta.51**, op gepubliceerde beta.50-commit `5348ecaedd75326debc3b60764ab711882adf446`. Deze release laat paneel en automatisch beschikbare kaart via dezelfde module-route laden en voorkomt dubbele eigen kaartcatalogusitems. Alle beta.50-boilerstabiliteit, opdrachtrust, uitvoeringswachtreden, instellingen, geldige leerdata en eerdere veiligheidsregels blijven behouden. De software-/publicatiestatus staat in `docs/TESTRESULTATEN_BETA51.md`. De specifieke live oorzaak van de aangeleverde laadmelding, geladen beta.51-appkaart en fysieke toestelrespons zijn hier niet vastgesteld. Dit dossier beschrijft de actuele werking; releasehistoriek staat in `CHANGELOG.md`, Git en oudere releasedocumenten.
+Actuele ontwikkelde bron: **v1.0.0-beta.52**, op gepubliceerde beta.51-commit `89fbec5148a759a8b961c158d494104402419fbf`, tree `fe5b74446ee3991ed8fa478355c0307181b55bfb`. Deze release onderscheidt tijdelijke bronwacht, verkeerde vereiste bronkoppelingen en echte opdrachtfouten; read-only configuratiemappings en expliciete entiteitsbronnen worden volledig opgenomen in de analyse-export. Alle eerdere boiler-, paneel-, actuator- en veiligheidsreparaties, instellingen en geldige leerdata blijven behouden. De software-/publicatiestatus staat in `docs/TESTRESULTATEN_BETA52.md`. De gebruikersbeelden tonen een geopende beta.51-interface, maar bewijzen geen fysieke opdrachtrespons of oorzaak van de toestelverbindingsstoring. Dit dossier beschrijft de actuele werking; releasehistoriek staat in `CHANGELOG.md`, Git en oudere releasedocumenten.
 
 ## 1. Projectdoel in gewone taal
 
@@ -12,7 +12,7 @@ SolarPilot verdeelt zonnestroom tussen autonoom autoladen, warmtepomp/tapwater e
 
 ## 2. Actuele basis
 
-De absolute codebasis is gepubliceerde beta.50 op commit `5348ecaedd75326debc3b60764ab711882adf446`, tree `e67da41e0928a25b73893216edf34be6ff0ce5bc`. De onveranderlijke [beta.50-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.50) en haar werkelijk geslaagde publicatie-/pakketverificatie zijn de rollbackbasis. Gebruik geen oudere export als ontwikkelbasis.
+De absolute codebasis is gepubliceerde beta.51 op commit `89fbec5148a759a8b961c158d494104402419fbf`, tree `fe5b74446ee3991ed8fa478355c0307181b55bfb`. De onveranderlijke [beta.51-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.51) en haar werkelijk geslaagde publicatie-/pakketverificatie zijn de rollbackbasis. Gebruik geen oudere export als ontwikkelbasis.
 Beta.46 verandert de voorrang tussen klimaatbewijs en algemene taakinfo voor de optionele warmwaterbuffer. De exact geregistreerde native `aquarea`-klimaatactie is leidend wanneer zij actueel en betrouwbaar is. De oudere `panasonic_cc`-AUTO-ambiguïteit blijft beschermd. De beta.45-vertraagde tankdoelbevestiging blijft intact: exact `aquarea`/`panasonic_cc`, minstens tien seconden en een passende nieuwe HA-rapportage; geen onmiddellijke optimistische echo. Een eerdere ACK of geladen versienummer bewijst geen nieuwe latere ACK of fysieke opwarming.
 
 In deze werksessie is geen live Home Assistant-toegang. Softwaregate, GitHub-publicatie, pakketten, HACS-bestanden, geladen backend/kaart, doelbevestiging en fysieke opwarming zijn afzonderlijke bewijslagen. Bestaande gebruikersinstellingen, geldige leerdata, toestellen en prioriteiten blijven behouden. Alleen ongeldige opgeslagen leerregels en oudere gecontroleerde fasewaarnemingen zonder isolatiebewijs worden gericht niet hergebruikt; geen algemene leerreset.
@@ -63,7 +63,7 @@ Ontbrekende, restored of onbeschikbare status laat de herstartcontrole wachten e
 
 Alleen oudere opslag zonder `restart_requested_mode`, in Observe en zonder echte fout/manual hold/needs_review kan de verloren Auto-keuze éénmalig herstellen: er moet een onderbroken lease van een bekend, geconfigureerd Auto-toestel of een schoon routine-DHW-hersteljournal bestaan. Een nieuw opgeslagen veld, inclusief null, voorkomt latere afleiding bij bewuste gebruikersmodus. Gewone eerste installatie zonder onderbroken beheer blijft Alleen bekijken.
 
-Voor AEG wordt een onzekere eerdere START niet herhaald. Alleen een nieuwe betrouwbare lopende of voltooide fase-terugmelding van ná START kan de specifiek gemarkeerde herstartonzekerheid oplossen; een oude Washing/Finished-stand, Idle of onduidelijkheid blijft beschermd. Een bevestigde lopende of voltooide AEG-cyclus verbruikt ook de bestaande APP-aanvraag; later Idle kan die oude belading niet herarmen. Andere fouten blijven bewaard en vereisen hun bestaande controle. Nieuwe beta.47-routineherstelmeldingen worden na geslaagd herstel automatisch opgeruimd zonder algemene foutmeldingen weg te vegen. Een oude beta.46-melding kan cosmetisch blijven staan; zij is zelf geen regelblokkering en mag na bevestigd herstel gesloten worden. Het overzicht toont tijdens gewone bronwacht **Automatische herstartcontrole** met automatische wachtreden, zonder resetknop. Alleen `restart_recovery_pending=true` verbergt die bediening; echte fouten/START-onzekerheid behouden hun waarschuwing en controle.
+Voor AEG wordt een onzekere eerdere START niet herhaald. Alleen een nieuwe betrouwbare lopende of voltooide fase-terugmelding van ná START kan de specifiek gemarkeerde herstartonzekerheid oplossen; een oude Washing/Finished-stand, Idle of onduidelijkheid blijft beschermd. Een bevestigde lopende of voltooide AEG-cyclus verbruikt ook de bestaande APP-aanvraag; later Idle kan die oude belading niet herarmen. Andere fouten blijven bewaard en vereisen hun bestaande controle. Nieuwe beta.47-routineherstelmeldingen worden na geslaagd herstel automatisch opgeruimd zonder algemene foutmeldingen weg te vegen. Een oude beta.46-melding kan cosmetisch blijven staan; zij is zelf geen regelblokkering en mag na bevestigd herstel gesloten worden. Het overzicht toont tijdens gewone bronwacht **Automatische herstartcontrole** met automatische wachtreden, zonder resetknop. `restart_recovery_pending=true` behoudt deze aparte herstartmelding. `problem_kind=source_wait` toont bij latere tijdelijke bronuitval **Automatische broncontrole** zonder resetknop; `source_configuration` toont **Toestelgegevens controleren** met gerichte configuratie-instructie. Echte `command_fault` en onbekende/legacy foutsoorten houden **Aandacht nodig** en de bestaande gerichte controle. De backend-resetvoorwaarden blijven ongewijzigd; een onbekende of nog actieve betrokken last wordt hierdoor niet vrijgegeven.
 
 De boiler heeft een read-only `restart_recovery`-journal dat een gewone same-binding herstart automatisch afwerkt. Het doel, de tankmeting, bronversheid en handmatige/hygiënebronnen moeten bruikbaar zijn. Een passend beheerd doel wordt zonder doelwrite herkend. Een pending opdracht wordt niet opnieuw verstuurd en vereist een nieuwe rapportage ná de actuele herstart en ná de bestaande adapterwachttijd. Een veranderd doel wordt manual hold; echte fout of bewuste handmatige overname blijft beschermd. Fabrikantsterilisatie, krachtige bediening en native OFF behouden hun doel zonder SolarPilot-write. Routine-DHW-herstel wacht modulelokaal en geeft geen blijvende globale herstartblokkering. `restart_recovery_pending/reason` maken dit zichtbaar; een echte `needs_review` blijft afzonderlijk. Een open boilerjournal telt als busy bij veilig verwijderen, zodat onduidelijk herstel niet als vrijgegeven wordt getoond.
 
@@ -121,6 +121,14 @@ Een expliciete effectieve-sessiebron onderscheidt zonne-auto laden/wachten, manu
 
 De read-only historie bewaart maximaal dertig laadperioden. Native stopreden wordt alleen aan een aantoonbaar nieuwe tijdgecorreleerde rapportage gekoppeld; gaten/herstarts/oud bewijs blijven onbekend. Geen start/stop/modus-/stroom-/faseopdracht.
 
+### Bronwacht en analyseconfiguratie
+
+Een tijdelijke ongeldige of oude rapportage is geen aangetoonde opdrachtfout. De normale regelrondes herlezen de bron; betrouwbare terugmelding kan de bronwacht oplossen zonder reset. Een verkeerde of ontbrekende vereiste koppeling is een configuratieprobleem. Echte opgeslagen opdrachtfouten, manual hold en pending/onzekere opdrachten behouden hun bestaande levenscyclus. `problem_kind` wordt ook via de statussensor en snelle analysepunten beschikbaar; laatstgenoemde bewaren de actuele probleemreden en probleemsoort. Een bronwachtclassificatie wist geen fout of veiligheidsvoorwaarde. De 120 seconden bronversheid, echte opdrachtbevestiging, minimumlooptijden en beschermde programma's blijven ongewijzigd.
+
+Bij een directe reset zonder foutjournal of herstelcontrole maar met een afgeleid bronprobleem geeft de backend de actuele wacht-/configuratiereden. Hij meldt geen geslaagde alles-uit-reset en wist geen journal. Echte resetrecords en hun bestaande voorwaarden blijven behouden; geen fysieke opdracht wordt toegevoegd.
+
+De analyseconfiguratie ondersteunt gewone dictionaries én read-only mappings (`MappingProxyType` via `Mapping`). De entiteitsverwijzingen worden recursief uit dezelfde effectieve mapping gelezen; expliciete gekoppelde bronnen gaan nog steeds vóór extra relevante/forecastbronnen en de bestaande bronlimiet blijft gelden. Privacyfiltering, pseudonimisering, camera/person/tracker/slot/media-uitsluiting en ontbreken-labels blijven intact. Bronselectie is geen nieuwe fysieke vrijgave. Een eerdere export die configuratie als niet-ondersteund markeert kan diagnose-informatie missen en bewijst geen afwezigheid van die echte koppelingen.
+
 ## 5. Configuratie, integraties en belangrijke entiteiten
 
 Generieke bronnen: Home Assistant, P1/HomeWizard, PV/Forecast.Solar, Panasonic Aquarea, Wallbox, flexibele toestellen en toekomstige batterijprofielen. Exacte entity_ids en apparaatidentiteiten altijd uit actuele lokale configuratie lezen en nooit publiek hardcoden.
@@ -163,19 +171,17 @@ Nooit wachtwoorden, tokens, API-sleutels, private keys, exacte adressen, ruwe pr
 
 ## 9. Testprocedure + actuele teststatus
 
-De definitieve volledige beta.51-suite behaalt **2521 geslaagde tests in 18.76 s**, nul fouten en nul overgeslagen tests, met Python 3.12.14. De tien nieuwe gevallen en alle behouden beta.50-regressies zijn hierin werkelijk uitgevoerd. Python-bronsyntax van 65 productiemodules, JSON-syntax van vier bestanden en beide JavaScript-syntaxcontroles zijn geslaagd. Publieke preflight, handoff, actuele uitleg (hash `7f0c9817f8b1c53a`), repositoryvalidatie en diffcontrole zijn groen. Het offline `SolarPilot-voorbeeld.html` is opnieuw opgebouwd met fictieve gegevens, zonder HA-contact of toestelopdracht. Volledig verslag: `docs/TESTRESULTATEN_BETA51.md`.
+De definitieve volledige beta.52-suite behaalt **2558 geslaagde tests in 22.09 s**, nul fouten en nul overgeslagen tests, met Python 3.12.14. Alle behouden boiler-, herstart-, paneel- en veiligheidsgevallen en de 37 nieuwe bronclassificatie-/UI-/mappinggevallen zijn werkelijk uitgevoerd. Python-bronsyntax van 65 productiemodules, JSON-syntax van vier bestanden en beide JavaScript-syntaxcontroles zijn geslaagd. Actuele uitleg/hash: `84be3bf69de3232c`, optiehulp 432 velden. Publieke preflight, handoff, actuele uitleg, repositoryvalidatie en diffcontrole zijn groen. Het offline `SolarPilot-voorbeeld.html` is uit beta.52 opgebouwd met fictieve gegevens, zonder HA-contact of toestelopdracht. Volledig verslag: `docs/TESTRESULTATEN_BETA52.md`.
 
-Vijf nieuwe Node-gevallen evalueren de werkelijke kaartbron als ES module met DOM-doubles, inclusief herhaalde module-evaluatie, volgende URL, legacy classic gevolgd door module en gericht opruimen van eigen bestaande catalogusduplicaten. Zij bewaken enkelvoudige custom-elementregistratie, behoud van de gedeelde catalogusarray en vreemde kaarten, directe HA-paneelproperties zonder Lovelace-setConfig, verbinden/loskoppelen van listeners en nul fysieke serviceaanroepen. Vijf frontendregistratie-/static-path-contractgevallen controleren de Python-route afzonderlijk. Alle beta.50-boiler-, UI- en veiligheidsregressies blijven behouden.
-
-Geen live Home Assistant-toegang, geladen beta.51-appkaart of fysieke toestelrespons in deze werksessie. Volledige browserproeven zijn niet opnieuw uitgevoerd. Node DOM-doubles en registratiecontracten bewijzen geen werkelijke browser-HTTP-levering, WebView-cache of specifieke oorzaak van de laadmelding. Publicatie en pakketverificatie blijven afzonderlijke bewijslagen; hun controle staat bij de onveranderlijke GitHub-release en workflow.
+Geen live Home Assistant-toegang of fysieke toestelactie in deze werksessie. Gebruikersbeelden tonen de beta.51-interface. Tests met HA-API-/DOM-doubles bewijzen softwaregedrag; zij bewijzen geen fysieke Shelly-verbinding, browser-HTTP-levering of nieuwe installatieacceptatie. Publicatie en pakketverificatie blijven afzonderlijke bewijslagen bij de onveranderlijke GitHub-release en workflow.
 
 ## 10. Bekende problemen / beperkingen
 
-- De aangeleverde beta.50-laadmelding toont de geweigerde paneellading, maar geen exacte HTTP-status, bestandsinhoud of WebView-fout. Loader-/registratiefouten zijn afzonderlijk softwarematig bewezen; live verdwijnen van de melding is niet vastgesteld. De behouden beta.50-boilerreparatie blijft onder regressiecontrole, zonder nieuwe fysieke opwarmclaim.
+- De eerdere beta.51-export toont tijdelijke ontbrekende toesteldata zonder opgeslagen opdrachtfout/pending opdracht. De configuratie-/bronselectiefout maakte die export onvolledig. De fysieke verbindingsstoring en de oorzaak van een later screenshot zijn daarmee niet vastgesteld. De gebruikersbeelden tonen inmiddels een geopende beta.51-interface; geen nieuwe fysieke opwarmclaim.
 - Een actuele native idle/off-actie geeft geen fysieke compressor- of tankenergiegarantie; `PUMP/WATER` meldt slechts een taak.
-- Latere HA/cloud-doelrapportage is geen onafhankelijke fysieke ACK. Een nieuwe natuurlijke latere doelbevestiging en tankopwarming blijven installatieacceptatie.
+- Latere HA/cloud-doelrapportage is geen onafhankelijke fysieke ACK. Een natuurlijke latere doelbevestiging en tankopwarming blijven installatieacceptatie.
 - De oudere `panasonic_cc` AUTO/HEAT_COOL-mapping blijft zonder expliciete actuele taakinfo ambigu.
-- Geen browsergate of live herstart-/klimaat-/koelroute in deze werksessie bevestigd; geen fysieke beta.51-acceptatie.
+- Geen browsergate of live herstart-/klimaat-/koelroute in deze werksessie bevestigd; geen fysieke beta.52-acceptatie.
 - Een 50 °C-doel met -5 °C-differentie kan 46 °C niet garanderen; het profiel is geen hygiënegarantie.
 - Zonder exclusieve afwas-/tankmeter blijven vermogen en programmafasen conservatief geschat; geen fictieve gemeten cycli.
 - Onvolledige/ambigue AEG-mapping en een bewust onbetrouwbare alarmbron blijven fail-closed. De retry eindigt na tien minuten.
@@ -183,8 +189,8 @@ Geen live Home Assistant-toegang, geladen beta.51-appkaart of fysieke toestelres
 
 ## 11. Concrete openstaande ontwikkeling
 
-- Beta.50-publicatie en beide pakketten zijn werkelijk gecontroleerd. Gebruik voor de afzonderlijke beta.51-publicatie-/pakketcontrole de exacte onveranderlijke tag, GitHub-release en Validate-workflow; hun actuele bewijs staat daar. Een eerdere releasecontrole bewijst geen latere publicatie.
-- Gebruiker installeert beta.51, herstart HA en opent de frontend opnieuw. Controleer backend/kaart en paneel afzonderlijk; blijft de melding bestaan, lees werkelijk kaartantwoord en clientfout uit. Automatisch routineherstel, afzonderlijke boilerwachttijden en native klimaatactie behouden hun bestaande acceptatiecontrole. In deze werksessie is geen live HA-toegang.
+- Beta.51-publicatie, alle vier workflowjobs en beide pakketten zijn werkelijk gecontroleerd: workflow `37210746110`, HACS-archief 311 bestanden, lokaal pakket 112 bestanden, inhoud en SHA-256 tegen de exacte tag gecontroleerd. De afzonderlijke beta.52-publicatie-/pakketcontrole gebruikt de exacte onveranderlijke tag, GitHub-release en Validate-workflow; een eerdere releasecontrole bewijst geen latere publicatie.
+- Gebruiker installeert beta.52, herstart HA en opent de frontend opnieuw. Controleer dat tijdelijke toestelbronuitval een automatische broncontrole geeft, bronherstel die reden automatisch opruimt en echte opdrachtfouten hun bestaande controle behouden. Onderzoek een blijvende toestelverbindingsstoring via de gekoppelde HA-integratie en een nieuwe volledige export; geen opdracht forceren. In deze werksessie is geen live HA-toegang.
 - Observeer een volgende natuurlijke toegestane doelopdracht met passende latere rapportage en werkelijke tankrespons; forceer geen doel, Powerful, APP-aanvraag of START voor bewijs.
 - Eventueel de veertien browsercontroles later opnieuw uitvoeren in een omgeving met Chromium.
 - Exclusieve Shelly-afwasmeting toevoegen wanneer hardware beschikbaar is; tot dan fasen/energie niet verzinnen.
@@ -192,37 +198,38 @@ Geen live Home Assistant-toegang, geladen beta.51-appkaart of fysieke toestelres
 
 ## 12. Installatie/upgrade en rollback
 
-Zie `START_HIER.md` en `docs/BETA51_INSTELLEN.md`: actuele volledige back-up, beschermde cyclus afwerken, exact beta.51 via HACS/lokaal pakket, volledige HA-herstart, webpagina/app opnieuw openen, backend én geladen kaart/paneel controleren, bron-/reviewcontrole in Alleen bekijken/Pauze en pas daarna gewone regeling hervatten. Bestaande instellingen, leerdata, APP-tickets en `userfiles` blijven behouden. Een gewone herstartcontrole rondt automatisch af; echte manual hold/fout of gewijzigd doel wordt niet automatisch gewist.
+Zie `START_HIER.md` en `docs/BETA52_INSTELLEN.md`: actuele volledige back-up, beschermde cyclus afwerken, exact beta.52 via HACS/lokaal pakket, volledige HA-herstart, webpagina/app opnieuw openen, backend én geladen kaart/paneel controleren, bron-/reviewcontrole in Alleen bekijken/Pauze en pas daarna gewone regeling hervatten. Bestaande instellingen, leerdata, APP-tickets en `userfiles` blijven behouden. Een gewone herstartcontrole rondt automatisch af; echte manual hold/fout of gewijzigd doel wordt niet automatisch gewist.
 
-Rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.50 of gecontroleerde volledige back-up herstellen → Home Assistant herstart → webpagina/app opnieuw openen → backend/kaart, eigendom, bronnen en beveiligingen controleren**. Beta.50 behoudt de boilerreparatie en eerdere veiligheidsregels, maar bevat nog de klassieke/module-loadercombinatie en mogelijke dubbele eigen catalogusitems die beta.51 herstelt. Geen STOPRESET vanuit SolarPilot, extra APP-aanvraag, Powerful of Wallbox-opdracht om upgrade/rollback te forceren.
+Rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.51 of gecontroleerde volledige back-up herstellen → Home Assistant herstart → webpagina/app opnieuw openen → backend/kaart, eigendom, bronnen en beveiligingen controleren**. Beta.51 behoudt de eerdere boiler- en paneelreparaties, maar heeft nog de onjuiste algemene foutclassificatie bij bronwacht en onvolledige analyse-export van read-only configuratiemappings. Geen STOPRESET vanuit SolarPilot, extra APP-aanvraag, Powerful of Wallbox-opdracht om upgrade/rollback te forceren.
 
 ## 13. Belangrijkste bestanden
 
 - `frontend.py`, `frontend/solar-pilot-card.js`: gebundelde static-path-, module-/paneelregistratie, eigen kaartcatalogus en rendercode.
 - `dhw.py`, `dhw_runtime.py`: klimaat-/koel-/doelbeleid, eigendom, veilige terugval en ACK.
-- `runtime.py`: bronregistratie/versheid, fysieke commandoroute, DHW-Hervat en begrensde leerreset.
+- `runtime.py`: bronregistratie/versheid, expliciete bronwacht/configuratie-/opdrachtfoutclassificatie, fysieke commandoroute, DHW-Hervat en begrensde leerreset.
+- `analysis_export.py`, `entity_refs.py`: effectieve read-only configuratiemappings, relevante expliciete bronverwijzingen en privacybehoud in de analyse-export.
 - `heatpump_learning.py`, `thermal_climate.py`, `thermal_runtime.py`: taak-/responsleren en eigendom per klimaatzone.
 - `dishwasher.py`, `dishwasher_app.py`, `dishwasher_recovery.py`: native startveiligheid, APP-ticket, deadlines, einde en begrensde recovery.
 - `priority_board.py`, `wallbox_policy.py`, `wallbox_activity.py`: centrale voorrang, read-only sessiebeleid en begrensde waarnemingshistoriek.
 - `savings.py`, planner/PV/fasemodules: schattingen, dekking en begrensd lokaal leren.
 - `current_guide.py`, `option_help.py`, translations en gegenereerde uitleg/help: één releasegebonden gebruikersbeschrijving.
 - `tests/`, `tools/check_*.py`, `tools/validate_repository.py`: regressies, consistentie en openbare releasechecks.
-- `CHANGELOG.md`, `START_HIER.md`, `docs/BETA51_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA51.md` en dit dossier: huidige release; oudere releasedocumenten blijven historie.
+- `CHANGELOG.md`, `START_HIER.md`, `docs/BETA52_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA52.md` en dit dossier: huidige release; oudere releasedocumenten blijven historie.
 
 ## 14. Release-checklist
 
-1. Actuele handoff lezen en absolute gepubliceerde beta.50-basis bevestigen.
-2. Manifest, const, current guide en beide frontendversies gelijk aan beta.51 houden.
+1. Actuele handoff lezen en absolute gepubliceerde beta.51-basis bevestigen.
+2. Manifest, const, current guide en beide frontendversies gelijk aan beta.52 houden.
 3. Actuele uitleg/optiehulp genereren en alle relevante lokale gates uitvoeren; werkelijke beperkingen opnemen.
 4. Code, changelog, gebruikersuitleg, installatie/rollback, testverslag en OVERDRACHT samen actualiseren.
 5. Publieke preflight en diffcontrole groen; geen caches/private data in commit/pakket.
-6. Alleen na geslaagde gate naar de bestaande repository uploaden. Nieuwe beta.51-tag/workflow/release; oude tags en assets onveranderd laten.
+6. Alleen na geslaagde gate naar de bestaande repository uploaden. Nieuwe beta.52-tag/workflow/release; oude tags en assets onveranderd laten.
 7. Beide gepubliceerde ZIP's downloaden, inhoud tegen exact tag vergelijken en werkelijke grootte/SHA-256 vastleggen.
 8. Publicatie niet gelijkstellen aan HACS-installatie, geladen backend/kaart, ACK of fysieke opwarming.
 
 ## 15. AI-handoff
 
-Werk voort op gepubliceerde beta.50-commit `5348ecaedd75326debc3b60764ab711882adf446` en de hier ontwikkelde beta.51. De gebruiker heeft de herstelling én upload naar de bestaande GitHub-repository na testen uitdrukkelijk gevraagd. Vraag geen herhaalde uploadtoestemming; voltooi eerst de softwaregate en pakket-/documentconsistentie.
+Werk voort op gepubliceerde beta.51-commit `89fbec5148a759a8b961c158d494104402419fbf` en de hier ontwikkelde beta.52. De gebruiker heeft de herstelling én upload naar de bestaande GitHub-repository na testen uitdrukkelijk gevraagd. Vraag geen herhaalde uploadtoestemming; voltooi eerst de softwaregate en pakket-/documentconsistentie.
 
 Beta.51 behoudt alle beta.50-regels voor boilerstabiliteit/opdrachtrust, manual OFF, geen onzekere opdrachtreplay, relevante modelzekerheid, batterij-/P1-serialisatie, forecast-/DST-/replaybewijs, exportstructuur en levenscyclus-/opslagveiligheid. De paneelregistratie gebruikt module_url gelijk aan de extra kaartmodule; eigen catalogusitems blijven idempotent, andere integraties behouden hun catalogus. Een loader-/registratiereparatie bewijst niet de specifieke live HTTP-/WebView-oorzaak van een screenshotmelding. De boilerstabiliteitskandidaat blijft geldig tijdens de bestaande opdrachtrust zolang actuele voorwaarden blijven passen; een onuitgevoerd voorstel krijgt geen eigendoms-/hystereserechten. Verlies van geldig zonnebewijs, echte koeling en meetgaten blijven beschermd. Toon de actuele uitvoeringswachtreden bij het gemelde doel; gunstig beleidsadvies mag haar niet verbergen, zonder extra fysieke toestemming of kortere interval. Geen algemene datareset, verruimde actuatortoestemming of fysieke ACK claimen.
 
@@ -230,4 +237,4 @@ De behouden beta.47-regels hervatten gewone herstartcontrole automatisch op basi
 
 De behouden kernregel is een juiste bewijshiërarchie: actuele native `aquarea`-actie voor de optionele DHW-guard, algemene taakinfo apart voor diagnostiek/leren, oudere `panasonic_cc` AUTO conservatief, werkelijk ontbrekende klimaatdata beschermd en alleen bewezen koeling in de koeltimer. Behoud alle ACK-, manual hold-, eigendoms-, hygiëne-, AEG-, prioriteits-, temperatuur- en Wallboxgrenzen. Maak geen nieuw 55 °C-tussenprofiel of automatisch force-commando.
 
-Gebruik uitsluitend aangetoonde software-/publicatieresultaten in `TESTRESULTATEN_BETA51.md`. In deze werksessie zijn browserproeven en live HA-/hardwareacceptatie niet uitgevoerd. Geen fysieke proefopdracht of leerreset gebruiken om een diagnoseveld te vullen; installatie-/opwarmbewijs blijft afzonderlijk.
+Gebruik uitsluitend aangetoonde software-/publicatieresultaten in `TESTRESULTATEN_BETA52.md`. In deze werksessie zijn browserproeven en live HA-/hardwareacceptatie niet uitgevoerd. Geen fysieke proefopdracht of leerreset gebruiken om een diagnoseveld te vullen; installatie-/opwarmbewijs blijft afzonderlijk.

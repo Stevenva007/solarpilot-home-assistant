@@ -6,6 +6,7 @@ are optional; default pseudonyms preserve joins between configuration and data.
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Mapping
 from copy import deepcopy
 from datetime import datetime, timezone
 from dataclasses import asdict, is_dataclass
@@ -68,7 +69,8 @@ def safe(value, depth=0):
         return "[depth limit]"
     if is_dataclass(value):
         return safe(asdict(value), depth + 1)
-    if isinstance(value, dict):
+    # HA config entry data/options are immutable mappings, including nested values.
+    if isinstance(value, Mapping):
         return {str(k): ("[REDACTED]" if PRIVATE_KEYS.search(str(k)) else safe(v, depth+1))
                 for k, v in list(value.items())[:50000]}
     if isinstance(value, (list, tuple, set, deque)):
@@ -94,7 +96,7 @@ def safe(value, depth=0):
 
 def entity_refs(value):
     result = set()
-    if isinstance(value, dict):
+    if isinstance(value, Mapping):
         for k, v in value.items():
             if not PRIVATE_KEYS.search(str(k)):
                 result.update(entity_refs(v))
@@ -315,6 +317,8 @@ class AnalysisRecorder:
             return
         self.timing.append(round(elapsed_ms, 3))
         fast = {"ts": wall, "mode": r.mode, "grid_w": r.grid_w, "pv_w": r.pv_w,
+                "problem": safe(getattr(r, "problem", "")),
+                "problem_kind": getattr(r, "problem_kind", ""),
                 "managed_w": r.managed_w, "free_w": r.result.free_w,
                 "pending": safe(r.pending), "faults": safe(r.faults),
                 "devices": {i: {"on": s.on, "available": s.available, "owned": s.owned,

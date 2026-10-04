@@ -1,11 +1,11 @@
-/* SolarPilot 1.0.0-beta.51. Local option explanations + HA's native options-flow API.
+/* SolarPilot 1.0.0-beta.52. Local option explanations + HA's native options-flow API.
  * No actuator service is called here. HA retains authentication, schema validation,
  * per-device live/deferred guards and final config-entry save. No internal HA DOM is patched.
  */
 let spOptionHelpPromise;
 async function spOptionHelp(){
   if(globalThis.SOLAR_PILOT_HELP_DATA)return globalThis.SOLAR_PILOT_HELP_DATA;
-  if(!spOptionHelpPromise)spOptionHelpPromise=fetch('/solar_pilot_static/option-help.json?v=1.0.0-beta.51',{credentials:'same-origin'})
+  if(!spOptionHelpPromise)spOptionHelpPromise=fetch('/solar_pilot_static/option-help.json?v=1.0.0-beta.52',{credentials:'same-origin'})
     .then(r=>{if(!r.ok)throw new Error('De lokale optie-uitleg kon niet worden geladen.');return r.json();})
     .catch(e=>{spOptionHelpPromise=null;throw e;});
   return spOptionHelpPromise;

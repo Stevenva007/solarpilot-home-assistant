@@ -260,6 +260,7 @@ class SolarSensor(SolarEntity, SensorEntity):
                     "phase": r.phase_learning.profile(self.key), "phase_hint": r.configs[self.key].get("phase_hint", "auto")}
         if self.suffix == "status":
             return {"solar_pilot": True, "mode": r.mode, "problem": r.problem,
+                    "problem_kind": r.problem_kind,
                     "restart_recovery_pending": r.restart_recovery_pending,
                     "restart_recovery_devices": [r.configs[i]["name"] for i in r.recovery],
                     "grid_w": r.grid_w, "pv_w": r.pv_w, "free_w": r.result.free_w,

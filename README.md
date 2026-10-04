@@ -1,14 +1,22 @@
-> **Actuele bron: beta.51** — laadt het zijbalkpaneel en de dashboardkaart via dezelfde module-route en voorkomt dubbele eigen kaartcatalogusitems. Alle beta.50-boiler- en veiligheidsregels blijven behouden. Test-/publicatiestatus: `docs/TESTRESULTATEN_BETA51.md`; de specifieke live oorzaak van een laadmelding en de geladen appkaart blijven afzonderlijk te controleren.
+> **Actuele bron: beta.52** — onderscheidt automatische bronwacht van echte opdrachtfouten en houdt effectieve read-only configuratie en gekoppelde bronnen in de analyse-export compleet. Alle eerdere boiler-, paneel- en veiligheidsreparaties blijven behouden. Test-/publicatiestatus: `docs/TESTRESULTATEN_BETA52.md`; de live oorzaak van een toestelverbindingsstoring blijft afzonderlijk te controleren.
 
 # SolarPilot
 
 SolarPilot is a local Home Assistant Energy Management System (EMS) for PV surplus, flexible loads, Panasonic Aquarea hot-water policy, Wallbox Full Solar coexistence, phase analysis, capacity-tariff awareness, local PV/shade learning, slow thermal-climate learning, future home batteries and a unified rolling-horizon planner.
 
-De absolute codebasis is de gepubliceerde beta.50 op commit `5348ecaedd75326debc3b60764ab711882adf446`, tree `e67da41e0928a25b73893216edf34be6ff0ce5bc`. De onveranderlijke [beta.50-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.50), haar geslaagde publicatieworkflow en gecontroleerde pakketten vormen de rollbackbasis. Een softwaretest of publicatie bewijst geen geladen Home Assistant-versie of fysieke toestelactie.
+De absolute codebasis is de gepubliceerde beta.51 op commit `89fbec5148a759a8b961c158d494104402419fbf`, tree `fe5b74446ee3991ed8fa478355c0307181b55bfb`. De onveranderlijke [beta.51-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.51), haar geslaagde publicatieworkflow en gecontroleerde pakketten vormen de rollbackbasis. Een softwaretest of publicatie bewijst geen geladen Home Assistant-versie of fysieke toestelactie.
 
 > **Updates zijn cumulatief.** Je hoeft tussenliggende beta-versies niet één voor één te installeren of publiceren. Installeer de nieuwste release over je bestaande SolarPilot-installatie; Home Assistant-configuratie en lokale leerdata blijven behouden.
 
-## Nieuw in beta.51
+## Nieuw in beta.52
+
+- Tijdelijke oude, ontbrekende of onbeschikbare toesteldata toont **Automatische broncontrole** en wordt opnieuw uitgelezen bij gewone regelrondes. De kaart biedt hiervoor geen misleidende **Controle afronden** aan. Bronherstel geeft geen recht om een oude opdracht te herhalen.
+- Verkeerde vereiste koppelingen en echte opdrachtfouten krijgen hun eigen melding. Echte fouten, handmatige overname, minimumlooptijden, bronversheid en beschermde cycli behouden hun bestaande voorwaarden.
+- Analyse-export leest read-only configuratiemappings en hun expliciet gekoppelde bronnen volledig. Privacyfilters, consistente pseudoniemen, maximale bronlijsten en ontbrekende-bronlabels blijven behouden.
+
+De gebruikersbeelden tonen dat de paneelinterface van beta.51 inmiddels opent. De eerdere export bevat een brononderbreking zonder vastgelegde pending opdracht of opdrachtfout; zij bewijst geen specifieke fysieke verbindingsstoring of de oorzaak van een later screenshot. Zie `docs/BETA52_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA52.md` en het actuele `OVERDRACHT.md`.
+
+## Behouden uit beta.51
 
 - Het zijbalkpaneel gebruikt dezelfde JavaScript-module-URL als de automatisch beschikbare kaart. De eerdere combinatie van klassieke scriptlading en modulelading vervalt; er is geen extra dashboardresource nodig.
 - Opnieuw geladen release-URL's maken geen dubbele eigen kaartcatalogusitems. Alleen SolarPilot-duplicaten worden opgeruimd; de gedeelde catalogus en kaarten van andere integraties blijven behouden.
@@ -82,7 +90,7 @@ Zie `docs/BETA46_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA46.md` en het actuele `
 
 Beta.44-publicatie, pakketcontrole en geladen versie staan in `docs/BETA44_INSTELLEN.md` en `docs/TESTRESULTATEN_BETA44.md`; uitleg-hash `65b54c9797e55bb4` hoort bij die historische softwaregate. [Beta.44-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.44). Bestaande tags en release-assets blijven onveranderlijk.
 
-## Current DHW policy (beta.51)
+## Current DHW policy (beta.52)
 
 For Panasonic K T-CAP models, Powerful is **not automatically used as a tank boost**: Panasonic service manual PAPAMY2310071CE §14.11 describes space-heating water-target shifts, not a DHW boost. The separate installer setting DHW capacity is not changed. [Panasonic-original service manual](https://paltaja.lt/wp-content/uploads/panasonic-k-t-cap-manual.pdf).
 

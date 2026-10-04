@@ -3,11 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.51'
+GUIDE_VERSION = '1.0.0-beta.52'
 GUIDE_UPDATED = '2026-10-04'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.51',
+ 'version': '1.0.0-beta.52',
  'updated': '2026-10-04',
  'intro': 'Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst '
           'samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en '
@@ -803,6 +803,19 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'lease van een bekend Auto-toestel of een schoon routine-boilerhersteljournal. '
                               'Daarna voorkomt de expliciet opgeslagen marker, ook wanneer zij leeg is, '
                               'dat een bewuste Alleen bekijken- of Pauze-keuze ooit opnieuw wordt afgeleid.',
+                              'Een tijdelijke oude, ontbrekende of onbeschikbare toestelrapportage is een '
+                              'bronwacht, ook nadat de herstartcontrole al klaar is. SolarPilot toont '
+                              'Automatische broncontrole, vraagt geen Controle afronden en leest bij de '
+                              'volgende gewone regelrondes opnieuw. Na betrouwbaar bronherstel verdwijnt '
+                              'die wachtreden zonder reset of oude opdrachtreplay. Een verkeerde of '
+                              'ontbrekende vereiste bronkoppeling vraagt de configuratie te corrigeren; een '
+                              'echte opdrachtfout behoudt haar eigen controle en veiligheidsvoorwaarden. '
+                              'Controle afronden meldt geen geslaagde foutreset wanneer er alleen een '
+                              'bronprobleem en geen foutjournal of herstelcontrole te wissen is. De '
+                              'bestaande voorwaarden voor een echte reset blijven gelden; een actuele '
+                              'onbekende of nog actieve betrokken last wordt niet automatisch vrijgegeven. '
+                              'Een werkende regelmodule of beschermd programma krijgt door de bronwacht '
+                              'geen nieuwe vrijgave en wordt niet blind uitgeschakeld.',
                               "De basispagina's tonen alleen de instellingen die je normaal nodig hebt. "
                               'Timing, faseherkenning en Wallbox-herkenningsdetails staan bewust onder '
                               'Geavanceerd. De onderliggende option-keys en regelalgoritmen blijven compatibel '
@@ -1180,6 +1193,10 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'planner en batterijsimulatie. Ontbrekende gegevens worden niet aangevuld. Niet '
                               'geconfigureerde onderdelen blijven herkenbaar. Dit onderzoeksbestand is geen '
                               'herstelbare Home Assistant-back-up.',
+                              'Snelle analysepunten bewaren naast de toestand ook de actuele probleemreden '
+                              'en probleemsoort: bronwacht, bronconfiguratie of echte opdrachtfout. Dit '
+                              'maakt opeenvolgend wachten en herstellen gericht uitlegbaar zonder '
+                              'fysieke proefopdracht of nieuwe cloudpolling.',
                               'De registratie gebruikt bestaande HA-toestanden, geen extra cloudpolling. '
                               'Standaard wordt iedere vijf minuten een gedetailleerde momentopname bewaard, '
                               'maximaal zeven dagen/2016 ronden, 20000 bronwijzigingen en 6000 gebeurtenissen. '
@@ -1217,6 +1234,12 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'stilzwijgend onvolledig bestand. Open formulieren en details blijven tijdens '
                               'gewone dashboardupdates behouden. Lokale analyseregistratie kan afzonderlijk '
                               'uit; de energieregeling blijft dan werken.',
+                              'De effectieve configuratie en bronselectie worden ook uit read-only '
+                              'configuratiemappings gelezen. Gekoppelde net-, toestel-, klimaat- en '
+                              'overige bronnen blijven daardoor aanwezig naast automatisch gevonden '
+                              'forecastbronnen. Die volledigheidsreparatie verandert geen privacyfilters, '
+                              'maximale bronlijsten, pseudonimisering of toestemming; een werkelijk '
+                              'ontbrekende bron blijft herkenbaar ontbrekend.',
                               'De export bevat aanvullend de effectieve Wallbox-sessiebron met gemaakte '
                               'classificatie, de per-toestelkeuze voor vermogensovername en de PV-kalibratie '
                               'met ruwe/gecorrigeerde/werkelijke kwartieren, clipping-/afwijsredenen, '

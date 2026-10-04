@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0-beta.52 — 2026-10-04
+
+- Onderscheidt tijdelijke bronwacht van een echte opdrachtfout. Na oude, ontbrekende of onbeschikbare toesteldata toont de kaart een automatische broncontrole zonder misleidende Controle afronden-knop. Het bestaande opnieuw uitlezen en herstel blijft automatisch; verkeerde vereiste koppelingen vragen gerichte configuratiecontrole.
+- Houdt echte opdrachtfouten, handmatige overname en onzekere opdrachten apart. Geen onzekere replay, reset bij een onbekende/aanstaande last, kortere bronversheid, gewijzigde minimumlooptijd of onderbreking van beschermde cycli.
+- Leest de effectieve analyseconfiguratie en gekoppelde entiteitsbronnen ook uit read-only mappings. Voorkomt een onterecht niet-ondersteund configuratieblok en ontbrekende expliciete bronnen naast forecastmetadata; privacyfilters, bronlimieten en pseudoniemen blijven behouden.
+- Behoudt alle eerdere boiler-, klimaat-, prioriteits-, paneel- en veiligheidsreparaties. Code, actuele uitleg/hulp, installatie/rollback, testverslag en overdracht worden samen bijgewerkt. De definitieve volledige suite behaalt **2558 geslaagde tests in 22.09 s**, met 37 nieuwe bronclassificatie-/UI-/mappinggevallen. Syntaxcontrole van 65 Python-productiemodules, vier JSON-bestanden en beide JavaScript-bestanden is groen. Publieke preflight, handoff, actuele uitleg en repository-/diffcontrole zijn groen. Publicatie blijft afzonderlijk: `docs/TESTRESULTATEN_BETA52.md`. Een diagnosecorrectie bewijst niet de specifieke fysieke verbindingsstoring of de oorzaak van een later screenshot zonder bijbehorende export.
+
 ## 1.0.0-beta.51 — 2026-10-04
 
 - Registreert het zijbalkpaneel met `module_url`, gelijk aan de automatisch beschikbare kaartmodule. Voorkomt de klassieke/module-loadercombinatie en botsende globale declaraties bij klassieke lading van verschillende release-URL's.
