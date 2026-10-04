@@ -1,4 +1,4 @@
-/* SolarPilot 1.0.0-beta.50. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+/* SolarPilot 1.0.0-beta.51. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
 const spEscape = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const spPower = value => value == null || !Number.isFinite(Number(value)) ? "—" : Math.abs(Number(value)) >= 1000 ? `${(Number(value)/1000).toLocaleString("nl-BE",{maximumFractionDigits:2})} kW` : `${Math.round(Number(value))} W`;
 const spTemp = value => value == null || !Number.isFinite(Number(value)) ? "—" : `${Number(value).toLocaleString("nl-BE",{maximumFractionDigits:1})} °C`;
@@ -889,7 +889,7 @@ class SolarPilotCard extends HTMLElement {
   }
   async _loadOptionHelpers(){
     if(!customElements.get('solar-pilot-option-help-dialog')){
-      if(!this._optionLoad)this._optionLoad=import('/solar_pilot_static/option-help.js?v=1.0.0-beta.50').catch(e=>{this._optionLoad=null;throw e;});
+      if(!this._optionLoad)this._optionLoad=import('/solar_pilot_static/option-help.js?v=1.0.0-beta.51').catch(e=>{this._optionLoad=null;throw e;});
       await this._optionLoad;
     }
   }
@@ -1012,5 +1012,14 @@ class SolarPilotGuideCard extends HTMLElement {
 if(!customElements.get('solar-pilot-card'))customElements.define('solar-pilot-card',SolarPilotCard);
 if(!customElements.get('solar-pilot-guide-card'))customElements.define('solar-pilot-guide-card',SolarPilotGuideCard);
 window.customCards=window.customCards||[];
-window.customCards.push({type:'solar-pilot-card',name:'SolarPilot · Control Center',description:'Geïntegreerd lokaal EMS met overzichtelijke tabbladen voor verbruikers, comfort, energie en opslag.',preview:true});
-window.customCards.push({type:'solar-pilot-guide-card',name:'SolarPilot · Actuele uitleg',description:'Release-gebonden uitleg van alle huidige SolarPilot-regels.',preview:true});
+// A new release URL may evaluate in the same page. Update our catalog entries
+// in place and remove only our duplicates, preserving other integrations.
+for(const card of [
+  {type:'solar-pilot-card',name:'SolarPilot · Control Center',description:'Geïntegreerd lokaal EMS met overzichtelijke tabbladen voor verbruikers, comfort, energie en opslag.',preview:true},
+  {type:'solar-pilot-guide-card',name:'SolarPilot · Actuele uitleg',description:'Release-gebonden uitleg van alle huidige SolarPilot-regels.',preview:true}
+]){
+  const index=window.customCards.findIndex(entry=>entry?.type===card.type);
+  if(index<0){window.customCards.push(card);continue;}
+  window.customCards[index]=card;
+  for(let i=window.customCards.length-1;i>index;i--)if(window.customCards[i]?.type===card.type)window.customCards.splice(i,1);
+}

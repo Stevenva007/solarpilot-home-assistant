@@ -1,8 +1,8 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.50
+**Versie:** 1.0.0-beta.51
 **Bijgewerkt:** 2026-10-04
-**Regel-hash:** `e4dd5ccfe591288d`
+**Regel-hash:** `7f0c9817f8b1c53a`
 
 Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en leerdata blijven lokaal in Home Assistant en worden bij gewone HACS-updates niet vervangen door programmabestanden.
 
@@ -297,6 +297,10 @@ Instellingen & onderzoek bevat snelkoppelingen naar toestelbeheer, PV-diagnose, 
 ## 13. Eenvoudige installatie en volledige verwijdering
 
 Vanaf de publieke HACS-release is HACS de aanbevolen installatiemethode. Voeg de publieke SolarPilot-repository één keer als HACS Custom Repository van het type Integration toe, download SolarPilot en herstart Home Assistant. Daarna voeg je SolarPilot toe via Apparaten & diensten. Voor een installatie-specifieke snelle start kan één privébestand als `custom_components/solar_pilot/userfiles/private_bundle.json` lokaal worden geplaatst; HACS bewaart die map bij gewone updates. Via Geavanceerd & systeem → Privéprofiel & historiek kan de bundel opnieuw worden ingelezen. De frontend zit in dezelfde integratie en verschijnt automatisch in de Home Assistant-zijbalk; een losse www-map, Lovelace-resource of handmatig dashboard-YAML is niet nodig.
+
+Het zijbalkpaneel en de automatisch beschikbare dashboardkaart gebruiken hetzelfde gebundelde JavaScript-modulebestand. SolarPilot vermijdt daarmee een combinatie van klassieke scriptlading en modulelading. Bij opnieuw laden blijven de eigen kaartcatalogusitems enkelvoudig; kaarten van andere integraties blijven behouden. Dit verandert geen toestelregeling of fysieke toestemming.
+
+Na een update herstart je Home Assistant volledig en open je de frontend opnieuw, zodat een al open pagina niet met oude kaartcode blijft werken. Herlaad de webpagina; stop op Android de Home Assistant-app volledig en open haar opnieuw. Op iOS kun je de weergave naar beneden trekken om te verversen. Controleer backend en geladen kaart afzonderlijk. Een melding dat een custom panel niet geladen kan worden vraagt ook controle van bestandslevering en de browser-/appfout; alleen die melding bewijst niet welke oorzaak optreedt. Behoud configuratie en leerdata.
 
 Voor verwijderen bestaat een veilige voorbereidingsactie. SolarPilot gaat naar Pauze, stopt nieuwe starts, laat eigen onderbreekbare lasten volgens hun beveiligingen vrijgeven, brengt een door SolarPilot veroorzaakte klimaat-coast terug naar Panasonic AUTO en laat een door SolarPilot beheerd boilerdoel terugvallen naar het normale basisregime. Beschermde cycli en onzekere fysieke toestanden worden nooit hard afgebroken alleen om sneller te kunnen verwijderen.
 

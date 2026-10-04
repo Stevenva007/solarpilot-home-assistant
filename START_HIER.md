@@ -1,12 +1,12 @@
-# SolarPilot beta.50 — installatie en upgrade
+# SolarPilot beta.51 — installatie en upgrade
 
-Beta.50 herstelt de herhaalde boilerstabiliteitscontrole tijdens de bestaande rust tussen doelopdrachten. Bij blijvend geldige zonnevoorwaarden blijft een afgeronde controle geldig. Het overzicht en de warmwaterdetailkaart tonen de echte uitvoeringswachtreden. De rust van standaard 1800 seconden sinds de laatste verstuurde doelopdracht en alle eerdere koel-, bron-, comfort-, eigendoms-, AEG- en Wallboxbeschermingen blijven gelden.
+Beta.51 gebruikt dezelfde module-route voor het SolarPilot-zijbalkpaneel en de automatisch beschikbare dashboardkaart. Dit voorkomt de eerdere klassieke/module-loadercombinatie en dubbele eigen kaartcatalogusitems. Alle boilerstabiliteit, opdrachtrust, uitvoeringswachtreden en eerdere veiligheidsregels uit beta.50 blijven behouden.
 
-De test-/publicatiestatus staat in [docs/TESTRESULTATEN_BETA50.md](docs/TESTRESULTATEN_BETA50.md). In deze werksessie is geen live beta.50-installatie of fysieke opwarming uitgevoerd.
+De test-/publicatiestatus staat in [docs/TESTRESULTATEN_BETA51.md](docs/TESTRESULTATEN_BETA51.md). De specifieke oorzaak van de aangeleverde laadmelding is niet live vastgesteld; een geladen beta.51-appkaart is een afzonderlijke controle.
 
 ## 1. Vooraf
 
-- Maak een actuele volledige Home Assistant-back-up en bewaar de gecontroleerde beta.49-release voor rollback.
+- Maak een actuele volledige Home Assistant-back-up en bewaar de gecontroleerde beta.50-release voor rollback.
 - Laat een lopende beschermde afwas- of andere cyclus afwerken.
 - Gebruik bij een nieuwe installatie **Alleen bekijken** voor de eerste broncontrole. Bij bestaand actief beheer kan die modus eerst **Pauze** en veilige vrijgave vereisen. Alleen bewezen eigen coast en passende bevestigde numerieke batterijdoelen mogen worden vrijgegeven; handmatige bediening blijft beschermd.
 - Updates zijn cumulatief: bestaande Home Assistant-configuratie en lokale leerdata blijven behouden; tussenliggende beta-versies hoeven niet afzonderlijk geïnstalleerd te worden.
@@ -14,12 +14,14 @@ De test-/publicatiestatus staat in [docs/TESTRESULTATEN_BETA50.md](docs/TESTRESU
 ## 2. Via HACS installeren of upgraden
 
 1. Voeg bij een nieuwe installatie in **HACS → Custom repositories** `https://github.com/Stevenva007/solarpilot-home-assistant` toe als type **Integration**.
-2. Download of update naar exact `1.0.0-beta.50` zodra die release beschikbaar is.
+2. Download of update naar exact `1.0.0-beta.51` zodra die release beschikbaar is.
 3. Herstart Home Assistant volledig.
-4. Controleer backendversie en vernieuwde kaart afzonderlijk. Een download of manifestnummer bewijst geen geladen code.
+4. Herlaad de webpagina. Stop op Android de Home Assistant-app volledig en open haar opnieuw; op iOS kun je de weergave naar beneden trekken om te verversen. Controleer backendversie en geladen kaart afzonderlijk. Een download of manifestnummer bewijst geen geladen kaartcode.
 5. Voeg bij een nieuwe installatie **SolarPilot** toe via **Instellingen → Apparaten & diensten** en kies je P1/netbron en optionele PV-bron.
 
 De interface verschijnt automatisch. Er is geen aparte Lovelace-resource of dashboard-YAML nodig. Bij een lokaal pakket vervang je uitsluitend `custom_components/solar_pilot`; bewaar bestaande `userfiles` en Home Assistant-opslag.
+
+Een blijvende **Unable to load custom panel**-melding vraagt afzonderlijke controle van het gevraagde kaartbestand en de browser-/appfout. De melding alleen bewijst geen specifiek HTTP- of WebView-probleem. Zie [docs/BETA51_INSTELLEN.md](docs/BETA51_INSTELLEN.md) voor de frontendcontrole; verwijder hiervoor geen configuratie of leerdata.
 
 ## 3. Optioneel privéprofiel
 
@@ -49,7 +51,7 @@ Een handmatig/extern OFF gezette zone blijft OFF tot je zelf AUTO kiest. Ook een
 
 Het overzicht moet de huidige benodigde respons, relevante modelzekerheid, modelstatus en werkelijk opgeslagen leeraantallen laten zien. Ontbrekende ongebruikte koelervaring mag een voldoende geleerd verwarmingspad niet blokkeren; een voorspelde behoefte aan koelrespons blijft wel echt bewijs vragen. Winter-/zomercoast blijft standaard uit en weerscontext bewijst geen actieve vraag.
 
-Behoud je huidige instellingen en leerdata. Deze update vraagt geen algemene leerreset. De eerdere bescherming van gecontroleerde fasewaarnemingen zonder bewijs van stabiele andere meters blijft gelden; geldige passieve waarnemingen, nieuwe geïsoleerde fasewaarnemingen en handmatige fasekeuzes blijven behouden. Zie [docs/BETA50_INSTELLEN.md](docs/BETA50_INSTELLEN.md) voor de volledige controle.
+Behoud je huidige instellingen en leerdata. Deze update vraagt geen algemene leerreset. De eerdere bescherming van gecontroleerde fasewaarnemingen zonder bewijs van stabiele andere meters blijft gelden; geldige passieve waarnemingen, nieuwe geïsoleerde fasewaarnemingen en handmatige fasekeuzes blijven behouden. Zie [docs/BETA51_INSTELLEN.md](docs/BETA51_INSTELLEN.md) voor de volledige controle.
 
 ## 5. Automatisch herstel na herstart
 
@@ -85,6 +87,6 @@ Laat concurrerende boilerautomatiseringen uit zolang SolarPilot regelt. AEG-APP-
 
 ## 8. Uitleg en rollback
 
-De enige actuele regelbeschrijving staat in [docs/ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en in Home Assistant onder **SolarPilot → Uitleg**. De volledige upgradecontrole staat in [docs/BETA50_INSTELLEN.md](docs/BETA50_INSTELLEN.md).
+De enige actuele regelbeschrijving staat in [docs/ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en in Home Assistant onder **SolarPilot → Uitleg**. De volledige upgradecontrole staat in [docs/BETA51_INSTELLEN.md](docs/BETA51_INSTELLEN.md).
 
-Voor rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.49-release of gecontroleerde back-up herstellen → Home Assistant herstarten → backend/kaart en beveiligingen controleren**. Beta.49 behoudt de eerdere audit- en veiligheidsregels, maar bevat nog de herhaalde boilerstabiliteitscontrole en verborgen uitvoeringswachtreden die beta.50 herstelt. Oude release-documenten zijn historische informatie; het actuele `OVERDRACHT.md` beschrijft de huidige bron.
+Voor rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.50-release of gecontroleerde back-up herstellen → Home Assistant herstarten → webpagina/app opnieuw openen → backend/kaart en beveiligingen controleren**. Beta.50 behoudt de boilerreparatie en eerdere veiligheidsregels, maar bevat nog de klassieke/module-loadercombinatie en mogelijke dubbele eigen catalogusitems die beta.51 herstelt. Oude release-documenten zijn historische informatie; het actuele `OVERDRACHT.md` beschrijft de huidige bron.

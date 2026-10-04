@@ -49,7 +49,10 @@ async def async_register_frontend(hass: HomeAssistant) -> None:
                 "name": "solar-pilot-card",
                 "embed_iframe": False,
                 "trust_external": False,
-                "js_url": _CARD_URL,
+                # Match add_extra_js_url's default module loading. A classic
+                # script uses a separate loader/cache and shares global const
+                # declarations across release URLs in an open browser session.
+                "module_url": _CARD_URL,
             }
         },
         require_admin=False,

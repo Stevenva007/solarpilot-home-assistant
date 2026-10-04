@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.0-beta.51 — 2026-10-04
+
+- Registreert het zijbalkpaneel met `module_url`, gelijk aan de automatisch beschikbare kaartmodule. Voorkomt de klassieke/module-loadercombinatie en botsende globale declaraties bij klassieke lading van verschillende release-URL's.
+- Houdt de eigen kaartcatalogusitems enkelvoudig bij herhaalde module-evaluatie en ruimt alleen eigen bestaande duplicaten op. De gedeelde catalogusarray, volgorde en inhoud van andere integraties blijven behouden; custom elements worden niet opnieuw gedefinieerd.
+- Behoudt alle beta.50-boilerstabiliteit, opdrachtrust, uitvoeringswachtreden en eerdere toestel-/bron-/veiligheidsregels. Geen datareset, extra fysieke opdracht of veranderde toestemming. Actuele uitleg/hulp, installatie/rollback, testverslag en handoff worden samen bijgewerkt. De definitieve volledige suite behaalt **2521 geslaagde tests in 18.76 s**, inclusief tien nieuwe module-/frontendregistratiegevallen. Syntax- en releasecontroles zijn groen; de volledige browsergate is niet uitgevoerd. Details: `docs/TESTRESULTATEN_BETA51.md`; geen bewijsclaim voor de specifieke live HTTP-/WebView-oorzaak, geladen appkaart of fysieke toestelactie.
+
 ## 1.0.0-beta.50 — 2026-10-04
 
 - Herstelt de herhaalde boilerstabiliteitscontrole tijdens de bestaande rust tussen doelopdrachten. Een voltooide kandidaat blijft geldig zolang het actuele zonne- en guardbewijs geldig blijft; werkelijk verloren zonnebewijs, koeling en te grote meetgaten behouden hun bescherming.
