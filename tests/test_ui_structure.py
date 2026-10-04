@@ -185,7 +185,11 @@ def test_manual_dhw_hold_always_has_a_safe_resume_control():
 
 def test_dhw_overview_uses_reported_target_and_prioritises_wait_status():
     assert 'spTemp(dhw.actual_target_c)' in CARD
-    assert "const dhwBlocked=" in CARD
+    # Both views share runtime status precedence; the rendered behaviour,
+    # including ordinary cooldown waits, is exercised in test_dhw_ui50.py.
+    assert "const dhwStateText=this._dhwStateText(dhw);" in CARD
+    assert "this._tile('SolarPilot-voorstel',spTemp(dhw.proposed_target_c),this._dhwStateText(dhw))" in CARD
+    assert "if(dhw.status)return dhw.status;" in CARD
     assert "dhw.control_allowed===false" in CARD
     assert "SolarPilot-voorstel:" in CARD
     assert "niet het gemelde toesteldoel" in CARD

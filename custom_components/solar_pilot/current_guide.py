@@ -3,11 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.49'
+GUIDE_VERSION = '1.0.0-beta.50'
 GUIDE_UPDATED = '2026-10-04'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.49',
+ 'version': '1.0.0-beta.50',
  'updated': '2026-10-04',
  'intro': 'Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst '
           'samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en '
@@ -296,6 +296,25 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'verhogingsinterval te wachten. Het gewone doel herstellen wordt evenmin '
                               'uitgesteld. Dit zijn rustregels voor setpoints, geen gegarandeerde '
                               'compressorlooptijden.',
+                              'Zonnestabiliteit en de minimumtijd tussen doelopdrachten lopen afzonderlijk. '
+                              'Als de zonnevoorwaarden geldig blijven, wordt een voltooide stabiliteitscontrole '
+                              'niet opnieuw gestart alleen omdat de vorige doelopdracht nog te recent is. '
+                              'Zodra beide wachttijden voorbij zijn, kan een volgende gewone regelronde de '
+                              'verhoging vragen, mits alle overige voorwaarden nog kloppen. Verlies van geldig '
+                              'zonneoverschot, echte koeling of een te groot meetgat onderbreekt de betrokken '
+                              'zonnestabiliteit wel. Een wachtend voorstel krijgt geen eigendoms- of '
+                              'hysteresevrijgave alsof het hoge doel al is toegepast. Een nog niet uitgevoerde '
+                              '55 °C-verhoging mag daardoor ook niet bij minder PV alsnog starten via de '
+                              'lagere vasthouddrempel. Alleen een passend eigen werkelijk doel kan zo een '
+                              'bestaande fase vasthouden.',
+                              'Het warmwateroverzicht en de warmwaterdetailkaart tonen de actuele '
+                              'regel- of wachtreden. Stabiliteitscontrole en rust tussen doelopdrachten '
+                              'worden apart benoemd; voldoende zon in het beleidsadvies verbergt geen '
+                              'wachttijd bij uitvoering. Ook wachten op een andere regelopdracht of een '
+                              'ongeschikt native doelbereik blijft zichtbaar. SolarPilot-voorstel, gemeld Panasonic-doel en '
+                              'gemeten tanktemperatuur blijven afzonderlijke waarden. Een voorstel van '
+                              '60 °C bij een gemeld doel van 50 °C betekent nog geen verzonden of '
+                              'bevestigde verhoging en bewijst geen fysieke opwarming.',
                               'Gewoon warmtepompcomfort staat vóór de autonome Full Solar-Wallbox. Voor de '
                               'beschermde avondvoorraad, nooit hoger dan de ingestelde limiet en maximaal 55 '
                               '°C, mag SolarPilot actueel gemeten EV-zonnevermogen alleen in de '

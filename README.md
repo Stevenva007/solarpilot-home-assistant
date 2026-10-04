@@ -1,14 +1,23 @@
-> **Actuele bron: beta.49** — bewaakt batterijopdrachten samen met andere toestellen, behoudt ontbrekend forecastbewijs als onbekend en verbetert tijdroosters, export en herladen. Handmatige OFF-zones en alle beta.48-veiligheidsregels blijven beschermd. Definitieve test-/publicatiestatus: `docs/TESTRESULTATEN_BETA49.md`; live installatie en fysieke toestelrespons zijn hier niet bevestigd.
+> **Actuele bron: beta.50** — voorkomt dat de boilerstabiliteitscontrole opnieuw begint tijdens de bestaande rust tussen doelopdrachten en toont de echte uitvoeringswachtreden. Alle eerdere koel-, eigendoms-, comfort-, AEG- en Wallboxbeschermingen blijven behouden. Test-/publicatiestatus: `docs/TESTRESULTATEN_BETA50.md`; softwarecontrole bewijst geen fysieke opwarming.
 
 # SolarPilot
 
 SolarPilot is a local Home Assistant Energy Management System (EMS) for PV surplus, flexible loads, Panasonic Aquarea hot-water policy, Wallbox Full Solar coexistence, phase analysis, capacity-tariff awareness, local PV/shade learning, slow thermal-climate learning, future home batteries and a unified rolling-horizon planner.
 
-De absolute codebasis is de gepubliceerde beta.48 op commit `a7df7688806ee128242058631a000c640e1243dd`, tree `11ade811d25f296ab84d6e0209776a615ab0099d`. De onveranderlijke [beta.48-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.48), haar geslaagde publicatieworkflow en gecontroleerde pakketten vormen de rollbackbasis. Een softwaretest of publicatie bewijst geen geladen Home Assistant-versie of fysieke toestelactie.
+De absolute codebasis is de gepubliceerde beta.49 op commit `ae3936749f40c0a575c8867ccaecbddf9fa61702`, tree `a9b37e533369811e8b16c285ba09864b6d7ff765`. De onveranderlijke [beta.49-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.49), haar geslaagde publicatieworkflow en gecontroleerde pakketten vormen de rollbackbasis. Een softwaretest of publicatie bewijst geen geladen Home Assistant-versie of fysieke toestelactie.
 
 > **Updates zijn cumulatief.** Je hoeft tussenliggende beta-versies niet één voor één te installeren of publiceren. Installeer de nieuwste release over je bestaande SolarPilot-installatie; Home Assistant-configuratie en lokale leerdata blijven behouden.
 
-## Nieuw in beta.49
+## Nieuw in beta.50
+
+- Een voltooide boilerstabiliteitscontrole blijft voltooid zolang de actuele zonnevoorwaarden geldig blijven. Wachten op de minimumtijd sinds de vorige doelopdracht start die controle niet opnieuw. Ongeldig zonnebewijs, koeling en meetgaten behouden hun bestaande bescherming.
+- De standaard rust van 1800 seconden blijft gerekend vanaf de laatste werkelijk verstuurde doelopdracht, ook een normale herstelopdracht of verlaging. Het verstrijken van deze rust geeft een wachtend voorstel geen eerdere hysterese- of eigendomsrechten.
+- Het overzicht en de warmwaterdetailkaart tonen de actuele uitvoeringswachtreden, waaronder de rust tussen doelopdrachten. Een gunstig zonneadvies verbergt die wachtreden niet meer. Voorstel, gemeld Panasonic-doel en gemeten tanktemperatuur blijven apart zichtbaar.
+- Instellingen, geldige leerdata, centrale prioriteiten, doelbevestiging en beschermde afwascycli blijven behouden. Geen Force DHW, Powerful, extra APP-aanvraag, Wallbox-opdracht of algemene leerreset.
+
+Zie `docs/BETA50_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA50.md` en het actuele `OVERDRACHT.md`.
+
+## Behouden uit beta.49
 
 - Alleen bekijken kan tijdens actief beheer eerst Pauze en veilige vrijgave vereisen; handmatige OFF en overgenomen doelen blijven beschermd. Vervangende batterijdoelen verrekenen echte eigen flow en respecteren native actuatorgrenzen.
 - Een pending batterijopdracht blokkeert nieuwe gewone lastopdrachten, AEG-deadline-START en nieuwe vermogensoverdracht. Na batterijactie is nieuw P1-bewijs nodig; een oude meting wordt niet als vrije ruimte hergebruikt. Beschermde cycli en veilige reductie behouden hun bestaande regels.
@@ -65,7 +74,7 @@ Zie `docs/BETA46_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA46.md` en het actuele `
 
 Beta.44-publicatie, pakketcontrole en geladen versie staan in `docs/BETA44_INSTELLEN.md` en `docs/TESTRESULTATEN_BETA44.md`; uitleg-hash `65b54c9797e55bb4` hoort bij die historische softwaregate. [Beta.44-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.44). Bestaande tags en release-assets blijven onveranderlijk.
 
-## Current DHW policy (beta.49)
+## Current DHW policy (beta.50)
 
 For Panasonic K T-CAP models, Powerful is **not automatically used as a tank boost**: Panasonic service manual PAPAMY2310071CE §14.11 describes space-heating water-target shifts, not a DHW boost. The separate installer setting DHW capacity is not changed. [Panasonic-original service manual](https://paltaja.lt/wp-content/uploads/panasonic-k-t-cap-manual.pdf).
 
@@ -76,6 +85,8 @@ For the exact native `aquarea` climate adapter, fresh `hvac_action=idle/off` is 
 The older `panasonic_cc` AUTO mapping can expose idle/off despite a possible space task. It remains ambiguous without a fresh explicit `IDLE/WATER` task. The raw task remains diagnostic and learning information; `PUMP` is never relabelled as proven normal operation. Only confirmed cooling updates the cooling wait timer. Unknown data blocks while unknown and does not invent an extra wait once reliable evidence returns. The configured stricter COOL-mode detection option retains its existing meaning. Persisted pre-beta.46 cooling/uncertainty timestamps remain conservatively protected because their original cause cannot be reconstructed; an existing cooldown or native-DHW hold may therefore temporarily remain.
 
 Normal tank setpoint and monitored comfort floor are independent (new defaults 50/46 °C). No deadband-compensating 52 °C boost or Force DHW. A 50 °C target with a -5 °C native differential can reheat around 45 °C: 46 °C is monitored, not guaranteed and not a hygiene standard. Optional bounded evening solar storage waits for space climate; see `docs/BETA28_INSTELLEN.md`. Existing setpoints and permissions migrate without silent profile activation.
+
+Solar stability and the minimum interval since the last issued target command remain independent. A completed solar check is retained while an optional rise waits for that interval, provided current source and guard conditions remain valid. A waiting proposal does not gain ownership or start-hysteresis rights. The dashboard shows the actual runtime wait separately from the policy's energy advice; a proposed 60 °C while the native target remains 50 °C is no proof of dispatch, acknowledgement or physical heating.
 
 
 ## Nieuw in beta.43

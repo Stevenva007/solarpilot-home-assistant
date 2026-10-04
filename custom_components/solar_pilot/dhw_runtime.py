@@ -42,6 +42,7 @@ class DHWManager:
         self.status = "Niet geconfigureerd"
         self.reading = DHWReading()
         self.last_command_wall = 0.0
+        self.optional_raise_remaining_s = 0
         self._release = False
         self._last_low = False
         self.last_success = None
@@ -843,7 +844,23 @@ class DHWManager:
         self.runtime.note("Boiler: " + reason)
         await self.runtime.notify("Boiler: " + reason + ". Controleer de echte toestand. Geen automatische herhaalpogingen.")
 
+    def _defer_optional_raise(self, now, desired, previous, reading):
+        """Retain completed live stability without treating a proposal as issued."""
+        current, candidate, since = previous
+        base = effective_base_target(self.settings)
+        owned_current = (not self.pending and current is not None and current > base + .05
+                         and self.owned_target is not None and reading.actual_target_c is not None
+                         and abs(current - self.owned_target) < .05
+                         and abs(current - reading.actual_target_c) < .05)
+        self.policy.current = current if owned_current else None
+        self.policy.candidate = desired
+        self.policy.candidate_since = (since if candidate == desired and since is not None
+                                       else now - float(self.settings["rise_delay_s"]))
+        # last_sample remains current: genuine gaps and source changes still
+        # invalidate the candidate in the next ordinary policy update.
+
     async def tick(self, now, grid, valid, discharge, allow_command=True, local_now=None):
+        self.optional_raise_remaining_s = 0
         if not self.configured:
             return False
         if local_now is None:
@@ -854,7 +871,17 @@ class DHWManager:
         self._prepare_comfort(local_now, r)
         self.policy.settings = {**self.settings, "sample_gap_s": max(30, self.runtime.settings["interval_s"] * 2)}
         holding = self.owned_target == self.settings["surplus_c"] and not self.pending
+        previous_policy = (self.policy.current, self.policy.candidate, self.policy.candidate_since)
         decision = self.policy.update(now, local_now, r, holding)
+        issued_proposal = (self.pending is not None and self.pending.get("target") == decision.target_c
+                           and self.owned_target == decision.target_c)
+        if (not issued_proposal and decision.remaining_s == 0 and decision.target_c is not None
+                and decision.target_c > effective_base_target(self.settings) + .05
+                and r.actual_target_c is not None and decision.target_c > r.actual_target_c + .05):
+            # A mature proposal may still be denied by observation, safety,
+            # capability or serialization guards below. It never grants hold
+            # hysteresis until the target is actually issued/acknowledged.
+            self._defer_optional_raise(now, decision.target_c, previous_policy, r)
         if r.temperature_c is not None and r.temperature_c < self.settings["minimum_c"] and not self._last_low:
             self.runtime.note(f"Boiler onder bewaakte comfortgrens {self.settings['minimum_c']:g} °C; normaal doel {effective_base_target(self.settings):g} °C blijft staan. Geen temperatuurboost; Panasonic bepaalt de herverwarming.")
         self._last_low = decision.low_temperature
@@ -963,7 +990,7 @@ class DHWManager:
             remaining = max(0, math.ceil(float(self.settings["optional_raise_interval_s"])
                                         - max(0.0, time.time()-self.last_command_wall)))
             if remaining:
-                self.policy.reset_stability()
+                self.optional_raise_remaining_s = remaining
                 self.status = f"Extra zonnebuffer wacht nog {remaining} s tussen doelverhogingen; Panasonic blijft regelen"
                 return False
         if not allow_command:
@@ -973,6 +1000,8 @@ class DHWManager:
 
     async def _send(self, now, desired, release, reason):
         rt = self.runtime
+        self.policy.current = desired
+        self.policy.candidate = self.policy.candidate_since = None
         self.owned_target = desired
         self.pending = {"target": desired, "issued": now, "issued_wall": time.time(), "release": release,
                         "ack_poll_min_s": self._ack_poll_min_s()}
@@ -1116,7 +1145,9 @@ class DHWManager:
                 "comfort_plan": self.comfort.result.as_dict(), "tank_learning": dict(self.comfort.rates),
                 "heat_pump_priority": "Warmtepompcomfort vóór Wallbox; extra 60 °C uitsluitend werkelijk restoverschot",
                 "predicted_cooling": r.predicted_cooling, "luxury_allowed": r.luxury_allowed,
-                "remaining_s": d.remaining_s, "last_success": self.last_success,
+                "remaining_s": d.remaining_s,
+                "optional_raise_remaining_s": self.optional_raise_remaining_s,
+                "last_success": self.last_success,
                 "hygiene_schedule": {"enabled": self.settings["hygiene_schedule_enabled"],
                     "weekdays": self.settings["hygiene_weekdays"], "start": self.settings["hygiene_start"],
                     "target_c": self.settings["hygiene_target_c"],

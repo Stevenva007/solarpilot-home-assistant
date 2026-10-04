@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.49",
+  "version": "1.0.0-beta.50",
   "language": "nl",
   "steps": {
     "init": {
@@ -294,7 +294,7 @@
         "max_surplus_import_w": "Bij werkelijke netafname boven deze grens laat SolarPilot een door zichzelf beheerd extra 60 °C-doel onmiddellijk los; de gewone terugvalvertraging geldt dan niet.",
         "cooling_detection": "Actie kijkt primair naar werkelijk cooling.",
         "compensate_own_power": "Tijdens een reeds eigen hoge fase mag een exclusieve actuele boilervermogensmeter het door de boiler zelf gebruikte zonnevermogen reconstrueren.",
-        "optional_raise_interval_s": "Rust tussen extra doelverhogingen boven het normale doel, standaard 1800 seconden (30 minuten), gerekend vanaf de laatste verstuurde doelopdracht.",
+        "optional_raise_interval_s": "Rust tussen extra doelverhogingen boven het normale doel, standaard 1800 seconden (30 minuten), gerekend vanaf de laatste verstuurde doelopdracht, ook wanneer die het normale doel herstelde of verlaagde.",
         "respect_space_climate": "AAN: een nieuwe extra zonnebuffer boven het normale doel wacht zolang een gekoppelde klimaatbron werkelijk heating/cooling/preheating/defrosting meldt of geen betrouwbare actie doorgeeft."
       }
     },
@@ -2038,7 +2038,7 @@
       "title": "Voldoende zon/overschot gedurende (s)",
       "short": "Zolang moeten de zonnevoorwaarden geldig blijven vóór een nieuwe extra setpointverhoging, advies 300 seconden.",
       "paragraphs": [
-        "Zolang moeten de zonnevoorwaarden geldig blijven vóór een nieuwe extra setpointverhoging, advies 300 seconden. Een normale doelherstelling kan zonder deze zonne-wachttijd; een lage tank of ochtenddeadline mag nooit de stabiliteit voor 55/60 °C omzeilen. Dit is geen compressorlooptijd.",
+        "Zolang moeten de zonnevoorwaarden geldig blijven vóór een nieuwe extra setpointverhoging, advies 300 seconden. Een normale doelherstelling kan zonder deze zonne-wachttijd; een lage tank of ochtenddeadline mag nooit de stabiliteit voor 55/60 °C omzeilen. Deze controle wordt bij blijvend geldige voorwaarden niet opnieuw gestart alleen omdat de minimumtijd sinds een vorige doelopdracht nog loopt. Ongeldig zonnebewijs, koeling of een te groot meetgat onderbreekt de betrokken controle wel. Dit is geen compressorlooptijd.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -2126,9 +2126,9 @@
     },
     "dhw_stability.optional_raise_interval_s": {
       "title": "Minimum tijd tussen extra doelverhogingen (s)",
-      "short": "Rust tussen extra doelverhogingen boven het normale doel, standaard 1800 seconden (30 minuten), gerekend vanaf de laatste verstuurde doelopdracht.",
+      "short": "Rust tussen extra doelverhogingen boven het normale doel, standaard 1800 seconden (30 minuten), gerekend vanaf de laatste verstuurde doelopdracht, ook wanneer die het normale doel herstelde of verlaagde.",
       "paragraphs": [
-        "Rust tussen extra doelverhogingen boven het normale doel, standaard 1800 seconden (30 minuten), gerekend vanaf de laatste verstuurde doelopdracht. Lager reageert sneller; hoger vermindert doelwisselingen. Verlaging wegens echt energietekort, koeling, nacht of pauze wordt niet uitgesteld. Het gewone doel blijft beschikbaar. Geen gegarandeerde compressor-aan/uit-tijd.",
+        "Rust tussen extra doelverhogingen boven het normale doel, standaard 1800 seconden (30 minuten), gerekend vanaf de laatste verstuurde doelopdracht, ook wanneer die het normale doel herstelde of verlaagde. Deze rust staat los van de zonnestabiliteit: een voltooide geldige zonnecontrole hoeft tijdens deze rust niet opnieuw te beginnen. De kaart toont de werkelijke resterende opdrachtwachttijd. Lager reageert sneller; hoger vermindert doelwisselingen. Verlaging wegens echt energietekort, koeling, nacht of pauze wordt niet uitgesteld. Het gewone doel blijft beschikbaar. Geen gegarandeerde compressor-aan/uit-tijd.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]

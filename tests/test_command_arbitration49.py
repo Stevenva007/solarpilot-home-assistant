@@ -4,6 +4,7 @@ import time
 import pytest
 
 from custom_components.solar_pilot.battery_runtime import BatteryFleetManager
+from custom_components.solar_pilot import battery_runtime
 from test_battery_runtime import setup_battery
 from test_dishwasher_app31 import configured, move, ready
 from test_house_runtime import setup as setup_house, tick as house_tick
@@ -130,6 +131,10 @@ async def test_pending_battery_defers_due_aeg_start_and_preserves_one_shot_permi
 @pytest.mark.asyncio
 async def test_pending_battery_defers_new_wallbox_handover_until_ack(monkeypatch):
     runtime, hass, clock = setup_house(monkeypatch)
+    # Battery intent and the house loop must share the simulated clock. A real
+    # monotonic issue time cannot be compared with the house's fixed 10000 s
+    # uptime; otherwise this scenario depends on the test machine's uptime.
+    monkeypatch.setattr(battery_runtime, "time", clock)
     attach_battery(runtime, hass)
     await runtime.battery_fleet._send("bat1", -1800)
     hass.services.calls.clear()

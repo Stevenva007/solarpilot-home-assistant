@@ -1,12 +1,12 @@
-# SolarPilot beta.49 — installatie en upgrade
+# SolarPilot beta.50 — installatie en upgrade
 
-Beta.49 versterkt de afhandeling van batterijopdrachten, forecast-/tijdroosterbewijs, export en veilig herladen. Een batterijopdracht moet eerst bevestigd zijn voordat een nieuwe concurrerende start of vermogensoverdracht volgt; daarna is nieuw P1-bewijs vereist. Handmatige OFF, relevante modelzekerheid, herstartherstel en eerdere DHW-/AEG-/Wallboxregels blijven behouden.
+Beta.50 herstelt de herhaalde boilerstabiliteitscontrole tijdens de bestaande rust tussen doelopdrachten. Bij blijvend geldige zonnevoorwaarden blijft een afgeronde controle geldig. Het overzicht en de warmwaterdetailkaart tonen de echte uitvoeringswachtreden. De rust van standaard 1800 seconden sinds de laatste verstuurde doelopdracht en alle eerdere koel-, bron-, comfort-, eigendoms-, AEG- en Wallboxbeschermingen blijven gelden.
 
-De definitieve test-/publicatiestatus staat in [docs/TESTRESULTATEN_BETA49.md](docs/TESTRESULTATEN_BETA49.md). In deze werksessie is geen live beta.49-installatie of fysieke klimaatrespons bevestigd.
+De test-/publicatiestatus staat in [docs/TESTRESULTATEN_BETA50.md](docs/TESTRESULTATEN_BETA50.md). In deze werksessie is geen live beta.50-installatie of fysieke opwarming uitgevoerd.
 
 ## 1. Vooraf
 
-- Maak een actuele volledige Home Assistant-back-up en bewaar de gecontroleerde beta.48-release voor rollback.
+- Maak een actuele volledige Home Assistant-back-up en bewaar de gecontroleerde beta.49-release voor rollback.
 - Laat een lopende beschermde afwas- of andere cyclus afwerken.
 - Gebruik bij een nieuwe installatie **Alleen bekijken** voor de eerste broncontrole. Bij bestaand actief beheer kan die modus eerst **Pauze** en veilige vrijgave vereisen. Alleen bewezen eigen coast en passende bevestigde numerieke batterijdoelen mogen worden vrijgegeven; handmatige bediening blijft beschermd.
 - Updates zijn cumulatief: bestaande Home Assistant-configuratie en lokale leerdata blijven behouden; tussenliggende beta-versies hoeven niet afzonderlijk geïnstalleerd te worden.
@@ -14,7 +14,7 @@ De definitieve test-/publicatiestatus staat in [docs/TESTRESULTATEN_BETA49.md](d
 ## 2. Via HACS installeren of upgraden
 
 1. Voeg bij een nieuwe installatie in **HACS → Custom repositories** `https://github.com/Stevenva007/solarpilot-home-assistant` toe als type **Integration**.
-2. Download of update naar exact `1.0.0-beta.49` zodra die release beschikbaar is.
+2. Download of update naar exact `1.0.0-beta.50` zodra die release beschikbaar is.
 3. Herstart Home Assistant volledig.
 4. Controleer backendversie en vernieuwde kaart afzonderlijk. Een download of manifestnummer bewijst geen geladen code.
 5. Voeg bij een nieuwe installatie **SolarPilot** toe via **Instellingen → Apparaten & diensten** en kies je P1/netbron en optionele PV-bron.
@@ -31,7 +31,15 @@ Plaats een bestaande installatie-specifieke `private_bundle.json` alleen lokaal 
 
 Importeer via **SolarPilot → Configureren → Geavanceerd & systeem → Privéprofiel & historiek**. De bundel vult alleen lege, werkelijk bestaande entiteiten in. Fysieke klimaatbediening, fase-afbouw en boilerregeling krijgen hierdoor geen automatische vrijgave. Deel dit bestand niet publiek.
 
-## 4. Opdracht- en forecastcontrole zonder gegevensreset
+## 4. Boilerwachttijden en gegevensbehoud
+
+Controleer bij extra warm water de twee afzonderlijke wachttijden. **Stabiliteitscontrole** vraagt voortdurend geldig zonnebewijs; **rust tussen doelopdrachten** wacht op de ingestelde minimumtijd sinds de laatste werkelijk verstuurde doelopdracht. Die laatste opdracht kan ook een verlaging of herstel naar het normale doel zijn. Standaard zijn dat respectievelijk 300 en 1800 seconden; bestaande eigen instellingen blijven behouden.
+
+Als de zonnevoorwaarden geldig blijven, mag de stabiliteitscontrole niet telkens opnieuw beginnen alleen omdat de opdrachtrust nog loopt. De kaart toont die echte uitvoeringswachtreden. Zodra beide voorwaarden en alle andere guards voldaan zijn, kan de volgende gewone regelronde de verhoging vragen. Werkelijk verlies van geldig zonnebewijs, koeling of een te groot meetgat kan een nieuwe stabiliteitscontrole vereisen.
+
+Houd **gemeten tanktemperatuur**, **SolarPilot-voorstel** en **gemeld Panasonic-doel** apart. Een voorstel van 60 °C terwijl Panasonic nog 50 °C meldt is geen toegepaste verhoging of fysieke opwarming. Een lopende doelopdracht wacht op haar bestaande nieuwe passende terugmelding; verstuur geen extra proefopdracht om een teller te doen verdwijnen.
+
+### Behouden opdracht- en forecastcontrole
 
 Een pending batterijopdracht laat nieuwe gewone lasten, AEG-deadline-START en vermogensoverdracht wachten. Nieuw passend batterijvermogen van ná de opdracht en daarna nieuw P1-bewijs blijven nodig; ontbrekende rapportage is geen klaarstatus of reden voor een blinde retry. Een verwijderen-voorbereiding vereist werkelijk neutraal batterijvermogen en bij numerieke aansturing een neutraal doel.
 
@@ -41,7 +49,7 @@ Een handmatig/extern OFF gezette zone blijft OFF tot je zelf AUTO kiest. Ook een
 
 Het overzicht moet de huidige benodigde respons, relevante modelzekerheid, modelstatus en werkelijk opgeslagen leeraantallen laten zien. Ontbrekende ongebruikte koelervaring mag een voldoende geleerd verwarmingspad niet blokkeren; een voorspelde behoefte aan koelrespons blijft wel echt bewijs vragen. Winter-/zomercoast blijft standaard uit en weerscontext bewijst geen actieve vraag.
 
-Behoud je huidige instellingen en leerdata. Deze update vraagt geen algemene leerreset. Alleen oude gecontroleerde fasewaarnemingen zonder bewijs van stabiele andere meters worden niet opnieuw vertrouwd; geldige passieve waarnemingen, nieuwe geïsoleerde fasewaarnemingen en handmatige fasekeuzes blijven behouden. Zie [docs/BETA49_INSTELLEN.md](docs/BETA49_INSTELLEN.md) voor de volledige controle.
+Behoud je huidige instellingen en leerdata. Deze update vraagt geen algemene leerreset. De eerdere bescherming van gecontroleerde fasewaarnemingen zonder bewijs van stabiele andere meters blijft gelden; geldige passieve waarnemingen, nieuwe geïsoleerde fasewaarnemingen en handmatige fasekeuzes blijven behouden. Zie [docs/BETA50_INSTELLEN.md](docs/BETA50_INSTELLEN.md) voor de volledige controle.
 
 ## 5. Automatisch herstel na herstart
 
@@ -49,7 +57,7 @@ SolarPilot herkent de werkelijke aan-/uittoestanden van eerder beheerde toestell
 
 De boilercontrole werkt afzonderlijk. Een passend eerder beheerd tankdoel wordt zonder doelwrite herkend; een routinecontrole wacht op verse temperatuur-/doel-/beschermingsbronnen. Een vóór herstart pending opdracht wordt nooit herhaald en vereist voor bevestiging een nieuwe rapportage ná herstart en de bestaande adapterwachttijd. Echte fouten, bewuste handmatige overname of gewijzigd doel blijven beschermd. Een hygiëne-/krachtige fabrikantcyclus behoudt haar doel.
 
-Een onzekere eerdere AEG-START krijgt geen nieuwe START. Alleen een nieuwe betrouwbare fase-terugmelding van ná START voor een lopende of voltooide cyclus kan de specifieke herstartonzekerheid oplossen; een oude Washing/Finished-stand niet. Idle of onduidelijke START-uitkomst leidt niet tot een tweede START. Een tijdelijk ontbrekende bron wordt automatisch opnieuw geprobeerd; een blijvend ontbrekende bron blijft als wachtrede zichtbaar.
+Een onzekere eerdere AEG-START krijgt geen nieuwe START. Alleen een nieuwe betrouwbare fase-terugmelding van ná START voor een lopende of voltooide cyclus kan de specifieke herstartonzekerheid oplossen; een oude Washing/Finished-stand niet. Idle of onduidelijke START-uitkomst leidt niet tot een tweede START. Een tijdelijk ontbrekende bron wordt automatisch opnieuw geprobeerd; een blijvend ontbrekende bron blijft als wachtreden zichtbaar.
 
 Voor oude Alleen bekijken-opslag zonder hervatmarker kan de verloren Auto-keuze éénmalig worden hersteld, uitsluitend zonder echte fout/handmatige boilerbescherming en met een onderbroken lease van een bekend Auto-toestel of schoon routine-boilerjournal. Nieuwe expliciete Alleen bekijken- en Pauze-keuzes blijven beschermd.
 
@@ -77,6 +85,6 @@ Laat concurrerende boilerautomatiseringen uit zolang SolarPilot regelt. AEG-APP-
 
 ## 8. Uitleg en rollback
 
-De enige actuele regelbeschrijving staat in [docs/ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en in Home Assistant onder **SolarPilot → Uitleg**. De volledige upgradecontrole staat in [docs/BETA49_INSTELLEN.md](docs/BETA49_INSTELLEN.md).
+De enige actuele regelbeschrijving staat in [docs/ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en in Home Assistant onder **SolarPilot → Uitleg**. De volledige upgradecontrole staat in [docs/BETA50_INSTELLEN.md](docs/BETA50_INSTELLEN.md).
 
-Voor rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.48-release of gecontroleerde back-up herstellen → Home Assistant herstarten → backend/kaart en beveiligingen controleren**. Beta.48 behoudt de blijvende manual OFF- en relevante-confidencecorrecties, maar bevat nog niet de aanvullende batterij-/forecast-/tijdroostercorrecties van beta.49. Oude release-documenten zijn historische informatie; het actuele `OVERDRACHT.md` beschrijft de huidige bron.
+Voor rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.49-release of gecontroleerde back-up herstellen → Home Assistant herstarten → backend/kaart en beveiligingen controleren**. Beta.49 behoudt de eerdere audit- en veiligheidsregels, maar bevat nog de herhaalde boilerstabiliteitscontrole en verborgen uitvoeringswachtreden die beta.50 herstelt. Oude release-documenten zijn historische informatie; het actuele `OVERDRACHT.md` beschrijft de huidige bron.

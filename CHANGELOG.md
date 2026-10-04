@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0-beta.50 — 2026-10-04
+
+- Herstelt de herhaalde boilerstabiliteitscontrole tijdens de bestaande rust tussen doelopdrachten. Een voltooide kandidaat blijft geldig zolang het actuele zonne- en guardbewijs geldig blijft; werkelijk verloren zonnebewijs, koeling en te grote meetgaten behouden hun bescherming.
+- Behoudt de minimumtijd van standaard 1800 seconden sinds de laatste werkelijk verstuurde doelopdracht, ook normaal herstel of verlaging. Een onuitgevoerd hoog voorstel krijgt geen eigendoms- of start-hystereserechten.
+- Het overzicht en de warmwaterdetailkaart geven de actuele uitvoeringswachtreden voorrang op een gunstig beleidsadvies. Een gunstig zonneadvies verbergt de opdrachtrust of andere echte blokkering niet meer; voorstel, native doel en tanktemperatuur blijven afzonderlijk.
+- Behoudt alle beta.49-instellingen, geldige leerdata en bron-, koel-, comfort-, ACK-, AEG-, prioriteits- en Wallboxregels. Actuele uitleg/hulp, installatie/rollback, testverslag en handoff worden samen bijgewerkt. De definitieve samengestelde suite behaalt **2511 geslaagde tests in 17.08 s**, inclusief 31 werkelijke Node VM-kaartweergaven. Syntax- en releasecontroles zijn groen; volledige browserproeven zijn niet opnieuw uitgevoerd. Details: `docs/TESTRESULTATEN_BETA50.md`; geen live installatie of fysieke opwarming geclaimd.
+
 ## 1.0.0-beta.49 — 2026-10-04
 
 - Serialiseert pending batterijopdrachten met gewone laststarts/verhogingen, AEG-deadline-START, vermogensoverdracht en veilige klimaatvrijgave bij verwijderen. Nieuw P1-bewijs en de bestaande wachttijd blijven na batterijactie vereist; veilige reductie en beschermde cycli blijven behouden.

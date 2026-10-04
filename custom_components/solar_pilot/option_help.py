@@ -485,7 +485,10 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
  'rise_delay_s': 'Zolang moeten de zonnevoorwaarden geldig blijven vóór een nieuwe extra '
                  'setpointverhoging, advies 300 seconden. Een normale doelherstelling kan zonder deze '
                  'zonne-wachttijd; een lage tank of ochtenddeadline mag nooit de stabiliteit voor 55/60 '
-                 '°C omzeilen. Dit is geen compressorlooptijd.',
+                 '°C omzeilen. Deze controle wordt bij blijvend geldige voorwaarden niet opnieuw '
+                 'gestart alleen omdat de minimumtijd sinds een vorige doelopdracht nog loopt. '
+                 'Ongeldig zonnebewijs, koeling of een te groot meetgat onderbreekt de betrokken '
+                 'controle wel. Dit is geen compressorlooptijd.',
  'fall_delay_s': 'Wachttijd bij gewoon minder zon vóór setpointverlaging, aanbevolen 300 s. Filtert '
                  'korte wolken, maar kan tijdelijk netstroom betekenen. Werkelijke netafname boven '
                  'de ingestelde grens omzeilt deze wachttijd. Nacht-, koel-, hygiëne- en '
@@ -721,7 +724,11 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
              'legionellabeheersing.',
  'optional_raise_interval_s': 'Rust tussen extra doelverhogingen boven het normale doel, standaard 1800 '
                               'seconden (30 minuten), gerekend vanaf de laatste verstuurde '
-                              'doelopdracht. Lager reageert sneller; hoger vermindert doelwisselingen. '
+                              'doelopdracht, ook wanneer die het normale doel herstelde of verlaagde. '
+                              'Deze rust staat los van de zonnestabiliteit: een voltooide geldige '
+                              'zonnecontrole hoeft tijdens deze rust niet opnieuw te beginnen. De kaart '
+                              'toont de werkelijke resterende opdrachtwachttijd. Lager reageert sneller; '
+                              'hoger vermindert doelwisselingen. '
                               'Verlaging wegens echt energietekort, koeling, nacht of pauze wordt niet '
                               'uitgesteld. Het gewone doel blijft beschikbaar. Geen gegarandeerde '
                               'compressor-aan/uit-tijd.',
