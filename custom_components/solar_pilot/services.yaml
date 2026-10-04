@@ -45,13 +45,13 @@ set_climate_override:
         select:
           options:
             - label: Automatisch regelen
-              value: automatic
+              value: "automatic"
             - label: Handmatig AUTO
-              value: auto
+              value: "auto"
             - label: Handmatig UIT
-              value: off
+              value: "off"
             - label: Gemelde stand handmatig behouden
-              value: review
+              value: "review"
 
 set_planner_setting:
   name: Plannerinstelling wijzigen
