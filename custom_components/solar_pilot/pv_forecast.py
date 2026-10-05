@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from hashlib import sha256
 import json
-from .pv_forecast_source import PV_FORECAST_DEFAULTS, ForecastSolarSource, finite
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from .pv_forecast_source import PV_FORECAST_DEFAULTS, ForecastSolarSource, finite, stamp
 from .pv_calibration import PVCalibration, solar_position
 
 
@@ -39,10 +40,45 @@ class PVForecast:
         factor,confidence,days,source=self.model.factor(dt,az,el)
         return min(float(self.settings["inverter_limit_w"]),max(0.,raw*factor))
 
+    def _local_time(self, now):
+        zone=getattr(getattr(self.runtime.hass,"config",None),"time_zone",None)
+        if zone:
+            try:return now.astimezone(ZoneInfo(zone))
+            except (ZoneInfoNotFoundError,TypeError,ValueError):pass
+        return now
+
+    def _calendar_scalar(self, role, now):
+        """Native relative energy roles belong to their last reported day/hour."""
+        value=self.source.scalars.get(role)
+        if value is None:return None
+        entity_id=self.source.refs.get(role)
+        obj=self.runtime.hass.states.get(entity_id) if entity_id else None
+        reported=stamp(getattr(obj,"last_reported",None) or getattr(obj,"last_updated",None))
+        if reported is None or not -5<=now.timestamp()-reported<=self.settings["stale_s"]:
+            return None
+        reported_dt=datetime.fromtimestamp(reported,now.tzinfo)
+        if role in ("today_entity","remaining_entity","tomorrow_entity"):
+            if reported_dt.date()!=now.date():return None
+        elif role in ("current_hour_entity","next_hour_entity"):
+            # Comparing elapsed hour starts also distinguishes the repeated DST hour.
+            if reported_dt.replace(minute=0,second=0,microsecond=0).timestamp()!=now.replace(minute=0,second=0,microsecond=0).timestamp():
+                return None
+        return value
+
     def update(self, now):
+        now=self._local_time(now)
         ts=now.timestamp()
-        if self.last_update is not None and 0<=ts-self.last_update<60:
-            return
+        if self.last_update is not None:
+            previous=datetime.fromtimestamp(self.last_update,now.tzinfo)
+            # Relative native roles expire at a calendar/hour boundary even while
+            # the usual one-minute source cache is still fresh.
+            same_hour=previous.replace(minute=0,second=0,microsecond=0).timestamp()==now.replace(minute=0,second=0,microsecond=0).timestamp()
+            if same_hour and 0<=ts-self.last_update<60:
+                return
+            if not same_hour:
+                # Reread native values with their new reports; an old scalar may
+                # not acquire the next day's/hour's role from a fresh timestamp.
+                self.source.last_refresh=None
         self.last_update=ts;self.hourly_cache={}
         try:
             self.source.refresh(ts)
@@ -82,7 +118,7 @@ class PVForecast:
                 corrected=self.source.series.energy(a,b,lambda t,w:self._correct(t,w,now.tzinfo)) if raw_energy is not None else None
                 if raw_energy is None:
                     role={"remaining_today":"remaining_entity","tomorrow":"tomorrow_entity","current_hour":"current_hour_entity","next_hour":"next_hour_entity"}[k]
-                    raw_energy=self.source.scalars.get(role)
+                    raw_energy=self._calendar_scalar(role,now)
                     # Do not apply today's factor to tomorrow or invent a time distribution.
                     corrected=raw_energy;energy_modes[k]="Ruwe energieteller; geen volledige curve om lokaal te corrigeren" if raw_energy is not None else "Geen volledige dekking"
                 else:energy_modes[k]="Geïntegreerde vermogenscurve (tijdstempels, kWh)"
@@ -92,7 +128,7 @@ class PVForecast:
             self.cached={"enabled":self.settings["enabled"],"available":self.source.valid,"status":self.source.status,
                 "warning":self.source.warning,"error":"","show_raw":self.settings["show_raw"],
                 "horizon":horizon,**totals,"energy_methods":energy_modes,
-                "raw_today_kwh":self.source.scalars.get("today_entity"),
+                "raw_today_kwh":self._calendar_scalar("today_entity",now),
                 "native_raw_now_w":self.source.scalars.get("now_entity"),
                 "curve_method":"Lineaire interpolatie tussen ruwe Forecast.Solar-vermogenspunten; kan afwijken van de native trapsgewijze nu-sensor",
                 "factor":round(currentfactor,3),"confidence":round(confidence,3),"comparable_days":days,

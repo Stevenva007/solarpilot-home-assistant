@@ -189,6 +189,7 @@ async def test_manufacturer_hygiene_still_blocks_morning_and_evening():
 def test_predictive_cooling_requires_reliable_model_and_can_see_idle_cool(monkeypatch):
     r,h=setup(config={'predictive_cooling_enabled':True});p=NSWB(confidence=lambda c:.7,predict=lambda *a,**kw:[24,25])
     climate=NSWB(settings={'enabled':True,'zone_entities':['climate.home'],'model_confidence_min':.55,'forecast_refresh_s':3600,'soft_band_c':.5},configured=True,state=NSWB(fault='',last_forecast_wall=__import__('time').time(),profiles={'climate.home':p}),last_solar_hourly=[2,2],_zones=lambda:[dict(entity_id='climate.home',current=23,target=23,mode='cool')],_outside_hourly=lambda:[27,28])
+    climate.forecast_cache_valid=lambda: bool(climate.state.last_forecast_wall)
     r.smart_climate=climate
     assert r.dhw._predicted_cooling()[0]
     p.confidence=lambda c:.2;r.dhw._prediction_check_wall=None

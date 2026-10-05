@@ -3,12 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.54'
-GUIDE_UPDATED = '2026-10-04'
+GUIDE_VERSION = '1.0.0-beta.55'
+GUIDE_UPDATED = '2026-10-05'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.54',
- 'updated': '2026-10-04',
+ 'version': '1.0.0-beta.55',
+ 'updated': '2026-10-05',
  'intro': 'Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst '
           'samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en '
           'leerdata blijven lokaal in Home Assistant en worden bij gewone HACS-updates niet vervangen door '
@@ -401,6 +401,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'blijven gekoppelde scalar-sensoren bruikbaar. Bij ontbrekende/verouderde '
                               'forecast blijven realtime regeling, minimumtijden, comfort en deadlines werken; '
                               'niet gedekte uren worden geen virtueel zonneoverschot.',
+                              'Dag- en uurgebonden PV-sensoren behouden de betekenis van hun werkelijke '
+                              'rapportage. Een waarde voor morgen die vóór middernacht werd gemeld, is '
+                              'na middernacht niet automatisch een voorspelling voor de nieuwe morgen. '
+                              'Zonder passende nieuwe rapportage blijft die scalarwaarde onbekend. '
+                              'Hetzelfde geldt voor het huidige en volgende uur bij een uurwisseling. '
+                              'Een gedekte tijdgestempelde curve blijft wel bruikbaar; lokale zomer- en '
+                              'wintertijd worden via echte tijdstempels onderscheiden.',
                               'Voor het opgegeven profiel gelden 13.800 Wp panelen, 10.000 W '
                               'AC-omvormerlimiet, 25° helling en 180° zuid. Forecast.Solar staat met '
                               'morning/evening damping 0,00 en zonder API-key ingesteld. Dit zijn '
@@ -620,6 +627,17 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'en een ontbrekende staart blijven onbekend. Vijf beschikbare uren worden dus niet als '
                               'een beoordeling van de volgende twee dagen getoond. Gewijzigde voorspellingen worden '
                               'opnieuw beoordeeld terwijl de opdrachtbevestiging en minimumtijden blijven gelden.',
+                              'De uurvoorspelling heeft een eigen geldigheidsduur, los van hoe vaak de '
+                              'weerbron haar huidige temperatuur opnieuw meldt. Een nog bruikbare '
+                              'uurreeks verdwijnt niet enkel doordat zo een statusmelding ouder wordt '
+                              'dan de versheidsgrens voor een kamermeting. De huidige buitentemperatuur '
+                              'behoudt haar eigen broncontrole. Een forecastcache verloopt uiterlijk na '
+                              'twee ingestelde vernieuwingsintervallen, met een minimum van een half uur. '
+                              'Ontbrekende, restored, onbeschikbare of verkeerd gekoppelde weerbronnen '
+                              'en ongeldige eenheden of rapportagetijden blijven beschermd. Een mislukte '
+                              'ophaling verlengt oude gegevens niet; nieuwe pogingen zijn begrensd. '
+                              'De voorspelde koelbescherming van extra boilerwarmte controleert dit '
+                              'bewijs ook vóór het hergebruiken van een kort bewaard koeladvies.',
                               'Voorspellend hervatten rekent met de geleerde relevante verwarm- of koelrespons en '
                               'reactievertraging om de laatste verantwoorde starttijd te schatten. Een langzame, '
                               'aantoonbaar geleerde respons kan eerder AUTO vereisen dan een snelle respons. '
@@ -1051,6 +1069,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Unknown, Unavailable, restored of een werkelijk onveilige waarde blokkeert nog '
                               'steeds fail-closed. Ook No Program geldt expliciet niet als een geselecteerd '
                               'programma.',
+                              'Een betrouwbaar opnieuw Ready To Start gemeld toestel beëindigt een '
+                              'achtergebleven status van de vorige lopende cyclus als einde niet bevestigd. '
+                              'Daarmee wordt geen oude aanvraag hersteld en geen voltooiing verzonnen. '
+                              'Een daaropvolgende nieuwe fysieke APP-vrijgave kan één nieuwe belading '
+                              'aanvragen. Een ongewijzigde Enabled-status is geen nieuwe aanvraag. '
+                              'Een nog onzekere eerder verstuurde START blijft tegen herhalen beschermd; '
+                              'een lopende, gepauzeerde of drogende cyclus wordt niet opnieuw vrijgegeven.',
                               'Standaard geldt 13:00 als uiterste starttijd. Een aanvraag vóór 13:00 wordt op '
                               'dezelfde dag gepland; een aanvraag op of na 13:00 wacht tot de volgende '
                               'kalenderdag. Die volgende dag wordt eerst zon benut, maar uiterlijk 13:00 mag '
@@ -1482,6 +1507,12 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'warmtepomp-W-meter mag SolarPilot uit stabiele P1+PV-sprongen een conservatieve '
                               'vermogensschatting leren, maar uitsluitend voor planning en classificatie. Die '
                               'schatting wordt nooit van actuele P1-netruimte afgetrokken.',
+                              'Native warmtepompacties moeten actueel, geldig en niet restored zijn '
+                              'voor de leerclassificatie. Een betrouwbare UIT-zone maakt een andere '
+                              'ontbrekende gekoppelde zone niet tot bewezen rust. Algemene PUMP-taakinfo '
+                              'blijft zonder verder bewijs onbekend voor huishoudelijk basislastleren. '
+                              'Een afgewezen vermogensmeting behoudt haar werkelijke afwijsreden en '
+                              'wordt niet automatisch als onbekende warmtepompactiviteit geteld.',
                               'De Wallbox blijft read-only. Een Full Solar-instelling bewijst niet welke laadsessie '
                               'werkelijk actief is. SolarPilot kan alleen een sessie-entiteit voorstellen wanneer '
                               'één entiteit op hetzelfde Wallbox-apparaat voldoende bewijs bevat. Zonder bevestigde '
@@ -1490,8 +1521,10 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'zijn wanneer haar fysieke status-, vermogen- en ruwe rapportagebronnen bruikbaar, '
                               'niet restored en hoogstens vijf minuten oud zijn. Ongeldige of toekomstige '
                               'rapportagetijden geven evenmin actuele bronvrijgave. Een minuutheartbeat maakt die '
-                              'controle zichtbaar. De live configuratiecontrole en herlading bevestigden zo een '
-                              'actuele gestopte sessie zonder EV-vermogenskrediet. Bij een oude, onbekende of '
+                              'controle zichtbaar, mits de sensor telkens haar echte bronactualiteit en '
+                              'eventuele handmatige laadovername opnieuw beoordeelt. Een stilstaande '
+                              'afgeleide waarde of de Full Solar-instelling alleen bewijst de sessie niet. '
+                              'Bij een oude, onbekende of '
                               'strijdige status blijft SolarPilot fail-closed.',
                               'De boiler gebruikt vanaf beta.36 één config-entrybron voor de effectieve '
                               'instellingen. Bij de beta.35-migratie worden de werkelijk gebruikte waarden 50 °C '

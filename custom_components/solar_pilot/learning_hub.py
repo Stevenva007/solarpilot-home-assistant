@@ -211,7 +211,7 @@ class LearningHub:
         code = sample["code"]
         if not r.planner_settings.get("base_load_learning", True):
             code = "learning_disabled"
-        elif sample.get("context") != CONTEXT_NORMAL:
+        elif sample.get("valid") and sample.get("context") != CONTEXT_NORMAL:
             code = "heatpump_" + str(sample.get("context") or CONTEXT_UNKNOWN)
         elif self.policy["sampling"] == "quiet" and sample.get("old_rule_would_skip"):
             code = "quiet_policy"

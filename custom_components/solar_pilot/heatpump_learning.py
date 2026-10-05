@@ -11,6 +11,7 @@ from collections import deque
 from dataclasses import dataclass
 import math
 import statistics
+import time
 
 from .dhw import hygiene_schedule_active
 
@@ -32,10 +33,25 @@ def _finite(value):
         return None
 
 
-def _action(obj):
-    if obj is None or str(getattr(obj, "state", "")).casefold() in {"unknown", "unavailable", ""}:
+def _action(obj, stale_s=300):
+    """Use reported activity only while its source is current and trustworthy."""
+    if obj is None or str(getattr(obj, "state", "")).strip().casefold() in {"unknown", "unavailable", ""}:
         return None
     attrs = getattr(obj, "attributes", {}) or {}
+    if attrs.get("restored"):
+        return None
+    stamp = getattr(obj, "last_reported", None)
+    if stamp is None:
+        stamp = getattr(obj, "last_updated", None)
+    try:
+        reported = stamp.timestamp()
+        max_age = _finite(stale_s)
+        if (isinstance(reported, bool) or not isinstance(reported, (int, float))
+                or _finite(reported) is None or max_age is None or max_age < 0
+                or not -5 <= time.time() - reported <= max_age):
+            return None
+    except (AttributeError, TypeError, ValueError, OSError, OverflowError):
+        return None
     value = attrs.get("hvac_action")
     if value is None:
         return ""
@@ -66,7 +82,9 @@ def classify_heatpump(runtime, local_now):
     if dhw is not None and getattr(dhw, "configured", False):
         entity_id = getattr(dhw, "config", {}).get("target_entity")
         obj = get(entity_id) if entity_id else None
-        action = _action(obj)
+        action = _action(obj, dhw.settings.get("stale_s", 300))
+        if action is None and str(entity_id or "").startswith(("climate.", "water_heater.")):
+            return CONTEXT_UNKNOWN, "Panasonic-tapwateractiviteit niet betrouwbaar beschikbaar"
         if action in {"heating", "preheating", "heat", "dhw", "hot_water"}:
             return CONTEXT_DHW, "Panasonic meldt actieve tapwaterverwarming"
 
@@ -77,7 +95,7 @@ def classify_heatpump(runtime, local_now):
     unavailable = False
     for entity_id in zone_ids:
         obj = get(entity_id)
-        action = _action(obj)
+        action = _action(obj, settings.get("stale_s", 1800))
         if action is None:
             unavailable = True
             continue
@@ -89,7 +107,7 @@ def classify_heatpump(runtime, local_now):
         return CONTEXT_HEATING, "Panasonic meldt actieve ruimteverwarming"
     if any(a in {"defrosting", "unknown"} for a in actions):
         return CONTEXT_UNKNOWN, "Warmtepomp actief maar functie niet eenduidig"
-    if zone_ids and unavailable and not actions:
+    if zone_ids and unavailable:
         return CONTEXT_UNKNOWN, "Panasonic-ruimteactiviteit niet betrouwbaar beschikbaar"
 
     # Some supported Panasonic adapter versions expose AUTO as heat_cool while hvac_action

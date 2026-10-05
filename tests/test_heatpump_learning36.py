@@ -1,5 +1,6 @@
 """Beta.36 heat-pump classification and conservative power learning."""
 from types import SimpleNamespace as NS
+from datetime import datetime, timezone
 from test_runtime import build
 
 from custom_components.solar_pilot.heatpump_learning import (
@@ -16,7 +17,8 @@ class States:
     def __init__(self):
         self.rows = {}
     def set(self, entity_id, state, attrs=None):
-        self.rows[entity_id] = NS(state=state, attributes=attrs or {})
+        self.rows[entity_id] = NS(state=state, attributes=attrs or {},
+                                  last_reported=datetime.now(timezone.utc))
     def get(self, entity_id):
         return self.rows.get(entity_id)
 

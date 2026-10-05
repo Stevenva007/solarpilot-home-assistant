@@ -32,6 +32,10 @@ class SmartClimateManager:
         self.last_zones = []
         self.last_outside = None
         self.last_forecast_error = ""
+        self._forecast_weather_id = None
+        self._last_forecast_attempt_wall = None
+        self._forecast_attempt_weather_id = None
+        self._forecast_attempt_failed = False
         self.last_weather_corrections = []
         self.last_solar_hourly = []
         self.manual_off = set()
@@ -318,30 +322,77 @@ class SmartClimateManager:
         except Exception:
             return None
 
+    def _forecast_source_available(self, weather_id=None):
+        """Forecast availability does not require the current-temperature heartbeat.
+
+        Hourly providers may report current conditions only once an hour. Their
+        forecast service remains usable between reports, but unavailable,
+        restored, mistyped or future-dated sources may never supply a forecast.
+        """
+        selected = self.settings.get("weather_entity")
+        weather_id = selected if weather_id is None else weather_id
+        if not weather_id or selected != weather_id:
+            return False
+        obj = self.runtime.hass.states.get(weather_id)
+        if (obj is None or str(obj.state).casefold() in ("unknown", "unavailable", "")
+                or obj.attributes.get("restored") or not self._temp_unit_ok(obj)):
+            return False
+        stamp = getattr(obj, "last_reported", None) or getattr(obj, "last_updated", None)
+        if stamp is None:
+            return False
+        try:
+            if stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=timezone.utc)
+            return 0 <= (datetime.now(timezone.utc) - stamp.astimezone(timezone.utc)).total_seconds()
+        except Exception:
+            return False
+
+    def forecast_cache_valid(self):
+        """Share the same binding, source and successful-fetch age guard."""
+        now = time.time()
+        fetched = finite(self.state.last_forecast_wall)
+        refresh_s = float(self.settings.get("forecast_refresh_s", 3600))
+        return bool(
+            fetched is not None and fetched > 0
+            and 0 <= now - fetched <= max(1800, 2 * refresh_s)
+            and self._forecast_weather_id == self.settings.get("weather_entity")
+            and self._forecast_source_available()
+            and self._upcoming_forecast_rows(self.state.forecast, 1, now)
+        )
+
     async def _refresh_forecast(self):
         weather_id = self.settings.get("weather_entity")
-        weather_obj = self.runtime.hass.states.get(weather_id) if weather_id else None
-        if (weather_obj is None or str(weather_obj.state).casefold() in ("unknown", "unavailable", "")
-                or not self._fresh(weather_obj) or not self._temp_unit_ok(weather_obj)):
+        if not self._forecast_source_available(weather_id):
             self.state.forecast = []
             self.last_forecast_error = "Weerbron heeft geen actuele uurvoorspelling in °C"
             return
-        if time.time() - self.state.last_forecast_wall < float(self.settings.get("forecast_refresh_s", 3600)):
+        now = time.time()
+        cache_valid = self.forecast_cache_valid()
+        if not cache_valid:
+            self.state.forecast = []
+        if (cache_valid and now - self.state.last_forecast_wall
+                < float(self.settings.get("forecast_refresh_s", 3600))):
             return
-        self.state.last_forecast_wall = time.time()
+        if (self._forecast_attempt_failed and self._forecast_attempt_weather_id == weather_id
+                and self._last_forecast_attempt_wall is not None
+                and 0 <= now - self._last_forecast_attempt_wall < 60):
+            return
+        self._last_forecast_attempt_wall = now
+        self._forecast_attempt_weather_id = weather_id
+        self._forecast_attempt_failed = True
         try:
             response = await self.runtime.hass.services.async_call(
                 "weather", "get_forecasts", {"type": "hourly"},
                 target={"entity_id": weather_id}, blocking=True, return_response=True)
-            weather_obj = self.runtime.hass.states.get(weather_id)
-            if (weather_obj is None or str(weather_obj.state).casefold() in ("unknown", "unavailable", "")
-                    or not self._fresh(weather_obj) or not self._temp_unit_ok(weather_obj)):
+            if not self._forecast_source_available(weather_id):
                 self.state.forecast = []
                 self.last_forecast_error = "Weerbron wijzigde tijdens ophalen; uurtemperaturen niet gebruikt"
                 return
             rows = (response or {}).get(weather_id, {}).get("forecast", [])
             forecast = []
             for row in rows:
+                if not isinstance(row, dict):
+                    continue
                 temp = finite(row.get("temperature"))
                 if temp is None or not -60 <= temp <= 60:
                     continue
@@ -353,23 +404,42 @@ class SmartClimateManager:
                     "temperature": temp, "condition": row.get("condition"),
                     "humidity": row.get("humidity"), "cloud_coverage": row.get("cloud_coverage"),
                 })
-            if forecast:
-                self.state.forecast = sorted(forecast, key=lambda row: row["valid_ts"])[:96]
+            fetched = time.time()
+            forecast = sorted((row for row in forecast
+                               if row["valid_ts"] >= (fetched // 3600) * 3600),
+                              key=lambda row: row["valid_ts"])[:96]
+            if self._upcoming_forecast_rows(forecast, 1, fetched):
+                self.state.forecast = forecast
+                self.state.last_forecast_wall = fetched
+                self._forecast_weather_id = weather_id
+                self._forecast_attempt_failed = False
                 if self.settings.get("weather_bias_enabled", True):
-                    self.state.weather_bias.queue(self.state.forecast, time.time())
+                    self.state.weather_bias.queue(self.state.forecast, fetched)
                 self.last_forecast_error = ""
             else:
                 self.last_forecast_error = "Weerdienst gaf geen bruikbare uurtemperaturen"
         except Exception as err:
             self.last_forecast_error = f"Uurvoorspelling niet beschikbaar: {err}"
+        finally:
+            if not self.forecast_cache_valid():
+                self.state.forecast = []
 
     def _current_forecast_rows(self, hours):
         """Use consecutive upcoming hours, never a past forecast or a hidden gap."""
-        now = time.time()
+        if not self.forecast_cache_valid():
+            return []
+        return self._upcoming_forecast_rows(self.state.forecast, hours, time.time())
+
+    @staticmethod
+    def _upcoming_forecast_rows(forecast, hours, now):
         rows, previous = [], None
-        for row in self.state.forecast:
+        for row in forecast:
+            if not isinstance(row, dict):
+                continue
             stamp = finite(row.get("valid_ts"))
-            if stamp is None or stamp < (now // 3600) * 3600:
+            temp = finite(row.get("temperature"))
+            if (stamp is None or stamp < (now // 3600) * 3600
+                    or temp is None or not -60 <= temp <= 60):
                 continue
             if previous is None and stamp > now + 5400:
                 break
@@ -688,10 +758,7 @@ class SmartClimateManager:
         if "_planning_outside" in zone and self._outside() != zone["_planning_outside"]:
             return False
         if zone.get("_planning_weather_used"):
-            weather_id = self.settings.get("weather_entity")
-            obj = self.runtime.hass.states.get(weather_id) if weather_id else None
-            if (obj is None or str(obj.state).casefold() in ("unknown", "unavailable", "")
-                    or not self._fresh(obj) or not self._temp_unit_ok(obj)):
+            if not self.forecast_cache_valid():
                 return False
         if (mode == "auto" and zone.get("_planning_solar_precondition") and decision is not None
                 and not decision.comfort_required and not decision.urgent_auto
@@ -1081,6 +1148,10 @@ class SmartClimateManager:
         if weather_changed:
             self.state.forecast = []
             self.state.last_forecast_wall = 0
+            self._forecast_weather_id = None
+            self._last_forecast_attempt_wall = None
+            self._forecast_attempt_weather_id = None
+            self._forecast_attempt_failed = False
             self.state.weather_bias.reset()
             self.last_forecast_error = "Weerbron gewijzigd; lokale weerscorrectie leert opnieuw."
         if outside_changed or (weather_changed and not self.settings.get("outside_temp_entity")):
@@ -1515,7 +1586,7 @@ class SmartClimateManager:
             "zone_decisions": {eid: self._decision_row(decision) for eid, decision in self.zone_decisions.items()},
             "dashboard_overrides": dict(self.dashboard_overrides),
             "outside_c": self.last_outside,
-            "forecast_hours": len(self.state.forecast), "forecast_error": self.last_forecast_error,
+            "forecast_hours": len(self._current_forecast_rows(96)), "forecast_error": self.last_forecast_error,
             "fault": self.state.fault,
             "decision": {
                 "mode": d.desired_mode, "reason": d.reason, "hard_override": d.hard_override,

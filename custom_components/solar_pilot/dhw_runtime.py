@@ -53,6 +53,7 @@ class DHWManager:
         self._cooling_wall = None
         self._prediction_check_wall = None
         self._prediction_cached = (False, "")
+        self._prediction_forecast_key = None
         self._last_model_save_wall = 0.0
 
     @property
@@ -645,13 +646,21 @@ class DHWManager:
         if not zones or len(zones) != len(climate.settings.get("zone_entities", [])) or climate.state.fault:
             return False, ""
         wall = time.time()
+        # A cached cooling prediction must not outlive its weather evidence.
+        # Current weather heartbeat and forecast payload have separate lifetimes.
+        if not climate.forecast_cache_valid():
+            self._prediction_check_wall = None
+            self._prediction_cached = (False, "")
+            self._prediction_forecast_key = None
+            return self._prediction_cached
+        forecast_key = (climate.settings.get("weather_entity"), climate.state.last_forecast_wall)
+        if forecast_key != self._prediction_forecast_key:
+            self._prediction_check_wall = None
+            self._prediction_forecast_key = forecast_key
         if self._prediction_check_wall is not None and 0 <= wall-self._prediction_check_wall < 300:
             return self._prediction_cached
         self._prediction_check_wall = wall
         self._prediction_cached = (False, "")
-        if (not climate.state.last_forecast_wall or
-                not 0 <= wall-climate.state.last_forecast_wall <= max(1800, climate.settings.get("forecast_refresh_s",3600)*2)):
-            return self._prediction_cached
         import math
         hours = max(1, math.ceil(self.settings["predictive_cooling_horizon_h"]))
         weather = climate._outside_hourly()[:hours]

@@ -165,7 +165,7 @@ async def test_native_off_is_not_enabled_by_restart_reconciliation():
 
 @pytest.mark.asyncio
 async def test_future_weekly_hygiene_window_is_kept_without_temperature_write():
-    runtime, hass = setup()
+    runtime, hass = setup(config={'hygiene_schedule_enabled': True})
     manager = restart(runtime, owned=60)
 
     assert await manager.reconcile_restart(datetime(2026, 9, 21, 12))

@@ -100,6 +100,23 @@ class DishwasherApp:
     def _note(self, cfg, message):
         self.r.note(f'{cfg["name"]}: {message}')
 
+    def _ready_again(self, cfg, value):
+        """A new READY ends the old active latch without inventing completion.
+
+        It does not restore a consumed request or clear an uncertain START. Only
+        a later, explicit APP edge may create permission for the new loading.
+        """
+        d = self._entry(cfg["id"])
+        cycle = d.get("cycle", {})
+        if norm(value) not in accepted(settings(cfg)["dishwasher_ready_states"]) or cycle.get("status") != "running":
+            return False
+        d["cycle"] = {**cycle, "status": "end_unconfirmed"}
+        if self.r.dishwasher.tickets.get(cfg["id"], {}).get("attempted"):
+            d["message"] = "Toestel opnieuw gereed; START-uitkomst eerst controleren, geen automatische herhaalopdracht"
+        else:
+            d["message"] = "Toestel opnieuw gereed; einde vorige cyclus niet bevestigd; APP opnieuw vrijgeven"
+        return True
+
     def start(self):
         ids = set()
         for i, cfg in self.r.configs.items():
@@ -170,6 +187,12 @@ class DishwasherApp:
                     raw_obj = self.r.hass.states.get(cfg.get("dishwasher_state_entity", ""))
                     raw = str(getattr(raw_obj, "state", ""))
                     ticket = self.r.dishwasher.tickets.get(i, {})
+                    # A retained old Running may outlive a lost End/Off event.
+                    # Resolve it only from a usable live reading of READY; a
+                    # stale/restored/offline source cannot release this latch.
+                    reading = read(self.r.hass, cfg, wall)
+                    if reading.active is False:
+                        self._ready_again(cfg, reading.raw)
                     active = d.get("cycle", {}).get("status") == "running" or norm(raw) in accepted(c["dishwasher_running_states"])
                     if not active and not ticket.get("attempted") and c.get("dishwasher_mapping_confirmed"):
                         prog = self.r.hass.states.get(cfg.get("cycle_program_entity", ""))
@@ -181,6 +204,12 @@ class DishwasherApp:
                         d.pop("notified_deadline", None)
                         d.pop("end_pending", None)
                         self._note(cfg, "één APP-aanvraag opgeslagen; plandag " + d["request"]["planned_day"])
+                    elif ticket.get("attempted"):
+                        d["message"] = "START-uitkomst eerst controleren; geen tweede APP-aanvraag zonder controle"
+                    elif active:
+                        d["message"] = "Vorige cyclus nog actief of niet opnieuw gereed; geen nieuwe APP-aanvraag"
+                    else:
+                        d["message"] = "AEG-startknop en statuskoppelingen nog niet bevestigd; APP-aanvraag niet opgeslagen"
                 elif value != "Enabled" and d.get("request"):
                     self.cancel(cfg, "APP-starttoestemming ingetrokken")
         elif eid == cfg.get("dishwasher_state_entity"):
@@ -211,6 +240,8 @@ class DishwasherApp:
                 d["cycle"]["status"] = "end_unconfirmed"
                 d["message"] = "Toestel uit; einde niet bevestigd"
                 self.cancel(cfg, d["message"])
+            elif n in accepted(c["dishwasher_ready_states"]):
+                self._ready_again(cfg, value)
             # Unknown/Disconnected never records a successful end.
             d["last_state"] = value
         elif eid == cfg.get("dishwasher_phase_entity"):
@@ -251,6 +282,8 @@ class DishwasherApp:
             return
         self.seed(cfg)
         d = self._entry(cfg["id"])
+        if reading.active is False and self._ready_again(cfg, reading.raw):
+            self._dirty()
         q = d.get("request")
         if reading.active is True and d.get("cycle", {}).get("status") != "running":
             # Polling fallback for long-lived Running, never for brief End events.

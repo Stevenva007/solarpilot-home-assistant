@@ -45,6 +45,9 @@ def setup(kind='water_heater',config=None):
     h.states.set('switch.powerful','off')
     h.states.set('sensor.boiler_power',0,{'unit_of_measurement':'W'})
     r.entry.options['dhw']={**DHW_DEFAULTS,'enabled':True,'safety_confirmed':True,
+        # Calendar protection is opt-in in this generic fixture; dedicated
+        # hygiene cases supply their schedule instead of using the wall clock.
+        'hygiene_schedule_enabled':False,
         'target_entity':target,'temperature_entity':'sensor.water',
         'cooling_entities':['climate.home','climate.salon'],
         'hygiene_entity':'binary_sensor.hygiene','manual_entity':'switch.powerful',
