@@ -38,9 +38,11 @@ def attach_climate(runtime, hass, monkeypatch):
     hass.states.set("climate.home", "off", attrs)
     hass.states.set("climate.salon", "off", attrs)
     hass.states.set("sensor.outdoor", 21, {"unit_of_measurement": "°C"})
+    hass.states.set("sensor.native_program", "heat_cool", {})
     runtime.entry.options["smart_climate"] = {
         **SMART_CLIMATE_DEFAULTS, "enabled": True, "control_enabled": False,
         "zone_entities": ["climate.home"], "outside_temp_entity": "sensor.outdoor",
+        "operation_mode_entity": "sensor.native_program",
     }
     runtime.smart_climate = SmartClimateManager(runtime)
     runtime.settings["settle_s"] = 0

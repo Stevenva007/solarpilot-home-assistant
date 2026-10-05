@@ -277,7 +277,7 @@ class DishwasherPriority:
                 (f"Extra 60 °C wacht: {capacity_headroom:.0f} W kwartierpiekruimte; "
                  f"{heat_power:.0f} W nodig voor de boiler"), **details)
         available = min(grid_surplus, pv_ceiling)
-        enough = available > required if full_start_proof else available >= 0
+        enough = available >= required if full_start_proof else available >= 0
         if not enough:
             shortage = max(0.0, -available)
             if shortage:
@@ -285,7 +285,7 @@ class DishwasherPriority:
                           "niet-negatieve werkelijke ruimte vereist")
             else:
                 reason = (f"Extra 60 °C wacht: {usable:.0f} W werkelijk vrij na reserves; "
-                          f"meer dan {required:.0f} W vereist")
+                          f"minstens {required:.0f} W vereist")
             return DHWLuxuryAllocation(False,
                 reason, **details)
         prefix = ("Bestaand extra 60 °C-doel houdt ruimte naast de afwasmachine"

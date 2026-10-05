@@ -238,8 +238,18 @@ class ConsumerHistory:
         if not row:
             return {"date": day, "on_s": None, "recording": False, "revision": 0}
         agg = row["days"].get(day)
+        session = row["sessions"][-1] if row["sessions"] else None
+        change = None
+        if session is not None:
+            ended = session.get("end") is not None
+            confirmed = bool(session.get("stop_confirmed") if ended else session.get("start_confirmed"))
+            change = {"at": session.get("end") if ended else session.get("start"),
+                      "state": ("off" if ended else "on") if confirmed else "unknown",
+                      "reason": session.get("stop_reason") if ended else session.get("start_reason"),
+                      "source": session.get("stop_source") if ended else session.get("start_source"),
+                      "confirmed": confirmed}
         return {"date": day, "on_s": round(agg.get("on_s", 0), 1) if agg else None, "recording": agg is not None,
-                "ongoing": row["active"] is True, "revision": row["revision"]}
+                "ongoing": row["active"] is True, "revision": row["revision"], "last_change": change}
 
     def detail(self, device_id, day, when):
         """30 tiny daily totals plus sessions/events for one explicitly requested day."""

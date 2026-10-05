@@ -5,7 +5,9 @@ thermostat, hygiene functions and hot-water safety remain prerequisites.
 """
 from __future__ import annotations
 import asyncio
+from dataclasses import asdict
 from datetime import datetime, timedelta
+import math
 import time
 from zoneinfo import ZoneInfo
 from homeassistant.exceptions import HomeAssistantError
@@ -55,6 +57,13 @@ class DHWManager:
         self._prediction_cached = (False, "")
         self._prediction_forecast_key = None
         self._last_model_save_wall = 0.0
+        self._luxury_allocation = None
+        self.execution = {"schema": 1, "state": "not_evaluated", "code": "not_evaluated",
+                          "reason": "Boilerregeling nog niet beoordeeld", "evaluated_at": None,
+                          "gates": []}
+        self._execution_now = None
+        self._execution_local_now = None
+        self._dispatch_gate = {"allowed": True, "code": "", "reason": ""}
 
     @property
     def configured(self):
@@ -94,7 +103,7 @@ class DHWManager:
                 self.tunables, self.settings = trial, merged
             self.auto_enabled = bool(data.get("enabled", self.auto_enabled))
         self.policy = DHWPolicy(self.settings)
-        self.last_success = data.get("last_success")
+        self.last_success = data.get("last_success") if same_binding else None
         if same_binding:
             command_wall = finite(data.get("last_command_wall"))
             if command_wall is not None and 0 <= time.time()-command_wall:
@@ -131,9 +140,12 @@ class DHWManager:
                              and 0 < issued_wall <= time.time() + 5
                              and isinstance(pending.get("release", False), bool))
                     if valid:
+                        pending_reason = pending.get("reason")
                         pending = {"target": target, "issued_wall": issued_wall,
                                    "release": bool(pending.get("release")),
                                    "ack_poll_min_s": max(0.0, finite(pending.get("ack_poll_min_s")) or 0.0)}
+                        if isinstance(pending_reason, str) and pending_reason:
+                            pending["reason"] = pending_reason[:1200]
             if valid:
                 self.restart_recovery = {
                     "schema": 1, "owned_target": owned, "pending": pending,
@@ -199,11 +211,11 @@ class DHWManager:
 
         pending = recovery.get("pending")
         if pending:
-            stamp = getattr(target_obj, "last_reported", target_obj.last_updated).timestamp()
+            stamp = self._report_stamp(target_obj)
             delay = max(self._ack_poll_min_s(), pending.get("ack_poll_min_s", 0.0))
             # The command-side echo from before the restart cannot become an
             # ACK by waiting. Require a genuinely later HA report in this run.
-            if stamp <= recovery["started_wall"] or stamp < pending["issued_wall"] + delay:
+            if stamp is None or stamp <= recovery["started_wall"] or stamp < pending["issued_wall"] + delay:
                 return wait("Boilerherstart: wacht op latere doelrapportage; oude opdracht wordt niet herhaald")
             expected = pending["target"]
         else:
@@ -223,6 +235,8 @@ class DHWManager:
                     "target_c": target, "time": datetime.now().astimezone().isoformat(),
                     "confirmation": "restart_delayed_ha_state" if delay else "restart_ha_state",
                 }
+                if pending.get("reason"):
+                    self.last_success["reason"] = pending["reason"]
             self.status = "Boilerherstart automatisch gecontroleerd; actuele toestand behouden zonder doelopdracht"
             self.runtime.note(self.status)
         await self._save()
@@ -274,14 +288,46 @@ class DHWManager:
             )
         return changed
 
+    async def migrate_beta56(self):
+        """Apply the requested 3 kW start threshold once, preserving other choices.
+
+        Only the former 3500 W default is changed. Persist a marker so a later
+        deliberate 3500 W choice is never mistaken for a legacy default again.
+        No permission, binding, comfort target or hygiene guard is modified.
+        """
+        before = self.runtime.entry.options.get("dhw", {}) or {}
+        if before.get("surplus_threshold_migration") == 56:
+            return False
+        changed_threshold = finite(self.settings.get("surplus_threshold_w")) == 3500.0
+        if changed_threshold:
+            self.settings["surplus_threshold_w"] = 3000.0
+        self.settings["surplus_threshold_migration"] = 56
+        self._persist_canonical()
+        if changed_threshold:
+            self.runtime.note("Boiler: voormalige standaarddrempel 3500 W éénmalig naar 3000 W aangepast; overige instellingen behouden.")
+        return True
+
+    @staticmethod
+    def _report_stamp(obj):
+        report = getattr(obj, "last_reported", None)
+        if report is None:
+            report = getattr(obj, "last_updated", None)
+        try:
+            stamp = report.timestamp()
+        except (AttributeError, TypeError, ValueError, OverflowError):
+            return None
+        if isinstance(stamp, bool) or not isinstance(stamp, (int, float)):
+            return None
+        return finite(stamp)
+
     def _state(self, entity_id, freshness=True):
         obj = self.runtime.hass.states.get(entity_id) if entity_id else None
         if (obj is None or obj.state in ("unknown", "unavailable", "")
                 or obj.attributes.get("restored")):
             return None
         if freshness:
-            stamp = getattr(obj, "last_reported", obj.last_updated).timestamp()
-            if not -5 <= time.time() - stamp <= self.settings["stale_s"]:
+            stamp = self._report_stamp(obj)
+            if stamp is None or not -5 <= time.time() - stamp <= self.settings["stale_s"]:
                 return None
         return obj
 
@@ -334,8 +380,10 @@ class DHWManager:
         # our HA binding.  Protect a configurable time window around that factory
         # programme instead of trying to reproduce it.
         if local_now is not None and hygiene_schedule_active(self.settings, local_now):
+            until = self._hygiene_until(local_now)
+            end = f"; beschermde periode tot {until:%d/%m %H:%M}" if until else ""
             return (f"Geplande fabrikantsterilisatie rond {self.settings['hygiene_start']} "
-                    f"({self.settings['hygiene_target_c']:g} °C): SolarPilot stuurt geen boilerdoel")
+                    f"({self.settings['hygiene_target_c']:g} °C): SolarPilot stuurt geen boilerdoel{end}")
 
         manual_ids = []
         if self.config.get("manual_entity"):
@@ -367,6 +415,21 @@ class DHWManager:
             if obj.state == "off" and self.config["target_entity"].startswith(("climate.", "water_heater.")):
                 return "Boiler staat uit; SolarPilot schakelt hem niet zelfstandig in"
         return ""
+
+    def _hygiene_until(self, local_now):
+        """Return the end of the same configured weekly no-command window."""
+        if not hygiene_schedule_active(self.settings, local_now):
+            return None
+        hour, minute = (int(x) for x in self.settings["hygiene_start"].split(":")[:2])
+        days = {int(x.strip()) for x in self.settings["hygiene_weekdays"].split(",") if x.strip()}
+        for delta in range(-7, 2):
+            start = (local_now + timedelta(days=delta)).replace(hour=hour, minute=minute,
+                                                               second=0, microsecond=0)
+            end = start + timedelta(seconds=self.settings["hygiene_guard_after_s"])
+            if (start.weekday() in days
+                    and start - timedelta(seconds=self.settings["hygiene_guard_before_s"]) <= local_now <= end):
+                return end
+        return None
 
     def _cooling(self):
         ids = self.config.get("cooling_entities", [])
@@ -682,6 +745,7 @@ class DHWManager:
         return self._prediction_cached
 
     def _prepare_comfort(self, local_now, r):
+        self._luxury_allocation = None
         self._comfort_forecast(local_now)
         wb = self.runtime._wallbox_reading()
         wc = self.runtime.wallbox_settings
@@ -765,6 +829,8 @@ class DHWManager:
                 states={i: s for i, s in self.runtime.states.items()
                         if i not in getattr(self.runtime, "source_isolated_devices", {})
                         or i in preference.view.active_ids | preference.view.candidate_ids})
+            self._luxury_allocation = {**asdict(allocation), "capacity_guard_enabled": capacity_guard,
+                                       "estimated_heat_power_w": self.settings["estimated_heat_power_w"]}
             if not allocation.allowed:
                 r.luxury_allowed = False
                 r.luxury_reason = allocation.reason
@@ -859,6 +925,7 @@ class DHWManager:
         self.fault = reason
         self.pending = None
         self.status = reason
+        self._finish_execution("blocked", "fault", reason)
         await self._save()
         self.runtime.note("Boiler: " + reason)
         await self.runtime.notify("Boiler: " + reason + ". Controleer de echte toestand. Geen automatische herhaalpogingen.")
@@ -878,13 +945,182 @@ class DHWManager:
         # last_sample remains current: genuine gaps and source changes still
         # invalidate the candidate in the next ordinary policy update.
 
-    async def tick(self, now, grid, valid, discharge, allow_command=True, local_now=None):
-        self.optional_raise_remaining_s = 0
-        if not self.configured:
-            return False
+    def _execution_gates(self):
+        """Explain the evaluated surplus guards without inventing heating proof."""
+        c, r, d = self.settings, self.reading, self.policy.result
+        now, local_now = self._execution_now, self._execution_local_now
+        holding = self.owned_target == c["surplus_c"] and not self.pending
+        export = (r.before_boiler_w if holding and c["compensate_own_power"]
+                  and r.before_boiler_w is not None else r.export_w)
+        required = c["surplus_threshold_w"] - (c["surplus_hysteresis_w"] if holding else 0)
+        surplus_ok = (r.export_w is not None and export is not None and export >= required
+                      and (not holding or r.grid_w is not None and r.grid_w <= c["max_surplus_import_w"]))
+        cooling_remaining = (max(0, math.ceil(c["cooling_clear_s"] - (now - self.policy.last_cooling)))
+                             if now is not None and self.policy.last_cooling is not None else 0)
+        interval_remaining = (max(0, math.ceil(c["optional_raise_interval_s"] -
+                                             max(0, time.time() - self.last_command_wall)))
+                              if self.last_command_wall > 0 and r.actual_target_c is not None
+                              and r.actual_target_c < c["surplus_c"] - .05 else 0)
+        until = self._hygiene_until(local_now) if local_now is not None else None
+        gates = []
+
+        def gate(code, passed, reason, **detail):
+            gates.append({"code": code, "passed": bool(passed), "reason": reason, **detail})
+
+        gate("configured", self.configured, "Boilerbediening niet gekoppeld")
+        gate("enabled", self.auto_enabled, "Automatische boilerregeling staat uit")
+        gate("mode", self.runtime.mode == "solar", "Extra warm water wacht: kies Automatisch regelen",
+             actual=self.runtime.mode, required="solar")
+        gate("safety", c["safety_confirmed"], "Boilerbediening nog niet vrijgegeven")
+        gate("restart", not self.restart_recovery and not self.needs_review,
+             (self.restart_recovery or {}).get("reason") or "Boilerherstartcontrole nog niet afgerond")
+        gate("fault", not self.fault, self.fault or "Boileropdrachtfout vereist controle")
+        gate("manual_hold", not self.manual_hold, "Boilerregeling uit voorzorg gepauzeerd; controle nodig")
+        gate("protection", not r.protected, r.protection_reason or "Fabrikant-/handmatige regeling krijgt voorrang",
+             until=until.isoformat() if until else None)
+        gate("temperature", r.temperature_c is not None, "Tanktemperatuur ontbreekt, is te oud of heeft een ongeldige eenheid",
+             actual_c=r.temperature_c)
+        gate("target", r.actual_target_c is not None, "Actueel boilerdoel ontbreekt, is te oud of heeft een ongeldige eenheid",
+             actual_c=r.actual_target_c)
+        gate("pv", r.pv_w is not None, "Actuele zonnemeting ontbreekt of is niet betrouwbaar", actual_w=r.pv_w)
+        gate("grid", r.grid_w is not None, "Actuele net-/batterijmeting ontbreekt of is niet betrouwbaar",
+             actual_w=r.grid_w, battery_discharge_w=r.battery_discharge_w)
+        gate("pending", not self.pending, "Wacht op bevestiging van het reeds aangevraagde boilerdoel")
+        gate("night", not (night_active(c, local_now) if local_now is not None else d.night),
+             "Nachtrust: geen extra zonnebuffer")
+        gate("cooling", r.cooling is False,
+             "Extra warm water wacht op betrouwbare koelinformatie" if r.cooling is None
+             else "Extra warm water begrensd door actieve koeling", actual=r.cooling)
+        gate("cooling_clear", not cooling_remaining,
+             f"Extra warm water wacht nog {cooling_remaining} s op uitloop na gemelde koeling",
+             remaining_s=cooling_remaining)
+        gate("predicted_cooling", not r.predicted_cooling,
+             r.predicted_cooling_reason or "Extra warm water wacht op verwachte koelvraag")
+        # The existing guard protects a new raise. It does not interrupt a high
+        # target already reported by the native controller solely for heating.
+        needs_raise = r.actual_target_c is None or r.actual_target_c < c["surplus_c"] - .05
+        gate("space_climate", not c["respect_space_climate"] or not needs_raise or r.space_climate_busy is False,
+             r.space_climate_reason or "Extra warm water wacht: ruimteklimaat actief of niet betrouwbaar bekend",
+             actual=r.space_climate_busy)
+        gate("priority", r.luxury_allowed, r.luxury_reason or "Extra warm water wacht op Wallbox/toestelvoorrang")
+        gate("surplus", surplus_ok,
+             (f"Extra warm water wacht: {export:.0f} W werkelijk overschot; minstens {required:g} W nodig"
+              if export is not None else "Extra warm water wacht op betrouwbare actuele overschotmeting"),
+             actual_w=export, measured_export_w=r.export_w, required_w=required,
+             start_threshold_w=c["surplus_threshold_w"], holding_owned_high=holding)
+        gate("stability", not d.remaining_s, f"Stabiliteitscontrole nog {d.remaining_s} s",
+             remaining_s=d.remaining_s, required_s=c["rise_delay_s"])
+        gate("raise_interval", not interval_remaining,
+             f"Extra zonnebuffer wacht nog {interval_remaining} s tussen doelverhogingen",
+             remaining_s=interval_remaining, required_s=c["optional_raise_interval_s"])
+        error = self.check_target(c["surplus_c"]) if self.configured else "Boilerbediening niet gekoppeld"
+        gate("capability", not error, error or "Toestel ondersteunt het extra boilerdoel")
+        gate("dispatch", self._dispatch_gate["allowed"],
+             self._dispatch_gate["reason"] or "Wacht op andere regelopdracht",
+             block_code=self._dispatch_gate["code"])
+        return gates
+
+    def _finish_execution(self, state, code, reason):
+        obj = self._state(self.config.get("target_entity")) if self.configured else None
+        action = str(obj.attributes.get("hvac_action", "")).casefold() if obj else ""
+        heating = (True if obj and (obj.state == "heating" or action in ("heating", "preheating"))
+                   else False if obj and action in ("off", "idle") else None)
+        gates = self._execution_gates()
+        self.execution = {
+            "schema": 1, "state": state, "code": code, "reason": reason,
+            "evaluated_at": (self._execution_local_now.isoformat() if self._execution_local_now else None),
+            "dispatch_gate": dict(self._dispatch_gate), "gates": gates,
+            "blocking_gates": [g["code"] for g in gates if not g["passed"]],
+            "proposed_target_c": self.policy.result.target_c,
+            "surplus_target_c": self.settings["surplus_c"],
+            "candidate_target_c": self.policy.candidate,
+            "actual_target_c": self.reading.actual_target_c,
+            "temperature_c": self.reading.temperature_c,
+            "heating_evidence": {"reported_heating": heating, "native_action": action or None,
+                                 "evidence": "Actuele HVAC-terugmelding; doeltemperatuur is geen opwarmbewijs"},
+            "priority_allocation": self._luxury_allocation,
+            "last_change": self._last_confirmed_target_change(),
+            "source_evidence": {
+                "target": self._diagnostic_source(self.config.get("target_entity")),
+                "temperature": self._diagnostic_source(self.config.get("temperature_entity") or self.config.get("target_entity")),
+                "space_activity": self._diagnostic_source(self.config.get("space_activity_entity")),
+                "cooling": [self._diagnostic_source(i) for i in self.config.get("cooling_entities", [])],
+                "hygiene": self._diagnostic_source(self.config.get("hygiene_entity")),
+                "manual": [self._diagnostic_source(i) for i in filter(None, [self.config.get("manual_entity"), *self.config.get("manual_entities", [])])],
+                "site": {key: self._diagnostic_source(self.runtime.settings.get(key))
+                         for key in ("grid_entity", "export_entity", "pv_entity", "battery_power_entity")},
+            },
+        }
+
+    def _last_confirmed_target_change(self):
+        """Only a completed HA target acknowledgment counts as a change here."""
+        success = self.last_success
+        if not isinstance(success, dict) or success.get("confirmation") not in (
+                "ha_state", "delayed_ha_state", "restart_ha_state", "restart_delayed_ha_state"):
+            return None
+        target, at = finite(success.get("target_c")), success.get("time")
+        if target is None or not isinstance(at, str) or not at:
+            return None
+        reason = f"Boilerdoel {target:g} °C teruggelezen in Home Assistant (geen opwarmbewijs)"
+        original_reason = success.get("reason")
+        if isinstance(original_reason, str) and original_reason:
+            reason += "; " + original_reason
+        return {"at": at, "target_c": target, "reason": reason,
+                "source": "solarpilot", "confirmed": True}
+
+    def _diagnostic_source(self, entity_id):
+        """Bounded source evidence: reporting age is independent of value changes."""
+        if not entity_id:
+            return None
+        obj = self.runtime.hass.states.get(entity_id)
+        if obj is None:
+            return {"entity_id": entity_id, "available": False, "state": None}
+        stamp = self._report_stamp(obj)
+        age = time.time() - stamp if stamp is not None else None
+        return {"entity_id": entity_id, "state": obj.state,
+                "available": obj.state not in ("unknown", "unavailable", ""),
+                "restored": bool(obj.attributes.get("restored")),
+                "age_s": round(age, 1) if age is not None else None,
+                "hvac_action": obj.attributes.get("hvac_action"),
+                "current_temperature": obj.attributes.get("current_temperature"),
+                "target_temperature": obj.attributes.get("temperature"),
+                "unit": obj.attributes.get("unit_of_measurement") or obj.attributes.get("temperature_unit")}
+
+    def diagnose_runtime_block(self, now, grid, valid, discharge, *, code, reason, local_now=None):
+        """Refresh diagnostics for a runtime exit, without writes or stability credit."""
         if local_now is None:
             zone = getattr(getattr(self.runtime.hass, "config", None), "time_zone", "Europe/Brussels")
             local_now = datetime.now(ZoneInfo(zone))
+        self._execution_now, self._execution_local_now = now, local_now
+        self._dispatch_gate = {"allowed": False, "code": code, "reason": reason}
+        evidence_error = None
+        if self.configured:
+            try:
+                self.read(grid, valid, discharge, local_now)
+                self._prepare_comfort(local_now, self.reading)
+            except (AttributeError, KeyError, TypeError, ValueError, HomeAssistantError) as error:
+                # Keep the original runtime failure authoritative. An incomplete
+                # diagnostic refresh cannot turn stale evidence into permission.
+                self.reading = DHWReading()
+                self._luxury_allocation = None
+                evidence_error = type(error).__name__
+        self.status = reason
+        self._finish_execution("runtime_blocked", code, reason)
+        if evidence_error:
+            self.execution["evidence_refresh_error"] = evidence_error
+
+    async def tick(self, now, grid, valid, discharge, allow_command=True, local_now=None,
+                   dispatch_block_code="", dispatch_block_reason=""):
+        self.optional_raise_remaining_s = 0
+        if local_now is None:
+            zone = getattr(getattr(self.runtime.hass, "config", None), "time_zone", "Europe/Brussels")
+            local_now = datetime.now(ZoneInfo(zone))
+        self._execution_now, self._execution_local_now = now, local_now
+        self._dispatch_gate = {"allowed": bool(allow_command), "code": dispatch_block_code,
+                               "reason": dispatch_block_reason}
+        if not self.configured:
+            self._finish_execution("disabled", "configured", "Boilerbediening niet gekoppeld")
+            return False
         await self.reconcile_restart(local_now)
         r = self.read(grid, valid, discharge, local_now)
         self._prepare_comfort(local_now, r)
@@ -910,10 +1146,10 @@ class DHWManager:
         if self.pending:
             p = self.pending
             obj = self._state(self.config["target_entity"])
-            stamp = getattr(obj, "last_reported", obj.last_updated).timestamp() if obj else 0
+            stamp = self._report_stamp(obj) if obj else None
             ack_poll_min_s = max(0.0, finite(p.get("ack_poll_min_s")) or 0.0)
             delayed_report = (now - p["issued"] >= ack_poll_min_s
-                              and stamp >= p["issued_wall"] + ack_poll_min_s)
+                              and stamp is not None and stamp >= p["issued_wall"] + ack_poll_min_s)
             if (r.actual_target_c is not None
                     and abs(r.actual_target_c - p["target"]) < 0.05
                     and delayed_report):
@@ -924,6 +1160,8 @@ class DHWManager:
                     "time": datetime.now().astimezone().isoformat(),
                     "confirmation": ("delayed_ha_state" if ack_poll_min_s else "ha_state"),
                 }
+                if p.get("reason"):
+                    self.last_success["reason"] = p["reason"]
                 if ack_poll_min_s:
                     self.runtime.note(
                         f"Boiler: doel {p['target']:g} °C na wachttijd teruggelezen in Home Assistant "
@@ -937,17 +1175,23 @@ class DHWManager:
                 self.status = ("Wacht op latere Panasonic-doelwaarneming; onmiddellijke terugmelding "
                                "geldt niet als bevestiging" if ack_poll_min_s
                                else "Wacht op terugmelding boilerdoel")
+                if p.get("reason"):
+                    self.status += "; " + p["reason"]
+                self._finish_execution("waiting", "pending", self.status)
                 return False
         if self.restart_recovery:
             self.status = self.restart_recovery["reason"]
+            self._finish_execution("waiting", "restart", self.status)
             return False
         if self.needs_review or self.fault or self.manual_hold:
             self.status = self.fault or ("Boilercontrole na herstart vereist" if self.needs_review
                                          else "Boilerregeling uit voorzorg gepauzeerd; hervat pas na boilercontrole")
+            self._finish_execution("blocked", "fault" if self.fault else "restart" if self.needs_review else "manual_hold", self.status)
             return False
         # Observe cannot write, not even minimum/fallback/hygiene-related commands.
         if self.runtime.mode == "observe":
             self.status = "Observatie: " + decision.reason
+            self._finish_execution("observing", "mode", self.status)
             return False
         if r.protected:
             self.status = r.protection_reason
@@ -961,6 +1205,7 @@ class DHWManager:
                 self.owned_target = None
                 self.policy.reset_stability()
                 await self._save()
+            self._finish_execution("protected", "protection", self.status)
             return False
         if self.owned_target is not None and r.actual_target_c is not None and abs(self.owned_target - r.actual_target_c) > 0.05:
             self.owned_target = None
@@ -969,17 +1214,21 @@ class DHWManager:
             self.policy.reset_stability()
             await self._save()
             self.runtime.note(self.status)
+            self._finish_execution("blocked", "manual_hold", self.status)
             return False
         if not self.settings["safety_confirmed"]:
             self.status = "Nog niet vrijgegeven: controleer hygiëneprogramma, toestelgeschiktheid en verbrandingsbeveiliging"
+            self._finish_execution("blocked", "safety", self.status)
             return False
         releasing = self.runtime.mode != "solar" or not self.auto_enabled
         if releasing and self.owned_target is None:
             self.status = "Boilerregeling gepauzeerd; fabrieksinstelling blijft staan"
+            self._finish_execution("paused", "mode" if self.runtime.mode != "solar" else "enabled", self.status)
             return False
         desired = effective_base_target(self.settings) if releasing else decision.target_c
         if desired is None:
             self.status = decision.reason
+            self._finish_execution("blocked", "unavailable", self.status)
             return False
         # Initial unexpected high temperature requests (e.g. disinfection) are
         # NEVER reduced automatically. Bestaande gewone minimum/50/60-doelen kunnen worden overgenomen.
@@ -987,16 +1236,24 @@ class DHWManager:
             self.manual_hold = True
             self.status = "Hoger bestaand boilerdoel: controleer handmatige/hygiënestand"
             await self._save()
+            self._finish_execution("protected", "manual_hold", self.status)
             return False
         error = self.check_target(desired)
         if error:
             self.status = error
+            self._finish_execution("blocked", "capability", self.status)
             return False
         if r.actual_target_c is not None and abs(r.actual_target_c - desired) < 0.05:
             new_owned = None if releasing else desired
             ownership_changed = self.owned_target != new_owned
             self.owned_target = new_owned
             self.status = "Basisdoel vrijgegeven; boiler niet uitgeschakeld" if releasing else decision.reason
+            failed = next((g for g in self._execution_gates() if not g["passed"]), None)
+            if not releasing and desired < self.settings["surplus_c"] - .05 and failed:
+                self.status = failed["reason"] + f"; actueel boilerdoel {desired:g} °C"
+                self._finish_execution("waiting", failed["code"], self.status)
+            else:
+                self._finish_execution("confirmed", "target_reported", self.status)
             if ownership_changed:
                 self.runtime.store.async_delay_save(self.runtime._snapshot, 1)
             return False
@@ -1011,9 +1268,11 @@ class DHWManager:
             if remaining:
                 self.optional_raise_remaining_s = remaining
                 self.status = f"Extra zonnebuffer wacht nog {remaining} s tussen doelverhogingen; Panasonic blijft regelen"
+                self._finish_execution("waiting", "raise_interval", self.status)
                 return False
         if not allow_command:
-            self.status = decision.reason + "; wacht op andere regelopdracht"
+            self.status = dispatch_block_reason or decision.reason + "; wacht op andere regelopdracht"
+            self._finish_execution("waiting", dispatch_block_code or "dispatch", self.status)
             return False
         return await self._send(now, desired, releasing, decision.reason)
 
@@ -1023,14 +1282,15 @@ class DHWManager:
         self.policy.candidate = self.policy.candidate_since = None
         self.owned_target = desired
         self.pending = {"target": desired, "issued": now, "issued_wall": time.time(), "release": release,
-                        "ack_poll_min_s": self._ack_poll_min_s()}
+                        "ack_poll_min_s": self._ack_poll_min_s(), "reason": reason}
         self.last_command_wall = self.pending["issued_wall"]
         rt.last_issued = now
         rt.last_issued_wall = self.last_command_wall
         rt.wallbox_guard.note_action(now, self.last_command_wall, 0, 0)
         await self._save()  # Durable intent BEFORE the physical call.
-        self.status = f"Doel {desired:g} °C aangevraagd"
-        rt.note("Boiler: " + self.status + " — " + reason)
+        self.status = f"Doel {desired:g} °C aangevraagd; {reason}"
+        self._finish_execution("requested", "requested", self.status)
+        rt.note("Boiler: " + self.status)
         try:
             entity_id = self.config["target_entity"]
             domain = entity_id.split(".")[0]
@@ -1134,6 +1394,7 @@ class DHWManager:
                     "later_ha_report_at_or_after_adapter_delay"
                     if ack_poll_min_s else "fresh_ha_report_after_command"),
                 "status": self.status, "reason": d.reason, "stage": d.stage,
+                "execution": self.execution,
                 "temperature_c": r.temperature_c, "actual_target_c": r.actual_target_c,
                 "proposed_target_c": d.target_c, "base_target_c": d.base_target_c,
                 "minimum_c": self.settings["minimum_c"],

@@ -89,9 +89,13 @@ async def test_pending_battery_command_blocks_new_climate_auto_release():
     # A cold outside reading establishes a real heating need for the automatic
     # controller; a neutral 21 °C outside reading is not heating evidence.
     hass.states.set("sensor.outdoor", 5, {"unit_of_measurement": "°C"})
+    # The source also proves a matching programme; outside temperature alone
+    # cannot authorize AUTO while the device is configured for cooling.
+    hass.states.set("sensor.native_program", "HEAT", {})
     manager = runtime.smart_climate
     manager.settings.update(enabled=True, control_enabled=True,
-                            zone_entities=["climate.home"], outside_temp_entity="sensor.outdoor")
+                            zone_entities=["climate.home"], outside_temp_entity="sensor.outdoor",
+                            operation_mode_entity="sensor.native_program")
     # This OFF belongs to SolarPilot, so a fresh cold comfort breach genuinely
     # needs an AUTO release as soon as the outstanding battery write settles.
     manager.state.expected_mode["climate.home"] = "off"

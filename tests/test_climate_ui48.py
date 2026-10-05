@@ -168,7 +168,7 @@ def test_actual_card_keeps_previous_payload_and_fixed_modes_readable():
     _, text = render_climate(payload)
     assert "Eerste metingen" in text
     assert "Handmatige Panasonic-stand actief" in text
-    assert "HEAT/COOL wordt nooit door SolarPilot overschreven" in text
+    assert "Een handmatige HEAT/COOL-stand wordt door SolarPilot met rust gelaten" in text
     assert "Verwarmen" in text and "Verwarmt" in text
 
 

@@ -1,6 +1,7 @@
 """Demand-led room control never invents thermal mass or forecast evidence."""
 from copy import deepcopy
 import math
+import time
 
 import pytest
 
@@ -72,7 +73,8 @@ def test_fixed_or_unknown_native_mode_is_not_written(mode):
 
 
 def test_reactive_rising_passive_temperature_can_establish_cooling_need_in_cool_weather():
-    p = ThermalProfile(last={"outdoor": 14.5, "slope_c_h": .2})
+    p = ThermalProfile(last={"outdoor": 14.5, "indoor": 23., "t": time.time(),
+                             "action": "off", "passive_slope_c_h": .2})
     d = decide(23., outside=14.5, profile=p)
     assert d.desired_mode == "auto" and d.comfort_direction == "cooling"
     # A heater-induced slope cannot count as natural overheating evidence.
@@ -81,7 +83,8 @@ def test_reactive_rising_passive_temperature_can_establish_cooling_need_in_cool_
 
 
 def test_an_observed_restoring_trend_does_not_request_opposing_heat():
-    p = ThermalProfile(last={"outdoor": 30., "slope_c_h": .2})
+    p = ThermalProfile(last={"outdoor": 30., "indoor": 19., "t": time.time(),
+                             "action": "off", "passive_slope_c_h": .2})
     assert decide(19., outside=30., profile=p).desired_mode == "off"
 
 
@@ -94,7 +97,8 @@ def test_a_neutral_near_forecast_does_not_hide_actual_directional_comfort_need(c
 
 @pytest.mark.parametrize("current,outside,trend", [(19., 5., .2), (23., 40., -.2)])
 def test_observed_passive_recovery_avoids_opposing_auto_request(current, outside, trend):
-    p = ThermalProfile(last={"outdoor": outside, "slope_c_h": trend})
+    p = ThermalProfile(last={"outdoor": outside, "indoor": current, "t": time.time(),
+                             "action": "off", "passive_slope_c_h": trend})
     assert decide(current, outside=outside, profile=p).desired_mode == "off"
 
 

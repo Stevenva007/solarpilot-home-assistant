@@ -1,14 +1,26 @@
-> **Actuele bron: beta.55** — uurvoorspellingen behouden hun eigen geldigheidsduur, PV-dag- en uurwaarden krijgen geen verkeerde kalenderbetekenis, basislastleren controleert bronbewijs en een oude AEG-cyclus blokkeert geen nieuwe APP-vrijgave na betrouwbare READY. Automatische AUTO/UIT-regeling, gebruikerskeuzes en apparaatbescherming blijven behouden. Test-/publicatiestatus: `docs/TESTRESULTATEN_BETA55.md`.
+> **Actuele bron: beta.56** — extra warm water mag vanaf 3000 W bruikbaar overschot, de boiler toont zijn uitvoeringsvoorwaarden, AUTO/UIT beoordeelt de passieve ruimtetrend met actuele richtingscontext en de zevendagenanalyse wordt lokaal gecomprimeerd gedownload. Test-/publicatiestatus: `docs/TESTRESULTATEN_BETA56.md`.
 
 # SolarPilot
 
 SolarPilot is a local Home Assistant Energy Management System (EMS) for PV surplus, flexible loads, Panasonic Aquarea hot-water policy, Wallbox Full Solar coexistence, phase analysis, capacity-tariff awareness, local PV/shade learning, slow thermal-climate learning, future home batteries and a unified rolling-horizon planner.
 
-De absolute codebasis is de gepubliceerde beta.54 op commit `8047742cf3fbb376792bb0730d7c0638923c03aa`, tree `b904876c53c8d136581ab1f12a0a1f17f7f5ef7f`. De onveranderlijke [beta.54-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.54), haar geslaagde publicatieworkflow en gecontroleerde pakketten vormen de rollbackbasis. Een softwaretest of publicatie bewijst geen geladen Home Assistant-versie of fysieke toestelactie.
+De absolute codebasis is de gepubliceerde beta.55 op commit `83dda3b820b913ae191aedd9d3628c10eb342a68`, tree `105c808dcaebb88a45319bd84453102c29b9a4ce`. De onveranderlijke [beta.55-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.55), haar geslaagde publicatieworkflow en gecontroleerde pakketten vormen de rollbackbasis. Een softwaretest of publicatie bewijst geen geladen Home Assistant-versie of fysieke toestelactie.
 
 > **Updates zijn cumulatief.** Je hoeft tussenliggende beta-versies niet één voor één te installeren of publiceren. Installeer de nieuwste release over je bestaande SolarPilot-installatie; Home Assistant-configuratie en lokale leerdata blijven behouden.
 
-## Nieuw in beta.55
+## Nieuw in beta.56
+
+Op **Overzicht → Wat gebeurt er en waarom?** staan de actuele stand, start-/wachtreden en laatste vastgelegde actie bij elkaar. Modulekaarten en instellingen blijven beschikbaar; technische waarden staan achter **Details**.
+
+- Een nieuwe extra 60 °C-zonnebuffer mag starten vanaf **3000 W** bruikbaar echt overschot, inclusief exact 3000 W. Bestaande reserves, hogere prioriteiten en elektrische toewijzingen blijven afzonderlijk gelden; de uitvoering toont welke ruimte daadwerkelijk wordt beoordeeld. De oude standaard van 3500 W wordt éénmalig gemigreerd; andere ingestelde waarden blijven behouden.
+- **Warmte & comfort** toont afzonderlijk voorstel, werkelijk gemeld Panasonic-doel en tanktemperatuur, met de actuele blokkering of wachtreden. Zonstabiliteit, opdrachtrust, lopende opdrachten, native bereik, koeling en fabrikantbescherming blijven afzonderlijke voorwaarden. De standaard maandagbescherming vanaf 12:00 duurt drie uur; meer zon of geen ruimtekoeling heft haar niet op.
+- Een warmtevraag mag niet autonoom AUTO inschakelen wanneer het echte Panasonic-programma COOL/AUTO_COOL is, en omgekeerd. Onbekend programmabewijs laat een nieuwe automatische AUTO-start wachten. De native Aquarea-koppeling leest het programma zonder extra cloudopvraag; een gecontroleerde eigen bron is optioneel. SolarPilot verstuurt alleen HA AUTO/UIT, waarvan de integratie ook een globaal effect kan maken.
+- Klimaatcomfort gebruikt een werkelijk passieve temperatuurtrend. Temperatuurverloop tijdens verwarmen of koelen levert geen bewijs dat een UIT-zone vanzelf dezelfde kant op gaat. Toekomstig buitenweer wordt niet gebruikt als de huidige verwarm-/koelrichting.
+- Besluiten en opdrachtuitkomsten krijgen begrensde diagnose-informatie per zone. Nieuwe meetpunten bewaren de geladen SolarPilot-versie; oudere ongestempelde records blijven herkenbaar onbekend. Een nieuw verslag kan daardoor laten zien waarom AUTO is gevraagd, zonder een eerdere live oorzaak te verzinnen.
+- Een volledige beschikbare zevendagenanalyse wordt als lokaal gecomprimeerd **JSON.GZ** via een geauthenticeerde beheerderdownload opgehaald. Grote analyses hoeven niet meer als volledig JSON-bericht door de WebSocket of browsergeheugen te gaan. Bewaargrenzen, privacyfilters en werkelijke dekking blijven zichtbaar; er is geen automatische upload.
+- Alle bestaande koppelingen, geldige leerdata, overrides, prioriteiten, boilerbeveiligingen en bescherming van afwascycli blijven behouden. Zie `docs/BETA56_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA56.md` en `OVERDRACHT.md`.
+
+## Behouden uit beta.55
 
 - Een actuele uurvoorspelling blijft bruikbaar wanneer de weerbron haar huidige toestand slechts ieder uur meldt. De huidige buitentemperatuur behoudt haar eigen versheidscontrole. Forecasts verlopen afzonderlijk; onbeschikbare, restored, verkeerd gekoppelde of ongeldige bronnen blijven beschermd.
 - Een mislukte weersophaling vernieuwt de bewaartermijn van oudere gegevens niet. Herstel wordt begrensd opnieuw geprobeerd, zonder een volledig vernieuwingsuur te wachten. Ook de voorspelde koelbescherming van de boiler gebruikt ditzelfde bronbewijs.
@@ -116,7 +128,7 @@ Zie `docs/BETA46_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA46.md` en het actuele `
 
 Beta.44-publicatie, pakketcontrole en geladen versie staan in `docs/BETA44_INSTELLEN.md` en `docs/TESTRESULTATEN_BETA44.md`; uitleg-hash `65b54c9797e55bb4` hoort bij die historische softwaregate. [Beta.44-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.44). Bestaande tags en release-assets blijven onveranderlijk.
 
-## Current DHW policy (beta.55)
+## Current DHW policy (beta.56)
 
 For Panasonic K T-CAP models, Powerful is **not automatically used as a tank boost**: Panasonic service manual PAPAMY2310071CE §14.11 describes space-heating water-target shifts, not a DHW boost. The separate installer setting DHW capacity is not changed. [Panasonic-original service manual](https://paltaja.lt/wp-content/uploads/panasonic-k-t-cap-manual.pdf).
 
@@ -206,7 +218,7 @@ The canonical current explanation is [docs/ACTUELE_WERKING.md](docs/ACTUELE_WERK
 
 - Current P1/PV measurements and device protection override forecasts and plans.
 - Wallbox Pulsar Max remains read-only and controls its own Full Solar mode.
-- Panasonic chooses HEAT versus COOL; SolarPilot never chooses those modes.
+- SolarPilot issues Home Assistant AUTO/OFF and never selects HEAT/COOL directly. The underlying Panasonic integration may interpret AUTO/OFF globally and change the active programme; unchanged programme is not guaranteed.
 - Panasonic sterilisation remains autonomous.
 - Battery control is disabled by default and requires explicit ownership/permission.
 - An EMS decision is not an electrical safety device.
@@ -239,7 +251,7 @@ Nieuwe comfortfuncties staan na upgrade niet ongemerkt aan. Bestaande instelling
 
 ## Nieuw in beta.29: AEG en analyse
 
-Afwasmachine-start met eenmalige klaarzettoestemming en native AEG-START, nooit via de netstekker. Een gestart programma blijft beschermd. De knop **Analyse-export** onderaan het dashboard maakt een lokaal JSON-bestand voor handmatige probleem- en modelanalyse. Zie [instellen en beperkingen](docs/AFWASMACHINE_EN_ANALYSE.md). Nieuwe fysieke koppelingen worden niet automatisch geactiveerd.
+Afwasmachine-start met eenmalige klaarzettoestemming en native AEG-START, nooit via de netstekker. Een gestart programma blijft beschermd. **Export → Export samenstellen** maakt een lokaal gecomprimeerd JSON.GZ-bestand voor handmatige probleem- en modelanalyse, ook voor de volledige beschikbare zeven dagen. Zie de [actuele werking](docs/ACTUELE_WERKING.md) en [installatiecontrole](docs/BETA56_INSTELLEN.md). Nieuwe fysieke koppelingen worden niet automatisch geactiveerd.
 
 
 ## Nieuw in beta.30: Leren & vragen

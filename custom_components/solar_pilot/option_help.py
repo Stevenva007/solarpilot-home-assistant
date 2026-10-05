@@ -380,9 +380,12 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
  'pv_threshold_w': 'Minimale werkelijk gemeten zonnepanelenproductie voor het gewone zonnedoel. '
                    'Standaard 1000 W productie, niet 1000 W vrije injectie. Andere huislast en de '
                    'Wallbox kunnen dit vermogen al gebruiken; nettoestemming is daarom relevant.',
- 'surplus_threshold_w': 'Werkelijke netto-injectie moet voor een nieuwe extra hoge fase strikt boven '
-                        'deze drempel liggen, standaard 3500 W. EV-laadvermogen wordt hier nooit als '
-                        'vrije injectie bijgeteld.',
+ 'surplus_threshold_w': 'Bruikbaar echt overschot moet voor een nieuwe extra hoge fase minstens deze '
+                        'drempel zijn, standaard 3000 W; de exacte grens telt mee. Bestaande reserves, hogere '
+                        'prioriteiten en onbekend toestelverbruik blijven afzonderlijk verwerkt. De oude '
+                        'standaard 3500 W wordt éénmalig naar 3000 W gemigreerd; andere ingestelde '
+                        'waarden blijven behouden. EV-laadvermogen wordt nooit als vrije injectie '
+                        'bijgeteld. Zonstabiliteit, opdrachtrust en fabrikantbescherming blijven gelden.',
  'estimated_heat_power_w': 'Conservatieve elektrische planningsinschatting voor een opwarmperiode, '
                            'standaard 3200 W. Geen echte meter. De avondstart gebruikt deze inschatting '
                            'plus marge; werkelijk eigen boilervermogen wordt er niet mee nagemaakt.',
@@ -502,7 +505,8 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                     'hysterese kan een reeds toegelaten 50 °C-fase tot circa 900 W blijven bestaan. '
                     'Geen extra vermogen bij de echte meting.',
  'surplus_hysteresis_w': 'Terugvalband onder de echte injectiedrempel voor een lopende hoge fase. Bij '
-                         '3500/300 W is de gewone terugvalgrens circa 3200 W. Netafname- en '
+                         '3000/300 W is de gewone terugvalgrens circa 2700 W, uitsluitend bij bewezen '
+                         'eigen beheer van die hoge fase. Netafname- en '
                          'koelbewaking blijven daarnaast gelden.',
  'cooling_clear_s': 'Rusttijd na bewezen koeling voordat extra hoge tankopwarming weer kan. Aanbevolen '
                     '1800 s (30 minuten). Onbekende informatie blokkeert zolang zij ontbreekt, maar '
@@ -875,7 +879,10 @@ HELP_NOTES.update({'kind': 'Kies de werkelijk ondersteunde actuator. Het afzonde
                    'volledige HA-database. De uiteindelijke bronlimiet blijft 250 en de export '
                    'meldt afgekapt bereik. Voeg geen persoonlijke vrije tekst of secrets toe.',
  'analysis_export': 'Opent de handmatige analyse-export: laatste uur, 24 uur of zeven dagen. '
-                    'Alleen een HA-beheerder kan het JSON-bestand maken. Namen zijn standaard '
+                    'Alleen een HA-beheerder kan het lokale gecomprimeerde JSON.GZ-bestand maken '
+                    'en downloaden. Zeven dagen worden niet stilzwijgend verkort wegens de vroegere '
+                    '16 MB-berichtgrens. De beveiligde download blijft tien minuten beschikbaar; '
+                    'na uitpakken is het gewone volledige JSON. Namen zijn standaard '
                     'per bestand consistent gepseudonimiseerd, inclusief IDs/verwijzingen en korte/historische labels; schema-sleutels, eenheden en statuswaarden blijven behouden. Tijden en gebruikspatronen blijven gevoelig. '
                     'Controleer het bestand voor delen en plaats het nooit in de publieke '
                     'repository. Uploaden naar ChatGPT doe je zelf.',
@@ -1221,12 +1228,14 @@ def help_for(step, key, label, spec=None):
 
 # Central priority editor is authoritative only after an explicit saved change.
 HELP_NOTES.update({
+    "operation_mode_entity": "Alleen-lezen bron voor het werkelijke Panasonic-programma. Laat leeg bij de ondersteunde native Aquarea-koppeling: SolarPilot wacht op een nieuwe geslaagde coordinatorupdate voor het juiste apparaat en de geselecteerde zone, zonder extra cloudopvraag. Anders koppel een gecontroleerde actuele sensor/select/climate-bron met heat/heating/auto_heat, cool/cooling/auto_cool of heat_cool. De ruimtewaarde AUTO, PUMP/WATER en het buitenweer bewijzen geen programma. Een warmtevraag start niet autonoom AUTO bij een koelprogramma, en andersom; onbekend programmabewijs laat een nieuwe automatische AUTO-start wachten. SolarPilot stuurt alleen Home Assistant AUTO/UIT; de onderliggende integratie kan die globaal interpreteren en het bestaande programma wijzigen.",
+    "automatic_demand_confirm_s": "Bevestiging van een zachte nieuwe comfortvraag vanuit UIT voordat SolarPilot AUTO vraagt, standaard 600 seconden (10 minuten), instelbaar 0–1800 in stappen van 60 seconden. Dezelfde passende richting moet aanhouden en na de termijn moet een werkelijk nieuw native rapport volgen. Normaal bereik, geen vraag, richtingwissel, bronverlies, gebruikers-/configuratiewijziging of herstart beëindigt de kandidaat. Een echte relevante harde comfortoverschrijding, voldoende gevalideerd dringende voorspelling of expliciete dashboardkeuze houdt het bestaande pad. Dit vervangt geen minimum aan-/uittijd of opdrachtbevestiging.",
     "priority": "De rangorde staat op Voorrang → Voorrang instellen. Minimumtijden, passende vermogensruimte en bescherming blijven altijd gelden.",
     "others_first": "De volgorde tussen toestellen en de auto staat samen op Voorrang. De centrale lijst toont direct welke regel eerst komt.",
     "wallbox_precedence": "Bekijk en wijzig de gezamenlijke rangorde op Voorrang. De plaats boven of onder Auto laden bepaalt de relatieve volgorde.",
     "wallbox_energy_choice": "Kies één duidelijke uitkomst: de auto mag binnen de veiligheidsgrenzen minder laden, alleen vrij zonneoverschot telt, of de strengere route voor een kort en gemeten toestel geldt.",
     "wallbox_power_policy": "Op Voorrang kies je per verbruiker of de auto minder mag laden. Een toestel moet ook aan alle meet-, sessie- en veiligheidsvoorwaarden voldoen.",
     "dishwasher_priority_enabled": "Het bestaande AEG-voorkeursprofiel blijft behouden. Gewoon warmtepompcomfort gaat voor; de standaard afwasvolgorde is vóór de Wallbox en extra boilerwarmte. Na een bevestigde centrale wijziging bepaalt de lijst Voorrang de toestelvolgorde. De afwas blijft vóór de extra zonnebuffer en een lopende beurt wordt nooit afgebroken. Het oude groepsgetal is dan niet meer leidend.",
-    "analysis_export": "Open Export → Export samenstellen voor één lokaal JSON-onderzoeksbestand. Kies 1 uur, 24 uur of 7 dagen. Instellingen, centrale voorrang, metingen, modellen en bewaarde beslissingen worden meegenomen voor zover aanwezig. Namen, IDs en verwijzingen worden standaard consistent gepseudonimiseerd; schema-sleutels, eenheden en statuswaarden blijven behouden. Controleer altijd vóór delen. Geen automatische upload, geen toestelopdracht en geen herstelbare Home Assistant-back-up.",
+    "analysis_export": "Open Export → Export samenstellen voor één lokaal gecomprimeerd JSON.GZ-onderzoeksbestand. Kies 1 uur, 24 uur of 7 dagen; de beschikbare geschiedenis wordt niet verkort wegens de vroegere 16 MB-berichtgrens. Alleen dezelfde ingelogde Home Assistant-beheerder kan het bestand tien minuten lang downloaden. Na uitpakken is het gewone JSON. Instellingen, centrale voorrang, metingen, modellen en bewaarde beslissingen worden meegenomen voor zover aanwezig. Namen, IDs en verwijzingen worden standaard consistent gepseudonimiseerd; schema-sleutels, eenheden en statuswaarden blijven behouden. Controleer altijd vóór delen. Geen automatische upload, geen toestelopdracht en geen herstelbare Home Assistant-back-up.",
     "priority_board": "Alle regels staan onder elkaar. Beschermde regels staan vast; apparaten, Auto laden en extra warm water zijn binnen de veilige grenzen verplaatsbaar. Per regel staat ‘Mag de auto minder laden?’. Dat is nooit een garantie dat er nu vermogen beschikbaar is. Opslaan vraagt bevestiging en stuurt op zichzelf geen toestel."
 })

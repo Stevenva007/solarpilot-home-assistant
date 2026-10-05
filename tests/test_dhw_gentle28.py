@@ -138,9 +138,9 @@ async def test_optional_interval_keeps_hysteresis_from_authorizing_untested_expo
     await tick(r,grid=-4500,hour=15)
     assert actuator_calls(h)==[] and 'wacht nog' in r.dhw.status
     assert r.dhw.policy.current is None
-    # No former *unexecuted* high state may use the lower 3200 W hold threshold.
+    # No former *unexecuted* high state may use the lower 2700 W hold threshold.
     r.dhw.last_command_wall=time.time()-1801
-    await tick(r,grid=-3300,hour=15)
+    await tick(r,grid=-2800,hour=15)
     assert actuator_calls(h)==[]
     await tick(r,grid=-4500,hour=15)
     assert actuator_calls(h)[0][2]['temperature']==60

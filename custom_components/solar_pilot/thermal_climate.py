@@ -31,6 +31,7 @@ SMART_CLIMATE_DEFAULTS = {
     "automatic_zone_control": True,
     "weather_entity": "",
     "outside_temp_entity": "",
+    "operation_mode_entity": "",
     "zone_entities": [],
 
     # Slow planning / comfort
@@ -49,6 +50,7 @@ SMART_CLIMATE_DEFAULTS = {
     "manual_hold_h": 12.0,
     "automatic_min_run_h": 1.0,
     "automatic_min_off_h": 1.0,
+    "automatic_demand_confirm_s": 600.0,
 
     # Thermal learning
     "sample_interval_s": 900.0,
@@ -107,6 +109,11 @@ CLIMATE_SETTING_SPECS = {
         recommendation="Aan voor automatische ruimtebediening. Gebruik de dashboardschakelaar om een ruimte vast AUTO of UIT te houden; een externe ingreep geeft tijdelijk rust.",
         on_effect="Ook een reeds uitgeschakelde ruimte kan bij noodzakelijke warmtevraag of koelvraag automatisch AUTO krijgen; zonder behoefte wordt UIT voorgesteld.",
         off_effect="De eerdere pauzeregeling blijft gelden: alleen een eigen SolarPilot-pauze wordt automatisch hervat; handmatige UIT blijft uit."),
+    "automatic_demand_confirm_s": dict(group="Bescherming", label="Gewone warmtevraag of koelvraag bevestigen", type="number", min=0, max=1800, step=60, unit="s",
+        description="Een UIT-ruimte moet gedurende deze tijd een relevante behoefte buiten de gewone comfortband blijven melden voordat AUTO wordt gevraagd. Een echte overschrijding van de harde grens en een onderbouwde dringende voorspelling wachten niet op deze bevestiging.",
+        recommendation="600 s voorkomt dat één korte of afgeronde temperatuurmeting een lange AUTO-periode begint.",
+        lower_effect="Sneller AUTO, maar meer kans op onnodig inschakelen door een korte meetdip.",
+        higher_effect="Meer zekerheid dat de gewone vraag aanhoudt; de normale comfortcorrectie begint later."),
     "weather_entity": dict(group="Koppelingen", label="Weerbron", type="weather_entity",
         description="Levert de uurverwachting waarmee het gebouw over de ingestelde horizon vooruit wordt doorgerekend.",
         recommendation="Gebruik een betrouwbare lokale weather-entiteit met hourly forecasts.",
@@ -115,6 +122,10 @@ CLIMATE_SETTING_SPECS = {
         description="Werkelijke buitentemperatuur voor leren en controle. Leeg = temperatuur van de weerentiteit.",
         recommendation="Een fysieke buitensensor bij de woning is meestal beter dan alleen een internetwaarde.",
         change_effect="Omdat een andere sensor anders geplaatst/gekalibreerd kan zijn, worden het thermische model en de lokale weerscorrectie veilig opnieuw opgebouwd."),
+    "operation_mode_entity": dict(group="Koppelingen", label="Werkelijk Panasonic-programma", type="program_entity",
+        description="Alleen-lezen bron voor het echte verwarmings- of koelprogramma. Leeg gebruikt de gecontroleerde native Aquarea-koppeling als die beschikbaar is. De AUTO/UIT-stand van een ruimte en PUMP/WATER zijn geen bewijs van het programma.",
+        recommendation="Laat leeg bij de ondersteunde Aquarea-koppeling. Anders koppel een actuele bron met heat/heating/auto_heat, cool/cooling/auto_cool of heat_cool; een onbekend programma blokkeert een nieuwe automatische AUTO-start.",
+        change_effect="Het programma wordt opnieuw gecontroleerd; een warmtevraag mag AUTO niet inschakelen wanneer de warmtepomp alleen op koelen staat, en andersom."),
     "zone_entities": dict(group="Koppelingen", label="Panasonic klimaatzones", type="climate_entities",
         description="Zones waarvan doeltemperatuur, binnentemperatuur, AUTO/OFF en hvac_action worden gebruikt.",
         recommendation="Selecteer alleen zones die dezelfde Panasonic-installatie vormen en AUTO én OFF ondersteunen.",
@@ -483,6 +494,12 @@ class ThermalProfile:
                 slope = finite(last.get("slope_c_h"))
                 if slope is not None and abs(slope) <= 3.:
                     self.last["slope_c_h"] = slope
+                # Legacy slopes describe active and mixed intervals as well.
+                # Only explicitly observed passive provenance may guide AUTO.
+                passive_slope = finite(last.get("passive_slope_c_h"))
+                if (action.casefold() in ("idle", "off", "none")
+                        and passive_slope is not None and abs(passive_slope) <= 3.):
+                    self.last["passive_slope_c_h"] = passive_slope
 
     def coefficients(self):
         """Compatibility tuple: passive k, heat gain, cool gain, response delay."""
@@ -709,6 +726,8 @@ class ThermalProfile:
         self.samples += 1
         prev_action = str(prev.get("action", "idle")).casefold()
         cur_action = str(cur.get("action", "idle")).casefold()
+        if prev_action in ("idle", "off", "none") and cur_action in ("idle", "off", "none"):
+            self.last["passive_slope_c_h"] = slope
         if cur_action != prev_action and ("heat" in cur_action or "cool" in cur_action):
             self.action_started = {"t": cur["t"], "temp": indoor, "action": cur_action}
         if self.action_started and cur_action == self.action_started.get("action"):
@@ -1188,6 +1207,19 @@ def _season_context(c, outside_hourly, target_avg):
     return ctx, strength, avg
 
 
+def passive_trend(profile, zone, settings):
+    """Use a measured passive interval only at its still-fresh live endpoint."""
+    last = profile.last or {}
+    stamp, indoor, slope = (finite(last.get(key)) for key in ("t", "indoor", "passive_slope_c_h"))
+    passive = ("idle", "off", "none")
+    if (stamp is None or not 0 <= time.time() - stamp <= float(settings.get("stale_s", 1800))
+            or indoor != finite(zone.get("current"))
+            or str(last.get("action", "")).casefold() not in passive
+            or str(zone.get("action", "")).casefold() not in passive):
+        return None
+    return slope
+
+
 def decide_zone(*, settings, zone, outside_hourly, profile, solar_hourly_w=None,
                 solar_precondition=False, outside_c=None):
     """Demand-led AUTO/OFF for one room, with a bounded predictive stage.
@@ -1209,8 +1241,6 @@ def decide_zone(*, settings, zone, outside_hourly, profile, solar_hourly_w=None,
     actual_outside = finite(outside_c)
     if actual_outside is None:
         actual_outside = finite((profile.last or {}).get("outdoor"))
-    near = [x for x in raw_weather[:6] if x is not None]
-    outlook = sum(near) / len(near) if near else actual_outside
     soft = max(.1, float(c.get("soft_band_c", .5)))
     hard = max(soft, float(c.get("hard_band_c", 1.)))
     season, strength, _ = _season_context(c, raw_weather, target)
@@ -1225,19 +1255,16 @@ def decide_zone(*, settings, zone, outside_hourly, profile, solar_hourly_w=None,
     known_passive = len(profile.passive_k) >= 6
     # Reactive trends must be observed while HVAC is not changing temperature;
     # an active heater's rising temperature is not proof of natural overheating.
-    trend = finite((profile.last or {}).get("slope_c_h"))
-    if str(zone.get("action", "")).casefold() not in ("off", "idle", "none"):
-        trend = None
+    trend = passive_trend(profile, zone, c)
     drift = None
     if known_passive and actual_outside is not None:
         k = _clamp(_med(profile.passive_k, .035), 0., .20)
         drift = k * (actual_outside - current)
-        if c.get("solar_gain_enabled") and len(profile.solar_gain_per_kw) >= 6 and solar and solar[0] is not None:
-            drift += min(float(c.get("solar_gain_max_c_h", .35)), profile.solar_coefficient() * max(0., solar[0]) / 1000.)
-    warm_outlook = (outlook is not None and outlook > target + .25
-                    or actual_outside is not None and actual_outside > target + .25)
-    cool_outlook = (outlook is not None and outlook < target - .25
-                   or actual_outside is not None and actual_outside < target - .25)
+    # Forecast warmth and solar gain belong to the validated predictive path.
+    # They cannot pretend to be a current heating/cooling measurement while
+    # response evidence is still missing.
+    warm_outlook = actual_outside is not None and actual_outside > target + .25
+    cool_outlook = actual_outside is not None and actual_outside < target - .25
     cooling_context = warm_outlook or (trend is not None and trend > .03) or (drift is not None and drift > .03)
     heating_context = cool_outlook or (trend is not None and trend < -.03) or (drift is not None and drift < -.03)
     # The measured trend can establish that an excursion is recovering without
@@ -1354,6 +1381,7 @@ def decide_zone(*, settings, zone, outside_hourly, profile, solar_hourly_w=None,
         return replace(d, reason=f"Geleerd passief verloop blijft binnen de comfortband gedurende de beschikbare {len(weather)} uur; ruimte UIT", forecast_feasible=True)
     if len(directions) != 1:
         return replace(d, desired_mode="auto", comfort_required=True, forecast_feasible=False,
+                       comfort_direction="mixed",
                        reason="Voorspelling vraagt zowel warmte als koeling; Panasonic AUTO beschikbaar houden en zelf laten kiezen",
                        block_reason="Geen eenduidige voorspelde AUTO/UIT-periode")
     direction = directions[0]
@@ -1496,7 +1524,7 @@ def decide_mode(*, settings, zones, outside_hourly, profiles, current_season_mod
     above = [z for z in zones if z["current"] > z["target"] + hard]
     if below and above:
         return result("auto", "Zones zitten aan beide kanten van de harde comfortband; Panasonic AUTO vrijgeven en zelf laten beslissen",
-                      hard_override=True)
+                      hard_override=True, direction="mixed")
     if below:
         return result("auto", f"Harde comfortondergrens onderschreden in {below[0]['name']}; Panasonic AUTO onmiddellijk vrijgeven",
                       hard_override=True, direction="heating")
@@ -1522,6 +1550,7 @@ def decide_mode(*, settings, zones, outside_hourly, profiles, current_season_mod
     if low_cross is not None and high_cross is not None:
         return result("auto", "Gemengde tussenseizoensverwachting kan beide comfortgrenzen bereiken; Panasonic AUTO beschikbaar houden",
                       crossing=min(low_cross, high_cross), lead=max(low_lead or 0.0, high_lead or 0.0),
+                      direction="mixed",
                       control_ready=False, blocked="Gemengde verwachting laat geen eenduidige coastperiode toe")
 
     if low_cross is not None:

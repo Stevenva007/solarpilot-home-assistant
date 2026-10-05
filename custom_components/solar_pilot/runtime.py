@@ -401,6 +401,7 @@ class SolarRuntime:
         self.dishwasher_priority.restore(data.get("dishwasher_priority", {}), self.configs)
         self.dhw.restore(data.get("dhw", {}))
         await self.dhw.migrate_beta36(data.get("dhw", {}))
+        await self.dhw.migrate_beta56()
         self.electricity_cost.restore(data.get("electricity_cost", {}))
         self.others_first = data.get("others_first", True) is True
         self.learning.restore(data.get("learning", {}), self.configs)
@@ -2078,6 +2079,12 @@ class SolarRuntime:
                 self.problem_kind = "internal_fault"
                 self.mode = "paused"
                 self.restart_requested_mode = None
+                try:
+                    self.dhw.diagnose_runtime_block(time.monotonic(), None, False, 0,
+                        code="internal_fault", reason=self.problem)
+                except Exception:
+                    # Diagnostics must never hide the original controller fault.
+                    _LOGGER.debug("Warmwaterdiagnose na regelcyclusfout niet beschikbaar", exc_info=True)
             try:
                 await self.learning_hub.tick()
             except Exception as err:
@@ -2202,20 +2209,36 @@ class SolarRuntime:
             self.note(self.configs[device_id]["name"]+": "+message)
             await self.notify(message)
             self.store.async_delay_save(self._snapshot, 1)
+        dhw_dispatch_blocks = [
+            (bool(self.pending), "load_confirmation", "Wacht op bevestiging van een eerdere toestelopdracht"),
+            (bool(self.handover), "power_transfer", "Wacht tot de verdeling van zonnestroom is afgerond"),
+            (self.smart_climate.busy, "climate_confirmation", "Wacht op bevestiging van de ruimteregeling"),
+            (self.battery_fleet.busy, "battery_confirmation", "Wacht op bevestiging van de batterijregeling"),
+            (now - self.last_issued < self.settings["settle_s"], "settling",
+             f"Wacht nog {max(0, math.ceil(self.settings['settle_s'] - (now - self.last_issued)))} s op stabiele metingen na de laatste opdracht"),
+        ]
+        dhw_block = next(((code, reason) for blocked, code, reason in dhw_dispatch_blocks if blocked), ("", ""))
         dhw_sent = await self.dhw.tick(now, grid, valid, discharge,
-            allow_command=(not self.pending and not self.handover and
-                           not self.smart_climate.busy and not self.battery_fleet.busy and
-                           now - self.last_issued >= self.settings["settle_s"]),
-            local_now=local_now)
+            allow_command=not bool(dhw_block[0]), local_now=local_now,
+            dispatch_block_code=dhw_block[0], dispatch_block_reason=dhw_block[1])
         extra_start_blocks = self.priority_board.extra_start_blocks(now)
         runtime_start_blocks.update(extra_start_blocks)
         device_start_blocks.update(extra_start_blocks)
+        climate_dispatch_blocks = [
+            (self.mode != "solar", "operating_mode", "Automatisch regelen staat niet aan"),
+            (bool(self.pending), "load_confirmation", "Wacht op bevestiging van een eerdere toestelopdracht"),
+            (bool(self.handover), "power_transfer", "Wacht tot de verdeling van zonnestroom is afgerond"),
+            (self.battery_fleet.busy, "battery_confirmation", "Wacht op bevestiging van de batterijregeling"),
+            (bool(dhw_sent), "dhw_issued", "Warm water kreeg zojuist een opdracht; ruimtebediening wacht"),
+            (bool(self.dhw.pending), "dhw_confirmation", "Wacht op bevestiging van het warmwaterdoel"),
+            (self.dhw.blocks_increase, "dhw_review", "Warmwaterregeling vraagt eerst controle"),
+            (self.dhw.reading.protected, "dhw_protection", self.dhw.status or "Beschermde warmwaterfunctie actief; ruimtebediening wacht"),
+            (self.restart_blocking, "restart_recovery", "Wacht op afronding van de herstartcontrole"),
+        ]
+        climate_block = next(((code, reason) for blocked, code, reason in climate_dispatch_blocks if blocked), ("", ""))
         climate_sent = await self.smart_climate.tick(
-            local_now=local_now,
-            allow_command=(self.mode == "solar" and not self.pending and not self.handover
-                           and not self.battery_fleet.busy
-                           and not dhw_sent and not self.dhw.pending and not self.dhw.blocks_increase and not self.dhw.reading.protected
-                           and not self.restart_blocking))
+            local_now=local_now, allow_command=not bool(climate_block[0]),
+            dispatch_block_code=climate_block[0], dispatch_block_reason=climate_block[1])
         if ((self.removal_requested or self.mode == "paused") and not climate_sent and not dhw_sent and not self.pending
                 and not self.handover and not self.dhw.busy and not self.battery_fleet.busy):
             climate_sent = await self.smart_climate.prepare_for_removal()

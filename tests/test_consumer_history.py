@@ -162,7 +162,8 @@ def test_two_consumers_never_leak_into_each_others_detail():
 def test_brief_does_not_contain_session_arrays_or_old_days():
     h=ConsumerHistory();run(h,True,BASE)
     brief=h.brief("one",BASE)
-    assert set(brief)=={"date","on_s","recording","ongoing","revision"}
+    assert set(brief)=={"date","on_s","recording","ongoing","revision","last_change"}
+    assert brief["last_change"]["confirmed"] is False
     assert "sessions" not in str(brief)
 
 

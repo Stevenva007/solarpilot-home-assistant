@@ -48,7 +48,7 @@ def test_existing_dhw_readings_remain_identical_without_isolation(monkeypatch, r
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("grid,target,export", [(-3900, 50, 3300), (-4100, 50, 3500), (-4200, 60, 3600)])
+@pytest.mark.parametrize("grid,target,export", [(-3599, 50, 2999), (-3600, 60, 3000), (-4200, 60, 3600)])
 async def test_new_optional_dhw_target_requires_real_surplus_after_isolated_reserve(grid, target, export):
     runtime, hass = setup(config={"hygiene_schedule_enabled": False})
     isolate(runtime, hass)

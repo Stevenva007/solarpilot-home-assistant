@@ -26,8 +26,8 @@ BASE = effective_base_target(DHW_DEFAULTS)
 
 @pytest.mark.parametrize('pv,export,hour,cooling,target',[
     (0,0,2,False,50),(800,0,12,False,50),(999,0,12,False,50),
-    (1000,0,12,False,50),(1600,0,12,True,50),(5000,3500,12,False,50),
-    (5000,3500.1,12,False,60),(6000,5000,12,True,50),
+    (1000,0,12,False,50),(1600,0,12,True,50),(5000,2999.9,12,False,50),
+    (5000,3000,12,False,60),(6000,5000,12,True,50),
     (6000,5000,12,None,50),(6000,5000,2,False,50),
     (0,0,12,True,50),(0,0,2,True,50),
     (None,None,12,False,50),(2000,None,12,False,50),
@@ -142,11 +142,11 @@ def test_real_import_bypasses_fall_delay_but_loss_of_export_alone_is_debounced()
 def test_surplus_hold_hysteresis_requires_confirmed_solarpilot_ownership():
     p=make()
     assert evaluate(p,now=100,pv=5000,export=4000,grid=-4000).target_c == 60
-    assert evaluate(p,now=105,pv=5000,export=3300,grid=-3300,holding=False).target_c == 50
+    assert evaluate(p,now=105,pv=5000,export=2800,grid=-2800,holding=False).target_c == 50
 
     owned=make()
     assert evaluate(owned,now=100,pv=5000,export=4000,grid=-4000).target_c == 60
-    assert evaluate(owned,now=105,pv=5000,export=3300,grid=-3300,holding=True).target_c == 60
+    assert evaluate(owned,now=105,pv=5000,export=2800,grid=-2800,holding=True).target_c == 60
 
 
 def test_unissued_high_decision_is_not_sent_during_fall_delay():

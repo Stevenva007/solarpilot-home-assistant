@@ -1,12 +1,12 @@
-# SolarPilot beta.54 — installatie en upgrade
+# SolarPilot beta.56 — installatie en upgrade
 
-Beta.54 regelt iedere vrijgegeven Panasonic-ruimtezone afzonderlijk tussen AUTO en UIT. SolarPilot kan een goed geïsoleerde ruimte veilig zonder onnodig ruimtebedrijf laten verdergaan en AUTO weer beschikbaar stellen wanneer actuele of verantwoord voorspelde comfortbehoefte dit vraagt. Panasonic kiest verwarmen/koelen; het thermostaatdoel blijft behouden.
+Beta.56 laat extra warm water vanaf 3000 W bruikbaar overschot starten, toont de actuele uitvoeringsreden, beoordeelt AUTO/UIT met betrouwbare passieve trends en levert grote analyses gecomprimeerd. Op **Overzicht → Wat gebeurt er en waarom?** zie je per toestel de stand, start- of wachtreden en laatst vastgelegde actie. Technische gegevens staan achter **Details**.
 
-Handmatig AUTO/UIT bedien je met de schakelaars per zone op **Warmte & comfort**. Automatisch regelen vereist geen voorafgaande gewone handmatige AUTO-keuze. De beta.53-isolatie van onbeschikbare toestellen en conservatieve lastreserves blijven behouden. De test-/publicatiestatus staat in [docs/TESTRESULTATEN_BETA54.md](docs/TESTRESULTATEN_BETA54.md).
+De zelfstandige ruimtebediening, centrale prioriteiten, boilerbeleid, toestelisolatie en alle veiligheidsvoorwaarden blijven behouden. Test-/publicatiestatus: [docs/TESTRESULTATEN_BETA56.md](docs/TESTRESULTATEN_BETA56.md).
 
 ## 1. Vooraf
 
-- Maak een actuele volledige Home Assistant-back-up en bewaar de gecontroleerde beta.53-release voor rollback.
+- Maak een actuele volledige Home Assistant-back-up en bewaar de gecontroleerde beta.55-release voor rollback.
 - Laat een lopende beschermde afwas- of andere cyclus afwerken.
 - Gebruik bij een nieuwe installatie **Alleen bekijken** voor de eerste broncontrole. Bij bestaand actief beheer kan die modus eerst **Pauze** en veilige vrijgave vereisen. Alleen bewezen eigen coast en passende bevestigde numerieke batterijdoelen mogen worden vrijgegeven; handmatige bediening blijft beschermd.
 - Updates zijn cumulatief: bestaande Home Assistant-configuratie en lokale leerdata blijven behouden; tussenliggende beta-versies hoeven niet afzonderlijk geïnstalleerd te worden.
@@ -14,14 +14,14 @@ Handmatig AUTO/UIT bedien je met de schakelaars per zone op **Warmte & comfort**
 ## 2. Via HACS installeren of upgraden
 
 1. Voeg bij een nieuwe installatie in **HACS → Custom repositories** `https://github.com/Stevenva007/solarpilot-home-assistant` toe als type **Integration**.
-2. Download of update naar exact `1.0.0-beta.54` zodra die release beschikbaar is.
+2. Download of update naar exact `1.0.0-beta.56` zodra die release beschikbaar is.
 3. Herstart Home Assistant volledig.
 4. Herlaad de webpagina. Stop op Android de Home Assistant-app volledig en open haar opnieuw; op iOS kun je de weergave naar beneden trekken om te verversen. Controleer backendversie en geladen kaart afzonderlijk. Een download of manifestnummer bewijst geen geladen kaartcode.
 5. Voeg bij een nieuwe installatie **SolarPilot** toe via **Instellingen → Apparaten & diensten** en kies je P1/netbron en optionele PV-bron.
 
 De interface verschijnt automatisch. Er is geen aparte Lovelace-resource of dashboard-YAML nodig. Bij een lokaal pakket vervang je uitsluitend `custom_components/solar_pilot`; bewaar bestaande `userfiles` en Home Assistant-opslag.
 
-Controleer bij een waarschuwing de genoemde toestelbron. **Automatische broncontrole** wacht op betrouwbaar nieuwe data en vraagt geen reset. Bij een verkeerde vereiste bronkoppeling corrigeer je die koppeling; een echte **Opdrachtfout** behoudt de bestaande gerichte controle. Zie [docs/BETA54_INSTELLEN.md](docs/BETA54_INSTELLEN.md); verwijder geen configuratie of leerdata.
+Controleer bij een waarschuwing de genoemde toestelbron. **Automatische broncontrole** wacht op betrouwbaar nieuwe data en vraagt geen reset. Bij een verkeerde vereiste bronkoppeling corrigeer je die koppeling; een echte **Opdrachtfout** behoudt de bestaande gerichte controle. Zie [docs/BETA56_INSTELLEN.md](docs/BETA56_INSTELLEN.md); verwijder geen configuratie of leerdata.
 
 ## 3. Optioneel privéprofiel
 
@@ -39,7 +39,7 @@ Controleer bij extra warm water de twee afzonderlijke wachttijden. **Stabiliteit
 
 Als de zonnevoorwaarden geldig blijven, mag de stabiliteitscontrole niet telkens opnieuw beginnen alleen omdat de opdrachtrust nog loopt. De kaart toont die echte uitvoeringswachtreden. Zodra beide voorwaarden en alle andere guards voldaan zijn, kan de volgende gewone regelronde de verhoging vragen. Werkelijk verlies van geldig zonnebewijs, koeling of een te groot meetgat kan een nieuwe stabiliteitscontrole vereisen.
 
-Houd **gemeten tanktemperatuur**, **SolarPilot-voorstel** en **gemeld Panasonic-doel** apart. Een voorstel van 60 °C terwijl Panasonic nog 50 °C meldt is geen toegepaste verhoging of fysieke opwarming. Een lopende doelopdracht wacht op haar bestaande nieuwe passende terugmelding; verstuur geen extra proefopdracht om een teller te doen verdwijnen.
+Houd **gemeten tanktemperatuur**, **SolarPilot-voorstel** en **gemeld Panasonic-doel** apart. Een voorstel van 60 °C terwijl Panasonic nog 50 °C meldt is geen toegepaste verhoging of fysieke opwarming. Een gemeld doel van 60 °C met een lagere tanktemperatuur betekent dat het doel hoog is; Panasonic bepaalt de werkelijke opwarming. De standaard maandagbescherming loopt van 11:45 tot 15:00 en blijft ook zonder ruimtekoeling gelden. Een lopende doelopdracht wacht op haar bestaande nieuwe passende terugmelding; verstuur geen extra proefopdracht om een teller te doen verdwijnen.
 
 ### Behouden opdracht- en forecastcontrole
 
@@ -49,9 +49,11 @@ Ontbrekende forecasturen of staart blijven onbekend. Controleer tijdzone-/dekkin
 
 Op **Warmte & comfort** staat per zone **Handmatig bedienen**. Uit laat SolarPilot zelf AUTO/UIT kiezen; Aan toont de vaste **AUTO / UIT**-keuze. Die expliciete dashboardoverride blijft bewaard over herstarts tot je Handmatig bedienen weer uit zet. Een native wijziging buiten het dashboard krijgt tijdelijke gebruikersrust, standaard twaalf uur; vaste HEAT/COOL en pending/onzekere opdrachten blijven beschermd. Een geldige oorspronkelijke UIT-stand vraagt onder automatische zonebediening geen handmatige AUTO-fiets.
 
-Het overzicht noemt **Comfortbewaking tijdens leren** of **Voorspellend geregeld**, per-zone reden en echte forecastdekking. Actuele passende comfortvraag werkt zonder volledig geleerd model. Leerbewijs, relevante dagen/episodes en gemeten voorspelfout blijven afzonderlijk; samples bewijzen geen 98% nauwkeurigheid. Winter-/zomerweer houdt AUTO niet alleen wegens die context aan. Een toekomstige hittegolf vraagt relevant koelbewijs en echte forecasturen; AUTO met ongewijzigd doel garandeert geen bouwschilvoorkoeling.
+Controleer ook **Werkelijk Panasonic-programma**. Een warmtevraag mag niet autonoom AUTO inschakelen bij COOL/AUTO_COOL, en andersom. Onbekend programmabewijs laat een nieuwe automatische AUTO-start wachten. Laat de optionele koppeling leeg bij ondersteunde native Aquarea; SolarPilot wacht op haar nieuwe geslaagde programmaterugmelding. Een gecontroleerde eigen bron is mogelijk. HA AUTO/UIT kan door de integratie globaal worden vertaald en het bestaande programma wijzigen; SolarPilot kiest geen directe HEAT/COOL-opdracht.
 
-Behoud je huidige instellingen en leerdata. Deze update vraagt geen algemene leerreset. De eerdere bescherming van gecontroleerde fasewaarnemingen zonder bewijs van stabiele andere meters blijft gelden; geldige passieve waarnemingen, nieuwe geïsoleerde fasewaarnemingen en handmatige fasekeuzes blijven behouden. Zie [docs/BETA54_INSTELLEN.md](docs/BETA54_INSTELLEN.md) voor de volledige controle.
+Een passieve UIT-trend mag geen actief verwarm-/koelverloop gebruiken; actueel buitenbewijs bepaalt de huidige richting. Zachte nieuwe AUTO-vraag vanuit UIT moet standaard tien minuten aanhouden. Harde of onderbouwd dringende comfortvraag behoudt haar bestaande herstelpad. Het overzicht noemt **Comfortbewaking tijdens leren** of **Voorspellend geregeld**, per-zone reden en echte forecastdekking. Actuele passende comfortvraag werkt zonder volledig geleerd model. Leerbewijs, relevante dagen/episodes en gemeten voorspelfout blijven afzonderlijk; samples bewijzen geen 98% nauwkeurigheid. Winter-/zomerweer houdt AUTO niet alleen wegens die context aan. Een toekomstige hittegolf vraagt relevant koelbewijs en echte forecasturen; AUTO met ongewijzigd doel garandeert geen bouwschilvoorkoeling.
+
+Behoud je huidige instellingen en leerdata. Deze update vraagt geen algemene leerreset. De eerdere bescherming van gecontroleerde fasewaarnemingen zonder bewijs van stabiele andere meters blijft gelden; geldige passieve waarnemingen, nieuwe geïsoleerde fasewaarnemingen en handmatige fasekeuzes blijven behouden. Zie [docs/BETA56_INSTELLEN.md](docs/BETA56_INSTELLEN.md) voor de volledige controle.
 
 ## 5. Automatisch herstel na herstart
 
@@ -81,7 +83,7 @@ Controleer in **Alleen bekijken** of **Pauze** de echte adapterherkomst, bronver
 
 Een vóór beta.46 opgeslagen koel-/onzekerheidstijd blijft conservatief behouden. Een bestaande uitloop of bescherming tijdens een native warmwatertaak kan daarom nog tijdelijk gelden; de upgrade wist geen mogelijk echte koeling.
 
-Een grote vrije injectie geeft nog geen startgarantie: zonnestabiliteit, rust tussen doelopdrachten, reserves, eigendom, hygiëne, koeluitloop en elektrische grenzen worden afzonderlijk beoordeeld. Het normale doel blijft standaard 50 °C, de bewaakte comfortgrens 46 °C en extra overschot maximaal 60 °C. Extra 60 °C krijgt nooit Wallboxkrediet.
+De extra zonnebuffer mag standaard vanaf 3000 W bruikbaar overschot starten, inclusief de exacte grens. De oude effectieve 3500 W-drempel wordt éénmalig omgezet; andere waarden blijven behouden. Het afzonderlijk geschatte opwarmvermogen blijft 3200 W. Een grote vrije injectie geeft nog geen startgarantie: zonnestabiliteit, rust tussen doelopdrachten, reserves, eigendom, hygiëne, koeluitloop en elektrische grenzen worden afzonderlijk beoordeeld. Het normale doel blijft standaard 50 °C, de bewaakte comfortgrens 46 °C en extra overschot maximaal 60 °C. Extra 60 °C krijgt nooit Wallboxkrediet.
 
 ## 7. Hervatten en doelbevestiging
 
@@ -91,8 +93,10 @@ Hervat gewone regeling na bron- en beveiligingscontrole en observeer een natuurl
 
 Laat concurrerende boilerautomatiseringen uit zolang SolarPilot regelt. AEG-APP-aanvragen en beschermde cycli blijven behouden; maak geen nieuwe APP-aanvraag of START om updateacceptatie af te dwingen. De Wallbox blijft read-only. Nieuwe toestellen blijven afzonderlijk gecontroleerd en vrijgegeven.
 
-## 8. Uitleg en rollback
+## 8. Analyse, uitleg en rollback
 
-De enige actuele regelbeschrijving staat in [docs/ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en in Home Assistant onder **SolarPilot → Uitleg**. De volledige upgradecontrole staat in [docs/BETA54_INSTELLEN.md](docs/BETA54_INSTELLEN.md).
+Kies **Export → Export samenstellen → 7 dagen** voor de volledige beschikbare analyse als **JSON.GZ**. Alleen dezelfde ingelogde beheerder kan de lokale gecomprimeerde download tien minuten ophalen. De nieuwe route verkort de periode niet wegens de vroegere 16 MB-berichtgrens. Nieuwe punten bewaren de geladen versie; oudere ongestempelde punten blijven versie onbekend. Privacyfilters blijven behouden; publiceer analyses niet op GitHub.
 
-Voor rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.53-release of gecontroleerde back-up herstellen → Home Assistant herstarten → webpagina/app opnieuw openen → backend/kaart en beveiligingen controleren**. Beta.53 behoudt toestelisolatie en reserves, maar kent de nieuwe dashboardoverride en autonome per-zone AUTO/UIT-regelaar niet. Controleer daarom native ruimtestanden en oudere handmatige vrijgave. Oude release-documenten zijn historische informatie; het actuele `OVERDRACHT.md` beschrijft de huidige bron.
+De enige actuele regelbeschrijving staat in [docs/ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en in Home Assistant onder **SolarPilot → Uitleg**. De volledige upgradecontrole staat in [docs/BETA56_INSTELLEN.md](docs/BETA56_INSTELLEN.md).
+
+Voor rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.55-release of gecontroleerde back-up herstellen → Home Assistant herstarten → webpagina/app opnieuw openen → backend/kaart en beveiligingen controleren**. Beta.55 behoudt de eerdere forecast-/PV-/leerbron-/AEG-correcties, maar mist de beta.56-klimaattrend-/vraagbevestiging, uitvoeringsdiagnose en gecomprimeerde download. Een teruggezet programmabestand herstelt niet vanzelf een gemigreerde opgeslagen instelling; controleer de effectieve overschotdrempel of herstel de bijbehorende volledige back-up. Oude release-documenten zijn historische informatie; het actuele `OVERDRACHT.md` beschrijft de huidige bron.

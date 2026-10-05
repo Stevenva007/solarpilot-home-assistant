@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.55",
+  "version": "1.0.0-beta.56",
   "language": "nl",
   "steps": {
     "init": {
@@ -253,7 +253,7 @@
         "surplus_c": "Extra opportunistisch doel, standaard 60 °C.",
         "cooling_cap_c": "Hoogste door SolarPilot gevraagde doel bij actieve of onzekere koeling, standaard 50 °C.",
         "pv_threshold_w": "Minimale werkelijk gemeten zonnepanelenproductie voor het gewone zonnedoel.",
-        "surplus_threshold_w": "Werkelijke netto-injectie moet voor een nieuwe extra hoge fase strikt boven deze drempel liggen, standaard 3500 W.",
+        "surplus_threshold_w": "Bruikbaar echt overschot moet voor een nieuwe extra hoge fase minstens deze drempel zijn, standaard 3000 W; de exacte grens telt mee.",
         "estimated_heat_power_w": "Conservatieve elektrische planningsinschatting voor een opwarmperiode, standaard 3200 W.",
         "night_enabled": "Activeert het ingestelde nachtvenster.",
         "night_start": "Vanaf dit lokale uur geldt nachtrust.",
@@ -1943,9 +1943,9 @@
     },
     "dhw_rules.surplus_threshold_w": {
       "title": "Zonneoverschot strikt groter dan (W)",
-      "short": "Werkelijke netto-injectie moet voor een nieuwe extra hoge fase strikt boven deze drempel liggen, standaard 3500 W.",
+      "short": "Bruikbaar echt overschot moet voor een nieuwe extra hoge fase minstens deze drempel zijn, standaard 3000 W; de exacte grens telt mee.",
       "paragraphs": [
-        "Werkelijke netto-injectie moet voor een nieuwe extra hoge fase strikt boven deze drempel liggen, standaard 3500 W. EV-laadvermogen wordt hier nooit als vrije injectie bijgeteld.",
+        "Bruikbaar echt overschot moet voor een nieuwe extra hoge fase minstens deze drempel zijn, standaard 3000 W; de exacte grens telt mee. Bestaande reserves, hogere prioriteiten en onbekend toestelverbruik blijven afzonderlijk verwerkt. De oude standaard 3500 W wordt éénmalig naar 3000 W gemigreerd; andere ingestelde waarden blijven behouden. EV-laadvermogen wordt nooit als vrije injectie bijgeteld. Zonstabiliteit, opdrachtrust en fabrikantbescherming blijven gelden.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -2071,7 +2071,7 @@
       "title": "Terugvalmarge overschot (W)",
       "short": "Terugvalband onder de echte injectiedrempel voor een lopende hoge fase.",
       "paragraphs": [
-        "Terugvalband onder de echte injectiedrempel voor een lopende hoge fase. Bij 3500/300 W is de gewone terugvalgrens circa 3200 W. Netafname- en koelbewaking blijven daarnaast gelden.",
+        "Terugvalband onder de echte injectiedrempel voor een lopende hoge fase. Bij 3000/300 W is de gewone terugvalgrens circa 2700 W, uitsluitend bij bewezen eigen beheer van die hoge fase. Netafname- en koelbewaking blijven daarnaast gelden.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -4814,6 +4814,28 @@
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
+    "smart_climate.automatic_demand_confirm_s": {
+      "title": "Gewone warmtevraag of koelvraag bevestigen",
+      "short": "Bevestiging van een zachte nieuwe comfortvraag vanuit UIT voordat SolarPilot AUTO vraagt, standaard 600 seconden (10 minuten), instelbaar 0–1800 in stappen van 60 seconden.",
+      "paragraphs": [
+        "Bevestiging van een zachte nieuwe comfortvraag vanuit UIT voordat SolarPilot AUTO vraagt, standaard 600 seconden (10 minuten), instelbaar 0–1800 in stappen van 60 seconden. Dezelfde passende richting moet aanhouden en na de termijn moet een werkelijk nieuw native rapport volgen. Normaal bereik, geen vraag, richtingwissel, bronverlies, gebruikers-/configuratiewijziging of herstart beëindigt de kandidaat. Een echte relevante harde comfortoverschrijding, voldoende gevalideerd dringende voorspelling of expliciete dashboardkeuze houdt het bestaande pad. Dit vervangt geen minimum aan-/uittijd of opdrachtbevestiging.",
+        "Uitgangspunt: 600 s voorkomt dat één korte of afgeronde temperatuurmeting een lange AUTO-periode begint.",
+        "Lagere waarde: Sneller AUTO, maar meer kans op onnodig inschakelen door een korte meetdip.",
+        "Hogere waarde: Meer zekerheid dat de gewone vraag aanhoudt; de normale comfortcorrectie begint later.",
+        "Eenheid: s.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "smart_climate.operation_mode_entity": {
+      "title": "Werkelijk Panasonic-programma",
+      "short": "Alleen-lezen bron voor het werkelijke Panasonic-programma.",
+      "paragraphs": [
+        "Alleen-lezen bron voor het werkelijke Panasonic-programma. Laat leeg bij de ondersteunde native Aquarea-koppeling: SolarPilot wacht op een nieuwe geslaagde coordinatorupdate voor het juiste apparaat en de geselecteerde zone, zonder extra cloudopvraag. Anders koppel een gecontroleerde actuele sensor/select/climate-bron met heat/heating/auto_heat, cool/cooling/auto_cool of heat_cool. De ruimtewaarde AUTO, PUMP/WATER en het buitenweer bewijzen geen programma. Een warmtevraag start niet autonoom AUTO bij een koelprogramma, en andersom; onbekend programmabewijs laat een nieuwe automatische AUTO-start wachten. SolarPilot stuurt alleen Home Assistant AUTO/UIT; de onderliggende integratie kan die globaal interpreteren en het bestaande programma wijzigen.",
+        "Uitgangspunt: Laat leeg bij de ondersteunde Aquarea-koppeling. Anders koppel een actuele bron met heat/heating/auto_heat, cool/cooling/auto_cool of heat_cool; een onbekend programma blokkeert een nieuwe automatische AUTO-start.",
+        "Bij wijzigen: Het programma wordt opnieuw gecontroleerd; een warmtevraag mag AUTO niet inschakelen wanneer de warmtepomp alleen op koelen staat, en andersom.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
     "smart_climate.forecast_refresh_s": {
       "title": "Weersvoorspelling vernieuwen",
       "short": "Hoe vaak de hourly weersverwachting opnieuw wordt opgehaald.",
@@ -5306,9 +5328,9 @@
     },
     "dashboard.analysis_export": {
       "title": "Export samenstellen",
-      "short": "Open Export → Export samenstellen voor één lokaal JSON-onderzoeksbestand.",
+      "short": "Open Export → Export samenstellen voor één lokaal gecomprimeerd JSON.GZ-onderzoeksbestand.",
       "paragraphs": [
-        "Open Export → Export samenstellen voor één lokaal JSON-onderzoeksbestand. Kies 1 uur, 24 uur of 7 dagen. Instellingen, centrale voorrang, metingen, modellen en bewaarde beslissingen worden meegenomen voor zover aanwezig. Namen, IDs en verwijzingen worden standaard consistent gepseudonimiseerd; schema-sleutels, eenheden en statuswaarden blijven behouden. Controleer altijd vóór delen. Geen automatische upload, geen toestelopdracht en geen herstelbare Home Assistant-back-up.",
+        "Open Export → Export samenstellen voor één lokaal gecomprimeerd JSON.GZ-onderzoeksbestand. Kies 1 uur, 24 uur of 7 dagen; de beschikbare geschiedenis wordt niet verkort wegens de vroegere 16 MB-berichtgrens. Alleen dezelfde ingelogde Home Assistant-beheerder kan het bestand tien minuten lang downloaden. Na uitpakken is het gewone JSON. Instellingen, centrale voorrang, metingen, modellen en bewaarde beslissingen worden meegenomen voor zover aanwezig. Namen, IDs en verwijzingen worden standaard consistent gepseudonimiseerd; schema-sleutels, eenheden en statuswaarden blijven behouden. Controleer altijd vóór delen. Geen automatische upload, geen toestelopdracht en geen herstelbare Home Assistant-back-up.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },

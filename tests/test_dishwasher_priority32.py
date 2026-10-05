@@ -192,9 +192,9 @@ def test_active_unmetered_aeg_is_reserved_but_not_an_absolute_60c_veto():
     assert 'Wallboxvermogen telt niet mee' in result.reason
 
 
-def test_new_60c_requires_more_than_threshold_after_house_and_aeg_reserves():
+def test_new_60c_accepts_threshold_after_house_and_aeg_reserves():
     at_boundary = dhw_allocation(actual_grid=-5650, filtered_grid=-5650)
-    assert not at_boundary.allowed
+    assert at_boundary.allowed
     assert at_boundary.usable_surplus_w == at_boundary.required_surplus_w == 3500
     holding = dhw_allocation(actual_grid=-2800, filtered_grid=-2800,
                              holding_owned_high=True)
@@ -538,10 +538,10 @@ async def test_active_unmetered_aeg_allows_60c_with_enough_real_surplus(monkeypa
 
 @pytest.mark.asyncio
 async def test_active_unmetered_aeg_blocks_60c_when_reserved_surplus_is_short(monkeypatch):
-    r,h,_,_=await running_aeg_with_boiler(monkeypatch,5500)
+    r,h,_,_=await running_aeg_with_boiler(monkeypatch,5000)
     assert not r.dhw.reading.luxury_allowed
     assert r.dhw.policy.result.target_c == 50
-    assert '3350 W werkelijk vrij' in r.dhw.reading.luxury_reason
+    assert '2850 W werkelijk vrij' in r.dhw.reading.luxury_reason
     assert not [x for x in h.services.calls if x[0]=='water_heater']
 
 

@@ -29,7 +29,7 @@ DHW_DEFAULTS = {
     "minimum_buffer_c": 1.0,  # retained only for pre-beta.28 migration, not control
     "respect_space_climate": True, "optional_raise_interval_s": 1800,
     "solar_c": 50.0, "surplus_c": 60.0, "cooling_cap_c": 50.0,
-    "pv_threshold_w": 1000.0, "surplus_threshold_w": 3500.0,
+    "pv_threshold_w": 1000.0, "surplus_threshold_w": 3000.0,
     "estimated_heat_power_w": 3200.0,
     "night_enabled": True, "night_start": "23:00:00", "night_end": "06:00:00",
     # Manufacturer sterilisation guard.  This is a no-command window, not a
@@ -320,7 +320,7 @@ class DHWPolicy:
         high = (r.export_w is not None and r.pv_w is not None and not cooling_block and r.luxury_allowed and
                 ((export is not None and export >= c["surplus_threshold_w"] - c["surplus_hysteresis_w"]
                   and r.grid_w is not None and r.grid_w <= c["max_surplus_import_w"])
-                 if already_high else r.export_w > c["surplus_threshold_w"]))
+                 if already_high else r.export_w >= c["surplus_threshold_w"]))
 
         desired, stage = base_target, "base"
         reason = f"Normaal doel {base_target:g} °C; Panasonic bepaalt zelf warmtevraag en verdeling"

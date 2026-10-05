@@ -185,8 +185,8 @@ attributes = {
             "complete_model_confidence":0, "manual_off_zones":["climate.heat_pump_zone_1"], "zone_holds":{}, "pending_commands":[],
             "reliability":{"automatic_coast":{"confidence":demo_coast_confidence,"control_ready":True,"block_reason":"","status":"Betrouwbaar"}},
             "zones":[
-                {"entity_id":"climate.heat_pump_zone_1","name":"Zone 1","current":21.0,"target":21.0,"mode":"off","action":"off","action_known":True,"manual_off":True,"hvac_modes":["heat","off","cool","auto"]},
-                {"entity_id":"climate.heat_pump_zone_2","name":"Zone 2","current":21.1,"target":21.0,"mode":"off","action":"off","action_known":True,"manual_off":False,"hvac_modes":["heat","off","cool","auto"]}],
+                {"entity_id":"climate.heat_pump_zone_1","name":"Zone 1","current":21.0,"target":21.0,"mode":"off","action":"off","action_known":True,"manual_off":True,"hvac_modes":["heat","off","cool","auto"],"execution_reason":"Alleen advies: de handmatige UIT-keuze blijft behouden","native_program":{"program":"heating","source":"configured_entity","fresh":True}},
+                {"entity_id":"climate.heat_pump_zone_2","name":"Zone 2","current":21.1,"target":21.0,"mode":"off","action":"off","action_known":True,"manual_off":False,"hvac_modes":["heat","off","cool","auto"],"execution_reason":"Automatische bediening staat uit; de ruimte blijft nu op temperatuur","native_program":{"program":"heating","source":"configured_entity","fresh":True}}],
             "profiles": {
                 "climate.heat_pump_zone_1":demo_profile_1,
                 "climate.heat_pump_zone_2":demo_profile_2,
@@ -209,7 +209,7 @@ attributes = {
                 "outside_temp_entity": "sensor.outdoor_temperature",
                 "zone_entities": ["climate.heat_pump_zone_1", "climate.heat_pump_zone_2"]}),
             "service":"solar_pilot.set_climate_setting",
-            "note":"Panasonic beslist zelf HEAT versus COOL. SolarPilot kan alleen AUTO vrijgeven of vooral in het tussenseizoen langdurig coasten via OFF.",
+            "note":"SolarPilot vraagt alleen AUTO of UIT en controleert het werkelijke warmtepompprogramma. De Panasonic-integratie bepaalt hoe die opdracht op het toestel wordt uitgevoerd.",
             "explanation":[
                 "Zonnewinst: werkelijke PV dient als lokale instralingsproxy. SolarPilot leert per zone hoeveel extra opwarming daarmee samenhangt en begrenst de invloed.",
                 "Weerscorrectie: forecastfouten op 6/12/24/48 uur worden lokaal geleerd en pas bij voldoende vertrouwen toegepast.",
@@ -411,7 +411,10 @@ attributes = {
     "dhw": {
         "configured": True,
         "enabled": True,
-        "status": "Doel bevestigd · 50 °C",
+        "status": "Extra voorraad wacht op het einde van de koelactiviteit",
+        "execution": {"reason":"Extra voorraad wacht op het einde van de koelactiviteit", "surplus_target_c":60,
+                      "gates":[{"code":"cooling","passed":False,"reason":"Er is nog gemelde koelactiviteit"}],
+                      "last_change":{"at":"2026-09-24T12:00:00+02:00","reason":"Toesteldoel 50 °C teruggelezen; verhoging blijft begrensd tijdens koeling. Dit bewijst geen opwarming.","source":"solarpilot","confirmed":True}},
         "reason": "Voldoende zonneopbrengst; verhoging naar 60 °C geblokkeerd door koeling",
         "stage": "solar",
         "temperature_c": 46.2,
@@ -462,7 +465,7 @@ attributes = {
             "surplus_c": 60,
             "cooling_cap_c": 50,
             "pv_threshold_w": 1000,
-            "surplus_threshold_w": 3500,
+            "surplus_threshold_w": 3000,
             "estimated_heat_power_w": 3200,
             "night_enabled": True,
             "night_start": "23:00:00",

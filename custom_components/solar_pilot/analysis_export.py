@@ -11,12 +11,14 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from dataclasses import asdict, is_dataclass
 import hashlib
+import gzip
 import json
 import logging
 import math
 import re
 import secrets
 import sys
+import tempfile
 import time
 
 from homeassistant.helpers.storage import Store
@@ -275,7 +277,7 @@ class AnalysisRecorder:
     def event(self, kind, message, data=None):
         if not self.settings["enabled"]:
             return
-        self._append("events", {"ts": time.time(), "kind": str(kind), "message": safe(message), "data": safe(data)})
+        self._append("events", {"ts": time.time(), "release": VERSION, "kind": str(kind), "message": safe(message), "data": safe(data)})
 
     def prune(self, wall):
         while self.fast and self.fast[0]["ts"] < wall - 7200:
@@ -316,7 +318,7 @@ class AnalysisRecorder:
                 self.store.async_delay_save(self.snapshot, 5)
             return
         self.timing.append(round(elapsed_ms, 3))
-        fast = {"ts": wall, "mode": r.mode, "grid_w": r.grid_w, "pv_w": r.pv_w,
+        fast = {"ts": wall, "release": VERSION, "mode": r.mode, "grid_w": r.grid_w, "pv_w": r.pv_w,
                 "problem": safe(getattr(r, "problem", "")),
                 "problem_kind": getattr(r, "problem_kind", ""),
                 "isolated_devices": safe(getattr(r, "source_isolated_devices", {})),
@@ -340,7 +342,7 @@ class AnalysisRecorder:
                 data["appliance_feedback"] = safe(reading)
                 data["prepared"] = bool(r.dishwasher.tickets.get(device_id, {}).get("armed"))
         d = r.dhw.overview()
-        fast["dhw"] = {k: safe(d.get(k)) for k in ("status", "reason", "stage", "temperature_c", "actual_target_c", "proposed_target_c", "pending", "fault", "owned", "cooling_block", "manual_hold", "low_temperature", "measured_solar_export_w")}
+        fast["dhw"] = {k: safe(d.get(k)) for k in ("status", "reason", "stage", "temperature_c", "actual_target_c", "proposed_target_c", "pending", "fault", "owned", "cooling_block", "manual_hold", "low_temperature", "measured_solar_export_w", "execution")}
         fast["climate"] = safe(getattr(r.smart_climate.state, "last_decision", None))
         fast["monotonic_s"] = time.monotonic()
         self.fast.append(safe(fast))
@@ -373,13 +375,13 @@ class AnalysisRecorder:
             except (TypeError, ValueError):
                 numeric = False
             if static != self.last_attributes.get(eid) or (not numeric and obj.get("state") != self.last_state.get(eid)):
-                self._append("changes", {"ts": wall, "entity_id": eid, "state": obj.get("state"), "attributes": static})
+                self._append("changes", {"ts": wall, "release": VERSION, "entity_id": eid, "state": obj.get("state"), "attributes": static})
             self.last_attributes[eid] = static
             self.last_state[eid] = obj.get("state")
         d = r.dhw.overview()
         w = r.wallbox_overview()
         snapshot = {**fast, "entities": compact,
-                    "dhw": {k: safe(d.get(k)) for k in ("status", "reason", "temperature_c", "actual_target_c", "proposed_target_c", "stage", "pending", "fault", "owned", "cooling_block")},
+                    "dhw": {k: safe(d.get(k)) for k in ("status", "reason", "temperature_c", "actual_target_c", "proposed_target_c", "stage", "pending", "fault", "owned", "cooling_block", "execution")},
                     "wallbox": {k: safe(w.get(k)) for k in ("state", "reason", "power_w", "demand", "reported_mode", "last_report_age_s", "handover")},
                     "phase": safe(r.phase), "capacity": safe(r.capacity), "prices": safe(r._economy_prices())}
         self._append("samples", safe(snapshot))
@@ -409,7 +411,11 @@ class AnalysisRecorder:
         cutoff = wall - hours*3600
         refs = self.refs()
         current = {eid: entity_snapshot(r.hass, eid, wall) for eid in refs}
-        windows = {key: [x for x in getattr(self, key) if x["ts"] >= cutoff] for key in ("samples", "changes", "events", "fast")}
+        # Older stored rows did not record their collecting release. Do not
+        # relabel them with the exporting release after an integration update.
+        windows = {key: [{**x, "release": x.get("release") or "unknown"}
+                        for x in getattr(self, key) if x["ts"] >= cutoff]
+                   for key in ("samples", "changes", "events", "fast")}
         sample_rows = sorted(windows["samples"], key=lambda row: row["ts"])
         first_raw_ts = sample_rows[0]["ts"] if sample_rows else None
         last_raw_ts = sample_rows[-1]["ts"] if sample_rows else None
@@ -503,6 +509,7 @@ class AnalysisRecorder:
                        "solarpilot_live_learning": "Eigen SolarPilot-leerdata en ruwe analysemetingen sinds de werkelijke verzameling startte.",
                        "calculated_start_profiles": "Berekende/geleerde toestelprofielen zijn modellen en tellen niet als extra meettijd of extra leerdag.",
                        "current_measurements": "Actuele Home Assistant/P1/PV-bronwaarden op exportmoment; realtime metingen blijven leidend.",
+                       "record_release": "Nieuwe analysemetingen en gebeurtenissen bevatten de werkelijk verzamelende SolarPilot-versie. Oudere records zonder versie blijven unknown; de hoofdversie is alleen de exportversie.",
                    },
                    "coverage": {"collection_enabled": self.settings["enabled"], "collection_started": iso(self.started),
                                 "first_sample": iso(windows["samples"][0]["ts"]) if windows["samples"] else None,
@@ -546,8 +553,18 @@ class AnalysisRecorder:
             salt = secrets.token_hex(12)
             aliases = {eid: eid.split(".")[0] + ".source_" + hashlib.sha256((salt+eid).encode()).hexdigest()[:10] for eid in refs}
             # Include generated references and durable device IDs consistently.
-            text = json.dumps(payload, ensure_ascii=False, allow_nan=False)
-            for eid in set(ENTITY_RE.findall(text)) - set(aliases):
+            def embedded_references(value):
+                if isinstance(value, dict):
+                    for key, item in value.items():
+                        yield from ENTITY_RE.findall(key)
+                        yield from embedded_references(item)
+                elif isinstance(value, list):
+                    for item in value:
+                        yield from embedded_references(item)
+                elif isinstance(value, str):
+                    yield from ENTITY_RE.findall(value)
+
+            for eid in set(embedded_references(payload)) - set(aliases):
                 aliases[eid] = eid.split(".")[0] + ".source_" + hashlib.sha256((salt+eid).encode()).hexdigest()[:10]
             labels = {c["name"]: "Verbruiker " + str(n+1) for n, c in enumerate(configs.values()) if isinstance(c.get("name"), str) and c["name"].strip()}
             labels.update({c["name"]: "Batterij " + str(n+1) for n, c in enumerate(batteries.values()) if isinstance(c.get("name"), str) and c["name"].strip()})
@@ -570,6 +587,38 @@ def serialize_report(report):
     if len(text.encode("utf-8")) > MAX_EXPORT_BYTES:
         raise ValueError("Export groter dan 16 MB. Kies een kortere periode; er wordt niet stilzwijgend data weggelaten.")
     return text
+
+
+def write_compressed_report(report):
+    """Write complete JSON incrementally, without a WebSocket size ceiling.
+
+    Only bounded, already captured SolarPilot data is accepted by the caller.
+    The temporary file stays outside static paths, is private to the HA process
+    and is removed by the authenticated download registry or on worker failure.
+    No huge JSON string or base64 copy is constructed on the event loop.
+    """
+    import os
+
+    path = None
+    try:
+        with tempfile.NamedTemporaryFile(prefix="solarpilot-analysis-", suffix=".json.gz", delete=False) as handle:
+            path = handle.name
+            uncompressed_bytes = 0
+            encoder = json.JSONEncoder(ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+            with gzip.GzipFile(filename="", fileobj=handle, mode="wb", compresslevel=6, mtime=0) as compressed:
+                for chunk in encoder.iterencode(report):
+                    data = chunk.encode("utf-8")
+                    uncompressed_bytes += len(data)
+                    compressed.write(data)
+            size_bytes = handle.tell()
+        return {"path": path, "size_bytes": size_bytes, "uncompressed_bytes": uncompressed_bytes}
+    except BaseException:
+        if path is not None:
+            try:
+                os.unlink(path)
+            except FileNotFoundError:
+                pass
+        raise
 
 
 class AnalysisLogHandler(logging.Handler):

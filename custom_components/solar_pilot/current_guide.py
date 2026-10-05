@@ -3,11 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.55'
+GUIDE_VERSION = '1.0.0-beta.56'
 GUIDE_UPDATED = '2026-10-05'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.55',
+ 'version': '1.0.0-beta.56',
  'updated': '2026-10-05',
  'intro': 'Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst '
           'samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en '
@@ -41,7 +41,12 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'bij verwijderen wacht op die bevestiging. Bestaande beschermde cycli blijven '
                               'afwerken; veilige reductie van gewone lasten behoudt haar normale rustregels. '
                               'Na batterijactie is naast powerbevestiging ook een nieuwe P1-rapportage en '
-                              'de normale wachttijd nodig; oude netruimte wordt niet opnieuw uitgegeven.'],
+                              'de normale wachttijd nodig; oude netruimte wordt niet opnieuw uitgegeven.',
+                              'Op Overzicht staat Wat gebeurt er en waarom? Hier zie je per toestel '
+                              'of regeling de actuele stand, de reden voor starten of wachten en de '
+                              'laatst vastgelegde actie. Technische bronwaarden en opdrachtgegevens '
+                              'staan achter Details. Ze blijven beschikbaar voor onderzoek zonder '
+                              'de dagelijkse bediening te overladen.'],
                'bullets': ['Eén actuator heeft maar één eigenaar.',
                            'Een EMS-berekening is geen elektrische beveiliging.',
                            'Onzekere opdrachten worden niet eindeloos herhaald.',
@@ -231,6 +236,29 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'tankdifferentie verhoogt het normale doel niet. Er is geen tijdelijke '
                               'herstelverhoging naar 52 °C, geen Force DHW, geen Powerful en geen compressor-, '
                               'hoofdvoedings- of DHW-modeopdracht.',
+                              'De extra zonnebuffer heeft standaard 60 °C als doel en mag vanaf '
+                              '3000 W bruikbaar echt overschot starten; exact 3000 W telt mee. Dit '
+                              'is werkelijke restinjectie, niet het totale paneelvermogen of '
+                              'vrijmaakbare Wallboxlading. Bestaande conservatieve reserves, hogere '
+                              'prioriteiten en vermogens-/fasetoewijzing blijven afzonderlijk '
+                              'gelden; de uitvoeringsdetails tonen welke ruimte deze installatie '
+                              'werkelijk toetst. De oude standaarddrempel 3500 W wordt éénmalig '
+                              'naar 3000 W omgezet; een andere ingestelde waarde blijft behouden. '
+                              'Deze keuze verlaagt niet het afzonderlijk geschatte boilervermogen '
+                              'van standaard 3200 W en verruimt geen fase- of piekgrens. De '
+                              'vasthouddrempel geldt uitsluitend voor een bewezen eigen lopende '
+                              'hoge fase: bij 3000 W start en 300 W hysterese is dat circa 2700 W, '
+                              'zolang de overige voorwaarden geldig blijven.',
+                              'Fabrikantsterilisatie en handmatige krachtige functies houden '
+                              'voorrang. Het ingestelde hygiënevenster kan de zonnebuffer dus laten '
+                              'wachten hoewel de zon ruim voldoende is en ruimteverwarming/koeling '
+                              'uit staat. Standaard beschermt SolarPilot de maandagplanning vanaf '
+                              'vijftien minuten vóór 12:00 tot drie uur na 12:00, dus 11:45–15:00. '
+                              'Dit venster is geen melding dat Panasonic werkelijk drie uur '
+                              'steriliseert en SolarPilot start de sterilisatie niet zelf. De kaart '
+                              'noemt de huidige bescherming en het einde van een bepaalbaar '
+                              'venster; een actieve native hygiënebron houdt ook na het venster '
+                              'haar bescherming.',
                               'Met 50 °C als normaal doel en de fysieke heropwarmdifferentie -5 °C kan '
                               'Panasonic nominaal pas rond 45 °C herstarten. Daarom kan deze zachte sturing '
                               'geen 46 °C minimum garanderen. Onderschrijding wordt zichtbaar gemeld; '
@@ -313,13 +341,18 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'lagere vasthouddrempel. Alleen een passend eigen werkelijk doel kan zo een '
                               'bestaande fase vasthouden.',
                               'Het warmwateroverzicht en de warmwaterdetailkaart tonen de actuele '
-                              'regel- of wachtreden. Stabiliteitscontrole en rust tussen doelopdrachten '
-                              'worden apart benoemd; voldoende zon in het beleidsadvies verbergt geen '
-                              'wachttijd bij uitvoering. Ook wachten op een andere regelopdracht of een '
-                              'ongeschikt native doelbereik blijft zichtbaar. SolarPilot-voorstel, gemeld Panasonic-doel en '
-                              'gemeten tanktemperatuur blijven afzonderlijke waarden. Een voorstel van '
-                              '60 °C bij een gemeld doel van 50 °C betekent nog geen verzonden of '
-                              'bevestigde verhoging en bewijst geen fysieke opwarming.',
+                              'uitvoeringsreden en de afzonderlijke voorwaarden voor de extra '
+                              'zonnebuffer: modulevrijgave, Automatisch regelen, betrouwbare '
+                              'bronnen, bruikbaar overschot met drempel, zonnestabiliteit, rust '
+                              'tussen doelopdrachten, koeling/ruimteactie, fabrikantbescherming, '
+                              'native doelbereik en andere wachtende opdrachten. Een gunstig '
+                              'beleidsadvies verbergt geen uitvoeringsblokkering. '
+                              'SolarPilot-voorstel, gemeld Panasonic-doel en gemeten '
+                              'tanktemperatuur blijven afzonderlijke waarden. Als Panasonic al 60 '
+                              '°C meldt terwijl de tanktemperatuur lager is, is het doel wel hoog '
+                              'maar is het water nog niet op temperatuur. Dat bewijst geen '
+                              'SolarPilot-eigendom, onafhankelijke fysieke opdrachtbevestiging of '
+                              'compressorstart; Panasonic bepaalt de werkelijke uitvoering.',
                               'Gewoon warmtepompcomfort staat vóór de autonome Full Solar-Wallbox. Voor de '
                               'beschermde avondvoorraad, nooit hoger dan de ingestelde limiet en maximaal 55 '
                               '°C, mag SolarPilot actueel gemeten EV-zonnevermogen alleen in de '
@@ -580,13 +613,43 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                            'blijft instelbaar.']},
               {'title': '8. Slim verwarmen en koelen: automatisch AUTO/UIT per ruimte',
                'paragraphs': ['Bij een onzekere klimaatopdracht biedt het dashboard Gemelde stand behouden zodra betrouwbare AUTO/UIT-gegevens terug zijn. Dit neemt alleen de gemelde stand als vaste handmatige keuze over en beoordeelt die specifieke fout, zonder een modeopdracht. Pending of onbetrouwbare gegevens blijven beschermd. Kies daarna bewust automatische regeling of de handmatige AUTO/UIT-schakelaar.',
-'SolarPilot regelt iedere vrijgegeven Panasonic-ruimtezone afzonderlijk tussen AUTO en '
-                              'UIT. Panasonic kiest zelf verwarmen of koelen; het thermostaatdoel blijft de '
-                              'comfortreferentie en wordt niet door deze regeling verhoogd of verlaagd. Automatische '
-                              'zonebediening staat standaard aan binnen de klimaatmodule, maar fysieke opdrachten '
-                              'vereisen nog steeds een ingeschakelde module, vrijgegeven klimaatbediening en de '
-                              'globale modus Automatisch regelen. Alleen bekijken en Pauze geven geen nieuw '
-                              'automatisch startrecht.',
+'SolarPilot regelt iedere vrijgegeven Panasonic-ruimtezone afzonderlijk tussen AUTO en UIT via de '
+'Home Assistant-klimaatopdracht. SolarPilot kiest daarbij geen directe HEAT- of COOL-opdracht. De '
+'Panasonic-integratie vertaalt AUTO/UIT naar het toestel en kan daarmee ook het globale programma '
+'wijzigen; behoud van de bestaande HEAT/COOL-programmakeuze is dus geen garantie. Het werkelijk '
+'gemelde programma wordt afzonderlijk gelezen; het thermostaatdoel blijft de comfortreferentie en '
+'wordt niet door deze regeling verhoogd of verlaagd. Automatische zonebediening staat standaard aan '
+'binnen de klimaatmodule, maar fysieke opdrachten vereisen nog steeds een ingeschakelde module, '
+'vrijgegeven klimaatbediening en de globale modus Automatisch regelen. Alleen bekijken en Pauze '
+'geven geen nieuw automatisch startrecht.',
+'Een lage ruimtetemperatuur geeft geen autonome AUTO-start wanneer het werkelijke programma '
+'COOL/AUTO_COOL is; omgekeerd geeft een koelvraag geen AUTO-start bij HEAT/AUTO_HEAT. Dan blijft de '
+'ruimte UIT met een zichtbare reden. Onbekend of onbetrouwbaar programmabewijs blokkeert een nieuwe '
+'autonome AUTO-start. Dit staat los van winter-/zomerweer en voorkomt dat een geldige comfortvraag '
+'het verkeerde ingestelde programma inschakelt. Een expliciete handmatige dashboard-AUTO-keuze '
+'blijft een bewuste gebruikersopdracht, met de overige bestaande bron-/opdrachtbescherming.',
+'Werkelijk Panasonic-programma is een optionele alleen-lezen koppeling. Leeg gebruikt de '
+'gecontroleerde native Aquarea-coordinator als die bij het geselecteerde apparaat en de zone past. '
+'De eerste nieuwe geslaagde native update moet na de SolarPilot-koppeling zijn waargenomen; een oud '
+'setupbeeld of optimistische schrijfmelding bewijst het programma niet. De native rapportage blijft '
+'hoogstens vijf minuten geldig, of korter als de ingestelde bronversheid strenger is. SolarPilot '
+'start daarvoor geen extra cloudopvraag. Een andere adapter kan een gecontroleerde actuele '
+'sensor/select/climate-bron koppelen met exacte programmawaarden heat/heating/auto_heat, '
+'cool/cooling/auto_cool of heat_cool. Alleen een ruimtewaarde AUTO, een algemene PUMP/WATER-taak of '
+'buitenweer is geen bewijs van het programma.',
+                              'Na een door SolarPilot zelf uitgegeven en bevestigd UIT kan het '
+                              'native Aquarea-programma alleen OFF rapporteren. Voor hervatten mag '
+                              'dan uitsluitend de vóór die eigen pauze bewezen '
+                              'verwarm-/koelrichting worden bewaard, bij dezelfde koppeling, '
+                              'bevestigde eigen opdracht en nieuwe betrouwbare native '
+                              'UIT-terugmelding. De analyse onderscheidt de werkelijk huidige '
+                              'OFF-stand van die eerdere programma-intentie. Een latere verse echte '
+                              'HEAT/COOL-melding vervangt deze tijdelijke intentie; ontbrekend, oud '
+                              'of onbetrouwbaar bewijs geeft geen vrijgave. Een willekeurige '
+                              'handmatige UIT, onbekend verleden of andere bron kan zo geen '
+                              'richting lenen. Dit bewaart normale automatische hervatting zonder '
+                              'een direct HEAT/COOL-programma te kiezen of het fysieke effect van '
+                              'HA AUTO te garanderen.',
                               'Een geldige native UIT-stand bij start wordt bij automatische zonebediening niet als '
                               'onbeperkte handmatige uitschakeling behandeld. SolarPilot mag die zone vanzelf op '
                               'AUTO zetten zodra de actuele of verantwoord voorspelde behoefte dit vraagt. Woonkamer '
@@ -615,6 +678,29 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'de regeling Voorspellend geregeld: de passieve temperatuurontwikkeling, zonnewinst en '
                               'de werkelijk benodigde verwarm- of koelrespons bepalen of UIT veilig is en wanneer '
                               'AUTO beschikbaar moet zijn.',
+                              'Een passieve trend komt alleen uit twee verse bruikbare metingen '
+                              'waarin de zone aan beide kanten UIT of idle is, met dezelfde '
+                              'relevante bronnen en hetzelfde doel. Een opwarming tijdens '
+                              'verwarmen, afkoeling tijdens koelen of een overgang naar idle telt '
+                              'niet als bewijs van de ontwikkeling zonder ruimtebedrijf. Oude of '
+                              'gemengde trends kunnen daardoor een comfortabele UIT-zone niet ten '
+                              'onrechte opnieuw op AUTO laten zetten. De actuele '
+                              'verwarm-/koelrichting gebruikt betrouwbaar actueel buitenbewijs; een '
+                              'gemiddelde van later voorspelde buitenuren vervangt die huidige '
+                              'context niet.',
+                              'Een zachte nieuwe comfortvraag vanuit UIT moet standaard tien '
+                              'minuten aanhouden voordat AUTO wordt gevraagd. Dezelfde richting '
+                              'moet aanhouden en er moet na de bevestigingstijd een werkelijk nieuw '
+                              'native bronrapport zijn; een oude enkele temperatuurmeting volstaat '
+                              'niet. De bevestiging begint niet telkens opnieuw bij dezelfde '
+                              'geldige vraag en vervalt bij normaal bereik, geen vraag, '
+                              'richtingwisseling, onbetrouwbare bronnen, een native '
+                              'gebruikerswijziging, configuratiewijziging of herstart. Werkelijke '
+                              'harde comfortoverschrijding en een voldoende onderbouwde dringende '
+                              'voorspellende behoefte houden hun bestaande herstelpad; een '
+                              'expliciete dashboardkeuze wacht niet op deze zachte bevestiging. De '
+                              'instelbare bevestiging is aanvullend op de minimum aan-/uittijden en '
+                              'opdrachtbeveiliging, geen compressorlooptijd.',
                               'Gewone AUTO/UIT-wijzigingen respecteren een minimum aan- en uittijd, standaard één '
                               'uur, en de bestaande begrensde opdrachtfrequentie. Een werkelijke of verantwoorde '
                               'dreigende comfortbehoefte kan gewone wachttijd voor automatisch herstel doorbreken; '
@@ -684,12 +770,15 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'gegevens wissen of onnodige extreme proefstanden maakt het model niet zekerder. Voor '
                               'een latere onderbouwde bouwschilstrategie zijn metingen van warmteopslag en nawerking '
                               'over meerdere verschillende warme dagen nodig.',
-                              'Iedere bevestigde SolarPilot-UIT-periode kan achteraf worden beoordeeld als correct, '
-                              'te lang of te voorzichtig. Alleen het nuttige minimumvenster mag na voldoende '
-                              'feedback voorzichtig binnen de ingestelde grenzen worden aangepast. Comfortbanden, '
-                              'Panasonic-doel en HEAT/COOL-keuze veranderen daardoor niet. Een mislukte of '
-                              'onbevestigde opdracht levert geen fictieve succesvolle episode; een onderbroken '
-                              'episode wordt na herstart niet als volledige leerervaring gereconstrueerd.',
+                              'Iedere bevestigde SolarPilot-UIT-periode kan achteraf worden '
+                              'beoordeeld als correct, te lang of te voorzichtig. Alleen het '
+                              'nuttige minimumvenster mag na voldoende feedback voorzichtig binnen '
+                              'de ingestelde grenzen worden aangepast. Comfortbanden, Het native '
+                              'doel verandert niet door deze leerbijsturing en er wordt geen '
+                              'directe HEAT/COOL-keuze gemaakt; de integratie bepaalt het effect '
+                              'van een AUTO/UIT-opdracht. Een mislukte of onbevestigde opdracht '
+                              'levert geen fictieve succesvolle episode; een onderbroken episode '
+                              'wordt na herstart niet als volledige leerervaring gereconstrueerd.',
                               'Een wachtende of onzekere klimaatopdracht wordt niet opnieuw verstuurd. Passende '
                               'nieuwe Home Assistant-modusrapportage telt pas na minstens tien seconden na de '
                               'opdracht en bij herstart ook na de herstartwachttijd; een onmiddellijke lokale echo '
@@ -704,15 +793,38 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'vermogensreserves blijven behouden. Automatische UIT-regeling is geen gegarandeerde '
                               'energiebesparing: te veel uitschakelen kan een grotere inhaalvraag geven. De '
                               'werkelijke respons en evaluatie moeten laten zien welk UIT-venster voor deze woning '
-                              'zinvol is.'],
+                              'zinvol is.',
+                              'De klimaatanalyse bewaart een begrensd beslisspoor per zone: regel- '
+                              'en wachtreden, gemeten temperatuur en doel, native stand/actie, '
+                              'bronleeftijden, huidige weerscontext, gebruikte passieve trend, '
+                              'relevante voorspelling en het resultaat van een opdracht of '
+                              'terugmelding. Veranderingen en opdrachtgebeurtenissen worden '
+                              'vastgelegd; bij een gelijkblijvend besluit komt hoogstens iedere '
+                              'vijftien minuten een herinneringspunt. Maximaal 128 lokale records '
+                              'blijven in dit spoor bewaard. Het spoor verduidelijkt toekomstige '
+                              'diagnose zonder alle Home Assistant-logboeken te verzamelen, extra '
+                              'cloudpolling te starten of een oude onbekende oorzaak achteraf in te '
+                              'vullen.',
+                              'Bij een wachtende AUTO-opdracht kan Panasonic eerst opnieuw de '
+                              'oorspronkelijke UIT-stand rapporteren. Zo een onbevestigde '
+                              'terugmelding van de oorspronkelijke stand wordt niet als een nieuwe '
+                              'externe gebruikerskeuze met twaalf uur rust behandeld. SolarPilot '
+                              'blijft op passende latere AUTO-bevestiging of timeout wachten. Een '
+                              'expliciete gebruikers- of andere automatiseringsopdracht om UIT te '
+                              'zetten behoudt wel de bestaande gerichte bescherming. Oude onzekere '
+                              'opdrachtjournals zonder bewezen oorspronkelijke stand worden '
+                              'conservatief behandeld; er volgt geen blinde tweede opdracht.'],
                'bullets': ['Handmatig AUTO/UIT bedien je per zone met de dashboardschakelaars; automatische regeling '
                            'vraagt geen gewone handmatige AUTO-keuze vooraf.',
-                           'Panasonic kiest HEAT/COOL; SolarPilot wijzigt geen ruimte-doeltemperatuur, Force DHW, '
-                           'Powerful of installateursinstelling.',
+                           'SolarPilot kiest geen directe HEAT/COOL-opdracht en wijzigt geen '
+                           'ruimte-doeltemperatuur, Force DHW, Powerful of installateursinstelling.',
                            'Forecastdekking, leerbewijs en voorspelfout blijven afzonderlijk zichtbaar. Een '
                            'toekomstig warm uur is geen bewezen huidige koelvraag.',
                            'Veilige andere zones mogen UIT blijven terwijl één zone AUTO nodig heeft.',
-                           'Open raam- of deurcontacten worden niet gebruikt door deze klimaatregeling.']},
+                           'Open raam- of deurcontacten worden niet gebruikt door deze klimaatregeling.',
+                           'AUTO/UIT zijn Home Assistant-opdrachten; de onderliggende '
+                           'Panasonic-integratie kan die globaal interpreteren. De bestaande '
+                           'programmakeuze behouden is geen gegarandeerd fysiek effect.']},
               {'title': "9. Kwartierpiek, kosten en EMS-KPI's",
                'paragraphs': ['SolarPilot kan het actuele kwartiergemiddelde en de maandpiek gebruiken om een '
                               'softwarematig importbudget te berekenen. Voor Vlaanderen is een instelbare '
@@ -1227,21 +1339,32 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                            'Softwareproeven gebruiken fictieve apparatuur; een echte start blijft afhankelijk '
                            'van de live AEG- en Home Assistant-terugmeldingen.']},
               {'title': '17. Export — één onderzoeksbestand voor alle SolarPilot-functies',
-               'paragraphs': ['Open Export → Export samenstellen. Een Home Assistant-beheerder kiest 1 uur, 24 '
-                              'uur of 7 dagen en downloadt één gestructureerd JSON-bestand voor handmatige '
-                              'analyse. Dit wijzigt geen instellingen, verstuurt geen toestelopdracht en '
-                              'uploadt niets. Het bestand bevat release/schema, tijdzone, '
-                              'instellingen/effectieve regels, de centrale voorrang met toestemmingen en vaste '
-                              'bescherming, actuele bronwaarden/attributen, rapportleeftijden, modellen, '
-                              'besluiten, fouten en werkelijk beschikbare historie voor verbruikers/AEG, '
-                              'tapwater, klimaat, PV/forecast, net/fasen/kwartierpiek, Wallbox, dagkosten, '
-                              'planner en batterijsimulatie. Ontbrekende gegevens worden niet aangevuld. Niet '
-                              'geconfigureerde onderdelen blijven herkenbaar. Dit onderzoeksbestand is geen '
-                              'herstelbare Home Assistant-back-up.',
+               'paragraphs': ['Open Export → Export samenstellen. Een Home Assistant-beheerder '
+                              'kiest 1 uur, 24 uur of 7 dagen en downloadt één gecomprimeerd '
+                              'JSON.GZ-bestand voor handmatige analyse. Dit wijzigt geen '
+                              'instellingen, verstuurt geen toestelopdracht en uploadt niets. Het '
+                              'bestand bevat release/schema, tijdzone, instellingen/effectieve '
+                              'regels, de centrale voorrang met toestemmingen en vaste bescherming, '
+                              'actuele bronwaarden/attributen, rapportleeftijden, modellen, '
+                              'besluiten, fouten en werkelijk beschikbare historie voor '
+                              'verbruikers/AEG, tapwater, klimaat, PV/forecast, '
+                              'net/fasen/kwartierpiek, Wallbox, dagkosten, planner en '
+                              'batterijsimulatie. Ontbrekende gegevens worden niet aangevuld. Niet '
+                              'geconfigureerde onderdelen blijven herkenbaar. Dit onderzoeksbestand '
+                              'is geen herstelbare Home Assistant-back-up.',
                               'Snelle analysepunten bewaren naast de toestand ook de actuele probleemreden '
                               'en probleemsoort: bronwacht, bronconfiguratie of echte opdrachtfout. Dit '
                               'maakt opeenvolgend wachten en herstellen gericht uitlegbaar zonder '
                               'fysieke proefopdracht of nieuwe cloudpolling.',
+                              'Nieuwe momentopnamen, snelle regelpunten, gebeurtenissen en '
+                              'bronwijzigingen bewaren de geladen SolarPilot-versie. Oudere records '
+                              'zonder zo een stempel blijven versie onbekend; de versie bovenaan '
+                              'het bestand benoemt alleen de software die de export maakte. Zo '
+                              'worden meerdere updates op dezelfde dag niet als één bewezen oude '
+                              'codebasis behandeld. De nieuwe warmwateruitvoeringsvoorwaarden en '
+                              'het klimaatsbeslisspoor worden meegenomen voor zover werkelijk '
+                              'geregistreerd; er is geen terugwerkende aanvulling van ontbrekende '
+                              'logging.',
                               'De registratie gebruikt bestaande HA-toestanden, geen extra cloudpolling. '
                               'Standaard wordt iedere vijf minuten een gedetailleerde momentopname bewaard, '
                               'maximaal zeven dagen/2016 ronden, 20000 bronwijzigingen en 6000 gebeurtenissen. '
@@ -1272,13 +1395,24 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'tijdstippen en gebruikspatronen: controleer zelf vóór delen, geen '
                               'anonimiteitsgarantie. Plaats analysebestanden nooit in de publieke '
                               'GitHub-repository.',
-                              'Maken van het bestand is alleen beschikbaar via de geauthenticeerde '
-                              'admin-WebSocket. Verzoeken zijn geserialiseerd en begrensd; '
-                              'pseudonimisering/JSON-opbouw draait buiten de event loop. Boven 16 MB '
-                              'verschijnt een fout met de vraag een kortere periode te kiezen, niet een '
-                              'stilzwijgend onvolledig bestand. Open formulieren en details blijven tijdens '
-                              'gewone dashboardupdates behouden. Lokale analyseregistratie kan afzonderlijk '
-                              'uit; de energieregeling blijft dan werken.',
+                              'Maken van het bestand begint via de geauthenticeerde '
+                              'beheerder-WebSocket. Die geeft alleen kleine downloadinformatie '
+                              'terug; de volledige JSON wordt buiten de Home Assistant-eventloop '
+                              'direct gecomprimeerd. Daarna haalt dezelfde ingelogde beheerder het '
+                              'lokale bestand via een beveiligde HTTP-download op. De download is '
+                              'tien minuten geldig, is niet openbaar en wordt na succesvolle '
+                              'ontvangst direct verwijderd; afloop of afsluiten ruimt '
+                              'achtergebleven bestanden op. Maximaal twee bestanden kunnen tegelijk '
+                              'klaarstaan of worden gemaakt. De nieuwe downloadroute heeft geen 16 '
+                              'MB-grens op de uitgepakte JSON en verkort de gevraagde zeven dagen '
+                              'niet om het bestand te laten passen. Alleen werkelijk bewaarde '
+                              'gegevens binnen de bestaande registratiegrenzen zijn beschikbaar. '
+                              'JSON.GZ is gewone JSON in gzip; na uitpakken blijft het volledige '
+                              'onderzoek leesbaar. De oude contentaanroep voor oudere clients '
+                              'behoudt zijn bestaande 16 MB-begrenzing. Open formulieren en details '
+                              'blijven tijdens gewone dashboardupdates behouden; lokale '
+                              'analyseregistratie kan afzonderlijk uit terwijl de energieregeling '
+                              'blijft werken.',
                               'De effectieve configuratie en bronselectie worden ook uit read-only '
                               'configuratiemappings gelezen. Gekoppelde net-, toestel-, klimaat- en '
                               'overige bronnen blijven daardoor aanwezig naast automatisch gevonden '

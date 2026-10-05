@@ -292,7 +292,7 @@
           "surplus_c": "Extra opportunistisch doel, standaard 60 °C.",
           "cooling_cap_c": "Hoogste door SolarPilot gevraagde doel bij actieve of onzekere koeling, standaard 50 °C.",
           "pv_threshold_w": "Minimale werkelijk gemeten zonnepanelenproductie voor het gewone zonnedoel.",
-          "surplus_threshold_w": "Werkelijke netto-injectie moet voor een nieuwe extra hoge fase strikt boven deze drempel liggen, standaard 3500 W.",
+          "surplus_threshold_w": "Bruikbaar echt overschot moet voor een nieuwe extra hoge fase minstens deze drempel zijn, standaard 3000 W; de exacte grens telt mee.",
           "estimated_heat_power_w": "Conservatieve elektrische planningsinschatting voor een opwarmperiode, standaard 3200 W.",
           "night_enabled": "Activeert het ingestelde nachtvenster.",
           "night_start": "Vanaf dit lokale uur geldt nachtrust.",

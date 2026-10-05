@@ -99,7 +99,7 @@ async def test_real_solar_loss_cooling_or_sampling_gap_requires_new_full_stabili
         origin = 105
     else:
         manager = await report(boiler, 70, pv='unavailable' if loss == 'pv_missing' else 6080,
-                               grid=-3300 if loss == 'surplus' else -5260, cooling=loss == 'cooling')
+                               grid=-2800 if loss == 'surplus' else -5260, cooling=loss == 'cooling')
         assert manager.policy.candidate is None and manager.policy.result.target_c == 50
         manager = await report(boiler, 75)
         assert manager.policy.result.remaining_s == 60
