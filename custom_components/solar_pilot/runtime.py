@@ -1,7 +1,7 @@
 """Local, serialized Home Assistant runtime with feedback and durable leases."""
 from __future__ import annotations
 import asyncio
-from copy import deepcopy
+from copy import copy, deepcopy
 from collections import deque
 from dataclasses import fields, replace
 from datetime import datetime, timedelta, timezone
@@ -56,6 +56,7 @@ from .learning_hub import LearningHub
 from .live_options import LiveOptions, ARCHIVED, keyed
 from .platforms import LivePlatforms
 from .priority_board import PriorityBoard
+from .heatpump_budget import climate_solar_budget, heatpump_power, heatpump_shared, shared_commitment
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -148,6 +149,65 @@ class SolarRuntime:
         self.platforms = LivePlatforms(self)
         self.priority_board = PriorityBoard(self)
 
+    def heat_pump_shared(self):
+        """The configured room zones and tank use one physical heat pump."""
+        return heatpump_shared(self)
+
+    def _local_now(self):
+        zone = getattr(getattr(self.hass, "config", None), "time_zone", "Europe/Brussels")
+        try:
+            return datetime.now(ZoneInfo(zone))
+        except (ValueError, KeyError, TypeError):
+            return datetime.now().astimezone()
+
+    def heat_pump_increase_allowed(self, *, check_capacity=True):
+        """Final live electrical gate; an earlier plan is never a power lease."""
+        grid, valid, _discharge, ready, reported = self._site_data()
+        pv, _pv_reported = self._power(self.settings.get("pv_entity"))
+        if not valid or not ready or pv is None or pv < 0:
+            return False, "Wacht op betrouwbare net-, zonne- en batterijmetingen"
+        if reported <= self.last_issued_wall:
+            return False, "Wacht op een nieuwe netmeting na de vorige opdracht"
+        if time.monotonic() - self.last_issued < self.settings["settle_s"]:
+            return False, "Wacht op stabiele metingen na de vorige opdracht"
+        if self._closed or self.mode != "solar" or self.restart_blocking or self.faults:
+            return False, "Automatische regeling wacht op herstel of vrijgave"
+        if self.pending or self.handover or self.battery_fleet.busy:
+            return False, "Wacht op bevestiging van de vorige verdeling"
+        if not check_capacity:
+            return True, "Actuele bronnen en eerdere opdrachten gecontroleerd vóór veilig vrijmaken"
+        hp = heatpump_power(self)
+        planned = float(self.dhw.settings["estimated_heat_power_w"])
+        incremental = shared_commitment(planned, 0, hp["watts"] if hp["valid"] else None)
+        isolated = max(0.0, float(self.isolated_reserve_w))
+        unconsumed = sum(max(0.0, st.target_w - st.measured_w)
+                         for i, st in self.states.items() if st.owned and st.on
+                         and i not in self.source_isolated_devices)
+        projected = grid + incremental + isolated + unconsumed
+        if projected > self.settings["max_import_w"]:
+            return False, "Extra warmtepompbedrijf wacht op ruimte binnen de netgrens"
+        if (self.phase_settings.get("enabled") and self.phase_settings.get("control_starts")
+                and (not self.phase.valid or self.phase.block_increase
+                     or self.phase.headroom_w is None
+                     or self.phase.headroom_w < incremental + isolated + unconsumed)):
+            return False, self.phase.reason or "Wacht op veilige ruimte op de elektrische fasen"
+        if self.capacity_settings.get("enabled"):
+            if not self.capacity.valid:
+                return False, "Wacht op betrouwbare kwartierpiekmeting"
+            limit = self.capacity.allowed_grid_w
+            if limit is None:
+                limit = max(0.0, self.capacity.effective_target_w - self.capacity_settings["margin_w"])
+            if projected > limit:
+                return False, "Kwartierpiek laat nu geen extra warmtepompbedrijf toe"
+        return True, "Actuele elektrische ruimte gecontroleerd"
+
+    def climate_solar_budget(self):
+        budget = climate_solar_budget(self)
+        allowed, reason = self.heat_pump_increase_allowed()
+        if not allowed:
+            budget.update(valid=False, reason=reason)
+        return budget
+
     def _dishwasher_comfort_context(self):
         """Respect ordinary heat-pump demand; never stop it for a wash start.
 
@@ -168,7 +228,9 @@ class SolarRuntime:
                 return 0.0, "Afwasstart wacht op betrouwbare fabrikant-/hygiënebescherming"
             if "staat uit" in r.protection_reason.casefold():
                 return 0.0, ""
-            return float(manager.settings["estimated_heat_power_w"]), ""
+            hp = heatpump_power(self)
+            return shared_commitment(manager.settings["estimated_heat_power_w"], 0,
+                                     hp["watts"] if hp["valid"] else None), ""
         if r.temperature_c is None or r.actual_target_c is None:
             return 0.0, "Afwasstart wacht op betrouwbare gekoppelde boilerstatus"
         target, obj = manager._target()
@@ -182,12 +244,15 @@ class SolarRuntime:
         # water_heater.state may be an operating MODE, not proof of current
         # compressor activity. Only explicit action or an exclusive live meter
         # can establish that heating is already included in the net reading.
-        measured, _ = self._power(manager.config.get("power_entity"), manager.settings["stale_s"])
+        hp = heatpump_power(self)
+        measured = hp["watts"] if hp["valid"] else None
         heating = bool(obj and obj.attributes.get("hvac_action") == "heating")
-        heating = heating or bool(manager.exclusive_meter() and measured is not None and measured > 100)
+        heating = heating or bool(not self.heat_pump_shared() and manager.exclusive_meter()
+                                  and measured is not None and measured > 100)
         reserve = 0.0
         if r.temperature_c <= ordinary_target+differential and not heating:
-            reserve = float(manager.settings["estimated_heat_power_w"])
+            reserve = shared_commitment(manager.settings["estimated_heat_power_w"], 0,
+                                        measured if manager.exclusive_meter() else None)
         # Existing ordinary space heat is never a stop reason or a blanket veto.
         # Pending climate/DHW commands still use the existing serialized gate.
         return reserve, ""
@@ -196,6 +261,7 @@ class SolarRuntime:
         if self.dhw.configured:
             self.dhw.read(grid, valid, discharge, local_now)
         reserve, comfort_block = self._dishwasher_comfort_context()
+        self._shared_heatpump_comfort_reserve_w = reserve
         for i, watch in list(self.dishwasher_priority.watches.items()):
             completed = self.dishwasher_app.data.get(i, {}).get("completion", {})
             if completed.get("ended_at", 0) >= watch["issued_wall"]:
@@ -206,16 +272,17 @@ class SolarRuntime:
         # proof the cycle already draws its maximum. This is deliberately
         # conservative; actual phase scheduling remains deferred.
         unmetered = sum(devices[i].maximum for i,c in self.configs.items()
-            if dishwasher_has_priority(c) and self.states[i].on and not c.get("power_entity"))
+            if c.get("kind") == "dishwasher" and self.states[i].on and not c.get("power_entity"))
         reserve += unmetered
         self._dishwasher_unmetered_reserve = unmetered
         permitted = {i for i,c in self.configs.items() if dishwasher_has_priority(c)
             and self.dishwasher.permitted(c, read_dishwasher(self.hass,c), time.time())[0]}
         # This release's additional reservation is scoped to an actual priority
         # claimant, not unrelated installations or tomorrow's waiting request.
-        if not (permitted or any(dishwasher_has_priority(c) and self.states[i].on
+        if not (permitted or any(c.get("kind") == "dishwasher" and self.states[i].on
                                  for i,c in self.configs.items())):
             reserve, comfort_block = 0.0, ""
+            self._shared_heatpump_comfort_reserve_w = 0.0
         lower = {}
         for i,c in self.configs.items():
             if not dishwasher_has_priority(c) and c.get("power_entity") and self._dedicated_meter(i):
@@ -440,11 +507,14 @@ class SolarRuntime:
                 self.device_modes[recovered_id] = "auto"
                 self.note(f'{self.configs[recovered_id]["name"]}: beta.38 herstelde de afgesproken Auto-deelname; APP-vrijgave blijft per belading verplicht.')
         migrated_priority_board = await self.priority_board.migrate_beta36()
+        migrated_heat_priority = await self.priority_board.migrate_beta57()
         # Build the guard after migration so schema-2 per-device Wallbox rights
         # are active immediately after a beta.35 restart, not one reload later.
         self.wallbox_guard = self._make_wallbox_guard()
         if migrated_priority_board:
             self.note("Beta.36-migratie: bestaande flexibele voorrang exact vastgelegd als centrale prioriteitenlijst.")
+        if migrated_heat_priority:
+            self.note("Beta.57: extra warm water krijgt voorrang op onderbreekbare toestellen; afwas, ruimtecomfort en autoladen blijven beschermd.")
         if activated_beta37:
             self.note("Beta.37: veilige automatische activering is éénmalig toegepast; latere keuzes blijven behouden.")
         self.energy_kwh = max(0, float(data.get("energy_kwh", 0)))
@@ -2221,6 +2291,14 @@ class SolarRuntime:
         dhw_sent = await self.dhw.tick(now, grid, valid, discharge,
             allow_command=not bool(dhw_block[0]), local_now=local_now,
             dispatch_block_code=dhw_block[0], dispatch_block_reason=dhw_block[1])
+        extra_reclaim = None
+        wash_due = any(self.dishwasher_app.due(cfg, time.time()) and not self.states[i].on
+                       for i, cfg in self.configs.items())
+        if (can_increase and valid and ready and not dhw_sent and not self.dhw.pending
+                and not self.smart_climate.busy and not self.handover and not wash_due):
+            allowed, _reason = self.heat_pump_increase_allowed(check_capacity=False)
+            if allowed:
+                extra_reclaim = self.priority_board.extra_reclaim_action(now, local_now)
         extra_start_blocks = self.priority_board.extra_start_blocks(now)
         runtime_start_blocks.update(extra_start_blocks)
         device_start_blocks.update(extra_start_blocks)
@@ -2230,6 +2308,7 @@ class SolarRuntime:
             (bool(self.handover), "power_transfer", "Wacht tot de verdeling van zonnestroom is afgerond"),
             (self.battery_fleet.busy, "battery_confirmation", "Wacht op bevestiging van de batterijregeling"),
             (bool(dhw_sent), "dhw_issued", "Warm water kreeg zojuist een opdracht; ruimtebediening wacht"),
+            (bool(extra_reclaim), "dhw_reclaim", "Een onderbreekbaar toestel maakt eerst zonnestroom vrij voor extra warm water"),
             (bool(self.dhw.pending), "dhw_confirmation", "Wacht op bevestiging van het warmwaterdoel"),
             (self.dhw.blocks_increase, "dhw_review", "Warmwaterregeling vraagt eerst controle"),
             (self.dhw.reading.protected, "dhw_protection", self.dhw.status or "Beschermde warmwaterfunctie actief; ruimtebediening wacht"),
@@ -2314,6 +2393,10 @@ class SolarRuntime:
         }
         operational_devices = [d for d in self.devices() if d.id not in isolated_ids]
         self.result = plan(site, operational_devices, self.states)
+        if extra_reclaim and (self.result.action is None or self.result.action.watts > 0):
+            self.result.action = extra_reclaim
+            self.result.targets[extra_reclaim.id] = 0.0
+            self.result.reasons[extra_reclaim.id] = extra_reclaim.reason
         # Deadline permission buys grid energy; it is not permission to borrow EV
         # watts or exceed phase/quarter-hour/import limits. EV solar preference
         # alone may not postpone this explicitly authorised deadline indefinitely.
@@ -2468,6 +2551,13 @@ class SolarRuntime:
     async def _send(self, action, now):
         i = action.id
         cfg, s = self.configs[i], self.states[i]
+        extra_stop = action.reason.startswith("Zonnestroom vrijmaken voor extra warm water")
+        if extra_stop:
+            allowed, _reason = self.heat_pump_increase_allowed(check_capacity=False)
+            candidate = self.priority_board.extra_reclaim_action(now, self._local_now()) if allowed else None
+            if candidate is None or candidate.id != i or action.watts != 0:
+                self.result.reasons[i] = "Extra warm water wacht: vermogen of toestelbescherming is veranderd"
+                return
         isolated = self.source_isolated_devices
         if i in isolated:
             self.result.reasons[i] = "Tijdelijk apart gehouden: " + isolated[i]["reason"]
@@ -2552,7 +2642,11 @@ class SolarRuntime:
             self.faults[i] = "Dubbele Wallbox-koppeling: alleen-lezen monitor blokkeert bediening"
             return
         old_on = s.on
+        old_owned = s.owned
         old_target = s.target_w if s.owned else 0.0
+        previous_issued, previous_issued_wall = self.last_issued, self.last_issued_wall
+        previous_guards = (deepcopy(self.wallbox_guard), deepcopy(self.consumer_wallbox),
+                           deepcopy(self.phase_learning)) if extra_stop else None
         # A binary switch has no physical watt setpoint. If it is already ON and
         # confirmed as SolarPilot-owned, a changed learned/planning watt estimate
         # only updates accounting; it must never cause a duplicate turn_on call.
@@ -2590,9 +2684,39 @@ class SolarRuntime:
         self.pending = {"id": i, "watts": action.watts, "issued": now, "issued_wall": self.last_issued_wall,
                         "reason": action.reason,
                         "max_runtime": action.reason.startswith("Maximale looptijd")}
+        if action.reason.startswith("Zonnestroom vrijmaken voor extra warm water"):
+            self.priority_board.extra_reclaim_sent(action, now)
         self.consumer_history.command(i, action.watts, action.reason)
         # Durable intent BEFORE any physical command, including an uncertain result.
         await self.store.async_save(self._snapshot())
+        if extra_stop:
+            # The storage await can deliver a manual choice or a source change.
+            # Evaluate current inputs while excluding this known-unsent journal;
+            # no requested OFF watts become real power in this check.
+            trial = copy(self)
+            trial.states = deepcopy(self.states)
+            trial.states[i].target_w = old_target
+            trial.pending = None
+            trial.last_issued, trial.last_issued_wall = previous_issued, previous_issued_wall
+            trial.priority_board = copy(self.priority_board)
+            trial.priority_board.r = trial
+            allowed, _reason = trial.heat_pump_increase_allowed(check_capacity=False)
+            candidate = trial.priority_board.extra_reclaim_action(now, trial._local_now()) if allowed else None
+            if candidate is None or candidate.id != i:
+                self.pending = None
+                s.target_w, s.owned = old_target, old_owned
+                self.last_issued, self.last_issued_wall = previous_issued, previous_issued_wall
+                self.wallbox_guard, self.consumer_wallbox, self.phase_learning = previous_guards
+                self.priority_board._clear_extra_reclaim()
+                self.priority_board._extra_lease_until = 0.0
+                message = "Extra warm water uitgesteld: vrijmaken geannuleerd vóór uitvoering omdat de toestand is veranderd"
+                self.result.action = None
+                self.result.targets[i] = old_target
+                self.result.reasons[i] = message
+                self.consumer_history.failure(i, message)
+                await self.store.async_save(self._snapshot())
+                self.note(message)
+                return
         self.note(f'{cfg["name"]}: {action.watts:.0f} W aangevraagd — {action.reason}.')
         try:
             async with asyncio.timeout(20):

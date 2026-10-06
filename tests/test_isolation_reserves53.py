@@ -164,11 +164,15 @@ def preferred_context(*, unknown_preferred=False, headroom=None):
     runtime.configs["preferred"] = {**original, "id": "preferred", "name": "Voorkeursafwas",
         "kind": "dishwasher", "non_interruptible": True, "nominal_w": 2000,
         "control_entity": "switch.preferred", "power_entity": "sensor.preferred",
-        "active_entity": "binary_sensor.preferred_running"}
+        "active_entity": "binary_sensor.preferred_running",
+        "dishwasher_state_entity": "sensor.preferred_state",
+        "dishwasher_connection_entity": "sensor.preferred_connection"}
     runtime.states["preferred"] = State(owned=True, on=True,
         available=not unknown_preferred, target_w=2000, measured_w=2000)
     hass.states.set("sensor.preferred", "unavailable" if unknown_preferred else 2000,
                     {"unit_of_measurement": "W"})
+    hass.states.set("sensor.preferred_state", "Running")
+    hass.states.set("sensor.preferred_connection", "Connected")
     runtime.dishwasher_priority.view.active_ids = {"preferred"}
     runtime._dishwasher_unmetered_reserve = 0
     runtime.pv_w = 9000

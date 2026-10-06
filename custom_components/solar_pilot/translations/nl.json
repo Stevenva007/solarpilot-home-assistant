@@ -234,7 +234,7 @@
           "enabled": "Boilerregeling vrijgeven (alleen actief bij Automatisch regelen)",
           "target_entity": "Boilerdoel bedienen (niet de ruimtethermostaat)",
           "temperature_entity": "Werkelijke watertemperatuur (optioneel bij water_heater/climate)",
-          "power_entity": "Optioneel: uitsluitend het elektrische boilervermogen",
+          "power_entity": "Optioneel: gemeten elektrisch warmtepompvermogen (W/kW)",
           "cooling_entities": "Ruimteklimaatzones voor verwarmings- en koelbewaking",
           "space_activity_entity": "Optioneel: gemelde warmtepomptaak/richting (alleen lezen)",
           "space_activity_active_states": "Waarden voor ruimtebedrijf (puntkomma-gescheiden)",
@@ -243,22 +243,24 @@
           "manual_entity": "Gecombineerd handmatig/krachtig signaal (optioneel)",
           "safety_confirmed": "Bevestigd: fabrikantregeling, onafhankelijke hygiëne en verbrandingsbeveiliging gecontroleerd",
           "manual_active_states": "Waarden die handmatige/krachtige modus betekenen (komma-gescheiden)",
-          "manual_entities": "Handmatige/krachtige signalen (selecteer bv. Krachtige modus én Warmwater forceren)"
+          "manual_entities": "Handmatige/krachtige signalen (selecteer bv. Krachtige modus én Warmwater forceren)",
+          "power_meter_scope": "Wat meet deze vermogensmeter?"
         },
         "data_description": {
           "enabled": "Geeft SolarPilot toestemming om het ondersteunde boiler-temperatuurdoel te regelen.",
           "target_entity": "De fabrikantentiteit voor het tank-temperatuurdoel.",
           "temperature_entity": "Werkelijk gemeten watertemperatuur in de tank.",
-          "power_entity": "Alleen een actuele elektrische vermogensmeter voor sanitair warm water, inW/kW.",
+          "power_entity": "Optionele verse elektrische W/kW-meting van de warmtepomp.",
           "cooling_entities": "Bestaande klimaatbronnen voor de woning.",
           "space_activity_entity": "Optionele alleen-lezen takenrichting van dezelfde warmtepomp.",
           "space_activity_active_states": "Puntkomma-gescheiden exacte waarden die gemeld ruimtebedrijf betekenen, standaard PUMP.",
           "space_activity_inactive_states": "Puntkomma-gescheiden exacte waarden die géén ruimtebedrijf betekenen, standaard IDLE;WATER.",
-          "hygiene_entity": "Alleen een expliciete betrouwbare melding dat een fabrikant-hygiënecyclus actief is.",
+          "hygiene_entity": "Optionele expliciete betrouwbare melding van werkelijk actieve fabrikantsterilisatie.",
           "manual_entity": "Oud enkelvoudig handmatig/beschermd signaal.",
           "safety_confirmed": "Bevestigt dat de gebruiker de fabrikantgeschiktheid, onafhankelijke hygiëne en verbrandingsrisico-informatie voor deze installatie heeft beoordeeld.",
           "manual_active_states": "Komma-gescheiden echte statuswaarden voor handmatige bescherming, bijvoorbeeld on,on-30 m,on-60 m,on-90 m.",
-          "manual_entities": "Handmatige of krachtige functies die voorrang hebben, bijvoorbeeld Powerful en Force DHW."
+          "manual_entities": "Handmatige of krachtige functies die voorrang hebben, bijvoorbeeld Powerful en Force DHW.",
+          "power_meter_scope": "De hele warmtepomp is standaard en betekent ruimteverwarming/koeling plus tapwater op dezelfde meter."
         }
       },
       "dhw_rules": {
@@ -273,11 +275,11 @@
           "cooling_cap_c": "Maximum bij actieve/onzekere koeling (°C)",
           "pv_threshold_w": "Zonneopbrengst vanaf (W) — niet het overschot",
           "surplus_threshold_w": "Zonneoverschot strikt groter dan (W)",
-          "estimated_heat_power_w": "Geschat elektrisch vermogen voor piekbewaking (W)",
+          "estimated_heat_power_w": "Geschat elektrisch vermogen voor warm water (W)",
           "night_enabled": "Nachtbeperking actief",
           "night_start": "Nacht vanaf",
           "night_end": "Nacht tot",
-          "hygiene_schedule_enabled": "Fabriekssterilisatievenster beschermen",
+          "hygiene_schedule_enabled": "Fabrikantsterilisatieplanning als informatie tonen",
           "hygiene_weekdays": "Sterilisatiedagen, maandag=0 … zondag=6 (komma-gescheiden)",
           "hygiene_start": "Starttijd fabrikantsterilisatie",
           "hygiene_target_c": "Ingestelde fabrikantsterilisatietemperatuur (°C)",
@@ -289,20 +291,20 @@
           "minimum_c": "Bewaakte gemeten comfortgrens, standaard 46 °C.",
           "tank_differential_c": "Werkelijk in het toestel ingestelde heropwarmdifferentie, bijvoorbeeld -5 °C.",
           "solar_c": "Gewoon tankdoel bij voldoende actuele PV-productie, standaard 50 °C.",
-          "surplus_c": "Extra opportunistisch doel, standaard 60 °C.",
+          "surplus_c": "Extra zonnedoel, standaard 60 °C vanaf 3000 W werkelijk bruikbaar overschot.",
           "cooling_cap_c": "Hoogste door SolarPilot gevraagde doel bij actieve of onzekere koeling, standaard 50 °C.",
           "pv_threshold_w": "Minimale werkelijk gemeten zonnepanelenproductie voor het gewone zonnedoel.",
           "surplus_threshold_w": "Bruikbaar echt overschot moet voor een nieuwe extra hoge fase minstens deze drempel zijn, standaard 3000 W; de exacte grens telt mee.",
-          "estimated_heat_power_w": "Conservatieve elektrische planningsinschatting voor een opwarmperiode, standaard 3200 W.",
+          "estimated_heat_power_w": "Conservatieve elektrische raming voor warm water, standaard 3200 W.",
           "night_enabled": "Activeert het ingestelde nachtvenster.",
           "night_start": "Vanaf dit lokale uur geldt nachtrust.",
           "night_end": "Einde van het lokale nachtvenster.",
-          "hygiene_schedule_enabled": "Beschermt het bekende tijdvenster van het zelfstandige Panasonic-hygiëneprogramma tegen SolarPilot-setpointopdrachten.",
-          "hygiene_weekdays": "Dagen van de echte fabrikantcyclus als komma-gescheiden nummers: maandag 0 tot zondag 6.",
-          "hygiene_start": "Werkelijke starttijd van het zelfstandige fabrikantprogramma.",
+          "hygiene_schedule_enabled": "Toont de bekende planning van de zelfstandige Panasonic-sterilisatie.",
+          "hygiene_weekdays": "Dagen van de bekende fabrikantcyclus, maandag 0 tot zondag 6.",
+          "hygiene_start": "Bekende starttijd van de onafhankelijke fabrikantsterilisatie.",
           "hygiene_target_c": "Referentietemperatuur van het fabrikant-hygiëneprogramma, bijvoorbeeld 62 °C.",
-          "hygiene_guard_before_s": "Geen SolarPilot-boileropdrachten in deze tijd vóór de fabrikantcyclus.",
-          "hygiene_guard_after_s": "Beschermtijd gerekend vanaf de start van de fabrikantcyclus, niet vanaf het einde."
+          "hygiene_guard_before_s": "Bewaarde oudere voorzorgstijd vóór de geplande fabrikantcyclus, standaard 900 s.",
+          "hygiene_guard_after_s": "Bewaarde oudere voorzorgstijd na de geplande start, standaard 10800 s."
         }
       },
       "dhw_stability": {
@@ -332,7 +334,7 @@
           "ack_timeout_s": "Maximale wachttijd op een echte terugmelding na een opdracht.",
           "max_surplus_import_w": "Bij werkelijke netafname boven deze grens laat SolarPilot een door zichzelf beheerd extra 60 °C-doel onmiddellijk los; de gewone terugvalvertraging geldt dan niet.",
           "cooling_detection": "Actie kijkt primair naar werkelijk cooling.",
-          "compensate_own_power": "Tijdens een reeds eigen hoge fase mag een exclusieve actuele boilervermogensmeter het door de boiler zelf gebruikte zonnevermogen reconstrueren.",
+          "compensate_own_power": "Een bewezen eigen hoog tankdoel mag het werkelijk zelf gebruikte zonnevermogen eenmaal terugtellen met een verse geschikte meter.",
           "optional_raise_interval_s": "Rust tussen extra doelverhogingen boven het normale doel, standaard 1800 seconden (30 minuten), gerekend vanaf de laatste verstuurde doelopdracht, ook wanneer die het normale doel herstelde of verlaagde.",
           "respect_space_climate": "AAN: een nieuwe extra zonnebuffer boven het normale doel wacht zolang een gekoppelde klimaatbron werkelijk heating/cooling/preheating/defrosting meldt of geen betrouwbare actie doorgeeft."
         }

@@ -55,6 +55,7 @@ async def test_runtime_optional_cooldown_cannot_restart_finished_solar_stability
     manager=runtime.dhw
     manager.last_command_wall=start_wall
     runtime.pv_w=6000
+    hass.states.set("sensor.pv",6000,{"unit_of_measurement":"W"})
     original_set=hass.states.set
 
     def report(entity,state,attrs):
@@ -96,6 +97,7 @@ async def test_queued_unissued_55_proposal_cannot_use_owned_pv_hold_hysteresis(m
     monkeypatch.setattr(time,"time",lambda:wall[0])
     manager=runtime.dhw
     runtime.pv_w=2000
+    hass.states.set("sensor.pv",2000,{"unit_of_measurement":"W"})
     hass.states.set("sensor.water",50,{"unit_of_measurement":"°C"})
     if block=="observe":
         runtime.mode="observe"
@@ -123,6 +125,7 @@ async def test_queued_unissued_55_proposal_cannot_use_owned_pv_hold_hysteresis(m
     # start threshold fails, the hysteresis band must not authorize that raise.
     wall[0]+=5
     runtime.pv_w=950
+    hass.states.set("sensor.pv",950,{"unit_of_measurement":"W"})
     runtime.mode="solar"
     if block=="bounds":
         obj=hass.states.get("water_heater.boiler")
@@ -149,6 +152,7 @@ async def test_cooldown_of_60_candidate_preserves_verified_owned_55_pv_hold(monk
     hass.states.set("water_heater.boiler",target.state,{**target.attributes,"temperature":55})
     hass.states.set("sensor.water",50,{"unit_of_measurement":"°C"})
     runtime.pv_w=6000
+    hass.states.set("sensor.pv",6000,{"unit_of_measurement":"W"})
     original_set=hass.states.set
 
     def refresh():
@@ -166,6 +170,7 @@ async def test_cooldown_of_60_candidate_preserves_verified_owned_55_pv_hold(monk
 
     wall[0]+=5
     runtime.pv_w=950
+    hass.states.set("sensor.pv",950,{"unit_of_measurement":"W"})
     refresh()
     await manager.tick(1070,0,True,0,True,START+timedelta(seconds=70))
 

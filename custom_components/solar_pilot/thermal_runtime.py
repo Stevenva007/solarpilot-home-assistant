@@ -59,6 +59,10 @@ class SmartClimateManager:
         self._feedback_batches = {}
         self._native_intent_versions = {}
         self._demand_since = {}
+        self._solar_since = None
+        self._solar_ready = False
+        self._solar_budget = {}
+        self.solar_owned = set()
         self.decision_trace = deque(maxlen=128)
         self._trace_keys = {}
         self._trace_walls = {}
@@ -70,6 +74,9 @@ class SmartClimateManager:
 
     COMMAND_TIMEOUT_S = 180
     REPORT_DELAY_S = 10
+    SOLAR_AUTO_START_W = 2500.0
+    SOLAR_AUTO_HOLD_W = 2000.0
+    SOLAR_AUTO_CONFIRM_S = 60.0
 
     @property
     def configured(self):
@@ -88,6 +95,7 @@ class SmartClimateManager:
                 "dashboard_overrides": dict(self.dashboard_overrides),
                 "zone_command_counts": deepcopy(self.zone_command_counts),
                 "program_leases": deepcopy(self.program_leases),
+                "solar_owned": sorted(self.solar_owned),
                 "decision_trace": list(self.decision_trace)}
 
     def restore(self, data):
@@ -96,6 +104,9 @@ class SmartClimateManager:
             return
         selected = set(self.settings.get("zone_entities", []) or [])
         self._demand_since.clear()  # An offline interval cannot confirm demand.
+        self._solar_since = None
+        self._solar_ready = False
+        self._solar_budget = {}
         rows = data.get("decision_trace")
         if isinstance(rows, list):
             self.decision_trace = deque((deepcopy(row) for row in rows[-128:]
@@ -106,6 +117,9 @@ class SmartClimateManager:
             "zone_holds", "zone_command_walls", "command_faults", "pending_commands", "cancelled_auto")}
         self.state.expected_mode = {eid: mode for eid, mode in self.state.expected_mode.items()
                                     if eid in selected and mode in ("off", "auto")}
+        solar_owned = data.get("solar_owned", [])
+        self.solar_owned = {eid for eid in (solar_owned if isinstance(solar_owned, (list, tuple, set)) else []) if isinstance(eid, str)
+                            and eid in selected and self.state.expected_mode.get(eid) == "auto"}
         leases = data.get("program_leases", {})
         self.program_leases = {eid: lease for eid, raw in (leases.items() if isinstance(leases, dict) else [])
                                if eid in selected and (lease := self._validated_program_lease(raw)) is not None
@@ -124,6 +138,7 @@ class SmartClimateManager:
         overrides = data.get("dashboard_overrides")
         self.dashboard_overrides = {eid: mode for eid, mode in (overrides.items() if isinstance(overrides, dict) else [])
                                     if eid in selected and mode in ("auto", "off")}
+        self.solar_owned.difference_update(self.dashboard_overrides)
         counts = data.get("zone_command_counts")
         self.zone_command_counts = {}
         for eid, raw in (counts.items() if isinstance(counts, dict) else []):
@@ -155,6 +170,8 @@ class SmartClimateManager:
                                           "restart_wall": now, "expires_wall": now + self.COMMAND_TIMEOUT_S}
             if raw.get("baseline_mode") in ("auto", "off"):
                 self.pending_commands[eid]["baseline_mode"] = raw["baseline_mode"]
+            if raw.get("solar_availability") is True and raw["mode"] == "auto":
+                self.pending_commands[eid]["solar_availability"] = True
             before = self._validated_program_lease(raw.get("program_before"))
             if before is not None and raw["mode"] == "off":
                 self.pending_commands[eid]["program_before"] = before
@@ -254,6 +271,7 @@ class SmartClimateManager:
             "command_context_id": command_context,
         }
         row["inputs"]["native_program"] = zone.get("native_program") or self._operation_program(entity_id)
+        row["inputs"]["solar_availability"] = deepcopy(self._solar_budget)
         self.decision_trace.append(row)
         self._trace_keys[trace_key], self._trace_walls[trace_key] = key, now
         analysis = getattr(self.runtime, "analysis", None)
@@ -291,6 +309,7 @@ class SmartClimateManager:
 
     def _manual_mode(self, entity_id, mode, *, verified_user=False):
         """An external choice revokes only this zone's control ownership."""
+        self.solar_owned.discard(entity_id)
         previous_context = self.pending_commands.get(entity_id, {}).get("context_id")
         self._native_intent_versions[entity_id] = self._native_intent_versions.get(entity_id, 0) + 1
         if mode == "off" and (self.pending_commands.get(entity_id, {}).get("mode") == "auto"
@@ -507,6 +526,12 @@ class SmartClimateManager:
             return decision
         proof = zone.get("native_program", {})
         program = proof.get("program", "unknown") if proof.get("fresh") else "unknown"
+        # Solar availability is deliberately independent of thermal demand.
+        # AUTO can select the native global programme; it is not a HEAT/COOL
+        # request justified by a temperature error. A missing programme source
+        # still cannot authorize an automatic write.
+        if decision.stage == "solar" and program in ("heating", "cooling", "both", "off"):
+            return decision
         direction = decision.comfort_direction
         matches = (program == "both" or (direction in ("heating", "cooling") and program == direction)
                    or decision.stage == "legacy" and not direction and program in ("heating", "cooling"))
@@ -878,6 +903,10 @@ class SmartClimateManager:
                 if have == pending["mode"] and now >= reference + self.REPORT_DELAY_S and report_wall >= reference + self.REPORT_DELAY_S:
                     self.pending_commands.pop(eid, None)
                     self.command_faults.pop(eid, None)
+                    if have == "auto" and pending.get("solar_availability") and not self.dashboard_overrides.get(eid):
+                        self.solar_owned.add(eid)
+                    else:
+                        self.solar_owned.discard(eid)
                     if have == "off" and pending.get("program_before") and not self.dashboard_overrides.get(eid):
                         self.program_leases[eid] = {**pending["program_before"], "ack_wall": now}
                     elif have == "auto":
@@ -937,6 +966,11 @@ class SmartClimateManager:
                     self.zone_holds.pop(eid, None)
                     self.cancelled_auto.pop(eid, None)
                     dirty = True
+        still_solar_owned = {z["entity_id"] for z in zones if self.state.expected_mode.get(z["entity_id"]) == "auto"
+                             and str(z["mode"]).casefold() == "auto"}
+        if self.solar_owned - still_solar_owned:
+            self.solar_owned.intersection_update(still_solar_owned)
+            dirty = True
         if dirty:
             self._dirty()
 
@@ -1010,7 +1044,72 @@ class SmartClimateManager:
         watts, _ = self.runtime._power(self.runtime.settings.get("pv_entity"))
         return watts is not None and watts >= float(self.settings.get("precondition_min_pv_w", 3000))
 
+    def _read_solar_budget(self):
+        """Read one physical heat-pump pool, never separate DHW/climate watts."""
+        read = getattr(self.runtime, "climate_solar_budget", None)
+        raw = read() if callable(read) else {}
+        if not isinstance(raw, dict):
+            return {"valid": False}
+        watts, stamp = finite(raw.get("available_w")), finite(raw.get("measured_wall"))
+        valid = raw.get("valid") is True and watts is not None and watts >= 0 and stamp is not None and 0 < stamp <= time.time() + 5
+        return {**raw, "valid": valid, "available_w": watts if valid else None,
+                "measured_wall": stamp if valid else None}
+
+    def _update_solar_availability(self):
+        budget = self._read_solar_budget()
+        self._solar_budget = budget
+        now = time.time()
+        if not budget["valid"] or budget["available_w"] < self.SOLAR_AUTO_START_W:
+            self._solar_since = None
+            self._solar_ready = False
+            return
+        if self._solar_since is None:
+            self._solar_since = now
+        # A cached P1/PV reading cannot confirm a minute of uninterrupted sun.
+        self._solar_ready = (now >= self._solar_since + self.SOLAR_AUTO_CONFIRM_S
+                             and budget["measured_wall"] >= self._solar_since + self.SOLAR_AUTO_CONFIRM_S)
+
+    def _solar_hold_watts(self, zone, budget):
+        eid = zone["entity_id"]
+        if (str(zone.get("mode")).casefold() != "auto" or eid not in self.solar_owned
+                or self.state.expected_mode.get(eid) != "auto"):
+            return budget["available_w"]
+        watts = finite(budget.get("heatpump_w"))
+        compensated = finite(budget.get("compensated_w"))
+        ceiling = finite(budget.get("solar_ceiling_w"))
+        if (budget.get("heatpump_meter_valid") is not True or watts is None or watts < 0
+                or compensated is None or compensated < 0 or ceiling is None or ceiling < 0):
+            return budget["available_w"]
+        # available_w clips a net import to zero. Adding measured HP watts to
+        # that clipped value would erase the import and invent solar capacity.
+        return min(ceiling, compensated)
+
+    def _with_solar_availability(self, zone, decision):
+        budget = self._solar_budget
+        if not budget.get("valid"):
+            return decision
+        already_auto = str(zone["mode"]).casefold() == "auto"
+        owned = zone["entity_id"] in self.solar_owned and self.state.expected_mode.get(zone["entity_id"]) == "auto"
+        enough = budget["available_w"] >= self.SOLAR_AUTO_START_W
+        hold = already_auto and owned and self._solar_hold_watts(zone, budget) >= self.SOLAR_AUTO_HOLD_W
+        if hold or enough and (already_auto or self._solar_ready):
+            reason = ("Zonneoverschot houdt Panasonic AUTO beschikbaar; het gezamenlijke warmtepompverbruik telt één keer mee"
+                      if hold and not enough else
+                      "Minstens 2500 W bruikbaar zonneoverschot: Panasonic AUTO beschikbaar; dit bewijst geen actieve verwarming of koeling")
+            return replace(decision, desired_mode="auto", reason=reason, stage="solar",
+                           comfort_required=False, urgent_auto=False, comfort_direction="",
+                           control_ready=True, block_reason="", required_components=[], missing_components=[])
+        if enough and decision.desired_mode != "auto":
+            return replace(decision, desired_mode="hold", stage="solar", control_ready=False,
+                           reason="Zonneoverschot bevestigen vóór AUTO; wacht op aanhoudend bruikbaar overschot en een nieuwe echte vermogensmeting",
+                           block_reason="solar_confirmation")
+        return decision
+
     def _planned_sources_unchanged(self, zone, mode, decision):
+        if decision is not None and decision.stage == "solar" and mode == "auto":
+            budget = self._read_solar_budget()
+            if not budget.get("valid") or budget["available_w"] < self.SOLAR_AUTO_START_W or not self._solar_ready:
+                return False
         if "_planning_outside" in zone and self._outside() != zone["_planning_outside"]:
             return False
         if zone.get("_planning_weather_used"):
@@ -1090,6 +1189,8 @@ class SmartClimateManager:
             self.pending_commands[eid] = {"mode": mode, "issued_wall": now,
                                           "expires_wall": now + self.COMMAND_TIMEOUT_S,
                                           "context_id": context.id, "baseline_mode": str(live["mode"]).casefold()}
+            if mode == "auto" and (decisions or {}).get(eid, self.state.last_decision).stage == "solar":
+                self.pending_commands[eid]["solar_availability"] = True
             program = live.get("native_program", {})
             if (mode == "off" and program.get("fresh") and program.get("source") == "aquarea_poll"
                     and program.get("program") in ("heating", "cooling") and program.get("binding_key")
@@ -1110,7 +1211,8 @@ class SmartClimateManager:
             counter["count"] += 1
             planned_decision = (decisions or {}).get(eid)
             if (autonomous and mode == "auto" and not self.dashboard_overrides.get(eid)
-                    and planned_decision is not None and not planned_decision.comfort_required and not planned_decision.urgent_auto):
+                    and planned_decision is not None and planned_decision.stage != "solar"
+                    and not planned_decision.comfort_required and not planned_decision.urgent_auto):
                 counter["optimization_count"] = counter.get("optimization_count", 0) + 1
             # Persist the journal before a hardware write. An accepted cloud
             # command must remain uncertain after an immediate restart.
@@ -1255,6 +1357,7 @@ class SmartClimateManager:
         self.runtime.note(f"Slim klimaatbeheer: dashboardkeuze {mode.upper()} voor {entity_id} opgeslagen.")
         if mode != "automatic":
             self.program_leases.pop(entity_id, None)
+            self.solar_owned.discard(entity_id)
             self._dirty()
         self.runtime.publish()
         return mode
@@ -1328,6 +1431,7 @@ class SmartClimateManager:
         # Mutate operational permission only after the reviewed choice was
         # saved and the same fresh source and native intent were rechecked.
         self.dashboard_overrides[entity_id] = mode
+        self.solar_owned.discard(entity_id)
         self.command_faults.pop(entity_id, None)
         self.state.expected_mode.pop(entity_id, None)
         self.zone_holds.pop(entity_id, None)
@@ -1438,10 +1542,14 @@ class SmartClimateManager:
         old_program_source = self.settings.get("operation_mode_entity")
         self.settings = dict(candidate)
         self._demand_since.clear()
+        self._solar_since = None
+        self._solar_ready = False
+        self._solar_budget = {}
         zones = list(self.settings.get("zone_entities", []) or [])
         if self.settings.get("operation_mode_entity") != old_program_source or zones != old_zones:
             self.native_program.close()
             self.program_leases.clear()
+            self.solar_owned.clear()
         weather_changed = self.settings.get("weather_entity") != old_weather
         outside_changed = self.settings.get("outside_temp_entity") != old_outside
         if weather_changed:
@@ -1504,7 +1612,8 @@ class SmartClimateManager:
             evaluated_forecast_h=min(d.evaluated_forecast_h for d in decisions),
             comfort_required=any(d.comfort_required for d in decisions),
             urgent_auto=any(d.urgent_auto for d in decisions),
-            stage="predictive" if all(d.stage == "predictive" for d in decisions) else "reactive",
+            stage=("solar" if all(d.stage == "solar" for d in decisions) else
+                   "predictive" if all(d.stage == "predictive" for d in decisions) else "reactive"),
             required_components=sorted({c for d in decisions for c in d.required_components}),
             missing_components=sorted({c for d in decisions for c in d.missing_components}),
             readiness_by_zone={eid: d.readiness_by_zone.get(eid, {}) for eid, d in self.zone_decisions.items()},
@@ -1515,6 +1624,7 @@ class SmartClimateManager:
         outside_hourly = self._outside_hourly()
         solar_hourly = self._solar_hourly(local_now, len(outside_hourly)) if self.settings.get("solar_gain_enabled") else []
         pv_precondition = self._solar_precondition_available()
+        self._update_solar_availability()
         self.zone_decisions = {}
         for zone in zones:
             eid = zone["entity_id"]
@@ -1522,10 +1632,13 @@ class SmartClimateManager:
                 settings=self.settings, zone=zone, profile=self.state.profile(eid),
                 outside_hourly=outside_hourly, outside_c=outside,
                 solar_precondition=pv_precondition, solar_hourly_w=solar_hourly)
+            decision = self._with_solar_availability(zone, decision)
             override = self.dashboard_overrides.get(eid)
             if override:
                 decision = replace(decision, desired_mode=override,
-                                   reason=f"Vaste dashboardkeuze {override.upper()}; hervat automatisch via de dashboardschakelaar")
+                                   reason=f"Vaste dashboardkeuze {override.upper()}; hervat automatisch via de dashboardschakelaar",
+                                   stage="reactive", comfort_required=False, urgent_auto=False,
+                                   comfort_direction="", block_reason="")
             decision = self._respect_program(zone, decision)
             decision = self._confirm_demand(zone, decision)
             self.zone_decisions[eid] = decision
@@ -1546,8 +1659,8 @@ class SmartClimateManager:
             override = self.dashboard_overrides.get(eid)
             targets_by_mode[mode].append({**zone, "_planning_override": override,
                                          "_planning_outside": outside,
-                                         "_planning_weather_used": bool(outside_hourly),
-                                         "_planning_solar_precondition": pv_precondition,
+                                         "_planning_weather_used": bool(outside_hourly) and decision.stage != "solar",
+                                         "_planning_solar_precondition": pv_precondition and decision.stage != "solar",
                                          "_planning_program": (zone["native_program"].get("program"), zone["native_program"].get("source"), zone["native_program"].get("entity_id"), zone["native_program"].get("binding_key"))})
             urgent |= mode == "auto" and decision.urgent_auto
         # Urgent comfort recovery goes first. Each tick issues one direction;
@@ -1580,7 +1693,7 @@ class SmartClimateManager:
         if not zone.get("action_known"):
             return "unknown_action", "Klimaatbron meldt geen betrouwbare heating/cooling/idle/off-actie"
         if mode not in ("auto", "off"):
-            code = decision.block_reason if decision.block_reason == "native_program_unknown" else "demand_confirmation" if eid in self._demand_since else "hold"
+            code = decision.block_reason if decision.block_reason in ("native_program_unknown", "solar_confirmation") else "demand_confirmation" if eid in self._demand_since else "hold"
             return code, decision.reason
         if str(zone["mode"]).casefold() == mode:
             return "already_reported", decision.reason
@@ -1588,7 +1701,7 @@ class SmartClimateManager:
         needed = mode == "auto" and (decision.comfort_required or decision.urgent_auto)
         counter = self.zone_command_counts.get(eid, {})
         count = counter.get("optimization_count", 0) if counter.get("day") == local_now.date().isoformat() else 0
-        if mode == "auto" and count >= int(self.settings.get("max_commands_per_day", 2)) and not needed and not override:
+        if mode == "auto" and decision.stage != "solar" and count >= int(self.settings.get("max_commands_per_day", 2)) and not needed and not override:
             return "daily_limit", "Daglimiet voor niet-noodzakelijke AUTO-optimalisatie bereikt"
         hold_s = float(self.settings.get("automatic_min_run_h" if str(zone["mode"]).casefold() == "auto" else "automatic_min_off_h", 1.0)) * 3600
         last = self.zone_command_walls.get(eid, 0)
@@ -1638,12 +1751,14 @@ class SmartClimateManager:
         if not zones or len(zones) != len(configured_zones):
             self.state.fault = "Niet alle geselecteerde klimaatzones hebben actuele, bruikbare temperatuurdata"
             self._demand_since.clear()
+            self._solar_since, self._solar_ready = None, False
             for eid in configured_zones:
                 self._trace(eid, "decision", "invalid_zone_source", self.state.fault)
             return False
         if outside is None:
             self.state.fault = "Actuele buitentemperatuur ontbreekt of is te oud"
             self._demand_since.clear()
+            self._solar_since, self._solar_ready = None, False
             for zone in zones:
                 self._trace(zone["entity_id"], "decision", "invalid_outside_source", self.state.fault, zone=zone)
             return False
@@ -1657,6 +1772,7 @@ class SmartClimateManager:
             self._observe(zones, outside, local_now)
             self.state.fault = "Klimaatbron wijzigde tijdens ophalen van de weersvoorspelling; wacht op actuele data"
             self._demand_since.clear()
+            self._solar_since, self._solar_ready = None, False
             for eid in configured_zones:
                 self._trace(eid, "decision", "source_changed", self.state.fault)
             return False
@@ -1916,6 +2032,10 @@ class SmartClimateManager:
             remaining = (max(0., float(self.settings.get("automatic_demand_confirm_s", 600)) - (time.time() - self._demand_since[eid]["wall"])) if eid in self._demand_since else 0)
             if code == "demand_confirmation":
                 execution_reason += f"; nog circa {remaining:.0f} s" if remaining else "; wacht op een nieuwe echte temperatuurrapportage"
+            solar_remaining = (max(0., self.SOLAR_AUTO_CONFIRM_S - (time.time() - self._solar_since))
+                               if self._solar_since is not None and not self._solar_ready else 0.)
+            if code == "solar_confirmation":
+                execution_reason += f"; nog circa {solar_remaining:.0f} s" if solar_remaining else "; wacht op een nieuwe echte vermogensmeting"
             if not zone.get("valid"):
                 code, execution_reason = "invalid_zone_source", "Ruimtemeting ontbreekt, is te oud of is niet bruikbaar"
             zone_rows.append({
@@ -1932,6 +2052,7 @@ class SmartClimateManager:
                 "owned_mode": self.state.expected_mode.get(eid, ""),
                 "commands_today": counter.get("count", 0) if counter.get("day") == self._local_day() else 0,
                 "demand_confirmation_remaining_s": remaining,
+                "solar_confirmation_remaining_s": solar_remaining,
                 "execution_status": code, "execution_reason": execution_reason,
                 "control_status": code,
                 "last_decision_trace": next((deepcopy(row) for row in reversed(self.decision_trace) if row.get("entity_id") == eid), None),
@@ -1941,6 +2062,12 @@ class SmartClimateManager:
             "enabled": bool(self.settings.get("enabled")),
             "control_enabled": bool(self.settings.get("control_enabled")),
             "automatic_zone_control": automatic,
+            "solar_availability": {**deepcopy(self._solar_budget),
+                                   "start_threshold_w": self.SOLAR_AUTO_START_W,
+                                   "hold_threshold_w": self.SOLAR_AUTO_HOLD_W,
+                                   "confirmation_s": self.SOLAR_AUTO_CONFIRM_S,
+                                   "confirmed": self._solar_ready,
+                                   "owned_zones": sorted(self.solar_owned)},
             "zones": zone_rows,
             "zone_decisions": {eid: self._decision_row(decision) for eid, decision in self.zone_decisions.items()},
             "decision_trace": list(self.decision_trace),

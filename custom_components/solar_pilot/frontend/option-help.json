@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.56",
+  "version": "1.0.0-beta.57",
   "language": "nl",
   "steps": {
     "init": {
@@ -195,7 +195,7 @@
         "enabled": "Boilerregeling vrijgeven (alleen actief bij Automatisch regelen)",
         "target_entity": "Boilerdoel bedienen (niet de ruimtethermostaat)",
         "temperature_entity": "Werkelijke watertemperatuur (optioneel bij water_heater/climate)",
-        "power_entity": "Optioneel: uitsluitend het elektrische boilervermogen",
+        "power_entity": "Optioneel: gemeten elektrisch warmtepompvermogen (W/kW)",
         "cooling_entities": "Ruimteklimaatzones voor verwarmings- en koelbewaking",
         "space_activity_entity": "Optioneel: gemelde warmtepomptaak/richting (alleen lezen)",
         "space_activity_active_states": "Waarden voor ruimtebedrijf (puntkomma-gescheiden)",
@@ -204,22 +204,24 @@
         "manual_entity": "Gecombineerd handmatig/krachtig signaal (optioneel)",
         "safety_confirmed": "Bevestigd: fabrikantregeling, onafhankelijke hygiëne en verbrandingsbeveiliging gecontroleerd",
         "manual_active_states": "Waarden die handmatige/krachtige modus betekenen (komma-gescheiden)",
-        "manual_entities": "Handmatige/krachtige signalen (selecteer bv. Krachtige modus én Warmwater forceren)"
+        "manual_entities": "Handmatige/krachtige signalen (selecteer bv. Krachtige modus én Warmwater forceren)",
+        "power_meter_scope": "Wat meet deze vermogensmeter?"
       },
       "data_description": {
         "enabled": "Geeft SolarPilot toestemming om het ondersteunde boiler-temperatuurdoel te regelen.",
         "target_entity": "De fabrikantentiteit voor het tank-temperatuurdoel.",
         "temperature_entity": "Werkelijk gemeten watertemperatuur in de tank.",
-        "power_entity": "Alleen een actuele elektrische vermogensmeter voor sanitair warm water, inW/kW.",
+        "power_entity": "Optionele verse elektrische W/kW-meting van de warmtepomp.",
         "cooling_entities": "Bestaande klimaatbronnen voor de woning.",
         "space_activity_entity": "Optionele alleen-lezen takenrichting van dezelfde warmtepomp.",
         "space_activity_active_states": "Puntkomma-gescheiden exacte waarden die gemeld ruimtebedrijf betekenen, standaard PUMP.",
         "space_activity_inactive_states": "Puntkomma-gescheiden exacte waarden die géén ruimtebedrijf betekenen, standaard IDLE;WATER.",
-        "hygiene_entity": "Alleen een expliciete betrouwbare melding dat een fabrikant-hygiënecyclus actief is.",
+        "hygiene_entity": "Optionele expliciete betrouwbare melding van werkelijk actieve fabrikantsterilisatie.",
         "manual_entity": "Oud enkelvoudig handmatig/beschermd signaal.",
         "safety_confirmed": "Bevestigt dat de gebruiker de fabrikantgeschiktheid, onafhankelijke hygiëne en verbrandingsrisico-informatie voor deze installatie heeft beoordeeld.",
         "manual_active_states": "Komma-gescheiden echte statuswaarden voor handmatige bescherming, bijvoorbeeld on,on-30 m,on-60 m,on-90 m.",
-        "manual_entities": "Handmatige of krachtige functies die voorrang hebben, bijvoorbeeld Powerful en Force DHW."
+        "manual_entities": "Handmatige of krachtige functies die voorrang hebben, bijvoorbeeld Powerful en Force DHW.",
+        "power_meter_scope": "De hele warmtepomp is standaard en betekent ruimteverwarming/koeling plus tapwater op dezelfde meter."
       }
     },
     "dhw_rules": {
@@ -234,11 +236,11 @@
         "cooling_cap_c": "Maximum bij actieve/onzekere koeling (°C)",
         "pv_threshold_w": "Zonneopbrengst vanaf (W) — niet het overschot",
         "surplus_threshold_w": "Zonneoverschot strikt groter dan (W)",
-        "estimated_heat_power_w": "Geschat elektrisch vermogen voor piekbewaking (W)",
+        "estimated_heat_power_w": "Geschat elektrisch vermogen voor warm water (W)",
         "night_enabled": "Nachtbeperking actief",
         "night_start": "Nacht vanaf",
         "night_end": "Nacht tot",
-        "hygiene_schedule_enabled": "Fabriekssterilisatievenster beschermen",
+        "hygiene_schedule_enabled": "Fabrikantsterilisatieplanning als informatie tonen",
         "hygiene_weekdays": "Sterilisatiedagen, maandag=0 … zondag=6 (komma-gescheiden)",
         "hygiene_start": "Starttijd fabrikantsterilisatie",
         "hygiene_target_c": "Ingestelde fabrikantsterilisatietemperatuur (°C)",
@@ -250,20 +252,20 @@
         "minimum_c": "Bewaakte gemeten comfortgrens, standaard 46 °C.",
         "tank_differential_c": "Werkelijk in het toestel ingestelde heropwarmdifferentie, bijvoorbeeld -5 °C.",
         "solar_c": "Gewoon tankdoel bij voldoende actuele PV-productie, standaard 50 °C.",
-        "surplus_c": "Extra opportunistisch doel, standaard 60 °C.",
+        "surplus_c": "Extra zonnedoel, standaard 60 °C vanaf 3000 W werkelijk bruikbaar overschot.",
         "cooling_cap_c": "Hoogste door SolarPilot gevraagde doel bij actieve of onzekere koeling, standaard 50 °C.",
         "pv_threshold_w": "Minimale werkelijk gemeten zonnepanelenproductie voor het gewone zonnedoel.",
         "surplus_threshold_w": "Bruikbaar echt overschot moet voor een nieuwe extra hoge fase minstens deze drempel zijn, standaard 3000 W; de exacte grens telt mee.",
-        "estimated_heat_power_w": "Conservatieve elektrische planningsinschatting voor een opwarmperiode, standaard 3200 W.",
+        "estimated_heat_power_w": "Conservatieve elektrische raming voor warm water, standaard 3200 W.",
         "night_enabled": "Activeert het ingestelde nachtvenster.",
         "night_start": "Vanaf dit lokale uur geldt nachtrust.",
         "night_end": "Einde van het lokale nachtvenster.",
-        "hygiene_schedule_enabled": "Beschermt het bekende tijdvenster van het zelfstandige Panasonic-hygiëneprogramma tegen SolarPilot-setpointopdrachten.",
-        "hygiene_weekdays": "Dagen van de echte fabrikantcyclus als komma-gescheiden nummers: maandag 0 tot zondag 6.",
-        "hygiene_start": "Werkelijke starttijd van het zelfstandige fabrikantprogramma.",
+        "hygiene_schedule_enabled": "Toont de bekende planning van de zelfstandige Panasonic-sterilisatie.",
+        "hygiene_weekdays": "Dagen van de bekende fabrikantcyclus, maandag 0 tot zondag 6.",
+        "hygiene_start": "Bekende starttijd van de onafhankelijke fabrikantsterilisatie.",
         "hygiene_target_c": "Referentietemperatuur van het fabrikant-hygiëneprogramma, bijvoorbeeld 62 °C.",
-        "hygiene_guard_before_s": "Geen SolarPilot-boileropdrachten in deze tijd vóór de fabrikantcyclus.",
-        "hygiene_guard_after_s": "Beschermtijd gerekend vanaf de start van de fabrikantcyclus, niet vanaf het einde."
+        "hygiene_guard_before_s": "Bewaarde oudere voorzorgstijd vóór de geplande fabrikantcyclus, standaard 900 s.",
+        "hygiene_guard_after_s": "Bewaarde oudere voorzorgstijd na de geplande start, standaard 10800 s."
       }
     },
     "dhw_stability": {
@@ -293,7 +295,7 @@
         "ack_timeout_s": "Maximale wachttijd op een echte terugmelding na een opdracht.",
         "max_surplus_import_w": "Bij werkelijke netafname boven deze grens laat SolarPilot een door zichzelf beheerd extra 60 °C-doel onmiddellijk los; de gewone terugvalvertraging geldt dan niet.",
         "cooling_detection": "Actie kijkt primair naar werkelijk cooling.",
-        "compensate_own_power": "Tijdens een reeds eigen hoge fase mag een exclusieve actuele boilervermogensmeter het door de boiler zelf gebruikte zonnevermogen reconstrueren.",
+        "compensate_own_power": "Een bewezen eigen hoog tankdoel mag het werkelijk zelf gebruikte zonnevermogen eenmaal terugtellen met een verse geschikte meter.",
         "optional_raise_interval_s": "Rust tussen extra doelverhogingen boven het normale doel, standaard 1800 seconden (30 minuten), gerekend vanaf de laatste verstuurde doelopdracht, ook wanneer die het normale doel herstelde of verlaagde.",
         "respect_space_climate": "AAN: een nieuwe extra zonnebuffer boven het normale doel wacht zolang een gekoppelde klimaatbron werkelijk heating/cooling/preheating/defrosting meldt of geen betrouwbare actie doorgeeft."
       }
@@ -1789,10 +1791,10 @@
       ]
     },
     "dhw.power_entity": {
-      "title": "Optioneel: uitsluitend het elektrische boilervermogen",
-      "short": "Alleen een actuele elektrische vermogensmeter voor sanitair warm water, inW/kW.",
+      "title": "Optioneel: gemeten elektrisch warmtepompvermogen (W/kW)",
+      "short": "Optionele verse elektrische W/kW-meting van de warmtepomp.",
       "paragraphs": [
-        "Alleen een actuele elektrische vermogensmeter voor sanitair warm water, inW/kW. Geen totale warmtepompmeter inclusief ruimteverwarming, geen kWh-teller en geen geschatte 3200 W. Zonder geschikte meter leeg laten; niets erbij verzinnen.",
+        "Optionele verse elektrische W/kW-meting van de warmtepomp. Kies afzonderlijk of deze de hele warmtepomp of uitsluitend de boiler meet. Een gedeelde meter telt ruimteklimaat en tapwater eenmaal samen; zij bewijst geen specifieke tapwateropwarming. Geen kWh-teller, schatting of dubbele meter gebruiken.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -1835,9 +1837,9 @@
     },
     "dhw.hygiene_entity": {
       "title": "Hygiënecyclus actief: on = alle boileropdrachten blokkeren",
-      "short": "Alleen een expliciete betrouwbare melding dat een fabrikant-hygiënecyclus actief is.",
+      "short": "Optionele expliciete betrouwbare melding van werkelijk actieve fabrikantsterilisatie.",
       "paragraphs": [
-        "Alleen een expliciete betrouwbare melding dat een fabrikant-hygiënecyclus actief is. Force DHW of ontdooien is niet vanzelf een hygiënesignaal. Zonder zo’n bron blijven het bevestigde fabrikantprogramma en beschermde tijdvenster essentieel.",
+        "Optionele expliciete betrouwbare melding van werkelijk actieve fabrikantsterilisatie. ON blokkeert gewone tankdoelopdrachten; een onbetrouwbare vereiste gekoppelde bron houdt bescherming. De bekende planning alleen is geen actuele activiteit en blokkeert vanaf beta.57 geen 60 °C. SolarPilot start of stopt het fabrikantprogramma niet.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -1874,6 +1876,15 @@
       "short": "Handmatige of krachtige functies die voorrang hebben, bijvoorbeeld Powerful en Force DHW.",
       "paragraphs": [
         "Handmatige of krachtige functies die voorrang hebben, bijvoorbeeld Powerful en Force DHW. SolarPilot leest deze signalen alleen en schakelt ze niet zelf. Actieve/onbetrouwbare signalen verhinderen eigen doelwijzigingen.",
+        "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "dhw.power_meter_scope": {
+      "title": "Wat meet deze vermogensmeter?",
+      "short": "De hele warmtepomp is standaard en betekent ruimteverwarming/koeling plus tapwater op dezelfde meter.",
+      "paragraphs": [
+        "De hele warmtepomp is standaard en betekent ruimteverwarming/koeling plus tapwater op dezelfde meter. Dit verbruik staat al eenmaal in P1 en mag niet als twee toestellen worden opgeteld. Uitsluitend de boiler kies je alleen bij een echt afzonderlijke tank-W-meter. Een gedeelde meter geeft geen bewijs dat het vat opwarmt; terugtelling voor een eigen hoog doel vereist aantoonbaar inactief ruimtebedrijf.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -1916,9 +1927,9 @@
     },
     "dhw_rules.surplus_c": {
       "title": "Doel bij ruim zonneoverschot (°C)",
-      "short": "Extra opportunistisch doel, standaard 60 °C.",
+      "short": "Extra zonnedoel, standaard 60 °C vanaf 3000 W werkelijk bruikbaar overschot.",
       "paragraphs": [
-        "Extra opportunistisch doel, standaard 60 °C. Alleen op werkelijk resterende injectie, buiten de nacht en zonder actieve/onzekere/voorspelde koelblokkering. Dit extra doel krijgt géén voorrang op de Wallbox. Het fabrikant-hygiëneprogramma is een andere functie.",
+        "Extra zonnedoel, standaard 60 °C vanaf 3000 W werkelijk bruikbaar overschot. Het mag lager geplaatste veilig onderbreekbare eigen gewone lasten laten wijken na stabiliteit, bevestigde UIT en een nieuwe P1-meting. Geen afwascyclus, ruimteklimaat of Wallbox onderbreken en geen EV-krediet. Panasonic bepaalt de fysieke opwarming en sterilisatie blijft autonoom.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -1951,10 +1962,10 @@
       ]
     },
     "dhw_rules.estimated_heat_power_w": {
-      "title": "Geschat elektrisch vermogen voor piekbewaking (W)",
-      "short": "Conservatieve elektrische planningsinschatting voor een opwarmperiode, standaard 3200 W.",
+      "title": "Geschat elektrisch vermogen voor warm water (W)",
+      "short": "Conservatieve elektrische raming voor warm water, standaard 3200 W.",
       "paragraphs": [
-        "Conservatieve elektrische planningsinschatting voor een opwarmperiode, standaard 3200 W. Geen echte meter. De avondstart gebruikt deze inschatting plus marge; werkelijk eigen boilervermogen wordt er niet mee nagemaakt.",
+        "Conservatieve elektrische raming voor warm water, standaard 3200 W. Ruimteklimaat en tapwater zijn taken van dezelfde warmtepomp; de nieuwe gezamenlijke comfortreserve gebruikt de grootste passende taakraming minus eenmaal verse gemeten gezamenlijke stroomvraag. Het is geen extra afzonderlijke 3200 W bovenop dezelfde ruimtewarmtepomp en geen vermogensmeting.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -1987,28 +1998,28 @@
       ]
     },
     "dhw_rules.hygiene_schedule_enabled": {
-      "title": "Fabriekssterilisatievenster beschermen",
-      "short": "Beschermt het bekende tijdvenster van het zelfstandige Panasonic-hygiëneprogramma tegen SolarPilot-setpointopdrachten.",
+      "title": "Fabrikantsterilisatieplanning als informatie tonen",
+      "short": "Toont de bekende planning van de zelfstandige Panasonic-sterilisatie.",
       "paragraphs": [
-        "Beschermt het bekende tijdvenster van het zelfstandige Panasonic-hygiëneprogramma tegen SolarPilot-setpointopdrachten. AAN voert zelf géén sterilisatie uit. Het echte programma moet onafhankelijk in het toestel actief zijn.",
+        "Toont de bekende planning van de zelfstandige Panasonic-sterilisatie. De planning alleen blokkeert geen gewoon tankdoel; 60 °C kan ook in dat tijdvenster worden gevraagd. SolarPilot start of stopt de fabrikantcyclus niet. Een echte gekoppelde actieve hygiënebron en overige fabrikant-/handmatige bescherming blijven afzonderlijk gelden.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
     "dhw_rules.hygiene_weekdays": {
       "title": "Sterilisatiedagen, maandag=0 … zondag=6 (komma-gescheiden)",
-      "short": "Dagen van de echte fabrikantcyclus als komma-gescheiden nummers: maandag 0 tot zondag 6.",
+      "short": "Dagen van de bekende fabrikantcyclus, maandag 0 tot zondag 6.",
       "paragraphs": [
-        "Dagen van de echte fabrikantcyclus als komma-gescheiden nummers: maandag 0 tot zondag 6. Deze instelling beschermt die dagen; ze programmeert de warmtepomp niet.",
+        "Dagen van de bekende fabrikantcyclus, maandag 0 tot zondag 6. Alleen planningsinformatie; dit programmeert de warmtepomp niet en geeft op zichzelf geen schrijfblokkering.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
     "dhw_rules.hygiene_start": {
       "title": "Starttijd fabrikantsterilisatie",
-      "short": "Werkelijke starttijd van het zelfstandige fabrikantprogramma.",
+      "short": "Bekende starttijd van de onafhankelijke fabrikantsterilisatie.",
       "paragraphs": [
-        "Werkelijke starttijd van het zelfstandige fabrikantprogramma. SolarPilot plant daaromheen een geen-opdrachtenvenster. Controleer de apparaatklok en het werkelijk voltooide programma.",
+        "Bekende starttijd van de onafhankelijke fabrikantsterilisatie. Panasonic kan intern naar 62 °C gaan zonder het gewone display-/HA-doel te wijzigen. SolarPilot maakt hiervan geen geen-opdrachtenvenster.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -2024,18 +2035,18 @@
     },
     "dhw_rules.hygiene_guard_before_s": {
       "title": "Geen SolarPilot-opdrachten vanaf zoveel seconden vóór start",
-      "short": "Geen SolarPilot-boileropdrachten in deze tijd vóór de fabrikantcyclus.",
+      "short": "Bewaarde oudere voorzorgstijd vóór de geplande fabrikantcyclus, standaard 900 s.",
       "paragraphs": [
-        "Geen SolarPilot-boileropdrachten in deze tijd vóór de fabrikantcyclus. Standaard 900 s is 15 minuten. Een buffer helpt een net gestarte zonneregeling uit de cyclus te houden.",
+        "Bewaarde oudere voorzorgstijd vóór de geplande fabrikantcyclus, standaard 900 s. Deze kloktijd blokkeert vanaf beta.57 geen gewone tankdoelopdracht; werkelijke gekoppelde beschermingsbronnen blijven leidend.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
     "dhw_rules.hygiene_guard_after_s": {
       "title": "Geen SolarPilot-opdrachten tot zoveel seconden na start",
-      "short": "Beschermtijd gerekend vanaf de start van de fabrikantcyclus, niet vanaf het einde.",
+      "short": "Bewaarde oudere voorzorgstijd na de geplande start, standaard 10800 s.",
       "paragraphs": [
-        "Beschermtijd gerekend vanaf de start van de fabrikantcyclus, niet vanaf het einde. Standaard 10800 s is 3 uur. Een groter venster is conservatiever maar geeft langer geen zonne-optimalisatie.",
+        "Bewaarde oudere voorzorgstijd na de geplande start, standaard 10800 s. Deze kloktijd blokkeert vanaf beta.57 geen gewone tankdoelopdracht en bewijst geen werkelijk actieve sterilisatie.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -2123,9 +2134,9 @@
     },
     "dhw_stability.compensate_own_power": {
       "title": "Eigen gemeten boilerverbruik meetellen bij vasthouden 60°C-fase (niet bij starten)",
-      "short": "Tijdens een reeds eigen hoge fase mag een exclusieve actuele boilervermogensmeter het door de boiler zelf gebruikte zonnevermogen reconstrueren.",
+      "short": "Een bewezen eigen hoog tankdoel mag het werkelijk zelf gebruikte zonnevermogen eenmaal terugtellen met een verse geschikte meter.",
       "paragraphs": [
-        "Tijdens een reeds eigen hoge fase mag een exclusieve actuele boilervermogensmeter het door de boiler zelf gebruikte zonnevermogen reconstrueren. Geen gedeelde warmtepomp-/net-/EV-meter gebruiken. Zonder passende meter wordt niets bijgeteld; geschatte 3200 W is geen compensatiemeting.",
+        "Een bewezen eigen hoog tankdoel mag het werkelijk zelf gebruikte zonnevermogen eenmaal terugtellen met een verse geschikte meter. Bij scope hele warmtepomp moet ruimtebedrijf betrouwbaar inactief zijn; anders kan diezelfde stroom van verwarmen/koelen komen en krijgt de boiler geen dubbel krediet. Scope uitsluitend boiler vraagt een echt exclusieve tank-W-meter. Geschatte watts en oude bronnen tellen nooit mee.",
         "Dit onderdeel vraagt uitsluitend ondersteunde tanksetpoints. Panasonic-compressorbeveiliging, zelfstandige hygiëne en gecontroleerde verbrandingsbeveiliging blijven nodig. Instellen is niet hetzelfde als fysieke bevestiging of reeds opgewarmd water.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -2950,9 +2961,9 @@
       "title": "Ruimtes automatisch aan en uit regelen",
       "short": "SolarPilot schakelt elke gekoppelde ruimte zelf tussen Panasonic AUTO en UIT op basis van comfort en bruikbare voorspellingen.",
       "paragraphs": [
-        "SolarPilot schakelt elke gekoppelde ruimte zelf tussen Panasonic AUTO en UIT op basis van comfort en bruikbare voorspellingen. Panasonic kiest verwarmen of koelen; het thermostaatdoel verandert niet.",
+        "SolarPilot schakelt elke gekoppelde ruimte zelf tussen Panasonic AUTO en UIT op basis van comfort en bruikbare voorspellingen. Vanaf 2500 W bruikbaar zonneoverschot mag AUTO ook zonder actuele behoefte beschikbaar zijn. Panasonic kiest verwarmen of koelen; het thermostaatdoel verandert niet.",
         "Uitgangspunt: Aan voor automatische ruimtebediening. Gebruik de dashboardschakelaar om een ruimte vast AUTO of UIT te houden; een externe ingreep geeft tijdelijk rust.",
-        "AAN: Ook een reeds uitgeschakelde ruimte kan bij noodzakelijke warmtevraag of koelvraag automatisch AUTO krijgen; zonder behoefte wordt UIT voorgesteld.",
+        "AAN: Ook een reeds uitgeschakelde ruimte kan bij noodzakelijke warmte- of koelvraag of bevestigd zonneoverschot AUTO krijgen; zonder behoefte of overschot wordt UIT voorgesteld. AUTO bewijst geen actief warmtepompverbruik.",
         "UIT: De eerdere pauzeregeling blijft gelden: alleen een eigen SolarPilot-pauze wordt automatisch hervat; handmatige UIT blijft uit.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -4830,7 +4841,7 @@
       "title": "Werkelijk Panasonic-programma",
       "short": "Alleen-lezen bron voor het werkelijke Panasonic-programma.",
       "paragraphs": [
-        "Alleen-lezen bron voor het werkelijke Panasonic-programma. Laat leeg bij de ondersteunde native Aquarea-koppeling: SolarPilot wacht op een nieuwe geslaagde coordinatorupdate voor het juiste apparaat en de geselecteerde zone, zonder extra cloudopvraag. Anders koppel een gecontroleerde actuele sensor/select/climate-bron met heat/heating/auto_heat, cool/cooling/auto_cool of heat_cool. De ruimtewaarde AUTO, PUMP/WATER en het buitenweer bewijzen geen programma. Een warmtevraag start niet autonoom AUTO bij een koelprogramma, en andersom; onbekend programmabewijs laat een nieuwe automatische AUTO-start wachten. SolarPilot stuurt alleen Home Assistant AUTO/UIT; de onderliggende integratie kan die globaal interpreteren en het bestaande programma wijzigen.",
+        "Alleen-lezen bron voor het werkelijke Panasonic-programma. Leeg gebruikt de gecontroleerde native Aquarea-coordinator met nieuwe passende poll, zonder extra cloudverzoek. Gewone comfortvraag vereist een passende verwarm-/koelrichting; zonne-AUTO vanaf 2500 W is afzonderlijke beschikbaarheid zonder temperatuurvraag. AUTO, PUMP/WATER en buitenweer bewijzen geen werkelijk programma. SolarPilot stuurt alleen HA AUTO/UIT; de integratie kan dit globaal vertalen.",
         "Uitgangspunt: Laat leeg bij de ondersteunde Aquarea-koppeling. Anders koppel een actuele bron met heat/heating/auto_heat, cool/cooling/auto_cool of heat_cool; een onbekend programma blokkeert een nieuwe automatische AUTO-start.",
         "Bij wijzigen: Het programma wordt opnieuw gecontroleerd; een warmtevraag mag AUTO niet inschakelen wanneer de warmtepomp alleen op koelen staat, en andersom.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
@@ -5264,9 +5275,9 @@
     },
     "dashboard.priority_board": {
       "title": "Voorrang en autoladen",
-      "short": "Alle regels staan onder elkaar.",
+      "short": "De centrale lijst is de enige flexibele rangorde.",
       "paragraphs": [
-        "Alle regels staan onder elkaar. Beschermde regels staan vast; apparaten, Auto laden en extra warm water zijn binnen de veilige grenzen verplaatsbaar. Per regel staat ‘Mag de auto minder laden?’. Dat is nooit een garantie dat er nu vermogen beschikbaar is. Opslaan vraagt bevestiging en stuurt op zichzelf geen toestel.",
+        "De centrale lijst is de enige flexibele rangorde. Beveiliging en noodzakelijk comfort staan vast. Beta.57 zet bij een geconfigureerde boiler extra warm water éénmalig achter Wallbox en afwas, vóór gewone flexibele lasten; later bewust opslaan behoudt die keuze. Mag de auto minder laden geldt alleen boven de Wallbox met aparte toestemming. Geen opdracht door de lijst te openen of op te slaan.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },

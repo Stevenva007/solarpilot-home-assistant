@@ -28,6 +28,9 @@ def source_schema(c):
         optional("target_entity", c): entity(["water_heater", "climate", "number", "input_number"]),
         optional("temperature_entity", c): entity(["sensor", "water_heater", "climate", "input_number"]),
         optional("power_entity", c): entity(["sensor", "input_number"]),
+        vol.Required("power_meter_scope", default=c["power_meter_scope"]): selector.SelectSelector({"options": [
+            {"value": "heat_pump", "label": "De hele warmtepomp: warm water en ruimtes samen"},
+            {"value": "tank", "label": "Uitsluitend de boiler: afzonderlijk gemeten"}]}),
         optional("cooling_entities", c): entity(["climate", "binary_sensor", "input_boolean"], True),
         optional("space_activity_entity", c): entity(["sensor", "binary_sensor"]),
         vol.Required("space_activity_active_states", default=c["space_activity_active_states"]): selector.TextSelector(),
@@ -43,6 +46,8 @@ def source_schema(c):
 
 def sources_errors(hass, c, site, wallbox, devices):
     errors = {}
+    if c.get("power_meter_scope", "heat_pump") not in ("heat_pump", "tank"):
+        errors["power_meter_scope"] = "dhw_range"
     if not c["enabled"] and not c.get("target_entity"):
         return errors
     if not c.get("target_entity"):

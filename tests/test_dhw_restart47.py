@@ -164,13 +164,13 @@ async def test_native_off_is_not_enabled_by_restart_reconciliation():
 
 
 @pytest.mark.asyncio
-async def test_future_weekly_hygiene_window_is_kept_without_temperature_write():
+async def test_weekly_schedule_does_not_drop_matching_ordinary_target_on_restart():
     runtime, hass = setup(config={'hygiene_schedule_enabled': True})
-    manager = restart(runtime, owned=60)
+    manager = restart(runtime, owned=50)
 
     assert await manager.reconcile_restart(datetime(2026, 9, 21, 12))
-    assert manager.restart_recovery is None and manager.owned_target is None
-    assert "sterilisatie" in manager.status
+    assert manager.restart_recovery is None and manager.owned_target == 50
+    assert not manager.manual_hold and not manager.needs_review
     assert not hass.services.calls
 
 

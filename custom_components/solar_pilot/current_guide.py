@@ -3,12 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.56'
-GUIDE_UPDATED = '2026-10-05'
+GUIDE_VERSION = '1.0.0-beta.57'
+GUIDE_UPDATED = '2026-10-06'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.56',
- 'updated': '2026-10-05',
+ 'version': '1.0.0-beta.57',
+ 'updated': '2026-10-06',
  'intro': 'Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst '
           'samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en '
           'leerdata blijven lokaal in Home Assistant en worden bij gewone HACS-updates niet vervangen door '
@@ -33,6 +33,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Handmatige OFF, overgenomen, onbekende of foutieve doelen en willekeurige '
                               'scripts worden niet op basis van een aanname overschreven. Ontbrekend '
                               'eigendom- of bronbewijs blijft beschermd.',
+                              'Een doorlopende blauwe rand betekent bevestigd actief: een toestel is aan, een beschermde cyclus loopt of een actuele native actie meldt verwarmen/koelen/tapwater. Een gestippelde blauwe rand betekent alleen AUTO beschikbaar of een werkelijk gemeld hoger tankdoel. Een voorstel, globale warmtepompmeter of AUTO op zichzelf bewijst geen tapwateropwarming. Niet bereikbare of oude bronnen blijven grijs met activiteit onbekend.',
                               'Er wordt maximaal één gewone fysieke wijziging tegelijk uitgevoerd en daarna op '
                               'terugmelding en nieuwe meetinformatie gewacht. Nieuwe apparaten staan standaard '
                               'Uitgesloten totdat ze bewust op Auto worden gezet.',
@@ -65,13 +66,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                'paragraphs': ['De netmeter bepaalt echte import of injectie. SolarPilot houdt tegelijk '
                               'rekening met de lasten die het zelf beheert, zodat een succesvolle inschakeling '
                               'niet meteen als verdwenen zonne-energie wordt geïnterpreteerd.',
-                              'De tab Voorrang toont alle flexibele toestellen, de Wallbox en de extra '
-                              'boilerwarmte samen. Bij de upgrade vanaf beta.35 wordt de reeds effectieve '
-                              'volgorde éénmalig en ongewijzigd vastgelegd als centrale bron van waarheid. '
-                              'Beveiliging/legionella, noodzakelijk warmwatercomfort en noodzakelijk '
-                              'ruimtecomfort blijven boven de verplaatsbare lijst staan. Daarna blijft de '
-                              'afgesproken flexibele volgorde Wallbox, ontvochtiger en extra boilerwarmte '
-                              'naar 60 °C behouden totdat de gebruiker die bewust wijzigt.',
+                              'De tab Voorrang is de enige flexibele rangorde. Beveiliging, noodzakelijk warmwatercomfort en noodzakelijk ruimtecomfort blijven vast boven de lijst. Beta.57 zet bij een geconfigureerde boiler de extra warmwaterbuffer éénmalig achter de Wallbox en de afwasmachine, vóór gewone flexibele toestellen zoals een ontvochtiger. Bestaande rijen en hun onderlinge volgorde blijven zo veel mogelijk behouden. De opgeslagen toestemming om autovermogen te benutten blijft bewaard, maar is onder de Wallbox niet effectief. Een later bewust opgeslagen volgorde wordt niet opnieuw door de migratie teruggezet. Nieuwe gewone toestellen komen onderaan.',
                               'Toestellen op Auto worden volgens hun prioriteit gepland. Een hooggeprioriteerd '
                               'toestel dat niet past mag een kleiner lager toestel niet automatisch blokkeren. '
                               'Minimum aan/uit-tijden, start- en stopvertragingen, tijdvensters, dagminima en '
@@ -236,6 +231,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'tankdifferentie verhoogt het normale doel niet. Er is geen tijdelijke '
                               'herstelverhoging naar 52 °C, geen Force DHW, geen Powerful en geen compressor-, '
                               'hoofdvoedings- of DHW-modeopdracht.',
+                              'Ruimteklimaat en sanitair water gebruiken dezelfde warmtepomp. Het werkelijk gemeten gezamenlijke verbruik staat al in de P1-netbalans. SolarPilot telt dat éénmaal en reserveert voor mogelijke nieuwe belasting alleen het nog ontbrekende deel van de grootste passende warmtepomptaak, in plaats van twee volledige apparaten. Een gedeelde warmtepomp-W-meter bewijst geen specifieke tankopwarming; een exclusieve tankmeter blijft een andere bron. Onbekende of oude metingen geven geen teruggeteld gratis vermogen.',
                               'De extra zonnebuffer heeft standaard 60 °C als doel en mag vanaf '
                               '3000 W bruikbaar echt overschot starten; exact 3000 W telt mee. Dit '
                               'is werkelijke restinjectie, niet het totale paneelvermogen of '
@@ -249,16 +245,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'vasthouddrempel geldt uitsluitend voor een bewezen eigen lopende '
                               'hoge fase: bij 3000 W start en 300 W hysterese is dat circa 2700 W, '
                               'zolang de overige voorwaarden geldig blijven.',
-                              'Fabrikantsterilisatie en handmatige krachtige functies houden '
-                              'voorrang. Het ingestelde hygiënevenster kan de zonnebuffer dus laten '
-                              'wachten hoewel de zon ruim voldoende is en ruimteverwarming/koeling '
-                              'uit staat. Standaard beschermt SolarPilot de maandagplanning vanaf '
-                              'vijftien minuten vóór 12:00 tot drie uur na 12:00, dus 11:45–15:00. '
-                              'Dit venster is geen melding dat Panasonic werkelijk drie uur '
-                              'steriliseert en SolarPilot start de sterilisatie niet zelf. De kaart '
-                              'noemt de huidige bescherming en het einde van een bepaalbaar '
-                              'venster; een actieve native hygiënebron houdt ook na het venster '
-                              'haar bescherming.',
+                              'De bekende planning van de autonome fabrikantsterilisatie is alleen informatie. Maandag om 12:00 naar 62 °C kan intern gebeuren zonder dat Panasonic het gewone doel op de display of in Home Assistant wijzigt. SolarPilot maakt daarom geen schrijfblokkering van het oude tijdvenster 11:45–15:00. Het gewone zonnevoorstel van 60 °C mag ook dan worden uitgevoerd als zijn andere voorwaarden kloppen; Panasonic houdt zelf de eigen sterilisatie aan. SolarPilot start of stopt geen sterilisatie en wijzigt haar instellingen niet. Een werkelijk gekoppelde actieve hygiënebron, een onbetrouwbare vereiste beschermingsbron, Powerful of een andere handmatige fabrikantfunctie houdt haar afzonderlijke bestaande bescherming.',
                               'Met 50 °C als normaal doel en de fysieke heropwarmdifferentie -5 °C kan '
                               'Panasonic nominaal pas rond 45 °C herstarten. Daarom kan deze zachte sturing '
                               'geen 46 °C minimum garanderen. Onderschrijding wordt zichtbaar gemeld; '
@@ -379,13 +366,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                                'boilervermogen in de geldige piekruimte passen. Een bewezen reeds actieve, '
                                'door SolarPilot beheerde 60 °C-verwarming wordt daarbij niet dubbel '
                                'gereserveerd.',
-                              'Het gewone zonnedoel is standaard eveneens 50 °C, vanaf 1000 W actuele '
-                              'PV-productie. Omdat dit gelijk is aan het normale doel, geeft het geen extra '
-                              'temperatuurverhoging. Een bewust hoger gewoon zonnedoel blijft een '
-                              'productievoorwaarde en kan netstroom vragen. Voor echt extra 60 °C telt alleen '
-                              'overschot. Om een eigen hoge fase vast te houden kan uitsluitend een aparte '
-                              'betrouwbare elektrische tankvermogensmeter compenseren, nooit geschatte watts '
-                              'of een gedeelde meter.',
+                              'Het gewone zonnedoel is standaard eveneens 50 °C, vanaf 1000 W actuele PV-productie. Een bewust hoger gewoon zonnedoel blijft een productievoorwaarde en kan netstroom vragen. Extra 60 °C gebruikt overschot. Koppel onder Warmte & comfort de optionele elektrische W/kW-bron en kies Wat meet deze vermogensmeter?: standaard De hele warmtepomp, of alleen bij een echte afzonderlijke meter Uitsluitend de boiler. Een verse gedeelde meter mag een bewezen eigen hoge fase alleen compenseren als de ruimteactie betrouwbaar inactief is. Zij bewijst geen specifieke tankopwarming. Geschatte watts, een oude bron of een kWh-teller geven geen teruggetelde stroomruimte.',
                               'Actieve of onzekere koeling begrenst de extra doelen tot de ingestelde '
                               'koellimiet, standaard 50 °C. Alleen bewezen koeling start of verlengt de '
                               'ingestelde uitloop, standaard 1800 seconden. Onbekende informatie blokkeert '
@@ -622,12 +603,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
 'binnen de klimaatmodule, maar fysieke opdrachten vereisen nog steeds een ingeschakelde module, '
 'vrijgegeven klimaatbediening en de globale modus Automatisch regelen. Alleen bekijken en Pauze '
 'geven geen nieuw automatisch startrecht.',
-'Een lage ruimtetemperatuur geeft geen autonome AUTO-start wanneer het werkelijke programma '
-'COOL/AUTO_COOL is; omgekeerd geeft een koelvraag geen AUTO-start bij HEAT/AUTO_HEAT. Dan blijft de '
-'ruimte UIT met een zichtbare reden. Onbekend of onbetrouwbaar programmabewijs blokkeert een nieuwe '
-'autonome AUTO-start. Dit staat los van winter-/zomerweer en voorkomt dat een geldige comfortvraag '
-'het verkeerde ingestelde programma inschakelt. Een expliciete handmatige dashboard-AUTO-keuze '
-'blijft een bewuste gebruikersopdracht, met de overige bestaande bron-/opdrachtbescherming.',
+'Bij gewone actuele of voorspelde comfortvraag moet de werkelijk bekende Panasonic-richting passen: een warmtevraag start niet autonoom AUTO bij COOL/AUTO_COOL en omgekeerd. Onbekend programmabewijs laat dit comfortpad wachten. Daarnaast bestaat een afzonderlijk zonnepad: vanaf 2500 W echt bruikbaar restoverschot mag AUTO beschikbaar zijn zonder temperatuurvraag of voldoende geleerd thermisch model. Dit is een bewuste toestemming voor Panasonic om bij overvloedige zon zelf eventueel bij te verwarmen of te koelen, geen foutieve verwarmvraag in een koelprogramma. De gewone bron-, opdracht-, dashboard- en fabrikantbeschermingen blijven voor beide paden gelden.',
 'Werkelijk Panasonic-programma is een optionele alleen-lezen koppeling. Leeg gebruikt de '
 'gecontroleerde native Aquarea-coordinator als die bij het geselecteerde apparaat en de zone past. '
 'De eerste nieuwe geslaagde native update moet na de SolarPilot-koppeling zijn waargenomen; een oud '
@@ -650,12 +626,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'richting lenen. Dit bewaart normale automatische hervatting zonder '
                               'een direct HEAT/COOL-programma te kiezen of het fysieke effect van '
                               'HA AUTO te garanderen.',
-                              'Een geldige native UIT-stand bij start wordt bij automatische zonebediening niet als '
-                              'onbeperkte handmatige uitschakeling behandeld. SolarPilot mag die zone vanzelf op '
-                              'AUTO zetten zodra de actuele of verantwoord voorspelde behoefte dit vraagt. Woonkamer '
-                              'en tweede ruimte worden onafhankelijk beoordeeld: behoefte in één ruimte laat een andere '
-                              'veilige ruimte niet automatisch mee inschakelen. Winter- of zomerweer alleen bewijst '
-                              'geen actieve warmtevraag of koelvraag en houdt AUTO niet permanent aan.',
+                              'Een geldige native UIT-stand bij start wordt bij automatische zonebediening niet als onbeperkte handmatige uitschakeling behandeld. SolarPilot mag die zone vanzelf op AUTO zetten bij passende actuele of verantwoord voorspelde behoefte, of bij voldoende werkelijk zonneoverschot. Iedere ruimte wordt afzonderlijk beoordeeld; expliciete dashboardkeuzes blijven leidend. Winter- of zomerweer alleen bewijst geen actieve warmte- of koelvraag.',
                               'Op Warmte & comfort heeft iedere zone de schakelaar Handmatig bedienen. Uit betekent '
                               'dat SolarPilot zelf AUTO/UIT regelt. Aan toont daarnaast AUTO / UIT voor een vaste '
                               'handmatige keuze. Deze expliciete dashboardoverride blijft bewaard over herstarts tot '
@@ -678,6 +649,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'de regeling Voorspellend geregeld: de passieve temperatuurontwikkeling, zonnewinst en '
                               'de werkelijk benodigde verwarm- of koelrespons bepalen of UIT veilig is en wanneer '
                               'AUTO beschikbaar moet zijn.',
+                              'Zonne-AUTO begint vanaf 2500 W werkelijk restoverschot na huisreserve, batterijontlading en conservatieve andere toewijzingen. Nieuwe vrijgave vraagt zestig seconden stabiel bewijs plus nieuwe echte P1- en PV-rapportage. Het native programma moet vers en bekend zijn; HEAT, COOL, hun AUTO-varianten of bekende UIT mogen dit zonnepad gebruiken. Onbekend programmabewijs geeft geen start. De gewone minimum aan-/uittijd blijft gelden. Alleen een later bevestigde eigen zonne-AUTO mag beschikbaar blijven tot 2000 W met de verse gedeelde warmtepompstroom eenmaal teruggeteld, begrensd door werkelijke PV. Geen terugtelling voor een nieuwe UIT→AUTO-start. Als zon wegvalt, bepalen gewone comfortbewaking, voorspellend bewijs en minimumtijden of AUTO nog nodig is. Het zonnepad vraagt geen 55%-modelscore en omzeilt geen dashboard-UIT, externe gebruikersrust, bronuitval, pending/onzekere opdrachten of fabrikantbescherming. Oudere expliciet uitgeschakelde autonome zonebediening behoudt haar bestaande werkwijze.',
                               'Een passieve trend komt alleen uit twee verse bruikbare metingen '
                               'waarin de zone aan beide kanten UIT of idle is, met dezelfde '
                               'relevante bronnen en hetzelfde doel. Een opwarming tijdens '
@@ -1254,22 +1226,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               '13:00 alleen echt restoverschot gebruikt. De ingestelde 13:00-nettoestemming '
                               'blijft apart, evenals comfort- en elektrische limieten. Een al begonnen '
                               'programma wordt nooit afgebroken wegens een latere manuele autosessie.',
-                              'Het bestaande AEG-voorkeursprofiel blijft bij deze update behouden: gewoon warm '
-                              'water, noodzakelijke avondvoorraad en vloerverwarming eerst; daarna de '
-                              'afwasmachine, de Wallbox, lagere automatische lasten en extra boilerwarmte. '
-                              'Een gewone nieuwe installatie schakelt geen fysieke starttoestemming, '
-                               'bronbevestiging of Auto-deelname in. De beta.38-herstelmigratie voor de eerder '
-                               'al gebruikte AEG-koppeling kan een verdwenen profiel éénmalig als Auto '
-                               'herstellen. Beta.39 repareerde uitsluitend zo’n door beta.38 aangemaakt profiel '
-                               'wanneer de eerdere herstelstap een te beperkte faselijst of een onbewezen automatische '
-                               'alarmbron had opgeslagen. Beta.40 houdt de herstelcontrole na SolarPilot-start '
-                               'nog tien minuten gericht actief wanneer Home Assistant de herstelmarkers of '
-                               'AEG-entiteiten later laadt. Ook dat maakt geen APP-aanvraag en verstuurt geen START. '
-                              'Zolang je de centrale lijst niet wijzigt, rangschikt het bewaarde '
-                              'getal binnen de bestaande groepen. Na een bevestigde wijziging bepaalt de '
-                              'centrale lijst de relatieve volgorde; de gewone comfortbescherming blijft '
-                              'gelden. Een voorkeur-AEG blijft vóór de extra boilerwarmte. De toestemming voor '
-                              'het benutten van EV-zonnevermogen staat dan uitsluitend in die centrale editor.',
+                              'Het bestaande AEG-voorkeursprofiel blijft behouden: gewoon warm water, noodzakelijke avondvoorraad en noodzakelijk ruimtecomfort eerst; daarna de afwasmachine, de Wallbox, extra boilerwarmte en gewone automatische lasten volgens de centrale lijst. Een gewone nieuwe installatie schakelt geen fysieke starttoestemming, bronbevestiging of Auto-deelname in. De eerdere gerichte beta.38/39/40-herstelmigraties blijven éénmalig en maken geen APP-aanvraag of START. Een voorkeur-AEG blijft vóór de extra boilerwarmte en iedere lopende afwascyclus is beschermd. De toestemming voor het benutten van EV-zonnevermogen staat uitsluitend in de centrale editor.',
                                'Een vandaag startklare APP-aanvraag die aantoonbaar in de veilige startpool past '
                                'krijgt één startkans vóór extra 60 °C. Een aanvraag voor morgen doet dat vandaag '
                                'niet. Een al lopende beurt is geen algemeen verbod: haar nog niet gemeten '
@@ -1574,12 +1531,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Assistant-antwoorden en vervangen geen praktische acceptatietest.'],
                'bullets': []},
               {'title': '20. Eén centrale voorrangslijst — bewaren, aanpassen en grenzen',
-               'paragraphs': ['Bij de upgrade van beta.35 naar beta.36 wordt de bestaande effectieve volgorde '
-                              'automatisch en ongewijzigd vastgelegd als de centrale prioriteitenlijst. '
-                              'Daarbij worden geen toestellen ingeschakeld, geen startrechten toegevoegd en '
-                              'geen leerdata of timers gereset. Vanaf dat moment is deze lijst de leidende '
-                              'bron voor flexibele energieregeling. Openen, slepen of een keuze wijzigen '
-                              'bedient nog steeds niets; alleen expliciet opslaan verandert de lijst.',
+               'paragraphs': ['De centrale lijst blijft de enige flexibele prioriteitsbron. Haar oorspronkelijke beta.36-omzetting legde de toen effectieve volgorde vast. Beta.57 past bij een geconfigureerde boiler éénmalig de nieuwe gewenste voorkeur toe: extra warm water komt achter Wallbox en alle afwasrijen, vóór gewone flexibele verbruikers. Gewone rijen die eerder boven de Wallbox stonden verschuiven hierbij onder extra warm water; opgeslagen toestemming om autovermogen te gebruiken blijft bewaard, maar is daar niet effectief. De migratiemarker voorkomt herhaling en beschermt latere bewuste herschikking. Er wordt niets gestart, gestopt of gereset door deze opslagmigratie. Openen en slepen bedient niets; expliciet opslaan wijzigt de centrale volgorde.',
                               'Gebruik Wie krijgt eerst zonne-energie?. Sleep rijen op desktop of gebruik de '
                               'omhoog/omlaagknoppen, ook op mobiel en met toetsenbord. De lijst bevat elk '
                               'huidig toestel, Auto laden (Wallbox) en Extra warm water tot het werkelijk '
@@ -1604,22 +1556,8 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'De afwasroute mag alleen lagere gemeten eigen lasten laten wijken, nooit een '
                               'hoger geplaatste verbruiker. Beginnen, stopvertraging, minimumrust en '
                               'minimumlooptijd worden niet herschreven.',
-                              'Extra boilerwarmte wacht op een passend, vrijgegeven hoger geplaatst gewoon '
-                              'toestel dat nog moet starten. Anders mag een werkelijk door het bestaande '
-                              'boilerbeleid goedgekeurd zonnevenster vóór nieuwe lagere starts komen. Er wordt '
-                              'geen lagere lopende cyclus onderbroken voor extra warmte. Een inactieve tank '
-                              'boven de herstartdrempel van het bestaande Panasonic-temperatuurverschil houdt '
-                              'niet alleen wegens een hoog setpoint eindeloos een zonnevenster vast. Koeling, '
-                              'nacht, onbekende status, fabrikantbescherming en bestaande stabiliteit blijven '
-                              'het boilerbeleid begrenzen. Er wordt geen Force DHW, compressorstop of nieuwe '
-                              'ruimteklimaatmodus toegevoegd.',
-                              'Nieuwe gewone verbruikers verschijnen automatisch onderaan de centrale lijst '
-                              'en kunnen daarna omhoog of omlaag worden gezet. Een nieuw voorkeur-AEG-profiel '
-                              'wordt vóór de Wallbox toegevoegd wanneer die voorkeurslogica van toepassing is. '
-                              'Nieuwe identiteiten blijven Uitgesloten totdat je ze bewust vrijgeeft. Vervangen '
-                              'erft geen Auto-deelname, fysieke koppelingen of startticket. Verwijderde '
-                              'identiteiten verdwijnen uit de actieve lijst. De bij de upgrade vastgelegde '
-                              'bestaande volgorde wordt niet herschreven.',
+                              'Extra boilerwarmte mag vermogen vrijmaken bij lager geplaatste gewone lasten die SolarPilot zelf beheert en veilig kan onderbreken. Alleen verse bruikbare echte vermogensmetingen tellen mee voor deze mogelijkheid. Minimumlooptijd, handmatige overname, boost, deadline en bron-/opdrachtbescherming blijven gelden. Een beschermde afwascyclus, ruimteklimaat, Wallbox en hoger geplaatste last worden hiervoor nooit uitgezet. Het verzoek wacht eerst op stabiele mogelijke zonruimte, daarna op bevestigde UIT én een nieuwe netmeting; aangevraagd stopvermogen is nog geen vrij overschot. De normale boilerstabiliteit en opdrachtrust blijven daarna gelden. Past alles naast elkaar, dan blijft alles werken. Een inactieve tank boven de native herstartdrempel houdt niet alleen wegens een hoog doel eindeloos een zonnevenster vast.',
+                              'Nieuwe gewone verbruikers verschijnen onderaan de centrale lijst. Een nieuw voorkeur-AEG-profiel komt vóór de Wallbox wanneer die voorkeurslogica geldt. Nieuwe identiteiten blijven Uitgesloten tot bewuste vrijgave; vervangen erft geen Auto-deelname, fysieke koppelingen of startticket. Verwijderde identiteiten verdwijnen uit de actieve lijst. Na de éénmalige beta.57-migratie wordt de opgeslagen volgorde niet bij iedere update herschreven.',
                               'Opslag gebeurt onder dezelfde vergrendeling als de regelaar, zonder directe '
                               'toestelopdracht. Gewijzigde broninstellingen, een ander prioriteitsvenster of '
                               'nieuw/verwijderd toestel maken een ouder concept ongeldig. Bij een conflict '
@@ -1628,11 +1566,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'beheerder kan lezen via de editor-API en opslaan; het gewone statusoverzicht '
                               'blijft leesbaar. Bij een verbindingsfout eerst vernieuwen om te controleren of '
                               'de opslag toch is gelukt.',
-                              'Na de automatische omzetting is de centrale lijst leidend en blijft de '
-                              'effectieve volgorde gelijk. De toestelwizard toont geen tweede bediening voor '
-                              'rangorde of autolaadvermogen. Een al geopend formulier kan die centrale keuzes '
-                              'niet overschrijven. Temperaturen, timers, startrechten, leerdata en '
-                              'niet-gerelateerde opties worden niet gereset.'],
+                              'Na de gerichte beta.57-omzetting is de centrale lijst leidend. Een later bewust opgeslagen volgorde wordt niet opnieuw door de migratie vervangen. De toestelwizard heeft geen tweede bediening voor rangorde of autolaadvermogen; een oud geopend formulier mag deze keuzes niet overschrijven. Temperaturen, timers, startrechten, leerdata en niet-gerelateerde opties worden niet gereset.'],
                'bullets': []},
               {'title': '21. Leren, Wallbox, boiler, klimaat en analyse',
                'paragraphs': ['De huishoudelijke basislast leert alleen uit perioden die als gewone huishoudlast '

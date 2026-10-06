@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.0-beta.57 — 2026-10-06
+
+- Maakt de bekende sterilisatieplanning informatief: geen klok-only blokkering van een gewoon 60 °C-tankdoel. Panasonic kan intern naar 62 °C gaan zonder het normale HA/display-doel te wijzigen. Echte gekoppelde hygiene/manual/unknown en overige fabrikant-/opdrachtbescherming blijven gelden; geen sterilisatieinstelling of Force-DHW-opdracht.
+- Migreert bij een geconfigureerde boiler extra DHW éénmalig achter Wallbox en alle afwasrijen, vóór gewone flexibele lasten. Marker57 bewaart latere expliciete saves. Opgeslagen EV-toestemming blijft behouden maar is onder Wallbox niet effectief. Nieuwe gewone toestellen blijven onderaan.
+- Laat extra warm water veilige lager geplaatste eigen onderbreekbare lasten met verse echte meting vrijmaken, pas na prospectieve stabiliteit, bevestigde UIT, nieuwe P1 en verse PV. Geen stopintentie als gratis watts; minimumlooptijd/manual/boost/deadline beschermd. Geen afwascyclus, klimaatlast of Wallbox voor extra DHW stoppen.
+- Voegt afzonderlijke zonne-AUTO-beschikbaarheid toe vanaf 2500 W werkelijk restoverschot gedurende 60 s plus nieuwe P1/PV. Geen modelscore of temperatuurvraag vereist; verse bekende programmastand en overige guards blijven. Alleen bevestigd eigen zonne-AUTO houdt vanaf 2000 W met eenmaal verse gedeelde warmtepompvraag, begrensd door echte PV. Dashboard/externe rust, minimum aan-/uittijden, pending/fout en legacyoptout behouden hun betekenis.
+- Begroot ruimteklimaat en tapwater als één fysieke warmtepomp: werkelijk P1-verbruik eenmaal, gezamenlijke prospectieve taakreserve en expliciete meterscope hele warmtepomp/exclusieve tank. Geen gedeelde meter als specifieke DHW-opwarming tonen; onbekende/oude stroom geeft geen add-back. Na fysieke verandering nieuwe P1, verse PV en meetrust.
+- Maakt bevestigde activiteit op het hoofdscherm grafisch zichtbaar met doorlopend blauw. AUTO-beschikbaarheid of een werkelijk hoger gemeld tankdoel is gestippeld blauw; voorstellen, globale HP-watts of oude bronnen geven geen fictieve warmteactiviteit.
+- Behoudt beta.56-drempel/stabiliteit, passieve trends, comfortbevestiging, versiegebonden diagnoselog en gecomprimeerde privé-export. Code, optiehulp, actuele uitleg, installatie/rollback, testverslag en overdracht worden samen bijgewerkt. Definitieve gate: `docs/TESTRESULTATEN_BETA57.md`; gecontroleerde beta.56 is rollbackbasis.
+
+
 ## 1.0.0-beta.56 — 2026-10-05
 
 - Verlaagt de standaard extra-DHW-startdrempel naar 3000 W en accepteert de exacte grens. Een éénmalige gemarkeerde migratie zet de oude standaard 3500 W om; afwijkende gebruikerswaarden blijven behouden. De afzonderlijke geschatte opwarmbelasting van standaard 3200 W, fysieke grenzen, reserves en Wallboxbeleid worden niet verlaagd.

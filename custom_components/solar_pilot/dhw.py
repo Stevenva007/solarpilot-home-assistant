@@ -19,6 +19,7 @@ DHW_DEFAULTS = {
     **SCHEDULE_DEFAULTS,
     "enabled": False, "safety_confirmed": False,
     "target_entity": "", "temperature_entity": "", "power_entity": "",
+    "power_meter_scope": "heat_pump",
     "cooling_entities": [], "space_activity_entity": "",
     "space_activity_active_states": "PUMP", "space_activity_inactive_states": "IDLE;WATER",
     "hygiene_entity": "", "manual_entity": "", "manual_entities": [],
@@ -32,8 +33,9 @@ DHW_DEFAULTS = {
     "pv_threshold_w": 1000.0, "surplus_threshold_w": 3000.0,
     "estimated_heat_power_w": 3200.0,
     "night_enabled": True, "night_start": "23:00:00", "night_end": "06:00:00",
-    # Manufacturer sterilisation guard.  This is a no-command window, not a
-    # replacement for the actual Panasonic programme.
+    # Read-only manufacturer sterilisation schedule context. A clock window
+    # does not prove a native mode or block ordinary target writes: Panasonic
+    # keeps priority for its internally managed sterilisation cycle.
     "hygiene_schedule_enabled": True,
     "hygiene_weekdays": "0",  # Monday=0
     "hygiene_start": "12:00:00",
@@ -57,7 +59,7 @@ DHW_NUMBERS = {
     "cooling_cap_c": ("Boiler maximum bij koeling", 40, 65, 0.5, "°C"),
     "pv_threshold_w": ("Boiler drempel zonneopbrengst", 0, 50000, 50, "W"),
     "surplus_threshold_w": ("Boiler drempel overschot", 0, 50000, 50, "W"),
-    "estimated_heat_power_w": ("Geschat elektrisch boilervermogen", 100, 20000, 50, "W"),
+    "estimated_heat_power_w": ("Geschat elektrisch vermogen voor warm water", 100, 20000, 50, "W"),
 }
 
 
@@ -131,6 +133,7 @@ def night_active(c, local_now: datetime):
 
 
 def hygiene_schedule_active(c, local_now: datetime):
+    """Is the configured informational window active, without control authority?"""
     if not c.get("hygiene_schedule_enabled"):
         return False
     days = weekday_set(c.get("hygiene_weekdays", ""))
@@ -157,6 +160,8 @@ def hygiene_schedule_active(c, local_now: datetime):
 def validate_settings(c):
     c = {**DHW_DEFAULTS, **c}
     errors = validate_schedule(c)
+    if c.get("power_meter_scope") not in ("heat_pump", "tank"):
+        errors["power_meter_scope"] = "dhw_range"
     for key, (_, low, high, step, _) in DHW_NUMBERS.items():
         value = finite(c.get(key))
         if value is None or not low <= value <= high:

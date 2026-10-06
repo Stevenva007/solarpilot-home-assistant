@@ -75,21 +75,24 @@ async def test_later_explicit_3500_choice_is_not_remigrated():
 
 
 @pytest.mark.asyncio
-async def test_monday_hygiene_primary_reason_has_end_time_and_does_not_claim_native60_ownership():
+async def test_monday_schedule_does_not_protect_an_ordinary_reported60_target():
     runtime, hass = setup(config={"hygiene_schedule_enabled": True})
     updates(hass, "water_heater.boiler", temperature=60)
     hass.states.set("sensor.water", 49, {"unit_of_measurement": "°C"})
     await runtime.dhw.tick(time.monotonic(), -4527, True, 0,
                            local_now=datetime(2026, 10, 5, 14, 40, tzinfo=TZ))
     view = runtime.dhw.overview()
-    assert view["execution"]["code"] == "protection"
-    assert gates(runtime.dhw)["protection"]["until"] == "2026-10-05T15:00:00+02:00"
-    assert "15:00" in view["status"]
+    assert view["execution"]["code"] == "target_reported"
+    assert gates(runtime.dhw)["protection"]["passed"]
+    assert "until" not in gates(runtime.dhw)["protection"]
     assert view["execution"]["actual_target_c"] == 60
     assert view["execution"]["temperature_c"] == 49
-    assert view["execution"]["proposed_target_c"] is None
+    assert view["execution"]["proposed_target_c"] == 60
     assert view["execution"]["heating_evidence"]["reported_heating"] is None
-    assert not view["solar_pilot_owns_target"]
+    assert view["solar_pilot_owns_target"]
+    assert view["execution"]["last_change"] is None
+    assert view["hygiene_schedule"]["context_only"]
+    assert view["hygiene_schedule"]["blocks_target_writes"] is False
     assert not hass.services.calls
 
 

@@ -1,4 +1,4 @@
-/* SolarPilot 1.0.0-beta.56. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+/* SolarPilot 1.0.0-beta.57. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
 const spEscape = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const spPower = value => value == null || !Number.isFinite(Number(value)) ? "—" : Math.abs(Number(value)) >= 1000 ? `${(Number(value)/1000).toLocaleString("nl-BE",{maximumFractionDigits:2})} kW` : `${Math.round(Number(value))} W`;
 const spTemp = value => value == null || !Number.isFinite(Number(value)) ? "—" : `${Number(value).toLocaleString("nl-BE",{maximumFractionDigits:1})} °C`;
@@ -601,39 +601,54 @@ class SolarPilotCard extends HTMLElement {
   _plainReason(value){
     return String(value||'Nog geen betrouwbare reden beschikbaar.').replace(/\bcoast\b/gi,'periode zonder verwarming of koeling').replace(/\bnative\b/gi,'toestel').replace(/\bP1\b/g,'netmeter').replace(/\bACK\b/g,'bevestiging');
   }
-  _reasonRow({name,state,reason,extra='',change=null,view='',id=''}){
+  _reasonRow({name,state,reason,extra='',change=null,view='',id='',activity='inactive'}){
     const time=change?this._reasonTime(change.at||change.timestamp):'';
     const last=change?.reason?`<details class="reason-history"><summary>Laatste ${change.confirmed===false?'waarneming':'verandering'}${time?' · '+spEscape(time):''}</summary><p>${spEscape(this._plainReason(change.reason))}</p>${['external','Home Assistant'].includes(change.source)?'<small>Buiten een bevestigde SolarPilot-opdracht veranderd; de precieze veroorzaker is niet bekend.</small>':''}</details>`:'';
-    return `<article class="reason-row"><div class="row"><strong class="grow">${spEscape(name)}</strong><span class="badge">${spEscape(state)}</span></div><p>${spEscape(this._plainReason(reason))}</p>${extra?`<small>${spEscape(extra)}</small>`:''}${last}${id?`<button type="button" class="mini" data-action="history" data-id="${spEscape(id)}">Geschiedenis</button>`:view?`<button type="button" class="mini" data-action="view" data-value="${spEscape(view)}">Instellen en details</button>`:''}</article>`;
+    const visual=['active','available','unknown'].includes(activity)?activity:'inactive';
+    return `<article class="reason-row is-${visual}" data-activity="${visual}"><div class="row"><strong class="grow">${spEscape(name)}</strong><span class="badge">${spEscape(state)}</span></div><p>${spEscape(this._plainReason(reason))}</p>${extra?`<small>${spEscape(extra)}</small>`:''}${last}${id?`<button type="button" class="mini" data-action="history" data-id="${spEscape(id)}">Geschiedenis</button>`:view?`<button type="button" class="mini" data-action="view" data-value="${spEscape(view)}">Instellen en details</button>`:''}</article>`;
   }
   _decisionBoard(c){
     const rows=[],dhw=c.dhw||{},climate=c.smartClimate||{},trace=climate.decision_trace||[];
     if(dhw.configured){
       const execution=dhw.execution||{},goal=spTemp(dhw.actual_target_c),extra=execution.surplus_target_c??dhw.settings?.surplus_c??60;
       const changes=execution.last_change||null;
-      rows.push(this._reasonRow({name:'Sanitair warm water',state:`Tank ${spTemp(dhw.temperature_c)} · doel ${goal}`,reason:this._dhwStateText(dhw),extra:`Extra voorraad tot ${spTemp(extra)} vraagt voldoende zonnestroom. Het gemelde doel vertelt nog niet of het water opwarmt.`,change:changes,view:'comfort'}));
+      const source=execution.source_evidence?.target;
+      const sourceKnown=dhw.actual_target_c!=null&&source?.available!==false&&source?.restored!==true&&(source?.age_s==null||Number.isFinite(Number(source.age_s))&&Number(source.age_s)>=-5&&Number(source.age_s)<=Number(dhw.settings?.stale_s??300));
+      const heating=sourceKnown&&execution.heating_evidence?.reported_heating===true;
+      const extraSelected=sourceKnown&&Number.isFinite(Number(dhw.actual_target_c))&&Number(dhw.actual_target_c)>Number(dhw.normal_target_c??dhw.base_target_c??50)+.05;
+      const activity=heating?'active':!sourceKnown?'unknown':extraSelected?'available':'inactive';
+      const status=heating?'Warmt water op · ':extraSelected?'Extra voorraad ingesteld · ':!sourceKnown?'Toestelstatus onbekend · ':'';
+      rows.push(this._reasonRow({name:'Sanitair warm water',state:`${status}Tank ${spTemp(dhw.temperature_c)} · doel ${goal}`,reason:this._dhwStateText(dhw),extra:`Extra voorraad tot ${spTemp(extra)} vraagt voldoende zonnestroom. ${heating?'De warmtepomp meldt dat het water nu wordt verwarmd.':'Het gemelde doel vertelt nog niet of het water opwarmt.'}`,change:changes,view:'comfort',activity}));
     }
     for(const zone of climate.zones||[]){
       const decision=climate.zone_decisions?.[zone.entity_id]||{},mode=String(zone.mode||'').toLowerCase();
-      const status=({off:'Regeling uit',auto:'Regeling aan',heat:'Handmatig verwarmen',cool:'Handmatig koelen'})[mode]||'Stand onbekend';
+      const action=String(zone.action||'').toLowerCase(),known=zone.available!==false&&zone.valid!==false&&zone.action_known!==false;
+      const running=known&&['heating','cooling'].includes(action),autoAvailable=known&&['auto','heat_cool'].includes(mode);
+      const status=running?(action==='heating'?'Verwarmt':'Koelt'):({off:'Regeling uit',auto:'AUTO beschikbaar',heat_cool:'AUTO beschikbaar',heat:'Handmatig verwarmen',cool:'Handmatig koelen'})[mode]||'Stand onbekend';
       const latest=trace.filter(x=>(x.entity_id||x.zone_id)===zone.entity_id).slice(-1)[0];
       const reason=zone.execution_reason||zone.control_reason||zone.decision_reason||decision.reason||zone.control_status||latest?.reason;
       const changes=trace.filter(x=>(x.entity_id||x.zone_id)===zone.entity_id&&['issued','confirmed','external_change','cancelled','late_feedback'].includes(x.stage||x.event)).slice(-1)[0];
       const programs={heating:'verwarmen',cooling:'koelen',both:'verwarmen of koelen',off:'uit'},native=zone.native_program||{};
       const program=native.source==='owned_off_programme'?`uit na eigen pauze; eerder ${programs[native.programme_intent]||'programma onbekend'}`:programs[native.program]||'nog niet bekend';
-      rows.push(this._reasonRow({name:zone.name||'Ruimteregeling',state:`${status} · ${spTemp(zone.current)}`,reason,extra:`Gewenste temperatuur ${spTemp(zone.target)} · warmtepompprogramma ${program}.${mode==='auto'?' AUTO betekent nog niet dat de warmtepomp draait.':''}`,change:zone.last_change||changes,view:'comfort'}));
+      rows.push(this._reasonRow({name:zone.name||'Ruimteregeling',state:`${!known?'Activiteit onbekend':status} · ${spTemp(zone.current)}`,reason,extra:`Gewenste temperatuur ${spTemp(zone.target)} · warmtepompprogramma ${program}.${autoAvailable&&!running?' AUTO betekent nog niet dat de warmtepomp draait.':''}`,change:zone.last_change||changes,view:'comfort',activity:running?'active':!known?'unknown':autoAvailable?'available':'inactive'}));
     }
     for(const device of c.devices||[]){
       const reason=device.isolation_reason||device.start_diagnostics?.summary||device.reason;
-      const state=device.available===false?'Niet bereikbaar':device.on?(device.owned?'Actief · SolarPilot':'Actief · toestel'):device.mode==='disabled'?'Niet automatisch geregeld':device.kind==='dishwasher'&&!device.dishwasher?.app_request?'Nog niet klaargezet':'Wacht';
-      rows.push(this._reasonRow({name:device.name,state,reason,extra:device.on&&device.kind==='dishwasher'?'Een lopend programma wordt niet onderbroken.':'',change:device.history?.last_change,id:device.id}));
+      const activity=this._deviceActivity(device);
+      const state=!activity.known?'Niet bereikbaar':activity.active?device.kind==='dishwasher'?(device.dishwasher?.airdry?'Nadrogen actief':'Programma loopt'):(device.manual_forced?'Actief · handmatig':device.owned?'Actief · SolarPilot':'Actief · toestel'):device.mode==='disabled'?'Niet automatisch geregeld':device.kind==='dishwasher'&&!device.dishwasher?.app_request?'Nog niet klaargezet':'Wacht';
+      rows.push(this._reasonRow({name:device.name,state,reason,extra:activity.active&&device.kind==='dishwasher'?'Een lopend programma wordt niet onderbroken.':'',change:device.history?.last_change,id:device.id,activity:activity.active?'active':activity.known?'inactive':'unknown'}));
     }
     if(c.wb?.enabled){
       const wb=c.wb,activity=this._wallboxActivity(wb),observation=wb.activity_details||{},current=observation.current||{};
-      rows.push(this._reasonRow({name:'Auto laden',state:activity.label,reason:current.reason||(activity.active?'De auto laadt; de Wallbox bepaalt zelf het laden.':activity.known?'De auto laadt nu niet; de Wallbox heeft geen precieze wachtreden gemeld.':'Wacht op een betrouwbare laadstatus.'),extra:this._plainReason(wb.consumer_priority?.reason||wb.reason||'SolarPilot leest de Wallbox en verdeelt het resterende overschot.'),change:observation.last_stop?{at:observation.last_stop.observed_stop_at,reason:observation.last_stop.stop_reason,confirmed:observation.last_stop.stop_confirmed}:null,view:'priorities'}));
+      rows.push(this._reasonRow({name:'Auto laden',state:activity.label,reason:current.reason||(activity.active?'De auto laadt; de Wallbox bepaalt zelf het laden.':activity.known?'De auto laadt nu niet; de Wallbox heeft geen precieze wachtreden gemeld.':'Wacht op een betrouwbare laadstatus.'),extra:this._plainReason(wb.consumer_priority?.reason||wb.reason||'SolarPilot leest de Wallbox en verdeelt het resterende overschot.'),change:observation.last_stop?{at:observation.last_stop.observed_stop_at,reason:observation.last_stop.stop_reason,confirmed:observation.last_stop.stop_confirmed}:null,view:'priorities',activity:activity.active?'active':activity.known?'inactive':'unknown'}));
     }
-    if(c.batteryFleet?.enabled){const fleet=c.batteryFleet,state=Object.keys(fleet.faults||{}).length?'Controle nodig':Object.keys(fleet.pending||{}).length?'Wacht op bevestiging':fleet.control_enabled?'Regeling aan':'Alleen bekijken';rows.push(this._reasonRow({name:'Batterij',state,reason:fleet.reason||'De batterij volgt haar ingestelde regeling.',view:'storage'}));}
-    return `<section class="decision-board"><style>.decision-board{margin:22px 0}.decision-board>p{color:var(--secondary-text-color);font-size:13px}.reason-list{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr))}.reason-row{min-width:0;border:1px solid var(--divider-color);border-radius:16px;padding:16px;background:var(--card-background-color)}.reason-row .row{gap:8px;align-items:flex-start;flex-wrap:wrap}.reason-row .badge{white-space:normal;font-size:11px}.reason-row p{line-height:1.5;margin:9px 0;overflow-wrap:anywhere;font-size:14px}.reason-row>small,.reason-history small{display:block;color:var(--secondary-text-color);font-size:12px;line-height:1.5}.reason-row .mini{margin-top:10px}.reason-history{margin-top:10px;font-size:12px}.reason-history summary{cursor:pointer;padding:4px 0}.reason-history p{font-size:12px}</style><h2>Wat gebeurt er en waarom?</h2><p>Hier zie je wat elk toestel nu doet, waarom het wacht en welke verandering het laatst is waargenomen.</p><div class="reason-list">${rows.join('')||'<p>Nog geen gekoppelde toestellen.</p>'}</div></section>`;
+    if(c.batteryFleet?.enabled){
+      const fleet=c.batteryFleet,aggregate=fleet.aggregate||{},charging=aggregate.valid===true&&Number(aggregate.charge_w)>50,discharging=aggregate.valid===true&&Number(aggregate.discharge_w)>50;
+      const control=Object.keys(fleet.faults||{}).length?'Controle nodig':Object.keys(fleet.pending||{}).length?'Wacht op bevestiging':fleet.control_enabled?'Regeling aan':'Alleen bekijken';
+      const actual=charging&&discharging?'Batterijen laden en leveren stroom':charging?'Batterij laadt':discharging?'Batterij levert stroom':'';
+      rows.push(this._reasonRow({name:'Batterij',state:actual?`${actual} · ${control}`:control,reason:fleet.reason||'De batterij volgt haar ingestelde regeling.',view:'storage',activity:actual?'active':'inactive'}));
+    }
+    return `<section class="decision-board"><style>.decision-board{--sp-activity-blue:#03a9f4;margin:22px 0}.decision-board>p{color:var(--secondary-text-color);font-size:13px}.reason-list{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr))}.reason-row{min-width:0;border:1px solid var(--divider-color);border-radius:16px;padding:16px;background:var(--card-background-color)}.reason-row.is-active{border-color:var(--sp-activity-blue);box-shadow:inset 4px 0 0 var(--sp-activity-blue)}.reason-row.is-active .badge{background:var(--sp-activity-blue);color:#071b26}.reason-row.is-available{border-color:var(--sp-activity-blue);border-style:dashed}.reason-row .row{gap:8px;align-items:flex-start;flex-wrap:wrap}.reason-row .badge{white-space:normal;font-size:11px}.reason-row p{line-height:1.5;margin:9px 0;overflow-wrap:anywhere;font-size:14px}.reason-row>small,.reason-history small{display:block;color:var(--secondary-text-color);font-size:12px;line-height:1.5}.reason-row .mini{margin-top:10px}.reason-history{margin-top:10px;font-size:12px}.reason-history summary{cursor:pointer;padding:4px 0}.reason-history p{font-size:12px}.activity-legend{display:flex;gap:8px 18px;flex-wrap:wrap;margin:12px 0;color:var(--secondary-text-color);font-size:12px}.activity-legend span{display:flex;align-items:center;gap:6px}.activity-swatch{width:14px;height:14px;border:2px solid var(--sp-activity-blue);border-radius:4px;box-shadow:inset 3px 0 0 var(--sp-activity-blue)}.activity-swatch.available{border-style:dashed;box-shadow:none}</style><h2>Wat gebeurt er en waarom?</h2><p>Hier zie je wat elk toestel nu doet, waarom het wacht en welke verandering het laatst is waargenomen.</p><div class="activity-legend" aria-label="Betekenis van de blauwe randen"><span><i class="activity-swatch" aria-hidden="true"></i>Bevestigd actief</span><span><i class="activity-swatch available" aria-hidden="true"></i>Beschikbaar of extra voorraad ingesteld</span></div><div class="reason-list">${rows.join('')||'<p>Nog geen gekoppelde toestellen.</p>'}</div></section>`;
   }
   _dhwExecutionDetails(dhw){
     const execution=dhw.execution;if(!execution)return '';
@@ -1016,7 +1031,7 @@ class SolarPilotCard extends HTMLElement {
   }
   async _loadOptionHelpers(){
     if(!customElements.get('solar-pilot-option-help-dialog')){
-      if(!this._optionLoad)this._optionLoad=import('/solar_pilot_static/option-help.js?v=1.0.0-beta.56').catch(e=>{this._optionLoad=null;throw e;});
+      if(!this._optionLoad)this._optionLoad=import('/solar_pilot_static/option-help.js?v=1.0.0-beta.57').catch(e=>{this._optionLoad=null;throw e;});
       await this._optionLoad;
     }
   }

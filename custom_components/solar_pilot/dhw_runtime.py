@@ -6,7 +6,7 @@ thermostat, hygiene functions and hot-water safety remain prerequisites.
 from __future__ import annotations
 import asyncio
 from dataclasses import asdict
-from datetime import datetime, timedelta
+from datetime import datetime
 import math
 import time
 from zoneinfo import ZoneInfo
@@ -63,6 +63,7 @@ class DHWManager:
                           "gates": []}
         self._execution_now = None
         self._execution_local_now = None
+        self._evaluated_source_proof = None
         self._dispatch_gate = {"allowed": True, "code": "", "reason": ""}
 
     @property
@@ -376,14 +377,10 @@ class DHWManager:
             if state.state == "on":
                 return "Hygiëneprogramma actief: fabrieksregeling krijgt voorrang"
 
-        # Panasonic does not expose the configured weekly sterilisation cycle via
-        # our HA binding.  Protect a configurable time window around that factory
-        # programme instead of trying to reproduce it.
-        if local_now is not None and hygiene_schedule_active(self.settings, local_now):
-            until = self._hygiene_until(local_now)
-            end = f"; beschermde periode tot {until:%d/%m %H:%M}" if until else ""
-            return (f"Geplande fabrikantsterilisatie rond {self.settings['hygiene_start']} "
-                    f"({self.settings['hygiene_target_c']:g} °C): SolarPilot stuurt geen boilerdoel{end}")
+        # The configured weekly clock is informational only. Panasonic may run
+        # sterilisation internally without changing the ordinary HA target.
+        # A scheduled time therefore neither proves an active native mode nor
+        # prohibits a normal setpoint write; actual reported guards below do.
 
         manual_ids = []
         if self.config.get("manual_entity"):
@@ -403,7 +400,7 @@ class DHWManager:
                 return "Hygiëne/krachtige bedrijfsmodus gemeld; geen setpointopdrachten"
             # If the manufacturer (or a person) asks for a target above SolarPilot's
             # normal maximum, never lower it.  This also protects a sterilisation
-            # cycle that continues beyond the configured schedule guard.  Control
+            # cycle independently of the informational schedule window. Control
             # resumes automatically only after the manufacturer has restored a
             # normal target on its own.
             domain = self.config["target_entity"].split(".")[0]
@@ -416,23 +413,25 @@ class DHWManager:
                 return "Boiler staat uit; SolarPilot schakelt hem niet zelfstandig in"
         return ""
 
-    def _hygiene_until(self, local_now):
-        """Return the end of the same configured weekly no-command window."""
-        if not hygiene_schedule_active(self.settings, local_now):
-            return None
-        hour, minute = (int(x) for x in self.settings["hygiene_start"].split(":")[:2])
-        days = {int(x.strip()) for x in self.settings["hygiene_weekdays"].split(",") if x.strip()}
-        for delta in range(-7, 2):
-            start = (local_now + timedelta(days=delta)).replace(hour=hour, minute=minute,
-                                                               second=0, microsecond=0)
-            end = start + timedelta(seconds=self.settings["hygiene_guard_after_s"])
-            if (start.weekday() in days
-                    and start - timedelta(seconds=self.settings["hygiene_guard_before_s"]) <= local_now <= end):
-                return end
-        return None
+    def _shared_heat_pump(self):
+        """A shared physical meter never proves which thermal task is running."""
+        shared = getattr(self.runtime, "heat_pump_shared", None)
+        if callable(shared):
+            return bool(shared())
+        return bool(getattr(getattr(self.runtime, "smart_climate", None), "configured", False))
+
+    def _climate_guard_entities(self):
+        """Every selected zone of this heat pump participates in its guard."""
+        ids = list(self.config.get("cooling_entities", []) or [])
+        if self._shared_heat_pump():
+            climate = getattr(self.runtime, "smart_climate", None)
+            for entity_id in (getattr(climate, "settings", {}) or {}).get("zone_entities", []) or []:
+                if entity_id not in ids:
+                    ids.append(entity_id)
+        return ids
 
     def _cooling(self):
-        ids = self.config.get("cooling_entities", [])
+        ids = self._climate_guard_entities()
         results = []
         for entity_id in ids:
             # Climate cloud reports must be fresh; binary helpers can legitimately
@@ -528,7 +527,7 @@ class DHWManager:
         fresh idle action is usable; sharing a manufacturer or ACK contract
         does not make it share another adapter's legacy action blindspot.
         """
-        for entity_id in self.config.get("cooling_entities", []):
+        for entity_id in self._climate_guard_entities():
             if not entity_id.startswith("climate."):
                 continue
             obj = self._state(entity_id)
@@ -543,7 +542,7 @@ class DHWManager:
     def space_activity_status(self):
         """Return busy/reason/relevance for DHW and advisory heat-pump learning."""
         source = self._space_activity_source()
-        ids = [x for x in self.config.get("cooling_entities", []) if x.startswith("climate.")]
+        ids = [x for x in self._climate_guard_entities() if x.startswith("climate.")]
         unknown = bool(source["configured"] and source["busy"] is None)
         active_action = False
         # Keep the existing conservative learning context independent of the
@@ -591,7 +590,7 @@ class DHWManager:
         Do not weaken a task guard for another/unregistered adapter. Explicitly
         off zones require no manufacturer-specific action contract.
         """
-        ids = [entity_id for entity_id in self.config.get("cooling_entities", [])
+        ids = [entity_id for entity_id in self._climate_guard_entities()
                if entity_id.startswith("climate.")]
         if not ids:
             return False
@@ -615,7 +614,7 @@ class DHWManager:
         Keep space_activity_status separate: PUMP remains useful unknown-load
         evidence for learning even when a fresh idle action permits DHW.
         """
-        ids = [entity_id for entity_id in self.config.get("cooling_entities", [])
+        ids = [entity_id for entity_id in self._climate_guard_entities()
                if entity_id.startswith("climate.")]
         if not ids:
             return self._space_activity()
@@ -648,8 +647,14 @@ class DHWManager:
         # possible unconsumed commitment is reserved; it is never solar credit.
         isolated_reserve = max(0.0, finite(getattr(self.runtime, "isolated_reserve_w", 0)) or 0.0)
         export = max(0.0, min(pv, max(0, -grid - discharge)) - isolated_reserve) if grid_valid and pv is not None else None
-        power, _ = self.runtime._power(self.config.get("power_entity"), self.settings["stale_s"])
-        own_power = power if power is not None and power >= 0 and self.exclusive_meter() else None
+        own_power = self._metered_power()
+        space_busy, space_reason = self._space_raise_guard()
+        # P1 already includes the one physical heat pump. Its draw may only
+        # sustain an owned DHW target while space activity is reliably inactive;
+        # heating/cooling watts must not become fictitious boiler solar credit.
+        if (self._shared_heat_pump() and self.settings.get("power_meter_scope", "heat_pump") != "tank"
+                and space_busy is not False):
+            own_power = None
         before = (max(0.0, min(pv, max(0, -grid + own_power - discharge)) - isolated_reserve)
                   if grid_valid and pv is not None and own_power is not None else None)
         capacity = getattr(self.runtime, "capacity", None)
@@ -663,7 +668,7 @@ class DHWManager:
                                   bool(reason := self._protected(obj, local_now)), reason,
                                   optional_headroom)
         self.reading.battery_discharge_w = max(0.0, float(discharge or 0.0))
-        self.reading.space_climate_busy, self.reading.space_climate_reason = self._space_raise_guard()
+        self.reading.space_climate_busy, self.reading.space_climate_reason = space_busy, space_reason
         return self.reading
 
     def _comfort_forecast(self, local_now):
@@ -783,21 +788,30 @@ class DHWManager:
                 r.luxury_allowed = False
                 r.luxury_reason = "Extra 60 °C wacht op Wallbox-laadstart of betrouwbare laadstatus"
         preference = getattr(self.runtime, "dishwasher_priority", None)
+        protected_wash_ids = {i for i, c in self.runtime.configs.items()
+                              if c.get("kind") == "dishwasher"
+                              and getattr(self.runtime.states.get(i), "on", False)}
+        if (r.luxury_allowed and any(not getattr(self.runtime.states.get(i), "available", False)
+                                    or getattr(self.runtime.states.get(i), "fault", "")
+                                    or self.runtime._restart_active(self.runtime.configs[i]) is None
+                                    for i in protected_wash_ids)):
+            r.luxury_allowed = False
+            r.luxury_reason = "Extra 60 °C wacht: afwasstatus of vermogen van de lopende afwascyclus is niet betrouwbaar"
         # A running preferred dishwasher is a load to reserve, not a blanket
         # veto on 60 °C. A ready cycle that demonstrably fits still receives
         # the first start opportunity. The allocation deliberately excludes any
         # Wallbox credit and does not reserve this DHW heater a second time.
         if (preference is not None and r.luxury_allowed
-                and (preference.view.active_ids or preference.view.candidate_ids)):
+                and (preference.view.active_ids or preference.view.candidate_ids or protected_wash_ids)):
             holding_high = (self.owned_target == self.settings["surplus_c"]
                             and not self.pending)
             fresh_target = self._state(self.config["target_entity"])
             action = (str(fresh_target.attributes.get("hvac_action", "")).casefold()
                       if fresh_target is not None else "")
-            own_power, _ = self.runtime._power(
-                self.config.get("power_entity"), self.settings["stale_s"])
+            own_power = self._metered_power()
             verified_heating = (action in ("heating", "preheating")
-                                or (self.exclusive_meter() and own_power is not None
+                                or ((not self._shared_heat_pump() or self.settings.get("power_meter_scope", "heat_pump") == "tank")
+                                    and self.exclusive_meter() and own_power is not None
                                     and own_power > 100))
             restart_c = self.settings["surplus_c"] + self.settings["tank_differential_c"]
             restart_proof = (holding_high and
@@ -828,7 +842,7 @@ class DHWManager:
                 # Other isolated loads are covered by the explicit reserve.
                 states={i: s for i, s in self.runtime.states.items()
                         if i not in getattr(self.runtime, "source_isolated_devices", {})
-                        or i in preference.view.active_ids | preference.view.candidate_ids})
+                        or i in preference.view.active_ids | preference.view.candidate_ids | protected_wash_ids})
             self._luxury_allocation = {**asdict(allocation), "capacity_guard_enabled": capacity_guard,
                                        "estimated_heat_power_w": self.settings["estimated_heat_power_w"]}
             if not allocation.allowed:
@@ -886,9 +900,23 @@ class DHWManager:
         r = self.runtime
         reserved = {r.settings.get(k) for k in ("grid_entity", "export_entity", "pv_entity", "battery_power_entity")}
         reserved.update(c.get("power_entity") for c in r.configs.values())
-        if r.wallbox_settings["enabled"]:
-            reserved.add(r.wallbox_settings.get("power_entity"))
+        reserved.update(c.get("power_entity") for c in getattr(getattr(r, "battery_fleet", None), "configs", {}).values())
+        reserved.add(r.wallbox_settings.get("power_entity"))
         return meter not in reserved
+
+    def _metered_power(self):
+        """Only an independent live measured source can supply electrical proof."""
+        if not self.exclusive_meter():
+            return None
+        meter = self.config.get("power_entity")
+        obj = self._state(meter)
+        attributes = getattr(obj, "attributes", {}) or {}
+        if (obj is None or attributes.get("estimated") is True or attributes.get("is_estimated") is True
+                or any(word in str(attributes.get("friendly_name", "")).casefold()
+                       for word in ("geschat", "estimated"))):
+            return None
+        power, _ = self.runtime._power(meter, self.settings["stale_s"])
+        return power if power is not None and power >= 0 else None
 
     def check_target(self, desired):
         entity_id = self.config["target_entity"]
@@ -961,7 +989,6 @@ class DHWManager:
                                              max(0, time.time() - self.last_command_wall)))
                               if self.last_command_wall > 0 and r.actual_target_c is not None
                               and r.actual_target_c < c["surplus_c"] - .05 else 0)
-        until = self._hygiene_until(local_now) if local_now is not None else None
         gates = []
 
         def gate(code, passed, reason, **detail):
@@ -976,8 +1003,7 @@ class DHWManager:
              (self.restart_recovery or {}).get("reason") or "Boilerherstartcontrole nog niet afgerond")
         gate("fault", not self.fault, self.fault or "Boileropdrachtfout vereist controle")
         gate("manual_hold", not self.manual_hold, "Boilerregeling uit voorzorg gepauzeerd; controle nodig")
-        gate("protection", not r.protected, r.protection_reason or "Fabrikant-/handmatige regeling krijgt voorrang",
-             until=until.isoformat() if until else None)
+        gate("protection", not r.protected, r.protection_reason or "Fabrikant-/handmatige regeling krijgt voorrang")
         gate("temperature", r.temperature_c is not None, "Tanktemperatuur ontbreekt, is te oud of heeft een ongeldige eenheid",
              actual_c=r.temperature_c)
         gate("target", r.actual_target_c is not None, "Actueel boilerdoel ontbreekt, is te oud of heeft een ongeldige eenheid",
@@ -1044,7 +1070,7 @@ class DHWManager:
                 "target": self._diagnostic_source(self.config.get("target_entity")),
                 "temperature": self._diagnostic_source(self.config.get("temperature_entity") or self.config.get("target_entity")),
                 "space_activity": self._diagnostic_source(self.config.get("space_activity_entity")),
-                "cooling": [self._diagnostic_source(i) for i in self.config.get("cooling_entities", [])],
+                "cooling": [self._diagnostic_source(i) for i in self._climate_guard_entities()],
                 "hygiene": self._diagnostic_source(self.config.get("hygiene_entity")),
                 "manual": [self._diagnostic_source(i) for i in filter(None, [self.config.get("manual_entity"), *self.config.get("manual_entities", [])])],
                 "site": {key: self._diagnostic_source(self.runtime.settings.get(key))
@@ -1121,6 +1147,7 @@ class DHWManager:
         if not self.configured:
             self._finish_execution("disabled", "configured", "Boilerbediening niet gekoppeld")
             return False
+        self._evaluated_source_proof = self._optional_source_proof()
         await self.reconcile_restart(local_now)
         r = self.read(grid, valid, discharge, local_now)
         self._prepare_comfort(local_now, r)
@@ -1276,18 +1303,103 @@ class DHWManager:
             return False
         return await self._send(now, desired, releasing, decision.reason)
 
+    def _optional_send_guard(self, desired, previous_target):
+        """Recheck a new optional increase immediately around durable intent.
+
+        Saving intent yields to Home Assistant. An intervening source, mode or
+        factory change may revoke permission before any physical call exists.
+        Such an unsent intent is cancelled, not labelled an uncertain write.
+        """
+        rt = self.runtime
+        if (rt.mode != "solar" or not self.auto_enabled or not self.settings["safety_confirmed"]
+                or self.fault or self.needs_review or self.manual_hold or self.restart_recovery):
+            return False, "Extra warm water wacht: automatische bediening is niet meer vrijgegeven"
+        actual, obj = self._target()
+        if actual is None or self._temperature() is None:
+            return False, "Extra warm water wacht op betrouwbare actuele temperatuur- en doelterugmelding"
+        if abs(actual - previous_target) > .05:
+            return False, "Boilerdoel gewijzigd vóór uitvoering; nieuwe toestand eerst beoordelen"
+        if protection := self._protected(obj, self._execution_local_now):
+            return False, protection
+        if error := self.check_target(desired):
+            return False, error
+        for i, c in rt.configs.items():
+            state = rt.states.get(i)
+            if c.get("kind") == "dishwasher" and getattr(state, "on", False):
+                if (not getattr(state, "available", False) or getattr(state, "fault", "")
+                        or rt._restart_active(c) is None):
+                    return False, "Extra 60 °C wacht: afwasstatus of vermogen van de lopende afwascyclus is niet betrouwbaar"
+        if desired > self.settings["cooling_cap_c"] + .05 and self._cooling() is not False:
+            return False, "Extra warm water wacht: koelinformatie is veranderd vóór uitvoering"
+        if self.settings.get("respect_space_climate", True):
+            busy, why = self._space_raise_guard()
+            if busy is not False:
+                return False, why or "Extra warm water wacht op beschikbaar ruimteklimaatvermogen"
+        guard = getattr(rt, "heat_pump_increase_allowed", None)
+        if callable(guard):
+            allowed, why = guard()
+            if not allowed:
+                return False, why or "Extra warm water wacht op een nieuwe betrouwbare overschotmeting"
+        return True, ""
+
+    def _optional_send_wait(self, reason):
+        self.status = reason
+        self._dispatch_gate = {"allowed": False, "code": "live_power", "reason": reason}
+        self._finish_execution("waiting", "live_power", self.status)
+
+    def _optional_source_proof(self):
+        """Capture actual electrical values; unchanged heartbeat reports are fine."""
+        rt = self.runtime
+        grid, valid, discharge, ready, _stamp = rt._site_data()
+        pv, _pv_stamp = rt._power(rt.settings.get("pv_entity"))
+        battery, _battery_stamp = rt._power(rt.settings.get("battery_power_entity"))
+        power, _power_stamp = rt._power(self.config.get("power_entity"), self.settings["stale_s"])
+        bindings = tuple(rt.settings.get(k) for k in (
+            "grid_entity", "export_entity", "pv_entity", "battery_power_entity"))
+        return (bindings, self.config.get("target_entity"), self.config.get("temperature_entity"),
+                grid, bool(valid), discharge, bool(ready), pv, battery,
+                self.config.get("power_entity"), self.settings.get("power_meter_scope", "heat_pump"), power,
+                getattr(rt, "isolated_reserve_w", 0), rt.settings.get("reserve_w", 0))
+
     async def _send(self, now, desired, release, reason):
         rt = self.runtime
+        previous_target = self.reading.actual_target_c
+        optional_increase = (not release and desired > effective_base_target(self.settings) + .05
+                             and previous_target is not None and desired > previous_target + .05)
+        if optional_increase:
+            allowed, why = self._optional_send_guard(desired, previous_target)
+            if (allowed and self._evaluated_source_proof is not None
+                    and self._optional_source_proof() != self._evaluated_source_proof):
+                allowed, why = False, "Zonne- of vermogensmeting gewijzigd sinds beoordeling; overschot eerst opnieuw beoordelen"
+            if not allowed:
+                self._optional_send_wait(why)
+                return False
+            source_proof = self._optional_source_proof()
+        previous_policy = (self.policy.current, self.policy.candidate, self.policy.candidate_since)
+        previous_owned, previous_command_wall = self.owned_target, self.last_command_wall
         self.policy.current = desired
         self.policy.candidate = self.policy.candidate_since = None
         self.owned_target = desired
         self.pending = {"target": desired, "issued": now, "issued_wall": time.time(), "release": release,
                         "ack_poll_min_s": self._ack_poll_min_s(), "reason": reason}
         self.last_command_wall = self.pending["issued_wall"]
+        await self._save()  # Durable intent BEFORE the physical call.
+        if optional_increase:
+            allowed, why = self._optional_send_guard(desired, previous_target)
+            if allowed and self._optional_source_proof() != source_proof:
+                allowed, why = False, "Zonne- of vermogensmeting gewijzigd vóór uitvoering; overschot eerst opnieuw beoordelen"
+            if not allowed:
+                # No physical call has occurred, so restore the prior journal
+                # rather than turning a cancelled intent into a permanent fault.
+                self.pending = None
+                self.owned_target, self.last_command_wall = previous_owned, previous_command_wall
+                self.policy.current, self.policy.candidate, self.policy.candidate_since = previous_policy
+                await self._save()
+                self._optional_send_wait(why)
+                return False
         rt.last_issued = now
         rt.last_issued_wall = self.last_command_wall
         rt.wallbox_guard.note_action(now, self.last_command_wall, 0, 0)
-        await self._save()  # Durable intent BEFORE the physical call.
         self.status = f"Doel {desired:g} °C aangevraagd; {reason}"
         self._finish_execution("requested", "requested", self.status)
         rt.note("Boiler: " + self.status)
@@ -1422,6 +1534,9 @@ class DHWManager:
                 "pv_w": r.pv_w, "measured_solar_export_w": r.export_w,
                 "before_boiler_w": r.before_boiler_w,
                 "own_meter_available": self.exclusive_meter(),
+                "heat_pump_shared_with_rooms": self._shared_heat_pump(),
+                "power_measurement_scope": (self.settings.get("power_meter_scope", "heat_pump")
+                                            if self.exclusive_meter() else "unavailable"),
                 "comfort_plan": self.comfort.result.as_dict(), "tank_learning": dict(self.comfort.rates),
                 "heat_pump_priority": "Warmtepompcomfort vóór Wallbox; extra 60 °C uitsluitend werkelijk restoverschot",
                 "predicted_cooling": r.predicted_cooling, "luxury_allowed": r.luxury_allowed,
@@ -1432,13 +1547,17 @@ class DHWManager:
                     "weekdays": self.settings["hygiene_weekdays"], "start": self.settings["hygiene_start"],
                     "target_c": self.settings["hygiene_target_c"],
                     "guard_before_s": self.settings["hygiene_guard_before_s"],
-                    "guard_after_s": self.settings["hygiene_guard_after_s"]},
+                    "guard_after_s": self.settings["hygiene_guard_after_s"],
+                    "context_only": True, "blocks_target_writes": False,
+                    "window_active": (hygiene_schedule_active(self.settings, self._execution_local_now)
+                                      if self._execution_local_now is not None else None),
+                    "explanation": "Kloktijd blokkeert geen gewoon boilerdoel; de fabrikant beheert sterilisatie zelf"},
                 "switch_entity": self.runtime.entity_id("switch", "dhw_enabled"),
                 "review_entity": self.runtime.entity_id("button", "dhw_review"),
                 "takeover_entity": self.runtime.entity_id("button", "dhw_takeover"),
                 "number_entities": {k: self.runtime.entity_id("number", "dhw_" + k) for k in DHW_NUMBERS},
                 "configuration_source": "config_entry.options.dhw",
-                "settings": {k: self.settings[k] for k in (*DHW_NUMBERS, "night_enabled", "night_start", "night_end",
+                "settings": {k: self.settings[k] for k in (*DHW_NUMBERS, "power_meter_scope", "night_enabled", "night_start", "night_end",
                     "rise_delay_s", "fall_delay_s", "cooling_clear_s", "cooling_detection",
                     "respect_space_climate", "optional_raise_interval_s",
                     "hygiene_schedule_enabled", "hygiene_weekdays", "hygiene_start", "hygiene_target_c",
