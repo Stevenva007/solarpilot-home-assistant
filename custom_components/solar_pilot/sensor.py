@@ -15,6 +15,44 @@ COST_SENSORS = {
 }
 
 
+def energy_display(runtime):
+    """Presentation-only meter reads; never mutate site data or control state."""
+    settings = runtime.settings
+    pv_settings = getattr(getattr(runtime, "pv_forecast", None), "settings", {})
+    result = {"inverter_limit_w": pv_settings.get("inverter_limit_w"),
+              "stale_s": settings.get("stale_s", 120),
+              "pv": {"value_w": None, "reported_at": None},
+              "grid": {"value_w": None, "reported_at": None}}
+    power = getattr(runtime, "_power", None)
+    if not callable(power):
+        return result
+
+    def read(entity_id):
+        value, stamp = power(entity_id)
+        obj = runtime.hass.states.get(entity_id) if entity_id else None
+        attrs = obj.attributes if obj else {}
+        if attrs.get("estimated") is True or attrs.get("is_estimated") is True:
+            return None, stamp
+        return value, stamp
+
+    pv, pv_stamp = read(settings.get("pv_entity"))
+    if pv is not None and pv >= 0:
+        result["pv"] = {"value_w": pv, "reported_at": pv_stamp}
+    grid, grid_stamp = read(settings.get("grid_entity"))
+    if settings.get("grid_sign") == "separate":
+        export, export_stamp = read(settings.get("export_entity"))
+        if grid is None or export is None or grid < 0 or export < 0:
+            grid = None
+        else:
+            grid -= export
+            grid_stamp = min(grid_stamp, export_stamp)
+    elif settings.get("grid_sign") == "export_positive" and grid is not None:
+        grid = -grid
+    if grid is not None:
+        result["grid"] = {"value_w": grid, "reported_at": grid_stamp}
+    return result
+
+
 async def async_setup_entry(hass, entry, async_add_entities):
     r = entry.runtime_data
     r.platforms.register("sensor", async_add_entities, lambda: _entities(r))
@@ -74,6 +112,8 @@ class SolarSensor(SolarEntity, SensorEntity):
         "battery_analysis", "local_pv", "sections", "ems", "planner", "cycle_learning",
         "smart_climate", "battery_fleet", "device_management", "priority_board", "historical_phase_profile", "today", "forecast",
         "capacity", "phase", "economy", "warnings", "advice", "legacy_conflicts", "dishwasher_setup", "isolated_devices",
+        "energy_display", "pv_model", "thermal_model", "learning_insights", "removal",
+        "pv_forecast", "savings", "electricity_today",
     })
 
     def __init__(self, runtime, suffix, name, device_id=None):
@@ -126,7 +166,12 @@ class SolarSensor(SolarEntity, SensorEntity):
         return datetime.fromtimestamp(stamp, timezone.utc) if stamp is not None else None
 
     def _ems(self):
-        return self.runtime.ems_overview()
+        reader = getattr(self.runtime, "sensor_overview", None)
+        return reader("ems") if callable(reader) else self.runtime.ems_overview()
+
+    def _learning(self):
+        reader = getattr(self.runtime, "sensor_overview", None)
+        return reader("learning") if callable(reader) else self.runtime.learning_overview()
 
     @property
     def native_value(self):
@@ -208,7 +253,7 @@ class SolarSensor(SolarEntity, SensorEntity):
         if self.suffix == "capacity_headroom":
             return r.capacity.optional_headroom_w
         if self.suffix == "learning":
-            return r.learning_overview()["status"]
+            return self._learning()["status"]
         if self.suffix == "wallbox_status":
             return r.wallbox_guard.result.reason[:250]
         if self.suffix == "wallbox_power":
@@ -251,7 +296,7 @@ class SolarSensor(SolarEntity, SensorEntity):
         }:
             return self._ems()
         if self.suffix == "learning":
-            return r.learning_overview()
+            return self._learning()
         if self.suffix in ("wallbox_status", "wallbox_power"):
             return r.wallbox_overview()
         if self.key:
@@ -265,6 +310,7 @@ class SolarSensor(SolarEntity, SensorEntity):
             isolated = [{"id": device_id, **details}
                         for device_id, details in getattr(r, "source_isolated_devices", {}).items()]
             return {"solar_pilot": True, "mode": r.mode, "problem": r.problem,
+                    "energy_display": energy_display(r),
                     "problem_kind": r.problem_kind,
                     "auto_resume_after_restart": r.auto_resume_after_restart,
                     "auto_resume_after_restart_entity": r.entity_id("switch", "auto_resume_after_restart"),
@@ -279,12 +325,12 @@ class SolarSensor(SolarEntity, SensorEntity):
                     "budget_w": r.result.budget_w,
                     "budget_note": "Voorwaardelijk regelbudget; geen gemeten vrije injectie", "managed_w": round(r.managed_w, 1),
                     "reserve_w": r.settings["reserve_w"], "max_import_w": r.settings["max_import_w"],
-                    "dhw": r.dhw.overview(), "devices": r.overview(), "wallbox": r.wallbox_overview(), "learning": r.learning_overview(),
+                    "dhw": r.dhw.overview(), "devices": r.overview(), "wallbox": r.wallbox_overview(), "learning": self._learning(),
                 "learning_insights": r.learning_hub.summary(),
                     "device_management": r.live_options.overview(),
                     "priority_board": r.priority_board.overview(),
                     "dishwasher_setup": getattr(r, "dishwasher_recovery_info", {"status": "not_checked"}),
-                    "ems": r.ems_overview(), "recent_decisions": list(r.logs), "recovery": list(r.recovery.values()),
+                    "ems": self._ems(), "recent_decisions": list(r.logs), "recovery": list(r.recovery.values()),
                     "mode_entity": r.entity_id("select", "mode"), "reset_entity": r.entity_id("button", "reset"),
                     "prepare_remove_entity": r.entity_id("button", "prepare_remove"),
                     "removal": r.removal_overview(),

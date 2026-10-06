@@ -119,6 +119,7 @@ class SolarRuntime:
         self._restart_notice = False
         self.faults = {}
         self.listeners = set()
+        self._sensor_overviews = {}
         self.logs = deque(maxlen=30)
         self.pending = None
         self.result = Plan()
@@ -896,8 +897,24 @@ class SolarRuntime:
 
     @callback
     def publish(self):
+        # Reuse expensive, complete presentation data across native sensors.
+        # Controllers and exports keep calling their live overview methods.
+        requested = tuple(self._sensor_overviews)
+        self._sensor_overviews.clear()
+        if self.listeners:
+            for name in requested:
+                self.sensor_overview(name)
         for listener in tuple(self.listeners):
             listener()
+
+    def sensor_overview(self, name):
+        """One complete presentation snapshot per publication, never control data."""
+        builders = {"ems": self.ems_overview, "learning": self.learning_overview}
+        if name not in builders:
+            raise ValueError("Unknown sensor presentation")
+        if name not in self._sensor_overviews:
+            self._sensor_overviews[name] = builders[name]()
+        return self._sensor_overviews[name]
 
     def note(self, message):
         self.logs.appendleft({"time": datetime.now(timezone.utc).isoformat(timespec="seconds"), "message": message})

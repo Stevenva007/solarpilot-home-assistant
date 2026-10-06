@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0-beta.59 — 2026-10-06
+
+- Voorkomt te grote Recorder-attribuutpakketten door ontbrekende zware model-/leer-/analyseattributen uitsluitend van de herhaalde HA-historiekkopie uit te sluiten. De volledige actuele sensorinhoud, eigen opslag en directe exportmodellen blijven behouden; geen data-/leerreset of gewijzigde bewaartermijn. Extra schijfruimte vergroot de 16 KiB-limiet per Recorder-pakket niet.
+- Hergebruikt EMS-/leerpresentatie per publicatieronde voor sensorupdates en bouwt aangevraagde pakketten één keer vóór listeners. Controllers en analyse blijven directe actuele overzichten gebruiken; minder herhaald opbouwwerk zonder nieuwe regelvrijgave.
+- Herstelt een reproduceerbare `NameError` in de warmwater-avondvoorraadvoorspelling: `_comfort_forecast` gebruikte `timedelta` zonder import. De gewone zonnige forecast-/voorraadroute kan daardoor weer berekenen zonder deze interne foutpauze. Een live screenshot zonder traceback bewijst de specifieke oorzaak niet; de echte runtime-/opdrachtfoutbescherming blijft intact.
+- Geeft de actuele tegels **Zonnepanelen** en **Net** een kleurenschaal met gekleurde rand, zachte achtergrond en horizontale kleurverloopindicator. PV loopt van rood naar groen ten opzichte van de ingestelde AC-omvormergrens; injectie is groen, nul lichtgroen en grotere netafname geel/oranje/rood.
+- Gebruikt de positieve ingestelde netafnamegrens of anders de omvormergrens alleen als visuele importreferentie. Geen Wp/forecast als productieschaal en geen nieuwe vermogensvrijgave. Tekst, eenheden en afname/injectie blijven leesbaar; oude, ontbrekende of ongeldige bronnen blijven grijs.
+- Voegt een kleine betekenislegenda toe; de blauwe activiteitstatus blijft afzonderlijk. De kaart neemt read-only bronbewijs en schaalreferenties over, zonder nieuwe toestelactie, configuratie- of rangordemigratie. Automatisch hervatten uit beta.58 en alle eerdere regelingen blijven behouden.
+- Werkt versie, canonieke HA-uitleg, releasegebonden hulp, installatie/rollback, testverslag en overdracht samen bij. Eigen gate: `docs/TESTRESULTATEN_BETA59.md`; de gecontroleerde gepubliceerde beta.58 is bron- en rollbackbasis.
+
 ## 1.0.0-beta.58 — 2026-10-06
 
 - Voegt **Na herstart automatisch hervatten** toe bij de dashboardmodi en als native Home Assistant-schakelaar, standaard Aan. Een gewone opgeslagen Pauze vraagt na HA-herstart of integratieherlading Automatisch regelen via de bestaande reconciliatie en bron-/opdracht-/DHW-controles. Met Uit blijft Pauze staan; opgeslagen solar behoudt haar gewone herstelpad. Alleen bekijken en eerste installatie krijgen geen automatische activering.

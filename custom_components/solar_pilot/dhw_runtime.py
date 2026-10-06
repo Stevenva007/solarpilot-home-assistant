@@ -6,7 +6,7 @@ thermostat, hygiene functions and hot-water safety remain prerequisites.
 from __future__ import annotations
 import asyncio
 from dataclasses import asdict
-from datetime import datetime
+from datetime import datetime, timedelta
 import math
 import time
 from zoneinfo import ZoneInfo

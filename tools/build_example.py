@@ -100,6 +100,12 @@ attributes = {
     "problem": "",
     "pv_w": 6200,
     "grid_w": -150,
+    "energy_display": {
+        "inverter_limit_w": 8000,
+        "stale_s": 120,
+        "pv": {"value_w": 6200, "reported_at": 0},
+        "grid": {"value_w": -150, "reported_at": 0},
+    },
     "free_w": 0,
     "managed_w": 2000,
     "budget_w": 5000,
@@ -544,6 +550,8 @@ attributes["priority_board"] = {
 
 html = f'''<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SolarPilot {guide_mod.GUIDE_VERSION} Control Center voorbeeld</title><style>body{{margin:0;padding:18px;background:#f3f5f7;max-width:520px;margin-inline:auto}}solar-pilot-card{{display:block}}</style></head><body><p style="font:13px/1.5 system-ui">Fictieve voorbeeldgegevens · geen live bediening of opslag</p><solar-pilot-card></solar-pilot-card><script>{card}</script><script>
 const attributes = {json.dumps(attributes, ensure_ascii=False)};
+// Start the explicitly fictitious meter snapshot when the example opens.
+for(const source of ['pv','grid']) attributes.energy_display[source].reported_at=Date.now()/1000;
 const card=document.querySelector('solar-pilot-card'); card.setConfig({{}});
 const guideAttributes = {json.dumps(guide_attributes, ensure_ascii=False)};
 card.hass={{user:{{is_admin:true}},callWS:async msg=>{{if(msg.type==='solar_pilot/priority_board'&&!msg.save)return structuredClone(attributes.priority_board);throw new Error('Offline voorbeeld: er wordt niets opgeslagen of opgehaald.');}},states:{{'sensor.solarpilot_status':{{state:'Zonnestroom',attributes}},'sensor.solarpilot_actuele_uitleg':{{state:guideAttributes.version,attributes:guideAttributes}}}}, callService:async()=>{{throw new Error('Deze voorbeeldpagina bedient geen apparaten. Gebruik de kaart binnen Home Assistant voor echte bediening.');}}}};

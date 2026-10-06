@@ -12,6 +12,7 @@ def sensor_class():
     source = Path(__file__).resolve().parents[1] / "custom_components/solar_pilot/sensor.py"
     tree = ast.parse(source.read_text(encoding="utf-8"))
     nodes = [node for node in tree.body if (isinstance(node, ast.ClassDef) and node.name == "SolarSensor")
+             or (isinstance(node, ast.FunctionDef) and node.name == "energy_display")
              or (isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "COST_SENSORS" for t in node.targets))]
     class Base:
         def __init__(self, runtime, suffix, name, device_id=None):
