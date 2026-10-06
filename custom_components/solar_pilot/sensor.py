@@ -266,6 +266,10 @@ class SolarSensor(SolarEntity, SensorEntity):
                         for device_id, details in getattr(r, "source_isolated_devices", {}).items()]
             return {"solar_pilot": True, "mode": r.mode, "problem": r.problem,
                     "problem_kind": r.problem_kind,
+                    "auto_resume_after_restart": r.auto_resume_after_restart,
+                    "auto_resume_after_restart_entity": r.entity_id("switch", "auto_resume_after_restart"),
+                    "pause_cause": r.pause_cause, "pause_reason": r.pause_reason,
+                    "restart_requested_mode": r.restart_requested_mode,
                     "restart_recovery_pending": r.restart_recovery_pending,
                     "restart_blocking": r.restart_blocking,
                     "restart_recovery_devices": [r.configs[i]["name"] for i in r.recovery],

@@ -1,14 +1,21 @@
-> **Actuele bron: beta.57** — één gezamenlijke warmtepompbegroting, extra 60 °C vóór veilige gewone flexlasten, zonne-AUTO vanaf 2500 W en duidelijke blauwe activiteitsranden. De bekende sterilisatieplanning blokkeert geen gewone doelopdracht. Test-/publicatiestatus: `docs/TESTRESULTATEN_BETA57.md`.
+> **Actuele bron: beta.58** — een gewone Pauze hervat na herstart automatisch via de bestaande controles. De zichtbare schakelaar **Na herstart automatisch hervatten** staat standaard Aan; Alleen bekijken, echte fouten en verwijderen blijven beschermd. Alle beta.57-regelingen blijven behouden. Test-/publicatiestatus: `docs/TESTRESULTATEN_BETA58.md`.
 
 # SolarPilot
 
 SolarPilot is a local Home Assistant Energy Management System (EMS) for PV surplus, flexible loads, Panasonic Aquarea hot-water policy, Wallbox Full Solar coexistence, phase analysis, capacity-tariff awareness, local PV/shade learning, slow thermal-climate learning, future home batteries and a unified rolling-horizon planner.
 
-De codebasis en rollbackbasis zijn de gepubliceerde beta.56 op commit `cdc17f3a18d82c30a30967b044565a2819439f42`, tree `dc282d67a4cefcfed2854d83687cab9f5bcce039`. De onveranderlijke [beta.56-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.56), haar geslaagde workflow en vier gecontroleerde assets vormen de basis. Een softwaretest of publicatie bewijst geen geladen Home Assistant-versie of fysieke toestelactie.
+De codebasis en rollbackbasis zijn de gepubliceerde beta.57 op commit `bfd49647d9a69e6a1608ecae687f04fd739a6d3b`, tree `41dbf19bc875d226fda803074b2c5a6736a0e749`. De onveranderlijke [beta.57-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.57), workflow `37457749071`, 3474 tests en vier tegen de tag gecontroleerde assets vormen het basisbewijs. Een softwaretest of publicatie bewijst geen geladen Home Assistant-versie of fysieke toestelactie.
 
 > **Updates zijn cumulatief.** Je hoeft tussenliggende beta-versies niet één voor één te installeren of publiceren. Installeer de nieuwste release over je bestaande SolarPilot-installatie; Home Assistant-configuratie en lokale leerdata blijven behouden.
 
-## Nieuw in beta.57
+## Nieuw in beta.58
+
+- **Na herstart automatisch hervatten** staat standaard Aan. Een gewone opgeslagen Pauze vraagt na Home Assistant-herstart of integratieherlading weer Automatisch regelen, zodra de bestaande toestel-, bron- en opdrachtcontroles dit toelaten. Elk toestel behoudt zijn eigen voorwaarden; oude opdrachten worden niet herhaald.
+- Met de schakelaar Uit blijft opgeslagen Pauze staan. Alleen bekijken en een eerste installatie blijven Alleen bekijken. Een al opgeslagen automatische modus behoudt haar normale herstelpad, ook als de schakelaar Uit staat. De schakelaar zelf verandert de huidige modus niet.
+- Opnieuw Pauze kiezen annuleert een momenteel wachtende hervatting; bij een volgende herstart geldt de bewaarde voorkeur opnieuw. Interne fout-/verwijderpauzes bewaren hun eigen oorzaak en reden en hervatten niet automatisch. Bekende echte fouten, onzekere opdrachten en vereiste boilerbeoordeling blijven beschermd.
+- De kaart benoemt automatisch wachten, bewust gepauzeerd blijven en vereiste foutcontrole. Beta.57 bewaarde geen afzonderlijke pauzeoorzaak; een oudere Pauze wordt alleen via het gewone beveiligde pad beoordeeld. Leerdata, koppelingen, APP-aanvragen en voorrang blijven behouden. Zie `docs/BETA58_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA58.md` en `OVERDRACHT.md`.
+
+## Behouden uit beta.57
 
 Op **Overzicht → Wat gebeurt er en waarom?** staan stand, actuele start-/wachtreden en laatst vastgelegde verandering bij elkaar. Een doorlopende blauwe rand betekent bevestigde activiteit. Een gestippelde blauwe rand betekent AUTO beschikbaar of een werkelijk hoger gemeld tankdoel. Een voorstel of gedeelde warmtepompmeter bewijst geen tapwateropwarming; oude bronnen blijven zichtbaar onbekend.
 
@@ -17,7 +24,7 @@ Op **Overzicht → Wat gebeurt er en waarom?** staan stand, actuele start-/wacht
 - Vanaf **2500 W** restzon gedurende **60 seconden** met nieuwe echte P1/PV mag AUTO beschikbaar zijn zonder temperatuurvraag of volledig geleerd model. Bekend vers programma, dashboardkeuzes, externe rust, minimum aan-/uittijden en bron-/opdrachtbescherming blijven verplicht. Alleen bevestigd eigen zonne-AUTO houdt vanaf **2000 W** met één begrensde terugtelling van de gezamenlijke verse warmtepompvraag.
 - Ruimteklimaat en tapwater zijn **één warmtepomp**. Het actuele verbruik zit al eenmaal in P1; nieuwe reservering gebruikt de grootste passende taakraming minus eenmaal hetzelfde gemeten verbruik. De optionele meter kiest expliciet hele warmtepomp of exclusieve boiler. Geen dubbele reserve of gedeelde meter als specifieke tapwateractiviteit presenteren.
 - Het gewone klimaatcomfortpad blijft richtingsgebonden en gebruikt betrouwbare passieve trends, zachte vraagbevestiging en relevante leer-/forecastgegevens. SolarPilot kiest alleen HA AUTO/UIT; de integratie kan dit globaal vertalen. Geen directe HEAT/COOL of Force DHW.
-- Koppelingen, geldige leerdata, APP-aanvragen, overrides, gecomprimeerde privé-export en elektrische/fabrikantbescherming blijven behouden. Zie `docs/BETA57_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA57.md` en `OVERDRACHT.md`.
+- Koppelingen, geldige leerdata, APP-aanvragen, overrides, gecomprimeerde privé-export en elektrische/fabrikantbescherming blijven behouden. De actuele upgrade staat in `docs/BETA58_INSTELLEN.md`; beta.57-documenten zijn releasehistorie.
 
 ## Behouden uit beta.56
 
@@ -43,7 +50,7 @@ De inclusieve 3000 W-boilerdrempel, onafhankelijke stabiliteit/opdrachtrust, dui
 ## Behouden uit beta.53
 
 - Een onbeschikbaar eerder beheerd toestel wacht afzonderlijk op bruikbare status. De overige beschikbare toestellen kunnen de opgeslagen automatische modus hervatten zodra de globale net- en veiligheidsbronnen geldig zijn. Er volgt geen blinde uitschakeling van het ontbrekende toestel.
-- Het ontbrekende toestel blijft automatisch gecontroleerd worden en keert na echte betrouwbare terugmelding vanzelf terug. Eerdere beheerinformatie, deelname, prioriteit, minimumlooptijden en bescherming van lopende programma’s blijven behouden. Een later gekozen Alleen bekijken of Pauze wordt gerespecteerd.
+- Het ontbrekende toestel blijft automatisch gecontroleerd worden en keert na echte betrouwbare terugmelding vanzelf terug. Eerdere beheerinformatie, deelname, prioriteit, minimumlooptijden en bescherming van lopende programma’s blijven behouden. Alleen bekijken blijft gelden; een actuele Pauze stopt huidige hervatting en volgt bij een volgende herstart de zichtbare beta.58-voorkeur.
 - Mogelijk huidig en later verbruik blijft conservatief gereserveerd. Werkelijk verbruik zit al in de P1-meting; onbekende lasten leveren geen gratis vermogen op. Echte opdrachtfouten en onzekere START-opdrachten behouden hun afzonderlijke blokkering.
 - Actieve fasebewaking behoudt de algemene elektrische begrenzing bij ontbrekende of ongeldige actuele fasemetingen, ook met een aangeleerde fasekaart. Instellingen, leerdata, boilerbeleid en volledig read-only Wallbox blijven behouden.
 
@@ -101,11 +108,11 @@ Zie `docs/BETA48_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA48.md` en het actuele `
 ## Behouden uit beta.47
 
 - Een gewone herstart blijft automatisch echte toestelstatussen controleren zonder handmatige bevestiging. De actuele individuele bescherming van een tijdelijk onbeschikbaar toestel staat bij beta.53; opgeslagen gebruikersintentie en betrouwbare status blijven leidend.
-- De oorspronkelijke hervatkeuze blijft bewaard over tussentijdse opslag of een volgende herstart. Een bewuste latere keuze voor Alleen bekijken of Pauze vervangt die keuze. Minimum aan-/uittijden starten bij de nieuwe echte waarneming.
+- De oorspronkelijke hervatkeuze blijft bewaard over tussentijdse opslag. Een bewuste latere moduskeuze vervangt een nu wachtende hervatting; een volgende herstart volgt daarnaast de zichtbare beta.58-voorkeur. Minimum aan-/uittijden starten bij de nieuwe echte waarneming.
 - De boiler controleert temperatuur, doel en beschermingsbronnen automatisch zonder oude doelopdracht te herhalen. Een routinecontrole wacht modulelokaal; echte fout, handmatige overname of gewijzigd doel blijft beschermd. Een pending boileropdracht vereist een nieuwe rapportage ná herstart en de bestaande adapterwachttijd.
 - Een afwasmachine met onzekere eerdere START krijgt nooit een tweede START. Alleen een nieuwe betrouwbare lopende of voltooide fase-terugmelding van ná die START kan de specifieke herstartonzekerheid automatisch oplossen; een oude Washing/Finished-stand niet. Andere fouten blijven behouden.
 
-Eenmalig kan oude Alleen bekijken-opslag zonder hervatmarker haar verloren Auto-keuze herstellen: uitsluitend zonder echte fout/handmatige boilerbescherming en met een onderbroken lease van een bekend Auto-toestel of schoon routine-boilerjournal. Nieuwe expliciete Alleen bekijken-/Pauze-keuzes blijven beschermd door de opgeslagen marker.
+Eenmalig kan oude Alleen bekijken-opslag zonder hervatmarker haar verloren Auto-keuze herstellen: uitsluitend zonder echte fout/handmatige boilerbescherming en met een onderbroken lease van een bekend Auto-toestel of schoon routine-boilerjournal. Nieuwe expliciete Alleen bekijken-keuzes blijven beschermd door de opgeslagen marker. De actuele Pauze-regel staat bij beta.58 hierboven.
 
 Zie `docs/BETA47_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA47.md` en het actuele `OVERDRACHT.md`.
 
@@ -131,7 +138,7 @@ Zie `docs/BETA46_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA46.md` en het actuele `
 
 Beta.44-publicatie, pakketcontrole en geladen versie staan in `docs/BETA44_INSTELLEN.md` en `docs/TESTRESULTATEN_BETA44.md`; uitleg-hash `65b54c9797e55bb4` hoort bij die historische softwaregate. [Beta.44-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.44). Bestaande tags en release-assets blijven onveranderlijk.
 
-## Current DHW policy (beta.57)
+## Current DHW policy (beta.58)
 
 Room climate and domestic water share one physical heat pump. P1 already includes its actual draw once; prospective commitment uses the largest relevant task rather than two full appliances. The optional W/kW source declares whole-heat-pump or exclusive-tank scope. Shared watts cannot prove DHW heating. Planned sterilisation times alone no longer prohibit ordinary target writes; actual configured hygiene/manual/source protection still applies. Extra DHW may release safe owned lower interruptible loads only after stable evidence, confirmed OFF, new P1 and fresh PV, never a dishwasher cycle, room climate or Wallbox.
 
@@ -194,6 +201,8 @@ HACS manages the integration files. A normal update is:
 **HACS → SolarPilot → Update → Restart Home Assistant**
 
 SolarPilot configuration and learned runtime data are stored in Home Assistant, not in the program files replaced by HACS. The optional `userfiles` directory is marked persistent so a local private bundle survives ordinary HACS updates.
+
+The dashboard's **Na herstart automatisch hervatten** switch defaults to On. An ordinary saved Pause requests automatic mode after restart or integration reload through the existing safety checks. To remain paused after restart, turn this preference Off before restarting. Observe, first installation, internal faults and removal preparation remain protected. Changing the preference does not change the current mode. See `docs/BETA58_INSTELLEN.md` for installation and rollback.
 
 
 ## Optional private profile + history

@@ -108,6 +108,9 @@ class SolarRuntime:
         self.states = {key: State(last_off=time.monotonic(), cycle_armed=cfg.get("kind") != "dishwasher") for key, cfg in self.configs.items()}
         self.consumer_history = ConsumerHistoryRecorder(hass, entry, {**keyed(entry.options.get(ARCHIVED)), **self.configs}, self.settings["interval_s"])
         self.mode = "observe"
+        self.auto_resume_after_restart = True
+        self.pause_cause = ""
+        self._restart_resume_from_pause = False
         self.priorities = {}
         self.device_modes = {}
         self.recovery = {}
@@ -332,6 +335,10 @@ class SolarRuntime:
         return {
             "mode": self.mode,
             "restart_requested_mode": self.restart_requested_mode,
+            "auto_resume_after_restart": self.auto_resume_after_restart,
+            "pause_cause": self.pause_cause,
+            "restart_resume_from_pause": self._restart_resume_from_pause,
+            "removal_requested": self.removal_requested,
             "faults": dict(self.faults),
             "restart_faults": dict(self._restart_faults),
             "live_options": self.live_options.snapshot(),
@@ -460,6 +467,14 @@ class SolarRuntime:
 
     async def start(self):
         data = await self.store.async_load() or {}
+        # A setting changes only the next restart, never the live mode. Old
+        # stores default to automatic recovery from an ordinary saved Pause;
+        # Observe and first installation still require explicit activation.
+        self.auto_resume_after_restart = data.get("auto_resume_after_restart", True) is True
+        cause = data.get("pause_cause", "legacy" if data.get("mode") == "paused" else "")
+        self.pause_cause = cause if cause in ("", "user", "legacy", "internal_fault", "removal", "command_fault") else "internal_fault"
+        self.removal_requested = data.get("removal_requested") is True or self.pause_cause == "removal"
+        self._restart_resume_from_pause = data.get("restart_resume_from_pause") is True
         self.live_options.restore(data.get("live_options", {}))
         await self.consumer_history.start()
         await self.analysis.start()
@@ -584,16 +599,36 @@ class SolarRuntime:
                 self.states[i].cycle_armed = bool(self.dishwasher.tickets.get(i, {}).get("armed"))
                 self.states[i].manual_forced = False
                 self.states[i].manual_stop_requested = False
+        # Reconciliation above may discover an uncertain appliance START. Only
+        # now decide whether a saved ordinary Pause may resume automatically.
+        if ((requested_mode == "paused" or self._restart_resume_from_pause)
+                and self._pause_resume_faulted()
+                and self.pause_cause not in ("internal_fault", "removal")):
+            self.pause_cause = "command_fault"
+        protected_pause = self.removal_requested or self.pause_cause in ("internal_fault", "removal", "command_fault")
+        if self._restart_resume_from_pause and (not self.auto_resume_after_restart or protected_pause):
+            requested_mode = "paused"
+            self._restart_resume_from_pause = False
+        if requested_mode == "paused" and self.auto_resume_after_restart and not protected_pause:
+            requested_mode = "solar"
+            self._restart_resume_from_pause = True
+            self.note("Na herstart automatisch hervatten staat aan; de bewaarde Pauze wordt na de veiligheidscontrole opgeheven.")
+        if protected_pause:
+            requested_mode = "paused"
+        self.restart_requested_mode = requested_mode
         if self.restart_blocking:
             self.mode = "observe"
         elif requested_mode == "solar" and not self.dhw.needs_review and not self.legacy_conflicts():
             self.mode = "solar"
             self.restart_requested_mode = None
+            self.pause_cause = ""
+            self._restart_resume_from_pause = False
             self.note("Zonnestroommodus hervat; alleen toestellen met betrouwbare bronnen mogen opdrachten ontvangen.")
         else:
             self.mode = requested_mode if requested_mode != "solar" else "observe"
             if requested_mode != "solar":
                 self.restart_requested_mode = None
+                self._restart_resume_from_pause = False
             self.note(f"Herstartcontrole automatisch afgerond; modus {self.mode} hervat.")
         if self.recovery:
             names = ", ".join(self.configs[i]["name"] for i in self.recovery)
@@ -804,10 +839,21 @@ class SolarRuntime:
                 self.recovery.pop(device_id, None)
                 changed = True
         requested = self.restart_requested_mode
+        if self._restart_resume_from_pause and self._pause_resume_faulted():
+            if self.pause_cause not in ("internal_fault", "removal"):
+                self.pause_cause = "command_fault"
+        if self._restart_resume_from_pause and (not self.auto_resume_after_restart
+                or self.removal_requested or self.pause_cause in ("internal_fault", "removal", "command_fault")):
+            requested = self.restart_requested_mode = "paused"
+            self._restart_resume_from_pause = False
+            changed = True
         if not self.restart_blocking and requested is not None:
             if requested != "solar" or (not self.dhw.needs_review and not self.legacy_conflicts()):
                 self.mode = requested
                 self.restart_requested_mode = None
+                self._restart_resume_from_pause = False
+                if requested == "solar":
+                    self.pause_cause = ""
                 for st in self.states.values():
                     st.start_since = None
                 self.note(f"Herstartcontrole automatisch afgerond; modus {self.mode} hervat.")
@@ -2148,7 +2194,15 @@ class SolarRuntime:
                 self.problem = "Interne fout: regeling gepauzeerd; controleer het Home Assistant-logboek"
                 self.problem_kind = "internal_fault"
                 self.mode = "paused"
+                self.pause_cause = "internal_fault"
                 self.restart_requested_mode = None
+                self._restart_resume_from_pause = False
+                try:
+                    await self.store.async_save(self._snapshot())
+                except Exception:
+                    # Retain the original fault and publish the Pause even if
+                    # storage itself caused the failed controller round.
+                    _LOGGER.exception("SolarPilot foutpauze kon niet worden bewaard")
                 try:
                     self.dhw.diagnose_runtime_block(time.monotonic(), None, False, 0,
                         code="internal_fault", reason=self.problem)
@@ -2499,7 +2553,10 @@ class SolarRuntime:
             self.energy_saved_at = now
             self.store.async_delay_save(self._snapshot, 1)
         self.problem_kind = ""
-        if self.restart_recovery_pending:
+        if self.pause_cause == "internal_fault":
+            self.problem_kind = "internal_fault"
+            self.problem = self.pause_reason
+        elif self.restart_recovery_pending:
             self.problem_kind = "restart_wait"
             self.problem = ("Tijdelijk apart gehouden; herstartcontrole wordt automatisch herhaald — "
                             + ", ".join(self.configs[i]["name"] for i in self.recovery))
@@ -2783,13 +2840,15 @@ class SolarRuntime:
             self.removal_requested = True
             self._removal_ready_noted = False
             self.mode = "paused"
+            self.pause_cause = "removal"
             self.restart_requested_mode = None
+            self._restart_resume_from_pause = False
             for st in self.states.values():
                 st.boost_until = 0
                 st.start_since = None
             self.dhw.auto_enabled = False
             self.note("Verwijderen voorbereid: Pauze actief; SolarPilot geeft eigen regelingen veilig vrij.")
-            self.store.async_delay_save(self._snapshot, 1)
+            await self.store.async_save(self._snapshot())
         await self.tick()
 
     async def set_mode(self, mode):
@@ -2813,9 +2872,45 @@ class SolarRuntime:
                         s.manual_forced = False
             self.mode = mode
             self.restart_requested_mode = None
-            self.store.async_delay_save(self._snapshot, 1)
+            self._restart_resume_from_pause = False
+            if mode != "paused":
+                self.pause_cause = ""
+                self.removal_requested = False
+            elif self.pause_cause not in ("internal_fault", "removal", "command_fault"):
+                self.pause_cause = "user"
+            # Mode choices must survive an immediate update/restart.
+            await self.store.async_save(self._snapshot())
             self.note(f"Modus: {mode}.")
         await self.tick()
+
+    @property
+    def pause_reason(self):
+        return {
+            "user": "Pauze gekozen via dashboard of Home Assistant-bediening.",
+            "legacy": "Pauze bewaard uit een vorige versie; de oorspronkelijke reden is niet vastgelegd.",
+            "internal_fault": "Regeling gepauzeerd door een interne fout. Controleer het Home Assistant-logboek en hervat daarna bewust Automatisch regelen.",
+            "removal": "Pauze voor veilig verwijderen. Automatisch hervatten is geblokkeerd.",
+            "command_fault": "Pauze behouden door een opdrachtfout. Controleer de betrokken regeling voordat je hervat.",
+        }.get(self.pause_cause, "")
+
+    def _pause_resume_faulted(self):
+        """A fault discovered during deferred recovery cannot promote Pause."""
+        return bool(self.faults or self.dhw.fault or self.battery_fleet.state.faults
+                    or self.smart_climate.command_faults)
+
+    async def set_auto_resume_after_restart(self, enabled):
+        if not isinstance(enabled, bool):
+            raise HomeAssistantError("Kies Aan of Uit voor automatisch hervatten na herstart")
+        async with self._lock:
+            self.auto_resume_after_restart = enabled
+            # Turning off during a delayed Pause→Auto recovery cancels that
+            # queued recovery, without changing today's mode or sending OFF.
+            if not enabled and self._restart_resume_from_pause:
+                self.restart_requested_mode = None
+                self._restart_resume_from_pause = False
+            await self.store.async_save(self._snapshot())
+            self.note("Na herstart automatisch hervatten: " + ("aan" if enabled else "uit") + ". De huidige modus blijft behouden.")
+            self.publish()
 
     async def set_priority(self, device_id, value):
         async with self._lock:
@@ -2991,8 +3086,13 @@ class SolarRuntime:
                 if v.get("status") != "attention"}
             self.battery_fleet.state.faults.clear()
             self.battery_fleet.state.pending = None
+            reviewed_pause = self.pause_cause in ("internal_fault", "command_fault")
+            if reviewed_pause:
+                self.pause_cause = "user"
             await self.store.async_save(self._snapshot())
-            self.note("Herstart- en foutcontrole afgerond. Alle betrokken toestellen zijn als uit bevestigd.")
+            self.note("Foutpauze gecontroleerd. Kies Automatisch regelen om nu te hervatten; bestaande toestelbeveiligingen blijven gelden."
+                      if reviewed_pause else
+                      "Herstart- en foutcontrole afgerond. Alle betrokken toestellen zijn als uit bevestigd.")
         await self.tick()
 
     def entity_id(self, kind, suffix, device_id=None):

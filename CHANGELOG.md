@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0-beta.58 — 2026-10-06
+
+- Voegt **Na herstart automatisch hervatten** toe bij de dashboardmodi en als native Home Assistant-schakelaar, standaard Aan. Een gewone opgeslagen Pauze vraagt na HA-herstart of integratieherlading Automatisch regelen via de bestaande reconciliatie en bron-/opdracht-/DHW-controles. Met Uit blijft Pauze staan; opgeslagen solar behoudt haar gewone herstelpad. Alleen bekijken en eerste installatie krijgen geen automatische activering.
+- De voorkeur wijzigen verandert de huidige modus niet. Een nieuwe Pauze-keuze annuleert een nu wachtende hervatting; bij de volgende herstart geldt de voorkeur weer. De kaart onderscheidt automatische wachtreden, blijvende Pauze en echte vereiste controle.
+- Bewaart interne fout-/verwijderpauzes met oorzaak en reden; voorbereiden van verwijderen en bekende echte opdrachtfouten of boilerreview worden niet automatisch gepasseerd. Een gezonde volgende regelronde wist een interne foutreden niet. Oudere Pause zonder reden wordt alleen via het gewone beveiligde pad beoordeeld; er wordt geen vroegere pauzeoorzaak verzonnen.
+- Behoudt alle beta.57-warmwater-, klimaat-, voorrangs-, shared-HP-, export- en activiteitfuncties, geldige leerdata, koppelingen, APP-aanvragen en dashboardoverrides. Geen oude fysieke opdracht herhalen, algemene fout-/leerreset of nieuwe rangordemigratie. Code, hulp, actuele uitleg, installatie/rollback, testverslag en handoff horen samen bij beta.58. Eigen gate: `docs/TESTRESULTATEN_BETA58.md`; gepubliceerde beta.57 is basis en rollback.
+
 ## 1.0.0-beta.57 — 2026-10-06
 
 - Maakt de bekende sterilisatieplanning informatief: geen klok-only blokkering van een gewoon 60 °C-tankdoel. Panasonic kan intern naar 62 °C gaan zonder het normale HA/display-doel te wijzigen. Echte gekoppelde hygiene/manual/unknown en overige fabrikant-/opdrachtbescherming blijven gelden; geen sterilisatieinstelling of Force-DHW-opdracht.

@@ -1,27 +1,28 @@
-# SolarPilot beta.57 — installatie en upgrade
+# SolarPilot beta.58 — installatie en upgrade
 
-Beta.57 begroot ruimteklimaat en tapwater als één warmtepomp, laat extra 60 °C veilige gewone lasten laten wijken en stelt AUTO vanaf 2500 W werkelijk restoverschot beschikbaar. Bekende sterilisatietijden zijn informatie. Op **Overzicht → Wat gebeurt er en waarom?** zie je stand, start-/wachtreden en laatste verandering. Doorlopende blauwe rand betekent bevestigd actief; gestippeld betekent beschikbaar of werkelijk hoog tankdoel. Technische gegevens blijven achter **Details**.
+Beta.58 hervat een gewone opgeslagen Pauze na herstart automatisch zodra de bestaande controles dit toelaten. **Na herstart automatisch hervatten** staat standaard Aan bij de modusknoppen. Alleen bekijken, echte fouten en voorbereiden van verwijderen blijven beschermd. De kaart toont automatisch wachten of een vereiste echte controle.
 
-Geldige leerdata, bronkoppelingen, dashboardkeuzes, APP-aanvragen en veiligheid blijven behouden. Bij een geconfigureerde boiler wordt de centrale lijst éénmalig gericht aangepast: extra warm water achter Wallbox/afwas en vóór gewone lasten; latere bewuste herschikking blijft behouden. Test-/publicatiestatus: [docs/TESTRESULTATEN_BETA57.md](docs/TESTRESULTATEN_BETA57.md).
+Alle beta.57-regelingen blijven behouden: één gezamenlijke warmtepompbegroting, extra 60 °C vóór veilige gewone lasten, AUTO vanaf 2500 W restzon, informatie-only sterilisatieplanning en blauwe activiteitsranden. Geldige leerdata, bronkoppelingen, dashboardkeuzes, APP-aanvragen en veiligheid blijven behouden. Er is geen nieuwe rangordemigratie; de bestaande éénmalige beta.57-migratie blijft bij upgrades van oudere versies gelden. Test-/publicatiestatus: [docs/TESTRESULTATEN_BETA58.md](docs/TESTRESULTATEN_BETA58.md).
 
 ## 1. Vooraf
 
-- Maak een actuele volledige Home Assistant-back-up en bewaar de gecontroleerde beta.56-release voor rollback.
+- Maak een actuele volledige Home Assistant-back-up en bewaar de gecontroleerde beta.57-release voor rollback.
 - Laat een lopende beschermde afwas- of andere cyclus afwerken.
 - Gebruik bij een nieuwe installatie **Alleen bekijken** voor de eerste broncontrole. Bij bestaand actief beheer kan die modus eerst **Pauze** en veilige vrijgave vereisen. Alleen bewezen eigen coast en passende bevestigde numerieke batterijdoelen mogen worden vrijgegeven; handmatige bediening blijft beschermd.
+- Voor een gewone upgrade is Pauze niet verplicht. Wil je bewust gepauzeerd blijven na de herstart, zet **Na herstart automatisch hervatten Uit**; de standaard Aan vraagt dan juist automatische terugkeer. Deze schakelaar verandert de huidige modus niet.
 - Updates zijn cumulatief: bestaande Home Assistant-configuratie en lokale leerdata blijven behouden; tussenliggende beta-versies hoeven niet afzonderlijk geïnstalleerd te worden.
 
 ## 2. Via HACS installeren of upgraden
 
 1. Voeg bij een nieuwe installatie in **HACS → Custom repositories** `https://github.com/Stevenva007/solarpilot-home-assistant` toe als type **Integration**.
-2. Download of update naar exact `1.0.0-beta.57` zodra die release beschikbaar is.
+2. Download of update naar exact `1.0.0-beta.58` zodra die release beschikbaar is.
 3. Herstart Home Assistant volledig.
 4. Herlaad de webpagina. Stop op Android de Home Assistant-app volledig en open haar opnieuw; op iOS kun je de weergave naar beneden trekken om te verversen. Controleer backendversie en geladen kaart afzonderlijk. Een download of manifestnummer bewijst geen geladen kaartcode.
 5. Voeg bij een nieuwe installatie **SolarPilot** toe via **Instellingen → Apparaten & diensten** en kies je P1/netbron en optionele PV-bron.
 
 De interface verschijnt automatisch. Er is geen aparte Lovelace-resource of dashboard-YAML nodig. Bij een lokaal pakket vervang je uitsluitend `custom_components/solar_pilot`; bewaar bestaande `userfiles` en Home Assistant-opslag.
 
-Controleer bij een waarschuwing de genoemde toestelbron. **Automatische broncontrole** wacht op betrouwbaar nieuwe data en vraagt geen reset. Bij een verkeerde vereiste bronkoppeling corrigeer je die koppeling; een echte **Opdrachtfout** behoudt de bestaande gerichte controle. Zie [docs/BETA57_INSTELLEN.md](docs/BETA57_INSTELLEN.md); verwijder geen configuratie of leerdata.
+Controleer bij een waarschuwing de genoemde toestelbron. **Automatische broncontrole** wacht op betrouwbaar nieuwe data en vraagt geen reset. Bij een verkeerde vereiste bronkoppeling corrigeer je die koppeling; een echte **Opdrachtfout** behoudt de bestaande gerichte controle. Controleer bij de modusknoppen **Na herstart automatisch hervatten Aan** voor automatische terugkeer. Zie [docs/BETA58_INSTELLEN.md](docs/BETA58_INSTELLEN.md); verwijder geen configuratie of leerdata.
 
 ## 3. Optioneel privéprofiel
 
@@ -53,13 +54,17 @@ Gewone comfortvraag controleert **Werkelijk Panasonic-programma**: geen warmtevr
 
 Een passieve UIT-trend mag geen actief verwarm-/koelverloop gebruiken; actueel buitenbewijs bepaalt de huidige richting. Zachte nieuwe AUTO-vraag vanuit UIT moet standaard tien minuten aanhouden. Harde of onderbouwd dringende comfortvraag behoudt haar bestaande herstelpad. Het overzicht noemt **Comfortbewaking tijdens leren** of **Voorspellend geregeld**, per-zone reden en echte forecastdekking. Actuele passende comfortvraag werkt zonder volledig geleerd model. Leerbewijs, relevante dagen/episodes en gemeten voorspelfout blijven afzonderlijk; samples bewijzen geen 98% nauwkeurigheid. Winter-/zomerweer houdt AUTO niet alleen wegens die context aan. Een toekomstige hittegolf vraagt relevant koelbewijs en echte forecasturen; AUTO met ongewijzigd doel garandeert geen bouwschilvoorkoeling.
 
-Behoud je huidige instellingen en leerdata. Deze update vraagt geen algemene leerreset. De eerdere bescherming van gecontroleerde fasewaarnemingen zonder bewijs van stabiele andere meters blijft gelden; geldige passieve waarnemingen, nieuwe geïsoleerde fasewaarnemingen en handmatige fasekeuzes blijven behouden. Zie [docs/BETA57_INSTELLEN.md](docs/BETA57_INSTELLEN.md) voor de volledige controle.
+Behoud je huidige instellingen en leerdata. Deze update vraagt geen algemene leerreset. De eerdere bescherming van gecontroleerde fasewaarnemingen zonder bewijs van stabiele andere meters blijft gelden; geldige passieve waarnemingen, nieuwe geïsoleerde fasewaarnemingen en handmatige fasekeuzes blijven behouden. Zie [docs/BETA58_INSTELLEN.md](docs/BETA58_INSTELLEN.md) voor de volledige controle.
 
 ## 5. Automatisch herstel na herstart
 
+Een gewone opgeslagen **Pauze** vraagt met **Na herstart automatisch hervatten Aan** bij de volgende Home Assistant-herstart of integratieherlading automatisch **Automatisch regelen** via de bestaande controles. Met Uit blijft Pauze staan; een al opgeslagen automatische modus houdt haar normale herstelroute. Alleen bekijken en een eerste installatie blijven Alleen bekijken. De schakelaar verandert de huidige modus niet. Opnieuw Pauze kiezen annuleert een nu wachtende hervatting; bij de volgende herstart geldt de voorkeur weer.
+
+Interne fouten en voorbereiden van verwijderen bewaren een afzonderlijke pauzeoorzaak en reden en hervatten niet automatisch. Bekende opdrachtfouten, onzekere eerdere opdrachten en vereiste boilerbeoordeling blijven beschermd. Een gezonde volgende meetronde wist een interne foutreden niet. Oudere beta.57-Pauze heeft geen opgeslagen oorzaak; daar kan SolarPilot uitsluitend een gewone beveiligde hervatting proberen, geen vroegere handmatige/foutoorzaak bewijzen.
+
 SolarPilot controleert eerder beheerde toestellen afzonderlijk. Bij ontbrekende, restored of onbeschikbare bediening wordt alleen dat toestel tijdelijk opzijgezet. Er volgt geen blinde OFF en onbekend verbruik wordt niet als nul gerekend. De overige beschikbare toestellen kunnen in de opgeslagen automatische modus verder zodra betrouwbare globale P1- en veiligheidsmetingen en hun eigen voorwaarden dit toelaten. Een eerste installatie zonder opgeslagen Auto-keuze blijft Alleen bekijken.
 
-Het ontbrekende toestel wordt bij volgende gewone regelrondes automatisch opnieuw gecontroleerd. Zodra echte bruikbare status terugkomt, volgt de gewone herbeoordeling: eigen ON wordt zonder nieuwe start herkend; OFF laat het oude eigendom los; een gewijzigd numeriek doel blijft handmatig beschermd. Minimum aan-/uittijden starten conservatief bij de nieuwe waarneming. Deelname en prioriteit worden niet aangepast. Een later bewust gekozen Alleen bekijken of Pauze blijft gelden.
+Het ontbrekende toestel wordt bij volgende gewone regelrondes automatisch opnieuw gecontroleerd. Zodra echte bruikbare status terugkomt, volgt de gewone herbeoordeling: eigen ON wordt zonder nieuwe start herkend; OFF laat het oude eigendom los; een gewijzigd numeriek doel blijft handmatig beschermd. Minimum aan-/uittijden starten conservatief bij de nieuwe waarneming. Deelname en prioriteit worden niet aangepast. Alleen bekijken blijft gelden; Pauze stopt de actuele hervatting en volgt bij een volgende herstart de zichtbare voorkeur.
 
 Een onbeschikbaar toestel kan nog steeds stroom gebruiken of later opnieuw gaan vragen. De P1-meting bevat werkelijk huidig verbruik al; SolarPilot houdt daarnaast een conservatieve reserve voor mogelijk niet gemeten of later toenemend verbruik. Daardoor kunnen andere lasten soms nog wachten op echte vermogensruimte. Dat is een veiligheidsbeperking, geen globale opstartblokkering door het ontbreken van één status. Echte opdrachtfouten, een onzekere START, ongeldige globale bronnen en elektrische begrenzing houden hun bestaande bescherming.
 
@@ -69,7 +74,7 @@ De boilercontrole werkt afzonderlijk. Een passend eerder beheerd tankdoel wordt 
 
 Een onzekere eerdere AEG-START krijgt geen nieuwe START. Alleen een nieuwe betrouwbare fase-terugmelding van ná START voor een lopende of voltooide cyclus kan de specifieke herstartonzekerheid oplossen; een oude Washing/Finished-stand niet. Idle of onduidelijke START-uitkomst leidt niet tot een tweede START. Een tijdelijk ontbrekende bron wordt automatisch opnieuw geprobeerd; een blijvend ontbrekende bron blijft als wachtreden zichtbaar.
 
-Voor oude Alleen bekijken-opslag zonder hervatmarker kan de verloren Auto-keuze éénmalig worden hersteld, uitsluitend zonder echte fout/handmatige boilerbescherming en met een onderbroken lease van een bekend Auto-toestel of schoon routine-boilerjournal. Nieuwe expliciete Alleen bekijken- en Pauze-keuzes blijven beschermd.
+Voor oude Alleen bekijken-opslag zonder hervatmarker kan de verloren Auto-keuze éénmalig worden hersteld, uitsluitend zonder echte fout/handmatige boilerbescherming en met een onderbroken lease van een bekend Auto-toestel of schoon routine-boilerjournal. Nieuwe expliciete Alleen bekijken-keuzes blijven beschermd. De Pauze-regel staat hierboven.
 
 ## 6. Bronnen en warm water controleren
 
@@ -97,6 +102,6 @@ Laat concurrerende boilerautomatiseringen uit zolang SolarPilot regelt. AEG-APP-
 
 Kies **Export → Export samenstellen → 7 dagen** voor de volledige beschikbare analyse als **JSON.GZ**. Alleen dezelfde ingelogde beheerder kan de lokale gecomprimeerde download tien minuten ophalen. De nieuwe route verkort de periode niet wegens de vroegere 16 MB-berichtgrens. Nieuwe punten bewaren de geladen versie; oudere ongestempelde punten blijven versie onbekend. Privacyfilters blijven behouden; publiceer analyses niet op GitHub.
 
-De enige actuele regelbeschrijving staat in [docs/ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en in Home Assistant onder **SolarPilot → Uitleg**. De volledige upgradecontrole staat in [docs/BETA57_INSTELLEN.md](docs/BETA57_INSTELLEN.md).
+De enige actuele regelbeschrijving staat in [docs/ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en in Home Assistant onder **SolarPilot → Uitleg**. De volledige upgradecontrole staat in [docs/BETA58_INSTELLEN.md](docs/BETA58_INSTELLEN.md).
 
-Voor rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.56-release of passende volledige back-up herstellen → Home Assistant herstarten → webpagina/app opnieuw openen → backend/kaart en beveiligingen controleren**. Beta.56 mist de nieuwe gezamenlijke HP-begroting, zonne-AUTO, DHW-reclaim en blauwe activiteitsranden en gebruikt nog het oude klokvenster. Programmabestanden herstellen de gemigreerde opgeslagen prioriteit/meterinterpretatie niet vanzelf; controleer de effectieve waarden of herstel de volledige bijbehorende back-up. Oude releasedocumenten blijven historie; `OVERDRACHT.md` beschrijft de huidige bron.
+Voor rollback die bewust gepauzeerd blijft: **Na herstart automatisch hervatten Uit → Pauze → beschermde cycli afwerken → onveranderlijke beta.57-release of passende volledige back-up herstellen → Home Assistant herstarten → webpagina/app opnieuw openen → backend/kaart en beveiligingen controleren**. Beta.57 bewaart Pauze over herstarts en gebruikt de nieuwe hervatvoorkeur/pauzereden niet. Bij later opnieuw installeren van beta.58 kan de opgeslagen voorkeur weer gelden. Programmabestanden herstellen eerdere opslag niet vanzelf; herstel voor exact herstel de volledige bijbehorende back-up. Oude releasedocumenten blijven historie; `OVERDRACHT.md` beschrijft de huidige bron.

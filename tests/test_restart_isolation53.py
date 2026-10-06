@@ -157,6 +157,7 @@ async def test_explicit_mode_while_isolated_survives_return_and_reboot(mode):
     runtime.store.data["device_modes"]["b"] = "disabled"
     await runtime.start()
     await runtime.set_mode(mode)
+    await runtime.set_auto_resume_after_restart(False)
     saved = deepcopy(runtime._snapshot())
     restarted, again = paired_runtime()
     restarted.store.data = saved

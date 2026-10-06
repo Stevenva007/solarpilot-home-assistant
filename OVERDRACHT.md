@@ -1,10 +1,10 @@
 <!-- solarpilot-handoff-schema: 1 -->
-<!-- solarpilot-handoff-version: 1.0.0-beta.57 -->
+<!-- solarpilot-handoff-version: 1.0.0-beta.58 -->
 
 # OVERDRACHT — SolarPilot
 
 Laatst bijgewerkt: **6 oktober 2026**
-Actuele ontwikkelde bron: **v1.0.0-beta.57**, op gepubliceerde beta.56-commit `cdc17f3a18d82c30a30967b044565a2819439f42`, tree `dc282d67a4cefcfed2854d83687cab9f5bcce039`. Geplande sterilisatietijden zijn informatie en blokkeren geen gewoon tankdoel. Extra DHW60 krijgt vóór gewone onderbreekbare lasten ruimte, met werkelijk bevestigde reductie en nieuwe metingen. Zonne-AUTO vanaf 2500 W stelt de warmtepomp modelonafhankelijk beschikbaar; comfortregeling blijft afzonderlijk. Eén fysieke warmtepomp wordt eenmaal begroot. Het hoofdscherm onderscheidt bevestigde activiteit met doorlopend blauw van beschikbaarheid/hoog gemeld doel met gestippeld blauw. Geldige leerdata, dashboardkeuzes en bron-/opdracht-/fabrikantbescherming blijven behouden; de centrale voorkeur wordt éénmalig gericht gemigreerd. Software-/publicatiestatus: `docs/TESTRESULTATEN_BETA57.md`. Geen live Home Assistant- of fysieke toestelacceptatie in deze werksessie.
+Actuele ontwikkelde bron: **v1.0.0-beta.58**, op gepubliceerde beta.57-commit `bfd49647d9a69e6a1608ecae687f04fd739a6d3b`, tree `41dbf19bc875d226fda803074b2c5a6736a0e749`. Een gewone opgeslagen Pauze vraagt met de nieuwe zichtbare voorkeur `auto_resume_after_restart`, standaard True, bij HA-herstart/integratieherlading automatisch solar via de bestaande controles. Alleen bekijken, eerste installatie, interne fout-/verwijderpauze en echte opdracht-/boilerbeoordeling blijven beschermd. Voorkeur wijzigen verandert huidige modus niet; Pauze annuleert nu wachtende hervatting. De kaart toont automatisch wachten of vereiste controle. Alle beta.57-regels blijven behouden: informatie-only sterilisatieplanning, DHW60 vóór veilige gewone lasten, zonne-AUTO 2500/2000 W, één fysieke warmtepompbegroting en blauwe activiteitsranden. Geldige leerdata, koppelingen, prioriteit en overrides blijven behouden; geen nieuwe rangordemigratie. Software-/publicatiestatus: `docs/TESTRESULTATEN_BETA58.md`. Geen live Home Assistant- of fysieke toestelacceptatie in deze werksessie.
 
 ## 1. Projectdoel in gewone taal
 
@@ -12,9 +12,11 @@ SolarPilot verdeelt zonnestroom tussen autonoom autoladen, warmtepomp/tapwater e
 
 ## 2. Actuele basis
 
-De absolute codebasis en rollbackbasis zijn gepubliceerde beta.56 op commit `cdc17f3a18d82c30a30967b044565a2819439f42`, tree `dc282d67a4cefcfed2854d83687cab9f5bcce039`, annotatietagobject `422c51978a102578e753f779bd0cd0e3a6627172`. De onveranderlijke [beta.56-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.56), release-ID `403742027`, workflow `37316780333` en alle vier gepubliceerde assets zijn gecontroleerd. Beide ZIP-pakketten zijn inhoudelijk en met SHA-256 tegen de exacte gepubliceerde bron vergeleken; de vorige bron behaalde 3244 tests. Dit is basisbewijs, geen beta.57-test-/publicatiebewijs.
+De absolute codebasis en rollbackbasis zijn gepubliceerde beta.57 op commit `bfd49647d9a69e6a1608ecae687f04fd739a6d3b`, tree `41dbf19bc875d226fda803074b2c5a6736a0e749`, annotatietagobject `9510820fe69cd634aed36163e15b424bd683fae8`. De onveranderlijke [beta.57-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.57), release-ID `404640253`, workflow `37457749071` en alle vier gepubliceerde assets zijn gecontroleerd. Beide ZIP-pakketten zijn inhoudelijk en met SHA-256 tegen de exacte gepubliceerde bron vergeleken. Lokaal behaalde beta.57 3474 tests in 39,47 s; CI behaalde 3474 tests in 51,84 s. Dit is basisbewijs, geen beta.58-test-/publicatiebewijs.
 
-De actuele gebruikersinstructie corrigeert de eerder veronderstelde klokbescherming: de autonome Panasonic-sterilisatie naar 62 °C kan het normale HA/display-doel ongewijzigd laten. De maandagplanning is daarom geen bewijs van actieve hygiëne en geen schrijfverbod. Een gewone 60 °C-opdracht mag naast die interne cyclus bestaan; het echte fabrikantprogramma blijft autonoom. Ook verlangt de gebruiker extra warm water vóór gewone flexibele verbruikers, nooit ten koste van afwas of ruimteklimaat, en AUTO-beschikbaarheid bij voldoende echt zonneoverschot zonder verplichte thermische vraag. Historische gegevens van meerdere updates verklaren niet iedere live actie. Nieuwe registratie bewaart de geladen versie; oudere ongestempelde records blijven onbekend.
+De actuele gebruikersvraag is automatische terugkeer na herstart wanneer de kaart Pauze toont. Beta.57 herstelde opgeslagen Pauze als Pauze; zonder eerder opgeslagen reden bewijst het screenshot niet wie of wat die modus koos. Beta.58 voegt een afzonderlijke duurzame hervatvoorkeur toe, standaard True, die gewone opgeslagen Pauze bij de volgende start via de bestaande beveiligde herstelroute naar solar laat gaan. Alleen bekijken en eerste installatie blijven behouden. Een nieuwe interne fout-/verwijderpauze krijgt `pause_cause` en een blijvend opgeslagen reden; verwijderen, bekende gewone opdrachtfouten en DHW-review blijven tegen automatische hervatting beschermd. Geen eerdere oorzaak verzinnen of algemene foutreset.
+
+De blijvende beta.57-gebruikersinstructie corrigeert de eerder veronderstelde klokbescherming: de autonome Panasonic-sterilisatie naar 62 °C kan het normale HA/display-doel ongewijzigd laten. De maandagplanning is daarom geen bewijs van actieve hygiëne en geen schrijfverbod. Een gewone 60 °C-opdracht mag naast die interne cyclus bestaan; het echte fabrikantprogramma blijft autonoom. Ook verlangt de gebruiker extra warm water vóór gewone flexibele verbruikers, nooit ten koste van afwas of ruimteklimaat, en AUTO-beschikbaarheid bij voldoende echt zonneoverschot zonder verplichte thermische vraag. Historische gegevens van meerdere updates verklaren niet iedere live actie. Nieuwe registratie bewaart de geladen versie; oudere ongestempelde records blijven onbekend.
 
 De exact geregistreerde native `aquarea`-klimaatactie blijft leidend voor de optionele DHW-guard wanneer zij actueel en betrouwbaar is. De oudere `panasonic_cc`-AUTO-ambiguïteit blijft beschermd. Vertraagde tankdoelbevestiging blijft intact: exact `aquarea`/`panasonic_cc`, minstens tien seconden en een passende nieuwe HA-rapportage; geen onmiddellijke optimistische echo. Een eerdere ACK of geladen versienummer bewijst geen nieuwe latere ACK of fysieke opwarming.
 
@@ -23,7 +25,7 @@ In deze werksessie is geen live Home Assistant-toegang. Softwaregate, GitHub-pub
 ## 3. Absolute ontwerpregels die niet stilzwijgend mogen wijzigen
 
 - Behoud werkende functies, gebruikersinstellingen, leerdata en bestaande koppelingen. Veilige eenduidige migraties mogen geen oude fysieke opdracht herhalen. Een gewone herstartcontrole vereist geen gebruikersbevestiging; betrouwbare toestellen worden afzonderlijk herkend en ontbrekende eerder beheerde toestellen worden tijdelijk geïsoleerd zonder oude opdrachten te herhalen.
-- De opgeslagen hervatkeuze blijft persistent over herstarts en tijdelijke Observe. Een bewuste latere Alleen bekijken/Pauze-keuze vervangt haar. Alleen oude opslag zonder hervatmarker en met aantoonbaar onderbroken beheerstatus mag de verloren Auto-keuze éénmalig herstellen.
+- De opgeslagen hervatkeuze blijft persistent. Een bewuste moduskeuze annuleert nu wachtende hervatting. `auto_resume_after_restart` is standaard True en verandert bij opslaan niet de huidige modus; bij de volgende HA-start/reload mag een gewone opgeslagen Pauze via het bestaande beveiligde pad solar vragen. False bewaart Pauze, maar verhindert geen normale restauratie van al opgeslagen solar. Alleen bekijken en eerste installatie krijgen geen nieuwe activering. Interne fout-/verwijderoorzaak en `removal_requested` blijven leidend. Oudere Pauze zonder reden heeft geen bewezen oorzaak. De eerdere gerichte legacy-Observe-migratie blijft afzonderlijk en begrensd.
 - Echte fouten, manual hold, veranderd tankdoel en onduidelijke START-uitkomst blijven beschermd. Er is geen algemene automatische foutreset of tweede AEG-START.
 - Fabrikantbeveiliging, autonome Panasonic-sterilisatie, elektrische grenzen en noodzakelijk comfort gaan vóór energieoptimalisatie.
 - De centrale flexibele prioriteitenlijst is de enige leidende rangorde. Nieuwe gewone toestellen komen onderaan tot de gebruiker ze verplaatst. Veiligheid en noodzakelijk comfort zijn niet versleepbaar.
@@ -59,6 +61,10 @@ In deze werksessie is geen live Home Assistant-toegang. Softwaregate, GitHub-pub
 
 Dagelijkse modi: **Alleen bekijken**, **Automatisch regelen**, **Pauze**. Dashboardgroepen: Overzicht, Voorrang, Toestellen, Warmte & comfort, Planning, Energie, Batterij, Export en Uitleg. Het configuratiecentrum bevat ook **Auto & batterij**. `current_guide.py` is de enige actuele gebruikersuitlegbron; dezelfde tekst staat in Home Assistant en beide `ACTUELE_WERKING.md`-bestanden. Opties hebben releasegebonden hulp. Alleen bekijken wordt bij nog actief/pending beheer geweigerd: eerst Pauze en veilige vrijgave. Pauze mag uitsluitend bewezen eigen climateOFF naar AUTO teruggeven en een ACKed eigen numeriek batterijdoel neutraliseren zolang het actuele doel exact past; manualOFF, overgenomen/onbekende/foutieve doelen en willekeurige scripts blijven beschermd; ontbrekend eigendom-/bronbewijs is geen vrijgave. Browser Terug/Vooruit herstelt SolarPilot-schermen en beschermt onopgeslagen formulieren zonder acties te herhalen.
 
+Bij de modusknoppen staat de duurzame native schakelaar **Na herstart automatisch hervatten**, standaard Aan. De directe schakelaarroute past uitsluitend deze voorkeur aan. Zij kiest niet nu solar/Pause en voert geen toestelactie uit. De modus-/herstartkaart onderscheidt gewone Pause, automatisch hervatten dat op bestaande controles wacht, bronwacht en echte fout-/verwijdercontrole. Een interne foutreden blijft bij volgende gezonde rounds zichtbaar. `dashboard.restart_auto` heeft releasegebonden hulp. Wie bewust na de volgende herstart gepauzeerd wil blijven zet deze voorkeur Uit; Pauze tijdens huidige automatische hervatting annuleert die huidige poging.
+
+Uit schakelen annuleert ook nu wachtende Pause→solar; huidige modus blijft staan. Startup en deferredretry bewaken echte `faults`, `dhw.fault`, `battery_fleet.state.faults` en `smart_climate.command_faults`. `smart_climate.state.fault` door tijdelijke zone-/buitenbronuitval is geen duurzame commandofout en blijft lokale bronwacht. De bestaande expliciete **Controle afronden** behoudt haar off/pending-checks en mag na succes interne/opdracht-pausecause bevestigen naar user; de modus blijft Pause, er wordt geen solar of actuatoractie binnen de reset toegevoegd. Een volgende herstart volgt dan de bewaarde voorkeur.
+
 Op **Overzicht → Wat gebeurt er en waarom?** staat per toestel of regeling de actuele stand, start-/wachtreden en laatst vastgelegde actie. Doorlopend blauw betekent bevestigde activiteit; gestippeld blauw betekent AUTO beschikbaar of een werkelijk hoger gerapporteerd tankdoel. Alleen een voorstel geeft geen activiteit. Een gedeelde HP-meter bewijst geen DHW-opwarming, AUTO kan idle zijn en een oude/onbeschikbare bron blijft onbekend/grijs. De kaart gebruikt backendredenen en doet geen eigen regeling. Technische bron-, opdracht- en leerwaarden blijven achter Details.
 
 ### Frontendregistratie en opnieuw laden
@@ -69,11 +75,13 @@ Een open pagina kan eerdere constructorregistraties vasthouden. Na upgrade: voll
 
 ### Automatisch herstel na herstart
 
+Bij HA-start of integratieherlading wordt gewone opgeslagen Pauze met `auto_resume_after_restart=True` als solar-hervatverzoek aangeboden aan dezelfde bestaande reconciliatie. Dit geldt niet voor Alleen bekijken/eerste installatie, interne fout-/verwijderpauze, actief `removal_requested`, bekende ordinary-opdrachtfouten of noodzakelijke DHW-review. Opslag van de voorkeur verandert huidige modus niet; gewone Pause annuleert huidig `restart_requested_mode`, de volgende herstart beoordeelt de bewaarde voorkeur weer. False bewaart Pause; al opgeslagen solar behoudt normale herstartregeling. Legacy-Pause zonder cause blijft oorzaak-onbekend en mag alleen deze normale beveiligde poging doen.
+
 Eerder beheerde toestellen worden tegen de echte betrouwbare status gereconcilieerd. Bekend ON wordt zonder herstelopdracht opnieuw herkend; bekend OFF laat eigendom los. Numerieke actuatoren worden alleen bij een passende actuele instelling opnieuw als eigendom herkend. Een veranderd numeriek doel laat eigendom los en houdt de bestaande handmatige rusttijd aan, zonder herstelwrite of onmiddellijke overschrijving. Minimum aan-/uittijden starten conservatief bij de nieuwe waarneming; daarna blijven gewone zon-, fase-, piek- en veiligheidsbesluiten gelden.
 
 Ontbrekende, restored of onbeschikbare bediening blijft per toestel beschermd en wordt bij normale regelrondes (`interval_s`) opnieuw gecontroleerd. Het toestel blijft in `recovery` of in de bestaande lease-informatie behouden en wordt tijdelijk in `source_isolated_devices` opgenomen; er volgt geen blinde OFF/START. De overige beschikbare toestellen kunnen de opgeslagen automatische modus hervatten, mits globale P1-, fase-, piek- en overige veiligheidsvoorwaarden geldig zijn. Een onbeschikbare status wordt niet als nulverbruik of vrijgegeven eigendom geïnterpreteerd.
 
-Bij betrouwbare terugmelding wordt de gewone reconciliation uitgevoerd: passend eigen ON zonder herstartopdracht, werkelijk OFF met loslaten van eigendom, gewijzigd numeriek doel onder bestaande handmatige rusttijd. Minimum aan-/uittijden starten conservatief bij de nieuwe waarneming. De hervatkeuze (`restart_requested_mode`) is persistent en een later gekozen Observe/Pause of verwijderen blijft leidend. Wanneer Auto al voor de overige toestellen hervat is, geeft latere bronterugkeer geen nieuw modusrecht. Deelname en prioriteit worden niet gewijzigd.
+Bij betrouwbare terugmelding wordt de gewone reconciliation uitgevoerd: passend eigen ON zonder herstartopdracht, werkelijk OFF met loslaten van eigendom, gewijzigd numeriek doel onder bestaande handmatige rusttijd. Minimum aan-/uittijden starten conservatief bij de nieuwe waarneming. De hervatkeuze (`restart_requested_mode`) is persistent en een later gekozen Observe/Pause of verwijderen blijft voor de huidige poging leidend. Een volgende herstart toetst daarnaast de nieuwe hervatvoorkeur en bewaarde pauzeoorzaak. Wanneer Auto al voor de overige toestellen hervat is, geeft latere bronterugkeer geen nieuw modusrecht. Deelname en prioriteit worden niet gewijzigd.
 
 Alleen oudere opslag zonder `restart_requested_mode`, in Observe en zonder echte fout/manual hold/needs_review kan de verloren Auto-keuze éénmalig herstellen: er moet een onderbroken lease van een bekend, geconfigureerd Auto-toestel of een schoon routine-DHW-hersteljournal bestaan. Een nieuw opgeslagen veld, inclusief null, voorkomt latere afleiding bij bewuste gebruikersmodus. Gewone eerste installatie zonder onderbroken beheer blijft Alleen bekijken.
 
@@ -205,6 +213,8 @@ Er staan maximaal twee private bestanden klaar of in generatie. De UI verwijdert
 
 ## 5. Configuratie, integraties en belangrijke entiteiten
 
+Herstartvoorkeur is native runtime-schakelaar `auto_resume_after_restart`, standaard True, zichtbaar naast de dashboardmodi; zij is geen tweede optionsflow of onmiddellijke modusknop. De opslag bewaart voorkeur, `pause_cause`, `removal_requested`, mode en `restart_requested_mode`. Compacte analyses bewaren modus/oorzaak/voorkeur/hervatverzoek voor nieuwe records. Geen publieke traceback of achteraf gereconstrueerde legacyoorzaak.
+
 Generieke bronnen: Home Assistant, P1/HomeWizard, PV/Forecast.Solar, Panasonic Aquarea, Wallbox, flexibele toestellen en toekomstige batterijprofielen. Exacte entity_ids en apparaatidentiteiten altijd uit actuele lokale configuratie lezen en nooit publiek hardcoden.
 
 Voor DHW: tankmeting, native doel/adapter, klimaatbronnen, optionele taakbron, manual/echte hygiënebron en optionele `power_entity` met `power_meter_scope=heat_pump|tank` (standaard hele warmtepomp). Eén gedeelde verse W/kW-meter begroot dezelfde fysieke warmtepomp eenmaal, geen kWh of schatting. De scope `tank` is alleen voor echt exclusieve tankmeting. Alle geconfigureerde thermische zones blijven deel van de relevante ruimte-/koelguard. Exacte Aquarea-herkomst, bronversheid en binding blijven verplicht.
@@ -213,13 +223,16 @@ AEG-rollen zijn same-device; optionele cyclephase/starttijd/alarm mogen alleen m
 
 ## 6. Belangrijke ontwerpbeslissingen + waarom
 
+- **Hervatvoorkeur apart van huidige modus** maakt Pauze nu en gewenste automatische terugkeer na de volgende herstart expliciet, zonder een schakelaarwijziging als onmiddellijke actuatietoestemming te gebruiken.
+- **Duurzame pauzeoorzaak en reden** voorkomt dat een interne fout of voorbereiden van verwijderen automatisch solar wordt of haar verklaring na een gezonde meetronde verliest. Oude opslag zonder oorzaak blijft aantoonbaar onbekend.
+- **Eén bestaand beveiligd herstelpad** behoudt reconciliation, bronnen, commandofouten, DHW-review, eigendom en elektrische grenzen; geen tweede startalgoritme of replay.
 - **Clock-only is geen fysieke hygiëne** laat de normale 60 °C-vraag toe zonder een interne autonome sterilisatie te wijzigen. Echte gekoppelde bescherming blijft afzonderlijk.
 - **DHW60 vóór gewone flexlasten** geeft de gevraagde voorkeur zichtbaar in de centrale lijst; bevestigde reductie en nieuwe metingen voorkomen dubbel uitgeven.
 - **Zonnebeschikbaarheid apart van thermische noodzaak** stelt AUTO bij 2500 W beschikbaar zonder een ongeleerd model als blokkering; 2000 W eigen hold en minimumtijden voorkomen oscillatie.
 - **Eén fysieke HP-begroting** rekent gezamenlijke ruimte-/tapwatertaken eenmaal en verwart een gedeelde meter niet met tankwarmtebewijs.
 - **Doorlopend versus gestippeld blauw** onderscheidt werkelijk bevestigd actief van beschikbaarheid/hoog doel; onzekere data blijft zichtbaar onbekend.
 
-- **Werkelijk gepubliceerde beta.56-bron als basis** voorkomt regressie door een oudere export. Historische samples zonder versiestempel bepalen geen nieuwe releaseoorzaak.
+- **Werkelijk gepubliceerde beta.57-bron als basis** voorkomt regressie door een oudere export. Historische samples zonder versiestempel bepalen geen nieuwe releaseoorzaak.
 - **Afzonderlijke forecastcache en temperatuurheartbeat** behoudt een bruikbare uurlijkse curve tussen normale bronupdates zonder oude actuele temperatuur te vertrouwen. Mislukte pogingen verlengen de oorspronkelijke cache niet.
 - **Rapportagedag en verstreken uur voor relatieve PV** voorkomt dat oude vandaag-/morgen-/uurtellers bij middernacht of een DST-fold een nieuwe betekenis krijgen. Gedateerde curves en ontbrekende dekking blijven behouden.
 - **Betrouwbare bronactie vóór leerclassificatie** voorkomt dat één idle-zone ontbrekende andere zoneactiviteit als gewone rust laat leren. PUMP blijft conservatieve onbekende taakinfo.
@@ -248,6 +261,9 @@ AEG-rollen zijn same-device; optionele cyclephase/starttijd/alarm mogen alleen m
 
 ## 7. Automatische processen
 
+- Start/reload leest `auto_resume_after_restart`, huidige modus, duurzame `pause_cause`/reden en `removal_requested`. Gewone Pause met standaard True vraagt solar via gewone herstelguards; observe/eerste installatie/interne-fout/verwijderen blijven beschermd. False verandert restauratie van eerder solar niet.
+- De voorkeursetter bewaart alleen de keuze; een nieuwe Pause-keuze beëindigt huidig hervatverzoek. Interne foutreden blijft duurzaam zichtbaar tot de bestaande gerichte afhandeling; gezonde rounds wissen haar niet.
+- Echte ordinary/DHW/battery/climate-command-fouten worden bij startup én deferredretry getoetst; voorbijgaande climate-bronwacht blijft modulelokaal. Gerichte succesvolle reset bevestigt interne/opdrachtpausecause maar laat Pause staan. Compacte analyse registreert de toekomstige pauzecontext zonder traceback.
 - `migrate_beta57` slaat de gevraagde DHW-extra-prioriteit éénmalig op; latere saves dragen marker57. Geen actuatiewrite of leerreset.
 - Zonne-AUTO bevestigt 2500 W echte restzon 60 s en vereist nieuwe P1/PV. Alleen bevestigd eigen solarAUTO krijgt hold-credit tot de 2000 W-grens.
 - DHW-reclaim wacht eerst normale rise-stabiliteit, stopt hoogstens een passende lagere eigen gemeten last, wacht OFF-ACK/nieuwe P1 en verse PV en begint pas dan de gewone DHW-startcontrole.
@@ -275,13 +291,14 @@ Nooit wachtwoorden, tokens, API-sleutels, private keys, exacte adressen, ruwe pr
 
 ## 9. Testprocedure + actuele teststatus
 
-De volledige beta.57-suite behaalde **3474 tests in 39,47 s** met Python 3.12.14 en pytest 9.1.1, na de laatste functionele wijziging. Publieke preflight, handoff, actuele-uitleg/440 hulpvelden (hash `af177ba7450ae65b`), repositorystructuur, syntax (67 Python-/4 JSON-bestanden en beide frontendbestanden) en diffcontrole zijn geslaagd. Details en fysieke bewijsgrenzen staan in `docs/TESTRESULTATEN_BETA57.md`. De laatste gecontroleerde beta.56-basis behaalde 3244 tests; dat is uitsluitend basisverificatie.
+De volledige beta.58-suite behaalde **3561 tests in 41,68 s** na de laatste functionele wijziging met `PYTHONDONTWRITEBYTECODE=1 python -m pytest -q -p no:cacheprovider`. De 87 nieuwe gevallen toetsen de opstartmodus en dashboard-/native bediening. Publieke preflight, alle 15 handoffsecties, actuele uitleg/versie/441 hulpvelden (hash `db857daeaac62ed1`), repositorystructuur, syntax (67 Python-/4 JSON-bestanden en beide frontendbestanden) en diffcontrole zijn geslaagd. De fictieve voorbeeldpagina is opnieuw gegenereerd. Details en bewijsgrenzen staan in `docs/TESTRESULTATEN_BETA58.md`. De gepubliceerde beta.57-basis behaalde lokaal 3474 tests in 39,47 s en CI 3474 in 51,84 s; dat is alleen basisbewijs.
 
-Geen live Home Assistant-toegang of fysieke toestelactie in deze werksessie. HA-API-/DOM-doubles bewijzen softwaregedrag en geen fysieke thermische respons, browser-HTTP-levering of nieuwe installatieacceptatie. Publicatie en pakketverificatie blijven afzonderlijke bewijslagen bij de eigen onveranderlijke beta.57-tag en workflow. De gecontroleerde beta.56-assets bewijzen niet dat beta.57 al gepubliceerd of geladen is.
+Geen live Home Assistant-toegang of fysieke toestelactie in deze werksessie. HA-API-/DOM-doubles bewijzen softwaregedrag en geen fysieke thermische respons, browser-HTTP-levering of nieuwe installatieacceptatie. Publicatie en pakketverificatie blijven afzonderlijke bewijslagen bij de eigen onveranderlijke beta.58-tag en workflow. De gecontroleerde beta.57-assets bewijzen niet dat beta.58 al gepubliceerd of geladen is.
 
 ## 10. Bekende problemen / beperkingen
 
-- Geen live herstart-, warmte-/koelroute of fysieke beta.57-acceptatie bevestigd; softwaregate en publicatie zijn afzonderlijk van installatieacceptatie.
+- Geen live herstart-, warmte-/koelroute of fysieke beta.58-acceptatie bevestigd; softwaregate en publicatie zijn afzonderlijk van installatieacceptatie.
+- Beta.57 bewaarde Pause zonder cause; een screenshot verklaart haar oorzaak niet. De nieuwe voorkeur is toekomstig beleid, geen achteraf bewezen foutoorzaak. Alleen gewone beveiligde hervatting mag oude oorzaak-onbekende Pause beoordelen.
 - De interne sterilisatie kan het gewone HA/display-doel ongewijzigd laten. Een klokplanning bewijst geen actieve cyclus; alleen werkelijk gekoppelde native bescherming geeft haar eigen guard. Geen doelrapportage of gedeelde meter bewijst specifiek dat het vat opwarmt.
 - Een native doelrapportage/idle-actie bewijst geen onafhankelijk fysiek ACK, compressorvermogen of bereikt vatniveau. `PUMP/WATER` is taakinfo.
 - Oude vijfminutenpunten en ongestempelde records verklaren niet iedere latere actie of softwareversie. Nieuwe logging is niet terugwerkend; een specifieke vroegere ongewenste AUTO-oorzaak blijft begrensd bewijs.
@@ -296,12 +313,15 @@ Geen live Home Assistant-toegang of fysieke toestelactie in deze werksessie. HA-
 
 ## 11. Concrete openstaande ontwikkeling
 
+- Na installatie de automatische terugkeer van gewone Pause met voorkeur Aan via natuurlijke herstart volgen. Wachtredenen op P1/veiligheid/reconciliation moeten vanzelf opnieuw worden beoordeeld; geen routinecontroleknop nodig.
+- Controleer voorkeur Uit, Alleen bekijken, eerste installatie, al opgeslagen solar en het annuleren van een nu wachtende hervatting met Pauze afzonderlijk. Niet voor fysieke acceptatie kunstmatig een interne fout of onzekere opdracht veroorzaken.
+- Observeer bestaande echte fout-/verwijderreden; zij mag na gezonde metingen niet verdwijnen of automatisch hervatten. Een foutreview blijft gericht en geen algemene reset.
 - Controleer na installatie natuurlijke zonne-AUTO en afloop: >=2500 start, 60 s nieuwe P1/PV, >=2000 eigen hold, gewone comfort/minONOFF bij verlies van zon. Nooit een dashboard-UIT of source/pending/fault passeren.
 - Observeer DHW-reclaim bij een veilig onderbreekbare gewone last: minruntime, OFF-ACK, nieuwe P1 en verse PV, dan gewone rise/opdrachtrust. Afwas en ruimteklimaat blijven beschermd.
 - Controleer de optionele gezamenlijke meter en scope; twee tags of twee taaklabels bewijzen geen twee apparaten. Doorlopend blauw vraagt echte activiteit, gestippeld geeft alleen beschikbaarheid/hoog gemeld doel.
 
-- De eigen beta.57-publicatie en vier assets na de softwaregate tegen exact geteste commit/tag controleren; beta.56-workflow/pakketten blijven uitsluitend basisbewijs.
-- Gebruiker installeert beta.57, herstart Home Assistant en opent de frontend opnieuw. Backend/kaart afzonderlijk controleren, daarna het centrale overzicht, ingeklapte Details en actuele modulevoorwaarden.
+- De eigen beta.58-publicatie en vier assets na de softwaregate tegen exact geteste commit/tag controleren; beta.57-workflow/pakketten blijven uitsluitend basisbewijs.
+- Gebruiker installeert beta.58, herstart Home Assistant en opent de frontend opnieuw. Backend/kaart afzonderlijk controleren, de nieuwe hervatvoorkeur en modus-/wachtreden volgen, daarna het centrale overzicht, ingeklapte Details en actuele modulevoorwaarden.
 - Bij natuurlijke toegestane extra-DHW-vraag de effectieve 3000 W-drempel, alle reserves/guards, stabiele kandidaat en opdrachtrust beoordelen. Voorstel, werkelijke latere doelrapportage en gemeten tankrespons apart volgen; niet forceren met Powerful of Force DHW.
 - Tijdens de bekende maandagsterilisatie controleren dat de planning alleen informatie blijft. Een gewone 60 °C-doelvraag mag bij passende overige gates; werkelijk actieve expliciete hygiëne/manual/pending blijft apart beschermd. Geen sterilisatieinstelling of Force DHW gebruiken voor diagnose.
 - Het werkelijke programma met de passende richting controleren: HEAT/AUTO_HEAT tegenover warmtevraag, COOL/AUTO_COOL tegenover koelvraag. Nieuwe native poll/versheid en eventuele eigen bron controleren; onbekend bewijs niet vervangen door zone-AUTO of seizoen. Het globale effect van de onderliggende HA-opdracht beoordelen zonder een proefwrite te forceren.
@@ -314,15 +334,15 @@ Geen live Home Assistant-toegang of fysieke toestelactie in deze werksessie. HA-
 
 ## 12. Installatie/upgrade en rollback
 
-Zie `START_HIER.md` en `docs/BETA57_INSTELLEN.md`: volledige actuele back-up, beschermde cyclus afwerken, exact beta.57 via HACS/lokaal pakket, volledige HA-herstart, webpagina/app opnieuw openen, backend én kaart/paneel controleren. Bestaande instellingen, leerdata, dashboardoverrides, APP-tickets en `userfiles` blijven behouden. Eénmalige prioriteitsmigratie is gericht; echte manual hold/fout of gewijzigd doel wordt niet automatisch gewist.
+Zie `START_HIER.md` en `docs/BETA58_INSTELLEN.md`: volledige actuele back-up, beschermde cyclus afwerken, exact beta.58 via HACS/lokaal pakket, volledige HA-herstart, webpagina/app opnieuw openen, backend én kaart/paneel controleren. Controleer **Na herstart automatisch hervatten Aan** voor de gewenste terugkeer; een extra Pause vóór gewone upgrade is niet verplicht. Wie bewust gepauzeerd wil blijven zet de voorkeur Uit. Bestaande instellingen, leerdata, dashboardoverrides, APP-tickets en `userfiles` blijven behouden. Geen nieuwe rangordemigratie; eerdere beta.57-migratie blijft éénmalig. Echte manual hold/fout of gewijzigd doel wordt niet automatisch gewist.
 
-Rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.56 of gecontroleerde volledige back-up herstellen → Home Assistant herstart → webpagina/app opnieuw openen → backend/kaart, eigendom, bronnen en beveiligingen controleren**. Beta.56 mist de nieuwe klokguardcorrectie, zonne-AUTO, gezamenlijke HP-begroting, DHW-reclaim en activiteitstekening. Programmabestanden terugzetten maakt de gemigreerde opgeslagen prioriteit/meterinterpretatie niet vanzelf ongedaan. Herstel de passende volledige back-up of controleer de effectieve instellingen. Geen STOPRESET, APP-aanvraag, Powerful of Wallboxwrite om rollback te forceren.
+Rollback die gepauzeerd moet blijven: **Na herstart automatisch hervatten Uit → Pauze → beschermde cycli afwerken → onveranderlijke beta.57 of gecontroleerde volledige back-up herstellen → Home Assistant herstart → webpagina/app opnieuw openen → backend/kaart, eigendom, bronnen en beveiligingen controleren**. Beta.57 bewaart Pause over herstarts en gebruikt de nieuwe voorkeur/pauzeoorzaak niet. Bij later opnieuw installeren van beta.58 kan de opgeslagen voorkeur weer gelden. Programmabestanden herstellen eerdere opslag niet vanzelf; herstel voor exact herstel de passende volledige back-up. Geen STOPRESET, APP-aanvraag, Powerful of Wallboxwrite om rollback te forceren.
 
 ## 13. Belangrijkste bestanden
 
 - `frontend.py`, `frontend/solar-pilot-card.js`: gebundelde static-path-, module-/paneelregistratie, eigen kaartcatalogus en rendercode.
 - `dhw.py`, `dhw_runtime.py`, `dhw_schedule.py`, `dhw_config.py`: gezamenlijke meterscope, informatie-only planning, uitvoeringsgates en DHW-reclaimintegratie; klimaat-/koel-/doelbeleid, eigendom, veilige terugval en ACK.
-- `runtime.py`, `engine.py`: bronregistratie/versheid, afzonderlijke isolatie/reserves/herstel, expliciete bronwacht/configuratie-/opdrachtfoutclassificatie, vermogens-/fasevoorwaarden, fysieke commandoroute, DHW-Hervat en begrensde leerreset.
+- `runtime.py`, `engine.py`, `switch.py`: duurzame herstartvoorkeur en pauzeoorzaak/reden, native schakelaar; bronregistratie/versheid, afzonderlijke isolatie/reserves/herstel, expliciete bronwacht/configuratie-/opdrachtfoutclassificatie, vermogens-/fasevoorwaarden, fysieke commandoroute, DHW-Hervat en begrensde leerreset.
 - `analysis_export.py`, `entity_refs.py`: effectieve read-only mappings, relevante expliciete bronverwijzingen, recordversies en privacybehoud; de geauthenticeerde gecomprimeerde downloadroute beheert private tijdelijke bestanden.
 - `native_program.py`, `heatpump_learning.py`, `thermal_climate.py`, `thermal_runtime.py`: betrouwbare actieclassificatie, passieve trendprovenance, relevante respons, actuele context, zachte-vraagbevestiging, weersforecastcache, beslisspoor en eigendom per klimaatzone.
 - `learning_hub.py`, `pv_forecast.py`: werkelijke basislastafwijsredenen en leerdiagnose; rapportagedag-/uurgebonden native PV-rollen met behoud van gedateerde curves.
@@ -331,22 +351,24 @@ Rollback: **Pauze → beschermde cycli afwerken → onveranderlijke beta.56 of g
 - `savings.py`, planner/PV/fasemodules: schattingen, dekking en begrensd lokaal leren.
 - `current_guide.py`, `option_help.py`, translations en gegenereerde uitleg/help: één releasegebonden gebruikersbeschrijving.
 - `tests/`, `tools/check_*.py`, `tools/validate_repository.py`: regressies, consistentie en openbare releasechecks.
-- `CHANGELOG.md`, `START_HIER.md`, `docs/BETA57_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA57.md` en dit dossier: huidige release; oudere releasedocumenten blijven historie.
+- `CHANGELOG.md`, `START_HIER.md`, `docs/BETA58_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA58.md` en dit dossier: huidige release; oudere releasedocumenten blijven historie.
 
 ## 14. Release-checklist
 
-1. Actuele handoff lezen en absolute gepubliceerde beta.56-commit/tree als basis bevestigen.
-2. Manifest, const, current guide en beide frontendversies gelijk aan beta.57 houden.
+1. Actuele handoff lezen en absolute gepubliceerde beta.57-commit/tree als basis bevestigen.
+2. Manifest, const, current guide en beide frontendversies gelijk aan beta.58 houden.
 3. Actuele uitleg/optiehulp genereren en alle relevante lokale gates uitvoeren; werkelijke beperkingen opnemen.
 4. Code, changelog, gebruikersuitleg, installatie/rollback, testverslag en OVERDRACHT samen actualiseren.
 5. Publieke preflight en diffcontrole groen; geen caches/private exports in commit/pakket.
-6. Alleen na geslaagde gate naar de bestaande repository uploaden. Nieuwe beta.57-tag/workflow/release; oude tags en assets onveranderd laten.
+6. Alleen na geslaagde gate naar de bestaande repository uploaden. Nieuwe beta.58-tag/workflow/release; oude tags en assets onveranderd laten.
 7. Alle vier gepubliceerde assets controleren; beide ZIP's downloaden, inhoud tegen exact de tag vergelijken en grootte/SHA-256 vastleggen.
 8. Publicatie niet gelijkstellen aan geladen backend/kaart, native ACK of fysieke opwarming.
 
 ## 15. AI-handoff
 
-Werk voort op gepubliceerde beta.56-commit `cdc17f3a18d82c30a30967b044565a2819439f42`, tree `dc282d67a4cefcfed2854d83687cab9f5bcce039`, en de hier ontwikkelde beta.57. De gebruiker heeft herstel én upload naar de bestaande GitHub-repository na testen uitdrukkelijk gevraagd. Vraag geen herhaalde uploadtoestemming; voltooi de softwaregate en volledige pakket-/documentconsistentie. De gecontroleerde beta.56-release met vier assets is rollbackbasis; haar 3244 tests zijn geen beta.57-bewijs.
+Werk voort op gepubliceerde beta.57-commit `bfd49647d9a69e6a1608ecae687f04fd739a6d3b`, tree `41dbf19bc875d226fda803074b2c5a6736a0e749`, en de hier ontwikkelde beta.58. De gebruiker heeft herstel én upload naar de bestaande GitHub-repository na testen uitdrukkelijk gevraagd. Vraag geen herhaalde uploadtoestemming; voltooi de softwaregate en volledige pakket-/documentconsistentie. De gecontroleerde beta.57-release met vier assets is rollbackbasis; haar 3474 tests zijn geen beta.58-bewijs.
+
+Beta.58 moet een gewone opgeslagen Pause automatisch via bestaande guards hervatten wanneer `auto_resume_after_restart=True` (standaard). False bewaart Pause; opgeslagen solar behoudt gewone restauratie. Observe/eerste installatie worden niet geactiveerd. Preference setter verandert geen huidige modus. UserPause annuleert huidige queue, de volgende herstart beoordeelt voorkeur opnieuw. Nieuwe interne-fout/verwijderpause bewaart cause+reden en removal_requested; echte gewone faults en DHW-review blijven gate. Gezonde round mag interne foutreden niet wissen. LegacyPause zonder cause is niet achteraf bewezen user/fault. Behoud alle57modules; geen algemene fout-/leerreset/replay.
 
 Beta.57 heeft vijf samenhangende onderdelen: informatie-only sterilisatieplanning; DHW60 vóór veilige gewone flexlasten met marker57 en bevestigde reclaim; zonne-AUTO vanaf 2500 W met 60 s/new-P1/PV en 2000 W-ownedhold; één gezamenlijk fysiek HP-budget/meter; grafische bevestigde versus beschikbare activiteit. Bestaande beta.56-trend-/comfortbevestiging, diagnosespoor, versie per nieuw record en grote geauthenticeerde analyse blijven behouden. Canonieke uitleg en optiehulp horen bij dezelfde versie.
 
@@ -358,6 +380,6 @@ Een passieve slope vereist passende verse passieve interval-eindpunten en explic
 
 Export downloadmetadata is klein; JSONiterencode→gzip draait buiten de eventloop. De download vereist bearer HA-auth, admin/same-user/loaded-entry/exact-runtime, verloopt na 600 s en heeft maximaal twee bestanden in generatie/klaar. Nieuwe route heeft geen 16 MiB-JSONcap of stille historieverkorting; oude contentmodus behoudt haar cap. Schema 2 is additief compatibel. Nieuwe samples/fast/events/source_changes dragen de geladen versie; oudere ongestempelde records blijven unknown. Geen publieke link, volledige HA-logverzameling, extra cloudpolling, Recorderbackfill of automatische externe upload.
 
-De huidige gebruikersinformatie verandert het beleidscontract, maar bewijst niet achteraf iedere fysieke opdrachtuitkomst. Oude korte klimaatsamples en ongestempelde versies blijven begrensd diagnosebewijs. Alleen werkelijk uitgevoerde beta.57-software-/publicatiechecks mogen in `docs/TESTRESULTATEN_BETA57.md` staan. Geen privébronnen, exports, adressen of installatie-identiteiten publiceren.
+De huidige gebruikersinformatie verandert het herstartbeleidscontract, maar bewijst niet achteraf iedere pauzeoorzaak of fysieke opdrachtuitkomst. Oude korte klimaatsamples en ongestempelde versies blijven begrensd diagnosebewijs. Alleen werkelijk uitgevoerde beta.58-software-/publicatiechecks mogen in `docs/TESTRESULTATEN_BETA58.md` staan. Geen privébronnen, exports, adressen of installatie-identiteiten publiceren.
 
 Behoud alle eerdere forecast-/PV-/leerbron-/AEG-herstel, read-only Wallbox, centrale voorrang, beschermde afwascycli, batterij-/P1-serialisatie, toestelisolatie/reserves en elektrische grenzen. De externe effectieve Wallbox-sessiebron blijft installatieconfiguratie; correct semantisch/periodiek bewijs is nodig, geen fake heartbeat of verruimde brontermijn. Geen fysieke proefopdracht gebruiken om diagnosevelden te vullen.

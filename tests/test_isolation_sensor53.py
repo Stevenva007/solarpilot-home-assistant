@@ -10,6 +10,7 @@ def runtime(isolated):
     return SimpleNamespace(
         source_isolated_devices=isolated,
         mode="solar", problem="", problem_kind="", restart_recovery_pending=False, restart_blocking=False,
+        auto_resume_after_restart=True, pause_cause="", pause_reason="", restart_requested_mode=None,
         recovery={}, configs={"a": {"name": "Offline load", "phase_hint": "auto"}},
         states={"a": SimpleNamespace(owned=True, fault="")},
         result=SimpleNamespace(targets={"a": 0}, free_w=100, budget_w=100),

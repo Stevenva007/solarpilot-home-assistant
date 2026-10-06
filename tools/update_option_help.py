@@ -21,7 +21,7 @@ def build():
         entries.setdefault(f'smart_climate.{key}',helpmod.help_for('smart_climate',key,spec['label'],spec))
     for key,spec in planner.PLANNER_SETTING_SPECS.items():
         entries.setdefault(f'planner.{key}',helpmod.help_for('planner',key,spec['label'],spec))
-    for key,label in [('priority_board','Voorrang en autoladen'),('manage_devices','Toestellen beheren'),('learning_hub','Leren & vragen'),('participation','Automatisch / Uitgesloten'),('others_first','Globale Wallbox-voorkeur'),('manual_start','Manueel starten'),('manual_stop','Manueel stoppen'),('boost','Boost 30 minuten'),('analysis_export','Export samenstellen'),('dishwasher_arm','Afwasbeurt klaarzetten'),('dishwasher_cancel','Klaarzetten annuleren')]:
+    for key,label in [('priority_board','Voorrang en autoladen'),('manage_devices','Toestellen beheren'),('learning_hub','Leren & vragen'),('participation','Automatisch / Uitgesloten'),('restart_auto','Na herstart automatisch hervatten'),('others_first','Globale Wallbox-voorkeur'),('manual_start','Manueel starten'),('manual_stop','Manueel stoppen'),('boost','Boost 30 minuten'),('analysis_export','Export samenstellen'),('dishwasher_arm','Afwasbeurt klaarzetten'),('dishwasher_cancel','Klaarzetten annuleren')]:
         entries[f'dashboard.{key}']=helpmod.help_for('dashboard',key,label)
     for key,label in [('sampling','Brongebruik voor leren'),('adaptation','Recente voorspellingen aanpassen'),('notifications','Vragen als HA-melding')]:
         entries[f'learning_hub.{key}']=helpmod.help_for('learning_hub',key,label)

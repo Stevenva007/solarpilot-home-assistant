@@ -1,8 +1,8 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.57
+**Versie:** 1.0.0-beta.58
 **Bijgewerkt:** 2026-10-06
-**Regel-hash:** `af177ba7450ae65b`
+**Regel-hash:** `db857daeaac62ed1`
 
 Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en leerdata blijven lokaal in Home Assistant en worden bij gewone HACS-updates niet vervangen door programmabestanden.
 
@@ -13,6 +13,10 @@ SolarPilot is een lokaal Home Assistant-EMS. De actuele P1- en PV-metingen, appa
 Operationele vermogens-, toestel- en beschermingsrapportages moeten geldig en echt bruikbaar zijn. Restored, toekomstige, niet-eindige of verkeerd gevormde waarden worden niet als actuele vrijgave gebruikt. Een geldige statische veiligheidswaarde mag ongewijzigd blijven; er wordt niet kunstmatig een nieuwe waarde of heartbeat gemaakt.
 
 Alleen bekijken (technisch: observe) berekent en leert maar stuurt geen gewone flexibele toestellen. Automatisch regelen (technisch: solar) voert de toegestane regeling uit. Pauze start niets nieuws en bouwt eigen onderbreekbare lasten veilig af, met behoud van minimumlooptijden en beschermde cycli. Tijdens actief beheer kan Alleen bekijken worden geweigerd: kies eerst Pauze en wacht tot beheerde toestellen veilig zijn vrijgegeven. Pauze mag alleen bewezen eigen OFF/coast-zones naar Panasonic AUTO teruggeven en een bevestigd eigen numeriek batterijdoel neutraliseren zolang het actuele doel nog exact past. Handmatige OFF, overgenomen, onbekende of foutieve doelen en willekeurige scripts worden niet op basis van een aanname overschreven. Ontbrekend eigendom- of bronbewijs blijft beschermd.
+
+Na herstart automatisch hervatten staat standaard Aan en is zichtbaar bij de modusknoppen. Een gewone opgeslagen Pauze vraagt daarmee bij de volgende Home Assistant-herstart of integratieherlading weer Automatisch regelen, zodra de bestaande toestelcontrole, verse net-/veiligheidsbronnen en opdrachtbeveiligingen dit toelaten. Dit start niet alle toestellen ineens: elk toestel behoudt zijn eigen voorwaarden. Alleen bekijken en een eerste installatie blijven Alleen bekijken. Met de schakelaar Uit blijft een opgeslagen Pauze ook na herstart staan; een al opgeslagen Automatisch regelen wordt gewoon hersteld. De schakelaar wijzigen verandert de huidige modus niet. Opnieuw Pauze kiezen annuleert een nu wachtende automatische hervatting, maar de ingeschakelde voorkeur geldt weer bij een volgende herstart.
+
+Een interne fout of voorbereiden van verwijderen krijgt een afzonderlijk bewaarde pauzereden en wordt niet door automatisch hervatten gepasseerd. Bekende opdrachtfouten van gewone toestellen, boiler, batterij of ruimteklimaat, boilercontrole die echte beoordeling vereist en onzekere eerdere opdrachten blijven beschermd. De kaart maakt onderscheid tussen automatisch wachten en een echte handmatige controle. Een gezonde volgende meetronde wist de interne foutreden niet. Controle afronden blijft aan de bestaande voorwaarden gebonden; een geslaagde gerichte controle bevestigt een interne/opdrachtpauze, maar kiest niet meteen Automatisch regelen. Daarna kan je bewust hervatten of de volgende herstart de bewaarde voorkeur laten volgen. Bij oudere opgeslagen Pauze zonder reden kan SolarPilot de vroegere oorzaak niet achteraf vaststellen; de nieuwe standaard probeert uitsluitend de gewone beveiligde hervatting. De compacte analyse bewaart voortaan huidige modus, pauzeoorzaak, hervatvoorkeur en wachtend hervatverzoek, zonder een oude oorzaak achteraf in te vullen.
 
 Een doorlopende blauwe rand betekent bevestigd actief: een toestel is aan, een beschermde cyclus loopt of een actuele native actie meldt verwarmen/koelen/tapwater. Een gestippelde blauwe rand betekent alleen AUTO beschikbaar of een werkelijk gemeld hoger tankdoel. Een voorstel, globale warmtepompmeter of AUTO op zichzelf bewijst geen tapwateropwarming. Niet bereikbare of oude bronnen blijven grijs met activiteit onbekend.
 
@@ -25,7 +29,7 @@ Op Overzicht staat Wat gebeurt er en waarom? Hier zie je per toestel of regeling
 - Eén actuator heeft maar één eigenaar.
 - Een EMS-berekening is geen elektrische beveiliging.
 - Onzekere opdrachten worden niet eindeloos herhaald.
-- Na een herstart leest SolarPilot de echte toestelstatussen. Een tijdelijk onbeschikbaar eerder beheerd toestel wordt afzonderlijk opzijgezet, zonder het uit te schakelen of onbekend verbruik als nul te rekenen. De andere toestellen mogen weer automatisch worden geregeld zodra hun eigen bronnen en de globale net- en veiligheidsmetingen betrouwbaar zijn. Het ontbrekende toestel wordt bij gewone regelrondes opnieuw gecontroleerd en keert vanzelf terug zodra echte bruikbare status beschikbaar is. Een normale herstart vraagt geen handmatige bevestiging; een later gekozen Alleen bekijken of Pauze blijft gelden. Echte fouten, handmatige overname en een onzekere uitgevoerde START blijven beschermd.
+- Na een herstart leest SolarPilot de echte toestelstatussen. Een tijdelijk onbeschikbaar eerder beheerd toestel wordt afzonderlijk opzijgezet, zonder het uit te schakelen of onbekend verbruik als nul te rekenen. De andere toestellen mogen weer automatisch worden geregeld zodra hun eigen bronnen en de globale net- en veiligheidsmetingen betrouwbaar zijn. Het ontbrekende toestel wordt bij gewone regelrondes opnieuw gecontroleerd en keert vanzelf terug zodra echte bruikbare status beschikbaar is. Een normale herstart vraagt geen handmatige bevestiging. Een later gekozen Alleen bekijken blijft gelden; Pauze stopt de huidige hervatting en volgt bij de volgende herstart de zichtbare voorkeur Na herstart automatisch hervatten. Echte fouten, handmatige overname en een onzekere uitgevoerde START blijven beschermd.
 
 ## 2. Overschot, prioriteiten en planner
 

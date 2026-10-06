@@ -70,7 +70,8 @@ async def test_explicit_prior_non_solar_mode_is_preserved_after_late_reconciliat
     # A saved intent marks a known previous user choice rather than a beta.46
     # temporary Observatie state caused by an interrupted restart.
     runtime.store.data = saved_lease(runtime, mode=prior_mode,
-                                    restart_requested_mode=prior_mode)
+                                    restart_requested_mode=prior_mode,
+                                    auto_resume_after_restart=False)
     await runtime.start()
 
     hass.states.set("switch.load", "off")
@@ -96,6 +97,9 @@ async def test_manual_mode_choice_cancels_automatic_solar_resume(chosen_mode):
     assert not runtime.recovery and runtime.mode == chosen_mode
     assert not actuator_calls(hass)
 
+    # beta.58 distinguishes cancelling today's queued resume from choosing
+    # to preserve Pause across a later restart.
+    await runtime.set_auto_resume_after_restart(False)
     saved = deepcopy(runtime._snapshot())
     restarted, again_hass = build()
     again_hass.states.set("sensor.grid", 500, {"unit_of_measurement": "W"})
@@ -178,11 +182,11 @@ async def test_observe_without_interrupted_lease_remains_observe():
 
 
 @pytest.mark.asyncio
-async def test_legacy_pause_with_interrupted_lease_stays_paused():
+async def test_disabled_automatic_resume_with_interrupted_lease_stays_paused():
     runtime, hass = build()
     hass.states.set("sensor.grid", 500, {"unit_of_measurement": "W"})
     hass.states.set("switch.load", "unavailable")
-    runtime.store.data = saved_lease(runtime, mode="paused")
+    runtime.store.data = saved_lease(runtime, mode="paused", auto_resume_after_restart=False)
     await runtime.start()
 
     hass.states.set("switch.load", "off")
@@ -425,7 +429,8 @@ async def test_prior_pause_preserves_running_dishwasher_through_restart():
     runtime, hass, _cfg = dishwasher_setup()
     hass.states.set("sensor.dw_phase", "Running")
     runtime.store.data = saved_lease(runtime, mode="paused", watts=2000,
-                                    restart_requested_mode="paused")
+                                    restart_requested_mode="paused",
+                                    auto_resume_after_restart=False)
 
     await runtime.start()
     await runtime.tick()
