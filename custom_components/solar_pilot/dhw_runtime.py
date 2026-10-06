@@ -918,6 +918,30 @@ class DHWManager:
         power, _ = self.runtime._power(meter, self.settings["stale_s"])
         return power if power is not None and power >= 0 else None
 
+    def power_overview(self):
+        """Present the existing physical meter without assigning thermal tasks.
+
+        A whole-heat-pump meter describes one appliance, not separate tank and
+        room wattages. A tank-only meter remains valid for DHW presentation but
+        cannot provide a measured room-climate total. No estimate is substituted
+        when the configured source is missing, stale or shared with another load.
+        """
+        meter = self.config.get("power_entity")
+        scope = self.settings.get("power_meter_scope", "heat_pump")
+        configured_age = finite(self.settings.get("stale_s"))
+        max_age = (min(300.0, configured_age)
+                   if configured_age is not None and configured_age >= 0 else 300.0)
+        watts = self._metered_power() if self.configured else None
+        obj = self.runtime.hass.states.get(meter) if meter else None
+        stamp = self._report_stamp(obj) if obj is not None else None
+        valid = (scope in ("heat_pump", "tank") and watts is not None and stamp is not None
+                 and stamp > 0 and -5 <= time.time() - stamp <= max_age)
+        return {"configured": bool(meter), "valid": valid,
+                "value_w": round(watts, 1) if valid else None,
+                "scope": scope, "shared_with_rooms": self._shared_heat_pump(),
+                "source": "measured", "entity_id": meter or None,
+                "measured_wall": stamp if valid else None, "stale_s": max_age}
+
     def check_target(self, desired):
         entity_id = self.config["target_entity"]
         domain = entity_id.split(".")[0]
@@ -1533,6 +1557,7 @@ class DHWManager:
                 "manual_hold": self.manual_hold, "fault": self.fault,
                 "pv_w": r.pv_w, "measured_solar_export_w": r.export_w,
                 "before_boiler_w": r.before_boiler_w,
+                "power": self.power_overview(),
                 "own_meter_available": self.exclusive_meter(),
                 "heat_pump_shared_with_rooms": self._shared_heat_pump(),
                 "power_measurement_scope": (self.settings.get("power_meter_scope", "heat_pump")

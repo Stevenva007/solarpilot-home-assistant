@@ -1,14 +1,23 @@
-> **Actuele bron: beta.59** — herstelt de avondvoorraadcrash, de te grote Recorder-leerpakketten en herhaald rekenwerk bij sensorupdates. De volledige SolarPilot-leerdata blijft bewaard; Zonnepanelen en Net krijgen een duidelijke kleurenschaal. Test-/publicatiestatus: `docs/TESTRESULTATEN_BETA59.md`.
+> **Actuele bron: beta.60** — uitgebreidere uitleg op Overzicht toont voorwaarden, wachttijden en bekend vermogen per regeling. Warm water en ruimteklimaat wisselen elkaar af op één warmtepomp; vermogen staat één keer, gemeten en geschat blijven onderscheiden. Ook de leren-schakelaar krijgt de Recorder-/presentatiecorrectie zonder leerdata te verwijderen. Test-/publicatiestatus: `docs/TESTRESULTATEN_BETA60.md`.
 
 # SolarPilot
 
 SolarPilot is a local Home Assistant Energy Management System (EMS) for PV surplus, flexible loads, Panasonic Aquarea hot-water policy, Wallbox Full Solar coexistence, phase analysis, capacity-tariff awareness, local PV/shade learning, slow thermal-climate learning, future home batteries and a unified rolling-horizon planner.
 
-De absolute codebasis en rollbackbasis zijn gepubliceerde beta.58 op commit `5920c3f3156cd62f508559ee5a860e1bec9e9c9a`, tree `3a8838c63897285b32f1829b0ccf59b96fe59e3c`, annotatietagobject `b385d59109de64f1e7da0367f01baadb88d49547`. De onveranderlijke [beta.58-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.58), release-ID `404666467`, workflow `37461351451` en alle vier gepubliceerde assets zijn gecontroleerd. Beide ZIP-pakketten zijn inhoudelijk en met SHA-256 tegen de exacte gepubliceerde bron vergeleken. Lokaal behaalde beta.58 3561 tests in 41,68 s; CI behaalde 3561 tests in 52,14 s. Dit is basisbewijs, geen beta.59-test-/publicatiebewijs.
+De absolute codebasis en rollbackbasis zijn gepubliceerde beta.59 op commit `32874118ba45a32d835d0a3189e75402ad62f8c3`, tree `21b3de88b4a3fe9b44d7cee183046d6076cbc8e0`, annotatietagobject `4e2e32d0c187e39908e1b5c3f7856996ca1a2312`. De onveranderlijke [beta.59-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.59), release-ID `404727324`, workflow `37469667437` en alle vier gepubliceerde assets zijn gecontroleerd. Beide ZIP-pakketten zijn inhoudelijk en met SHA-256 tegen de exacte gepubliceerde bron vergeleken. Lokaal behaalde beta.59 3569 tests in 44,55 s; CI behaalde 3569 tests in 52,59 s. Dit is basisbewijs, geen beta.60-test-/publicatiebewijs.
 
 > **Updates zijn cumulatief.** Je hoeft tussenliggende beta-versies niet één voor één te installeren of publiceren. Installeer de nieuwste release over je bestaande SolarPilot-installatie; Home Assistant-configuratie en lokale leerdata blijven behouden.
 
-## Nieuw in beta.59
+## Nieuw in beta.60
+
+- **Wat gebeurt er en waarom?** krijgt per toestel en regeling uitklapbare uitleg over vermogen, startvoorwaarden, lopende wachttijden, bronproblemen en opdrachtbevestiging. Vervuld betekent in orde, geen misleidende nieuwe blokkering.
+- Gewone toestellen gebruiken dezelfde startdiagnose als Toestellen. Warm water toont werkelijk doel naast voorstel en zijn actuele voorwaarden; klimaat toont de relevante situatie per ruimte. Wallbox blijft alleen-lezen; batterijadvies blijft gescheiden van werkelijk actief beheer.
+- Bekend vermogen is herkenbaar gemeten of geschat. Warm water en ruimteverwarming/koeling wisselen elkaar af op dezelfde warmtepomp; één gezamenlijke meting, niet apart opgeteld. Onbekend wordt geen fictieve nul.
+- Open uitleg blijft behouden bij verversen en veranderde rijvolgorde. Openen bedient niets en verandert geen prioriteit, drempel of gebruikerskeuze.
+- De lokaal-leren-schakelaar deelt de leerpresentatiecache en slaat geen grote detailpakketten herhaaldelijk in Recorder op. Volledige actuele informatie, eigen modellen en beschikbare export blijven behouden, met dezelfde bewaartermijnen.
+- Zie `docs/BETA60_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA60.md` en `OVERDRACHT.md`. Alle beta.59-reparaties, automatische hervatting en eerdere veiligheidsregels blijven behouden.
+
+## Behouden uit beta.59
 
 - Grote leer-/modeldetails blijven volledig beschikbaar in SolarPilot, haar eigen opslag en export. Alleen hun herhaalde kopie in de gewone HA-sensorhistoriek wordt uitgesloten, zodat de Recorder-limiet van 16 KiB niet meer door deze details wordt overschreden. Dit is geen gebrek aan schijfruimte en geen leerdatareset. Bestaande bewaartermijnen blijven gelden.
 - Het dashboard en de sensoren delen per publicatieronde één presentatieoverzicht. Besturing en analyse blijven hun actuele gegevens rechtstreeks gebruiken; minder herhaald rekenwerk geeft geen nieuwe regeltoestemming.
@@ -35,7 +44,7 @@ Op **Overzicht → Wat gebeurt er en waarom?** staan stand, actuele start-/wacht
 - Vanaf **2500 W** restzon gedurende **60 seconden** met nieuwe echte P1/PV mag AUTO beschikbaar zijn zonder temperatuurvraag of volledig geleerd model. Bekend vers programma, dashboardkeuzes, externe rust, minimum aan-/uittijden en bron-/opdrachtbescherming blijven verplicht. Alleen bevestigd eigen zonne-AUTO houdt vanaf **2000 W** met één begrensde terugtelling van de gezamenlijke verse warmtepompvraag.
 - Ruimteklimaat en tapwater zijn **één warmtepomp**. Het actuele verbruik zit al eenmaal in P1; nieuwe reservering gebruikt de grootste passende taakraming minus eenmaal hetzelfde gemeten verbruik. De optionele meter kiest expliciet hele warmtepomp of exclusieve boiler. Geen dubbele reserve of gedeelde meter als specifieke tapwateractiviteit presenteren.
 - Het gewone klimaatcomfortpad blijft richtingsgebonden en gebruikt betrouwbare passieve trends, zachte vraagbevestiging en relevante leer-/forecastgegevens. SolarPilot kiest alleen HA AUTO/UIT; de integratie kan dit globaal vertalen. Geen directe HEAT/COOL of Force DHW.
-- Koppelingen, geldige leerdata, APP-aanvragen, overrides, gecomprimeerde privé-export en elektrische/fabrikantbescherming blijven behouden. De actuele upgrade staat in `docs/BETA59_INSTELLEN.md`; eerdere releasedocumenten zijn historie.
+- Koppelingen, geldige leerdata, APP-aanvragen, overrides, gecomprimeerde privé-export en elektrische/fabrikantbescherming blijven behouden. De actuele upgrade staat in `docs/BETA60_INSTELLEN.md`; eerdere releasedocumenten zijn historie.
 
 ## Behouden uit beta.56
 
@@ -149,7 +158,7 @@ Zie `docs/BETA46_INSTELLEN.md`, `docs/TESTRESULTATEN_BETA46.md` en het actuele `
 
 Beta.44-publicatie, pakketcontrole en geladen versie staan in `docs/BETA44_INSTELLEN.md` en `docs/TESTRESULTATEN_BETA44.md`; uitleg-hash `65b54c9797e55bb4` hoort bij die historische softwaregate. [Beta.44-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.44). Bestaande tags en release-assets blijven onveranderlijk.
 
-## Current DHW policy (beta.59)
+## Current DHW policy (beta.60)
 
 Room climate and domestic water share one physical heat pump. P1 already includes its actual draw once; prospective commitment uses the largest relevant task rather than two full appliances. The optional W/kW source declares whole-heat-pump or exclusive-tank scope. Shared watts cannot prove DHW heating. Planned sterilisation times alone no longer prohibit ordinary target writes; actual configured hygiene/manual/source protection still applies. Extra DHW may release safe owned lower interruptible loads only after stable evidence, confirmed OFF, new P1 and fresh PV, never a dishwasher cycle, room climate or Wallbox.
 
@@ -213,7 +222,7 @@ HACS manages the integration files. A normal update is:
 
 SolarPilot configuration and learned runtime data are stored in Home Assistant, not in the program files replaced by HACS. The optional `userfiles` directory is marked persistent so a local private bundle survives ordinary HACS updates.
 
-The dashboard's **Na herstart automatisch hervatten** switch defaults to On. An ordinary saved Pause requests automatic mode after restart or integration reload through the existing safety checks. To remain paused after restart, turn this preference Off before restarting. Observe, first installation, internal faults and removal preparation remain protected. Changing the preference does not change the current mode. See `docs/BETA59_INSTELLEN.md` for installation and rollback.
+The dashboard's **Na herstart automatisch hervatten** switch defaults to On. An ordinary saved Pause requests automatic mode after restart or integration reload through the existing safety checks. To remain paused after restart, turn this preference Off before restarting. Observe, first installation, internal faults and removal preparation remain protected. Changing the preference does not change the current mode. See `docs/BETA60_INSTELLEN.md` for installation and rollback.
 
 
 ## Optional private profile + history

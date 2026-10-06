@@ -1927,6 +1927,13 @@ class SmartClimateManager:
         return out
 
     def overview(self):
+        meter_reader = getattr(getattr(self.runtime, "dhw", None), "power_overview", None)
+        power = (meter_reader() if callable(meter_reader) else {
+            "configured": False, "valid": False, "value_w": None, "scope": "heat_pump",
+            "shared_with_rooms": False, "source": "measured", "entity_id": None,
+            "measured_wall": None, "stale_s": 300.0})
+        if power.get("scope") != "heat_pump":
+            power = {**power, "valid": False, "value_w": None, "measured_wall": None}
         previous = {z["entity_id"]: z for z in self.last_zones}
         zones = self._zones()
         live_ids = {z["entity_id"] for z in zones}
@@ -2062,6 +2069,7 @@ class SmartClimateManager:
             "enabled": bool(self.settings.get("enabled")),
             "control_enabled": bool(self.settings.get("control_enabled")),
             "automatic_zone_control": automatic,
+            "power": power,
             "solar_availability": {**deepcopy(self._solar_budget),
                                    "start_threshold_w": self.SOLAR_AUTO_START_W,
                                    "hold_threshold_w": self.SOLAR_AUTO_HOLD_W,

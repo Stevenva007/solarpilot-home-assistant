@@ -43,11 +43,15 @@ def test_old_or_future_sensor_not_valid(age):
     assert not s.valid and s.raw_at(NOW.timestamp(),NOW.timestamp()) is None
 
 
-def source_fixture(monkeypatch,entries_count=1,custom_name='sensor.renamed_by_user'):
+def source_fixture(monkeypatch,entries_count=1,custom_name='sensor.renamed_by_user',at=None):
     r,h=build(settings={'pv_entity':'sensor.pv'})
-    now=datetime.now(UTC);t=now.timestamp()
+    now=at or datetime.now(UTC);t=now.timestamp()
     h.states.set(custom_name,3000,{'unit_of_measurement':'W'})
     h.states.set('sensor.pv',2200,{'unit_of_measurement':'W'})
+    if at is not None:
+        for entity in (custom_name, 'sensor.pv'):
+            h.states.get(entity).last_updated = at
+            h.states.get(entity).last_reported = at
     entries=[NS(entry_id=f'fs{i}',domain='forecast_solar',title=f'Installation {i}',disabled_by=None,
         data={},options={'inverter_size':10000,'damping_morning':0,'damping_evening':0,'api_key':'NEVER_EXPORT'},
         subentries={'plane':NS(data={'modules_power':13800,'declination':25,'azimuth':180,'latitude':1,'secret':'secret'})},
@@ -261,7 +265,10 @@ def test_solar_geometry_bounds_and_invalid_location():
 
 
 def test_runtime_cache_does_not_poll_or_write_every_tick(monkeypatch):
-    r,h,e,now=source_fixture(monkeypatch);h.config=NS(latitude=51,longitude=4,time_zone='Europe/Brussels')
+    # Stay within one hour: a real hour boundary intentionally refreshes native
+    # relative forecasts even before the ordinary one-minute cache expires.
+    monkeypatch.setattr('time.time', lambda: NOW.timestamp())
+    r,h,e,now=source_fixture(monkeypatch,at=NOW);h.config=NS(latitude=51,longitude=4,time_zone='Europe/Brussels')
     m=PVForecast(r);calls=[];original=m.source.refresh
     m.source.refresh=lambda t:(calls.append(t),original(t))[1]
     m.update(now)

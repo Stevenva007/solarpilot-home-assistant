@@ -1,4 +1,4 @@
-/* SolarPilot 1.0.0-beta.59. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+/* SolarPilot 1.0.0-beta.60. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
 const spEscape = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const spPower = value => value == null || !Number.isFinite(Number(value)) ? "—" : Math.abs(Number(value)) >= 1000 ? `${(Number(value)/1000).toLocaleString("nl-BE",{maximumFractionDigits:2})} kW` : `${Math.round(Number(value))} W`;
 const spTemp = value => value == null || !Number.isFinite(Number(value)) ? "—" : `${Number(value).toLocaleString("nl-BE",{maximumFractionDigits:1})} °C`;
@@ -490,11 +490,21 @@ class SolarPilotCard extends HTMLElement {
   }
   _captureUiState(){
     if(this._lastRenderedView!==this._view) return null;
-    return {details:Array.from(this.shadowRoot.querySelectorAll("details"),d=>d.open)};
+    const keyed={},details=[];
+    for(const d of (this._content||this.shadowRoot).querySelectorAll('details')){
+      const key=d.dataset.uiKey;
+      if(key)keyed[key]=d.open;else details.push(d.open);
+    }
+    return {keyed,details};
   }
   _restoreUiState(state){
     if(!state) return;
-    Array.from(this.shadowRoot.querySelectorAll("details")).forEach((d,i)=>{if(i<state.details.length)d.open=!!state.details[i];});
+    let i=0;
+    for(const d of (this._content||this.shadowRoot).querySelectorAll('details')){
+      const key=d.dataset.uiKey;
+      if(key){if(Object.prototype.hasOwnProperty.call(state.keyed||{},key))d.open=!!state.keyed[key];}
+      else{if(i<state.details.length)d.open=!!state.details[i];i++;}
+    }
   }
   _viewRenderSignature(){
     if(this._view!=="guide") return "";
@@ -629,11 +639,66 @@ class SolarPilotCard extends HTMLElement {
   _plainReason(value){
     return String(value||'Nog geen betrouwbare reden beschikbaar.').replace(/\bcoast\b/gi,'periode zonder verwarming of koeling').replace(/\bnative\b/gi,'toestel').replace(/\bP1\b/g,'netmeter').replace(/\bACK\b/g,'bevestiging');
   }
-  _reasonRow({name,state,reason,extra='',change=null,view='',id='',activity='inactive'}){
+  _knownPower(value,{known=true,estimated=false,label='Vermogen'}={}){
+    const valid=known&&value!=null&&value!==''&&Number.isFinite(Number(value));
+    return `<div class="reason-power"><b>${valid?spPower(Math.abs(Number(value))):'Vermogen nog niet bekend'}</b>${valid?`<small>${spEscape(label)} · ${estimated?'geschat':'gemeten'}</small>`:''}</div>`;
+  }
+  _powerReadingKnown(power){
+    if(power?.valid!==true||power.value_w==null||!Number.isFinite(Number(power.value_w))||Number(power.value_w)<0)return false;
+    const stamp=Number(power.measured_wall),limit=Number(power.stale_s),age=Date.now()/1000-stamp;
+    return Number.isFinite(stamp)&&stamp>0&&Number.isFinite(limit)&&limit>0&&age>=-5&&age<=limit;
+  }
+  _reasonFacts(facts){
+    return `<div class="start-facts">${facts.map(([label,value])=>`<span>${spEscape(label)}<b>${spEscape(value)}</b></span>`).join('')}</div>`;
+  }
+  _remainingTime(value){
+    if(value==null||value===''||!Number.isFinite(Number(value)))return 'nog niet bekend';
+    return Number(value)<=0?'gereed':Number(value)<60?`nog ${Math.ceil(Number(value))} s`:`nog ${spDuration(value)}`;
+  }
+  _dhwGateList(dhw){
+    const gates=Array.isArray(dhw.execution?.gates)?dhw.execution.gates:[];
+    if(!gates.length)return '<p>De afzonderlijke voorwaarden zijn nog niet ontvangen. De actuele reden hierboven blijft leidend.</p>';
+    const passed={configured:'Boilerbediening is gekoppeld.',enabled:'Automatische boilerregeling staat aan.',mode:'Automatisch regelen staat aan.',safety:'Boilerbediening is vrijgegeven.',restart:'Herstartcontrole is afgerond.',fault:'Geen boileropdrachtfout gemeld.',manual_hold:'Geen beschermende handmatige pauze.',protection:'Geen gemelde toestelbeveiliging houdt de verhoging tegen.',temperature:'Tanktemperatuur is betrouwbaar bekend.',target:'Actueel toesteldoel is betrouwbaar bekend.',pv:'Actuele zonnemeting is betrouwbaar.',grid:'Actuele net- en benodigde batterijmeting zijn betrouwbaar.',pending:'Geen eerdere boileropdracht wacht op bevestiging.',night:'Extra voorraad mag binnen dit tijdvenster.',cooling:'Geen actieve koeling gemeld.',cooling_clear:'Wachttijd na gemelde koeling is afgerond.',predicted_cooling:'Verwachte koeling houdt extra warm water niet tegen.',space_climate:'Ruimteklimaat houdt deze doelverhoging niet tegen.',priority:'De voorrang laat extra warm water toe.',surplus:'Voldoende werkelijk zonnevermogen voor deze stap.',stability:'Het overschot is lang genoeg stabiel.',raise_interval:'Wachttijd tussen doelverhogingen is afgerond.',capability:'Het toestel ondersteunt dit extra doel.',dispatch:'De uitvoercontrole laat deze opdracht toe.'};
+    const group=(label,list,status)=>list.length?`<div class="condition-group ${status}"><b>${label}</b><ul>${list.map(g=>`<li>${spEscape(this._plainReason(status==='ready'?(passed[g.code]||'Deze voorwaarde is gehaald.'):g.reason||'Deze voorwaarde is nog niet beoordeeld.'))}</li>`).join('')}</ul></div>`:'';
+    return group('Nog nodig',gates.filter(g=>g.passed===false),'waiting')+group('In orde',gates.filter(g=>g.passed===true),'ready')+group('Nog niet beoordeeld',gates.filter(g=>g.passed!==true&&g.passed!==false),'unknown');
+  }
+  _overviewDhwExplanation(dhw){
+    const gates=dhw.execution?.gates||[],surplus=gates.find(g=>g.code==='surplus'),stable=gates.find(g=>g.code==='stability');
+    const facts=[['Tanktemperatuur',spTemp(dhw.temperature_c)],['Doel op het toestel',spTemp(dhw.actual_target_c)],['SolarPilot stelt voor',spTemp(dhw.proposed_target_c)]];
+    if(surplus)facts.push(['Beschikbaar zonnevermogen',spPower(surplus.actual_w)],['Nodig voor deze stap',spPower(surplus.required_w)]);
+    if(stable)facts.push(['Stabiliteitscontrole',this._remainingTime(stable.remaining_s)]);
+    for(const code of ['cooling_clear','raise_interval']){const g=gates.find(g=>g.code===code);if(g?.passed===false&&g.remaining_s!=null)facts.push([code==='cooling_clear'?'Uitloop na koeling':'Tijd tussen verhogingen',this._remainingTime(g.remaining_s)]);}
+    return `${this._reasonFacts(facts)}${this._dhwGateList(dhw)}<p class="note">Een voorgesteld doel is nog geen bevestigd toesteldoel. De warmtepomp bepaalt zelf wanneer het water werkelijk opwarmt.</p>`;
+  }
+  _overviewClimateExplanation(zone,climate){
+    const override={auto:'Handmatig AUTO op dashboard',off:'Handmatig UIT op dashboard'},mode={auto:'AUTO beschikbaar maken',off:'Verwarming en koeling pauzeren',hold:'Huidige stand behouden'};
+    const facts=[['Dashboardkeuze',override[zone.dashboard_override]||(zone.dashboard_override===''?'Automatisch laten regelen':'nog niet bekend')],['Plan voor deze ruimte',mode[zone.desired_mode]||'nog niet bekend']];
+    const solar=climate.solar_availability||{};
+    if(solar.available_w!=null)facts.push(['Zonnevermogen voor AUTO',solar.valid===true?spPower(solar.available_w):'niet betrouwbaar']);
+    if(solar.start_threshold_w!=null)facts.push(['Zonnedrempel voor AUTO',spPower(solar.start_threshold_w)]);
+    if(zone.execution_status==='solar_confirmation')facts.push(['Stabiliteit zonnestroom',zone.solar_confirmation_remaining_s===0?'wacht op nieuwe vermogensmeting':this._remainingTime(zone.solar_confirmation_remaining_s)]);
+    if(zone.execution_status==='demand_confirmation')facts.push(['Bevestiging warmtevraag of koelvraag',zone.demand_confirmation_remaining_s===0?'wacht op nieuwe temperatuurrapportage':this._remainingTime(zone.demand_confirmation_remaining_s)]);
+    if(Number(zone.hold_remaining_h)>0)facts.push(['Tijdelijke externe bediening',this._remainingTime(Number(zone.hold_remaining_h)*3600)]);
+    const observations=[];
+    if(zone.valid===false||zone.available===false)observations.push('De ruimtemeting is niet betrouwbaar beschikbaar.');
+    if(zone.command_fault)observations.push(this._plainReason(zone.command_fault));
+    if(zone.pending_mode)observations.push(`Wacht op bevestiging van ${zone.pending_mode==='off'?'UIT':'AUTO'} op het toestel.`);
+    if(climate.dispatch_gate?.allowed===false&&climate.dispatch_gate.reason)observations.push(this._plainReason(climate.dispatch_gate.reason));
+    return `${this._reasonFacts(facts)}<p><b>Wat wil SolarPilot doen?</b> ${spEscape(this._plainReason(zone.decision_reason))}</p><p><b>Wat kan nu uitgevoerd worden?</b> ${spEscape(this._plainReason(zone.execution_reason))}</p>${observations.length?`<div class="condition-group waiting"><b>Nog nodig of beschermd</b><ul>${observations.map(x=>`<li>${spEscape(x)}</li>`).join('')}</ul></div>`:''}<p class="note">AUTO geeft Panasonic toestemming; dit bewijst geen verwarming of koeling. Het warmtepompprogramma bepaalt welke daarvan mogelijk is.</p>`;
+  }
+  _overviewBatteryExplanation(fleet){
+    const names=new Map((fleet.batteries||[]).map(b=>[b.id,b.name||'Batterij']));
+    const faults=Object.entries(fleet.faults||{}),pending=fleet.pending&&typeof fleet.pending==='object'&&Object.keys(fleet.pending).length?fleet.pending:null;
+    const control=faults.length?'Controle nodig':pending?'Wacht op bevestiging':fleet.control_enabled?'Regeling aan':'Alleen bekijken';
+    const facts=[['Bediening',control],['Laadvermogen',fleet.aggregate?.valid===true?spPower(fleet.aggregate.charge_w):'nog niet bekend'],['Vermogen naar huis',fleet.aggregate?.valid===true?spPower(fleet.aggregate.discharge_w):'nog niet bekend']];
+    const status=[...faults.map(([id,reason])=>`${names.get(id)||'Batterij'}: ${this._plainReason(reason)}`),...(pending?[`${names.get(pending.id)||'Batterij'}: wacht op bevestiging van de eerdere opdracht.`]:[])];
+    return `${this._reasonFacts(facts)}${status.length?`<div class="condition-group waiting"><b>${faults.length?'Controle nodig':'Wacht op bevestiging'}</b><ul>${status.map(x=>`<li>${spEscape(x)}</li>`).join('')}</ul></div>`:''}<p><b>Advies voor de batterij:</b> ${spEscape(this._plainReason(fleet.reason))}</p>${(fleet.batteries||[]).map(b=>`<p><b>${spEscape(b.name||'Batterij')}</b> · ${b.valid===true?'metingen beschikbaar':'wacht op betrouwbare metingen'} · ${b.control_kind==='read_only'||!b.control_enabled||!b.exclusive_control_confirmed?'alleen bekijken':'bediening vrijgegeven'}</p>`).join('')}<p class="note">Het advies is geen bevestiging dat een opdracht uitgevoerd is. ${!fleet.control_enabled?'SolarPilot stuurt deze batterij niet aan.':'De precieze uitvoerreden is alleen bekend als de regeling die heeft gemeld.'}</p>`;
+  }
+  _reasonRow({name,state,reason,extra='',change=null,view='',id='',key='',details='',power='',activity='inactive'}){
     const time=change?this._reasonTime(change.at||change.timestamp):'';
-    const last=change?.reason?`<details class="reason-history"><summary>Laatste ${change.confirmed===false?'waarneming':'verandering'}${time?' · '+spEscape(time):''}</summary><p>${spEscape(this._plainReason(change.reason))}</p>${['external','Home Assistant'].includes(change.source)?'<small>Buiten een bevestigde SolarPilot-opdracht veranderd; de precieze veroorzaker is niet bekend.</small>':''}</details>`:'';
+    const last=change?.reason?`<details class="reason-history" data-ui-key="${spEscape(key+':history')}"><summary>Laatste ${change.confirmed===false?'waarneming':'verandering'}${time?' · '+spEscape(time):''}</summary><p>${spEscape(this._plainReason(change.reason))}</p>${['external','Home Assistant'].includes(change.source)?'<small>Buiten een bevestigde SolarPilot-opdracht veranderd; de precieze veroorzaker is niet bekend.</small>':''}</details>`:'';
     const visual=['active','available','unknown'].includes(activity)?activity:'inactive';
-    return `<article class="reason-row is-${visual}" data-activity="${visual}"><div class="row"><strong class="grow">${spEscape(name)}</strong><span class="badge">${spEscape(state)}</span></div><p>${spEscape(this._plainReason(reason))}</p>${extra?`<small>${spEscape(extra)}</small>`:''}${last}${id?`<button type="button" class="mini" data-action="history" data-id="${spEscape(id)}">Geschiedenis</button>`:view?`<button type="button" class="mini" data-action="view" data-value="${spEscape(view)}">Instellen en details</button>`:''}</article>`;
+    return `<article class="reason-row is-${visual}" data-activity="${visual}"><div class="row"><strong class="grow">${spEscape(name)}</strong><span class="badge">${spEscape(state)}</span></div>${power}<p>${spEscape(this._plainReason(reason))}</p>${extra?`<small>${spEscape(extra)}</small>`:''}${details?`<details class="reason-details" data-ui-key="${spEscape(key+':why')}"><summary>Waarom wel of nog niet?</summary>${details}</details>`:''}${last}${id?`<button type="button" class="mini" data-action="history" data-id="${spEscape(id)}">Geschiedenis</button>`:view?`<button type="button" class="mini" data-action="view" data-value="${spEscape(view)}">Instellen en details</button>`:''}</article>`;
   }
   _decisionBoard(c){
     const rows=[],dhw=c.dhw||{},climate=c.smartClimate||{},trace=climate.decision_trace||[];
@@ -646,7 +711,8 @@ class SolarPilotCard extends HTMLElement {
       const extraSelected=sourceKnown&&Number.isFinite(Number(dhw.actual_target_c))&&Number(dhw.actual_target_c)>Number(dhw.normal_target_c??dhw.base_target_c??50)+.05;
       const activity=heating?'active':!sourceKnown?'unknown':extraSelected?'available':'inactive';
       const status=heating?'Warmt water op · ':extraSelected?'Extra voorraad ingesteld · ':!sourceKnown?'Toestelstatus onbekend · ':'';
-      rows.push(this._reasonRow({name:'Sanitair warm water',state:`${status}Tank ${spTemp(dhw.temperature_c)} · doel ${goal}`,reason:this._dhwStateText(dhw),extra:`Extra voorraad tot ${spTemp(extra)} vraagt voldoende zonnestroom. ${heating?'De warmtepomp meldt dat het water nu wordt verwarmd.':'Het gemelde doel vertelt nog niet of het water opwarmt.'}`,change:changes,view:'comfort',activity}));
+      const power=dhw.power?.scope==='tank'?this._knownPower(dhw.power.value_w,{known:this._powerReadingKnown(dhw.power),label:'Warm water'}):'';
+      rows.push(this._reasonRow({name:'Sanitair warm water',state:`${status}Tank ${spTemp(dhw.temperature_c)} · doel ${goal}`,reason:this._dhwStateText(dhw),extra:`Extra voorraad tot ${spTemp(extra)} vraagt voldoende zonnestroom. ${heating?'De warmtepomp meldt dat het water nu wordt verwarmd.':'Het gemelde doel vertelt nog niet of het water opwarmt.'}`,change:changes,view:'comfort',key:'overview:dhw',details:this._overviewDhwExplanation(dhw),power,activity}));
     }
     for(const zone of climate.zones||[]){
       const decision=climate.zone_decisions?.[zone.entity_id]||{},mode=String(zone.mode||'').toLowerCase();
@@ -658,30 +724,35 @@ class SolarPilotCard extends HTMLElement {
       const changes=trace.filter(x=>(x.entity_id||x.zone_id)===zone.entity_id&&['issued','confirmed','external_change','cancelled','late_feedback'].includes(x.stage||x.event)).slice(-1)[0];
       const programs={heating:'verwarmen',cooling:'koelen',both:'verwarmen of koelen',off:'uit'},native=zone.native_program||{};
       const program=native.source==='owned_off_programme'?`uit na eigen pauze; eerder ${programs[native.programme_intent]||'programma onbekend'}`:programs[native.program]||'nog niet bekend';
-      rows.push(this._reasonRow({name:zone.name||'Ruimteregeling',state:`${!known?'Activiteit onbekend':status} · ${spTemp(zone.current)}`,reason,extra:`Gewenste temperatuur ${spTemp(zone.target)} · warmtepompprogramma ${program}.${autoAvailable&&!running?' AUTO betekent nog niet dat de warmtepomp draait.':''}`,change:zone.last_change||changes,view:'comfort',activity:running?'active':!known?'unknown':autoAvailable?'available':'inactive'}));
+      rows.push(this._reasonRow({name:zone.name||'Ruimteregeling',state:`${!known?'Activiteit onbekend':status} · ${spTemp(zone.current)}`,reason,extra:`Gewenste temperatuur ${spTemp(zone.target)} · warmtepompprogramma ${program}.${autoAvailable&&!running?' AUTO betekent nog niet dat de warmtepomp draait.':''}`,change:zone.last_change||changes,view:'comfort',key:'overview:zone:'+zone.entity_id,details:this._overviewClimateExplanation(zone,climate),activity:running?'active':!known?'unknown':autoAvailable?'available':'inactive'}));
     }
     for(const device of c.devices||[]){
       const reason=device.isolation_reason||device.start_diagnostics?.summary||device.reason;
       const activity=this._deviceActivity(device);
       const state=!activity.known?'Niet bereikbaar':activity.active?device.kind==='dishwasher'?(device.dishwasher?.airdry?'Nadrogen actief':'Programma loopt'):(device.manual_forced?'Actief · handmatig':device.owned?'Actief · SolarPilot':'Actief · toestel'):device.mode==='disabled'?'Niet automatisch geregeld':device.kind==='dishwasher'&&!device.dishwasher?.app_request?'Nog niet klaargezet':'Wacht';
-      rows.push(this._reasonRow({name:device.name,state,reason,extra:activity.active&&device.kind==='dishwasher'?'Een lopend programma wordt niet onderbroken.':'',change:device.history?.last_change,id:device.id,activity:activity.active?'active':activity.known?'inactive':'unknown'}));
+      const w=device.dishwasher||{},checks=device.kind==='dishwasher'?this._dishwasherGates(w):[];
+      const deadline=w.start_deadline?this._reasonTime(w.start_deadline):'';
+      const programme=device.kind==='dishwasher'?this._reasonFacts([['Programma',w.program||'nog niet bekend'],['Vrijgegeven beurt',w.app_request||w.ticket_armed?'klaargezet':w.app_request===false&&w.ticket_armed===false?'nog niet klaargezet':'nog niet bekend'],['Uiterlijk starten',deadline||'nog niet bekend']]):'';
+      rows.push(this._reasonRow({name:device.name,state,reason,extra:activity.active&&device.kind==='dishwasher'?'Een lopend programma wordt niet onderbroken.':'',change:device.history?.last_change,id:device.id,key:'overview:device:'+device.id,details:programme+this._startExplanation(device,c.a?.mode,checks),power:this._knownPower(device.power_w,{known:activity.known&&!device.isolated,estimated:device.estimated===true}),activity:activity.active?'active':activity.known?'inactive':'unknown'}));
     }
     if(c.wb?.enabled){
       const wb=c.wb,activity=this._wallboxActivity(wb),observation=wb.activity_details||{},current=observation.current||{};
-      rows.push(this._reasonRow({name:'Auto laden',state:activity.label,reason:current.reason||(activity.active?'De auto laadt; de Wallbox bepaalt zelf het laden.':activity.known?'De auto laadt nu niet; de Wallbox heeft geen precieze wachtreden gemeld.':'Wacht op een betrouwbare laadstatus.'),extra:this._plainReason(wb.consumer_priority?.reason||wb.reason||'SolarPilot leest de Wallbox en verdeelt het resterende overschot.'),change:observation.last_stop?{at:observation.last_stop.observed_stop_at,reason:observation.last_stop.stop_reason,confirmed:observation.last_stop.stop_confirmed}:null,view:'priorities',activity:activity.active?'active':activity.known?'inactive':'unknown'}));
+      rows.push(this._reasonRow({name:'Auto laden',state:activity.label,reason:current.reason||(activity.active?'De auto laadt; de Wallbox bepaalt zelf het laden.':activity.known?'De auto laadt nu niet; de Wallbox heeft geen precieze wachtreden gemeld.':'Wacht op een betrouwbare laadstatus.'),extra:this._plainReason(wb.consumer_priority?.reason||wb.reason||'SolarPilot leest de Wallbox en verdeelt het resterende overschot.'),change:observation.last_stop?{at:observation.last_stop.observed_stop_at,reason:observation.last_stop.stop_reason,confirmed:observation.last_stop.stop_confirmed}:null,view:'priorities',key:'overview:wallbox',details:this._wallboxExplanation(wb,activity,'overview:wallbox:periods'),power:this._knownPower(wb.power_w,{known:activity.known,label:'Auto laden'}),activity:activity.active?'active':activity.known?'inactive':'unknown'}));
     }
     if(c.batteryFleet?.enabled){
       const fleet=c.batteryFleet,aggregate=fleet.aggregate||{},charging=aggregate.valid===true&&Number(aggregate.charge_w)>50,discharging=aggregate.valid===true&&Number(aggregate.discharge_w)>50;
       const control=Object.keys(fleet.faults||{}).length?'Controle nodig':Object.keys(fleet.pending||{}).length?'Wacht op bevestiging':fleet.control_enabled?'Regeling aan':'Alleen bekijken';
       const actual=charging&&discharging?'Batterijen laden en leveren stroom':charging?'Batterij laadt':discharging?'Batterij levert stroom':'';
-      rows.push(this._reasonRow({name:'Batterij',state:actual?`${actual} · ${control}`:control,reason:fleet.reason||'De batterij volgt haar ingestelde regeling.',view:'storage',activity:actual?'active':'inactive'}));
+      const reason=Object.keys(fleet.faults||{}).length?'Een batterijopdracht vraagt controle.':Object.keys(fleet.pending||{}).length?'Wacht op bevestiging van een batterijopdracht.':!fleet.control_enabled?'SolarPilot bekijkt de batterij en geeft advies.':fleet.reason?`Batterijadvies: ${fleet.reason}`:'Nog geen batterijadvies ontvangen.';
+      rows.push(this._reasonRow({name:'Batterij',state:actual?`${actual} · ${control}`:control,reason,view:'storage',key:'overview:battery',details:this._overviewBatteryExplanation(fleet),power:this._knownPower(aggregate.power_w,{known:aggregate.valid===true,label:Number(aggregate.power_w)<0?'Netto laden':Number(aggregate.power_w)>0?'Netto naar huis':'Netto batterijvermogen'}),activity:actual?'active':'inactive'}));
     }
-    return `<section class="decision-board"><style>.decision-board{--sp-activity-blue:#03a9f4;margin:22px 0}.decision-board>p{color:var(--secondary-text-color);font-size:13px}.reason-list{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr))}.reason-row{min-width:0;border:1px solid var(--divider-color);border-radius:16px;padding:16px;background:var(--card-background-color)}.reason-row.is-active{border-color:var(--sp-activity-blue);box-shadow:inset 4px 0 0 var(--sp-activity-blue)}.reason-row.is-active .badge{background:var(--sp-activity-blue);color:#071b26}.reason-row.is-available{border-color:var(--sp-activity-blue);border-style:dashed}.reason-row .row{gap:8px;align-items:flex-start;flex-wrap:wrap}.reason-row .badge{white-space:normal;font-size:11px}.reason-row p{line-height:1.5;margin:9px 0;overflow-wrap:anywhere;font-size:14px}.reason-row>small,.reason-history small{display:block;color:var(--secondary-text-color);font-size:12px;line-height:1.5}.reason-row .mini{margin-top:10px}.reason-history{margin-top:10px;font-size:12px}.reason-history summary{cursor:pointer;padding:4px 0}.reason-history p{font-size:12px}.activity-legend{display:flex;gap:8px 18px;flex-wrap:wrap;margin:12px 0;color:var(--secondary-text-color);font-size:12px}.activity-legend span{display:flex;align-items:center;gap:6px}.activity-swatch{width:14px;height:14px;border:2px solid var(--sp-activity-blue);border-radius:4px;box-shadow:inset 3px 0 0 var(--sp-activity-blue)}.activity-swatch.available{border-style:dashed;box-shadow:none}</style><h2>Wat gebeurt er en waarom?</h2><p>Hier zie je wat elk toestel nu doet, waarom het wacht en welke verandering het laatst is waargenomen.</p><div class="activity-legend" aria-label="Betekenis van de blauwe randen"><span><i class="activity-swatch" aria-hidden="true"></i>Bevestigd actief</span><span><i class="activity-swatch available" aria-hidden="true"></i>Beschikbaar of extra voorraad ingesteld</span></div><div class="reason-list">${rows.join('')||'<p>Nog geen gekoppelde toestellen.</p>'}</div></section>`;
+    const meter=[dhw.power,climate.power].find(p=>p?.scope==='heat_pump'&&p.configured);
+    const sharedPower=meter?`<div class="shared-heatpump-power"><strong>Vermogen warmtepomp</strong>${this._knownPower(meter.value_w,{known:this._powerReadingKnown(meter),label:'Totaal warmtepomp'})}<small>${meter.shared_with_rooms?'Warm water en ruimteverwarming/koeling wisselen elkaar af op dezelfde warmtepomp. Dit is één gezamenlijk vermogen; de verdeling per ruimte is niet gemeten.':'Het vermogen van het toestel, niet alleen van een voorgesteld boilerdoel.'}</small></div>`:'';
+    return `<section class="decision-board"><style>.decision-board{--sp-activity-blue:#03a9f4;margin:22px 0}.decision-board>p{color:var(--secondary-text-color);font-size:13px}.reason-list{display:grid;align-items:start;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr))}.reason-row{min-width:0;border:1px solid var(--divider-color);border-radius:16px;padding:16px;background:var(--card-background-color)}.reason-row.is-active{border-color:var(--sp-activity-blue);box-shadow:inset 4px 0 0 var(--sp-activity-blue)}.reason-row.is-active .badge{background:var(--sp-activity-blue);color:#071b26}.reason-row.is-available{border-color:var(--sp-activity-blue);border-style:dashed}.reason-row .row{gap:8px;align-items:flex-start;flex-wrap:wrap}.reason-row .badge{white-space:normal;font-size:11px}.reason-row p{line-height:1.5;margin:9px 0;overflow-wrap:anywhere;font-size:14px}.reason-row>small,.reason-history small{display:block;color:var(--secondary-text-color);font-size:12px;line-height:1.5}.reason-row .mini{margin-top:10px}.reason-power{margin:10px 0}.reason-power>b{font-size:18px}.reason-power>small,.shared-heatpump-power>small{display:block;color:var(--secondary-text-color);font-size:12px;line-height:1.5}.shared-heatpump-power{padding:12px 16px;border:1px solid var(--divider-color);border-radius:12px;margin:12px 0}.reason-details>summary{padding:10px 12px;background:var(--secondary-background-color);border:1px solid var(--divider-color);border-radius:10px;font-size:12px;line-height:1.4}.reason-details[open]>summary{border-color:var(--sp-activity-blue)}.reason-details .start-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.reason-details .start-facts b{display:block;overflow-wrap:anywhere}.condition-group{margin:12px 0;font-size:12px;line-height:1.5}.condition-group ul{padding-left:18px;margin:6px 0}.condition-group.ready>b{color:var(--success-color,#4caf50)}.condition-group.waiting>b{color:var(--warning-color,#ffb300)}.reason-details .note{font-size:12px}@media(max-width:420px){.reason-details .start-facts{grid-template-columns:1fr}}.reason-history{margin-top:10px;font-size:12px}.reason-history summary{cursor:pointer;padding:4px 0}.reason-history p{font-size:12px}.activity-legend{display:flex;gap:8px 18px;flex-wrap:wrap;margin:12px 0;color:var(--secondary-text-color);font-size:12px}.activity-legend span{display:flex;align-items:center;gap:6px}.activity-swatch{width:14px;height:14px;border:2px solid var(--sp-activity-blue);border-radius:4px;box-shadow:inset 3px 0 0 var(--sp-activity-blue)}.activity-swatch.available{border-style:dashed;box-shadow:none}</style><h2>Wat gebeurt er en waarom?</h2><p>Hier zie je wat elk toestel nu doet, waarom het wacht en welke verandering het laatst is waargenomen.</p><div class="activity-legend" aria-label="Betekenis van de blauwe randen"><span><i class="activity-swatch" aria-hidden="true"></i>Bevestigd actief</span><span><i class="activity-swatch available" aria-hidden="true"></i>Beschikbaar of extra voorraad ingesteld</span></div>${sharedPower}<div class="reason-list">${rows.join('')||'<p>Nog geen gekoppelde toestellen.</p>'}</div></section>`;
   }
   _dhwExecutionDetails(dhw){
     const execution=dhw.execution;if(!execution)return '';
-    const gates=Array.isArray(execution.gates)?execution.gates:[];
-    return `<details class="dhw-execution-details"><summary>Alle voorwaarden voor extra warm water</summary>${gates.map(g=>`<p><b>${g.passed===true?'In orde':g.passed===false?'Wacht':'Niet beoordeeld'}</b> · ${spEscape(this._plainReason(g.reason))}</p>`).join('')}<p class="note">De eerste wachtreden staat in het centrale overzicht. Er kunnen meerdere voorwaarden tegelijk gelden.</p></details>`;
+    return `<details class="dhw-execution-details"><summary>Alle voorwaarden voor extra warm water</summary>${this._dhwGateList(dhw)}<p class="note">De eerste wachtreden staat in het centrale overzicht. Er kunnen meerdere voorwaarden tegelijk gelden.</p></details>`;
   }
   _overview(c){
     const {a,dhw,wb,cap,forecast,localPv,batteryFleet,batteryAnalysis,smartClimate,phase,today,planner,ems}=c;
@@ -700,7 +771,7 @@ class SolarPilotCard extends HTMLElement {
       </div>
       <p class="energy-legend">Zon: rood weinig → groen veel. Net: groen injectie → geel, oranje en rood bij afname. Kleur is geen foutmelding.</p>
       ${this._decisionBoard(c)}
-      <details class="technical-overview"><summary>Metingen, voorspellingen en technische details</summary>
+      <details class="technical-overview" data-ui-key="overview:technical"><summary>Metingen, voorspellingen en technische details</summary>
       ${this._activeLoads(c)}<div class="summarygrid">
         ${this._tile('Warm water',dhwTargetText,`${dhwStateText}${dhwProposalText}`,'dhw-overview')}
         ${this._tile('Ruimteklimaat',climateText,smartClimate.decision?.reason||'')}
@@ -718,10 +789,10 @@ class SolarPilotCard extends HTMLElement {
       ${ems.advice?.length?`<div class="advice"><strong>Advies</strong>${ems.advice.slice(0,4).map(x=>`<p>${spEscape(x)}</p>`).join('')}</div>`:''}
       ${ems.warnings?.length?this._notice(ems.warnings.map(x=>spEscape(x)).join('<br>'),true):''}
       ${forecast.enabled||planner.enabled?`<div class="inlinefacts"><span>Forecast: <b>${forecast.remaining_today_kwh==null?'—':Number(forecast.remaining_today_kwh).toLocaleString('nl-BE',{maximumFractionDigits:1})+' kWh resterend'}</b></span><span>Planner: <b>${planner.held_devices?.length?planner.held_devices.length+' start(s) uitgesteld':'geen start uitgesteld'}</b></span></div>`:''}
-      <details class="decisions"><summary>Waarom doet SolarPilot dit?</summary>${(a.recent_decisions||[]).slice(0,10).map(x=>`<div class="log"><time>${spEscape(new Date(x.time).toLocaleTimeString('nl-BE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}))}</time>${spEscape(x.message)}</div>`).join('')||'<p>Nog geen beslissingen geregistreerd.</p>'}</details>
+      <details class="decisions" data-ui-key="overview:decisions"><summary>Waarom doet SolarPilot dit?</summary>${(a.recent_decisions||[]).slice(0,10).map(x=>`<div class="log"><time>${spEscape(new Date(x.time).toLocaleTimeString('nl-BE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}))}</time>${spEscape(x.message)}</div>`).join('')||'<p>Nog geen beslissingen geregistreerd.</p>'}</details>
     </section>`;
   }
-  _wallboxExplanation(wb,activity){
+  _wallboxExplanation(wb,activity,key=''){
     const observation=wb.activity_details||{},current=observation.current||{},last=observation.last_stop;
     const when=value=>{if(value==null||!Number.isFinite(Number(value))||Number(value)<=0)return 'tijdstip onbekend';try{return new Date(Number(value)*1000).toLocaleString('nl-BE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:this._hass?.config?.time_zone||undefined});}catch{return 'tijdstip onbekend';}};
     const reason=!activity.known?'Een actuele, betrouwbare laadmeting ontbreekt; wachten of stoppen is niet bevestigd.':activity.active?'De auto laadt nu; er is geen actuele laadstop.':current.known?current.reason:'Nog geen actuele wachtreden ontvangen. De ingestelde laadmodus alleen verklaart niet waarom de auto wacht.';
@@ -729,7 +800,7 @@ class SolarPilotCard extends HTMLElement {
     const priority=wb.per_device_priority?wb.consumer_priority?.reason:wb.reason;
     return `<div class="start-explanation wb-wait"><strong>${activity.active?'Wat doet de Wallbox nu?':'Waarop wacht de Wallbox?'}</strong><p>${spEscape(reason)}</p>${activity.known&&current.known&&current.native_status?`<small>Door de Wallbox gemelde status: ${spEscape(current.native_status)}</small>`:''}<p><b>SolarPilot verdeelt de zonnestroom zo:</b> ${spEscape(priority||'Nog geen actuele verdelingsregel ontvangen.')}</p><small>Dit is de SolarPilot-regel voor andere toestellen, niet automatisch de oorzaak van een laadstop. De benodigde laadstroom en wachttijd staan hieronder bij Actuele verdeling.</small></div>
       <div class="start-explanation wb-stop"><strong>Laatste laadstop</strong>${last?stop(last):'<p>Nog geen laadstop waargenomen sinds deze registratie. Eerdere stops worden niet achteraf ingevuld.</p>'}<small>Het tijdstip is de waarneming in Home Assistant, niet het exacte fysieke stopmoment. Wie of wat de stop veroorzaakte is alleen bekend als de Wallbox dit meldt.</small></div>
-      ${Array.isArray(observation.history)&&observation.history.length?`<details class="wb-stop-history"><summary>Laadgeschiedenis · ${observation.history.length} bewaarde laadperioden</summary>${observation.history.map(event=>`<div class="start-explanation"><p>${event.start_confirmed?'Begin waargenomen':'Bij eerste controle al aan het laden'}: ${spEscape(when(event.observed_start_at))}</p>${stop(event)}</div>`).join('')}<p class="note">Maximaal 30 laadperioden bewaard. Een ontbrekende meting of herstart bewijst geen laadstop.</p></details>`:''}`;
+      ${Array.isArray(observation.history)&&observation.history.length?`<details class="wb-stop-history"${key?` data-ui-key="${spEscape(key)}"`:''}><summary>Laadgeschiedenis · ${observation.history.length} bewaarde laadperioden</summary>${observation.history.map(event=>`<div class="start-explanation"><p>${event.start_confirmed?'Begin waargenomen':'Bij eerste controle al aan het laden'}: ${spEscape(when(event.observed_start_at))}</p>${stop(event)}</div>`).join('')}<p class="note">Maximaal 30 laadperioden bewaard. Een ontbrekende meting of herstart bewijst geen laadstop.</p></details>`:''}`;
   }
   _wallbox(c){
     const {wb}=c;if(!wb.enabled)return `<div class="empty">Wallbox-monitor is niet geconfigureerd.</div>`;
@@ -743,7 +814,7 @@ class SolarPilotCard extends HTMLElement {
     const reason=diagnostics?.summary||d.reason||'Nog geen actuele beslisreden ontvangen; de oorzaak is niet vastgesteld.';
     if(d.isolated)return `<div class="start-explanation"><strong>Toestel tijdelijk apart gehouden</strong><p>${spEscape(d.isolation_reason||reason)}</p><p>${d.available===false?'De actuele activiteit is onbekend.':'Het toestel meldt zijn activiteit; het vermogen of andere benodigde gegevens zijn niet betrouwbaar.'} SolarPilot bedient dit toestel tijdelijk niet en controleert de gegevens automatisch opnieuw. Zodra ze betrouwbaar zijn, kan het toestel opnieuw meedoen met behoud van minimale looptijd, rusttijd en overige voorwaarden.</p>${Number(d.isolation_reserve_w)>0?`<p>Veiligheidsreserve voor mogelijk verbruik: <b>${spPower(d.isolation_reserve_w)}</b>. Dit is geen gemeten verbruik.</p>`:''}</div>`;
     if(d.on&&d.available!==false)return `<div class="start-explanation"><strong>Waarom dit toestel nu actief is</strong><p>${spEscape(reason)}</p><p class="start-ready">${d.kind==='dishwasher'?'Een lopende afwasbeurt wordt niet opnieuw gestart en niet onderbroken om stroom vrij te maken.':'Startvoorwaarden gelden voor een volgende start, niet voor het toestel dat al draait.'}</p><small>De actuele beslisreden komt rechtstreeks uit de regelaar.</small></div>`;
-    const wait=s=>Number(s)<60?`${Math.max(0,Math.ceil(Number(s)||0))} s`:spDuration(s);
+    const wait=s=>s==null||s===''||!Number.isFinite(Number(s))?'nog niet bekend':Number(s)<60?`${Math.max(0,Math.ceil(Number(s)))} s`:spDuration(s);
     const explain=(key,value={})=>({
       global_solar_mode:'Automatisch regelen staat niet aan.',
       recovery_clear:'De herstartcontrole voor dit toestel is nog bezig.',
@@ -752,7 +823,7 @@ class SolarPilotCard extends HTMLElement {
       availability_and_fault:!value.observed?'Nog geen actuele toestelstatus ontvangen.':value.fault?`Toestelfout: ${value.fault}`:'Toestel is niet beschikbaar.',
       release:'De externe vrijgave om te starten ontbreekt.',
       demand_or_time_window:d.kind==='dishwasher'&&d.dishwasher?.ticket_armed?`${d.dishwasher?.arming_mode==='app'?'APP-startvraag':'Startvraag'} ontvangen; wacht op bevestigde toestelstatus.`:value.time_window_enabled&&!value.time_window_active_now?`Buiten het toegestane tijdvenster ${String(value.time_window_start||'').slice(0,5)}–${String(value.time_window_end||'').slice(0,5)}.`:'Het toestel meldt nog geen startvraag.',
-      minimum_rest:`Minimale rusttijd: nog ${wait(value.remaining_s)}.`,
+      minimum_rest:value.remaining_s==null?'Minimale rusttijd is nog niet bekend.':`Minimale rusttijd: nog ${wait(value.remaining_s)}.`,
       non_interruptible_cycle_release:'De beschermde cyclus is nog niet voor één volledige beurt vrijgegeven.',
       daily_maximum:`Dagmaximum bereikt${value.limit_s?` (${spDuration(value.used_s)} van ${spDuration(value.limit_s)})`:''}.`,
       planner_start_block:value.reason||'De planning houdt deze start nog tegen.',
@@ -782,9 +853,12 @@ class SolarPilotCard extends HTMLElement {
     for(const [label,value,state] of extra){if(state!=='ok')missing.push(`${label}: ${value}.`);}
     missing=[...new Set(missing)];
     const sharing=pool?`<span>Van autoladen beschikbaar <b>${spPower(pool.wallbox_solar_w)}</b></span>${Number(pool.lower_loads_releasable_w)>0?`<span>Van lagere toestellen vrij te maken <b>${spPower(pool.lower_loads_releasable_w)}</b></span>`:''}<span>Zonnevermogen voor dit toestel <b>${spPower(pool.available_solar_w)}</b></span>`:allocation?`<span>Beschikbaar voor dit toestel <b>${spPower(allocation.available_w)}</b></span>${Number(allocation.comfort_and_cycle_reserve_w)>0?`<span>Reserve voor comfort en lopende afwas <b>${spPower(allocation.comfort_and_cycle_reserve_w)}</b></span>`:''}`:'';
-    const powerFacts=power?`<div class="start-facts"><span>Benodigd voor start <b>${spPower(power.required_start_w)}</b></span><span>Vrije zonnestroom na huisreserve <b>${power.measurement_valid?spPower(power.measured_free_w):'niet betrouwbaar'}</b></span>${sharing}<span>Stabiel nodig <b>${stable?.remaining_s!=null?(stable.remaining_s>0?'nog '+wait(stable.remaining_s):'gereed'):stable?.configured_s?wait(stable.configured_s)+' vereist':'geen wachttijd'}</b></span></div><p class="power-note">${pool?'Het vermogen voor dit toestel telt toegelaten zonnestroom uit autoladen mee, na reserves en begrensd door de echte zonneopbrengst. De Wallbox regelt zelf terug; dit is geen extra netcapaciteit. Lagere toestellen moeten eerst veilig stoppen. Wachttijden en elektrische grenzen blijven gelden.':d.kind==='dishwasher'?'Vrije zonnestroom is niet het totale startvermogen. Toegelaten vermogen uit autoladen kan ook meetellen, zodra de toestelstatus en de laadgegevens betrouwbaar zijn.':''}${power.note?` ${spEscape(power.note)}`:''}</p>`:'';
-    const missingHtml=missing.length?`<div class="start-missing"><b>Nog nodig</b><ul>${missing.map(text=>`<li>${spEscape(text)}</li>`).join('')}</ul></div>`:'<p class="start-ready">Alle getoonde startvoorwaarden zijn gehaald; de beslisreden hierboven blijft leidend.</p>';
-    return `<div class="start-explanation"><strong>${d.available===false?'Toestelactiviteit nog niet bevestigd':'Waarom dit toestel nog niet gestart is'}</strong><p>${spEscape(reason)}</p>${powerFacts}${missingHtml}<small>De beslisreden komt rechtstreeks uit de regelaar. Een ontbrekende externe oorzaak wordt niet ingevuld.</small></div>`;
+    const powerFacts=power?`<div class="start-facts"><span>Benodigd voor start <b>${spPower(power.required_start_w)}</b></span><span>Vrije zonnestroom na huisreserve <b>${power.measurement_valid?spPower(power.measured_free_w):'niet betrouwbaar'}</b></span>${sharing}<span>Stabiel nodig <b>${stable?.remaining_s!=null?(stable.remaining_s>0?'nog '+wait(stable.remaining_s):'gereed'):stable?.configured_s!=null?(Number(stable.configured_s)>0?wait(stable.configured_s)+' vereist':'geen wachttijd'):'nog niet bekend'}</b></span></div><p class="power-note">${pool?'Het vermogen voor dit toestel telt toegelaten zonnestroom uit autoladen mee, na reserves en begrensd door de echte zonneopbrengst. De Wallbox regelt zelf terug; dit is geen extra netcapaciteit. Lagere toestellen moeten eerst veilig stoppen. Wachttijden en elektrische grenzen blijven gelden.':d.kind==='dishwasher'?'Vrije zonnestroom is niet het totale startvermogen. Toegelaten vermogen uit autoladen kan ook meetellen, zodra de toestelstatus en de laadgegevens betrouwbaar zijn.':''}${power.note?` ${spEscape(power.note)}`:''}</p>`:'';
+    const readyLabels={global_solar_mode:'Automatisch regelen staat aan.',recovery_clear:'Herstartcontrole afgerond.',automatic_participation:'Dit toestel mag automatisch meedoen.',reliable_energy_measurement:'Actuele energiemeting betrouwbaar.',availability_and_fault:'Toestel beschikbaar zonder gemelde fout.',release:'Vrijgavevoorwaarden zijn gehaald.',demand_or_time_window:'Startvraag of toegestaan tijdvenster aanwezig.',minimum_rest:'Minimale rusttijd afgerond.',non_interruptible_cycle_release:'Eén volledige beschermde cyclus vrijgegeven.',daily_maximum:'Dagmaximum laat deze start toe.',planner_start_block:'Planning houdt deze start niet tegen.',wallbox_start_block:'Autoladen houdt deze start niet tegen.',runtime_start_block:'Andere regelingen laten deze start toe.',general_increase_permission:'Veiligheidscontrole laat nieuwe starts toe.',allocated_start_power:'Voldoende vermogen aan dit toestel toegewezen.'};
+    const ready=requirements?Object.entries(requirements).filter(([key,value])=>value?.met===true&&value.required!==false&&readyLabels[key]).map(([key])=>readyLabels[key]):[];
+    const readyHtml=ready.length?`<div class="condition-group ready"><b>In orde</b><ul>${ready.map(text=>`<li>${spEscape(text)}</li>`).join('')}</ul></div>`:'';
+    const missingHtml=missing.length?`<div class="start-missing"><b>Nog nodig</b><ul>${missing.map(text=>`<li>${spEscape(text)}</li>`).join('')}</ul></div>`:requirements?'<p class="start-ready">Geen ontbrekende startvoorwaarde gemeld; de beslisreden hierboven blijft leidend.</p>':'<p>De afzonderlijke startvoorwaarden zijn nog niet volledig ontvangen.</p>';
+    return `<div class="start-explanation"><strong>${d.available===false?'Toestelactiviteit nog niet bevestigd':'Waarom dit toestel nog niet gestart is'}</strong><p>${spEscape(reason)}</p>${powerFacts}${missingHtml}${readyHtml}<small>De beslisreden komt rechtstreeks uit de regelaar. Een ontbrekende externe oorzaak wordt niet ingevuld.</small></div>`;
   }
   _deviceCard(d,mode){
     if(d.kind==='dishwasher')return this._dishwasherCard(d,mode);
@@ -802,6 +876,12 @@ class SolarPilotCard extends HTMLElement {
       <div class="controls"><button type="button" data-action="view" data-value="priorities">Voorrang bekijken</button><button class="mini ${d.mode==='auto'?'active':''}" data-action="participate" data-id="${spEscape(d.id)}">${d.mode==='auto'?'Auto':'Uitgesloten'}</button>${manualButton}<span class="spacer"></span>${d.boost_seconds>0?`<button class="mini" data-action="cancel" data-id="${spEscape(d.id)}">Boost stoppen</button>`:`<button class="mini" data-action="boost" data-id="${spEscape(d.id)}" ${mode!=='solar'||d.mode!=='auto'||!d.available||d.isolated?'disabled':''}>Boost 30 min</button>`}<button class="mini" data-action="history" data-id="${spEscape(d.id)}" aria-label="Apparaatgeschiedenis ${spEscape(d.name)}">Geschiedenis${d.history?.on_s!=null?` · ${spDuration(d.history.on_s)} vandaag`:""}</button><button class="mini" data-action="info" data-id="${spEscape(d.id)}">Info</button></div>
       ${(d.owned||!d.available)&&mode!=='solar'?`<button class="linkbtn" data-action="takeover" data-id="${spEscape(d.id)}">Handmatig overnemen — schakelt niet uit</button>`:''}</div>`;
   }
+  _dishwasherGates(w){
+    const gateLabels={connection:'Verbinding actueel',remote:'Start op afstand vrijgegeven',door:'Deur gesloten',program:'Programma gekozen',native_delay_zero:'Geen eigen uitgestelde start',alarm:'Geen technisch alarm',start_button:'AEG START beschikbaar'},gates=w.gates||{},link=w.connection_report;
+    const checks=Object.entries(gateLabels).filter(([key])=>Object.prototype.hasOwnProperty.call(gates,key)&&!gates[key]).map(([key,label])=>[label,key==='connection'&&link?.age_s!=null&&Number(link.age_s)>Number(link.maximum_age_s)?`laatste terugmelding ${spDuration(Number(link.age_s))} oud; maximaal ${spDuration(link.maximum_age_s)}`:'niet gehaald','blocked']);
+    if(w.app_request===false&&w.ticket_armed===false)checks.push(['Eén beurt vrijgegeven','nog niet','blocked']);
+    return checks;
+  }
   _dishwasherCard(d,mode){
     const w=d.dishwasher||{},p=w.last_measured_profile,activity=this._deviceActivity(d),active=activity.active,app=w.arming_mode==='app';
     const done=w.cycle_status==='completed'&&w.completion?.confirmed;
@@ -809,10 +889,7 @@ class SolarPilotCard extends HTMLElement {
     const ended=done?new Date(w.completion.ended_at_local).toLocaleString('nl-BE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
     const badge=done?'KLAAR':w.airdry?'AIRDRY — NADROGEN':!d.available?'ONBEKEND':active?(d.owned?'PROGRAMMA ACTIEF':'EXTERN PROGRAMMA'):(w.app_request||w.ticket_armed)?'KLAARGEZET':'NIET KLAARGEZET';
     const rows=p?.stages?Object.entries(p.stages).map(([name,x])=>`<tr><td>${spEscape(name)}</td><td>${x.seconds>0?spPower(x.kwh*3600000/x.seconds):'—'}</td><td>${spPower(x.peak_w)}</td><td>${spDuration(x.seconds)}</td></tr>`).join(''):'';
-    const gateLabels={connection:'Verbinding actueel',remote:'Start op afstand vrijgegeven',door:'Deur gesloten',program:'Programma gekozen',native_delay_zero:'Geen eigen uitgestelde start',alarm:'Geen technisch alarm',start_button:'AEG START beschikbaar'},gates=w.gates||{};
-    const link=w.connection_report;
-    const gateChecks=Object.entries(gateLabels).filter(([key])=>Object.prototype.hasOwnProperty.call(gates,key)&&!gates[key]).map(([key,label])=>[label,key==='connection'&&link?.age_s!=null&&Number(link.age_s)>Number(link.maximum_age_s)?`laatste terugmelding ${spDuration(Number(link.age_s))} oud; maximaal ${spDuration(link.maximum_age_s)}`:'niet gehaald','blocked']);
-    if(!w.app_request&&!w.ticket_armed)gateChecks.push(['Eén beurt vrijgegeven','nog niet','blocked']);
+    const gateChecks=this._dishwasherGates(w);
     return `<div class="device dishwasher${active?' on owned':''}"><div class="row"><div class="icon">◷</div><div class="grow"><strong>${spEscape(d.name)} <span class="runstate ${active?'active':''}">${badge}</span></strong></div><b class="power">${d.available&&!d.isolated?`${d.estimated?'≈ ':''}${spPower(d.power_w)}`:'onbekend'}</b></div>
       <div class="facts"><span>Programma <b>${spEscape(w.program||'Onbekend')}</b></span><span>Fase <b>${spEscape(activity.phase||'Onbekend')}</b></span><span>Vermogen <b>${!d.available||d.isolated?'onbekend':d.estimated?'geschat, geen eigen meting':'gemeten'}</b></span></div>
       ${this._startExplanation({...d,reason:d.reason||w.gate_reason},mode,gateChecks)}
@@ -1059,7 +1136,7 @@ class SolarPilotCard extends HTMLElement {
   }
   async _loadOptionHelpers(){
     if(!customElements.get('solar-pilot-option-help-dialog')){
-      if(!this._optionLoad)this._optionLoad=import('/solar_pilot_static/option-help.js?v=1.0.0-beta.59').catch(e=>{this._optionLoad=null;throw e;});
+      if(!this._optionLoad)this._optionLoad=import('/solar_pilot_static/option-help.js?v=1.0.0-beta.60').catch(e=>{this._optionLoad=null;throw e;});
       await this._optionLoad;
     }
   }

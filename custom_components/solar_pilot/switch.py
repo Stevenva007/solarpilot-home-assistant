@@ -19,7 +19,12 @@ def _entities(r):
 
 class SolarSwitch(SolarEntity, SwitchEntity):
     _attr_icon = "mdi:sort-priority-high"
-    _unrecorded_attributes = frozenset({"profiles", "reported_interval_median_s", "response_p90_s"})
+    # Keep full models available to the dashboard and exports; Recorder only
+    # needs the switch state and compact learning summary, not each catalogue.
+    _unrecorded_attributes = frozenset({
+        "profiles", "reported_interval_median_s", "response_p90_s",
+        "pv_model", "phase_learning", "thermal_model",
+    })
 
     @property
     def available(self):
@@ -50,7 +55,8 @@ class SolarSwitch(SolarEntity, SwitchEntity):
                     "off_meaning": "Wallbox eerst; eigen flexibele lasten wijken",
                     "default": "on", "wallbox_read_only": True,
                     "wallbox_monitor_enabled": self.runtime.wallbox_settings["enabled"]}
-        return self.runtime.learning_overview()
+        reader = getattr(self.runtime, "sensor_overview", None)
+        return reader("learning") if callable(reader) else self.runtime.learning_overview()
 
     async def async_turn_on(self, **kwargs):
         await self._set(True)

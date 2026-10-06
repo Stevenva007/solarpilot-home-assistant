@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.60 — 2026-10-06
+
+- Breidt het centrale overzicht uit met uitklapbare start-/wacht-/uitvoeruitleg per toestel en regeling. Hergebruikt de gewone toesteldiagnose en toont actuele boiler-, ruimte-, Wallbox- en batterijvoorwaarden. Vervulde gates krijgen positieve tekst; voorstellen/advies blijven gescheiden van uitgevoerde acties.
+- Toont waar bekend wattage met gemeten/geschat/onbekend brononderscheid. Warm water en ruimteverwarming/koeling wisselen elkaar af op dezelfde warmtepomp; één gezamenlijke meting, niet apart opgeteld. Uitgeklapte uitleg blijft bij verversen en gewijzigde rijvolgorde aan hetzelfde onderdeel gekoppeld.
+- Laat de native lokaal-leren-schakelaar het bestaande gedeelde leerpresentatieoverzicht gebruiken en sluit grote detailpakketten uit van de herhaalde Recorder-kopie. Volledige actuele attributen, eigen leer-/modelopslag en beschikbare export behouden; geen leer-/datareset of gewijzigde bewaartermijn.
+- Behoudt beta.59-crash-/kleur-/sensor-Recorder-/cachecorrecties en alle herstart-, voorrangs-, warmwater-, klimaat-, afwas- en elektrische/fabrikantbescherming. Uitleg openen geeft geen fysieke toestemming; geen configuratie- of rangordemigratie.
+- Werkt versie, canonieke HA-uitleg, releasegebonden hulp, installatie/rollback, testverslag en alle handoffsecties samen bij. Eigen gate: `docs/TESTRESULTATEN_BETA60.md`; gecontroleerde beta.59 is bron- en rollbackbasis.
+
 ## 1.0.0-beta.59 — 2026-10-06
 
 - Voorkomt te grote Recorder-attribuutpakketten door ontbrekende zware model-/leer-/analyseattributen uitsluitend van de herhaalde HA-historiekkopie uit te sluiten. De volledige actuele sensorinhoud, eigen opslag en directe exportmodellen blijven behouden; geen data-/leerreset of gewijzigde bewaartermijn. Extra schijfruimte vergroot de 16 KiB-limiet per Recorder-pakket niet.

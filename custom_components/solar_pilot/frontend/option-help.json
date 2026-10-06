@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.59",
+  "version": "1.0.0-beta.60",
   "language": "nl",
   "steps": {
     "init": {
@@ -5285,7 +5285,7 @@
       "title": "Toestellen beheren",
       "short": "Toestellen beheren toont actieve profielen, wachtende wijzigingen en archieven.",
       "paragraphs": [
-        "Toestellen beheren toont actieve profielen, wachtende wijzigingen en archieven. Toevoegen, koppelen, plannen en vervangen gebeurt via dezelfde gecontroleerde Home Assistant-wizard. Andere apparaten blijven actief; er is geen algemene pauze nodig om dit venster te openen. Een nieuw of opnieuw gekoppeld profiel begint Uitgesloten.",
+        "Toestellen beheren toont actieve profielen, wachtende wijzigingen en archieven. Toevoegen, koppelen, plannen en vervangen gebeurt via dezelfde gecontroleerde Home Assistant-wizard. Andere apparaten blijven actief; er is geen algemene pauze nodig om dit venster te openen. Een nieuw of opnieuw gekoppeld profiel begint Uitgesloten. De uitklapbare uitleg op Overzicht toont dezelfde startvoorwaarden, bekend vermogen en wachttijden zonder een tweede regeling of toestelactie.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },

@@ -3,11 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.59'
+GUIDE_VERSION = '1.0.0-beta.60'
 GUIDE_UPDATED = '2026-10-06'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.59',
+ 'version': '1.0.0-beta.60',
  'updated': '2026-10-06',
  'intro': 'Dit is de enige actuele gebruikersuitleg voor deze release. Bij elke wijziging wordt deze tekst '
           'samen met de code vernieuwd. Deze HACS-release bevat bewust één actuele regelset. Configuratie en '
@@ -48,11 +48,8 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'afwerken; veilige reductie van gewone lasten behoudt haar normale rustregels. '
                               'Na batterijactie is naast powerbevestiging ook een nieuwe P1-rapportage en '
                               'de normale wachttijd nodig; oude netruimte wordt niet opnieuw uitgegeven.',
-                              'Op Overzicht staat Wat gebeurt er en waarom? Hier zie je per toestel '
-                              'of regeling de actuele stand, de reden voor starten of wachten en de '
-                              'laatst vastgelegde actie. Technische bronwaarden en opdrachtgegevens '
-                              'staan achter Details. Ze blijven beschikbaar voor onderzoek zonder '
-                              'de dagelijkse bediening te overladen.'],
+                              'Op Overzicht staat Wat gebeurt er en waarom? Per toestel of regeling zie je de actuele stand, start- of wachtreden en laatst vastgelegde actie. Klap de uitleg open voor beschikbare en benodigde stroom, nog ontbrekende voorwaarden en lopende wachttijden. Warm water onderscheidt het toesteldoel van het voorstel; klimaat toont per ruimte programma, gebruikerskeuze en eventuele opdrachtbevestiging. Een voorwaarde die al in orde is wordt positief benoemd. Bekend werkelijk vermogen krijgt het label gemeten; een raming blijft een schatting en ontbrekend vermogen blijft onbekend. Warm water en ruimteverwarming/koeling wisselen elkaar af op dezelfde warmtepomp; één gezamenlijke meting, niet apart opgeteld. De Wallbox blijft alleen uitgelezen; advies, werkelijk laden en een wachtreden zijn verschillende zaken. Uitgeklapte uitleg blijft open bij automatisch verversen en herschikken. Openen van uitleg bedient geen toestel. De technische gegevens blijven beschikbaar achter Details zonder de dagelijkse bediening te overladen.',
+                              'De schakelaar voor lokaal leren deelt hetzelfde leerpresentatieoverzicht als de leersensor. Haar grote detailpakketten krijgen uitsluitend geen herhaalde kopie in de Home Assistant-historiek; de actuele gegevens, eigen leeropslag en beschikbare analyse-export blijven volledig behouden. Er wordt geen leerdata gewist en de bestaande bewaartermijnen blijven gelden.'],
                'bullets': ['Eén actuator heeft maar één eigenaar.',
                            'Een EMS-berekening is geen elektrische beveiliging.',
                            'Onzekere opdrachten worden niet eindeloos herhaald.',
@@ -238,7 +235,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'tankdifferentie verhoogt het normale doel niet. Er is geen tijdelijke '
                               'herstelverhoging naar 52 °C, geen Force DHW, geen Powerful en geen compressor-, '
                               'hoofdvoedings- of DHW-modeopdracht.',
-                              'Ruimteklimaat en sanitair water gebruiken dezelfde warmtepomp. Het werkelijk gemeten gezamenlijke verbruik staat al in de P1-netbalans. SolarPilot telt dat éénmaal en reserveert voor mogelijke nieuwe belasting alleen het nog ontbrekende deel van de grootste passende warmtepomptaak, in plaats van twee volledige apparaten. Een gedeelde warmtepomp-W-meter bewijst geen specifieke tankopwarming; een exclusieve tankmeter blijft een andere bron. Onbekende of oude metingen geven geen teruggeteld gratis vermogen.',
+                              'Warm water en ruimteverwarming/koeling wisselen elkaar af op dezelfde warmtepomp. Zij verbruiken niet tegelijk als twee afzonderlijke apparaten. Het werkelijk gemeten gezamenlijke verbruik staat al in de P1-netbalans. SolarPilot telt dat éénmaal en reserveert voor mogelijke nieuwe belasting alleen het nog ontbrekende deel van de grootste passende warmtepomptaak, in plaats van twee volledige apparaten. Een gedeelde warmtepomp-W-meter bewijst geen specifieke tankopwarming; een exclusieve tankmeter blijft een andere bron. Onbekende of oude metingen geven geen teruggeteld gratis vermogen.',
                               'De extra zonnebuffer heeft standaard 60 °C als doel en mag vanaf '
                               '3000 W bruikbaar echt overschot starten; exact 3000 W telt mee. Dit '
                               'is werkelijke restinjectie, niet het totale paneelvermogen of '

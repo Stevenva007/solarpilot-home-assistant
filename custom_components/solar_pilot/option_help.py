@@ -1200,7 +1200,9 @@ HELP_NOTES.update({'appliance_type': 'Dit is de herkenbare categorie: afwasmachi
                              'archieven. Toevoegen, koppelen, plannen en vervangen gebeurt via '
                              'dezelfde gecontroleerde Home Assistant-wizard. Andere apparaten '
                              'blijven actief; er is geen algemene pauze nodig om dit venster te '
-                             'openen. Een nieuw of opnieuw gekoppeld profiel begint Uitgesloten.'})
+                             'openen. Een nieuw of opnieuw gekoppeld profiel begint Uitgesloten. '
+                             'De uitklapbare uitleg op Overzicht toont dezelfde startvoorwaarden, '
+                             'bekend vermogen en wachttijden zonder een tweede regeling of toestelactie.'})
 
 def help_for(step, key, label, spec=None):
     """A complete explanation for a known schema option; HTML is escaped by UI."""
