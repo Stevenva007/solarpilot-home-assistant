@@ -1,4 +1,4 @@
-/* SolarPilot 1.0.0-beta.60. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+/* SolarPilot 1.0.0-beta.61. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
 const spEscape = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const spPower = value => value == null || !Number.isFinite(Number(value)) ? "—" : Math.abs(Number(value)) >= 1000 ? `${(Number(value)/1000).toLocaleString("nl-BE",{maximumFractionDigits:2})} kW` : `${Math.round(Number(value))} W`;
 const spTemp = value => value == null || !Number.isFinite(Number(value)) ? "—" : `${Number(value).toLocaleString("nl-BE",{maximumFractionDigits:1})} °C`;
@@ -436,7 +436,7 @@ class SolarPilotUiHistory {
 
 class SolarPilotCard extends HTMLElement {
   constructor(){
-    super(); this.attachShadow({mode:"open"}); this._busy=false; this._error=""; this._view="overview"; this._renderSignature=""; this._lastRenderedView="";
+    super(); this.attachShadow({mode:"open"}); this._busy=false; this._error=""; this._feedback=""; this._view="overview"; this._renderSignature=""; this._lastRenderedView="";
     this._content=document.createElement("div");this.shadowRoot.appendChild(this._content);this._uiHistory=new SolarPilotUiHistory(this);
     this.shadowRoot.addEventListener("click",ev=>this._click(ev));
     this.shadowRoot.addEventListener("change",ev=>this._change(ev));
@@ -509,7 +509,7 @@ class SolarPilotCard extends HTMLElement {
   _viewRenderSignature(){
     if(this._view!=="guide") return "";
     const c=this._ctx(),a=c.a;
-    return JSON.stringify([this._view,a.mode,a.problem,a.removal,c.guide.rules_hash,this._busy,this._error]);
+    return JSON.stringify([this._view,a.mode,a.problem,a.removal,c.guide.rules_hash,this._busy,this._error,this._feedback]);
   }
   getCardSize(){return 9;} getLayoutOptions(){return {grid_columns:12,grid_rows:8};} static getStubConfig(){return {};}
   _ctx(){
@@ -591,6 +591,39 @@ class SolarPilotCard extends HTMLElement {
     </div>${p.remaining_s?`<p class="note">Resterende wachttijd: ${spDuration(p.remaining_s)}</p>`:''}<p class="note">Zonder laadvraag geen reservering. Klein overschot mag naar lagere verbruikers; bij voldoende stabiel vermogen krijgen die een veilige stop voordat de auto autonoom start. Als de auto niet begint, wordt vermogen niet onbeperkt vastgehouden.</p></section>`;
   }
   _notice(text,warn=false){ return text?`<div class="notice ${warn?'warn':''}">${text}</div>`:""; }
+  _isDhwProblem(c){
+    const a=c.a||{},dhw=c.dhw||{};
+    if(a.problem_kind==='dhw_review')return true;
+    // Older payloads did not type this warning. Only an exact boiler message
+    // may use the compatibility route; another module keeps its own control.
+    return !a.problem_kind&&!!a.problem&&!!(dhw.fault||dhw.needs_review)
+      &&(a.problem===dhw.fault||a.problem===dhw.status);
+  }
+  _dhwFailureDetails(dhw,scope='comfort'){
+    const f=dhw.failed_command;if(!f)return '';
+    const facts=[['Gevraagd doel',spTemp(f.requested_target_c)],['Gemeld bij de fout',spTemp(f.reported_target_c)]];
+    if(f.waited_s!=null)facts.push(['Gecontroleerd na',spDuration(f.waited_s)]);
+    const failed=this._reasonTime(f.failed_at),reviewed=this._reasonTime(f.reviewed_at);
+    if(failed)facts.push(['Fout vastgesteld',failed]);
+    if(reviewed)facts.push([String(f.review_kind||'').startsWith('automatic')?'Automatisch gecontroleerd':'Controle afgerond',reviewed]);
+    return `<details class="dhw-failure-details" data-ui-key="dhw-failure:${spEscape(scope)}"><summary>Laatste niet bevestigde boileropdracht${reviewed?' · gecontroleerd':''}</summary>${this._reasonFacts(facts)}<p>${spEscape(f.reason||'De gevraagde doeltemperatuur is niet bevestigd.')}</p><p class="note">Dit zijn de waarnemingen bij die opdracht; het huidige voorstel kan daarvan verschillen.</p></details>`;
+  }
+  _dhwRecoveryNotice(c){
+    const {a,dhw}=c,solar=a.mode==='solar';
+    const message=dhw.fault||dhw.status||'De boilerregeling vraagt eerst controle.';
+    const unavailable=!dhw.review_entity||(solar&&!a.mode_entity);
+    const blocked=!!dhw.pending||(!solar&&dhw.review_allowed===false);
+    const reason=unavailable?'De bediening voor boilercontrole is niet beschikbaar.':dhw.pending?'Wacht eerst tot de lopende boileropdracht is afgerond.':!solar&&dhw.review_allowed===false?(dhw.review_block_reason||'De boilercontrole is nog niet vrijgegeven.'):'';
+    const action=solar?'dhw_pause':'dhw_review',label=solar?'Pauzeren voor boilercontrole':'Boilercontrole afronden';
+    const instruction=solar?'Pauzeer eerst SolarPilot. Daarna kun je de boilercontrole hier afronden. Beschermde programma’s mogen afwerken.':'Controleer de actuele tanktemperatuur en het toesteldoel. Rond een gemelde hygiënecyclus of krachtige functie eerst af. Deze controle verstuurt geen temperatuurwijziging.';
+    const manual=`<p>${spEscape(instruction)}</p>${reason?`<p>${spEscape(reason)}</p>`:''}<button type="button" class="mini" data-action="${action}" ${this._busy||unavailable||blocked?'disabled':''}>${label}</button>`;
+    const evidence=dhw.failed_command?this._dhwFailureDetails(dhw,'recovery'):dhw.fault?'<p class="note">De eerdere opdrachtgegevens zijn niet bewaard. Het huidige voorstel bewijst niet welk doel toen gevraagd werd.</p>':'';
+    if(dhw.automatic_recovery_pending===true){
+      const wait=Number(dhw.automatic_recovery_remaining_s)>0?`<p>Wachttijd voor een eventuele nieuwe opdracht: ${spDuration(dhw.automatic_recovery_remaining_s)}.</p>`:'';
+      return this._notice(`<strong>Automatische boilercontrole</strong><br>${spEscape(dhw.automatic_recovery_reason||'SolarPilot controleert de actuele boilerstatus opnieuw.')}<p>SolarPilot controleert dit zelf. Je hoeft geen controleknop in te drukken.</p>${wait}${evidence}<details data-ui-key="dhw-manual-recovery"><summary>Zelf controleren</summary>${manual}</details>`);
+    }
+    return this._notice(`<strong>Boilercontrole nodig</strong><br>${spEscape(message)}${manual}${evidence}`,true);
+  }
   _nav(){
     const items=[["overview","Overzicht"],["priorities","Voorrang"],["loads","Toestellen"],["comfort","Warmte & comfort"],["planning","Planning"],["energy","Energie"],["storage","Batterij"],["export","Export"],["guide","Uitleg"]];
     return `<div class="nav" role="tablist">${items.map(([id,label])=>`<button role="tab" aria-selected="${this._view===id}" class="${this._view===id?'active':''}" data-action="view" data-value="${id}">${label}</button>`).join('')}</div>`;
@@ -605,10 +638,11 @@ class SolarPilotCard extends HTMLElement {
     const problem=a.problem||(automaticRestart?`Wacht op betrouwbare toestelstatus${recoveryNames.length?': '+recoveryNames.join(' · '):''}; SolarPilot controleert automatisch opnieuw.`:'');
     const title=automaticRestart?'Automatische herstartcontrole':sourceWait?'Automatische broncontrole':sourceConfiguration?'Toestelgegevens controleren':'Aandacht nodig';
     const sourceNote=sourceWait?'SolarPilot controleert automatisch opnieuw zodra actuele gegevens beschikbaar zijn.':sourceConfiguration?'Controleer de gekoppelde bronnen en instellingen van dit toestel.':'';
-    const canReset=!automaticRestart&&!sourceWait&&!sourceConfiguration&&a.reset_entity;
+    const dhwProblem=!automaticRestart&&!sourceWait&&!sourceConfiguration&&this._isDhwProblem(c);
+    const canReset=!dhwProblem&&!automaticRestart&&!sourceWait&&!sourceConfiguration&&a.reset_entity;
     const isolatedNotice=isolated.length?this._notice(`<strong>${isolated.length===1?'Toestel tijdelijk apart gehouden':'Toestellen tijdelijk apart gehouden'}</strong><br>${isolated.map(d=>`${spEscape(d.name)}: ${spEscape(d.reason||'betrouwbare toestelgegevens ontbreken')}`).join('<br>')}<br>Deze toestellen worden tijdelijk niet bediend. SolarPilot controleert automatisch opnieuw.${a.mode==='solar'?'<br>Andere beschikbare toestellen kunnen automatisch verder zodra hun eigen voorwaarden zijn gehaald.':''}${Number(a.isolated_reserve_w)>0?`<br>Veiligheidsreserve voor mogelijk verbruik: ${spPower(a.isolated_reserve_w)}. Dit is geen gemeten verbruik.`:''}`):'';
     const isolatedWait=isolated.length&&(sourceWait||automaticRestart&&a.problem_kind==='restart_wait'&&a.restart_blocking!==true);
-    return `${!this._last?this._notice('Geen SolarPilot-status gevonden. Voeg eerst de integratie toe.',true):''}${problem&&!isolatedWait?this._notice(`<strong>${title}</strong><br>${spEscape(problem)}${sourceNote?'<br>'+sourceNote:''}${canReset?'<br><button data-action="reset" class="mini">Controle afronden</button>':''}`,!automaticRestart&&!sourceWait):''}${isolatedNotice}${this._error?`<div role="alert" class="error">${spEscape(this._error)}</div>`:''}${ems.legacy_conflicts?.length?this._notice(`<strong>Dubbele regeling geblokkeerd</strong><br>${ems.legacy_conflicts.map(x=>spEscape(x.name)).join(' · ')}<br>Automatisch regelen blijft geblokkeerd tot deze vervangen regelaars uit staan.`,true):''}`;
+    return `${!this._last?this._notice('Geen SolarPilot-status gevonden. Voeg eerst de integratie toe.',true):''}${dhwProblem?this._dhwRecoveryNotice(c):problem&&!isolatedWait?this._notice(`<strong>${title}</strong><br>${spEscape(problem)}${sourceNote?'<br>'+sourceNote:''}${canReset?'<br><button data-action="reset" class="mini">Controle afronden</button>':''}`,!automaticRestart&&!sourceWait):''}${isolatedNotice}${this._error?`<div role="alert" class="error">${spEscape(this._error)}</div>`:''}${this._feedback?`<div role="status" class="notice">${spEscape(this._feedback)}</div>`:''}${ems.legacy_conflicts?.length?this._notice(`<strong>Dubbele regeling geblokkeerd</strong><br>${ems.legacy_conflicts.map(x=>spEscape(x.name)).join(' · ')}<br>Automatisch regelen blijft geblokkeerd tot deze vervangen regelaars uit staan.`,true):''}`;
   }
   _modeBar(a){
     const mode=a.mode||"observe";
@@ -668,7 +702,8 @@ class SolarPilotCard extends HTMLElement {
     if(surplus)facts.push(['Beschikbaar zonnevermogen',spPower(surplus.actual_w)],['Nodig voor deze stap',spPower(surplus.required_w)]);
     if(stable)facts.push(['Stabiliteitscontrole',this._remainingTime(stable.remaining_s)]);
     for(const code of ['cooling_clear','raise_interval']){const g=gates.find(g=>g.code===code);if(g?.passed===false&&g.remaining_s!=null)facts.push([code==='cooling_clear'?'Uitloop na koeling':'Tijd tussen verhogingen',this._remainingTime(g.remaining_s)]);}
-    return `${this._reasonFacts(facts)}${this._dhwGateList(dhw)}<p class="note">Een voorgesteld doel is nog geen bevestigd toesteldoel. De warmtepomp bepaalt zelf wanneer het water werkelijk opwarmt.</p>`;
+    const recovery=dhw.automatic_recovery_pending===true?`<p><b>Automatische hercontrole:</b> ${spEscape(dhw.automatic_recovery_reason||'SolarPilot wacht op nieuwe betrouwbare boilergegevens.')}${Number(dhw.automatic_recovery_remaining_s)>0?` Wachttijd voor een eventuele nieuwe opdracht: ${spDuration(dhw.automatic_recovery_remaining_s)}.`:''}</p>`:'';
+    return `${this._reasonFacts(facts)}${recovery}${this._dhwGateList(dhw)}${this._dhwFailureDetails(dhw,'overview')}<p class="note">Een voorgesteld doel is nog geen bevestigd toesteldoel. De warmtepomp bepaalt zelf wanneer het water werkelijk opwarmt.</p>`;
   }
   _overviewClimateExplanation(zone,climate){
     const override={auto:'Handmatig AUTO op dashboard',off:'Handmatig UIT op dashboard'},mode={auto:'AUTO beschikbaar maken',off:'Verwarming en koeling pauzeren',hold:'Huidige stand behouden'};
@@ -911,9 +946,8 @@ class SolarPilotCard extends HTMLElement {
   _dhw(c){
     const {a,dhw}=c;if(!dhw.configured)return `<div class="empty">Boilerregeling is nog niet gekoppeld.</div>`;
     const fields=[["normal_c","Normaal doel",40,60,.5,"°C"],["minimum_c","Bewaakte comfortgrens",35,55,.5,"°C"],["tank_differential_c","Fysieke tankdifferentie",-12,-2,1,"°C"],["solar_c","Zonnedoel",40,65,.5,"°C"],["surplus_c","Overschotdoel",45,65,.5,"°C"],["cooling_cap_c","Maximum bij koeling",40,65,.5,"°C"],["pv_threshold_w","PV-drempel",0,50000,50,"W"],["surplus_threshold_w","Injectiedrempel",0,50000,50,"W"],["estimated_heat_power_w","Geschat boilervermogen",100,20000,50,"W"]];
-    const resumeNeeded=!!(dhw.needs_review||dhw.manual_override_active||dhw.manual_hold);
-    const resumeDisabled=a.mode==='solar'||!!dhw.pending||this._busy||!dhw.review_entity;
-    const resumeNotice=resumeNeeded?this._notice(`<strong>Automatische boilerregeling staat stil</strong><br>${spEscape(dhw.status||'Het gemelde boilerdoel wijkt af; de oorzaak is nog niet bevestigd.')}<br>Kies eerst Pauze wanneer Automatisch regelen actief is. Controleer daarna de actuele tanktemperatuur en of fabrikant-hygiëne of een krachtige/handmatige functie actief is. Wacht ook tot een lopende boileropdracht is afgerond. Hervatten verstuurt zelf geen temperatuurwijziging.<br><button type="button" class="mini" data-action="dhw_review" ${resumeDisabled?'disabled':''}>Automatische boilerregeling hervatten</button>`,true):'';
+    const resumeNeeded=!!(dhw.review_required||dhw.fault||dhw.needs_review||dhw.manual_override_active||dhw.manual_hold);
+    const resumeNotice=resumeNeeded&&!this._isDhwProblem(c)?this._dhwRecoveryNotice(c):!resumeNeeded?this._dhwFailureDetails(dhw):'';
     return `<section class="dhw"><div class="sectionhead"><div><h2>Sanitair warm water</h2><p>50 °C normaal · 46 °C bewaakte comfortgrens · Panasonic-sterilisatie 62 °C autonoom</p></div><button role="switch" aria-checked="${dhw.enabled?'true':'false'}" aria-label="Automatische boilerregeling" class="toggle ${dhw.enabled?'active':''}" data-action="dhw_enabled" ${!dhw.switch_entity||this._busy?'disabled':''}>${dhw.enabled?'Aan':'Uit'}</button></div><div class="flowgrid three">${this._tile('Tank',spTemp(dhw.temperature_c),'gemeten')}${this._tile('SolarPilot-voorstel',spTemp(dhw.proposed_target_c),this._dhwStateText(dhw))}${this._tile('Panasonic-doel',spTemp(dhw.actual_target_c),'toestel')}</div><details class="dhw-control-details"><summary>Bediening en beveiligingen</summary><div class="facts"><span>Geconfigureerd <b>${dhw.configured?'ja':'nee'}</b></span><span>Ingeschakeld <b>${dhw.enabled?'ja':'nee'}</b></span><span>Veiligheidskeuze bevestigd <b>${dhw.safety_confirmed?'ja':'nee'}</b></span><span>Regeling toegestaan <b>${dhw.control_allowed?'ja':dhw.enabled?'nog niet':'uit'}</b></span><span>Doel in beheer <b>${dhw.solar_pilot_owns_target?'SolarPilot':'Panasonic'}</b></span><span>Panasonic autonoom <b>${dhw.panasonic_autonomous?'ja':'nee'}</b></span><span>Beschermende wachtstand <b>${dhw.manual_override_active||dhw.manual_hold?'actief':'nee'}</b></span></div></details>${resumeNotice}${this._dhwExecutionDetails(dhw)}<details class="dhw-rules"><summary>Temperaturen en zonnedrempels</summary><div class="formgrid">${fields.map(([key,label,min,max,step,unit])=>`<label>${label}<span><input type="number" data-dhw-setting="${key}" min="${min}" max="${max}" step="${step}" value="${Number(dhw.settings?.[key]??0)}" ${!dhw.number_entities?.[key]||this._busy?'disabled':''}> ${unit}</span></label>`).join('')}</div><p class="note">Normaal doel ${spTemp(dhw.normal_target_c??dhw.base_target_c)} · bewaakte comfortgrens ${spTemp(dhw.minimum_c)} · nominale fabrikant-herstart rond ${spTemp(dhw.expected_restart_c)}. Geen verhoging om de differentie te omzeilen; geen gegarandeerde minimumtemperatuur.</p></details>${this._dhwSchedule(dhw)}${a.mode!=='solar'&&dhw.takeover_entity?'<button class="linkbtn" data-action="dhw_takeover">Boiler handmatig overnemen — verandert niets aan het toestel</button>':''}</section>`;
   }
   _climateEntityOptions(kind,current){
@@ -1136,7 +1170,7 @@ class SolarPilotCard extends HTMLElement {
   }
   async _loadOptionHelpers(){
     if(!customElements.get('solar-pilot-option-help-dialog')){
-      if(!this._optionLoad)this._optionLoad=import('/solar_pilot_static/option-help.js?v=1.0.0-beta.60').catch(e=>{this._optionLoad=null;throw e;});
+      if(!this._optionLoad)this._optionLoad=import('/solar_pilot_static/option-help.js?v=1.0.0-beta.61').catch(e=>{this._optionLoad=null;throw e;});
       await this._optionLoad;
     }
   }
@@ -1200,7 +1234,7 @@ class SolarPilotCard extends HTMLElement {
       <button class="mini" data-action="configure" data-config-step="dhw">Instellen met uitleg ?</button>
       <details><summary>Wat kan dit wel en niet?</summary><p>De bewaakte comfortgrens en het ochtenddoel verhogen het gewone setpoint niet. De voorraadraming kan tekorten melden. Netbijverwarming door de fabrikant blijft mogelijk, ook in het nachtvenster. Een hoger avondsetpoint kan door de fysieke differentie zonder onmiddellijke warmtevraag blijven.</p><p>De avondreserve blijft binnen de ingestelde limiet en wordt na bereiken die dag niet opnieuw opgestart. Extra zonne-opwarming blijft afhankelijk van metingen, taakverdeling en beveiligingen. De 46/50-keuze is geen legionellabestrijdingsgarantie.</p></details></section>`;
   }
-  async _perform(domain,service,data){if(this._busy)return;this._busy=true;this._error="";try{await this._hass.callService(domain,service,data);}catch(err){this._error=err?.message||String(err);}finally{this._busy=false;this._render();}}
+  async _perform(domain,service,data,successMessage=''){if(this._busy)return false;this._busy=true;this._error="";this._feedback="";this._render();try{await this._hass.callService(domain,service,data);this._feedback=successMessage;return true;}catch(err){this._error=err?.message||String(err);return false;}finally{this._busy=false;this._render();}}
   _device(id){return this._last?.attributes?.devices?.find(d=>d.id===id);}
   async _click(ev){
     const b=ev.target.closest("button[data-action]"); if(!b||b.disabled||this._busy)return;
@@ -1224,7 +1258,12 @@ class SolarPilotCard extends HTMLElement {
     if(action==='learning'&&c.learning.switch_entity)return this._perform('switch',c.learning.enabled?'turn_off':'turn_on',{entity_id:c.learning.switch_entity});
     if(action==='reset_learning'&&c.learning.reset_entity){if(!window.confirm('Wis apparaatvermogen/Wallbox-respons, lokale PV-profielen, faseprofielen en klimaatmodellen? Actieve bediening, klimaat-OFF-eigendom, handmatige bescherming en veiligheidsinstellingen blijven behouden.'))return;return this._perform('button','press',{entity_id:c.learning.reset_entity});}
     if(action==='dhw_enabled'&&c.dhw.switch_entity)return this._perform('switch',c.dhw.enabled?'turn_off':'turn_on',{entity_id:c.dhw.switch_entity});
-    if(action==='dhw_review'&&c.dhw.review_entity){if(!window.confirm('Automatische boilerregeling hervatten? Controleer eerst de actuele tanktemperatuur en of fabrikant-hygiëne of een krachtige/handmatige functie actief is. Hervatten verstuurt nu geen temperatuurwijziging.'))return;return this._perform('button','press',{entity_id:c.dhw.review_entity});}
+    if(action==='dhw_pause'){if(!a.mode_entity){this._error='De bediening voor Pauze is niet beschikbaar.';this._render();return;}return this._perform('select','select_option',{entity_id:a.mode_entity,option:'paused'},'Pauze aangevraagd. Wacht op de bevestigde stand; daarna kun je de boilercontrole afronden.');}
+    if(action==='dhw_review'){
+      if(!c.dhw.review_entity||a.mode==='solar'||c.dhw.pending||c.dhw.review_allowed===false){this._error=c.dhw.review_block_reason||(!c.dhw.review_entity?'De bediening voor boilercontrole is niet beschikbaar.':'Kies eerst Pauze en wacht tot de lopende boileropdracht is afgerond.');this._feedback='';this._render();return;}
+      if(!window.confirm('Boilercontrole afronden? Controleer eerst de actuele tanktemperatuur en het toesteldoel. Een gemelde hygiënecyclus of krachtige functie moet afgerond zijn. Dit verstuurt geen temperatuurwijziging.'))return;
+      return this._perform('button','press',{entity_id:c.dhw.review_entity},'Boilercontrole afgerond; geen temperatuur gewijzigd. Kies Automatisch regelen om te hervatten. Andere toestelcontroles blijven gelden.');
+    }
     if(action==='dhw_takeover'&&c.dhw.takeover_entity){if(!window.confirm('Boiler zelf overnemen? Dit verandert geen toesteltemperatuur.'))return;return this._perform('button','press',{entity_id:c.dhw.takeover_entity});}
     if(action==='planner_reset'){const item=(c.planner.settings_catalog||[]).find(x=>x.key===b.dataset.setting);if(!item)return;if(!window.confirm(`${item.label} terugzetten naar de aanbevolen standaard (${item.default})?`))return;return this._perform('solar_pilot','set_planner_setting',{config_entry_id:a.config_entry_id,setting:item.key,value:item.default});}
     if(action==='climate_manual'||action==='climate_manual_mode'||action==='climate_review'){

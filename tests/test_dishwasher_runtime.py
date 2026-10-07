@@ -93,7 +93,20 @@ async def test_failed_start_call_never_retried():
     r,h,c=setup();h.services.fail=True;r.notify=lambda m:__import__('asyncio').sleep(0)
     await arm(r);await r.tick()
     assert r.faults and r.dishwasher.tickets['a']['attempted']
-    assert len(h.services.calls)==1
+    writes=[call for call in h.services.calls if call[0]!='persistent_notification']
+    assert writes==[('button','press',{'entity_id':'button.dw_start'})]
+    notices=[call for call in h.services.calls if call[0]=='persistent_notification']
+    # Notification transport also fails in this double. Retrying that message
+    # must never retry the uncertain physical dishwasher START.
+    assert len(notices)==2 and all(call[1]=='create' for call in notices)
+    assert all(call[2]['notification_id']=='solar_pilot_test_action_required' for call in notices)
+    assert all('Controle afronden' in call[2]['message'] for call in notices)
+    assert not r.action_notifications.snapshot()['active']
+    h.services.fail=False
+    await r.tick();await r.tick()
+    assert [call for call in h.services.calls if call[0]!='persistent_notification']==writes
+    assert len([call for call in h.services.calls if call[0]=='persistent_notification'])==3
+    assert r.action_notifications.snapshot()['active']
 
 @pytest.mark.asyncio
 async def test_shelly_is_only_read_no_relays_written():

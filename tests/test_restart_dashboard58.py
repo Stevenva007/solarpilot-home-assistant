@@ -29,7 +29,7 @@ const calls=[],sandbox={HTMLElement:class{},window:{},customElements:{get:()=>nu
 vm.createContext(sandbox);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),sandbox);
 vm.runInContext(`(async()=>{
  const card=Object.create(SolarPilotCard.prototype);card._busy=!!input.busy;
- card._last={attributes:input.a||{}};card._ctx=()=>({a:input.a||{}});card._render=()=>calls.push({render:true});
+ card._last={attributes:input.a||{}};card._ctx=()=>({a:input.a||{}});card._render=()=>calls.push({render:true,busy:card._busy,error:card._error||''});
  card._hass={callService:async(domain,service,data)=>{calls.push({domain,service,data});if(input.fail)throw new Error('Opslaan is mislukt');}};
  if(input.click){const button={disabled:!!input.disabled,dataset:{action:'restart_auto'}};
    await card._click({target:{closest:()=>button}});return {calls,error:card._error,busy:card._busy};}
@@ -123,8 +123,10 @@ def test_pause_reason_is_escaped_instead_of_interpreted_as_dashboard_markup():
 def test_dashboard_policy_toggle_only_calls_the_native_switch_service(enabled, service):
     result = dashboard({"a": {"mode": "paused", "auto_resume_after_restart": enabled,
                                "auto_resume_after_restart_entity": "switch.restart"}, "click": True})
-    assert result["calls"] == [{"domain": "switch", "service": service,
-                                "data": {"entity_id": "switch.restart"}}, {"render": True}]
+    assert result["calls"] == [{"render": True, "busy": True, "error": ""},
+                               {"domain": "switch", "service": service,
+                                "data": {"entity_id": "switch.restart"}},
+                               {"render": True, "busy": False, "error": ""}]
     assert result["busy"] is False
 
 
@@ -139,7 +141,10 @@ def test_switch_save_error_is_reported_and_does_not_leave_the_dashboard_busy():
     result = dashboard({"a": {"auto_resume_after_restart_entity": "switch.restart"},
                         "click": True, "fail": True})
     assert result["error"] == "Opslaan is mislukt" and result["busy"] is False
-    assert len(result["calls"]) == 2
+    assert result["calls"] == [{"render": True, "busy": True, "error": ""},
+                               {"domain": "switch", "service": "turn_on",
+                                "data": {"entity_id": "switch.restart"}},
+                               {"render": True, "busy": False, "error": "Opslaan is mislukt"}]
 
 
 @pytest.fixture

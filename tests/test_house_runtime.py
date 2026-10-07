@@ -102,7 +102,14 @@ async def test_timeout_rolls_back_and_latches_reclaim_block_without_blind_retry(
     await tick(r,h,c,155)
     assert r.handover is None
     for t in range(160,400,5): await tick(r,h,c,t)
-    assert len(h.services.calls)==2 and not r.devices()[0].allow_wallbox_reclaim
+    writes=[call for call in h.services.calls if call[0]!='persistent_notification']
+    assert writes==[('switch','turn_on',{'entity_id':'switch.load'}),
+                    ('switch','turn_off',{'entity_id':'switch.load'})]
+    assert not r.devices()[0].allow_wallbox_reclaim
+    notices=[call for call in h.services.calls if call[0]=='persistent_notification']
+    assert len(notices)==1 and notices[0][1]=='create'
+    assert notices[0][2]['notification_id']=='solar_pilot_test_action_required'
+    assert 'Toestel' in notices[0][2]['message'] and 'Controle afronden' in notices[0][2]['message']
 
 
 @pytest.mark.asyncio
@@ -110,7 +117,12 @@ async def test_failed_transfer_can_later_use_real_export_without_borrowing(monke
     r,h,c=setup(monkeypatch)
     r.reclaim_blocks['a']='Previously not confirmed'
     for t in range(0,31,5): await tick(r,h,c,t,ev=0,grid=-1500,status='Ready')
-    assert len(h.services.calls)==1 and r.handover is None
+    writes=[call for call in h.services.calls if call[0]!='persistent_notification']
+    assert writes==[('switch','turn_on',{'entity_id':'switch.load'})] and r.handover is None
+    notices=[call for call in h.services.calls if call[0]=='persistent_notification']
+    assert len(notices)==1 and notices[0][1]=='create'
+    assert notices[0][2]['notification_id']=='solar_pilot_test_action_required'
+    assert 'Previously not confirmed' in notices[0][2]['message']
 
 
 @pytest.mark.asyncio

@@ -33,6 +33,7 @@ from .dishwasher_priority import DishwasherPriority, enabled as dishwasher_has_p
 from .dishwasher import DishwasherControl, read as read_dishwasher, normalize_config as normalize_dishwasher
 from .dishwasher_recovery import RECOVERED_AUTO_KEY, RECOVERY_KEY, RECOVERY_SOURCE
 from .analysis_export import AnalysisRecorder
+from .action_notifications import ActionRequiredNotifications
 from .house_first import HOUSE_DEFAULTS, HouseFirstGuard, Handover
 from .learning import LocalLearning
 from .heatpump_learning import HeatPumpActivityModel
@@ -148,6 +149,7 @@ class SolarRuntime:
         self.store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
         self.dhw = DHWManager(self)
         self.analysis = AnalysisRecorder(self)
+        self.action_notifications = ActionRequiredNotifications(self)
         self.learning_hub = LearningHub(self)
         self.live_options = LiveOptions(self)
         self.platforms = LivePlatforms(self)
@@ -344,6 +346,7 @@ class SolarRuntime:
             "restart_faults": dict(self._restart_faults),
             "live_options": self.live_options.snapshot(),
             "learning_hub": self.learning_hub.snapshot(),
+            "action_notifications": self.action_notifications.snapshot(),
             "dishwasher": self.dishwasher.snapshot(),
             "dishwasher_app": self.dishwasher_app.snapshot(),
             "dishwasher_priority": self.dishwasher_priority.snapshot(),
@@ -499,6 +502,7 @@ class SolarRuntime:
         self.smart_climate.restore(data.get("smart_climate", {}))
         self.unified_planner.restore(data.get("unified_planner", {}))
         self.learning_hub.restore(data.get("learning_hub", {}))
+        self.action_notifications.restore(data.get("action_notifications", {}))
         self.cycle_learning.restore(data.get("cycle_learning", {}))
         activated_beta37 = await self._migrate_beta37_activation_profile()
         self.reclaim_blocks = {i: str(reason) for i, reason in data.get("reclaim_blocks", {}).items() if i in self.configs}
@@ -2236,6 +2240,7 @@ class SolarRuntime:
                 self.analysis.capture((perf_counter()-started)*1000)
             except Exception as err:
                 self.analysis.error = "Analysemeting onvolledig: " + type(err).__name__
+            await self.action_notifications.sync()
             self.publish()
 
     async def _tick(self):
@@ -2365,7 +2370,7 @@ class SolarRuntime:
         extra_reclaim = None
         wash_due = any(self.dishwasher_app.due(cfg, time.time()) and not self.states[i].on
                        for i, cfg in self.configs.items())
-        if (can_increase and valid and ready and not dhw_sent and not self.dhw.pending
+        if (can_increase and valid and ready and not dhw_sent and not self.dhw.blocks_increase
                 and not self.smart_climate.busy and not self.handover and not wash_due):
             allowed, _reason = self.heat_pump_increase_allowed(check_capacity=False)
             if allowed:
@@ -2565,7 +2570,8 @@ class SolarRuntime:
                 allow_command=(self.mode == "solar" and not self.removal_requested
                                and valid and not self.pending and not self.handover
                                and not dhw_sent and not climate_sent and not self.smart_climate.busy
-                               and not self.result.action and not self.restart_blocking))
+                               and not self.result.action and not self.restart_blocking
+                               and not self.dhw.recovery_barrier))
         if now - self.energy_saved_at >= 300:
             self.energy_saved_at = now
             self.store.async_delay_save(self._snapshot, 1)
@@ -2599,6 +2605,7 @@ class SolarRuntime:
                 self.problem = "Cyclus langer actief dan verwacht: " + ", ".join(overdue_cycles)
         if not self.problem and (self.dhw.fault or self.dhw.needs_review):
             self.problem = self.dhw.status
+            self.problem_kind = "dhw_review"
         if self.pending:
             self.result.reasons[self.pending["id"]] = "Wacht op opdrachtbevestiging"
         if self.result.action and self.mode != "observe" and not self.restart_blocking and not self.pending and not self.dhw.pending and not climate_sent and not battery_sent:
@@ -2912,7 +2919,10 @@ class SolarRuntime:
 
     def _pause_resume_faulted(self):
         """A fault discovered during deferred recovery cannot promote Pause."""
-        return bool(self.faults or self.dhw.fault or self.battery_fleet.state.faults
+        dhw_auto = self.dhw.automatic_recovery
+        recoverable_dhw_fault = (dhw_auto and dhw_auto.get("fault") == self.dhw.fault
+                                 and not self.dhw.manual_hold)
+        return bool(self.faults or self.dhw.fault and not recoverable_dhw_fault or self.battery_fleet.state.faults
                     or self.smart_climate.command_faults)
 
     async def set_auto_resume_after_restart(self, enabled):
@@ -3075,6 +3085,14 @@ class SolarRuntime:
             if self.pending:
                 raise HomeAssistantError("Wacht eerst op de lopende opdracht")
             ids = set(self.recovery) | set(self.faults) | set(self.reclaim_blocks) | set(self.dishwasher_priority.ev_blocks)
+            if (not ids and (self.dhw.fault or self.dhw.needs_review or self.dhw.manual_hold)
+                    and not self.battery_fleet.state.faults):
+                # This button reviews ordinary loads. A boiler-only warning
+                # needs its own guarded review, not a successful no-op or the
+                # clearing of an unrelated battery command journal.
+                raise HomeAssistantError(
+                    "Rond de boilercontrole af bij Sanitair warm water. "
+                    "Kies eerst Pauze en daarna Boilercontrole afronden.")
             if not ids and self.problem_kind in ("source_wait", "source_configuration"):
                 # A stale page or direct button call must not claim all devices
                 # were verified OFF when only a derived source guard exists.

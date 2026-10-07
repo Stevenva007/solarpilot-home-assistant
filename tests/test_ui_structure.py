@@ -175,11 +175,26 @@ def test_frontend_assets_are_release_bound_to_manifest_version():
 
 
 def test_manual_dhw_hold_always_has_a_safe_resume_control():
-    assert "dhw.needs_review||dhw.manual_override_active||dhw.manual_hold" in CARD
-    assert "a.mode==='solar'||!!dhw.pending" in CARD
-    assert "Automatische boilerregeling hervatten" in CARD
-    assert "Kies eerst Pauze wanneer Automatisch regelen actief is" in CARD
-    assert "Hervatten verstuurt zelf geen temperatuurwijziging" in CARD
+    # Exercise the shipped recovery route instead of depending on a guard's
+    # former source-code position. Manual fallback remains available even when
+    # ordinary command faults can now be reconciled automatically.
+    from test_dhw_recovery_ui61 import actions, execute_recovery, recovery_attributes
+
+    solar = recovery_attributes("solar", fault="", manual_hold=True,
+                                status="Handmatige boilerbescherming blijft gelden")
+    paused = recovery_attributes("paused", fault="", manual_hold=True,
+                                 status="Handmatige boilerbescherming blijft gelden")
+    pause = execute_recovery(solar, steps=[{"action": "dhw_pause"}])
+    assert "dhw_pause" in actions(pause["initial"]) and "reset" not in actions(pause["initial"])
+    assert pause["calls"] == [{"domain": "select", "service": "select_option",
+                               "data": {"entity_id": "select.solar_pilot_mode", "option": "paused"}}]
+    review = execute_recovery(paused, steps=[{"action": "dhw_review"}])
+    assert "dhw_review" in actions(review["initial"])
+    assert review["calls"] == [{"domain": "button", "service": "press",
+                                "data": {"entity_id": "button.boiler_review"}}]
+    blocked = recovery_attributes("paused", fault="", manual_hold=True,
+                                  review_allowed=False, review_block_reason="Actuele tanktemperatuur ontbreekt")
+    assert not execute_recovery(blocked, steps=[{"action": "dhw_review", "direct": True}])["calls"]
     assert 'aria-checked="${dhw.enabled?\'true\':\'false\'}"' in CARD
 
 

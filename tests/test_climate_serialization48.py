@@ -184,7 +184,12 @@ async def test_lost_climate_report_times_out_without_permanent_global_block(monk
     assert "climate.home" in runtime.smart_climate.command_faults
     assert "climate.home" not in runtime.smart_climate.state.expected_mode
     assert runtime.store.data["smart_climate"]["command_faults"]
-    assert [call[0] for call in hass.services.calls] == ["climate", "switch"]
+    writes = [call for call in hass.services.calls if call[0] != "persistent_notification"]
+    assert [call[0] for call in writes] == ["climate", "switch"]
+    notices = [call for call in hass.services.calls if call[0] == "persistent_notification"]
+    assert len(notices) == 1 and notices[0][1] == "create"
+    assert notices[0][2]["notification_id"] == "solar_pilot_test_action_required"
+    assert "Ruimteklimaat" in notices[0][2]["message"]
 
 
 @pytest.mark.asyncio
@@ -279,7 +284,12 @@ async def test_inactive_module_resolves_pending_timeout_without_learning_or_glob
     assert "climate.home" in manager.command_faults
     assert all(profile.samples == 0 and profile.last is None for profile in manager.state.profiles.values())
     assert (manager.state.last_sample_wall, manager.state.last_decision_wall) == before_model
-    assert [call[0] for call in hass.services.calls] == ["climate", "switch"]
+    writes = [call for call in hass.services.calls if call[0] != "persistent_notification"]
+    assert [call[0] for call in writes] == ["climate", "switch"]
+    notices = [call for call in hass.services.calls if call[0] == "persistent_notification"]
+    assert len(notices) == 1 and notices[0][1] == "create"
+    assert notices[0][2]["notification_id"] == "solar_pilot_test_action_required"
+    assert "Ruimteklimaat" in notices[0][2]["message"]
 
 
 @pytest.mark.asyncio

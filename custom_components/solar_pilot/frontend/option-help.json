@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.60",
+  "version": "1.0.0-beta.61",
   "language": "nl",
   "steps": {
     "init": {
@@ -5309,7 +5309,7 @@
       "title": "Na herstart automatisch hervatten",
       "short": "Na herstart automatisch hervatten staat standaard Aan.",
       "paragraphs": [
-        "Na herstart automatisch hervatten staat standaard Aan. Bij de volgende Home Assistant-herstart of integratieherlading vraagt een gewone opgeslagen Pauze weer Automatisch regelen, na de bestaande toestel-, bron- en opdrachtcontroles. Alleen bekijken en een eerste installatie blijven Alleen bekijken. Uit bewaart Pauze over herstarts en annuleert een nu wachtende Pauze-hervatting; een al opgeslagen automatische modus blijft haar gewone herstelpad gebruiken. Deze schakelaar verandert de huidige modus niet. Opnieuw Pauze kiezen annuleert een nu wachtende hervatting; bij een volgende herstart geldt de bewaarde voorkeur opnieuw. Interne fouten, voorbereiden van verwijderen, echte opdrachtfouten en vereiste boilerbeoordeling worden niet automatisch gewist of gepasseerd. Oudere Pauze zonder opgeslagen reden geeft geen bewijs van de vroegere oorzaak.",
+        "Na herstart automatisch hervatten staat standaard Aan. Bij de volgende Home Assistant-herstart of integratieherlading vraagt een gewone opgeslagen Pauze weer Automatisch regelen, na de bestaande toestel-, bron- en opdrachtcontroles. Alleen bekijken en een eerste installatie blijven Alleen bekijken. Uit bewaart Pauze over herstarts en annuleert een nu wachtende Pauze-hervatting; een al opgeslagen automatische modus blijft haar gewone herstelpad gebruiken. Deze schakelaar verandert de huidige modus niet. Opnieuw Pauze kiezen annuleert een nu wachtende hervatting; bij een volgende herstart geldt de bewaarde voorkeur opnieuw. Interne fouten, voorbereiden van verwijderen, echte opdrachtfouten en vereiste boilerbeoordeling worden niet automatisch gewist of gepasseerd. Oudere Pauze zonder opgeslagen reden geeft geen bewijs van de vroegere oorzaak. Bekende boilerbevestigings- en servicefouten hebben een afzonderlijke automatische hercontrole met betrouwbaar nieuwe rapportages en begrensde wachttijden; deze hervatvoorkeur geeft daarvoor geen extra toestemming. Onbekende fouten en bewuste handmatige boilerpauze blijven beschermd.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },

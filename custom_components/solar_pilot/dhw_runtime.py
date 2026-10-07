@@ -6,8 +6,9 @@ thermostat, hygiene functions and hot-water safety remain prerequisites.
 from __future__ import annotations
 import asyncio
 from dataclasses import asdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import math
+import logging
 import time
 from zoneinfo import ZoneInfo
 from homeassistant.exceptions import HomeAssistantError
@@ -18,6 +19,8 @@ from .dhw import (DHW_DEFAULTS, DHW_NUMBERS, DHWPolicy, DHWReading,
 from .wallbox import protected_entity, state_set
 from .dhw_schedule import DHWComfortSchedule
 
+_LOGGER = logging.getLogger(__name__)
+
 
 # Aquarea publishes a command-side target observation before its delayed refresh;
 # panasonic_cc already used the same conservative delayed-ACK contract. An early
@@ -25,6 +28,12 @@ from .dhw_schedule import DHWComfortSchedule
 # entry domains; other water-heater integrations keep their existing contract.
 PANASONIC_ACK_POLL_MIN_S = 10.0
 PANASONIC_ADAPTER_DOMAINS = frozenset({"aquarea", "panasonic_cc"})
+FAILED_COMMAND_CODES = frozenset({
+    "target_mismatch", "target_unavailable", "report_missing", "report_stale",
+    "report_before_confirmation", "service_error", "feedback_timeout",
+})
+LEGACY_ACK_FAULT = "Boileropdracht niet bevestigd; handmatige controle vereist"
+RECOVERY_REVIEW_KINDS = frozenset({"manual", "automatic_late_ack", "automatic_observed_target"})
 
 
 class DHWManager:
@@ -48,6 +57,11 @@ class DHWManager:
         self._release = False
         self._last_low = False
         self.last_success = None
+        self.failed_command = None
+        self.automatic_recovery = None
+        self.recovery_budget = None
+        self._recovery_settled_wall = None
+        self.automatic_recovered_this_tick = False
         self.comfort = DHWComfortSchedule()
         self._comfort_forecast_stamp = None
         self._comfort_slots = []
@@ -75,11 +89,16 @@ class DHWManager:
         # A deferred restart still carries an unresolved historical target or
         # command. Safe removal must wait for its read-only reconciliation,
         # even though unrelated consumers need not be globally blocked.
-        return self.pending is not None or self.owned_target is not None or bool(self.restart_recovery)
+        return (self.pending is not None or self.owned_target is not None
+                or bool(self.restart_recovery) or bool(self.automatic_recovery))
 
     @property
     def blocks_increase(self):
-        return self.pending is not None or self.needs_review or bool(self.fault)
+        return self.pending is not None or self.needs_review or bool(self.fault) or self.recovery_barrier
+
+    @property
+    def recovery_barrier(self):
+        return self._recovery_settled_wall is not None
 
     def snapshot(self):
         return {"config_revision": self.config["config_revision"],
@@ -89,6 +108,10 @@ class DHWManager:
                 "needs_review": self.needs_review, "manual_hold": self.manual_hold,
                 "restart_recovery": self.restart_recovery,
                 "fault": self.fault, "last_success": self.last_success,
+                "failed_command": dict(self.failed_command) if self.failed_command else None,
+                "automatic_recovery": dict(self.automatic_recovery) if self.automatic_recovery else None,
+                "recovery_budget": dict(self.recovery_budget) if self.recovery_budget else None,
+                "recovery_settled_wall": self._recovery_settled_wall,
                 "comfort": self.comfort.snapshot(), "cooling_wall": self._cooling_wall,
                 "last_command_wall": self.last_command_wall}
 
@@ -105,6 +128,8 @@ class DHWManager:
             self.auto_enabled = bool(data.get("enabled", self.auto_enabled))
         self.policy = DHWPolicy(self.settings)
         self.last_success = data.get("last_success") if same_binding else None
+        self.failed_command = (self._restore_failed_command(data.get("failed_command"))
+                               if same_binding else None)
         if same_binding:
             command_wall = finite(data.get("last_command_wall"))
             if command_wall is not None and 0 <= time.time()-command_wall:
@@ -116,6 +141,25 @@ class DHWManager:
                 self.policy.last_cooling = time.monotonic()-(time.time()-saved)
         self.manual_hold = bool(data.get("manual_hold")) if same_binding else False
         self.fault = str(data.get("fault", ""))
+        if same_binding:
+            self.recovery_budget = self._restore_recovery_budget(data.get("recovery_budget"))
+            self.automatic_recovery = self._restore_automatic_recovery(data.get("automatic_recovery"))
+            if self.automatic_recovery and not self.recovery_budget:
+                self.recovery_budget = {"schema": 1, "target_entity": self.config["target_entity"],
+                                        "failure_streak": 3, "last_failure_wall": time.time(),
+                                        "next_attempt_wall": time.time() + 3600}
+            settled = finite(data.get("recovery_settled_wall"))
+            if settled is not None and 0 < settled <= time.time() + 5:
+                self._recovery_settled_wall = settled
+            if (data.get("automatic_recovery") is None and not self.automatic_recovery and not self.manual_hold
+                    and self._known_command_fault(self.fault)):
+                # Legacy faults have no issued-command proof. Two new ordinary
+                # target reports may release only this block, never ACK a write.
+                self.automatic_recovery = self._new_recovery(None, self.fault)
+                self.automatic_recovery["observed_target_c"] = None
+                self.automatic_recovery["ack_poll_min_s"] = 0.0
+                if not self.recovery_budget:
+                    self._record_recovery_failure()
         restart = data.get("restart_recovery")
         has_restart = bool(data.get("needs_review") or data.get("pending")
                            or data.get("owned_target") is not None or restart)
@@ -157,6 +201,9 @@ class DHWManager:
         # Do not replay a target or a pending physical call after a restart.
         self.owned_target = None
         self.pending = None
+        if self.automatic_recovery and not self.manual_hold:
+            self.needs_review = False
+            self.status = self.automatic_recovery["reason"]
         if self.needs_review:
             self.status = "Boilercontrole na herstart vereist; huidige instelling blijft onaangeroerd"
         elif self.restart_recovery:
@@ -973,14 +1020,306 @@ class DHWManager:
     async def _save(self):
         await self.runtime.store.async_save(self.runtime._snapshot())
 
-    async def _mark_fault(self, reason):
+    @staticmethod
+    def _known_command_fault(fault):
+        return fault in {LEGACY_ACK_FAULT,
+                         "Boileropdracht nog niet bevestigd; automatische controle loopt",
+                         "Onzekere boileropdracht; automatische controle loopt",
+                         *(f"Onzekere boileropdracht ({name}); {ending}" for name in (
+                             "HomeAssistantError", "TimeoutError", "ValueError") for ending in (
+                             "controle vereist", "automatische controle loopt"))}
+
+    def _new_recovery(self, pending, fault):
+        pending = pending or {}
+        wall = time.time()
+        actual, _obj = self._target()
+        return {"schema": 1, "target_entity": self.config["target_entity"], "fault": fault,
+                "requested_target_c": finite(pending.get("target")),
+                "observed_target_c": actual,
+                "previous_owned_target_c": finite(pending.get("previous_owned_target_c")),
+                "issued_wall": finite(pending.get("issued_wall")) or wall,
+                "failed_wall": wall, "started_wall": wall,
+                "ack_poll_min_s": max(self._ack_poll_min_s(), finite(pending.get("ack_poll_min_s")) or 0),
+                "release": bool(pending.get("release", False)),
+                "state": "waiting_reports",
+                "reason": "Boileropdracht wordt automatisch gecontroleerd; wacht op nieuwe betrouwbare terugmelding"}
+
+    def _restore_automatic_recovery(self, raw):
+        if (not isinstance(raw, dict) or type(raw.get("schema")) is not int or raw["schema"] != 1
+                or raw.get("target_entity") != self.config["target_entity"]
+                or raw.get("fault") != self.fault or not self._known_command_fault(self.fault)
+                or self.manual_hold or not isinstance(raw.get("release"), bool)):
+            return None
+        issued, failed = finite(raw.get("issued_wall")), finite(raw.get("failed_wall"))
+        delay = finite(raw.get("ack_poll_min_s"))
+        if (issued is None or failed is None or not 0 < issued <= failed <= time.time() + 5
+                or delay is None or not 0 <= delay <= 600):
+            return None
+        result = {"schema": 1, "target_entity": self.config["target_entity"], "fault": self.fault,
+                  "issued_wall": issued, "failed_wall": failed, "started_wall": time.time(),
+                  "ack_poll_min_s": max(self._ack_poll_min_s(), delay), "release": raw["release"],
+                  "state": "waiting_reports",
+                  "reason": "Boileropdracht wordt automatisch gecontroleerd; wacht op nieuwe betrouwbare terugmelding"}
+        for key in ("requested_target_c", "observed_target_c", "previous_owned_target_c"):
+            value = finite(raw.get(key))
+            if raw.get(key) is not None and (value is None or not 0 <= value <= 100):
+                return None
+            result[key] = value
+        return result
+
+    def _restore_recovery_budget(self, raw):
+        if (not isinstance(raw, dict) or type(raw.get("schema")) is not int or raw["schema"] != 1
+                or raw.get("target_entity") != self.config["target_entity"]
+                or type(raw.get("failure_streak")) is not int or not 1 <= raw["failure_streak"] <= 1000):
+            return None
+        failed, deadline = finite(raw.get("last_failure_wall")), finite(raw.get("next_attempt_wall"))
+        if (failed is None or deadline is None or not 0 < failed <= time.time() + 5
+                or not failed <= deadline <= failed + 3600):
+            return None
+        return {"schema": 1, "target_entity": self.config["target_entity"],
+                "failure_streak": raw["failure_streak"], "last_failure_wall": failed,
+                "next_attempt_wall": deadline}
+
+    def _record_recovery_failure(self):
+        wall = time.time()
+        streak = min(1000, (self.recovery_budget or {}).get("failure_streak", 0) + 1)
+        delay = 300 if streak == 1 else 900 if streak == 2 else 3600
+        # Repeated failures allow at most one new attempt per hour. The usual
+        # optional-raise interval is checked independently by ordinary policy.
+        deadline = max(wall + delay, self.last_command_wall + 3600 if streak >= 2 else 0)
+        self.recovery_budget = {"schema": 1, "target_entity": self.config["target_entity"],
+                                "failure_streak": streak, "last_failure_wall": wall,
+                                "next_attempt_wall": min(wall + 3600, deadline)}
+
+    def _recovery_remaining(self):
+        if not self.recovery_budget:
+            return 0
+        return max(0, math.ceil(self.recovery_budget["next_attempt_wall"] - time.time()))
+
+    def _finish_failure_history(self, kind):
+        if self.failed_command and not self.failed_command.get("reviewed_at"):
+            wall = time.time()
+            self.failed_command.update(reviewed_wall=wall, reviewed_at=self._audit_iso(wall), review_kind=kind)
+            self._record_failure_event("dhw_command_reconciled")
+
+    def _record_failure_event(self, kind):
+        """Keep each failure/reconciliation in the existing local research log."""
+        analysis = getattr(self.runtime, "analysis", None)
+        if not analysis or not analysis.settings.get("enabled") or not self.failed_command:
+            return
+        try:
+            analysis.event(kind, self.failed_command["reason"], dict(self.failed_command))
+            analysis.store.async_delay_save(analysis.snapshot, 1)
+        except Exception:
+            # Research output cannot alter command uncertainty or permission.
+            _LOGGER.warning("Boilerdiagnose kon niet in onderzoekslog worden bewaard", exc_info=True)
+
+    async def reconcile_command_failure(self, now, local_now):
+        """Observe a failed call; never replay it or write while reconciling."""
+        recovery = self.automatic_recovery
+        if not recovery:
+            return False
+        if (self.manual_hold or self.fault != recovery["fault"]
+                or recovery["target_entity"] != self.config["target_entity"]):
+            self.automatic_recovery = None
+            if recovery["target_entity"] != self.config["target_entity"]:
+                self.recovery_budget = None
+            await self._save()
+            return False
+
+        def wait(state, reason, *, reset=True):
+            recovery.update(state=state, reason=reason)
+            if reset:
+                for key in ("candidate_target_c", "first_report_wall", "last_report_wall", "first_seen_wall"):
+                    recovery.pop(key, None)
+            self.status = reason
+            return False
+
+        target_obj = self._state(self.config["target_entity"])
+        temperature_obj = self._state(self.config.get("temperature_entity") or self.config["target_entity"])
+        target, obj = self._target()
+        if target_obj is None or temperature_obj is None or target is None or self._temperature() is None:
+            return wait("waiting_sources", "Automatische boilercontrole wacht op actuele temperatuur en doelterugmelding")
+        guards = [self.config.get("hygiene_entity"), self.config.get("manual_entity"),
+                  *self.config.get("manual_entities", [])]
+        for entity_id in filter(None, guards):
+            guard = self._state(entity_id, freshness=False)
+            if guard is None or guard.attributes.get("restored"):
+                return wait("waiting_sources", "Automatische boilercontrole wacht op betrouwbare hygiëne- en handmatige status")
+        if protected := self._protected(obj, local_now):
+            return wait("waiting_protection", protected + "; automatische controle blijft wachten")
+        if error := self.check_target(target):
+            return wait("waiting_sources", "Automatische boilercontrole: " + error)
+        stamp = self._report_stamp(target_obj)
+        threshold = max(recovery["failed_wall"], recovery["started_wall"],
+                        recovery["issued_wall"] + recovery["ack_poll_min_s"])
+        if stamp is None or stamp <= threshold:
+            return wait("waiting_reports", "Automatische boilercontrole wacht op een nieuwe doelrapportage na de opdrachtfout")
+        requested = recovery.get("requested_target_c")
+        late_ack = requested is not None and abs(target - requested) < .05
+        if not late_ack:
+            ordinary = [effective_base_target(self.settings), self.settings["solar_c"],
+                        self.settings["surplus_c"], self.settings["cooling_cap_c"],
+                        recovery.get("previous_owned_target_c")]
+            if not any(value is not None and abs(target - value) < .05 for value in ordinary):
+                return wait("waiting_external_target", "Boilerdoel past niet bij de gewone regeling; bestaande bediening blijft vrij")
+            candidate = recovery.get("candidate_target_c")
+            if candidate is None or abs(candidate - target) >= .05:
+                recovery.update(candidate_target_c=target, first_report_wall=stamp,
+                                last_report_wall=stamp, first_seen_wall=time.time())
+                return wait("checking_reports", "Automatische boilercontrole vergelijkt nieuwe doelrapportages gedurende minstens 60 s", reset=False)
+            last = recovery["last_report_wall"]
+            if stamp <= last:
+                return wait("checking_reports", "Automatische boilercontrole wacht op een tweede afzonderlijke doelrapportage", reset=False)
+            recovery["last_report_wall"] = stamp
+            if stamp - recovery["first_report_wall"] < 60 or time.time() - recovery["first_seen_wall"] < 60:
+                return wait("checking_reports", "Automatische boilercontrole vergelijkt nieuwe doelrapportages gedurende minstens 60 s", reset=False)
+        self.fault = ""
+        self.needs_review = False
+        self.restart_recovery = None
+        self.automatic_recovery = None
+        self._recovery_settled_wall = max(time.time(), self.runtime._site_data()[4])
+        self.automatic_recovered_this_tick = True
+        self.policy.reset_stability()
+        if late_ack:
+            self.owned_target = None if recovery["release"] else target
+            self.last_success = {"target_c": target, "time": self._audit_iso(time.time()),
+                                 "confirmation": "automatic_late_ha_state"}
+            self.recovery_budget = None
+            kind = "automatic_late_ack"
+            self.status = "Boilerdoel later betrouwbaar teruggelezen; opdracht automatisch afgerond zonder nieuwe opdracht"
+        else:
+            previous = recovery.get("previous_owned_target_c")
+            self.owned_target = (target if recovery["release"] and previous is not None
+                                 and abs(previous - target) < .05 else None)
+            kind = "automatic_observed_target"
+            self.status = "Boilertoestand automatisch gecontroleerd; volgende beslissing gebruikt nieuwe metingen en wachttijd"
+        self._finish_failure_history(kind)
+        self._finish_execution("waiting", "automatic_recovery", self.status)
+        await self._save()
+        self.runtime.note(self.status)
+        return True
+
+    @staticmethod
+    def _audit_iso(stamp):
+        return datetime.fromtimestamp(stamp, timezone.utc).isoformat()
+
+    @staticmethod
+    def _failure_reason(record):
+        target, reported = record.get("requested_target_c"), record.get("reported_target_c")
+        requested = f"Gevraagd: {target:g} °C. " if target is not None else ""
+        report = f"Teruggelezen: {reported:g} °C. " if reported is not None else ""
+        why = {
+            "target_mismatch": "De latere terugmelding kwam niet overeen met het gevraagde doel.",
+            "target_unavailable": "Er was geen betrouwbare actuele doeltemperatuur beschikbaar.",
+            "report_missing": "De doelterugmelding had geen geldige rapportagetijd.",
+            "report_stale": "De doelterugmelding was te oud of had een ongeldige tijd.",
+            "report_before_confirmation": "Alleen een te vroege doelterugmelding was beschikbaar; deze bevestigt de opdracht niet.",
+            "service_error": "Home Assistant kon de boileropdracht niet afhandelen; het resultaat is onzeker.",
+            "feedback_timeout": "De opdracht kreeg binnen de wachttijd geen geldige bevestiging.",
+        }[record["code"]]
+        waited = record.get("waited_s")
+        wait = f" Gecontroleerd na {waited:g} s." if waited is not None else ""
+        return requested + report + why + wait + " De oude opdracht wordt niet opnieuw verzonden; automatische controle gebruikt nieuwe terugmeldingen."
+
+    def _restore_failed_command(self, raw):
+        """Restore one bounded audit row, never command authority or raw text."""
+        if (not isinstance(raw, dict) or type(raw.get("schema")) is not int or raw.get("schema") != 1
+                or raw.get("target_entity") != self.config.get("target_entity")
+                or not isinstance(raw.get("code"), str) or raw["code"] not in FAILED_COMMAND_CODES):
+            return None
+        issued, failed = finite(raw.get("issued_wall")), finite(raw.get("failed_wall"))
+        target, reported = finite(raw.get("requested_target_c")), finite(raw.get("reported_target_c"))
+        waited, timeout, report_age = (finite(raw.get(key)) for key in (
+            "waited_s", "timeout_s", "report_age_s"))
+        if (issued is None or failed is None or not 0 < issued <= failed <= time.time() + 5
+                or target is not None and not 0 <= target <= 100
+                or raw.get("requested_target_c") is not None and target is None
+                or reported is not None and not 0 <= reported <= 100
+                or raw.get("reported_target_c") is not None and reported is None
+                or waited is None or not 0 <= waited <= 31536000
+                or timeout is None or not 15 <= timeout <= 600
+                or raw.get("report_age_s") is not None and report_age is None
+                or report_age is not None and not -5 <= report_age <= 31536000
+                or not isinstance(raw.get("release", False), bool)):
+            return None
+        record = {"schema": 1, "target_entity": self.config["target_entity"],
+                  "requested_target_c": target, "reported_target_c": reported,
+                  "issued_wall": issued, "failed_wall": failed,
+                  "issued_at": self._audit_iso(issued), "failed_at": self._audit_iso(failed),
+                  "waited_s": waited, "timeout_s": timeout, "report_age_s": report_age,
+                  "code": raw["code"], "release": raw.get("release", False)}
+        record["reason"] = self._failure_reason(record)
+        reviewed = finite(raw.get("reviewed_wall"))
+        if reviewed is not None and failed <= reviewed <= time.time() + 5:
+            record.update(reviewed_wall=reviewed, reviewed_at=self._audit_iso(reviewed))
+            if isinstance(raw.get("review_kind"), str) and raw["review_kind"] in RECOVERY_REVIEW_KINDS:
+                record["review_kind"] = raw["review_kind"]
+        return record
+
+    def _capture_failed_command(self, *, failure_code=None, now=None):
+        """Preserve observed failure evidence before dropping pending authority."""
+        pending = self.pending or {}
+        failed = time.time()
+        issued = finite(pending.get("issued_wall"))
+        if issued is None or not 0 < issued <= failed:
+            issued = failed
+        target = finite(pending.get("target"))
+        reported, obj = self._target()
+        raw_obj = self.runtime.hass.states.get(self.config.get("target_entity"))
+        stamp = self._report_stamp(raw_obj) if raw_obj else None
+        age = failed - stamp if stamp is not None else None
+        if age is not None and (not math.isfinite(age) or not -5 <= age <= 31536000):
+            age = None
+        minimum_delay = max(0.0, finite(pending.get("ack_poll_min_s")) or 0.0)
+        if failure_code == "service_error":
+            code = failure_code
+        elif raw_obj is None or str(raw_obj.state).casefold() in ("unknown", "unavailable", "") or raw_obj.attributes.get("restored"):
+            code = "target_unavailable"
+        elif stamp is None:
+            code = "report_missing"
+        elif not -5 <= failed - stamp <= self.settings["stale_s"]:
+            code = "report_stale"
+        elif reported is None or obj is None:
+            code = "target_unavailable"
+        elif stamp < issued + minimum_delay:
+            code = "report_before_confirmation"
+        elif target is not None and abs(reported - target) >= .05:
+            code = "target_mismatch"
+        else:
+            code = "feedback_timeout"
+        mono_issued = finite(pending.get("issued"))
+        mono_now = finite(now)
+        waited = (max(0.0, mono_now - mono_issued) if mono_issued is not None and mono_now is not None
+                  else max(0.0, failed - issued))
+        # Production tick uses the same monotonic clock. Keep direct adapter
+        # calls and damaged journals bounded without giving this audit power.
+        waited = min(31536000.0, waited)
+        record = {"schema": 1, "target_entity": self.config["target_entity"],
+                  "requested_target_c": target if target is not None and 0 <= target <= 100 else None,
+                  "reported_target_c": reported if reported is not None and 0 <= reported <= 100 else None,
+                  "issued_wall": issued, "failed_wall": failed,
+                  "issued_at": self._audit_iso(issued), "failed_at": self._audit_iso(failed),
+                  "waited_s": round(waited, 3), "timeout_s": float(self.settings["ack_timeout_s"]),
+                  "report_age_s": round(age, 3) if age is not None else None,
+                  "code": code, "release": bool(pending.get("release", False))}
+        record["reason"] = self._failure_reason(record)
+        self.failed_command = record
+
+    async def _mark_fault(self, reason, *, failure_code=None, now=None):
+        self._capture_failed_command(failure_code=failure_code, now=now)
+        if self._known_command_fault(reason) and not self.manual_hold:
+            self.automatic_recovery = self._new_recovery(self.pending, reason)
+            self._record_recovery_failure()
         self.fault = reason
         self.pending = None
         self.status = reason
         self._finish_execution("blocked", "fault", reason)
         await self._save()
+        self._record_failure_event("dhw_command_failure")
         self.runtime.note("Boiler: " + reason)
-        await self.runtime.notify("Boiler: " + reason + ". Controleer de echte toestand. Geen automatische herhaalpogingen.")
+        if not self.automatic_recovery:
+            await self.runtime.notify("Boiler: " + reason + ". Controleer de echte toestand.")
 
     def _defer_optional_raise(self, now, desired, previous, reading):
         """Retain completed live stability without treating a proposal as issued."""
@@ -1162,6 +1501,13 @@ class DHWManager:
     async def tick(self, now, grid, valid, discharge, allow_command=True, local_now=None,
                    dispatch_block_code="", dispatch_block_reason=""):
         self.optional_raise_remaining_s = 0
+        self.automatic_recovered_this_tick = False
+        if self.recovery_barrier:
+            _grid, site_valid, _discharge, _ready, reported = self.runtime._site_data()
+            if (site_valid and reported > self._recovery_settled_wall
+                    and self._target()[0] is not None and self._temperature() is not None):
+                self._recovery_settled_wall = None
+                self.runtime.store.async_delay_save(self.runtime._snapshot, 1)
         if local_now is None:
             zone = getattr(getattr(self.runtime.hass, "config", None), "time_zone", "Europe/Brussels")
             local_now = datetime.now(ZoneInfo(zone))
@@ -1173,6 +1519,8 @@ class DHWManager:
             return False
         self._evaluated_source_proof = self._optional_source_proof()
         await self.reconcile_restart(local_now)
+        if await self.reconcile_command_failure(now, local_now):
+            return False
         r = self.read(grid, valid, discharge, local_now)
         self._prepare_comfort(local_now, r)
         self.policy.settings = {**self.settings, "sample_gap_s": max(30, self.runtime.settings["interval_s"] * 2)}
@@ -1211,6 +1559,7 @@ class DHWManager:
                     "time": datetime.now().astimezone().isoformat(),
                     "confirmation": ("delayed_ha_state" if ack_poll_min_s else "ha_state"),
                 }
+                self.recovery_budget = None
                 if p.get("reason"):
                     self.last_success["reason"] = p["reason"]
                 if ack_poll_min_s:
@@ -1221,7 +1570,7 @@ class DHWManager:
                     self.runtime.note(f"Boiler: doel {p['target']:g} °C bevestigd (niet hetzelfde als opgewarmd).")
                 await self._save()
             elif now - p["issued"] >= self.settings["ack_timeout_s"]:
-                await self._mark_fault("Boileropdracht niet bevestigd; handmatige controle vereist")
+                await self._mark_fault("Boileropdracht nog niet bevestigd; automatische controle loopt", now=now)
             else:
                 self.status = ("Wacht op latere Panasonic-doelwaarneming; onmiddellijke terugmelding "
                                "geldt niet als bevestiging" if ack_poll_min_s
@@ -1235,9 +1584,10 @@ class DHWManager:
             self._finish_execution("waiting", "restart", self.status)
             return False
         if self.needs_review or self.fault or self.manual_hold:
-            self.status = self.fault or ("Boilercontrole na herstart vereist" if self.needs_review
+            self.status = ((self.automatic_recovery or {}).get("reason") or self.fault) or ("Boilercontrole na herstart vereist" if self.needs_review
                                          else "Boilerregeling uit voorzorg gepauzeerd; hervat pas na boilercontrole")
-            self._finish_execution("blocked", "fault" if self.fault else "restart" if self.needs_review else "manual_hold", self.status)
+            self._finish_execution("waiting" if self.automatic_recovery else "blocked",
+                                   "automatic_recovery" if self.automatic_recovery else "fault" if self.fault else "restart" if self.needs_review else "manual_hold", self.status)
             return False
         # Observe cannot write, not even minimum/fallback/hygiene-related commands.
         if self.runtime.mode == "observe":
@@ -1325,6 +1675,14 @@ class DHWManager:
             self.status = dispatch_block_reason or decision.reason + "; wacht op andere regelopdracht"
             self._finish_execution("waiting", dispatch_block_code or "dispatch", self.status)
             return False
+        if remaining := self._recovery_remaining():
+            self.status = f"Boilerregeling controleert automatisch verder; een nieuwe opdracht wacht nog {remaining} s"
+            self._finish_execution("waiting", "recovery_backoff", self.status)
+            return False
+        if self.recovery_barrier:
+            self.status = "Boilercontrole afgerond; wacht op nieuwe netmeting voor de volgende beslissing"
+            self._finish_execution("waiting", "recovery_meter", self.status)
+            return False
         return await self._send(now, desired, releasing, decision.reason)
 
     def _optional_send_guard(self, desired, previous_target):
@@ -1336,7 +1694,7 @@ class DHWManager:
         """
         rt = self.runtime
         if (rt.mode != "solar" or not self.auto_enabled or not self.settings["safety_confirmed"]
-                or self.fault or self.needs_review or self.manual_hold or self.restart_recovery):
+                or self.fault or self.needs_review or self.manual_hold or self.restart_recovery or self.recovery_barrier):
             return False, "Extra warm water wacht: automatische bediening is niet meer vrijgegeven"
         actual, obj = self._target()
         if actual is None or self._temperature() is None:
@@ -1388,6 +1746,20 @@ class DHWManager:
     async def _send(self, now, desired, release, reason):
         rt = self.runtime
         previous_target = self.reading.actual_target_c
+        if self.recovery_barrier:
+            self._optional_send_wait("Nieuwe boileropdracht wacht op nieuwe netmeting na automatische controle")
+            return False
+        if remaining := self._recovery_remaining():
+            self._optional_send_wait(f"Nieuwe boileropdracht wacht nog {remaining} s na onzekere terugmelding")
+            return False
+        recovery_actual = None
+        if self.recovery_budget:
+            recovery_actual, obj = self._target()
+            if (self.automatic_recovery or self.fault or self.needs_review or self.manual_hold
+                    or recovery_actual is None or self._temperature() is None
+                    or self._protected(obj, self._execution_local_now) or self.check_target(desired)):
+                self._optional_send_wait("Nieuwe boileropdracht wacht op een betrouwbare vrije boilertoestand")
+                return False
         optional_increase = (not release and desired > effective_base_target(self.settings) + .05
                              and previous_target is not None and desired > previous_target + .05)
         if optional_increase:
@@ -1406,8 +1778,23 @@ class DHWManager:
         self.owned_target = desired
         self.pending = {"target": desired, "issued": now, "issued_wall": time.time(), "release": release,
                         "ack_poll_min_s": self._ack_poll_min_s(), "reason": reason}
+        if (previous_owned is not None and previous_target is not None
+                and abs(previous_owned - previous_target) < .05):
+            self.pending["previous_owned_target_c"] = previous_owned
         self.last_command_wall = self.pending["issued_wall"]
         await self._save()  # Durable intent BEFORE the physical call.
+        if self.recovery_budget:
+            actual, obj = self._target()
+            if (self.automatic_recovery or self.fault or self.needs_review or self.manual_hold
+                    or self.recovery_barrier or self._recovery_remaining() or actual is None or recovery_actual is None
+                    or abs(actual - recovery_actual) >= .05 or self._temperature() is None
+                    or self._protected(obj, self._execution_local_now) or self.check_target(desired)):
+                self.pending = None
+                self.owned_target, self.last_command_wall = previous_owned, previous_command_wall
+                self.policy.current, self.policy.candidate, self.policy.candidate_since = previous_policy
+                await self._save()
+                self._optional_send_wait("Boilertoestand gewijzigd vóór uitvoering; automatische regeling beoordeelt opnieuw")
+                return False
         if optional_increase:
             allowed, why = self._optional_send_guard(desired, previous_target)
             if allowed and self._optional_source_proof() != source_proof:
@@ -1436,7 +1823,9 @@ class DHWManager:
                 else:
                     await rt._call(entity_id, "set_temperature", {"temperature": desired})
         except (HomeAssistantError, TimeoutError, ValueError) as err:
-            await self._mark_fault(f"Onzekere boileropdracht ({type(err).__name__}); controle vereist")
+            rt.note(f"Boileropdracht gaf {type(err).__name__}; resultaat wordt via nieuwe terugmelding gecontroleerd")
+            await self._mark_fault("Onzekere boileropdracht; automatische controle loopt",
+                                   failure_code="service_error", now=time.monotonic())
         return True
 
     async def set_enabled(self, enabled):
@@ -1475,18 +1864,26 @@ class DHWManager:
             await self._save()
         await self.runtime.tick()
 
+    def _review_block_reason(self):
+        """Single read-only authority for review readiness and actual review."""
+        if self.runtime.mode == "solar" or self.pending:
+            return "Kies eerst Pauze of Observatie en wacht op een lopende boileropdracht"
+        target, obj = self._target()
+        zone = getattr(getattr(self.runtime.hass, "config", None), "time_zone", "Europe/Brussels")
+        if target is None or self._temperature() is None or self._protected(obj, datetime.now(ZoneInfo(zone))):
+            return "Controleer actuele temperaturen en rond hygiëne/krachtige modus eerst af"
+        return ""
+
     async def review(self):
         async with self.runtime._lock:
-            if self.runtime.mode == "solar" or self.pending:
-                raise HomeAssistantError("Kies eerst Pauze of Observatie en wacht op een lopende boileropdracht")
-            target, obj = self._target()
-            zone = getattr(getattr(self.runtime.hass, "config", None), "time_zone", "Europe/Brussels")
-            if target is None or self._temperature() is None or self._protected(obj, datetime.now(ZoneInfo(zone))):
-                raise HomeAssistantError("Controleer actuele temperaturen en rond hygiëne/krachtige modus eerst af")
+            if reason := self._review_block_reason():
+                raise HomeAssistantError(reason)
             self.owned_target = None
             self.needs_review = self.manual_hold = False
             self.restart_recovery = None
             self.fault = ""
+            self.automatic_recovery = None
+            self._finish_failure_history("manual")
             self.policy.reset_stability()
             await self._save()
             self.runtime.note("Boilercontrole bevestigd; geen fysieke opdracht verstuurd.")
@@ -1502,6 +1899,8 @@ class DHWManager:
             self.needs_review = False
             self.restart_recovery = None
             self.fault = ""
+            self.automatic_recovery = None
+            self._finish_failure_history("manual")
             await self._save()
             self.runtime.note("Boiler handmatig overgenomen: GEEN temperatuur- of uitschakelopdracht.")
         await self.runtime.tick()
@@ -1517,12 +1916,27 @@ class DHWManager:
                                and not self.needs_review and not self.manual_hold and not self.fault
                                and not self.restart_recovery)
         panasonic_autonomous = bool(r.protected or not control_allowed or self.owned_target is None)
+        review_block_reason = self._review_block_reason() if self.configured else "Boilerbediening niet gekoppeld"
         return {"configured": self.configured, "enabled": self.auto_enabled,
                 "safety_confirmed": safety_confirmed,
                 "control_allowed": control_allowed,
                 "solar_pilot_owns_target": self.owned_target is not None,
                 "panasonic_autonomous": panasonic_autonomous,
                 "manual_override_active": bool(self.manual_hold),
+                "failed_command": dict(self.failed_command) if self.failed_command else None,
+                "failed_command_active": bool(self.fault and self.failed_command
+                                               and not self.failed_command.get("reviewed_at")),
+                "review_required": bool(self.needs_review or self.manual_hold or self.fault and not self.automatic_recovery),
+                "review_allowed": not bool(review_block_reason),
+                "review_block_reason": review_block_reason,
+                "automatic_recovery_pending": bool(not self.manual_hold and self.auto_enabled
+                                                      and (self.automatic_recovery or self._recovery_remaining() or self.recovery_barrier)),
+                "automatic_recovery_reason": ((self.automatic_recovery or {}).get("reason") or
+                    ("Boilercontrole afgerond; wacht op een nieuwe netmeting voor de volgende beslissing" if self.recovery_barrier else
+                     "Wacht op een nieuwe beoordeling na onzekere boileropdracht" if self._recovery_remaining() else "")),
+                "automatic_recovery_remaining_s": self._recovery_remaining(),
+                "automatic_recovery_state": ((self.automatic_recovery or {}).get("state") or
+                    ("waiting_meter" if self.recovery_barrier else "backoff" if self._recovery_remaining() else "idle")),
                 "target_adapter_domains": target_adapter_domains,
                 "ack_poll_min_s": ack_poll_min_s,
                 "ack_poll_min_unit": "s",
