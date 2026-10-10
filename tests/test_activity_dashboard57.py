@@ -73,66 +73,65 @@ def test_offline_old_on_and_off_meter_noise_do_not_show_activity(device, activit
     assert rows[0]["state"] == label and "is-active" not in rows[0]["classes"]
 
 
-@pytest.mark.parametrize("zone,activity,label", [
-    ({"mode": "auto", "action": "idle", "action_known": True}, "available", "AUTO beschikbaar"),
-    ({"mode": "heat_cool", "action": "idle", "action_known": True}, "available", "AUTO beschikbaar"),
-    ({"mode": "auto", "action": "heating", "action_known": True}, "active", "Verwarmt"),
-    ({"mode": "auto", "action": "cooling", "action_known": True}, "active", "Koelt"),
-    ({"mode": "off", "action": "off", "action_known": True}, "inactive", "Regeling uit"),
-    ({"mode": "auto", "action": "heating", "available": False}, "unknown", "Activiteit onbekend"),
-    ({"mode": "auto", "action": "cooling", "action_known": False}, "unknown", "Activiteit onbekend"),
+@pytest.mark.parametrize("zone", [
+    {"mode": "auto", "action": "idle"}, {"mode": "heat_cool", "action": "idle"},
+    {"mode": "auto", "action": "heating"}, {"mode": "auto", "action": "cooling"},
+    {"mode": "off", "action": "off"}, {"mode": "unknown", "action": None, "available": False},
+    {"mode": "auto", "action": None},
 ])
-def test_room_auto_availability_and_actual_heat_cool_are_visually_distinct(zone, activity, label):
-    markup, rows = rendered(smartClimate={"zones": [{"entity_id": "climate.one", "name": "Ruimte",
-                                                    "current": 22, "target": 21, **zone}]})
-    assert rows[0]["activity"] == activity
-    assert rows[0]["state"] == label + " · 22 °C"
-    if activity == "available":
-        assert "AUTO betekent nog niet dat de warmtepomp draait" in rows[0]["text"]
-        assert ".reason-row.is-available{border-color:var(--sp-activity-blue);border-style:dashed}" in markup
+def test_readonly_room_activity_does_not_invent_a_sg_request_or_contact_confirmation(zone):
+    markup, rows = rendered(panasonic={"configured": True, "zones": [{"entity_id": "climate.one",
+        "name": "Ruimte", "temperature_c": 22, "target_c": 21, **zone}]},
+        sgBoost={"configured": True, "desired_on": False, "relay_on": False, "relay_confirmed": True})
+    assert len(rows) == 1
+    assert rows[0]["activity"] == "inactive" and rows[0]["state"] == "SG-contact open"
+    assert "Ruimte" in rows[0]["text"] and "22 °C" in rows[0]["text"]
+    assert "Panasonic en ruimtes · alleen uitlezen" in markup
+    assert 'data-action="climate_' not in markup
 
 
-def dhw_fixture(**overrides):
-    return {"configured": True, "temperature_c": 49, "actual_target_c": 50, "proposed_target_c": 60,
-            "normal_target_c": 50, "execution": {"heating_evidence": {"reported_heating": False},
-            "source_evidence": {"target": {"available": True, "restored": False, "age_s": 5}}},
-            **overrides}
+def sg_fixture(**overrides):
+    return {"configured": True, "desired_on": False, "relay_on": False,
+            "relay_confirmed": True, "panasonic_confirmed": None, **overrides}
 
 
-def test_high_boiler_proposal_alone_is_not_selected_or_heating_activity():
-    _, rows = rendered(dhw=dhw_fixture())
+def test_high_reported_tank_target_alone_is_not_a_sg_request_or_contact_activity():
+    _, rows = rendered(panasonic={"configured": True, "temperature_c": 49, "target_c": 60},
+                       sgBoost=sg_fixture())
     assert rows[0]["activity"] == "inactive"
-    assert rows[0]["state"] == "Tank 49 °C · doel 50 °C"
-    assert "Extra voorraad ingesteld" not in rows[0]["text"]
+    assert rows[0]["state"] == "SG-contact open"
+    assert "60 °C" in rows[0]["text"] and "Afzonderlijk bevestigd" not in rows[0]["text"]
 
 
-def test_reported_high_boiler_goal_is_dashed_selected_buffer_without_heat_claim():
-    _, rows = rendered(dhw=dhw_fixture(actual_target_c=60))
+def test_sg_request_is_dashed_while_the_contact_is_not_confirmed():
+    markup, rows = rendered(panasonic={"configured": True, "temperature_c": 49, "target_c": 50},
+                           sgBoost=sg_fixture(desired_on=True, relay_confirmed=False, relay_on=None))
     assert rows[0]["activity"] == "available"
-    assert rows[0]["state"] == "Extra voorraad ingesteld · Tank 49 °C · doel 60 °C"
-    assert "Warmt water op" not in rows[0]["text"]
+    assert rows[0]["state"] == "Contactstatus onbekend"
+    assert ".reason-row.is-available{border-color:var(--sp-activity-blue);border-style:dashed}" in markup
+    assert "Panasonic-reactie niet afzonderlijk bevestigd" not in rows[0]["state"]
 
 
-def test_only_current_boiler_heating_feedback_gets_solid_blue_activity():
-    dhw = dhw_fixture()
-    dhw["execution"]["heating_evidence"]["reported_heating"] = True
-    _, rows = rendered(dhw=dhw)
-    assert rows[0]["activity"] == "active"
-    assert rows[0]["state"] == "Warmt water op · Tank 49 °C · doel 50 °C"
+def test_only_confirmed_active_sg_contact_gets_solid_blue_contact_activity():
+    _, rows = rendered(panasonic={"configured": True, "temperature_c": 49, "target_c": 50},
+                       sgBoost=sg_fixture(desired_on=True, relay_on=True))
+    assert rows[0]["activity"] == "active" and "is-active" in rows[0]["classes"]
+    assert rows[0]["state"] == "SG-contact actief"
+    assert "Panasonic-reactie niet afzonderlijk bevestigd" in rows[0]["text"]
 
 
-@pytest.mark.parametrize("source", [
-    {"available": False}, {"available": True, "restored": True},
-    {"available": True, "age_s": 301}, {"available": True, "age_s": -6},
-    {"available": True, "age_s": "bad"},
+@pytest.mark.parametrize("contact", [
+    {"relay_on": True, "relay_confirmed": False},
+    {"relay_on": False, "relay_confirmed": False},
+    {"relay_on": None, "relay_confirmed": False},
+    {"relay_on": None, "relay_confirmed": None},
+    {"relay_on": True, "relay_confirmed": None},
 ])
-def test_old_or_unavailable_boiler_heating_feedback_cannot_show_active(source):
-    dhw = dhw_fixture(actual_target_c=60)
-    dhw["execution"]["heating_evidence"]["reported_heating"] = True
-    dhw["execution"]["source_evidence"]["target"] = source
-    _, rows = rendered(dhw=dhw)
-    assert rows[0]["activity"] == "unknown"
-    assert rows[0]["state"].startswith("Toestelstatus onbekend")
+def test_old_or_unavailable_contact_feedback_cannot_show_confirmed_sg_activity(contact):
+    _, rows = rendered(panasonic={"configured": True, "temperature_c": 49, "target_c": 60},
+                       sgBoost=sg_fixture(**contact))
+    assert rows[0]["activity"] == "unknown" and "is-active" not in rows[0]["classes"]
+    assert rows[0]["state"] == "Contactstatus onbekend"
 
 
 @pytest.mark.parametrize("known,power,activity", [(True, 3500, "active"), (True, 0, "inactive"), (False, 3500, "unknown")])

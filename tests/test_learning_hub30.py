@@ -117,9 +117,9 @@ def test_quiet_policy_still_available_and_no_permission_change():
 
 def test_protected_context_scores_separately_and_does_not_train_normal_demand():
     r,h=metered()
-    r.dhw.config['target_entity']='water_heater.tank'
-    r.dhw.settings['hygiene_schedule_enabled']=False
-    r.dhw.reading=SimpleNamespace(protected=True,protection_reason='Hygiëneprogramma actief')
+    # The read-only monitor supplies native activity; no obsolete DHW writer
+    # or clock-only sterilisation assumption is involved in this learning test.
+    r.panasonic.overview=lambda: {'context':'sterilization', 'status':'Native sterilisation confirmed'}
     x=r.learning_hub.observe(datetime.now(timezone.utc),time.monotonic())
     assert x['valid'] and x['context']=='sterilization'
     assert r.unified_planner.base_load.accepted==0
@@ -306,7 +306,7 @@ async def test_answered_questions_clear_only_own_notification():
 
 def test_beta36_space_heating_is_not_learned_as_household_base():
     r,h=metered()
-    r.smart_climate.settings.update(enabled=True,zone_entities=['climate.zone'])
+    r.panasonic.settings.update(zone_entities=['climate.zone'])
     h.states.set('climate.zone','auto',{'hvac_action':'heating'})
     x=r.learning_hub.observe(datetime.now(timezone.utc),time.monotonic())
     assert x['valid'] and x['context']=='space_heating'

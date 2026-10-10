@@ -1,4 +1,4 @@
-"""Test the actual beta.30 UI with explicit fictitious native-HA API responses.
+"""Test the actual SG UI with explicit fictitious native-HA API responses.
 
 No running Home Assistant, cloud access, or physical commands. Requires optional
 local playwright + Chromium, not production/test dependencies for the integration.
@@ -23,38 +23,30 @@ with sync_playwright() as p:
       window.apiCalls=[]; window.actuatorCalls=[];
       const c=document.querySelector('solar-pilot-card');window.c=c;
       const a=structuredClone(c._last.attributes);a.config_entry_id='fictieve-config-entry';
-      a.dhw.settings={...a.dhw.settings,morning_enabled:true,morning_time:'09:00:00',morning_c:45,evening_enabled:true,evening_cap_c:55,night_policy:'minimum_until_solar'};
-      a.dhw.comfort_plan={projected_c:46.3,reason:'Fictieve voorbeeldgegevens: avondvoorraad gereed',evening_target_c:55,forecast_source:'Fictieve solarhorizon',required_lead_min:95};
-      a.dhw.tank_learning={loss_c_h:.25,loss_source:'Voorlopige schatting',heat_c_h:6,heat_source:'Voorlopige schatting'};
       a.wallbox.charging_profile={phases:1,max_current_a:25,maximum_power_w:5750,current_source:'Wallbox-integratie (fictief)',phase_source:'Handmatig bevestigd'};
       c.hass={...c._hass,user:{is_admin:true},callService:async(...args)=>{window.actuatorCalls.push(args);throw Error('Geen echte bediening in deze proef');},states:{...c._hass.states,[c._entity]:{state:'Zonnestroom',attributes:a}}};
-      window.demoForm={type:'form',flow_id:'fictieve-flow',step_id:'dhw_comfort',errors:{},data_schema:[
-        {name:'night_policy',required:true,selector:{select:{options:[{value:'base',label:'Bestaand basisregime'},{value:'minimum_until_solar',label:'Minimum bewaken; daarna wachten op zon'}]}},default:'base'},
-        {name:'morning_enabled',required:true,selector:{boolean:{}},default:false},
-        {name:'morning_time',required:true,selector:{time:{}},default:'09:00:00'},
-        {name:'morning_c',required:true,selector:{number:{min:40,max:50,step:1}},default:45},
-        {name:'morning_margin_c',required:true,selector:{number:{min:0,max:3,step:.5}},default:1},
-        {name:'evening_enabled',required:true,selector:{boolean:{}},default:false},
-        {name:'evening_cap_c',required:true,selector:{number:{min:50,max:59,step:1}},default:55},
-        {name:'evening_lookahead_h',required:true,selector:{number:{min:.5,max:6,step:.5}},default:3},
-        {name:'predictive_cooling_enabled',required:true,selector:{boolean:{}},default:false}
+      window.demoForm={type:'form',flow_id:'fictieve-flow',step_id:'sg_boost',errors:{},data_schema:[
+        {name:'entity_id',required:false,selector:{entity:{domain:'switch'}},default:'switch.example_sg_contact'},
+        {name:'enabled',required:true,selector:{boolean:{}},default:false},
+        {name:'commissioning_confirmed',required:true,selector:{boolean:{}},default:false},
+        {name:'watchdog_confirmed',required:true,selector:{boolean:{}},default:false},
+        {name:'threshold_w',required:true,selector:{number:{min:500,max:20000,step:50}},default:3000},
+        {name:'expected_power_w',required:true,selector:{number:{min:100,max:30000,step:50}},default:3200}
       ]};
       window.apiHandler=async(method,path,data)=>{
         window.apiCalls.push({method,path,data});
         if(method==='delete')return{};
-        if(path==='config/config_entries/options/flow')return{type:'menu',step_id:'init',flow_id:'fictieve-flow',menu_options:['dhw_comfort','wallbox']};
-        if(data.next_step_id==='dhw_comfort')return structuredClone(window.demoForm);
+        if(path==='config/config_entries/options/flow')return{type:'menu',step_id:'init',flow_id:'fictieve-flow',menu_options:['comfort_hub','wallbox']};
+        if(data.next_step_id==='comfort_hub')return{type:'menu',step_id:'comfort_hub',flow_id:'fictieve-flow',menu_options:['sg_boost','sg_sources','sg_advanced']};
+        if(data.next_step_id==='sg_boost')return structuredClone(window.demoForm);
         return{type:'create_entry',title:'Opgeslagen',data:{}};
       };
       c.hass={...c._hass,callApi:(...args)=>window.apiHandler(...args)};
     }''')
-    # Every directly editable scalar/control has question help; hover is harmless.
+    # SG policy help is informational; opening/hovering does not call any actuator.
     page.locator('solar-pilot-card >> button[data-action=view][data-value=comfort]').click()
-    assert '46 °C om 09:00' in page.locator('solar-pilot-card >> .comfort-new').inner_text()
-    page.locator('solar-pilot-card >> .dhw-rules summary').click()
-    control=page.locator('solar-pilot-card >> [data-dhw-setting]').first
-    assert control.evaluate("el=>el.nextElementSibling?.dataset.action==='option_help'")
-    q=page.locator('solar-pilot-card >> .comfort-new [data-help-key=morning_enabled]')
+    panel=page.locator('solar-pilot-card >> .heatpump-sg')
+    q=panel.locator('[data-help-key=enabled]')
     q.hover();page.wait_for_timeout(70)
     assert 'Uitleg bij' not in q.get_attribute('title')
     q.click()
@@ -63,58 +55,50 @@ with sync_playwright() as p:
     help_host.locator('.close').first.click()
     assert page.evaluate('window.apiCalls.length===0 && window.actuatorCalls.length===0')
 
-    page.locator('solar-pilot-card >> .comfort-new button[data-action=configure]').click()
+    panel.locator('details[data-ui-key="sg:comfort:details"] > summary').click()
+    panel.locator('button[data-action=configure]').click()
     host=page.locator('solar-pilot-options-dialog');assert host.locator('dialog').first.is_visible()
-    host.locator('button[data-menu=dhw_comfort]').click()
-    page.wait_for_selector('solar-pilot-options-dialog >> [name=morning_c]')
-    assert host.locator('.field').count()==host.locator('.field button.help').count()==9
-    host.locator('[name=night_policy]').select_option('minimum_until_solar')
-    host.locator('[name=morning_enabled]').check()
-    host.locator('[name=morning_c]').fill('46')
-    host.locator('[name=evening_enabled]').check()
-    host.locator('[name=predictive_cooling_enabled]').check()
-    host.locator('[name=morning_time]').fill('08:55')
-    host.locator('button[data-help=evening_enabled]').click()
+    page.wait_for_selector('solar-pilot-options-dialog >> [name=threshold_w]')
+    assert host.locator('.field').count()==host.locator('.field button.help').count()==6
+    host.locator('[name=enabled]').check()
+    host.locator('[name=commissioning_confirmed]').check()
+    host.locator('[name=watchdog_confirmed]').check()
+    host.locator('[name=threshold_w]').fill('3500')
+    host.locator('[name=expected_power_w]').fill('3400')
+    host.locator('button[data-help=watchdog_confirmed]').click()
     nested=host.locator('solar-pilot-option-help-dialog')
     assert nested.locator('dialog').is_visible()
-    assert 'avond' in nested.locator('dialog').inner_text().lower()
-    # Main 5s refresh must not close either dialog or reset field edits.
+    assert 'terugval' in nested.locator('dialog').inner_text().lower()
+    # Main refresh preserves dialogs, draft fields and scroll position.
     page.evaluate('''()=>{window.savedOptions=c._optionsDialog.dialog;window.savedHelp=c._optionsDialog.helpDialog.dialog;
        window.savedOptions.scrollTop=150;window.scrollBefore=window.savedOptions.scrollTop;
        for(let n=0;n<80;n++){const a=structuredClone(c._last.attributes);a.grid_w=-2200-n;c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{state:'Zonnestroom',attributes:a}}};}}
     ''')
     assert page.evaluate('c._optionsDialog.dialog===savedOptions && savedOptions.open && savedHelp.open')
     assert page.evaluate('savedOptions.scrollTop===scrollBefore')
-    assert host.locator('[name=morning_c]').input_value()=='46'
-    assert host.locator('[name=morning_time]').input_value()=='08:55'
-    assert page.evaluate('window.apiCalls.length')==2
+    assert host.locator('[name=threshold_w]').input_value()=='3500'
+    assert host.locator('[name=expected_power_w]').input_value()=='3400'
+    assert page.evaluate('window.apiCalls.length')==3
 
-    for width in (320,390,768,1440):
+    for width in (320,390,768,1280):
         page.set_viewport_size({'width':width,'height':900})
         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
         assert nested.locator('dialog').evaluate('e=>e.scrollWidth<=e.clientWidth+1'),width
         assert host.locator('dialog').first.evaluate('e=>e.scrollWidth<=e.clientWidth+1'),width
-    page.set_viewport_size({'width':1440,'height':1000})
-    page.screenshot(path=str(output/'SolarPilot-beta28-uitleg-desktop.png'))
-    page.set_viewport_size({'width':390,'height':844})
-    page.screenshot(path=str(output/'SolarPilot-beta28-uitleg-mobiel.png'))
+        page.screenshot(path=str(output/f'SolarPilot-SG-uitleg-{width}.png'))
     page.keyboard.press('Escape')
     assert not nested.locator('dialog').is_visible()
     assert host.locator('dialog').first.is_visible()
-    # Explicitly label the preview, never imply it is the user's live installation.
-    host.locator('[name=morning_c]').fill('45');host.locator('[name=morning_time]').fill('09:00')
-    page.set_viewport_size({'width':1440,'height':1000})
-    page.evaluate("c._optionsDialog.shadowRoot.querySelector('h2').textContent='Ochtend & avondvoorraad · fictief voorbeeld';c._optionsDialog.dialog.scrollTop=0")
-    page.screenshot(path=str(output/'SolarPilot-beta28-instellingen-desktop.png'))
-    # Regression: the real HA browser raised "Method not implemented" when
-    # reading HTMLFormElement.elements. Read scoped controls instead; no extra
-    # permission, validation bypass or actuator request is introduced.
+    page.evaluate("c._optionsDialog.shadowRoot.querySelector('h2').textContent='SG-zonneboost · fictief voorbeeld';c._optionsDialog.dialog.scrollTop=0")
+    page.screenshot(path=str(output/'SolarPilot-SG-instellingen.png'))
+    # Scoped controls work even where HTMLFormElement.elements is unsupported.
     page.evaluate("Object.defineProperty(c._optionsDialog.content.querySelector('form'),'elements',{get(){throw Error('Method not implemented.')}})")
     host.locator('button[type=submit]').dblclick()
     page.wait_for_function("c._optionsDialog.flow===null")
-    assert page.evaluate('apiCalls.length')==3
-    sent=page.evaluate('apiCalls[2].data')
-    assert sent==dict(night_policy='minimum_until_solar',morning_enabled=True,morning_time='09:00:00',morning_c=45,morning_margin_c=1,evening_enabled=True,evening_cap_c=55,evening_lookahead_h=3,predictive_cooling_enabled=True),sent
+    assert page.evaluate('apiCalls.length')==4
+    sent=page.evaluate('apiCalls[3].data')
+    assert sent==dict(entity_id='switch.example_sg_contact',enabled=True,
+        commissioning_confirmed=True,watchdog_confirmed=True,threshold_w=3500,expected_power_w=3400),sent
     assert page.evaluate('actuatorCalls.length')==0
     host.locator('[data-close]').click()
 
@@ -168,4 +152,4 @@ with sync_playwright() as p:
     assert page.evaluate('actuatorCalls.length')==0
     assert not errors,errors
     browser.close()
-print('OK: beta.30 opties + uitleg, 80 updates, mobiele/desktop-breedtes, payloads, foutafhandeling, geen actuatoraanroepen. HA API getest met fixtures, niet een echte server.')
+print('OK: SG opties + uitleg, 80 updates, mobiele/desktop-breedtes, payloads, foutafhandeling, geen actuatoraanroepen. HA API getest met fixtures, niet een echte server.')

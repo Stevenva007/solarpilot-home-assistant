@@ -9,16 +9,13 @@ def load(name):
     m=importlib.util.module_from_spec(spec);sys.modules[full]=m;spec.loader.exec_module(m);return m
 
 def build():
-    helpmod=load('option_help');thermal=load('thermal_climate');planner=load('unified_planner');guide=load('current_guide')
+    helpmod=load('option_help');planner=load('unified_planner');guide=load('current_guide')
     j=json.loads((C/'translations/nl.json').read_text(encoding='utf-8'))
     steps=j['options']['step']; entries={}
     for step,data in steps.items():
         for key,label in data.get('data',{}).items():
-            specs=thermal.CLIMATE_SETTING_SPECS if step.startswith('smart_climate') else planner.PLANNER_SETTING_SPECS if step=='planner' else {}
+            specs=planner.PLANNER_SETTING_SPECS if step=='planner' else {}
             entries[f'{step}.{key}']=helpmod.help_for(step,key,label,specs.get(key))
-    # Direct climate dashboard exposes more model parameters than the short wizard.
-    for key,spec in thermal.CLIMATE_SETTING_SPECS.items():
-        entries.setdefault(f'smart_climate.{key}',helpmod.help_for('smart_climate',key,spec['label'],spec))
     for key,spec in planner.PLANNER_SETTING_SPECS.items():
         entries.setdefault(f'planner.{key}',helpmod.help_for('planner',key,spec['label'],spec))
     for key,label in [('priority_board','Voorrang en autoladen'),('manage_devices','Toestellen beheren'),('learning_hub','Leren & vragen'),('participation','Automatisch / Uitgesloten'),('restart_auto','Na herstart automatisch hervatten'),('others_first','Globale Wallbox-voorkeur'),('manual_start','Manueel starten'),('manual_stop','Manueel stoppen'),('boost','Boost 30 minuten'),('analysis_export','Export samenstellen'),('dishwasher_arm','Afwasbeurt klaarzetten'),('dishwasher_cancel','Klaarzetten annuleren')]:

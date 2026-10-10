@@ -62,12 +62,13 @@ async def test_read_diagnostics_no_reset_or_write():
 @pytest.mark.asyncio
 async def test_reset_only_pv_preserves_other_learning_and_device_state():
     r,h=loaded();r.pv_forecast.model.counts['accepted']=20;r.pv_forecast.model.revision=20
+    r.sg_boost._clock=lambda:100.0;r.sg_boost._wall_clock=lambda:1000.0
     r.pv_forecast.cached={'available':True,'factor':.6};before=r._snapshot()
     c=Connection(True);await endpoint()(h,c,{'id':1,'config_entry_id':'test','reset_confirm':True})
     assert not c.errors and r.pv_forecast.model.counts['accepted']==0
     assert not c.results[0][1]['summary']['available'] and not h.services.calls
     after=r._snapshot()
-    for key in ('dishwasher','dishwasher_app','dhw','smart_climate','learning','phase_learning','priorities','device_modes'):
+    for key in ('dishwasher','dishwasher_app','panasonic_archive','sg_boost','learning','phase_learning','priorities','device_modes'):
         assert before.get(key)==after.get(key),key
 
 @pytest.mark.asyncio
@@ -125,5 +126,8 @@ def test_every_new_option_has_long_help_and_current_docs():
         for key in j['steps'][step]['data']:
             assert len(' '.join(j['entries'][f'{step}.{key}']['paragraphs']))>180
     guide=(C/'docs/ACTUELE_WERKING.md').read_text(encoding='utf-8')
-    for phrase in ('effectieve','clipping','13.800','10.000','15','Full Solar','PV-diagnose','13:00'):
+    # The current guide describes configurable site values; it must not embed
+    # an installation's private inverter/panel ratings as required defaults.
+    for phrase in ('effectieve','clipping','Wattpiekvermogen','AC-omvormergrens',
+                   'kwartier','Full Solar','PV-diagnose','13:00'):
         assert phrase in guide

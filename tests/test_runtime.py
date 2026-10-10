@@ -56,7 +56,16 @@ def build(kind="switch", power=False, settings=None, device=None):
               "min_on_s": 0, "min_off_s": 0, "start_margin_w": 0, **(device or {})}
     if power or kind == "number":
         config["power_entity"] = "sensor.load"
-    hass = SimpleNamespace(states=states, services=Services(states))
+    # Exercise the ordinary script route with a loaded, statically inspectable
+    # HA script; unknown scripts are deliberately quarantined by beta.62.
+    scripts = {
+        "script.start": SimpleNamespace(script=SimpleNamespace(sequence=[
+            {"action": "switch.turn_on", "target": {"entity_id": "switch.load"}}])),
+        "script.stop": SimpleNamespace(script=SimpleNamespace(sequence=[
+            {"action": "switch.turn_off", "target": {"entity_id": "switch.load"}}])),
+    }
+    hass = SimpleNamespace(states=states, services=Services(states),
+                           data={"script": SimpleNamespace(get_entity=scripts.get)})
     entry = SimpleNamespace(entry_id="test", data={"grid_entity": "sensor.grid", "settle_s": 5, "reserve_w": 0, **(settings or {})},
                             options={"devices": [config]})
     runtime = SolarRuntime(hass, entry)

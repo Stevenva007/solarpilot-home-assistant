@@ -28,7 +28,7 @@ def test_progressive_disclosure_steps_exist():
         "async_step_timing",
         "async_step_phase_learning",
         "async_step_wallbox_advanced",
-        "async_step_smart_climate_advanced",
+        "async_step_sg_boost",
         "async_step_battery_control",
         "async_step_device_behavior",
         "async_step_device_schedule",
@@ -39,7 +39,7 @@ def test_progressive_disclosure_steps_exist():
 def test_card_uses_six_logical_views_and_keeps_modes_global():
     for key in ("overview", "loads", "comfort", "energy", "storage", "guide"):
         assert f'data-value="{key}"' in CARD or f"value: '{key}'" in CARD or f'"{key}"' in CARD
-    for label in ("Overzicht", "Toestellen", "Warmte & comfort", "Energie", "Batterij", "Uitleg"):
+    for label in ("Overzicht", "Toestellen", "Warmtepomp", "Energie", "Batterij", "Uitleg"):
         assert label in CARD
     for label in ("Alleen bekijken", "Automatisch regelen", "Pauze"):
         assert label in CARD
@@ -55,15 +55,16 @@ def test_package_has_one_current_rules_doc_and_one_navigation_doc():
     assert obsolete.isdisjoint({p.name for p in (ROOT / "docs").glob("*.md")})
 
 
-def test_climate_dashboard_exposes_all_settings_with_advice_and_consequences():
-    text=(ROOT/'custom_components'/'solar_pilot'/'frontend'/'solar-pilot-card.js').read_text(encoding="utf-8")
-    assert 'settings_catalog' in text
-    assert 'Advies:' in text
-    assert 'Lager:' in text and 'Hoger:' in text
-    assert "solar_pilot','set_climate_setting" in text
-    assert 'Bevindingen & leren' in text
-    assert 'Meldingen' in text
-    assert 'hoe SolarPilot deze klimaatbeslissing maakt' in text
+def test_heatpump_dashboard_is_compact_and_exposes_only_sg_policy_controls():
+    from test_sg_ui_platforms62 import attributes, execute, text
+    rendered = execute(attributes())
+    assert "Warmtepomp — Panasonic-regeling" in text(rendered["initial"])
+    assert "Automatische zonneboost" in rendered["initial"]
+    assert "Panasonic en ruimtes · alleen uitlezen" in text(rendered["initial"])
+    assert "Details en voorwaarden" in text(rendered["initial"])
+    assert not rendered["calls"]
+    for obsolete in ("set_climate_setting", "set_climate_override", "data-dhw-setting", "data-climate-setting"):
+        assert obsolete not in CARD
 
 
 def test_live_dashboard_refresh_preserves_open_sections_and_avoids_guide_churn():
@@ -174,41 +175,21 @@ def test_frontend_assets_are_release_bound_to_manifest_version():
     assert json.loads(OPTION_HELP)["version"] == version
 
 
-def test_manual_dhw_hold_always_has_a_safe_resume_control():
-    # Exercise the shipped recovery route instead of depending on a guard's
-    # former source-code position. Manual fallback remains available even when
-    # ordinary command faults can now be reconciled automatically.
-    from test_dhw_recovery_ui61 import actions, execute_recovery, recovery_attributes
-
-    solar = recovery_attributes("solar", fault="", manual_hold=True,
-                                status="Handmatige boilerbescherming blijft gelden")
-    paused = recovery_attributes("paused", fault="", manual_hold=True,
-                                 status="Handmatige boilerbescherming blijft gelden")
-    pause = execute_recovery(solar, steps=[{"action": "dhw_pause"}])
-    assert "dhw_pause" in actions(pause["initial"]) and "reset" not in actions(pause["initial"])
-    assert pause["calls"] == [{"domain": "select", "service": "select_option",
-                               "data": {"entity_id": "select.solar_pilot_mode", "option": "paused"}}]
-    review = execute_recovery(paused, steps=[{"action": "dhw_review"}])
-    assert "dhw_review" in actions(review["initial"])
-    assert review["calls"] == [{"domain": "button", "service": "press",
-                                "data": {"entity_id": "button.boiler_review"}}]
-    blocked = recovery_attributes("paused", fault="", manual_hold=True,
-                                  review_allowed=False, review_block_reason="Actuele tanktemperatuur ontbreekt")
-    assert not execute_recovery(blocked, steps=[{"action": "dhw_review", "direct": True}])["calls"]
-    assert 'aria-checked="${dhw.enabled?\'true\':\'false\'}"' in CARD
+def test_manual_sg_hold_has_one_resume_control_without_restoring_panasonic_commands():
+    from test_sg_ui_platforms62 import attributes, execute, text
+    result = execute(attributes(manual_hold=True), actions=[{"action": "sg_boost_resume"}])
+    assert "Handmatige bediening blijft behouden" in text(result["initial"])
+    assert result["calls"] == [{"domain": "button", "service": "press", "data": {"entity_id": "button.example_sg_resume"}}]
+    assert "Boilercontrole afronden" not in result["initial"]
 
 
-def test_dhw_overview_uses_reported_target_and_prioritises_wait_status():
-    assert 'spTemp(dhw.actual_target_c)' in CARD
-    # Both views share runtime status precedence; the rendered behaviour,
-    # including ordinary cooldown waits, is exercised in test_dhw_ui50.py.
-    assert "const dhwStateText=this._dhwStateText(dhw);" in CARD
-    assert "this._tile('SolarPilot-voorstel',spTemp(dhw.proposed_target_c),this._dhwStateText(dhw))" in CARD
-    assert "if(dhw.status)return dhw.status;" in CARD
-    assert "dhw.control_allowed===false" in CARD
-    assert "SolarPilot-voorstel:" in CARD
-    assert "niet het gemelde toesteldoel" in CARD
-    assert "this._tile('Warm water',dhwTargetText" in CARD
+def test_sg_overview_uses_reported_target_and_actual_backend_wait_reason():
+    from test_sg_ui_platforms62 import attributes, execute, text
+    result = execute(attributes(reason="Wacht op verse netmeting"), view="board")
+    content = text(result["initial"])
+    assert "50 °C" in content and "Wacht op verse netmeting" in content
+    assert "SolarPilot-voorstel" not in content
+    assert not result["calls"]
 
 
 def test_visible_mode_and_dhw_wording_matches_current_behaviour():
@@ -219,8 +200,8 @@ def test_visible_mode_and_dhw_wording_matches_current_behaviour():
         "standaard 100 W met gewone terugvalvertraging",
     ):
         assert stale not in visible_text
-    assert "Boilerregeling vrijgeven (alleen actief bij Automatisch regelen)" in NL_TEXT
-    assert "de gewone terugvalvertraging geldt dan niet" in NL_TEXT
+    assert "Boilerregeling vrijgeven (alleen actief bij Automatisch regelen)" not in NL_TEXT
+    assert "Automatische zonneboost aan" in NL_TEXT
     assert '"solar": "Automatisch regelen"' in NL_TEXT
 
 
@@ -233,14 +214,14 @@ def test_learning_and_history_labels_describe_their_real_scope():
         "meetgaten niet meegeteld",
         "Toestelvermogen en Wallbox-respons leren",
         "Deze schakelaar geldt alleen voor toestelvermogens en Wallbox-respons",
-        "Apparaat-, lokale PV-, fase- en klimaatleerdata wissen",
-        "Actieve bediening, klimaat-OFF-eigendom, handmatige bescherming en veiligheidsinstellingen blijven behouden",
+        "Apparaat-, lokale PV-, fase- en activiteitsleerdata wissen",
+        "Actieve bediening, handmatige bescherming en veiligheidsinstellingen blijven behouden",
     ):
         assert expected in CARD
     assert "<small>geen meetgaten</small>" not in CARD
     assert "<strong>Lokaal leren</strong>" not in CARD
     assert "Toestelvermogen en Wallbox-respons leren" in native_labels
-    assert "Apparaat-, lokale PV-, fase- en klimaatleerdata wissen" in native_labels
+    assert "Apparaat-, lokale PV-, fase- en activiteitsleerdata wissen" in native_labels
     assert "Lokaal leren ingeschakeld" not in native_labels
 
 

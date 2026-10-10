@@ -15,7 +15,9 @@ def test_catalogue_matches_generator_and_manifest():
     actual = json.loads((C / 'frontend/option-help.json').read_text(encoding='utf-8'))
     assert actual == builder.build()
     assert actual['version'] == json.loads((C / 'manifest.json').read_text())['version']
-    assert len(actual['entries']) >= 350
+    assert {'sg_boost.entity_id', 'sg_boost.enabled', 'sg_boost.commissioning_confirmed',
+            'sg_boost.watchdog_confirmed', 'sg_sources.power_scope',
+            'sg_advanced.lease_s', 'sg_advanced.renew_s'} <= set(actual['entries'])
 
 
 def test_every_native_option_has_specific_help_and_native_description():
@@ -32,26 +34,26 @@ def test_every_native_option_has_specific_help_and_native_description():
             assert not any('TODO' in t or 'Missing specific' in t for t in item['paragraphs'])
 
 
-@pytest.mark.parametrize('key', ['morning_enabled', 'night_policy', 'evening_enabled', 'predictive_cooling_enabled', 'morning_time'])
-def test_new_dhw_options_have_complete_paragraphs(key):
-    item = builder.build()['entries'][f'dhw_comfort.{key}']
+@pytest.mark.parametrize('key', ['start_delay_s', 'stop_delay_s', 'rest_s', 'lease_s', 'renew_s'])
+def test_sg_options_have_complete_paragraphs(key):
+    item = builder.build()['entries'][f'sg_advanced.{key}']
     assert len(item['paragraphs']) >= 3
     assert 'Panasonic' in ' '.join(item['paragraphs'])
-    assert 'toestemming' not in item['short'] or key.endswith('enabled')
+    assert 'SolarPilot' in ' '.join(item['paragraphs'])
 
 
 def test_missing_future_option_fails_release_instead_of_generic_guess():
     helper = builder.load('option_help')
     with pytest.raises(ValueError, match='Missing specific help'):
-        helper.help_for('dhw_comfort', 'future_undefined_parameter', 'Future')
+        helper.help_for('sg_advanced', 'future_undefined_parameter', 'Future')
 
 
 def test_nl_and_en_new_flow_fields_match():
     nl = json.loads((C/'translations/nl.json').read_text(encoding='utf-8'))
     en = json.loads((C/'translations/en.json').read_text(encoding='utf-8'))
-    for step in ('dhw_comfort', 'wallbox', 'wallbox_advanced'):
+    for step in ('sg_boost', 'sg_sources', 'sg_advanced', 'wallbox', 'wallbox_advanced'):
         assert set(nl['options']['step'][step]['data']) == set(en['options']['step'][step]['data'])
-    assert 'dhw_morning_required' in en['options']['error']
+    assert {'sg_commissioning', 'sg_watchdog', 'sg_reopen'} <= set(en['options']['error'])
 
 
 def test_option_modal_uses_native_validation_not_an_actuator_or_direct_write():
@@ -70,21 +72,38 @@ def test_release_check_includes_help_and_shared_update():
     assert 'update_option_help.py' in (ROOT/'tools/update_current_explanation.py').read_text()
 
 
-def test_new_settings_not_auto_activated_on_upgrade():
-    from custom_components.solar_pilot.dhw import DHWPolicy, DHW_DEFAULTS
-    old = {'rise_delay_s':60,'fall_delay_s':120,'cooling_clear_s':600, 'safety_confirmed':False}
-    c = DHWPolicy(old).settings
-    for key, value in old.items():
-        assert c[key] == value
-    for key in ('morning_enabled','evening_enabled','predictive_cooling_enabled'):
-        assert c[key] is False
-    assert c['night_policy'] == 'base'
-    assert DHW_DEFAULTS['rise_delay_s'] == DHW_DEFAULTS['fall_delay_s'] == 300
-    assert DHW_DEFAULTS['cooling_clear_s'] == 1800
+def test_new_sg_settings_never_infer_authority_from_old_temperature_options():
+    from custom_components.solar_pilot.sg_config import normalize_config, SG_DEFAULTS
+    old = {'rise_delay_s':60, 'fall_delay_s':120, 'cooling_clear_s':600,
+           'safety_confirmed':True, 'auto_enabled':True, 'boost_temp':60}
+    config = normalize_config(old)
+    assert config == SG_DEFAULTS
+    assert not config['enabled']
+    assert not config['commissioning_confirmed']
+    assert not config['watchdog_confirmed']
+    explicit = {'threshold_w':3400, 'expected_power_w':3500, 'power_scope':'supply1'}
+    assert all(normalize_config(explicit)[key] == value for key,value in explicit.items())
 
 
-def test_embedded_setup_guide_matches_and_documents_limits():
+def test_historical_embedded_setup_guide28_remains_byte_equal():
     guide = (ROOT/'docs/BETA28_INSTELLEN.md').read_text(encoding='utf-8')
     assert guide == (C/'docs/BETA28_INSTELLEN.md').read_text(encoding='utf-8')
     for phrase in ('geen fysieke acceptatietest', 'geen elektrische', 'netstroom', '45 °C', '09:00', '55 °C'):
         assert phrase.lower() in guide.lower()
+
+
+def test_current_embedded_setup_guide62_documents_commissioning_and_rollback():
+    guide = (ROOT/'docs/BETA62_INSTELLEN.md').read_text(encoding='utf-8')
+    assert guide == (C/'docs/BETA62_INSTELLEN.md').read_text(encoding='utf-8')
+    for phrase in ('expliciete toestemming', 'lokale', '300', '60', 'rollback', 'back-up', 'voeding 1', 'Panasonic'):
+        assert phrase.lower() in guide.lower()
+
+
+def test_retired_panasonic_writer_help_is_not_a_current_configuration_surface():
+    catalogue = builder.build()
+    retired_steps = {'dhw', 'dhw_basic', 'dhw_comfort', 'dhw_advanced', 'climate', 'climate_basic', 'climate_advanced'}
+    assert not retired_steps.intersection(catalogue['steps'])
+    assert not any(key.startswith(('dhw_', 'climate_', 'dashboard:dhw_', 'dashboard:climate_'))
+                   for key in catalogue['entries'])
+    assert not any('manual_suspend_extra_dhw' in key or 'respect_optional_dhw' in key
+                   for key in catalogue['entries'])

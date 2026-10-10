@@ -129,11 +129,13 @@ def test_private_import_prefills_profile_and_keeps_control_permissions_off(monke
     assert options["phase"]["shed_on_overlimit"] is False
     assert options["forecast"]["enabled"] is True
     assert options["economy"]["enabled"] is True
-    assert options["smart_climate"]["enabled"] is True
-    assert options["smart_climate"]["control_enabled"] is False
+    assert "smart_climate" not in options
     assert options["wallbox"]["enabled"] is True
-    assert options["dhw"]["enabled"] is False
-    assert options["dhw"]["safety_confirmed"] is False
+    assert "dhw" not in options
+    assert options["sg_boost"]["enabled"] is False
+    assert options["sg_boost"]["commissioning_confirmed"] is False
+    assert options["sg_boost"]["watchdog_confirmed"] is False
+    assert options["sg_boost"]["tank_target_entity"] == suggestions["dhw"]["target_entity"]
     assert options["battery_analysis"]["enabled"] is True
     assert options["battery_analysis"]["seed_enabled"] is True
     assert options["_private_bundle"]["history"] is True

@@ -99,8 +99,8 @@ class Markup(HTMLParser):
 
 
 def board(**parts):
-    context = {"a": {"mode": "solar"}, "devices": [], "dhw": {},
-               "smartClimate": {}, "wb": {}, "batteryFleet": {}}
+    context = {"a": {"mode": "solar"}, "devices": [], "panasonic": {},
+               "sgBoost": {}, "smartClimate": {}, "wb": {}, "batteryFleet": {}}
     context.update(parts)
     result = execute_card({"render": context})
     assert result["writes"] == 0
@@ -120,16 +120,17 @@ def explanation(row):
 
 def test_each_configured_consumer_has_an_independent_collapsed_why_disclosure():
     _, root = board(
-        dhw={"configured": True, "temperature_c": 48, "actual_target_c": 50,
-             "execution": {"reason": "Rusttijd", "gates": []}},
-        smartClimate={"zones": [{"entity_id": "climate.salon", "name": "Kapsalon",
-                                  "mode": "off", "current": 22, "target": 21}]},
+        panasonic={"configured": True, "temperature_c": 48, "target_c": 50,
+                   "zones": [{"entity_id": "climate.zone", "name": "Ruimte",
+                              "mode": "off", "current": 22, "target": 21}]},
+        sgBoost={"configured": True, "reason": "Rusttijd", "relay_on": False,
+                 "relay_confirmed": True},
         devices=[{"id": "dehumidifier", "name": "Ontvochtiger", "kind": "switch",
                   "available": True, "on": False, "mode": "auto", "power_w": 0}],
         wb={"enabled": True, "activity_known": True, "power_w": 0},
         batteryFleet={"enabled": True, "control_enabled": False})
     rows = [article(root, name) for name in
-            ("Sanitair warm water", "Kapsalon", "Ontvochtiger", "Auto laden", "Batterij")]
+            ("Warmtepomp — Panasonic-regeling", "Ontvochtiger", "Auto laden", "Batterij")]
     details = [explanation(row) for row in rows]
     keys = [node.attributes.get("data-ui-key") for node in details]
     assert all(keys) and len(set(keys)) == len(keys)
@@ -137,6 +138,7 @@ def test_each_configured_consumer_has_an_independent_collapsed_why_disclosure():
     assert all(any(child.tag == "summary" and "waarom" in child.text().lower()
                    for child in node.children if isinstance(child, Element))
                for node in details)
+    assert "Ruimte" in explanation(rows[0]).text()
 
 
 def test_open_consumer_and_nested_history_survive_reorder_and_a_changed_reason():
@@ -214,22 +216,15 @@ def test_overview_device_why_contains_real_start_requirements_and_stability_wait
     assert "40 s" in text and "25 s" in text and "Nog onvoldoende vermogen" in text
 
 
-def test_passed_boiler_gates_do_not_repeat_their_negative_backend_reason():
-    _, root = board(dhw={"configured": True, "temperature_c": 48, "actual_target_c": 50,
-                        "execution": {"reason": "Wacht op opdrachtrust", "gates": [
-                            {"code": "pv", "passed": True, "reason": "Actuele zonnemeting ontbreekt",
-                             "actual_w": 6000},
-                            {"code": "surplus", "passed": True,
-                             "reason": "Extra warm water wacht: 5000 W werkelijk overschot; minstens 3000 W nodig",
-                             "actual_w": 5000, "required_w": 3000},
-                            {"code": "raise_interval", "passed": False,
-                             "reason": "Wacht nog 80 s tussen doelverhogingen", "remaining_s": 80}]}})
-    text = explanation(article(root, "Sanitair warm water")).text()
-    assert "Actuele zonnemeting ontbreekt" not in text
-    assert "Extra warm water wacht: 5000 W" not in text
-    assert "Actuele zonnemeting is betrouwbaar" in text
-    assert "5000 W" in text or "5 kW" in text or "5,00 kW" in text
-    assert "80 s" in text
+def test_sg_explanation_uses_actual_block_reasons_and_no_retired_boiler_gates():
+    _, root = board(panasonic={"configured": True, "temperature_c": 48, "target_c": 50},
+                    sgBoost={"configured": True, "reason": "Wacht op rusttijd",
+                             "blocked_reasons": ["Wacht nog 80 s op rusttijd"],
+                             "rest_remaining_s": 80, "start_threshold_w": 3000})
+    details = explanation(article(root, "Warmtepomp — Panasonic-regeling")).text()
+    assert "Wacht nog 80 s op rusttijd" in details
+    assert "3 kW" in details and "50 °C" in details
+    assert "SolarPilot stelt voor" not in details and "doelverhogingen" not in details
 
 
 def test_untrusted_device_diagnostics_names_and_keys_are_displayed_as_text():
@@ -242,16 +237,15 @@ def test_untrusted_device_diagnostics_names_and_keys_are_displayed_as_text():
     assert not any(node.tag == "img" or "onerror" in node.attributes for node in root.walk())
 
 
-@pytest.mark.parametrize("kind", ["dhw", "climate", "wallbox", "battery"])
+@pytest.mark.parametrize("kind", ["sg", "panasonic", "wallbox", "battery"])
 def test_regulation_diagnostics_cannot_insert_executable_markup(kind):
     hostile = '<img src=x onerror="window.pwned=true">'
     parts = {
-        "dhw": {"dhw": {"configured": True, "actual_target_c": 50,
-                         "execution": {"reason": hostile, "gates": [
-                             {"code": "dispatch", "passed": False, "reason": hostile}]}}},
-        "climate": {"smartClimate": {"zones": [{"entity_id": "climate.salon", "name": "Kapsalon",
-                                                  "mode": "off", "current": 22, "target": 21,
-                                                  "execution_reason": hostile, "decision_reason": hostile}]}},
+        "sg": {"sgBoost": {"configured": True, "reason": hostile,
+                            "blocked_reasons": [hostile]}},
+        "panasonic": {"panasonic": {"configured": True, "program": hostile,
+            "zones": [{"entity_id": "climate.zone", "name": hostile,
+                       "mode": "off", "current": 22, "target": 21}]}},
         "wallbox": {"wb": {"enabled": True, "activity_known": True, "power_w": 0,
                             "activity_details": {"current": {"reason": hostile, "known": True}},
                             "consumer_priority": {"reason": hostile}}},
@@ -345,50 +339,40 @@ def test_null_battery_journal_does_not_invent_a_pending_command():
 
 
 def test_shared_heatpump_meter_is_shown_once_and_not_attributed_to_each_room():
-    power = {"configured": True, "valid": True, "value_w": 1234,
-             "scope": "heat_pump", "shared_with_rooms": True, "source": "measured",
-             "measured_wall": time.time(), "stale_s": 300}
-    _, root = board(dhw={"configured": True, "actual_target_c": 50, "power": power},
-                    smartClimate={"power": power, "zones": [
-                        {"entity_id": "climate.salon", "name": "Kapsalon", "mode": "auto", "current": 21},
-                        {"entity_id": "climate.living", "name": "Woonkamer", "mode": "auto", "current": 21}]})
-    meters = [node for node in root.walk()
-              if "shared-heatpump-power" in node.attributes.get("class", "").split()]
+    _, root = board(panasonic={"configured": True, "temperature_c": 48, "target_c": 50,
+        "power_w": 1234, "power_kind": "measured", "power_scope": "total", "zones": [
+            {"entity_id": "climate.a", "name": "Ruimte A", "mode": "auto", "current": 21},
+            {"entity_id": "climate.b", "name": "Ruimte B", "mode": "auto", "current": 21}]},
+        sgBoost={"configured": True, "reason": "Zonneboost actief", "relay_confirmed": True, "relay_on": True})
+    meters = [node for node in root.walk() if "reason-power" in node.attributes.get("class", "").split()]
     assert len(meters) == 1 and "1,23 kW" in meters[0].text()
-    assert "verdeling per ruimte is niet gemeten" in meters[0].text()
-    for name in ("Sanitair warm water", "Kapsalon", "Woonkamer"):
-        assert "1,23 kW" not in article(root, name).text()
+    assert "Totaal warmtepomp" in meters[0].text()
+    zones = [node for node in root.walk() if "zone" in node.attributes.get("class", "").split()]
+    assert len(zones) == 2 and all("1,23 kW" not in zone.text() for zone in zones)
 
 
-@pytest.mark.parametrize("age,valid", [(301, True), (-20, True), (0, False)])
-def test_unreliable_or_expired_shared_meter_is_not_presented_as_measured_power(age, valid):
-    power = {"configured": True, "valid": valid, "value_w": 1234,
-             "scope": "heat_pump", "shared_with_rooms": True,
-             "measured_wall": time.time()-age, "stale_s": 300}
-    _, root = board(smartClimate={"power": power, "zones": []})
-    meter = next(node for node in root.walk()
-                 if "shared-heatpump-power" in node.attributes.get("class", "").split())
+@pytest.mark.parametrize("value,kind", [(None, "measured"), (1234, "unknown"), (None, "unknown")])
+def test_unreliable_or_expired_shared_meter_is_not_presented_as_measured_power(value, kind):
+    _, root = board(panasonic={"configured": True, "power_w": value,
+                              "power_kind": kind, "power_scope": "total"})
+    meter = next(node for node in root.walk() if "reason-power" in node.attributes.get("class", "").split())
     assert "1,23 kW" not in meter.text() and "niet bekend" in meter.text()
     assert "0 W" not in meter.text()
 
 
-def test_a_separate_tank_meter_is_attached_only_to_the_hot_water_row():
-    power = {"configured": True, "valid": True, "value_w": 800, "scope": "tank",
-             "shared_with_rooms": False, "measured_wall": time.time(), "stale_s": 300}
-    _, root = board(dhw={"configured": True, "actual_target_c": 50, "power": power},
-                    smartClimate={"zones": [{"entity_id": "climate.salon", "name": "Kapsalon",
-                                              "mode": "auto", "current": 21}]})
-    assert "800 W" in article(root, "Sanitair warm water").text()
-    assert "800 W" not in article(root, "Kapsalon").text()
-    assert not any("shared-heatpump-power" in node.attributes.get("class", "").split()
-                   for node in root.walk())
+def test_partial_supply_meter_is_labeled_and_not_claimed_as_a_heatpump_total():
+    _, root = board(panasonic={"configured": True, "power_w": 800,
+                              "power_kind": "measured", "power_scope": "supply_1"})
+    row = article(root, "Warmtepomp — Panasonic-regeling")
+    assert "800 W" in row.text() and "Alleen voeding 1 · gedeeltelijke meting" in row.text()
+    assert "Totaal warmtepomp" not in row.text()
 
 
-def test_climate_execution_reason_and_planning_reason_remain_distinct():
-    _, root = board(smartClimate={"zones": [{"entity_id": "climate.salon", "name": "Kapsalon",
-                                              "mode": "off", "current": 22, "target": 21,
-                                              "execution_reason": "Handmatige OFF blijft behouden",
-                                              "decision_reason": "Plan verwacht later warmtevraag"}]})
-    text = article(root, "Kapsalon").text()
-    assert "Handmatige OFF blijft behouden" in text
-    assert "Plan verwacht later warmtevraag" in explanation(article(root, "Kapsalon")).text()
+def test_readonly_room_information_does_not_resurrect_removed_climate_planning():
+    _, root = board(panasonic={"configured": True, "zones": [
+        {"entity_id": "climate.zone", "name": "Ruimte", "mode": "off", "current": 22, "target": 21,
+         "execution_reason": "Vervallen klimaatopdracht", "decision_reason": "Vervallen klimaatplan"}]},
+        sgBoost={"configured": True, "reason": "Geen extra zonneboost nodig"})
+    content = article(root, "Warmtepomp — Panasonic-regeling").text()
+    assert "Geen extra zonneboost nodig" in content and "Ruimte" in content
+    assert "Vervallen klimaatopdracht" not in content and "Vervallen klimaatplan" not in content

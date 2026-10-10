@@ -56,6 +56,17 @@ async def test_wrong_shared_power_source_blocked(form,source):
     result=await f.async_step_dishwasher_connection({**c,'power_entity':source})
     assert 'power_entity' in result['errors']
 
+
+@pytest.mark.asyncio
+async def test_panasonic_readonly_meter_remains_exclusive_from_dishwasher(form):
+    f,h,c=form
+    h.states.set('sensor.generic_heatpump',0,{'unit_of_measurement':'W'})
+    f.config_entry.options['sg_boost']={'power_entity':'sensor.generic_heatpump'}
+    calls=list(h.services.calls)
+    result=await f.async_step_dishwasher_connection({**c,'power_entity':'sensor.generic_heatpump'})
+    assert result['errors']['power_entity']=='dedicated_meter'
+    assert h.services.calls==calls
+
 @pytest.mark.asyncio
 async def test_mapping_confirmation_requires_same_device(form,monkeypatch):
     f,h,c=form;monkeypatch.setattr(er,'async_get',lambda h:SimpleNamespace(async_get=lambda eid:SimpleNamespace(device_id=None)))

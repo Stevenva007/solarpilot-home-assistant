@@ -54,7 +54,7 @@ def setup(monkeypatch, *, stale_s=1800, platform="aquarea", domain="aquarea",
     monkeypatch.setattr(er, "async_get", lambda _hass: NS(async_get=rows.get))
     wall = [1000.0]
     monkeypatch.setattr(native_program.time, "monotonic", lambda: wall[0])
-    runtime = NS(hass=hass, smart_climate=NS(settings={"stale_s": stale_s}))
+    runtime = NS(hass=hass, panasonic=NS(settings={"stale_s": stale_s}))
     return NativeClimateProgram(runtime), coordinator, rows, entries, wall
 
 

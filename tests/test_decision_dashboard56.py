@@ -26,7 +26,6 @@ vm.createContext(sandbox);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'
 vm.runInContext(`(async()=>{
  const card=Object.create(SolarPilotCard.prototype);card._hass={config:{time_zone:'Europe/Brussels'}};
  if(input.render)return {html:card._decisionBoard(input.render)};
- if(input.setting){card._hass.states=input.states||{};return {html:card._climateSettingControl(input.setting)};}
  const d=Object.create(SolarPilotAnalysisDialog.prototype);d._seq=0;d._open=true;d._entryId='entry';d.shadowRoot={querySelector:s=>parts[s]};
  d._hass={callWS:async m=>{calls.push(m);if(input.close)d.close();return {download_url:input.url||'/api/solar_pilot/analysis/token',filename:'SolarPilot-168h.json.gz'};},
  fetchWithAuth:async(path,options)=>{calls.push({path,method:options.method});if(input.hangCleanup&&options.method==='DELETE')return new Promise(()=>{});return {ok:!input.expired,status:input.expired?410:200,blob:async()=>new Blob(['compressed-file'])};}};
@@ -81,40 +80,35 @@ def test_central_battery_status_uses_actual_control_and_confirmation_contract(fl
     assert label in html and 'Regeling aan' not in html
 
 
-def test_programme_source_setting_is_a_read_only_source_selector():
-    html = browser_double({'setting': {'key': 'operation_mode_entity', 'type': 'program_entity', 'value': 'select.programme'},
-                           'states': {'select.programme': {'attributes': {'friendly_name': 'Warmtepompprogramma'}},
-                                      'sensor.mode': {'attributes': {}}, 'switch.pump': {'attributes': {}},
-                                      'input_select.programme': {'attributes': {}}}})['html']
-    assert 'Automatisch uit Aquarea uitlezen' in html
-    assert 'select.programme' in html and 'sensor.mode' in html and 'switch.pump' not in html
+def test_panasonic_programme_is_readonly_without_setting_or_mode_controls():
+    html = browser_double({'render': {'devices': [], 'panasonic': {'configured': True, 'program': 'cooling',
+        'zones': [{'name': 'Ruimte', 'mode': 'auto', 'temperature_c': 22, 'target_c': 21}]}}})['html']
+    assert 'Panasonic en ruimtes · alleen uitlezen' in html and 'Koelen' in html
+    assert 'data-climate-setting' not in html and 'climate_manual' not in html
     assert 'input_select.programme' not in html
-    assert 'selected' in html and 'data-climate-type="program_entity"' in html
 
 
-def test_own_pause_programme_intent_is_never_presented_as_current_heating():
-    html = browser_double({'render': {'devices': [], 'smartClimate': {'zones': [
-        {'entity_id': 'climate.one', 'name': 'Ruimte', 'mode': 'off', 'current': 22, 'target': 21,
-         'execution_reason': 'Nog geen warmtevraag', 'native_program': {
-             'program': 'heating', 'current_native_program': 'off', 'programme_intent': 'heating',
-             'source': 'owned_off_programme'}}]}}})['html']
-    assert 'warmtepompprogramma uit na eigen pauze; eerder verwarmen' in html
-    assert 'warmtepompprogramma verwarmen.' not in html
+def test_archived_pause_programme_intent_is_never_presented_as_current_heating():
+    html = browser_double({'render': {'devices': [], 'panasonic': {'configured': True, 'program': 'off',
+        'zones': [{'entity_id': 'climate.one', 'name': 'Ruimte', 'mode': 'off', 'temperature_c': 22,
+                   'target_c': 21, 'programme_intent': 'heating', 'source': 'owned_off_programme'}]}}})['html']
+    assert 'Uit' in html and '21 °C' in html and '22 °C' in html
+    assert 'Verwarmt' not in html and 'eerder verwarmen' not in html
 
 
-def test_central_board_keeps_real_target_and_zone_reasons_distinct_and_escapes_sources():
+def test_central_board_keeps_reported_target_sg_reason_and_readonly_rooms_distinct_and_escaped():
     result = browser_double({'render': {
-        'dhw': {'configured': True, 'actual_target_c': 50, 'proposed_target_c': 60, 'temperature_c': 49,
-                'execution': {'reason': 'Sterilisatiebescherming tot 15:00', 'surplus_target_c': 60}},
-        'smartClimate': {'zones': [
-            {'entity_id': 'climate.one', 'name': 'Ruimte A', 'mode': 'off', 'current': 22, 'target': 21, 'decision_reason': 'Blijft zonder verwarming op temperatuur'},
-            {'entity_id': 'climate.two', 'name': 'Ruimte B', 'mode': 'auto', 'current': 20, 'target': 21, 'decision_reason': 'Warmtevraag blijft aanhouden <script>'}]},
+        'panasonic': {'configured': True, 'temperature_c': 49, 'target_c': 50,
+            'zones': [{'name': 'Ruimte A', 'mode': 'off', 'temperature_c': 22, 'target_c': 21},
+                      {'name': 'Ruimte B <script>', 'mode': 'auto', 'temperature_c': 20, 'target_c': 21}]},
+        'sgBoost': {'configured': True, 'reason': 'Wacht op stabiele zon tot 15:00',
+                    'relay_on': False, 'relay_confirmed': True, 'desired_on': False},
         'devices': []}})
     html = result['html']
     assert 'Wat gebeurt er en waarom?' in html
-    assert 'Tank 49 °C · doel 50 °C' in html and 'tot 15:00' in html
-    assert 'Blijft zonder verwarming' in html and 'Warmtevraag blijft aanhouden &lt;script&gt;' in html
-    assert '<script>' not in html and 'doel 60 °C' not in html
+    assert '49 °C' in html and '50 °C' in html and 'tot 15:00' in html
+    assert 'Ruimte A' in html and 'Ruimte B &lt;script&gt;' in html
+    assert '<script>' not in html and '60 °C' not in html
 
 
 def test_brief_history_has_observed_start_stop_reason_but_no_unconfirmed_command_as_change():

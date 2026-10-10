@@ -6,7 +6,6 @@ import pytest
 from custom_components.solar_pilot.wallbox_policy import SESSION_DEFAULTS,classify_session,reclaim_permission,discover_session_candidate
 from custom_components.solar_pilot.wallbox import Reading
 from test_house_runtime import setup,tick
-from test_dhw_runtime import setup as dhw_setup,tick as dhw_tick
 from test_runtime import build
 
 @pytest.mark.parametrize('value', ['Manueel laden','Manueel laden · klaar','Manueel / solar uit'])
@@ -113,40 +112,9 @@ async def test_missing_effective_session_preserves_only_real_surplus(monkeypatch
     for t in range(0,120,5):await tick(r,h,c,t)
     assert not h.services.calls and r._wallbox_reading().mode=='unknown'
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize('mode',['manual','unknown'])
-async def test_manual_charging_drops_owned_60_only_and_keeps_normal_comfort(mode):
-    r,h=dhw_setup();r.wallbox_settings.update(enabled=True,manual_suspend_extra_dhw=True)
-    r._wallbox_reading=lambda:Reading(4000,datetime.now(timezone.utc).timestamp(),True,'Charging',mode,True,'',0,True)
-    # The manager already owns a 60 degree solar target; manual EV cancels luxury, not comfort.
-    r.dhw.owned_target=60
-    h.states.get('water_heater.boiler').attributes['temperature']=60
-    await dhw_tick(r,grid=-5000)
-    assert r.dhw.policy.result.target_c==50
-    assert all(x[1]=='set_temperature' and x[2]['temperature']==50 for x in h.services.calls if x[0]!='persistent_notification')
 
-@pytest.mark.asyncio
-async def test_manual_charging_does_not_touch_sterilization():
-    r,h=dhw_setup();r.wallbox_settings.update(enabled=True)
-    r._wallbox_reading=lambda:Reading(4000,1,True,'Charging','manual',True,'',0,True)
-    r.dhw.owned_target=60;h.states.set('binary_sensor.hygiene','on')
-    await dhw_tick(r)
-    assert not h.services.calls
 
-@pytest.mark.asyncio
-async def test_disconnected_ev_does_not_permanently_block_solar_buffer():
-    r,h=dhw_setup();r.wallbox_settings.update(enabled=True)
-    r._wallbox_reading=lambda:Reading(0,1,False,'Ready','unknown',True,'',0,False)
-    await dhw_tick(r,grid=-5000)
-    assert r.dhw.policy.result.target_c==60
 
-@pytest.mark.asyncio
-async def test_manual_dhw_protection_configurable_without_any_ev_write():
-    r,h=dhw_setup();r.wallbox_settings.update(enabled=True,manual_suspend_extra_dhw=False)
-    r._wallbox_reading=lambda:Reading(4000,1,True,'Charging','manual',True,'',0,True)
-    await dhw_tick(r,grid=-5000)
-    assert r.dhw.policy.result.target_c==60
-    assert all(x[0] in ('water_heater','persistent_notification') for x in h.services.calls)
 
 @pytest.mark.parametrize('raw',['Full Solar','Full green','CUSTOM_SOLAR_MODE'])
 def test_exact_custom_solar_mode_survives_downstream_matching(raw):

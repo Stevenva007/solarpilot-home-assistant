@@ -10,26 +10,21 @@ import pytest
 
 from custom_components.solar_pilot.engine import Device, Site, State, plan
 from test_runtime import build
-from test_dhw_runtime import setup as dhw_setup
-
 
 def load(identifier="dry", **kw):
     return Device(id=identifier, name="Ontvochtiger", nominal_w=321,
                   min_on_s=0, min_off_s=0, start_delay_s=0,
                   stop_delay_s=0, start_margin_w=100, **kw)
 
-
 def site(*, grid=-5370, filtered=None, comfort=0, **kw):
     return Site(now=1000, grid_w=grid, filtered_grid_w=grid if filtered is None else filtered,
                 reserve_w=150, comfort_reserve_w=comfort, **kw)
-
 
 def running_wash():
     device = Device(id="wash", kind="dishwasher", priority=1, nominal_w=2000,
                     non_interruptible=True)
     state = State(owned=True, on=True, measured_w=2000, target_w=2000, last_on=0)
     return device, state
-
 
 def test_5220_free_export_is_only_20_start_watts_after_5200_protected_reservation():
     wash, active = running_wash()
@@ -46,7 +41,6 @@ def test_5220_free_export_is_only_20_start_watts_after_5200_protected_reservatio
     assert result.reasons["dry"] == "Wacht op vermogen / hogere prioriteit"
     assert result.targets["wash"] == 2000  # Protected wash cannot be sacrificed.
 
-
 def test_confirmed_no_future_boiler_reserve_can_leave_room_without_stopping_wash():
     wash, active = running_wash()
     result = plan(site(comfort=2000), [wash, load()], {"wash": active, "dry": State()})
@@ -54,7 +48,6 @@ def test_confirmed_no_future_boiler_reserve_can_leave_room_without_stopping_wash
     assert result.start_power["dry"]["sufficient"]
     assert result.action.id == "dry" and result.action.watts == 321
     assert result.targets["wash"] == 2000
-
 
 @pytest.mark.parametrize("raw,filtered", [(-5370, -450), (-450, -8150)])
 def test_filtered_and_raw_readings_use_the_more_conservative_export(raw, filtered):
@@ -65,13 +58,11 @@ def test_filtered_and_raw_readings_use_the_more_conservative_export(raw, filtere
     assert not result.start_power["dry"]["sufficient"]
     assert result.action is None
 
-
 def test_battery_discharge_is_removed_before_claiming_available_solar():
     result = plan(site(grid=-950, battery_discharge_w=500), [load()], {"dry": State()})
     assert result.free_w == 300
     assert result.start_power["dry"]["available_w"] == 300
     assert not result.start_power["dry"]["sufficient"]
-
 
 def test_grid_boost_is_a_separate_basis_not_solar_or_start_margin_credit():
     result = plan(site(grid=0), [load()], {"dry": State(boost_until=2000)})
@@ -82,7 +73,6 @@ def test_grid_boost_is_a_separate_basis_not_solar_or_start_margin_credit():
     assert allocation["sufficient"]
     assert result.action.id == "dry"
 
-
 def test_grid_boost_still_respects_reserved_physical_headroom():
     result = plan(site(grid=0, comfort=3200, max_import_w=3200), [load()],
                   {"dry": State(boost_until=2000)})
@@ -91,7 +81,6 @@ def test_grid_boost_still_respects_reserved_physical_headroom():
     assert not result.start_power["dry"]["sufficient"]
     assert result.action is None
 
-
 def test_lower_priority_without_wallbox_permission_does_not_see_ev_credit():
     result = plan(site(grid=-250, reclaimable_w=3000, no_reclaim_ids={"dry"}),
                   [load(allow_wallbox_reclaim=True, priority_reclaim=True)], {"dry": State()})
@@ -99,14 +88,12 @@ def test_lower_priority_without_wallbox_permission_does_not_see_ev_credit():
     assert not result.start_power["dry"]["sufficient"]
     assert result.action is None
 
-
 def test_available_allocation_is_not_a_start_guarantee_when_other_guard_blocks():
     result = plan(site(can_increase=False, increase_reason="Wacht op verse fasecontrole"),
                   [load()], {"dry": State()})
     assert result.start_power["dry"]["sufficient"]
     assert result.action is None
     assert result.reasons["dry"] == "Wacht op verse fasecontrole"
-
 
 def test_runtime_lists_power_shortage_even_when_all_nonpower_requirements_met():
     runtime, _ = build(device={"nominal_w": 321, "start_margin_w": 100})
@@ -130,7 +117,6 @@ def test_runtime_lists_power_shortage_even_when_all_nonpower_requirements_met():
     assert explanation["power"]["allocation"]["required_w"] == 421
     assert explanation["summary"] == runtime.result.reasons["a"]
 
-
 def test_invalid_measurement_hides_allocation_even_if_old_plan_had_plenty():
     runtime, _ = build(device={"nominal_w": 321, "start_margin_w": 100})
     state = runtime.states["a"]
@@ -143,26 +129,3 @@ def test_invalid_measurement_hides_allocation_even_if_old_plan_had_plenty():
     assert explanation["power"]["measured_free_w"] is None
     assert explanation["power"]["allocation"] is None
     assert "allocated_start_power" in explanation["missing"]
-
-
-@pytest.mark.parametrize("target,temperature,reserve", [(50, 50, 0), (50, 45.1, 0),
-                                                       (50, 45, 3200), (55, 49, 3200),
-                                                       (60, 49, 0)])
-def test_future_normal_or_evening_heat_reserve_uses_native_differential_not_luxury(target, temperature, reserve):
-    runtime, hass = dhw_setup()
-    state = hass.states.get("water_heater.boiler")
-    hass.states.set("water_heater.boiler", "heat_pump", {**state.attributes, "temperature": target})
-    hass.states.set("sensor.water", temperature, {"unit_of_measurement": "°C"})
-    runtime.dhw.read(0, True, 0, datetime(2026, 10, 2, 12))
-    assert runtime._dishwasher_comfort_context() == (reserve, "")
-    assert hass.services.calls == []
-
-
-def test_native_heating_mode_alone_does_not_prove_power_is_already_in_p1():
-    runtime, hass = dhw_setup()
-    state = hass.states.get("water_heater.boiler")
-    hass.states.set("water_heater.boiler", "heating", {**state.attributes, "temperature": 55})
-    hass.states.set("sensor.water", 49, {"unit_of_measurement": "°C"})
-    runtime.dhw.read(0, True, 0, datetime(2026, 10, 2, 12))
-    assert runtime._dishwasher_comfort_context()[0] == 3200
-    assert hass.services.calls == []

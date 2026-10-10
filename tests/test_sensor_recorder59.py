@@ -30,17 +30,37 @@ def payload_bytes(attributes):
     return len(json.dumps(attributes, ensure_ascii=False).encode("utf-8"))
 
 
+
+def archived_climate(runtime):
+    """Fictitious legacy evidence kept losslessly after Panasonic migration."""
+    legacy = {"profiles": {"climate.zone": {
+        "passive_k": [0.015] * 6, "days": ["2026-10-05", "2026-10-06"], "samples": 12,
+        "observations": [{"at": 1_790_000_000 + n * 900, "indoor_c": 21.15,
+                          "outdoor_c": 14.2, "pv_w": 2800, "action": "off"}
+                         for n in range(240)],
+    }}, "settings_catalog": [{"key": "legacy_example", "value": True}]}
+    runtime.panasonic_archive = {"backup_options": deepcopy(runtime.entry.options),
+                                 "backup_store": {"smart_climate": deepcopy(legacy)}}
+    runtime.panasonic.learning_archive = deepcopy(legacy)
+    return legacy
+
+
 def test_learning_sensor_retains_live_model_details_without_exceeding_recorder_limit():
     runtime, hass = build()
+    archived = archived_climate(runtime)
     entity = sensor(runtime, "learning")
 
     live = entity.extra_state_attributes
     recorded = recorder_payload(entity, live)
 
-    # The real settings catalogue already exceeds Recorder's limit without a
-    # large invented test string or any accumulated household observations.
-    assert payload_bytes(live) > RECORDER_ATTRIBUTE_LIMIT
-    assert live["thermal_model"]["settings_catalog"]
+    # Bulk legacy evidence stays in the private snapshot/export. HA live state
+    # publishes only its availability, while other model details remain usable.
+    assert payload_bytes(archived) > RECORDER_ATTRIBUTE_LIMIT
+    assert payload_bytes(live) < RECORDER_ATTRIBUTE_LIMIT
+    assert live["thermal_model"]["archive_available"] is True
+    assert live["thermal_model"]["read_only"] is True and "archived" not in live["thermal_model"]
+    assert runtime._snapshot()["panasonic_archive"]["backup_store"]["smart_climate"] == archived
+    assert runtime.analysis.prepare(hours=168)["components"]["runtime_and_models"]["panasonic_archive"]["backup_store"]["smart_climate"] == archived
     assert "pv_model" in live and "phase_learning" in live
     assert payload_bytes(recorded) < RECORDER_ATTRIBUTE_LIMIT
     assert recorded["status"] == live["status"] == entity.native_value
@@ -60,7 +80,8 @@ def test_ems_sensor_retains_live_forecast_and_savings_without_recording_bulk_det
     recorded = recorder_payload(entity, live)
 
     assert live["pv_forecast"] == runtime.pv_forecast.cached
-    assert live["smart_climate"]["settings_catalog"]
+    assert live["panasonic"]["read_only"] and "sg_boost" in live
+    assert "smart_climate" not in live
     assert "savings" in live and "electricity_today" in live
     assert "pv_forecast" not in recorded and "savings" not in recorded
     assert payload_bytes(recorded) < RECORDER_ATTRIBUTE_LIMIT
@@ -91,7 +112,7 @@ def test_nine_phase_sensors_reuse_one_ems_calculation_and_all_refresh_before_nex
     assert calls == [False]
 
     # Publication prepares the next complete frame once, before HA callbacks;
-    # none of the nine state writes recomputes the climate/planner models.
+    # none of the nine state writes recomputes the planner models or archive.
     frames = []
 
     def state_write():
@@ -176,15 +197,7 @@ async def test_recorder_exclusion_and_cached_sensors_preserve_stored_models_and_
         {"shares": [1.0, 0.0, 0.0], "device_delta_w": 200, "day": "2026-10-06",
          "source": "passive", "weight": 1.0},
     ]}
-    hass.states.set("climate.zone", "off", {
-        "current_temperature": 21, "temperature": 21, "temperature_unit": "°C",
-        "hvac_action": "off", "hvac_modes": ["off", "auto"],
-    })
-    runtime.smart_climate.settings["zone_entities"] = ["climate.zone"]
-    profile = runtime.smart_climate.state.profile("climate.zone")
-    profile.passive_k = [0.015] * 6
-    profile.days = {"2026-10-05", "2026-10-06"}
-    profile.samples = 12
+    archived = archived_climate(runtime)
     configuration = deepcopy((runtime.entry.data, runtime.entry.options))
     before = deepcopy(runtime._snapshot())
     await runtime.store.async_save(before)
@@ -199,12 +212,13 @@ async def test_recorder_exclusion_and_cached_sensors_preserve_stored_models_and_
 
     assert (runtime.entry.data, runtime.entry.options) == configuration
     assert runtime.store.data == before
-    for key in ("learning", "phase_learning", "smart_climate", "pv_forecast", "local_pv"):
+    for key in ("learning", "phase_learning", "panasonic_archive", "pv_forecast", "local_pv"):
         assert runtime._snapshot()[key] == before[key]
         assert report["components"]["runtime_and_models"][key] == before[key]
     exported = report["components"]["energy_planning_climate"]
-    assert exported["smart_climate"]["profiles"]["climate.zone"]["samples"] == 12
-    assert exported["smart_climate"]["settings_catalog"]
+    assert report["components"]["runtime_and_models"]["panasonic_archive"]["backup_store"]["smart_climate"] == archived
+    assert exported["panasonic"]["read_only"] is True
+    assert "smart_climate" not in exported
     assert exported["phase_learning"]["devices"]["a"]["samples"] == 1
     assert "pv_forecast" in exported and "savings" in exported
     assert report["coverage"]["section_errors"] == {}

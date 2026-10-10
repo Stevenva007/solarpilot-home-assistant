@@ -18,14 +18,6 @@ guide_mod = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
 spec.loader.exec_module(guide_mod)
 
-thermal_spec = importlib.util.spec_from_file_location("thermal_climate_example", ROOT / "custom_components" / "solar_pilot" / "thermal_climate.py")
-thermal_mod = importlib.util.module_from_spec(thermal_spec)
-assert thermal_spec.loader is not None
-sys.modules[thermal_spec.name] = thermal_mod
-thermal_spec.loader.exec_module(thermal_mod)
-CLIMATE_DEFAULTS = thermal_mod.SMART_CLIMATE_DEFAULTS
-CLIMATE_SPECS = thermal_mod.CLIMATE_SETTING_SPECS
-
 # Load planner modules under a small synthetic package so their relative
 # imports work without importing SolarPilot's Home Assistant entry point.
 EXAMPLE_PKG = "solar_pilot_example"
@@ -49,41 +41,6 @@ PLANNER_DEFAULTS = planner_mod.UNIFIED_PLANNER_DEFAULTS
 def planner_catalog(settings):
     return planner_mod.planner_settings_catalog(settings)
 
-def climate_catalog(settings):
-    return [{"key": key, "value": settings.get(key), "default": CLIMATE_DEFAULTS.get(key), **spec}
-            for key, spec in CLIMATE_SPECS.items()]
-
-def climate_demo_profile(samples, days, passive_k, heat_gain, delay_h, solar_gain):
-    """Fictitious heating-only evidence, using the actual confidence contract."""
-    profile = thermal_mod.ThermalProfile(
-        passive_k=[passive_k] * 60, heat_gain=[heat_gain] * 24,
-        cool_gain=[], solar_gain_per_kw=[solar_gain] * 38,
-        response_delays_h=[delay_h] * 6,
-        days={f"2026-09-{day + 1:02d}" for day in range(days)}, samples=samples,
-    )
-    confidence = profile.confidence(CLIMATE_DEFAULTS)
-    k, heat, cool, delay = profile.coefficients()
-    details = {
-        "samples": profile.samples, "days": len(profile.days),
-        "confidence": confidence,
-        "reliability_status": profile.confidence_status(confidence, samples),
-        "confidence_components": profile.confidence_components(CLIMATE_DEFAULTS),
-        "passive_k_per_h": k, "thermal_time_constant_h": round(1 / k, 1),
-        "heat_gain_c_h": heat, "heat_gain_learned": True,
-        "cool_gain_c_h": cool, "cool_gain_learned": False,
-        "response_delay_h": delay, "response_delay_learned": True,
-        "solar_gain_c_h_per_kw_pv": profile.solar_coefficient(),
-        "solar_gain_samples": len(profile.solar_gain_per_kw),
-        "solar_gain_confidence": profile.solar_confidence(CLIMATE_DEFAULTS),
-    }
-    readiness = profile.readiness(CLIMATE_DEFAULTS, directions=("heating",), use_solar=True)
-    readiness["forecast_confidence"] = profile.readiness(CLIMATE_DEFAULTS, use_solar=True)["confidence"]
-    return details, readiness
-
-demo_profile_1, demo_readiness_1 = climate_demo_profile(126, 16, .028, .11, 2.5, .028)
-demo_profile_2, demo_readiness_2 = climate_demo_profile(118, 15, .031, .10, 2.7, .021)
-demo_coast_confidence = demo_readiness_2["confidence"]
-demo_required_components = demo_readiness_2["required_components"]
 guide_attributes = {
     "solar_pilot_guide": True,
     "title": guide_mod.CURRENT_GUIDE["title"],
@@ -188,45 +145,6 @@ attributes = {
             "recommendation_w": 0, "reason": "Flexibele lasten eerst; batterij gebruikt pas het resterende netoverschot",
             "faults": {}, "batteries": [{"id":"bat_demo","name":"Toekomstige batterij · voorbeeld","valid":True,"soc_pct":62.4,"power_w":600,"capacity_kwh":10,"controllable":False,"phase_hint":"three_phase","control_kind":"read_only","control_enabled":False,"exclusive_control_confirmed":False}],
             "note":"Voorbeeldprofiel. Positief batterijvermogen = ontladen naar huis; fysieke regeling blijft uit tot expliciete dubbele toestemming."
-        },
-        "smart_climate": {
-            "enabled": True, "control_enabled": False, "outside_c": 20.5, "forecast_hours": 48, "forecast_error":"",
-            "decision": {"mode":"off","reason":"Tussenseizoen: circa 18 uur bruikbare coasttijd vóór Panasonic AUTO opnieuw nodig wordt; aangeleerde zonnewinst is meegewogen","hard_override":False,"confidence":demo_coast_confidence,"forecast_confidence":demo_readiness_2["forecast_confidence"],"control_ready":True,"required_components":demo_required_components,"missing_components":[],"readiness_by_zone":{"climate.heat_pump_zone_2":demo_readiness_2},"block_reason":"","predicted_min_c":20.4,"predicted_max_c":21.3,"crossing_h":22,"required_lead_h":4.0,"season_context":"shoulder","season_strength":0.10,"comfort_direction":"heating","effective_coast_window_h":8.5,"solar_gain_used":True},
-            "season_context":"shoulder", "manual_fixed_mode":False, "manual_hold_remaining_h":0, "commands_today":0, "last_command_mode":"", "model_confidence":demo_coast_confidence,
-            "complete_model_confidence":0, "manual_off_zones":["climate.heat_pump_zone_1"], "zone_holds":{}, "pending_commands":[],
-            "reliability":{"automatic_coast":{"confidence":demo_coast_confidence,"control_ready":True,"block_reason":"","status":"Betrouwbaar"}},
-            "zones":[
-                {"entity_id":"climate.heat_pump_zone_1","name":"Zone 1","current":21.0,"target":21.0,"mode":"off","action":"off","action_known":True,"manual_off":True,"hvac_modes":["heat","off","cool","auto"],"execution_reason":"Alleen advies: de handmatige UIT-keuze blijft behouden","native_program":{"program":"heating","source":"configured_entity","fresh":True}},
-                {"entity_id":"climate.heat_pump_zone_2","name":"Zone 2","current":21.1,"target":21.0,"mode":"off","action":"off","action_known":True,"manual_off":False,"hvac_modes":["heat","off","cool","auto"],"execution_reason":"Automatische bediening staat uit; de ruimte blijft nu op temperatuur","native_program":{"program":"heating","source":"configured_entity","fresh":True}}],
-            "profiles": {
-                "climate.heat_pump_zone_1":demo_profile_1,
-                "climate.heat_pump_zone_2":demo_profile_2,
-            },
-            "weather_bias": {"enabled":True,"total_samples":52,"pending":4,"horizons":[
-                {"horizon_h":6,"bias_c":0.3,"applied_c":0.3,"confidence":0.82,"samples":18,"days":9},
-                {"horizon_h":12,"bias_c":0.5,"applied_c":0.5,"confidence":0.76,"samples":16,"days":8},
-                {"horizon_h":24,"bias_c":0.7,"applied_c":0.7,"confidence":0.62,"samples":12,"days":6},
-                {"horizon_h":48,"bias_c":1.1,"applied_c":0.0,"confidence":0.31,"samples":6,"days":3}],
-                "note":"Positief = de gekozen weersdienst voorspelde lokaal gemiddeld te koud; negatief = gemiddeld te warm."},
-            "solar_gain": {"enabled":True,"forecast_hours":48,"next_24h_kwh_proxy":18.4,"peak_w_proxy":5400,"note":"PV is alleen een lokale instralingsproxy voor het thermische model; niet hetzelfde als zonnewarmte door ramen."},
-            "coast_feedback": {"enabled":True,"counts":{"correct":6,"te_lang":1,"te_voorzichtig":2,"handmatig":0},"scored":9,"adjustment_h":0.5,"effective_min_coast_window_h":8.5,"total_coast_h":73.5,"note":"Alleen het minimale nuttige coastvenster wordt begrensd aangepast; comfortbanden blijven ongewijzigd."},
-            "alerts":[{"severity":"info","title":"Adviesmodus","message":"Het model leert en adviseert, maar stuurt Panasonic AUTO/OFF nog niet fysiek."}],
-            "settings": {**CLIMATE_DEFAULTS, "enabled": True, "control_enabled": False,
-                "weather_entity": "weather.home",
-                "outside_temp_entity": "sensor.outdoor_temperature",
-                "zone_entities": ["climate.heat_pump_zone_1", "climate.heat_pump_zone_2"]},
-            "settings_catalog": climate_catalog({**CLIMATE_DEFAULTS, "enabled": True, "control_enabled": False,
-                "weather_entity": "weather.home",
-                "outside_temp_entity": "sensor.outdoor_temperature",
-                "zone_entities": ["climate.heat_pump_zone_1", "climate.heat_pump_zone_2"]}),
-            "service":"solar_pilot.set_climate_setting",
-            "note":"SolarPilot vraagt alleen AUTO of UIT en controleert het werkelijke warmtepompprogramma. De Panasonic-integratie bepaalt hoe die opdracht op het toestel wordt uitgevoerd.",
-            "explanation":[
-                "Zonnewinst: werkelijke PV dient als lokale instralingsproxy. SolarPilot leert per zone hoeveel extra opwarming daarmee samenhangt en begrenst de invloed.",
-                "Weerscorrectie: forecastfouten op 6/12/24/48 uur worden lokaal geleerd en pas bij voldoende vertrouwen toegepast.",
-                "Coast-evaluatie: eerdere coastperioden worden beoordeeld als correct, te lang of te voorzichtig. Alleen het minimale nuttige coastvenster mag binnen grenzen verschuiven.",
-                "Open ramen/deuren zijn bewust géén onderdeel van deze versie."
-            ]
         },
         "planner": {
             "enabled": True, "horizon_h": 36, "slot_min": 15, "confidence": 0.74, "plan_runs": 38,
@@ -419,88 +337,31 @@ attributes = {
         "switch_entity": "switch.voorbeeld_lokaal_leren",
         "reset_entity": "button.voorbeeld_leergegevens_wissen",
     },
-    "dhw": {
-        "configured": True,
-        "enabled": True,
-        "status": "Extra voorraad wacht op het einde van de koelactiviteit",
-        "execution": {"reason":"Extra voorraad wacht op het einde van de koelactiviteit", "surplus_target_c":60,
-                      "gates":[{"code":"cooling","passed":False,"reason":"Er is nog gemelde koelactiviteit"}],
-                      "last_change":{"at":"2026-09-24T12:00:00+02:00","reason":"Toesteldoel 50 °C teruggelezen; verhoging blijft begrensd tijdens koeling. Dit bewijst geen opwarming.","source":"solarpilot","confirmed":True}},
-        "reason": "Voldoende zonneopbrengst; verhoging naar 60 °C geblokkeerd door koeling",
-        "stage": "solar",
-        "temperature_c": 46.2,
-        "actual_target_c": 50,
-        "proposed_target_c": 50,
-        "base_target_c": 50,
-        "normal_target_c": 50,
-        "minimum_c": 46,
-        "tank_differential_c": -5,
-        "normal_c": 50,
-        "expected_restart_c": 45,
-        "night": False,
-        "cooling": True,
-        "cooling_block": True,
-        "capacity_block": False,
-        "optional_import_headroom_w": 5650,
-        "low_temperature": False,
-        "pending": False,
-        "owned": True,
-        "needs_review": False,
-        "manual_hold": False,
-        "fault": "",
-        "pv_w": 6200,
-        "measured_solar_export_w": 150,
-        "before_boiler_w": None,
-        "own_meter_available": False,
-        "remaining_s": 0,
-        "last_success": None,
-        "switch_entity": "switch.voorbeeld_boiler_regeling",
-        "review_entity": "button.voorbeeld_boilercontrole",
-        "takeover_entity": "button.voorbeeld_boiler_overnemen",
-        "number_entities": {
-            "minimum_c": "number.voorbeeld_boiler_minimum_c",
-            "tank_differential_c": "number.voorbeeld_boiler_tank_differential_c",
-            "normal_c": "number.voorbeeld_boiler_normal_c",
-            "solar_c": "number.voorbeeld_boiler_solar_c",
-            "surplus_c": "number.voorbeeld_boiler_surplus_c",
-            "cooling_cap_c": "number.voorbeeld_boiler_cooling_cap_c",
-            "pv_threshold_w": "number.voorbeeld_boiler_pv_threshold_w",
-            "surplus_threshold_w": "number.voorbeeld_boiler_surplus_threshold_w",
-            "estimated_heat_power_w": "number.voorbeeld_boiler_estimated_heat_power_w",
-        },
-        "settings": {
-            "minimum_c": 46,
-            "tank_differential_c": -5,
-            "normal_c": 50,
-            "solar_c": 50,
-            "surplus_c": 60,
-            "cooling_cap_c": 50,
-            "pv_threshold_w": 1000,
-            "surplus_threshold_w": 3000,
-            "estimated_heat_power_w": 3200,
-            "night_enabled": True,
-            "night_start": "23:00:00",
-            "night_end": "06:00:00",
-            "rise_delay_s": 300,
-            "fall_delay_s": 300,
-            "cooling_clear_s": 1800,
-            "cooling_detection": "action",
-        },
-    },
+
 }
 
 
-# Fictitious beta.28 gentle DHW fixture; never a household measurement.
-attributes['dhw']['settings'].update(normal_c=50, minimum_c=46, morning_enabled=True,
-    morning_c=46, morning_time='09:00:00', evening_enabled=True, evening_cap_c=55,
-    respect_space_climate=True, optional_raise_interval_s=1800)
-attributes['dhw']['comfort_plan']={
-    'native_restart_c':45, 'comfort_floor_c':46, 'projected_c':46.3,
-    'evening_target_c':53, 'evening_completed':False,
-    'limit_note':'50 °C normaal en -5 °C differentie: native herstart rond 45 °C. 46 °C is een bewaakte comfortgrens, geen gegarandeerd minimum.',
-    'reason':'Fictief voorbeeld: voorraad beoordeeld; geen tijdelijke herstelboost.'}
-attributes['dhw']['tank_learning']={'loss_c_h':.25,'heat_c_h':6,
-    'loss_source':'ingestelde terugvalraming','heat_source':'ingestelde terugvalraming'}
+# Fictitious beta.62 SG observations: three independent confirmation layers.
+attributes["panasonic"] = {
+    "configured": True, "read_only": True, "temperature_c": 46.2, "target_c": 50,
+    "power_w": 2800, "power_kind": "measured", "power_scope": "supply1",
+    "program": "cooling", "status": "Panasonic regelt zelfstandig",
+    "zones": [{"entity_id": "climate.example_zone_1", "name": "Zone 1",
+               "temperature_c": 21, "target_c": 21, "mode": "off", "action": "off", "read_only": True},
+              {"entity_id": "climate.example_zone_2", "name": "Zone 2",
+               "temperature_c": 21.1, "target_c": 21, "mode": "auto", "action": "idle", "read_only": True}],
+}
+attributes["sg_boost"] = {
+    "configured": True, "enabled": True, "state": "active", "status": "SG-contact actief",
+    "reason": "SG-contact actief; Panasonic-reactie niet afzonderlijk bevestigd",
+    "desired_on": True, "relay_on": True, "relay_confirmed": True, "panasonic_confirmed": None,
+    "commissioning_confirmed": True, "watchdog_confirmed": True,
+    "enabled_entity": "switch.example_sg_boost_enabled", "resume_entity": "button.example_sg_boost_resume",
+    "switch_entity": "switch.example_sg_contact", "start_threshold_w": 3000,
+    "estimated_power_w": 3200, "remaining_s": 1200, "rest_remaining_s": 0, "blocked_reasons": [],
+}
+attributes["ems"]["panasonic"] = attributes["panasonic"]
+attributes["ems"]["sg_boost"] = attributes["sg_boost"]
 
 # Fictitious beta.24 display fixtures; not read from household data.
 attributes["ems"]["electricity_today"] = {
@@ -529,7 +390,7 @@ attributes["devices"][0]["wallbox_precedence"] = "wallbox_first"
 attributes["config_entry_id"] = "offline-example"
 _order = ["device:dishwasher", "wallbox", "device:flex_load", "device:extra", "dhw_extra"]
 _names = {"device:" + d["id"]: d["name"] for d in attributes["devices"]}
-_names.update(wallbox="Auto laden · Wallbox", dhw_extra="Extra boilerwarmte · 60 °C")
+_names.update(wallbox="Auto laden · Wallbox", dhw_extra="Warmtepomp — SG-zonneboost")
 attributes["priority_board"] = {
     "active": False, "revision": "fictitious-beta35-example", "order": _order,
     "wallbox_power": {key: True for key in _order if key.startswith("device:")},
@@ -538,17 +399,15 @@ attributes["priority_board"] = {
         **({"device_id": key[7:], "status": "Auto", "wallbox_power": True} if key.startswith("device:") else {}),
         "power_label": "Alleen werkelijk vrij zonneoverschot" if key == "dhw_extra" else "Gebruikt het resterende zonnevermogen" if key == "wallbox" else "Ja, onder voorwaarden" if key == "device:dishwasher" else "Nee · Wallbox heeft voorrang",
         "reason": "Voorbeeld: lopende beurt wordt niet onderbroken." if key == "device:dishwasher" else "Voorbeeld: gekozen positie en actuele voorwaarden blijven gelden."} for n, key in enumerate(_order)],
-    "protected": [{"id": key, "name": title, "active": True, "power_label": "Blijft beschermd", "reason": explanation} for key, title, explanation in [
-        ("safety", "Beveiliging en hygiëne", "Fabrikantbeveiliging en het bestaande sterilisatieprogramma blijven gelden."),
-        ("dhw_comfort", "Gewoon warm water", "Bestaand normaal doel en comfortgrens; Panasonic bepaalt de herverwarming."),
-        ("dhw_evening", "Noodzakelijke avondvoorraad", "Volgens het bestaande voorraadplan, niet de extra 60 °C-buffer."),
-        ("space_comfort", "Ruimteverwarming en koeling", "Thermostaatdoelen en handmatige standen blijven behouden.")]],
-    "constraints": [{"before": "wallbox", "after": "dhw_extra", "reason": "Extra boilerwarmte blijft na de Wallbox."},
-        {"before": "device:dishwasher", "after": "dhw_extra", "reason": "De afwas behoudt voorrang op extra boilerwarmte."}],
+    "protected": [{"id": "safety", "name": "Veiligheid en Panasonic-regeling", "active": True,
+        "power_label": "Niet beschikbaar voor zonneboost",
+        "reason": "Panasonic regelt ruimtecomfort, normaal warm water en sterilisatie zelfstandig. SG verandert geen native instelling."}],
+    "constraints": [{"before": "wallbox", "after": "dhw_extra", "reason": "SG-zonneboost blijft na de Wallbox."},
+        {"before": "device:dishwasher", "after": "dhw_extra", "reason": "De afwas behoudt voorrang op SG-zonneboost."}],
     "note": "Fictief voorbeeld: de bestaande voorrang blijft behouden totdat je een wijziging bevestigt. Deze pagina slaat niets op.",
 }
 
-html = f'''<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SolarPilot {guide_mod.GUIDE_VERSION} Control Center voorbeeld</title><style>body{{margin:0;padding:18px;background:#f3f5f7;max-width:520px;margin-inline:auto}}solar-pilot-card{{display:block}}</style></head><body><p style="font:13px/1.5 system-ui">Fictieve voorbeeldgegevens · geen live bediening of opslag</p><solar-pilot-card></solar-pilot-card><script>{card}</script><script>
+html = f'''<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SolarPilot {guide_mod.GUIDE_VERSION} Panasonic en SG voorbeeld</title><style>body{{margin:0;padding:18px;background:#f3f5f7;max-width:520px;margin-inline:auto}}solar-pilot-card{{display:block}}</style></head><body><p style="font:13px/1.5 system-ui">Fictieve voorbeeldgegevens · geen live bediening of opslag</p><solar-pilot-card></solar-pilot-card><script>{card}</script><script>
 const attributes = {json.dumps(attributes, ensure_ascii=False)};
 // Start the explicitly fictitious meter snapshot when the example opens.
 for(const source of ['pv','grid']) attributes.energy_display[source].reported_at=Date.now()/1000;
