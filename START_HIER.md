@@ -1,8 +1,12 @@
-# SolarPilot beta.62 — installatie en upgrade
+# SolarPilot beta.63 — installatie en upgrade
 
 Panasonic regelt zelfstandig de warmtepomp. SolarPilot kan alleen een gecontroleerde extra zonneboost via één SG-contact aanvragen. De oude tank-/klimaatbediening is verwijderd. Andere bestaande apparaatfuncties en privédata blijven behouden.
 
-**Begin met [BETA62_INSTELLEN.md](docs/BETA62_INSTELLEN.md).** Daar staan back-up, migratie, lokale ingebruikname en rollback. De volledige actuele werking staat in [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en identiek binnen Home Assistant onder **SolarPilot → Uitleg**. Test-/publicatiestatus: [TESTRESULTATEN_BETA62.md](docs/TESTRESULTATEN_BETA62.md).
+**Begin met [BETA63_INSTELLEN.md](docs/BETA63_INSTELLEN.md).** Daar staan back-up, migratie, lokale ingebruikname en rollback. De volledige actuele werking staat in [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en identiek binnen Home Assistant onder **SolarPilot → Uitleg**. Test-/publicatiestatus: [TESTRESULTATEN_BETA63.md](docs/TESTRESULTATEN_BETA63.md).
+
+## Herstellen na een mislukte beta.62-start
+
+Installeer beta.63 en herstart Home Assistant volledig. Wis geen gegevens en verwijder de bestaande SolarPilot-integratie niet. De fout bij het lezen van onveranderbare HA-opties is hersteld; geldige opgeslagen instellingen worden meegenomen. SG krijgt hierdoor geen extra toestemming.
 
 ## Voor de upgrade
 
@@ -15,7 +19,7 @@ Een lopende beschermde afwascyclus wordt niet onderbroken en de update maakt gee
 
 ## Installeren
 
-Voeg bij eerste gebruik de GitHub-repository aan HACS toe als **Integration**, installeer exact `1.0.0-beta.62` zodra gepubliceerd en herstart Home Assistant. Heropen browser/app en controleer backend- en kaartversie afzonderlijk. Voeg bij een nieuwe installatie SolarPilot toe via **Instellingen → Apparaten & diensten** en controleer P1/PV eerst met **Alleen bekijken**.
+Voeg bij eerste gebruik de GitHub-repository aan HACS toe als **Integration**, installeer exact `1.0.0-beta.63` zodra gepubliceerd en herstart Home Assistant. Heropen browser/app en controleer backend- en kaartversie afzonderlijk. Voeg bij een nieuwe installatie SolarPilot toe via **Instellingen → Apparaten & diensten** en controleer P1/PV eerst met **Alleen bekijken**.
 
 De frontend verschijnt automatisch. Er is geen aparte Lovelace-resource, dashboard-YAML of www-kopie nodig. Lokale installatie vervangt alleen `custom_components/solar_pilot`; bewaar userfiles en eigen HA-opslag.
 

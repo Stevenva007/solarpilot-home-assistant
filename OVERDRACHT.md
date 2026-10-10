@@ -1,9 +1,9 @@
 <!-- solarpilot-handoff-schema: 1 -->
-<!-- solarpilot-handoff-version: 1.0.0-beta.62 -->
+<!-- solarpilot-handoff-version: 1.0.0-beta.63 -->
 
 # OVERDRACHT — SolarPilot
 
-Laatst bijgewerkt: **10 oktober 2026**. Actuele bron: **v1.0.0-beta.62**. Panasonic is exclusief eigenaar van zijn warmtepompregeling; SolarPilot mag daarvoor uitsluitend één expliciet toegewezen SG-contact aanvragen/vrijgeven. De voormalige directe tank-/klimaatsturing en haar uitvoerende herstelcomplexiteit zijn verwijderd. Andere apparaatfuncties en bestaande privédata blijven behouden. Werkelijke software-/publicatiestatus staat in `docs/TESTRESULTATEN_BETA62.md`; ingebruikname, installatie en rollback in `docs/BETA62_INSTELLEN.md`. Geen live fysieke acceptatie is uit deze softwarewerkrondes af te leiden.
+Laatst bijgewerkt: **10 oktober 2026**. Actuele bron: **v1.0.0-beta.63**. Panasonic is exclusief eigenaar van zijn warmtepompregeling; SolarPilot mag daarvoor uitsluitend één expliciet toegewezen SG-contact aanvragen/vrijgeven. De voormalige directe tank-/klimaatsturing en haar uitvoerende herstelcomplexiteit zijn verwijderd. Andere apparaatfuncties en bestaande privédata blijven behouden. Werkelijke software-/publicatiestatus staat in `docs/TESTRESULTATEN_BETA63.md`; ingebruikname, installatie en rollback in `docs/BETA63_INSTELLEN.md`. Geen live fysieke acceptatie is uit deze softwarewerkrondes af te leiden.
 
 ## 1. Projectdoel in gewone taal
 
@@ -11,9 +11,11 @@ SolarPilot verdeelt beschikbare zonnestroom tussen flexibele verbruikers, een be
 
 ## 2. Actuele basis
 
-De geverifieerde minimum-, bouw- en rollbackbasis is [beta.61](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.61), commit `6c7e77b75e09b1c8bc9c4b24e7b9ce693b4a974d`, tree `7aecb76027e3c1c5cd3de6d22d10b4cd9a3b6a04`. Aan het begin van deze wijziging waren `main` en tag gelijk; beta.62 was vrij. Deze bronbasis is zelfstandig opnieuw getest: 3814 tests geslaagd in 49,76 s. De baseline en nieuwe toepasselijke suite worden afzonderlijk geregistreerd in het beta.62-testverslag.
+De bouwbasis van deze gerichte herstelupdate is [beta.62](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.62), commit `8e49c21ee03d3bd70a7d3460c2104628a43772f2`, tree `7314c163b156f4df18dfe5ab31b88aae6a188865`. Beta.62 en haar release-assets blijven onveranderd. De nieuwe branch voegt uitsluitend de HA-configuratiegrensfix, gerichte regressies en releasegebonden documenten toe; de SG-only beleidsgrens blijft gelijk.
 
-Ontwikkeling gebeurt op een aparte branch vanaf deze bron. Bestaande tags, release-assets en andermans werk blijven ongewijzigd. Een lager aantal tests na bewuste functieverwijdering is alleen verantwoord met een mapping van behouden, vervangen en vervallen contracten; een oud uitvoeringspad blijft niet leven om de teller te behouden.
+Home Assistant `ConfigEntry.options` is een `MappingProxyType`, niet een gewone dictionary. Beta.62 deepcopiet dit oorspronkelijke object in de runtimeconstructor en accepteert uitsluitend dict bij migratie. De afzonderlijke echte HA Core 2026.10.0-proef reproduceert op de ongewijzigde beta.62-bron daardoor een TypeError en SETUP_ERROR vóór runtime.start, de SolarPilot-migratiearchivering en de eerste SolarPilot-Store-write. Opties en Store blijven in die proef exact ongewijzigd; fysieke servicecalls: 0. Beta.63 materialiseert eerst een losse dictionarykopie en laat migratie algemene mappings accepteren. Een enkele runtimefix zou opties bij migratie verliezen; beide grenzen zijn daarom samen hersteld. Geneste opties en het oorspronkelijke HA-object blijven behouden. Deze proef leest geen live Home Assistant- of gebruikersopslag; over de feitelijke toestand van de gebruiker wordt geen claim gedaan.
+
+Voor terugkeer naar de oude directe regeling blijft de eerdere beta.61-bron en passende volledige pre-SG-migratieback-up noodzakelijk. Beta.62 terugzetten is geen oplossing voor de bekende opstartfout. Historische baselines en mapping staan bij hun eigen release; de nieuwe volledige suite en echte HA-proef staan in het beta.63-testverslag.
 
 De canonieke gebruikersuitleg is `custom_components/solar_pilot/current_guide.py`; `docs/ACTUELE_WERKING.md` en de ingebedde mirror worden gegenereerd. Dit dossier beschrijft actuele technische waarheid. Historische temperatuur-/AUTO-regels horen bij oudere versies in CHANGELOG/Git, niet bij deze actieve regeling. Er is geen extra CURRENT.json/LATEST-mechanisme toegevoegd.
 
@@ -94,11 +96,11 @@ Geheimen komen uitsluitend uit bestaande HA-koppelingen/lokale configuratie; gee
 
 ## 9. Testprocedure + actuele teststatus
 
-Uitgevoerd onder de aanwezige Python-runtime met `PYTHONDONTWRITEBYTECODE=1 python -m pytest -q -p no:cacheprovider`. De verse beta.61-baseline heeft 3814 geslaagde tests in 49,76 s. De definitieve volledige toepasselijke beta.62-suite heeft **2809 geslaagde tests in 31,45 s**, inclusief de laatste sessie-/atomicity- en publicatieworkflowregressies. De contractmapping onderscheidt behoud, SG-/migratievervanging en bewust obsolete directe Panasonic-functie. Behouden AEG/Wallbox/batterij/ordinary/Recorder/export/priority-dekking is in deze gate gecontroleerd.
+De definitieve volledige lokale gate is **2815 tests geslaagd in 32,24 seconden**, met `PYTHONDONTWRITEBYTECODE=1 python -m pytest -q -p no:cacheprovider`. Dit omvat de twee productiefixes, zes nieuwe startup-/mappinggevallen en releasegebonden versies/uitleg. De afzonderlijke echte Core-startupproef telt niet als extra pytest-test en is geslaagd: Core 2026.10.0/Python 3.14.2, productie-entry setup, zes echte platforms/58 registry-entiteiten, reload/unload, behoud configuratie en exact privéarchief, geen opgevangen exceptions en 0 fysieke servicecalls. De immutable beta.62-baseline is met dezelfde checker verwacht-falend bevestigd. Uitsluitend HTTP bind/start en source-IP discovery zijn offline gepatcht; SolarPilot-constructor/migratie/Store/platforms zijn echt. Concrete resultaten staan in `TESTRESULTATEN_BETA63.md`; dit is geen inspectie van de eigen installatie.
 
-Controleer nul Panasonic-writes vanuit alle actieve routes, één SG-eigenaar, lease-renewal zonder toggle, timerverloop, oude ACK/callback/restart, bronunits/versheid/heartbeat, fasegrens, import en blijvend native verbruik, gedeeltelijke meter en dubbeltelling. Ook idempotente migratie, gemengde fouten, opgeslagen Pauze/hervatkeuze, manual override, lokale meldingen en stabiele UI horen bij de gate.
+Gerichte startupregressies gebruiken onveranderbare HA-opties, geneste bron-/toestel-/SG-instellingen en archiefbehoud. Ze controleren dat materialisatie geen oorspronkelijke opties wijzigt of betekenis verliest. De volledige behouden suite controleert daarnaast nul Panasonic-writes, één SG-eigenaar, bron/lease/restart/fase/priority, AEG/Wallbox/batterij, UI, Recorder, retentie en export.
 
-Publieke preflight, SG-grens, handoff/guidehash/mirrors, optiehulp, repositorystructuur, Python-/JS-/JSON-syntax en `git diff --check` zijn geslaagd. Guidehash: `22d95cd9bbdeeab5`; 68 Python-productiemodules gecontroleerd. Nieuwe CI, annotated tag, release-assets/SHA-256 en beide ZIP-inhouden moeten afzonderlijk exact met de geteste bron overeenkomen. Het publicatiepad valideert beide ZIPs vóór upload en alle vier gedownloade assets erna, ook bij bestaande-tagretry. Definitieve lokale aantallen/resultaten en externe bewijsplaatsen staan in `TESTRESULTATEN_BETA62.md`. Volledige browser/renderacceptatie is niet uitgevoerd wegens ontbrekende Chromium/afgebroken download; fysieke Panasonic/Shelly-acceptatie blijft een afzonderlijke lokale stap.
+Handoff, actuele guide/mirrors en publieke preflight zijn geslaagd; guidehash `186004d313d8e50a`, 331 helpentries. De gerichte document-/help-/meldings-/diagnostiekset heeft 72 geslaagde tests in 0,59 s. SG-grens, repositorystructuur en syntax zijn ook geslaagd: 70 Python-bestanden via AST, 5 JSON-bestanden en beide JavaScript-bestanden via Node; `git diff --check` schoon. Het publicatiepad valideert beide ZIPs vóór upload en alle vier gedownloade assets erna tegen de exacte bron; bestaande tags/assets worden niet vervangen. De nieuwe CI-job `real-ha-startup` herhaalt de baseline en nieuwe productie-entry met pinned Core/Python en is een extra vereiste voor publiceren. De eerste PR-run miste `hass_frontend` vóór SolarPilot; een afzonderlijke voorbereidende pip-stap installeert nu de officiële frontend-/Shelly-requirements uit de geïnstalleerde Core-manifesten (hier frontend 20260930.2 en aioshelly 13.34.1). Deze CI-omgevingsfix verandert de productiefix niet; de nieuwe workflowrun moet afzonderlijk worden gecontroleerd en is hier niet als geslaagd verklaard. Na deze workflowwijziging hebben de package/workflow-regressies 13 geslaagde tests in 0,65 s. Echte lokale HA-entryacceptatie blijft onderscheiden van woning-, frontendrender- of fysieke Shelly/Panasonic-acceptatie.
 
 ## 10. Bekende problemen / beperkingen
 
@@ -110,7 +112,7 @@ Bestaande historie/onderzoeksregistratie heeft haar eerdere perioden/aantallimie
 
 ## 11. Concrete openstaande ontwikkeling
 
-De beschreven softwarewijziging en lokale regressiegate zijn voltooid. Publicatiecontrole en fysieke lokale ingebruikname blijven afzonderlijke stappen; er is geen live installatiebewijs uit de softwaretests.
+De gerichte softwarefix, volledige lokale regressiegate en echte Core-entry setup/reload/unload zijn voltooid. Publicatiecontrole en fysieke lokale ingebruikname blijven afzonderlijke stappen; er is geen live installatiebewijs uit de softwaretests.
 
 Voor lokale ingebruikname: volledige privéback-up, native basis op Panasonic controleren, inspectie externe writerconflicten, juiste uitgang/transport selecteren, contactmapping controleren en de lokale timer inclusief verlengen zonder schakelen en aflopen zonder HA bewijzen. Laat automatische SG tot die controles uit. Voer fysieke proef uitsluitend met expliciete toestemming uit.
 
@@ -120,7 +122,7 @@ Andere bestaande regeling kan onder haar eigen geldige instellingen werken. Uitg
 
 Volledige privé HA-back-up **vóór** de codeupdate, inclusief configuratie, eigen opslag, userfiles en benodigde restore-informatie. Controleer bestaande native instellingen; een oude SolarPilot-start/OFF/doel kan niet door de nieuwe runtime worden teruggezet. Laat een beschermde cyclus afwerken of behoud haar lopende status; geen extra APP-aanvraag als updateproef.
 
-HACS installeert deze Integration; herstart HA en heropen browser/app. Controleer backend-/kaartversie apart. Lokale installatie vervangt uitsluitend `custom_components/solar_pilot`, bewaart userfiles en opslag. Migratie doet geen fysieke opdracht; SG blijft uit. Stel bronnen in en voer alleen de toegestane lokale read-only controles, vervolgens na expliciete toestemming de fysieke ingebruikname uit. Handleiding: `BETA62_INSTELLEN.md`.
+Herstel van de beta.62-opstartfout: update normaal via HACS naar beta.63 en herstart HA volledig. Verwijder de bestaande entry niet en wis geen configuratie, modellen of opslag. HACS installeert deze Integration; herstart HA en heropen browser/app. Controleer backend-/kaartversie apart. Lokale installatie vervangt uitsluitend `custom_components/solar_pilot`, bewaart userfiles en opslag. Migratie doet geen fysieke opdracht; SG blijft uit. Stel bronnen in en voer alleen de toegestane lokale read-only controles, vervolgens na expliciete toestemming de fysieke ingebruikname uit. Handleiding: `BETA63_INSTELLEN.md`.
 
 Rollbackbasis beta.61 vereist de passende **pre-migratie privé-opslag/back-up**, niet alleen haar ZIP. Trek eerst de eigen SG-aanvraag in en bevestig open contact/lokale terugval. Stop nieuwe SG-runtime/vernieuwers voordat de oude schrijvers terugkomen. Herstel code én passende back-up, gewenste globale modus/hervatkeuze, controleer native basis en voorkom oud/nieuw tegelijk. Gearchiveerde data ondersteunen beoordeling, maar zijn geen automatische fysieke replay of complete HA-back-up.
 
@@ -137,23 +139,24 @@ Rollbackbasis beta.61 vereist de passende **pre-migratie privé-opslag/back-up**
 - `current_guide.py`, `option_help.py`, `frontend/option-help.json`, `translations/*`: releasegebonden huidige uitleg.
 - `frontend/solar-pilot-card.js`: compacte SG-weergave en bestaande stabiele status/details/popupbediening.
 - `analysis_export.py`, leer-/PV-/planner-/historiecomponenten: nuttige analysefuncties, eigen data en on-demand privé-export.
+- `tools/check_real_ha_startup.py`: echte Core 2026.10-entrygrens, bekende beta.62-fout en productie setup/reload/unload zonder netwerkstart of fysieke servicecalls.
 - `docs/ACTUELE_WERKING.md` en embedded mirror: uitsluitend gegenereerd; installatie/testverslag dezelfde mirrorregels.
 - `tools/check_public_repository.py`, `check_handoff.py`, `check_current_explanation.py`, `update_current_explanation.py`, `update_option_help.py`, `check_release_packages.py`, `validate_repository.py`: releasegates.
 
 ## 14. Release-checklist
 
 1. Verifieer actuele GitHub-basis/vrije versie en gebruik een eigen branch, zonder oude tags/assets te veranderen.
-2. Archiveer privébeta.61-schema’s idempotent; bewijstest nul oude fysieke writes/replays en geen algemene fout-/gegevensreset.
-3. Verwijder actieve tank-/klimaatwriters/opties/timers/herstelroutes echt; handhaaf centrale SG-onlygrens en overige apparaatfuncties.
+2. Bewijs met onveranderbare HA-opties dat runtime en migratie hun configuratie zonder verlies lezen; behoud de idempotente private SG-migratie zonder fysieke writes/replays of gegevensreset.
+3. Handhaaf de bestaande SG-only bevoegdheidsgrens en alle overige apparaatfuncties; maak geen nieuwe native tank-/klimaatwriter.
 4. Voer volledige toepasselijke suite plus mapping, source-/units-/lease-/state-/UI-regressies uit.
 5. Werk canonieke guide, gegenereerde mirrors/help, versie, changelog, dit dossier, installatie/testverslag/rollback samen bij.
 6. Voer privacy, structuur, handoff, hash/mirror, syntax en diffgates uit. Geen privéprompt/config/log in pakket.
-7. Publiceer uitsluitend geteste commit; nieuwe CI en immutable annotated tag afzonderlijk controleren.
+7. Publiceer uitsluitend de geteste commit na repository-, HACS-, Hassfest- én real-ha-startup-gate; controleer de nieuwe CI en immutable annotated tag afzonderlijk.
 8. Download alle vier assets, controleer grootte/SHA-256 en beide ZIP-inhoud bytegelijk met de exacte commit.
 9. Scheid releasecontrole, geladen HA/backend/kaart en fysieke Shelly-/Panasonicproef. De laatste blijft expliciet lokale ingebruikname.
 
 ## 15. AI-handoff
 
-Lees dit dossier, manifest, huidige guide en beta.62-installatie/testverslag vóór een vervolg. De nieuwe hoofdgrens is **Panasonic read-only, één gecontroleerde SG-uitgang als enige warmtepompactuator**. Reanimeer geen oude tank-/AUTO-controller of temperatuur-ACK-regel om een historisch testgeval groen te maken. Bewaar andere bestaande functies, gebruikersvolgorde, AEG-START-semantiek, batterijbescherming en privédata.
+Lees dit dossier, manifest, huidige guide en beta.63-installatie/testverslag vóór een vervolg. De nieuwe hoofdgrens is **Panasonic read-only, één gecontroleerde SG-uitgang als enige warmtepompactuator**. Reanimeer geen oude tank-/AUTO-controller of temperatuur-ACK-regel om een historisch testgeval groen te maken. Bewaar andere bestaande functies, gebruikersvolgorde, AEG-START-semantiek, batterijbescherming en privédata.
 
 Controleer actuele GitHub-main/tag vóór verdere wijziging. Houd native comfort/sterilisatie autonoom, meterdekking/eenheden en echte bronversheid expliciet en eigen boostpermission lokaal begrensd. Een upload, serviceacceptatie, appdoel of unittestrun is geen bewezen fysiek SG-effect. Persoonlijke installatiecontext wordt niet publiek opgeslagen. Nieuwe codewijziging vereist dezelfde complete huidige uitleg, overdracht, test-/installatie-/rollback-/pakketgates.

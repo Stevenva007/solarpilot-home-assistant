@@ -1,10 +1,10 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.62
+**Versie:** 1.0.0-beta.63
 **Bijgewerkt:** 2026-10-10
-**Regel-hash:** `22d95cd9bbdeeab5`
+**Regel-hash:** `186004d313d8e50a`
 
-Deze release laat Panasonic exclusief de warmtepomp regelen. SolarPilot kan daarvoor alleen een gecontroleerde extra zonneboost via één SG-contact aanvragen. Alle overige behouden SolarPilot-apparaten, beveiligingen en privégegevens houden hun eigen bestaande regels. De uitleg wordt bij iedere codewijziging samen met de release vernieuwd.
+Deze herstelupdate laat SolarPilot correct laden met de onveranderbare configuratie van Home Assistant. Panasonic blijft de warmtepomp regelen; SolarPilot kan alleen een gecontroleerde SG-zonneboost aanvragen. Alle overige behouden SolarPilot-apparaten, beveiligingen en privégegevens houden hun eigen bestaande regels. De uitleg wordt bij iedere codewijziging samen met de release vernieuwd.
 
 ## 1. Basisprincipe en modi
 
@@ -210,13 +210,15 @@ Bij een wachtend APP-ticket kiest wijzigen van deadline/nettoestemming tussen vo
 
 ## 19. Migratie en veilige ingebruikname
 
+Bij de beta.62-opstartfout volstaat de update naar beta.63 gevolgd door een volledige Home Assistant-herstart. Verwijder de integratie, configuratie, modellen of opslag niet. Deze herstelupdate leest de onveranderbare HA-opties als een gewone losse kopie, zonder oorspronkelijke of geneste opties te wijzigen. De bekende fout is lokaal met de onveranderbare HA-mappingvorm gereproduceerd vóór de migratiearchivering en opslag; dit is geen inspectie van jouw installatie.
+
 Voor upgrade maak je een volledige privé Home Assistant-back-up inclusief configuratie en SolarPilot-opslag. De versiegebonden migratie archiveert oude warmtepompopties, modellen en relevante opdracht-/foutgegevens buiten de actieve regeling. Zij is idempotent en verstuurt geen tank-/klimaatopdracht, SG-boost of afwasstart.
 
 Oude pending, doel-eigendom, hercontrole, foutwachttijden, manual hold en eigen klimaat-OFF kunnen niet opnieuw uitvoeren. Aantoonbaar uitsluitend vervallen regelopdrachtfouten worden als vervallen functie beoordeeld, niet als fysiek gerepareerd. Gemengde/onbekende foutpauzes, gewone apparaat-/batterijfouten, gebruikers-Pauze en verwijdering blijven beschermd. Brononzekerheid voor de nieuwe SG-functie blijft gelden.
 
 De globale hervatvoorkeur, geldige andere toestellen, entity-identiteiten, opgeslagen prioriteiten, APP-tickets, historie en leerdata blijven behouden. Nieuwe SG-sturing blijft uit totdat juiste uitgang, native basisinstellingen, geen dubbele writers, contactmapping en lokale aflooptimer werkelijk zijn bevestigd. De noodzakelijke lokale Panasonic/Shelly-controle is geen softwaretest.
 
-Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische metingen in geopende apparatuur. Gebruik de korte controle in BETA62_INSTELLEN.md.
+Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische metingen in geopende apparatuur. Gebruik de korte controle in BETA63_INSTELLEN.md.
 
 ## 20. Installatie, verwijderen en rollback
 

@@ -3,14 +3,14 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.62'
+GUIDE_VERSION = '1.0.0-beta.63'
 GUIDE_UPDATED = '2026-10-10'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.62',
+ 'version': '1.0.0-beta.63',
  'updated': '2026-10-10',
- 'intro': 'Deze release laat Panasonic exclusief de warmtepomp regelen. SolarPilot kan daarvoor alleen een '
-          'gecontroleerde extra zonneboost via één SG-contact aanvragen. Alle overige behouden '
+ 'intro': 'Deze herstelupdate laat SolarPilot correct laden met de onveranderbare configuratie van Home Assistant. '
+          'Panasonic blijft de warmtepomp regelen; SolarPilot kan alleen een gecontroleerde SG-zonneboost aanvragen. Alle overige behouden '
           'SolarPilot-apparaten, beveiligingen en privégegevens houden hun eigen bestaande regels. De uitleg '
           'wordt bij iedere codewijziging samen met de release vernieuwd.',
  'sections': [{'title': '1. Basisprincipe en modi',
@@ -517,7 +517,8 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'oorspronkelijke apparaatentiteiten.'],
                'bullets': []},
               {'title': '19. Migratie en veilige ingebruikname',
-               'paragraphs': ['Voor upgrade maak je een volledige privé Home Assistant-back-up inclusief '
+               'paragraphs': ['Bij de beta.62-opstartfout volstaat de update naar beta.63 gevolgd door een volledige Home Assistant-herstart. Verwijder de integratie, configuratie, modellen of opslag niet. Deze herstelupdate leest de onveranderbare HA-opties als een gewone losse kopie, zonder oorspronkelijke of geneste opties te wijzigen. De bekende fout is lokaal met de onveranderbare HA-mappingvorm gereproduceerd vóór de migratiearchivering en opslag; dit is geen inspectie van jouw installatie.',
+                              'Voor upgrade maak je een volledige privé Home Assistant-back-up inclusief '
                               'configuratie en SolarPilot-opslag. De versiegebonden migratie archiveert oude '
                               'warmtepompopties, modellen en relevante opdracht-/foutgegevens buiten de '
                               'actieve regeling. Zij is idempotent en verstuurt geen tank-/klimaatopdracht, '
@@ -539,7 +540,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze '
                               'nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef '
                               'gebeurt alleen met expliciete toestemming en zonder elektrische metingen in '
-                              'geopende apparatuur. Gebruik de korte controle in BETA62_INSTELLEN.md.'],
+                              'geopende apparatuur. Gebruik de korte controle in BETA63_INSTELLEN.md.'],
                'bullets': []},
               {'title': '20. Installatie, verwijderen en rollback',
                'paragraphs': ['Installeer of update de Integration via HACS en herstart Home Assistant. De '

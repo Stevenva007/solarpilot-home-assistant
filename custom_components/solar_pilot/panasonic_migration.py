@@ -8,6 +8,7 @@ command authority by the current runtime.
 from __future__ import annotations
 
 from copy import deepcopy
+from collections.abc import Mapping
 from .sg_config import SG_DEFAULTS, finite, normalize_config
 
 MIGRATION_VERSION = 1
@@ -25,7 +26,9 @@ KNOWN_DHW_FAULTS = frozenset({
 
 
 def _mapping(value):
-    return value if isinstance(value, dict) else {}
+    # HA ConfigEntry.options is an immutable mapping, while Store payloads are
+    # ordinary dictionaries. Both represent the same JSON configuration data.
+    return dict(value) if isinstance(value, Mapping) else {}
 
 
 def _assessment(options, stored):

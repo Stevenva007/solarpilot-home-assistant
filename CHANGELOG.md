@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0-beta.63 — opstarten met echte Home Assistant-configuratie
+
+- Herstelt de beta.62-opstartfout bij Home Assistant `ConfigEntry.options`: HA levert een onveranderbare mapping; SolarPilot kopieert die nu als een gewone lokale dictionary vóór deepcopy en migratie. De migratie accepteert ook deze mapping en bewaart geneste opties in het privéarchief, zonder het originele HA-object te wijzigen.
+- De fout is lokaal gereproduceerd met de onveranderbare mappingvorm die HA voor opties gebruikt. Een afzonderlijke echte HA-startupproef wordt vóór publicatie geregistreerd. De aanvullende regressies dekken laden, optiebehoud en de grens vóór migratie/opslag. Er zijn geen live gebruikersgegevens uitgelezen of apparaten bediend.
+- SG-only bevoegdheden, bewuste ingebruikname, andere apparaatfuncties, voorrang, modellen en retentie blijven gelijk. Een normale upgrade met volledige HA-herstart volstaat; geen configuratie- of gegevensreset.
+- Actuele uitleg, helpmetadata, overdracht en installatie-/testdocumenten horen bij beta.63. Beta.62-tag en release-assets blijven ongewijzigd.
+
 ## 1.0.0-beta.62 — Panasonic zelfstandig, één SG-zonneboost
 
 - Verwijdert de actieve directe tankdoel-, nacht-/voorraad- en klimaat-AUTO/UIT-regeling, inclusief exclusieve ACK-, eigendom-, retry-, herstel- en dashboardpaden. Panasonic blijft eigenaar van comfort, compressor, elektrische ondersteuning en fabrikantprogramma’s.

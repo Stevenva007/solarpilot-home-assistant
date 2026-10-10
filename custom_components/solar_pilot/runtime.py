@@ -82,7 +82,9 @@ class SolarRuntime:
         self.battery_analysis = BatteryOpportunitySimulator(self.battery_analysis_settings, self.historical_seed)
         self.battery_fleet = BatteryFleetManager(self)
         migrated, _, _ = migrate_panasonic(entry.options, {})
-        self.panasonic_archive = {"backup_options": deepcopy(entry.options)}
+        # ConfigEntry.options is a top-level MappingProxyType in HA Core.
+        # Detach that immutable boundary before copying the private JSON data.
+        self.panasonic_archive = {"backup_options": deepcopy(dict(entry.options))}
         self.panasonic = PanasonicMonitor(self, migrated["sg_boost"])
         self.capacity = capacity_decision(datetime.now().astimezone(), None, None, None, {"enabled": False})
         self.phase = phase_decision((None, None, None), {"enabled": False})
