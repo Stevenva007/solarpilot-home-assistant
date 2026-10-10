@@ -20,7 +20,7 @@ from .const import DEVICE_DEFAULTS
 from .dishwasher import normalize_config
 from .dishwasher_app import deadline_time
 from .engine import State
-from .sg_config import actuator_conflicts, validate_config as validate_sg
+from .sg_config import DISPLAY_ONLY_KEYS, actuator_conflicts, validate_config as validate_sg
 
 PENDING = "_live_pending"
 ARCHIVED = "_archived_devices"
@@ -183,6 +183,8 @@ class LiveOptions:
         r = self.r
         keys = changed_keys(old if isinstance(old, dict) else {}, new if isinstance(new, dict) else {})
         if group in DISPLAY_GROUPS:
+            return ""
+        if group == "sg_boost" and keys <= DISPLAY_ONLY_KEYS:
             return ""
         sg = getattr(r, "sg_boost", None)
         # Turning optimisation off is not blocked by its own outstanding ON.

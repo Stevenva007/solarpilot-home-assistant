@@ -20,6 +20,8 @@ SG_DEFAULTS = {
     "tank_temperature_entity": "", "tank_target_entity": "",
     "power_entity": "", "power_scope": "unconfirmed",
     "power_supply1_entity": "", "power_supply2_entity": "",
+    "power_activity_threshold_w": 200.0,
+    "power_supply1_role": "unconfirmed", "power_supply2_role": "unconfirmed",
     "split_power_confirmed": False,
     "compressor_frequency_entity": "", "sg_status_entity": "",
     "profile": "dhw_only", "profile_confirmed": False,
@@ -33,13 +35,15 @@ POWER_ENTITY_KEYS = ("power_entity", "power_supply1_entity", "power_supply2_enti
 PROFILES = frozenset({"dhw_only", "general"})
 REFERENCE_KEYS = frozenset({"entity_id", *READ_ENTITY_KEYS, "zone_entities"})
 POWER_SCOPES = frozenset({"unconfirmed", "total", "supply1", "supply2"})
+POWER_SUPPLY_ROLES = frozenset({"unconfirmed", "main", "heater"})
+DISPLAY_ONLY_KEYS = frozenset({"power_activity_threshold_w", "power_supply1_role", "power_supply2_role"})
 NUMBER_LIMITS = {
     "threshold_w": (500, 20000), "expected_power_w": (100, 30000),
     "hysteresis_w": (0, 5000), "start_delay_s": (30, 1800),
     "stop_delay_s": (5, 600), "rest_s": (60, 7200),
     "max_session_s": (300, 14400), "lease_s": (60, 600),
     "renew_s": (10, 120), "ack_timeout_s": (5, 60),
-    "stale_s": (15, 600),
+    "stale_s": (15, 600), "power_activity_threshold_w": (10, 2000),
 }
 
 
@@ -88,6 +92,9 @@ def validate_config(raw):
         errors["zone_entities"] = "range"
     if not isinstance(c["power_scope"], str) or c["power_scope"] not in POWER_SCOPES:
         errors["power_scope"] = "range"
+    for key in ("power_supply1_role", "power_supply2_role"):
+        if not isinstance(c[key], str) or c[key] not in POWER_SUPPLY_ROLES:
+            errors[key] = "range"
     if not isinstance(c["profile"], str) or c["profile"] not in PROFILES:
         errors["profile"] = "range"
     split = any(isinstance(c[key], str) and c[key] for key in POWER_ENTITY_KEYS[1:])

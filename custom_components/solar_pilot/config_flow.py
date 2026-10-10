@@ -621,6 +621,7 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
             self._refresh_sg_base()
             self._sg_profile_review = None
             self._sg_split_review = None
+            self._sg_local_confirmed_roles = None
         current = self._sg_values()
         candidate = {**current, **{k: deepcopy(SG_DEFAULTS[k]) for k in cleared}, **(user_input or {})}
         # Changing a physical endpoint invalidates commissioning proof even if
@@ -655,6 +656,15 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
                 candidate["split_power_confirmed"] = False
                 if user_input.get("split_power_confirmed") is True or current["split_power_confirmed"] is True:
                     errors["split_power_confirmed"] = "sg_split_review"
+                for index, (old_meter, new_meter) in enumerate(zip(old_split, new_split), 1):
+                    role_key = f"power_supply{index}_role"
+                    if old_meter != new_meter:
+                        # The old supply function belongs to its old meter.
+                        # Display roles are never inferred from names or from
+                        # full meter coverage. Reuse the current pair review.
+                        candidate[role_key] = "unconfirmed"
+                        if current[role_key] != "unconfirmed" or user_input.get(role_key, "unconfirmed") != "unconfirmed":
+                            errors[role_key] = "sg_supply_role_review"
         entry = getattr(self, "config_entry", None)
         if user_input is not None and entry is not None and normalize_sg(entry.options.get("sg_boost", {})) != current:
             # A firmware/device change may revoke both checked proofs while
@@ -674,6 +684,10 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
             new_split = (candidate["power_supply1_entity"], candidate["power_supply2_entity"])
             self._sg_local_confirmed_split = ((old_split, new_split)
                 if old_split != new_split and user_input.get("split_power_confirmed") is True else None)
+            self._sg_local_confirmed_roles = ((old_split, new_split)
+                if old_split != new_split and getattr(self, "_sg_split_review", None) == (old_split, new_split)
+                and any(user_input.get(key) in ("main", "heater") for key in
+                        ("power_supply1_role", "power_supply2_role")) else None)
             return await self._save(opts)
         return self.async_show_form(step_id=step_id, data_schema=vol.Schema(schema(candidate)), errors=errors)
 
@@ -696,6 +710,11 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
 
     async def async_step_sg_sources(self, user_input=None):
         def schema(c):
+            def supply_role():
+                return selector.SelectSelector({"options": [
+                    {"value": "unconfirmed", "label": "Functie nog niet bevestigd"},
+                    {"value": "main", "label": "Hoofdvoeding: warmtepomp, regeling en pompen"},
+                    {"value": "heater", "label": "Elektrische ondersteuning"}]})
             return {
                 optional("tank_temperature_entity", c): entity(["sensor", "water_heater", "climate"]),
                 optional("tank_target_entity", c): entity(["water_heater", "climate", "number", "sensor"]),
@@ -706,8 +725,11 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
                     {"value": "supply1", "label": "Alleen voeding 1 — gedeeltelijke meting"},
                     {"value": "supply2", "label": "Alleen voeding 2 — gedeeltelijke meting"}]}),
                 optional("power_supply1_entity", c): entity(["sensor"]),
+                vol.Required("power_supply1_role", default=c["power_supply1_role"]): supply_role(),
                 optional("power_supply2_entity", c): entity(["sensor"]),
+                vol.Required("power_supply2_role", default=c["power_supply2_role"]): supply_role(),
                 vol.Required("split_power_confirmed", default=c["split_power_confirmed"]): selector.BooleanSelector(),
+                vol.Required("power_activity_threshold_w", default=c["power_activity_threshold_w"]): num(10, 2000, 10),
                 optional("activity_entity", c): entity(["sensor", "binary_sensor"]),
                 optional("compressor_frequency_entity", c): entity(["sensor"]),
                 optional("sg_status_entity", c): entity(["sensor", "binary_sensor"]),

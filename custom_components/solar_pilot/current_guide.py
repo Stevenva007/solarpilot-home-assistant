@@ -3,14 +3,17 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.65'
+GUIDE_VERSION = '1.0.0-beta.66'
 GUIDE_UPDATED = '2026-10-10'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.65',
+ 'version': '1.0.0-beta.66',
  'updated': '2026-10-10',
- 'intro': 'De warmtepomp staat naast de andere toestellen met een duidelijke indicatie van bevestigd '
-          'bedrijf en afzonderlijke SG-aanvraag, contactstand en ontvangen status. SolarPilot geeft één '
+ 'intro': 'De warmtepomp staat naast de andere toestellen met gemeten verbruik, bewezen of afgeleide '
+          'activiteit en afzonderlijke SG-aanvraag, contactstand en ontvangen status. Een passende verse '
+          'native actie kan bij een volledige actieve meting sanitair water opwarmen, ruimte verwarmen '
+          'of koelen aanduiden. Afgeleide activiteit blijft herkenbaar; metingen bewijzen niet apart '
+          'compressorbedrijf of warmteproductie. SolarPilot geeft één '
           'rustige, begrensde SG-zonneboost warmtepomp. Het lokaal bevestigde '
           'toepassingsbereik bepaalt of uitsluitend tapwater of het algemene Panasonic-bedrijf wordt '
           'ondersteund. Panasonic blijft volledig eigenaar van comfort en beveiligingen. Twee bevestigde '
@@ -103,9 +106,36 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'huidige Panasonic-/SG-weergave; de vervallen boiler- en klimaatregeling wordt '
                               'niet meer als ontbrekende configuratie getoond. Het blok toont waar beschikbaar '
                               'vermogen, bedrijfsrichting, tanktemperatuur en reden van wachten of blokkeren. '
-                              'Een grafische activiteit en het bedrijfslabel verschijnen bij bevestigd '
-                              'bedrijf. Rust en onbekend blijven apart zichtbaar; onbekend wordt geen UIT.',
-                              'De actuele echte compressorfrequentie is het primaire bedrijfsbewijs. Alleen '
+                              'De kaart combineert afzonderlijk gemeten elektrische activiteit met bewezen '
+                              'native bedrijf. Een volledige actuele vermogensmeting vanaf de ingestelde '
+                              'weergavegrens kan Warmtepomp werkt aangeven, met de uitleg Afgeleid uit '
+                              'gemeten verbruik; compressorbedrijf/warmteproductie niet afzonderlijk gemeten. Een actuele '
+                              'expliciete native tankactiviteit kan daarbij Sanitair water opwarmen aanduiden. '
+                              'Hetzelfde kan een geverifieerde verse Aquarea-poll met HEATING_WATER van het '
+                              'exact gekoppelde apparaat, automatisch gelezen via de bestaande native binding. '
+                              'Een gekozen tankstand heating alleen bewijst geen opwarmactie en houdt de '
+                              'functie bij algemeen gemeten verbruik. Dezelfde exacte actuele native binding '
+                              'kan DeviceAction HEATING (2) als Ruimte verwarmen en COOLING (3) als Ruimte '
+                              'koelen aanduiden; HEATING_WATER (4) geeft de tankfunctie. Dit wordt automatisch '
+                              'read-only gelezen, zonder extra configuratie of wijziging van de native '
+                              'programmakeuze of SG-vrijgave. Afleiden vereist complete actuele actieve '
+                              'vermogensmeting, een verse beschikbare gebonden warmwaterentiteit en strict '
+                              'actueel pollbewijs. Tegenstrijdige werkelijke native acties geven geen '
+                              'functieclaim. Dit blijft een afgeleide functie, geen aparte warmteproductiemeting. '
+                              'Oude of conflicterende context geeft geen functieclaim; verse complete '
+                              'vermogensmeting kan wel algemeen actief verbruik blijven aangeven.',
+                              'Blauwe grafische activiteit mag ook deze herkenbare afgeleide meetactiviteit '
+                              'aangeven. Ventilatorrotatie verschijnt alleen bij werkelijk bevestigde verse '
+                              'compressorfrequentie, niet op grond van watts of alleen een native programma. '
+                              'Bij ontbrekend betrouwbaar bedrijfs- én verbruiksbewijs verschijnt geen '
+                              'prominente Werking onbekend-badge of apart onbekend-bedrijfsblok. Metingen, '
+                              'SG-informatie, de beslisreden en Details blijven beschikbaar. De onderliggende '
+                              'toestand blijft voor diagnose onbekend; weglaten betekent geen bevestigde '
+                              'rust of UIT.',
+                              'Actief gemeten verbruik blijft het leidende kaartlabel, ook als native rust of '
+                              '0 Hz bevestigt dat de compressor stilstaat; die waarheid blijft in de uitleg '
+                              'zichtbaar en er verschijnt geen draaiende ventilator. De actuele echte '
+                              'compressorfrequentie is het afzonderlijke compressorbewijs. Alleen '
                               'wanneer geen compressorbron is gekoppeld kan een verse passende native '
                               'activiteitsmelding bedrijf of rust bevestigen. Een gekoppelde maar oude, '
                               'onbeschikbare of ongeldige compressorbron blijft onbekend; een andere verse '
@@ -274,6 +304,37 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'ontvangen-SG-bron kan een expliciete actieve/inactieve SG-stand bevestigen. Een '
                               'numerieke stand wordt niet gegokt. Ontvangen stand en een draaiende compressor '
                               'bewijzen geen causaal extra SG-effect.',
+                              'De meetweergave werkt automatisch met de bestaande bronkoppelingen en gebruikt '
+                              'standaard 200 W. Voor deze update hoef je geen nieuwe instelling of entiteit '
+                              'in te vullen. De afzonderlijke native tankactiviteit wordt read-only via de '
+                              'bestaande koppeling gelezen; zij geeft geen SG-bedieningsrecht. Alleen als je '
+                              'zelf wilt verfijnen, kan Actief verbruik vanaf (W) — alleen weergave '
+                              'tussen 10 en 2000 W worden gekozen. De standaard werkt zonder die wijziging. '
+                              'Het bepaalt uitsluitend wanneer gemeten '
+                              'elektrisch verbruik als actief wordt getoond. Het verandert geen SG-start- of '
+                              'stopdrempel, bronvalidatie, lokale timer, koelvrijgave, budget of toestemming. '
+                              'Een volledige actuele gevalideerde totaalmeter of bevestigde complete '
+                              'niet-overlappende splitmeting kan Warmtepomp werkt tonen vanaf deze grens. '
+                              'Gemeten totaal nul heet Geen elektrisch verbruik; positief totaal onder de '
+                              'grens heet Basisverbruik. Deze labels bewijzen geen afzonderlijke '
+                              'compressor- of warmteproductie.',
+                              'Bij een onvolledige splitmeting blijven de geldige voedingswaarden afzonderlijk '
+                              'zichtbaar. Een actuele deelmeter vanaf de weergavegrens kan Actief verbruik op '
+                              'voeding 1 of voeding 2 aangeven; zij bewijst geen compleet totaal of afgeleide '
+                              'warmwater-/ruimtefunctie. Een bekende nul op één voeding bewijst niet dat de '
+                              'hele warmtepomp niets verbruikt.',
+                              'Functie voeding 1/2 — alleen weergave is optioneel. De automatische activiteit '
+                              'werkt ook zonder rolkeuze. De keuzes zijn Functie nog '
+                              'niet bevestigd, Hoofdvoeding: warmtepomp, regeling en pompen, of Elektrische '
+                              'ondersteuning. Zonder bevestigde rol blijft Voeding 1/2 neutraal. Hoofdvoeding '
+                              'kan compressor, regeling en pompen omvatten en is geen zuivere compressormeting. '
+                              'Elektrische ondersteuning verklaart uitsluitend het '
+                              'door die bevestigde voeding opgenomen vermogen. Een bevestigde complete '
+                              'niet-overlappende meterdekking bewijst niet automatisch deze onderdeelrollen; '
+                              'een meternummer of naam evenmin. De rolkeuze geeft geen nieuwe native '
+                              'compressor-/heaterstatus of bedieningsrecht. Beide weergavekeuzes gebruiken de '
+                              'al gekoppelde bronnen; er is geen extra entiteit nodig en bestaande geldige '
+                              'SG-bevestigingen blijven behouden.',
                               'Het hele warmtepompvermogen is niet terugwinbaar door SG uit te zetten: native '
                               'warmwater- of ruimtebedrijf kan blijven doorgaan. De netmeter bevat die stroom '
                               'al. Vrijgekomen ruimte wordt pas toegewezen wanneer nieuwe metingen dat '
@@ -515,9 +576,15 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                'paragraphs': ['Overzicht toont Wat gebeurt er en waarom? met per toestel de actuele toestand, '
                               'één leidende reden, bekende W en uitklapbare voorwaarden. Gemeten, geschat en '
                               'onbekend blijven herkenbaar. De warmtepomp gebruikt dezelfde SG-status en '
-                              'beslisreden als de backend, geen tweede frontendregelaar. Open details, '
+                              'beslisreden als de backend, geen tweede frontendregelaar. Zonder betrouwbaar '
+                              'warmtepompbedrijfsbewijs kan een verse meting uitsluitend herkenbare afgeleide '
+                              'elektrische activiteit tonen. Zonder beide bewijssoorten verschijnt geen '
+                              'prominente onbekend-bedrijfsindicatie; bronbewijs en onzekerheid blijven '
+                              'voor diagnose beschikbaar in Details en '
+                              'export. Open details, '
                               'formulieren, popup en scroll blijven bij verversen op vaste ids bewaard.',
-                              'Doorlopend blauw betekent bevestigde activiteit; een aangevraagde of '
+                              'Doorlopend blauw betekent bevestigde activiteit of op de warmtepompkaart '
+                              'herkenbaar uit verse meting afgeleide elektrische activiteit; een aangevraagde of '
                               'beschikbare functie blijft daarvan onderscheiden. Een gesloten SG-contact '
                               'bewijst geen fysieke tankopwarming. Productie en net hebben afzonderlijke '
                               'groen-roodkleuren; onbekende/oude bronnen blijven grijs. Die kleuren zijn '
@@ -607,11 +674,11 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'oorspronkelijke apparaatentiteiten.'],
                'bullets': []},
               {'title': '19. Migratie en veilige ingebruikname',
-               'paragraphs': ['Beta.65 behoudt de beta.63-fix voor onveranderbare en geneste Home '
+               'paragraphs': ['Beta.66 behoudt de beta.63-fix voor onveranderbare en geneste Home '
                               'Assistant-opties. Verwijder de integratie, configuratie, modellen of opslag '
                               'niet. De upgrade houdt geldige single-meterkoppelingen, bestaande overige '
                               'toestellen en privégegevens intact. Ongewijzigde geldige SG-, profiel-, '
-                              'meter- en koelbeveiligingsbevestigingen uit beta.64 blijven staan; een '
+                              'meter- en koelbeveiligingsbevestigingen uit beta.65 blijven staan; een '
                               'codeupdate vraagt daarvoor geen herbevestiging. Nieuwe profiel-, splitmeter-, '
                               'compressor- en SG-bronvelden leveren geen stilzwijgende toestemming. De algemene SG-keuze '
                               'vraagt expliciete lokale bevestiging.',
@@ -643,7 +710,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze '
                               'nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef '
                               'gebeurt alleen met expliciete toestemming en zonder elektrische metingen in '
-                              'geopende apparatuur. Gebruik de korte controle in BETA65_INSTELLEN.md.'],
+                              'geopende apparatuur. Gebruik de korte controle in BETA66_INSTELLEN.md.'],
                'bullets': []},
               {'title': '20. Installatie, verwijderen en rollback',
                'paragraphs': ['Installeer of update de Integration via HACS en herstart Home Assistant. De '
@@ -667,13 +734,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van '
                               'SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, AEG- '
                               'of Shelly-integratie.',
-                              'Rollback naar de gecontroleerde beta.64-basis vereist de bij de upgrade '
+                              'Rollback naar de gecontroleerde beta.65-basis vereist de bij de upgrade '
                               'behorende privé HA-back-up naast de code, zodat instellingen, opgeslagen '
                               'bewijslagen en modellen samen passend terugkeren. Geef eerst de SG-aanvraag vrij '
                               'en controleer lokale terugval; laat nooit twee runtimes tegelijk werken. Voor '
                               'terugkeer naar de oude directe beta.61-regeling blijft de volledige back-up van '
                               'vóór de beta.62-migratie nodig. Alleen een oudere ZIP herstelt gewijzigde '
-                              'opslag niet. Zie BETA65_INSTELLEN.md.'],
+                              'opslag niet. Zie BETA66_INSTELLEN.md.'],
                'bullets': []},
               {'title': '21. Release- en documentatieregel',
                'paragraphs': ['Dit is de enige volledige actuele regelbeschrijving. current_guide.py genereert '

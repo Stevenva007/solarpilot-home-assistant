@@ -670,7 +670,7 @@
       },
       "sg_sources": {
         "title": "Heat pump — read-only sources",
-        "description": "Read only. Use one confirmed total meter OR two complete non-overlapping supplies; never total plus part. Confirm coverage locally without opening electrical equipment. Missing sources remain unknown. Compressor operation does not prove an SG effect.",
+        "description": "Read only. Power shows electrical consumption; additional current Panasonic information can distinguish its purpose. Select each locally known supply function; names do not confirm it. Use one confirmed total meter OR two complete non-overlapping supplies; never total plus part. Coverage and supply function are separate confirmations. Compressor operation does not prove an SG effect.",
         "data": {
           "tank_temperature_entity": "Actual tank temperature — read only",
           "tank_target_entity": "Native tank target — read only",
@@ -682,7 +682,15 @@
           "power_supply2_entity": "Supply 2 partial meter (W/kW) — read only",
           "split_power_confirmed": "Two complete non-overlapping supplies confirmed locally",
           "compressor_frequency_entity": "Actual compressor frequency (Hz) — read only",
-          "sg_status_entity": "Actual received SG status — read only"
+          "sg_status_entity": "Actual received SG status — read only",
+          "power_activity_threshold_w": "Active consumption from (W) — display only",
+          "power_supply1_role": "Supply 1 function — display only",
+          "power_supply2_role": "Supply 2 function — display only"
+        },
+        "data_description": {
+          "power_activity_threshold_w": "Display threshold per valid supply, default 200 W. This does not change SG control or identify the compressor.",
+          "power_supply1_role": "Locally known supply function; never inferred from names or total-meter coverage. This changes the display only.",
+          "power_supply2_role": "Locally known supply function; select electrical support only for a meter dedicated to it. This changes the display only."
         }
       },
       "sg_advanced": {
@@ -751,7 +759,8 @@
       "sg_profile_confirmation": "First confirm the selected general SG scope locally.",
       "sg_meter_overlap": "Use one total meter or two separate non-overlapping partial meters; no double counting.",
       "sg_frequency_unit": "Choose an actual compressor frequency source in Hz.",
-      "sg_status_source": "Choose an independent source for actual received SG, not relay feedback or program/valve state."
+      "sg_status_source": "Choose an independent source for actual received SG, not relay feedback or program/valve state.",
+      "sg_supply_role_review": "The partial meter changed. Review and select the new supply function again; the previous function belongs to the old meter."
     },
     "abort": {
       "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",

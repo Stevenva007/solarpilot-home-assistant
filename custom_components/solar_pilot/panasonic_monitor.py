@@ -257,6 +257,16 @@ class PanasonicMonitor:
         sg_status = "active" if sg_value in active_states else "inactive" if sg_value in inactive_states else "unknown"
         from .heatpump_budget import heatpump_power
         power = heatpump_power(self.runtime)
+        from .power_activity import power_activity
+        read_tank_action = getattr(self.native_program, "read_tank_action", None)
+        native_tank_action = read_tank_action(c["tank_target_entity"]) if callable(read_tank_action) else {}
+        power_display = power_activity(power, c, tank=target, tank_entity=c["tank_target_entity"],
+            tank_stamp=self._reported_stamp(target), tank_action=native_tank_action,
+            zones=[{**row, "action_valid": not any(
+                (getattr(self._object(row["entity_id"]), "attributes", {}) or {}).get(key)
+                for key in ("estimated", "is_estimated"))} for row in zones],
+            native_programs=native, context=context, context_reliable=context_reliable,
+            context_stamp=context_stamp, conflict=conflict)
         return {"configured": self.configured, "read_only": True, "temperature_c": temp,
             "temperature_entity": c["tank_temperature_entity"],
             "temperature_stamp": self._reported_stamp(tank) if temp is not None else None,
@@ -285,6 +295,7 @@ class PanasonicMonitor:
             "zones": zones, "program": next(iter(programs)) if len(programs) == 1 else None,
             "activity": activity.state if activity else None,
             "operation": self._operation(frequency, frequency_obj, zones, target, activity),
+            "power_activity": power_display,
             "context": context, "context_reliable": context_reliable, "context_stamp": context_stamp,
             "context_signature": context_signature, "cooling_possible": cooling_possible, "status": status,
             "note": "SG vraagt zonneboost. Het normale Panasonic-doel kan ongewijzigd blijven; dit bewijst geen relaisfout."}

@@ -33,10 +33,15 @@ class LiveOptionsMixin:
             if (old_split != new_split and
                     getattr(self, "_sg_local_confirmed_split", None) != (old_split, new_split)):
                 candidate["split_power_confirmed"] = False
+            if (old_split != new_split and
+                    getattr(self, "_sg_local_confirmed_roles", None) != (old_split, new_split)):
+                for index, (old_meter, new_meter) in enumerate(zip(old_split, new_split), 1):
+                    if old_meter != new_meter:
+                        candidate[f"power_supply{index}_role"] = "unconfirmed"
             if any(candidate[key] != current[key] for key in ("activity_entity", "zone_entities", "tank_target_entity")):
                 candidate["cooling_protection_confirmed"] = False
             options = {**options, "sg_boost": candidate}
-            self._sg_local_confirmed_profile = self._sg_local_confirmed_split = None
+            self._sg_local_confirmed_profile = self._sg_local_confirmed_split = self._sg_local_confirmed_roles = None
         if (actuator_conflicts(options.get("sg_boost", {}), options.get("devices", []))
                 or actuator_conflicts(options.get("sg_boost", {}), options.get("batteries", []))):
             raise HomeAssistantError("De SG-uitgang krijgt één eigenaar en mag niet ook een gewoon toestel zijn.")
