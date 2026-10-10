@@ -1,6 +1,6 @@
 # SolarPilot 1.0.0-beta.67 — testresultaten
 
-Datum: **2026-10-11**. De definitieve lokale softwaresuites, echte Home Assistant Core-proeven en lokale releasecontroles zijn geslaagd. Echte browsercontrole via CI, publicatie en verificatie van de gedownloade release-assets blijven afzonderlijke gates; dit verslag claimt geen toekomstige uitvoering daarvan.
+Datum: **2026-10-11**. De definitieve lokale softwaresuites, echte Home Assistant Core-proeven, lokale releasecontroles en alle vijf CI-gates zijn geslaagd op de hieronder genoemde bron. De echte browsercontrole is uitgevoerd in CI. Publicatie en verificatie van de gedownloade release-assets blijven afzonderlijke gates; dit verslag claimt geen toekomstige uitvoering daarvan.
 
 ## Bronbasis en gerichte wijziging
 
@@ -43,11 +43,23 @@ Een productie-entryproef bewijst geen lokaal geladen mobiele kaart, werkelijke e
 
 ## Echte browsercontrole en CI
 
-Een echte lokale browserrender is **niet uitgevoerd**: er is geen bruikbare lokale Chromium beschikbaar. De actuele CI-browsergate moet de productiekaart renderen; lokaal geslaagde software-/DOM-/Node-controles vervangen die stap niet. Historische beta.66-browserresultaten zijn geen beta.67-renderbewijs.
+Een echte lokale browserrender is **niet uitgevoerd** omdat bruikbare lokale Chromium ontbreekt. De echte productiekaart is wel succesvol gerenderd in [CI-run 38091516318](https://github.com/Stevenva007/solarpilot-home-assistant/actions/runs/38091516318), browserjob **114328746937**, met Python **3.13.16**, Playwright **1.63.0** en Chromium **153.0.8010.12**. Software-/DOM-/Node-controles en historische beta.66-browserresultaten vervangen dit actuele renderbewijs niet.
 
-De browserchecker omvat Overzicht, Toestellen en Warmtepomp bij **320, 390, 768 en 1280 px**, afzonderlijke taak-/heater-/meter-/SG-bronnen, animaties en verminderde beweging, onvolledige/nulmetingen, bron-/klok-/leaseverloop en behoud van Details/focus. De analysefixture controleert éénklikexport, het exact gekoppelde sjabloon, begrensde escaped rapportweergave, herladen/verwijderen, beheerdersgrenzen en nul apparaatopdrachten. Versieverschil en laden naast een oudere paneelklasse behoren afzonderlijk tot pytest-/Node-/broncontroles. De werkelijke browseruitslag volgt de actuele CI-gate.
+De geslaagde browserchecker omvat Overzicht, Toestellen en Warmtepomp bij **320, 390, 768 en 1280 px**, afzonderlijke taak-/heater-/meter-/SG-bronnen, animaties en verminderde beweging, onvolledige/nulmetingen, bron-/klok-/leaseverloop en behoud van Details/focus. De analysefixture controleert éénklikexport, het exact gekoppelde sjabloon, begrensde escaped rapportweergave, herladen/verwijderen, beheerdersgrenzen en **nul apparaatopdrachten**. Versieverschil en laden naast een oudere paneelklasse behoren afzonderlijk tot pytest-/Node-/broncontroles.
 
-Publicatie vereist **vijf geslaagde actuele gates** op de exact geteste bron: repositorytests, HACS, Hassfest, echte HA-startup en browser-UI. De workflow controleert de geteste bronherkomst. Exact workflow-/tag-/publicatiebewijs staat bij [Actions](https://github.com/Stevenva007/solarpilot-home-assistant/actions) en de [beta.67-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.67) zodra gepubliceerd. Deze links claimen geen reeds voltooide beta.67-publicatie.
+Het bewaarde fictieve browserartifact bevat **16 PNG's**: dertien warmtepompweergaven en drie analyseweergaven bij 320/390/768 px. Mobiele warmtepomp- en analysebeelden zijn tevens visueel gecontroleerd zonder afsnijding. Artifact **11684063211** is 4.246.270 bytes; SHA-256 **`d504968ef6d81f900f8038667e1c32d5c48c1acfefcbcd01b35838bd0688922d`**. Deze beelden bevatten uitsluitend fictieve fixturedata.
+
+Alle **vijf gates zijn geslaagd** in deze CI-run: repositorytests, HACS, Hassfest, echte HA-startup en browser-UI. De geteste commit is **`86115f6efd8444acfbbedc05099a56d6c91ad6d4`**, Git-tree **`5adf35361930ed22cfc4fe2fb2ecd8505981a13c`**. Een volgende documentatierevisie wordt opnieuw door alle vijf gates getoetst; deze uitslag claimt geen reeds uitgevoerde controle van latere bronwijzigingen.
+
+| Werkelijk CI-bewijs | Resultaat |
+| --- | --- |
+| Repositorysuite, Python 3.13.16 | **3534 geslaagd in 60,42 s**. |
+| HACS en officiële Hassfest | Beide gates **geslaagd**. |
+| Echte Core 2026.10.0, Python 3.14.2 | Legacy- en actuele SG-fixture **geslaagd**, beide **58 entiteiten op 6 platforms**, **0 fysieke calls**, inclusief beheerderexport/feedback/Store/reload zonder regelwijziging. |
+| Ongewijzigde beta.62-regressiebron | Verwachte startupfout gereproduceerd zonder configuratie te veranderen. |
+| Echte browser-UI | **Geslaagd**, met de hierboven beschreven fixturecontroles en 16 PNG's. |
+
+Publicatie vereist vijf geslaagde actuele gates op de exacte te publiceren bron. De workflow controleert die bronherkomst. Het uiteindelijke workflow-/tag-/publicatiebewijs staat bij [Actions](https://github.com/Stevenva007/solarpilot-home-assistant/actions) en de [beta.67-release](https://github.com/Stevenva007/solarpilot-home-assistant/releases/tag/v1.0.0-beta.67) zodra gepubliceerd. Deze links claimen geen reeds voltooide beta.67-publicatie.
 
 ## Pakketintegriteit
 
