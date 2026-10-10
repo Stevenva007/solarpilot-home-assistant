@@ -1,6 +1,9 @@
 {
   "domain": "solar_pilot",
   "name": "SolarPilot",
+  "after_dependencies": [
+    "shelly"
+  ],
   "codeowners": [
     "@StevenVa007"
   ],
@@ -15,8 +18,5 @@
   "issue_tracker": "https://github.com/StevenVa007/solarpilot-home-assistant/issues",
   "requirements": [],
   "single_config_entry": true,
-  "version": "1.0.0-beta.62",
-  "after_dependencies": [
-    "shelly"
-  ]
+  "version": "1.0.0-beta.62"
 }
