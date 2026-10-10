@@ -68,7 +68,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PYTHONDONTWRITEBYTECODE: "1"
-      SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -81,6 +80,8 @@ jobs:
       - name: Build self-contained preview from this exact release
         run: python -B tools/build_example.py
       - name: Validate warmtepomp states and mobile layout with fictitious data
+        env:
+          SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests
         run: python tools/check_heatpump_overview65.py
       - name: Retain fictitious browser validation screenshots
         if: always()
