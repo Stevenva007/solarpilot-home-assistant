@@ -40,7 +40,7 @@ Omgeving: **Home Assistant Core 2026.10.0 en Python 3.14.2**, geïsoleerd lokaal
 
 De checker vervangt uitsluitend HTTP bind/start en source-IP discovery voor offline uitvoering. De SolarPilot-constructor, migratie, Store, platforms en entiteiten zijn niet gepatcht. Home Assistant opent in deze proef geen HTTP-listener en er wordt geen fysiek apparaat benaderd. De fictieve gebruikersmodus is Alleen bekijken en SG blijft uit.
 
-De nieuwe CI-job **real-ha-startup** gebruikt dezelfde pinned Core-/Pythonversies, controleert deze bekende beta.62-baseline en de nieuwe productie-entry. Publicatie vereist naast de bestaande repository-, HACS- en Hassfest-gates ook een geslaagde real-ha-startup-job. De aangepaste publicatieworkflow/package-regressies zijn afzonderlijk herhaald: **13 geslaagd in 0,66 s**.
+De nieuwe CI-job **real-ha-startup** gebruikt dezelfde pinned Core-/Pythonversies, controleert deze bekende beta.62-baseline en de nieuwe productie-entry. De eerste PR-run bleek in de verse CI-omgeving vóór SolarPilot onvoldoende platformdependencies te hebben: `hass_frontend` ontbrak. De workflow installeert daarom vooraf expliciet de officiële requirements uit de daadwerkelijk geïnstalleerde Core-manifesten voor frontend en Shelly (`home-assistant-frontend==20260930.2` en `aioshelly==13.34.1` voor deze Core), zonder versies te gokken. Dit is een omgevingsfix; de SolarPilot-productiefix verandert niet. Een nieuwe echte Core-workflowrun moet daarna afzonderlijk slagen; deze tekst claimt geen al groene CI. Publicatie vereist naast de bestaande repository-, HACS- en Hassfest-gates ook een geslaagde real-ha-startup-job. De aangepaste publicatieworkflow/package-regressies zijn afzonderlijk herhaald: **13 geslaagd in 0,65 s**.
 
 ## Bewijsgrenzen en upgrade
 
