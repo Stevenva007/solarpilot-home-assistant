@@ -331,15 +331,15 @@ def test_new_records_stamp_collecting_release_old_records_remain_unknown():
     assert 'release' not in runtime.analysis.events[0]
 
 
-def test_dhw_execution_retained_in_samples_and_fast_trace():
+def test_sg_execution_reason_retained_in_samples_and_fast_trace():
     runtime, _, _, _, _ = download_context()
-    original = runtime.dhw.overview
-    runtime.dhw.overview = lambda: {**original(), 'execution': {'allowed': False,
-        'blocking_reason': 'stable solar window not reached', 'wait_s': 35}}
+    original = runtime.sg_boost.overview
+    runtime.sg_boost.overview = lambda: {**original(), 'reason': 'Wacht op stabiel zonneoverschot', 'wait_s': 35, 'requested': False}
     runtime.analysis.capture(1)
     for rows in (runtime.analysis.samples, runtime.analysis.fast):
-        assert rows[-1]['dhw']['execution']['wait_s'] == 35
-        assert rows[-1]['dhw']['execution']['allowed'] is False
+        assert rows[-1]['sg_boost']['wait_s'] == 35
+        assert rows[-1]['sg_boost']['requested'] is False
+        assert rows[-1]['sg_boost']['reason'] == 'Wacht op stabiel zonneoverschot'
 
 
 def test_registration_adds_one_authenticated_route_and_shutdown_cleanup(api, http_view, monkeypatch):

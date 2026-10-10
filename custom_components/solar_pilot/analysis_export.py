@@ -59,10 +59,30 @@ DEVICE_REFERENCE_MAPS = {
     "ev_blocks", "dishwasher_app", "allocations", "control_allocations", "expected_numbers",
 }
 DEVICE_ID_FIELDS = {"id", "device_id", "consumer_id", "battery_id", "replaces_device_id"}
+MAX_ARCHIVE_JSON_DEPTH = 128  # Leave stack room for pseudonyms, deepcopy and JSON.
+
+
+class ArchiveExportError(ValueError):
+    """Fail an archive export explicitly instead of delivering partial history."""
 
 
 def storage_key(entry_id):
     return f"{DOMAIN}.{entry_id}.analysis"
+
+
+def _redacted_string(value):
+    """Apply the same privacy filters to bounded telemetry and full archives."""
+    value = re.sub(r"(?i)[a-z]:\\Users\\[^\\\s]+", "[USER PATH]", value)
+    value = re.sub(r"/home/[^/\s]+", "[USER PATH]", value)
+    value = re.sub(r"https?://[^\s\"<>]+", "[URL REDACTED]", value)
+    value = re.sub(r"(?i)(bearer\s+|(?:token|password|api_key|secret)\s*[:=]\s*)[^\s,;]+", r"\1[REDACTED]", value)
+    value = re.sub(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b", "[TOKEN REDACTED]", value)
+    # A starting boundary avoids repeatedly scanning a long archive string's
+    # same non-email word. It retains the complete address match and makes
+    # filtering full-length evidence practical without an arbitrary cutoff.
+    if "@" in value:
+        value = re.sub(r"(?<![\w.+-])[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "[EMAIL REDACTED]", value)
+    return re.sub(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", "[IP REDACTED]", value)
 
 
 def safe(value, depth=0):
@@ -82,18 +102,72 @@ def safe(value, depth=0):
     if isinstance(value, float):
         return value if math.isfinite(value) else None
     if isinstance(value, str):
-        value = value[:8000]
-        value = re.sub(r"(?i)[a-z]:\\Users\\[^\\\s]+", "[USER PATH]", value)
-        value = re.sub(r"/home/[^/\s]+", "[USER PATH]", value)
-        value = re.sub(r"https?://[^\s\"<>]+", "[URL REDACTED]", value)
-        value = re.sub(r"(?i)(bearer\s+|(?:token|password|api_key|secret)\s*[:=]\s*)[^\s,;]+", r"\1[REDACTED]", value)
-        value = re.sub(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b", "[TOKEN REDACTED]", value)
-        value = re.sub(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "[EMAIL REDACTED]", value)
-        value = re.sub(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", "[IP REDACTED]", value)
-        return value
+        return _redacted_string(value[:8000])
     if value is None or isinstance(value, (int, bool)):
         return value
     return "[unsupported value omitted]"
+
+
+def safe_archive(value):
+    """Detach private migration evidence without telemetry count/string limits.
+
+    The archive came from the existing JSON Store and configuration. Keep every
+    harmless collection item and complete string, while preserving credential
+    redaction. Invalid/cyclic or exceptionally deep non-Store data fails the
+    export explicitly; it is never replaced with truncated history.
+    """
+    ancestors = set()
+
+    def visit(item, depth):
+        if depth > MAX_ARCHIVE_JSON_DEPTH:
+            raise ArchiveExportError("Privéarchief is te diep genest voor een betrouwbare export; er zijn geen archiefgegevens weggelaten.")
+        if isinstance(item, (Mapping, list)):
+            identity = id(item)
+            if identity in ancestors:
+                raise ArchiveExportError("Privéarchief bevat een ongeldige kringverwijzing; export is niet uitgevoerd.")
+            ancestors.add(identity)
+            try:
+                if isinstance(item, Mapping):
+                    if any(not isinstance(key, str) for key in item):
+                        raise ArchiveExportError("Privéarchief bevat ongeldige JSON-sleutels; export is niet uitgevoerd.")
+                    return {key: "[REDACTED]" if PRIVATE_KEYS.search(key) else visit(child, depth + 1)
+                            for key, child in item.items()}
+                return [visit(child, depth + 1) for child in item]
+            finally:
+                ancestors.remove(identity)
+        if isinstance(item, str):
+            return _redacted_string(item)
+        if isinstance(item, float):
+            return item if math.isfinite(item) else None
+        if item is None or isinstance(item, (int, bool)):
+            return item
+        raise ArchiveExportError("Privéarchief bevat gegevens buiten het JSON-formaat; export is niet uitgevoerd.")
+
+    return visit(value, 0)
+
+
+def safe_runtime_snapshot(value):
+    """Grant full archive handling only at the private snapshot's exact path."""
+    if not isinstance(value, Mapping) or "panasonic_archive" not in value:
+        return safe(value)
+    archive = safe_archive(value["panasonic_archive"])
+    result = safe({key: child for key, child in value.items() if key != "panasonic_archive"})
+    result["panasonic_archive"] = archive
+    return result
+
+
+def safe_report(payload):
+    """Keep complete migration evidence through final privacy processing."""
+    components = payload.get("components") if isinstance(payload, Mapping) else None
+    runtime = components.get("runtime_and_models") if isinstance(components, Mapping) else None
+    if not isinstance(runtime, Mapping) or "panasonic_archive" not in runtime:
+        return safe(payload)
+    archive = safe_archive(runtime["panasonic_archive"])
+    detached_runtime = {key: child for key, child in runtime.items() if key != "panasonic_archive"}
+    detached_components = {**components, "runtime_and_models": detached_runtime}
+    result = safe({**payload, "components": detached_components})
+    result["components"]["runtime_and_models"]["panasonic_archive"] = archive
+    return result
 
 
 def entity_refs(value):
@@ -344,9 +418,8 @@ class AnalysisRecorder:
                 reading = r.dishwasher.readings.get(device_id)
                 data["appliance_feedback"] = safe(reading)
                 data["prepared"] = bool(r.dishwasher.tickets.get(device_id, {}).get("armed"))
-        d = r.dhw.overview()
-        fast["dhw"] = {k: safe(d.get(k)) for k in ("status", "reason", "stage", "temperature_c", "actual_target_c", "proposed_target_c", "pending", "fault", "owned", "cooling_block", "manual_hold", "low_temperature", "measured_solar_export_w", "execution")}
-        fast["climate"] = safe(getattr(r.smart_climate.state, "last_decision", None))
+        fast["panasonic"] = safe(r.panasonic.overview())
+        fast["sg_boost"] = safe(r.sg_boost.overview())
         fast["monotonic_s"] = time.monotonic()
         self.fast.append(safe(fast))
         decision = [(i, re.sub(r"\b\d+\s*s\b", "<timer>", str(r.result.reasons.get(i, "")))) for i in r.configs]
@@ -381,10 +454,8 @@ class AnalysisRecorder:
                 self._append("changes", {"ts": wall, "release": VERSION, "entity_id": eid, "state": obj.get("state"), "attributes": static})
             self.last_attributes[eid] = static
             self.last_state[eid] = obj.get("state")
-        d = r.dhw.overview()
         w = r.wallbox_overview()
         snapshot = {**fast, "entities": compact,
-                    "dhw": {k: safe(d.get(k)) for k in ("status", "reason", "temperature_c", "actual_target_c", "proposed_target_c", "stage", "pending", "fault", "owned", "cooling_block", "execution")},
                     "wallbox": {k: safe(w.get(k)) for k in ("state", "reason", "power_w", "demand", "reported_mode", "last_report_age_s", "handover")},
                     "phase": safe(r.phase), "capacity": safe(r.capacity), "prices": safe(r._economy_prices())}
         self._append("samples", safe(snapshot))
@@ -481,13 +552,19 @@ class AnalysisRecorder:
                  "priority_board": r.priority_board.overview,
                  "device_management": r.live_options.overview, "runtime_and_models": r._snapshot, "energy_planning_climate": r.ems_overview,
                  "pv_forecast_diagnostics": r.pv_forecast.diagnostics,
-                 "consumers": r.overview, "wallbox": r.wallbox_overview, "dhw": r.dhw.overview,
+                 "consumers": r.overview, "wallbox": r.wallbox_overview, "panasonic": r.panasonic.overview, "sg_boost": r.sg_boost.overview,
                  "dishwasher": r.dishwasher.snapshot, "dishwasher_app": r.dishwasher_app.snapshot,
                  "consumer_history": r.consumer_history.model.snapshot}
         failures = {}
         for key, call in calls.items():
             try:
-                components[key] = safe(call())
+                components[key] = safe_runtime_snapshot(call()) if key == "runtime_and_models" else safe(call())
+            except ArchiveExportError:
+                raise
+            except RecursionError as err:
+                if key == "runtime_and_models":
+                    raise ArchiveExportError("Privéarchief is te diep genest voor een betrouwbare export; export is niet uitgevoerd.") from err
+                failures[key] = type(err).__name__
             except Exception as err:
                 failures[key] = type(err).__name__
         history = components.get("consumer_history", {})
@@ -495,13 +572,13 @@ class AnalysisRecorder:
             row["sessions"] = [x for x in row.get("sessions", []) if (x.get("end") or x.get("observed_until") or 0) >= cutoff]
             row["events"] = [x for x in row.get("events", []) if x.get("at", 0) >= cutoff]
         payload = {"schema": "solarpilot.analysis", "schema_version": SCHEMA_VERSION, "release": VERSION,
-                   "module_status": {"dishwasher": any(c.get("kind") == "dishwasher" for c in r.configs.values()), "dhw": r.dhw.configured, "climate": r.smart_climate.configured, "battery": r.battery_fleet.configured, "wallbox": r.wallbox_settings.get("enabled", False)},
+                   "module_status": {"dishwasher": any(c.get("kind") == "dishwasher" for c in r.configs.values()), "panasonic_monitor": bool(r.panasonic.overview().get("configured")), "sg_boost": bool(r.sg_boost.config.get("entity_id")), "battery": r.battery_fleet.configured, "wallbox": r.wallbox_settings.get("enabled", False)},
                    "created_at": iso(wall), "requested_hours": hours,
                    "units": {"power": "W", "energy": "kWh", "temperature": "degC", "time": "UTC ISO8601 or unix seconds", "currency": "EUR"},
                    "time_zone": getattr(getattr(r.hass, "config", None), "time_zone", "Europe/Brussels"),
                    "system": {"home_assistant": ha_version, "python": sys.version.split()[0]},
                    "configuration": safe({"site": r.entry.data, "options": {k:v for k,v in r.entry.options.items() if k != "_private_bundle"}}),
-                   "effective_configuration": safe({"settings": r.settings, "devices": r.configs, "dhw": r.dhw.settings,
+                   "effective_configuration": safe({"settings": r.settings, "devices": r.configs, "sg_boost": r.sg_boost.config,
                                                       "wallbox": r.wallbox_settings, "pv_forecast": r.pv_forecast.settings, "analysis": self.settings}),
                    "entities": current, "source_metadata": source_metadata(r.hass, refs), "components": components, "recent_decisions": safe(list(r.logs)),
                    "current_faults": safe({"problem": r.problem, "faults": r.faults, "recovery": r.recovery}),
@@ -538,7 +615,7 @@ class AnalysisRecorder:
 
     @staticmethod
     def finalize(payload, include_names=False):
-        payload = safe(payload)
+        payload = safe_report(payload)
         payload["privacy"]["entity_names_included"] = include_names
         refs = list(payload["entities"])
         current = payload["entities"]
@@ -595,7 +672,8 @@ def serialize_report(report):
 def write_compressed_report(report):
     """Write complete JSON incrementally, without a WebSocket size ceiling.
 
-    Only bounded, already captured SolarPilot data is accepted by the caller.
+    Only already captured SolarPilot JSON is accepted by the caller, including
+    the complete private migration archive after credential filtering.
     The temporary file stays outside static paths, is private to the HA process
     and is removed by the authenticated download registry or on worker failure.
     No huge JSON string or base64 copy is constructed on the event loop.

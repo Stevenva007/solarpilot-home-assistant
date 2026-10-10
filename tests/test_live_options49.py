@@ -7,7 +7,6 @@ from custom_components.solar_pilot.live_options import ARCHIVED, PENDING, keyed
 from test_live_config34 import flow_class
 from test_live_options34 import desired
 from test_runtime import build
-from test_thermal_runtime import setup_climate
 
 
 @pytest.mark.parametrize("archives", [None, [], "invalid"])
@@ -90,59 +89,10 @@ async def test_pending_options_form_can_cancel_a_malformed_top_level_collection(
     assert not runtime.entry.options[PENDING] and not hass.services.calls
 
 
-@pytest.mark.parametrize("flag", ["enabled", "control_enabled"])
-@pytest.mark.asyncio
-async def test_climate_deactivation_waits_for_owned_off_to_be_released(flag):
-    runtime, hass = setup_climate(control=True, mode="off")
-    manager = runtime.smart_climate
-    manager.state.expected_mode = {"climate.home": "off"}
-    before = deepcopy(runtime.entry.options)
-    after = deepcopy(before)
-    after["smart_climate"][flag] = False
-
-    await runtime.live_options.submit(before, after)
-    await runtime.live_options.process_pending()
-
-    assert "group:smart_climate" in runtime.entry.options[PENDING]
-    assert manager.settings[flag] is True
-    assert manager.state.expected_mode == {"climate.home": "off"}
-    assert not hass.services.calls
-    manager.state.expected_mode.clear()
-    await runtime.live_options.process_pending()
-    assert manager.settings[flag] is False and not runtime.entry.options[PENDING]
 
 
-@pytest.mark.asyncio
-async def test_missing_owned_climate_zone_cannot_let_deactivation_discard_its_lease():
-    runtime, hass = setup_climate(control=True, mode="off")
-    manager = runtime.smart_climate
-    manager.state.expected_mode = {"climate.home": "off"}
-    hass.states.set("climate.home", "unavailable")
-    before = deepcopy(runtime.entry.options)
-    after = deepcopy(before)
-    after["smart_climate"]["control_enabled"] = False
-
-    await runtime.live_options.submit(before, after)
-
-    assert "group:smart_climate" in runtime.entry.options[PENDING]
-    assert manager.settings["control_enabled"] is True
-    assert manager.state.expected_mode == {"climate.home": "off"}
-    assert not hass.services.calls
 
 
-@pytest.mark.asyncio
-async def test_sensitive_site_binding_edit_waits_for_pending_climate_command():
-    runtime, hass = setup_climate(control=True)
-    manager = runtime.smart_climate
-    manager.pending_commands["climate.home"] = {"mode": "off"}
-    before = deepcopy(runtime.entry.options)
-    after = {**before, "settings": {"grid_entity": "sensor.new_grid"}}
-
-    await runtime.live_options.submit(before, after)
-
-    assert "group:settings" in runtime.entry.options[PENDING]
-    assert runtime.settings["grid_entity"] == "sensor.grid"
-    assert not hass.services.calls
 
 
 def test_invalid_archived_option_rows_do_not_break_management_overview():

@@ -14,7 +14,7 @@ from .wallbox_profile import PROFILE_DEFAULTS, validate_profile
 from .wallbox_policy import SESSION_DEFAULTS, RECLAIM_POLICIES, discover_session_candidate
 from .pv_forecast_source import PV_FORECAST_DEFAULTS, ENTITY_ROLES, finite
 from .house_first import HOUSE_DEFAULTS
-from .dhw_config import DHWOptionsMixin
+from .sg_config import SG_DEFAULTS, normalize_config as normalize_sg, source_errors as sg_errors
 from .live_config import LiveOptionsMixin
 from .dishwasher_config import DishwasherOptionsMixin
 from .dishwasher import normalize_config as normalize_dishwasher, config_errors as dishwasher_errors, REFERENCE_KEYS as DISHWASHER_KEYS
@@ -23,7 +23,6 @@ from .unified_planner import UNIFIED_PLANNER_DEFAULTS
 from .pv_model import LOCAL_PV_DEFAULTS
 from .battery_analysis import BATTERY_ANALYSIS_DEFAULTS
 from .battery_fleet import BATTERY_DEFAULTS, BATTERY_FLEET_DEFAULTS
-from .thermal_climate import SMART_CLIMATE_DEFAULTS
 from .first_install import apply_first_install_suggestions
 from .private_bundle import build_private_import, private_bundle_overview, load_private_bundle, bundle_historical_seed
 
@@ -171,7 +170,7 @@ class SolarPilotFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return SolarPilotOptions()
 
 
-class SolarPilotOptions(LiveOptionsMixin, DHWOptionsMixin, DishwasherOptionsMixin, config_entries.OptionsFlow):
+class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries.OptionsFlow):
     def __init__(self):
         self._device = {}
         self._editing = None
@@ -212,8 +211,7 @@ class SolarPilotOptions(LiveOptionsMixin, DHWOptionsMixin, DishwasherOptionsMixi
             "grid": "gekoppeld" if site.get("grid_entity") else "ontbreekt",
             "pv": "gekoppeld" if site.get("pv_entity") else "niet gekoppeld",
             "devices": str(len(opts.get("devices", []))),
-            "dhw": "actief" if opts.get("dhw", {}).get("enabled") else ("gekoppeld" if opts.get("dhw", {}).get("target_entity") else "niet gekoppeld"),
-            "climate": "regeling aan" if opts.get("smart_climate", {}).get("control_enabled") else ("advies" if opts.get("smart_climate", {}).get("enabled") else "uit"),
+            "sg_boost": "automatische zonneboost aan" if opts.get("sg_boost", {}).get("enabled") else "automatische zonneboost uit",
             "wallbox": "monitor actief" if opts.get("wallbox", {}).get("enabled") else "uit",
             "batteries": str(len(opts.get("batteries", []))),
             "conflicts": "geen" if not conflicts else ", ".join(x.get("name", "onbekend") for x in conflicts[:3]),
@@ -228,7 +226,7 @@ class SolarPilotOptions(LiveOptionsMixin, DHWOptionsMixin, DishwasherOptionsMixi
         return self.async_show_menu(step_id="loads_hub", menu_options=["add", "manage_device", "edit", "replace", "remove", "pending_changes"])
 
     async def async_step_comfort_hub(self, user_input=None):
-        return self.async_show_menu(step_id="comfort_hub", menu_options=["dhw", "smart_climate", "smart_climate_advanced"])
+        return self.async_show_menu(step_id="comfort_hub", menu_options=["sg_boost", "sg_sources", "sg_advanced"])
 
     async def async_step_storage_hub(self, user_input=None):
         return self.async_show_menu(step_id="storage_hub", menu_options=["wallbox", "battery", "battery_analysis"])
@@ -341,7 +339,6 @@ class SolarPilotOptions(LiveOptionsMixin, DHWOptionsMixin, DishwasherOptionsMixi
             vol.Required("margin_w", default=c["margin_w"]): num(0, 2000, 50),
             vol.Required("minimum_elapsed_s", default=c["minimum_elapsed_s"]): num(0, 300, 10),
             vol.Required("stale_s", default=c["stale_s"]): num(30, 900, 10),
-            vol.Required("respect_optional_dhw", default=c["respect_optional_dhw"]): selector.BooleanSelector(),
         })
         return self.async_show_form(step_id="capacity", data_schema=schema, errors=errors)
 
@@ -601,88 +598,86 @@ class SolarPilotOptions(LiveOptionsMixin, DHWOptionsMixin, DishwasherOptionsMixi
         return self.async_show_form(step_id="battery_analysis", data_schema=schema, errors=errors)
 
 
-    async def async_step_smart_climate(self, user_input=None):
-        """Primary climate choices: Panasonic keeps HEAT/COOL ownership."""
-        current = {**SMART_CLIMATE_DEFAULTS, **self._base_options().get("smart_climate", {})}
-        if not self._base_options().get("smart_climate"):
-            current = apply_first_install_suggestions(self.hass, current, "smart_climate")
-        c = {**current, **(user_input or {})}
-        errors = {}
-        if user_input is not None:
-            if c["enabled"]:
-                if not c.get("zone_entities"):
-                    errors["zone_entities"] = "required"
-                for entity_id in c.get("zone_entities", []) or []:
-                    obj = self.hass.states.get(entity_id)
-                    modes = {str(x).casefold() for x in (obj.attributes.get("hvac_modes", []) if obj else [])}
-                    if obj is None or not {"auto", "off"}.issubset(modes):
-                        errors["zone_entities"] = "climate_modes"
-                        break
-                weather_id = c.get("weather_entity")
-                if not weather_id or self.hass.states.get(weather_id) is None:
-                    errors["weather_entity"] = "required"
-                outside_id = c.get("outside_temp_entity")
-                if outside_id:
-                    obj = self.hass.states.get(outside_id)
-                    if obj is None or obj.attributes.get("unit_of_measurement") != "°C":
-                        errors["outside_temp_entity"] = "temperature_unit"
-            if c["hard_band_c"] < c["soft_band_c"]:
-                errors["hard_band_c"] = "range"
-            if not errors:
-                opts = deepcopy(dict(self._base_options())); opts["smart_climate"] = {**current, **user_input}
-                return await self._save(opts)
-        schema = vol.Schema({
-            vol.Required("enabled", default=c["enabled"]): selector.BooleanSelector(),
-            vol.Required("control_enabled", default=c["control_enabled"]): selector.BooleanSelector(),
-            vol.Required("automatic_zone_control", default=c["automatic_zone_control"]): selector.BooleanSelector(),
-            vol.Optional("zone_entities", default=c.get("zone_entities", [])): selector.EntitySelector({"domain": ["climate"], "multiple": True}),
-            optional("weather_entity", c): entity(["weather"]),
-            optional("outside_temp_entity", c): entity(["sensor", "input_number"]),
-            vol.Required("soft_band_c", default=c["soft_band_c"]): num(0.2, 3, 0.1),
-            vol.Required("hard_band_c", default=c["hard_band_c"]): num(0.3, 5, 0.1),
-            vol.Required("decision_interval_h", default=c["decision_interval_h"]): num(6, 24, 1),
-            vol.Required("forecast_horizon_h", default=c["forecast_horizon_h"]): num(12, 72, 1),
-        })
-        return self.async_show_form(step_id="smart_climate", data_schema=schema, errors=errors)
+    def _sg_values(self):
+        current = normalize_sg(self._base_options().get("sg_boost", {}))
+        if not self._base_options().get("sg_boost"):
+            current = apply_first_install_suggestions(self.hass, current, "sg_boost")
+        return current
 
-    async def async_step_smart_climate_advanced(self, user_input=None):
-        current = {**SMART_CLIMATE_DEFAULTS, **self._base_options().get("smart_climate", {})}
-        c = {**current, **(user_input or {})}
-        errors = {}
-        if user_input is not None:
-            if c["learning_min_days"] < 2 or c["learning_min_samples"] < 6:
-                errors["learning_min_samples"] = "range"
-            if c["hard_band_c"] < c["soft_band_c"]:
-                errors["hard_band_c"] = "range"
-            if c["season_extreme_delta_c"] <= c["shoulder_band_c"]:
-                errors["season_extreme_delta_c"] = "range"
-            if c["solar_preconditioning_enabled"] and not self._site().get("pv_entity"):
-                errors["precondition_min_pv_w"] = "dhw_pv_required"
-            if not errors:
-                opts = deepcopy(dict(self._base_options())); opts["smart_climate"] = {**current, **user_input}
-                return await self._save(opts)
-        schema = vol.Schema({
-            vol.Required("automatic_min_run_h", default=c["automatic_min_run_h"]): num(.25, 12, .25),
-            vol.Required("automatic_min_off_h", default=c["automatic_min_off_h"]): num(.25, 12, .25),
-            vol.Required("forecast_refresh_s", default=c["forecast_refresh_s"]): num(900, 21600, 300),
-            vol.Required("shoulder_band_c", default=c["shoulder_band_c"]): num(0.5, 6, 0.5),
-            vol.Required("season_extreme_delta_c", default=c["season_extreme_delta_c"]): num(1.5, 12, 0.5),
-            vol.Required("allow_winter_summer_coast", default=c["allow_winter_summer_coast"]): selector.BooleanSelector(),
-            vol.Required("min_coast_window_h", default=c["min_coast_window_h"]): num(2, 24, 1),
-            vol.Required("min_state_hold_h", default=c["min_state_hold_h"]): num(2, 24, 1),
-            vol.Required("thermal_start_margin_h", default=c["thermal_start_margin_h"]): num(0, 12, 0.5),
-            vol.Required("manual_hold_h", default=c["manual_hold_h"]): num(1, 72, 1),
-            vol.Required("sample_interval_s", default=c["sample_interval_s"]): num(300, 3600, 300),
-            vol.Required("learning_min_samples", default=c["learning_min_samples"]): num(6, 240, 1),
-            vol.Required("learning_min_days", default=c["learning_min_days"]): num(2, 30, 1),
-            vol.Required("model_confidence_min", default=c["model_confidence_min"]): num(.25, .95, .05),
-            vol.Required("solar_preconditioning_enabled", default=c["solar_preconditioning_enabled"]): selector.BooleanSelector(),
-            vol.Required("precondition_min_pv_w", default=c["precondition_min_pv_w"]): num(0, 20000, 100),
-            vol.Required("solar_precondition_extra_lead_h", default=c["solar_precondition_extra_lead_h"]): num(0, 12, 0.5),
-            vol.Required("max_commands_per_day", default=c["max_commands_per_day"]): num(1, 6, 1),
-            vol.Required("stale_s", default=c["stale_s"]): num(300, 7200, 60),
-        })
-        return self.async_show_form(step_id="smart_climate_advanced", data_schema=schema, errors=errors)
+    def _refresh_sg_base(self):
+        """Reopen one SG form with current proof; retain other edit baselines."""
+        entry = getattr(self, "config_entry", None)
+        if entry is not None:
+            self._base_options()["sg_boost"] = deepcopy(entry.options.get("sg_boost", {}))
+
+    def _sg_errors(self, values):
+        return sg_errors(self.hass, values, site=self._site(),
+                         devices=self._base_options().get("devices", []),
+                         wallbox=self._base_options().get("wallbox", {}),
+                         batteries=self._base_options().get("batteries", []))
+
+    async def _sg_save_form(self, step_id, user_input, schema, *, cleared=()):
+        if user_input is None:
+            self._refresh_sg_base()
+        current = self._sg_values()
+        candidate = {**current, **{k: deepcopy(SG_DEFAULTS[k]) for k in cleared}, **(user_input or {})}
+        # Changing a physical endpoint invalidates commissioning proof even if
+        # an old browser form retains both checked boxes.
+        if user_input is not None and candidate["entity_id"] != current["entity_id"]:
+            candidate.update(enabled=False, commissioning_confirmed=False, watchdog_confirmed=False)
+        errors = self._sg_errors(candidate) if user_input is not None else {}
+        entry = getattr(self, "config_entry", None)
+        if user_input is not None and entry is not None and normalize_sg(entry.options.get("sg_boost", {})) != current:
+            # A firmware/device change may revoke both checked proofs while
+            # this form is open. Require a fresh review rather than treating
+            # stale checked boxes as a new commissioning decision.
+            self._refresh_sg_base()
+            candidate = self._sg_values()
+            errors = {"base": "sg_reopen"}
+        if user_input is not None and not errors:
+            opts = deepcopy(dict(self._base_options()))
+            opts["sg_boost"] = normalize_sg(candidate)
+            return await self._save(opts)
+        return self.async_show_form(step_id=step_id, data_schema=vol.Schema(schema(candidate)), errors=errors)
+
+    async def async_step_sg_boost(self, user_input=None):
+        def schema(c):
+            return {
+                optional("entity_id", c): entity(["switch"]),
+                vol.Required("enabled", default=c["enabled"]): selector.BooleanSelector(),
+                vol.Required("commissioning_confirmed", default=c["commissioning_confirmed"]): selector.BooleanSelector(),
+                vol.Required("watchdog_confirmed", default=c["watchdog_confirmed"]): selector.BooleanSelector(),
+                vol.Required("threshold_w", default=c["threshold_w"]): num(500, 20000, 50),
+                vol.Required("expected_power_w", default=c["expected_power_w"]): num(100, 30000, 50),
+            }
+        return await self._sg_save_form("sg_boost", user_input, schema, cleared=("entity_id",) if user_input is not None else ())
+
+    async def async_step_sg_sources(self, user_input=None):
+        def schema(c):
+            return {
+                optional("tank_temperature_entity", c): entity(["sensor", "water_heater", "climate"]),
+                optional("tank_target_entity", c): entity(["water_heater", "climate", "number", "sensor"]),
+                optional("power_entity", c): entity(["sensor"]),
+                vol.Required("power_scope", default=c["power_scope"]): selector.SelectSelector({"options": [
+                    {"value": "unconfirmed", "label": "Dekking nog niet bevestigd"},
+                    {"value": "total", "label": "Hele warmtepomp inclusief elektrische hulp"},
+                    {"value": "supply1", "label": "Alleen voeding 1 — gedeeltelijke meting"},
+                    {"value": "supply2", "label": "Alleen voeding 2 — gedeeltelijke meting"}]}),
+                optional("activity_entity", c): entity(["sensor", "binary_sensor"]),
+                vol.Optional("zone_entities", default=c["zone_entities"]): selector.EntitySelector({"domain": ["climate"], "multiple": True}),
+            }
+        return await self._sg_save_form("sg_sources", user_input, schema,
+            cleared=("tank_temperature_entity", "tank_target_entity", "power_entity", "activity_entity", "zone_entities") if user_input is not None else ())
+
+    async def async_step_sg_advanced(self, user_input=None):
+        def schema(c):
+            return {vol.Required(k, default=c[k]): num(low, high, step) for k, low, high, step in (
+                ("start_delay_s", 30, 1800, 10), ("stop_delay_s", 5, 600, 5),
+                ("hysteresis_w", 0, 5000, 50), ("rest_s", 60, 7200, 60),
+                ("max_session_s", 300, 14400, 60), ("lease_s", 60, 600, 30),
+                ("renew_s", 10, 120, 10), ("ack_timeout_s", 5, 60, 1),
+                ("stale_s", 15, 600, 5))}
+        return await self._sg_save_form("sg_advanced", user_input, schema)
 
     async def async_step_battery(self, user_input=None):
         return self.async_show_menu(step_id="battery", menu_options=["battery_settings", "battery_add", "battery_edit", "battery_remove"])
@@ -862,7 +857,6 @@ class SolarPilotOptions(LiveOptionsMixin, DHWOptionsMixin, DishwasherOptionsMixi
             optional("mode_entity", c): entity(["select", "sensor", "input_select"]),
             optional("session_mode_entity", c): entity(["sensor", "select", "input_select"]),
             vol.Required("trust_solar_setting", default=c["trust_solar_setting"]): selector.BooleanSelector(),
-            vol.Required("manual_suspend_extra_dhw", default=c["manual_suspend_extra_dhw"]): selector.BooleanSelector(),
             vol.Required("charging_threshold_w", default=c["charging_threshold_w"]): num(10, 1000, 10),
             vol.Required("priority_min_power_w", default=c["priority_min_power_w"]): num(0, 22000, 10),
             vol.Required("priority_start_margin_w", default=c["priority_start_margin_w"]): num(0, 2000, 10),
@@ -1000,10 +994,14 @@ class SolarPilotOptions(LiveOptionsMixin, DHWOptionsMixin, DishwasherOptionsMixi
             for other in self._base_options().get("devices", []):
                 if other["id"] not in (d["id"], d.get("replaces_device_id")) and references & {other.get(k) for k in ("control_entity", "active_entity", "number_entity", "start_script", "stop_script")}:
                     errors["base"] = "duplicate"
-            dhw = self._base_options().get("dhw", {})
-            if dhw.get("target_entity") in references:
-                errors["base"] = "duplicate"
-            if d.get("power_entity") and d["power_entity"] == dhw.get("power_entity"):
+            sg = self._base_options().get("sg_boost", {})
+            if sg.get("entity_id") and sg["entity_id"] in references:
+                errors["base"] = "sg_duplicate"
+            monitor_refs = {sg.get(k) for k in ("tank_target_entity", "tank_temperature_entity", "activity_entity")}
+            monitor_refs.update(sg.get("zone_entities", []))
+            if references & (monitor_refs - {None, ""}):
+                errors["base"] = "panasonic_read_only"
+            if d.get("power_entity") and d["power_entity"] == sg.get("power_entity"):
                 errors["power_entity"] = "dedicated_meter"
             if d.get("start_script") and d.get("start_script") == d.get("stop_script"):
                 errors["base"] = "duplicate"

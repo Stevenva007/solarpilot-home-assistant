@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.0-beta.62 — Panasonic zelfstandig, één SG-zonneboost
+
+- Verwijdert de actieve directe tankdoel-, nacht-/voorraad- en klimaat-AUTO/UIT-regeling, inclusief exclusieve ACK-, eigendom-, retry-, herstel- en dashboardpaden. Panasonic blijft eigenaar van comfort, compressor, elektrische ondersteuning en fabrikantprogramma’s.
+- Eén expliciet gekozen bestaande Shelly-uitgang met native lokaal aflopende toestemming is de enige warmtepompactuator. Nieuwe automatische SG staat uit tot juiste mapping/native basis, één eigenaar en echte timerproef bevestigd zijn. Aanvraag, relais en Panasonic-reactie blijven apart; geen universele tanktemperatuurformule.
+- Begrensde SG-start/stop/rust/sessies en leasevernieuwing, actuele P1/PV/fasevoorwaarden en centrale prioriteiten voorkomen oude opdrachtreplay en hergebruik van onbewezen ruimte. Gedeelde/partiële warmtepompmetingen en elektrische ondersteuning worden niet dubbel of volledig terugwinbaar gerekend.
+- Idempotente privéarchivering van oude configuratie/opslag en relevante fout-/opdrachtgegevens. Geen fysieke opdracht door migratie; behoud gebruikersvolgorde, globale hervatkeuze, AEG-tickets, batterij-/toestelfouten, modellen en bestaande retentie. Uitsluitend aantoonbaar vervallen writerfouten verliezen gerichte blokkade, zonder fysiek herstel te claimen.
+- Eén compacte Warmtepomp — Panasonic-regeling, read-only native bronnen, begrijpelijke SG-redenen en vaste openstaat-ids. Oude tank-/heater-/klimaatknoppen en optiehulp verdwijnen; overige PV/netkleuren, Recorder/presentatie, historie en privé-export blijven behouden.
+- Behoud change-only gerichte HA-controlemeldingen; vervallen DHW-/klimaatreviewbijdragen verdwijnen. Een echte SG-fout meldt de lokale controle zonder gezonde andere lasten algemeen te pauzeren. Herstart kan een verdwenen blijvende melding eenmaal opnieuw aanmaken met hetzelfde stabiele id.
+- Contractmapping en nieuwe SG-/migratie-/single-owner-/UI-regressies onderscheiden bewuste functieverwijdering van behouden apparaten. Software/publicatie en lokale fysieke timer-/Panasonicacceptatie blijven afzonderlijke bewijslagen. Definitieve uitkomsten in `docs/TESTRESULTATEN_BETA62.md`; upgrade/ingebruikname/rollback met passende privé-opslag in `docs/BETA62_INSTELLEN.md`.
+- Na de maximale sessie (standaard één uur) voorkomt een bewaarde wachtstand herhaling zonder nieuw bewijs. Na rust laat minstens 2 °C tankafkoeling ten opzichte van de verse same-binding eindmeting, bevestigd door twee nieuwe rapporten over vijf minuten, opnieuw zon beoordelen. Dit bewijst opslagruimte, geen SG-succes. Ontbrekende/gewijzigde/onbetrouwbare tankdata houden vast; bewuste hervatting na controle blijft mogelijk. Gewone importvrijgave kan na rust automatisch opnieuw worden beoordeeld.
+- Definitieve lokale softwaregate: **2809 tests geslaagd in 31,45 s**. Publieke preflight, SG-grens, overdracht, actuele uitleg/mirrors, syntax en diff zijn groen. Publicatie krijgt eigen nieuwe CI-/tag-/download-/hashbewijs; volledige browser/render-, Home Assistant- en fysieke Shelly-/Panasonicacceptatie zijn niet uitgevoerd.
+
 ## 1.0.0-beta.61 — 2026-10-07
 
 - Herbeoordeelt bekende DHW-bevestigings-/servicefouten automatisch met een apart persistent same-binding hersteljournal. Late werkelijk nieuwe requested-targetrapportage na de fout kan bevestigen; twee gelijke nieuwe normale native doelrapportages over minstens 60 seconden kunnen onzeker eigendom veilig loslaten. Geen temperatuurwrite of oude opdrachtreplay in de hercontroleronde.

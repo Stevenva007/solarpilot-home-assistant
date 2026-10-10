@@ -19,14 +19,13 @@ from test_runtime import build
 def metered_heatpump(*, tank=False, task=None):
     runtime, hass = build(settings={"pv_entity": "sensor.pv"})
     hass.states.set("sensor.pv", 3000, {"unit_of_measurement": "W"})
-    runtime.smart_climate.settings.update(zone_entities=["climate.zone"])
+    runtime.panasonic.settings.update(zone_entities=["climate.zone"])
     hass.states.set("climate.zone", "off", {"hvac_action": "off"})
-    runtime.dhw.settings["hygiene_schedule_enabled"] = False
     if tank:
-        runtime.dhw.config["target_entity"] = "water_heater.tank"
+        runtime.panasonic.settings["tank_target_entity"] = "water_heater.tank"
         hass.states.set("water_heater.tank", "heat", {"hvac_action": "idle"})
     if task is not None:
-        runtime.dhw.config["space_activity_entity"] = "sensor.task"
+        runtime.panasonic.settings["activity_entity"] = "sensor.task"
         hass.states.set("sensor.task", task)
     return runtime, hass
 
@@ -58,6 +57,10 @@ def invalidate(hass, entity_id, invalid):
         value = {"nan": float("nan"), "inf": float("inf"),
                  "bool": True, "string_result": str(time.time())}[invalid]
         obj.last_reported = NS(timestamp=lambda: value)
+    elif invalid == "os_error":
+        def invalid_timestamp():
+            raise OSError("public fixture invalid clock")
+        obj.last_reported = NS(timestamp=invalid_timestamp)
     elif invalid == "future":
         obj.last_reported = datetime.fromtimestamp(time.time() + 120, timezone.utc)
     elif invalid == "stale":
@@ -71,7 +74,7 @@ def invalidate(hass, entity_id, invalid):
 @pytest.mark.parametrize("invalid", [
     "missing", "unknown", "unavailable", "blank", "restored_old", "restored_fresh",
     "missing_stamp", "malformed_stamp", "empty_stamp", "zero_stamp",
-    "nan", "inf", "bool", "string_result", "future", "stale",
+    "nan", "inf", "bool", "string_result", "os_error", "future", "stale",
 ])
 def test_unreliable_activity_cannot_train_household_or_active_power(role, action, invalid):
     runtime, hass = metered_heatpump(tank=role == "tank")
@@ -89,14 +92,14 @@ def test_unreliable_activity_cannot_train_household_or_active_power(role, action
 
 
 @pytest.mark.parametrize("role,age,short,long", [
-    ("zone", 1000, 900, 1800),
+    ("zone", 450, 300, 600),
     ("tank", 450, 300, 600),
 ])
 @pytest.mark.parametrize("action", ["heating", "idle"])
-def test_each_activity_report_uses_its_own_manager_freshness_limit(role, age, short, long, action):
+def test_each_native_activity_report_uses_shared_read_only_freshness_limit(role, age, short, long, action):
     runtime, hass = metered_heatpump(tank=role == "tank")
     entity_id = "climate.zone" if role == "zone" else "water_heater.tank"
-    manager = runtime.smart_climate if role == "zone" else runtime.dhw
+    manager = runtime.panasonic
     hass.states.set(entity_id, "auto", {"hvac_action": action}, reported_age=age)
 
     manager.settings["stale_s"] = short
@@ -136,7 +139,7 @@ def test_recent_reported_timestamp_can_refresh_unchanged_native_state(role):
 
 def test_missing_zone_is_unknown_despite_off_sibling_and_idle_task():
     runtime, hass = metered_heatpump(tank=True, task="IDLE")
-    runtime.smart_climate.settings["zone_entities"].append("climate.missing")
+    runtime.panasonic.settings["zone_entities"].append("climate.missing")
 
     assert observe(runtime)["context"] == CONTEXT_UNKNOWN
     assert runtime.unified_planner.base_load.accepted == 0
@@ -148,7 +151,7 @@ def test_missing_zone_is_unknown_despite_off_sibling_and_idle_task():
 ])
 def test_explicit_active_sibling_keeps_safe_classification_with_missing_zone(action, expected):
     runtime, hass = metered_heatpump(task="PUMP")
-    runtime.smart_climate.settings["zone_entities"].append("climate.missing")
+    runtime.panasonic.settings["zone_entities"].append("climate.missing")
     hass.states.get("climate.zone").attributes["hvac_action"] = action
 
     assert observe(runtime)["context"] == expected
@@ -168,7 +171,7 @@ def test_ambiguous_task_is_not_normal_even_when_native_zone_off_and_tank_idle(ta
 @pytest.mark.parametrize("report", ["missing", "old", "no_timestamp"])
 def test_numeric_boiler_setpoint_without_activity_remains_optional(entity_id, report):
     runtime, hass = metered_heatpump(task="IDLE")
-    runtime.dhw.config["target_entity"] = entity_id
+    runtime.panasonic.settings["tank_target_entity"] = entity_id
     if report != "missing":
         hass.states.set(entity_id, 50, {"unit_of_measurement": "°C"}, age=30 * 86400)
         if report == "no_timestamp":

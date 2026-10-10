@@ -9,7 +9,6 @@ from test_battery_runtime import setup_battery
 from test_dishwasher_app31 import configured, move, ready
 from test_house_runtime import setup as setup_house, tick as house_tick
 from test_runtime import build
-from test_thermal_runtime import setup_climate
 
 
 def attach_battery(runtime, hass):
@@ -177,30 +176,6 @@ async def test_pending_battery_does_not_prevent_safe_flexible_load_reduction():
     assert hass.services.calls == [("switch", "turn_off", {"entity_id": "switch.load"})]
 
 
-@pytest.mark.asyncio
-async def test_pending_battery_defers_climate_removal_release_until_ack():
-    runtime, hass = setup_climate(control=True, mode="off")
-    attach_battery(runtime, hass)
-    runtime.smart_climate.state.expected_mode["climate.home"] = "off"
-    await runtime.battery_fleet._send("bat1", -1800)
-    hass.services.calls.clear()
-
-    await runtime.prepare_removal()
-
-    assert runtime.battery_fleet.busy
-    assert not runtime.smart_climate.busy
-    assert hass.states.get("climate.home").state == "off"
-    assert not [call for call in hass.services.calls if call[0] == "climate"]
-    hass.states.set("sensor.bat_power", -1800, {"unit_of_measurement": "W"})
-    await runtime.tick()
-    assert not runtime.battery_fleet.busy
-    await runtime.tick()
-    await runtime.tick()
-    assert runtime.smart_climate.busy
-    assert [call for call in hass.services.calls if call[0] == "climate"] == [
-        ("climate", "set_hvac_mode", {"entity_id": "climate.home", "hvac_mode": "auto"}),
-    ]
-    assert hass.states.get("climate.salon").state == "off"
 
 
 @pytest.mark.asyncio

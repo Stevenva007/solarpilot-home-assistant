@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from test_runtime import build
-from test_sensor_recorder59 import sensor
+from test_sensor_recorder59 import sensor, archived_climate
 
 
 RECORDER_ATTRIBUTE_LIMIT = 16_384
@@ -37,15 +37,20 @@ def recorded(entity, live):
 
 def test_real_learning_switch_payload_stays_below_recorder_limit_with_all_live_models():
     runtime, hass = build()
+    archived = archived_climate(runtime)
     entity = switch(runtime)
 
     live = entity.extra_state_attributes
     history = recorded(entity, live)
 
-    # Even an empty installation's real climate catalogue is larger than the
-    # Recorder limit; no artificial giant string is required to reproduce it.
-    assert payload_bytes(live) > RECORDER_ATTRIBUTE_LIMIT
-    assert live["thermal_model"]["settings_catalog"]
+    # Archived observations remain private and lossless; HA receives only a
+    # bounded availability summary on every policy-state publication.
+    assert payload_bytes(archived) > RECORDER_ATTRIBUTE_LIMIT
+    assert payload_bytes(live) < RECORDER_ATTRIBUTE_LIMIT
+    assert live["thermal_model"]["archive_available"] is True
+    assert live["thermal_model"]["read_only"] is True and "archived" not in live["thermal_model"]
+    assert runtime._snapshot()["panasonic_archive"]["backup_store"]["smart_climate"] == archived
+    assert runtime.analysis.prepare(hours=168)["components"]["runtime_and_models"]["panasonic_archive"]["backup_store"]["smart_climate"] == archived
     assert "pv_model" in live and "phase_learning" in live and "profiles" in live
     assert payload_bytes(history) < RECORDER_ATTRIBUTE_LIMIT
     assert history["status"] == live["status"]
@@ -112,7 +117,7 @@ def test_learning_switch_retains_fallback_for_a_runtime_without_presentation_cac
     assert calls == ["learning"]
 
 
-@pytest.mark.parametrize("suffix", ["others_first", "auto_resume_after_restart", "dhw_enabled"])
+@pytest.mark.parametrize("suffix", ["others_first", "auto_resume_after_restart", "sg_boost_enabled"])
 def test_other_policy_switches_keep_their_current_attributes_and_avoid_learning_models(suffix, monkeypatch):
     runtime, hass = build()
 
@@ -125,10 +130,10 @@ def test_other_policy_switches_keep_their_current_attributes_and_avoid_learning_
 
     live = entity.extra_state_attributes
 
-    if suffix == "dhw_enabled":
-        assert live == runtime.dhw.overview()
-        assert live["configured"] == runtime.dhw.configured
-        assert entity.is_on == runtime.dhw.auto_enabled
+    if suffix == "sg_boost_enabled":
+        assert live == runtime.sg_boost.overview()
+        assert live["configured"] == runtime.sg_boost.configured
+        assert entity.is_on == runtime.sg_boost.auto_enabled
     elif suffix == "others_first":
         assert live["wallbox_read_only"] is True
         assert entity.is_on == runtime.others_first
@@ -147,14 +152,7 @@ async def test_switch_recorder_filter_preserves_stored_profiles_and_complete_ana
         {"shares": [1.0, 0.0, 0.0], "device_delta_w": 200, "day": "2026-10-06",
          "source": "passive", "weight": 1.0},
     ]}
-    hass.states.set("climate.zone", "off", {
-        "current_temperature": 21, "temperature": 21, "temperature_unit": "°C",
-        "hvac_action": "off", "hvac_modes": ["off", "auto"],
-    })
-    runtime.smart_climate.settings["zone_entities"] = ["climate.zone"]
-    profile = runtime.smart_climate.state.profile("climate.zone")
-    profile.passive_k, profile.samples = [0.015] * 6, 12
-    profile.days = {"2026-10-05", "2026-10-06"}
+    archived = archived_climate(runtime)
     before = deepcopy(runtime._snapshot())
     configuration = deepcopy((runtime.entry.data, runtime.entry.options))
     await runtime.store.async_save(before)
@@ -168,12 +166,13 @@ async def test_switch_recorder_filter_preserves_stored_profiles_and_complete_ana
 
     assert runtime.store.data == before
     assert (runtime.entry.data, runtime.entry.options) == configuration
-    for key in ("learning", "phase_learning", "smart_climate", "pv_forecast", "local_pv"):
+    for key in ("learning", "phase_learning", "panasonic_archive", "pv_forecast", "local_pv"):
         assert runtime._snapshot()[key] == before[key]
         assert report["components"]["runtime_and_models"][key] == before[key]
     exported = report["components"]["energy_planning_climate"]
-    assert exported["smart_climate"]["profiles"]["climate.zone"]["samples"] == 12
-    assert exported["smart_climate"]["settings_catalog"]
+    assert report["components"]["runtime_and_models"]["panasonic_archive"]["backup_store"]["smart_climate"] == archived
+    assert exported["panasonic"]["read_only"] is True
+    assert "smart_climate" not in exported
     assert exported["phase_learning"]["devices"]["a"]["samples"] == 1
     assert report["coverage"]["section_errors"] == {}
     assert not hass.services.calls

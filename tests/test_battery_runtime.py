@@ -17,6 +17,17 @@ def setup_battery(*, global_control=False, profile_control=False, exclusive=Fals
     r.entry.options['battery_fleet']={**BATTERY_FLEET_DEFAULTS,'enabled':True,'control_enabled':global_control,'charge_reserve_w':0}
     r.entry.options['batteries']=[profile]
     r.battery_fleet=BatteryFleetManager(r)
+    # Actual loaded sequences prove the signed-power script target remains the
+    # independent battery actuator. A script name alone grants no authority.
+    scripts = {
+        entity: SimpleNamespace(script=SimpleNamespace(sequence=[{
+            'action': 'number.set_value',
+            'target': {'entity_id': 'number.bat_setpoint'},
+            'data': {'value': '{{ signed_power_w }}'},
+        }])) for entity in ('script.charge', 'script.discharge', 'script.idle')
+    }
+    ordinary_lookup = r.hass.data['script'].get_entity
+    r.hass.data['script'] = SimpleNamespace(get_entity=lambda entity: scripts.get(entity) or ordinary_lookup(entity))
     return r,h
 
 

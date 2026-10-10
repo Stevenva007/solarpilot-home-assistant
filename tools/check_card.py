@@ -38,48 +38,51 @@ with sync_playwright() as p:
     assert "Volledig zonneladen" in page.locator("solar-pilot-card >> .external:not(.wallbox-priority)").inner_text()
     assert page.locator("solar-pilot-card >> .phasepill").count() == 2
 
-    # Comfort is one logical page containing DHW + the complete climate Control Center.
+    # Panasonic has one compact SG request panel; every native value is read-only.
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="comfort"]').click()
-    assert page.locator("solar-pilot-card >> .dhw").count() == 1
-    assert page.locator("solar-pilot-card >> .climate").count() == 1
-    assert "46,2 °C" in page.locator("solar-pilot-card >> .dhw").inner_text()
-    page.locator("solar-pilot-card >> details.dhw-rules summary").click()
-    assert page.locator("solar-pilot-card >> input[data-dhw-setting]").count() == 9
-    assert page.locator('solar-pilot-card >> [data-action="dhw_enabled"]').get_attribute('aria-checked') == 'true'
-    # A manual hold remains recoverable even when no general review flag is set.
-    page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');window.cleanDhw=structuredClone(c._last.attributes);
-      const a=structuredClone(c._last.attributes);a.mode='solar';a.dhw.needs_review=false;a.dhw.manual_override_active=true;a.dhw.manual_hold=true;a.dhw.pending=false;
-      const state=c._hass.states[c._entity];c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{...state,attributes:a}}};}""")
-    resume=page.locator('solar-pilot-card >> [data-action="dhw_review"]')
-    assert resume.is_visible() and resume.is_disabled()
-    assert 'Kies eerst Pauze' in page.locator('solar-pilot-card >> .dhw').inner_text()
-    page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');const a=structuredClone(c._last.attributes);a.mode='paused';a.dhw.pending=true;
-      const state=c._hass.states[c._entity];c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{...state,attributes:a}}};}""")
-    assert resume.is_disabled()
-    page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');const a=structuredClone(c._last.attributes);a.dhw.pending=false;
-      const state=c._hass.states[c._entity];c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{...state,attributes:a}}};window.resumeCalls=[];c._hass.callService=async(domain,service,data)=>resumeCalls.push({domain,service,data});window.confirm=()=>true;}""")
-    assert resume.is_enabled()
-    resume.click()
+    panel = page.locator("solar-pilot-card >> .heatpump-sg")
+    assert panel.count() == 1
+    assert "Warmtepomp — Panasonic-regeling" in panel.inner_text()
+    assert "46,2 °C" in panel.inner_text()
+    assert "SG-contact actief; Panasonic-reactie niet afzonderlijk bevestigd" in panel.inner_text()
+    assert page.locator("solar-pilot-card >> [data-dhw-setting], solar-pilot-card >> [data-climate-setting]").count() == 0
+    assert panel.locator('[role="switch"]').count() == 1
+    assert panel.locator('[data-action="sg_boost_enabled"]').get_attribute('aria-checked') == 'true'
+    panel.locator('details[data-ui-key="sg:comfort:details"] > summary').click()
+    assert "Niet afzonderlijk bevestigd" in panel.inner_text()
+    assert "50 °C" in panel.inner_text()
+    assert "Alleen voeding 1 · gedeeltelijke meting" in panel.inner_text()
+    panel.locator('details[data-ui-key="sg:comfort:monitor"] > summary').click()
+    assert "Zone 1" in panel.inner_text() and "Zone 2" in panel.inner_text()
+    # Native source/temperature rows offer no control; policy clicks use one virtual switch.
+    page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');window.cleanSg=structuredClone(c._last.attributes);
+      window.sgCalls=[];c._hass.callService=async(domain,service,data)=>sgCalls.push({domain,service,data});}""")
+    panel.locator('[data-action="sg_boost_enabled"]').click()
     page.wait_for_timeout(20)
-    assert page.evaluate('window.resumeCalls[0]') == {"domain":"button","service":"press","data":{"entity_id":"button.voorbeeld_boilercontrole"}}
+    assert page.evaluate('sgCalls[0]') == {"domain":"switch", "service":"turn_off",
+        "data":{"entity_id":"switch.example_sg_boost_enabled"}}
+    assert panel.locator('[data-action="sg_boost_enabled"]').get_attribute('aria-checked') == 'true'
+    page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');const a=structuredClone(c._last.attributes);
+      a.sg_boost.manual_hold=true;a.sg_boost.state='manual_hold';
+      const state=c._hass.states[c._entity];c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{...state,attributes:a}}};}""")
+    resume=panel.locator('[data-action="sg_boost_resume"]')
+    assert resume.is_visible() and resume.is_enabled()
+    resume.click();page.wait_for_timeout(20)
+    assert page.evaluate('sgCalls[1]') == {"domain":"button", "service":"press",
+        "data":{"entity_id":"button.example_sg_boost_resume"}}
+    # Three honest display states; no Panasonic response is inferred from the relay.
+    for phase in ('requested', 'contact', 'confirmed'):
+        page.evaluate("""phase => {const c=document.querySelector('solar-pilot-card');const a=structuredClone(window.cleanSg);
+          a.sg_boost.desired_on=true;a.sg_boost.relay_on=phase==='requested'?null:true;
+          a.sg_boost.relay_confirmed=phase!=='requested';a.sg_boost.panasonic_confirmed=phase==='confirmed';
+          const state=c._hass.states[c._entity];c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{...state,attributes:a}}};}""", phase)
+        for width in (320,390,768,1280):
+            page.set_viewport_size({"width":width,"height":1000})
+            assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (phase,width)
+            assert panel.evaluate("e=>e.scrollWidth<=e.clientWidth+1"), (phase,width)
+            panel.screenshot(path=str(output/f"SolarPilot-SG-{phase}-{width}.png"))
     page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');const state=c._hass.states[c._entity];
-      c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{...state,attributes:window.cleanDhw}}};}""")
-    climate_text = page.locator("solar-pilot-card >> .climate").text_content()
-    for label in ("Meldingen", "Bevindingen & leren", "Instellingen", "Uitleg", "Lokale weerscorrectie", "Coast-evaluatie"):
-        assert label in climate_text, label
-    assert page.locator("solar-pilot-card >> [data-climate-setting]").count() == 43
-    assert "Advies:" in climate_text and "Lager:" in climate_text and "Hoger:" in climate_text
-    assert "geen raam/deursensoren" in climate_text.lower()
-    page.set_viewport_size({"width":1280,"height":1100})
-    page.screenshot(path=str(output/"SolarPilot-Klimaat-dashboard.png"), full_page=False)
-    # Focused climate Control Center: collapse findings, open settings and capture the climate block itself.
-    findings = page.locator('solar-pilot-card >> .climate-findings')
-    if findings.get_attribute('open'):
-        findings.locator(':scope > summary').click()
-    settings_shell = page.locator('solar-pilot-card >> .climate-settings-shell')
-    if not settings_shell.get_attribute('open'):
-        settings_shell.locator(':scope > summary').click()
-    page.locator('solar-pilot-card >> .climate').screenshot(path=str(output/"SolarPilot-Klimaat-instellingen.png"))
+      c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{...state,attributes:window.cleanSg}}};}""")
     page.set_viewport_size({"width":390,"height":844})
 
     # Planning has its own page: joint horizon, device targets, timeline and editable settings.
@@ -137,7 +140,7 @@ with sync_playwright() as p:
     # Canonical guide has its own tab and the dedicated card still exists.
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="guide"]').click()
     guide_text = page.locator("solar-pilot-card >> .guide").text_content()
-    assert "Sanitair warm water: rustig normaal doel" in guide_text and "Logische interface" in guide_text and "migratie" in guide_text.lower()
+    assert "Panasonic" in guide_text and "SG" in guide_text and "Logische interface" in guide_text and "migratie" in guide_text.lower()
     page.evaluate("""() => {const main=document.querySelector('solar-pilot-card');const guide=document.createElement('solar-pilot-guide-card');guide.setConfig({});guide.hass=main._hass;document.body.appendChild(guide);}""")
     assert "Actuele werking" in page.locator("solar-pilot-guide-card >> ha-card").inner_text()
 
@@ -155,51 +158,28 @@ with sync_playwright() as p:
     page.locator('solar-pilot-card >> .policy button[data-value="priorities"]').click()
     # The daily view is one complete stack: four fixed protections followed by
     # the five reorderable example rules.
-    assert page.locator('solar-pilot-card >> .priority-stack .priority-row').count() == 9
-    assert page.locator('solar-pilot-card >> .priority-stack .priority-row.fixed').count() == 4
+    assert page.locator('solar-pilot-card >> .priority-stack .priority-row').count() == 6
+    assert page.locator('solar-pilot-card >> .priority-stack .priority-row.fixed').count() == 1
     assert page.locator('solar-pilot-card >> .priority-stack').get_attribute('aria-label') == 'Volledige voorrangslijst'
-    assert page.locator('solar-pilot-card >> .priority-stack').inner_text().count('Mag de auto minder laden?') == 9
+    assert page.locator('solar-pilot-card >> .priority-stack').inner_text().count('Mag de auto minder laden?') == 6
     assert page.evaluate("window.calls.length") == 0
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="energy"]').click()
     page.locator('solar-pilot-card >> details.learning summary').click()
     learning_text=page.locator('solar-pilot-card >> details.learning').inner_text()
     assert 'Toestelvermogen en Wallbox-respons leren' in learning_text
-    assert 'Apparaat-, lokale PV-, fase- en klimaatleerdata wissen' in learning_text
+    assert 'Apparaat-, lokale PV-, fase- en activiteitsleerdata wissen' in learning_text
     page.evaluate("window.confirmText='';window.confirm=msg=>{window.confirmText=msg;return false}")
     page.locator('solar-pilot-card >> button[data-action="reset_learning"]').click()
-    assert 'klimaat-OFF-eigendom' in page.evaluate('window.confirmText')
+    assert 'bewaarde klimaatarchief' in page.evaluate('window.confirmText')
     assert page.evaluate("window.calls.length") == 0
     page.evaluate("window.confirm=()=>true")
     page.locator('solar-pilot-card >> button[data-action="learning"]').click()
     assert page.evaluate("window.calls[0]") == {"domain":"switch","service":"turn_off","data":{"entity_id":"switch.voorbeeld_lokaal_leren"}}
 
-    # DHW number binding remains direct and scoped to SolarPilot number entities.
-    page.locator('solar-pilot-card >> button[data-action="view"][data-value="comfort"]').click()
-    page.locator("solar-pilot-card >> details.dhw-rules summary").click()
-    page.locator('solar-pilot-card >> input[data-dhw-setting="pv_threshold_w"]').fill('1200')
-    page.locator('solar-pilot-card >> input[data-dhw-setting="pv_threshold_w"]').press('Tab')
-    assert page.evaluate("window.calls[1]") == {"domain":"number","service":"set_value","data":{"entity_id":"number.voorbeeld_boiler_pv_threshold_w","value":1200}}
-
-    # Every climate setting is editable and routes through one validated SolarPilot service.
-    page.evaluate("window.calls=[]; window.confirm=()=>true")
-    shell = page.locator('solar-pilot-card >> .climate-settings-shell')
-    if not shell.get_attribute('open'):
-        shell.locator(':scope > summary').click()
-    planning = page.locator('solar-pilot-card >> .climate-settings details').filter(has_text='Comfort & planning')
-    if not planning.get_attribute('open'):
-        planning.locator('summary').click()
-    soft = page.locator('solar-pilot-card >> input[data-climate-setting="soft_band_c"]')
-    soft.fill('0.6')
-    soft.dispatch_event('change')
-    page.wait_for_timeout(20)
-    call = page.evaluate("window.calls[0]")
-    assert call["domain"] == "solar_pilot" and call["service"] == "set_climate_setting"
-    assert call["data"]["setting"] == "soft_band_c" and call["data"]["value"] == 0.6
-
     # Planner settings also route through one validated SolarPilot service.
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="planning"]').click()
     page.evaluate("window.calls=[]; window.confirm=()=>true")
-    planner_settings_shell = page.locator('solar-pilot-card >> .planning .climate-settings-shell')
+    planner_settings_shell = page.locator('solar-pilot-card >> .planning .settings-shell')
     if not planner_settings_shell.get_attribute('open'):
         planner_settings_shell.locator(':scope > summary').click()
     pset = page.locator('solar-pilot-card >> input[data-planner-setting="horizon_h"]')
@@ -222,11 +202,11 @@ with sync_playwright() as p:
     page.screenshot(path=str(output/"SolarPilot-wallbox-beta24-desktop.png"),full_page=True)
 
     # Untrusted strings remain text after switching to the loads view.
-    page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');const a=JSON.parse(JSON.stringify(c._last.attributes));const bad='<img src=x onerror="window.injected=true">';a.devices[0].name=bad;a.wallbox.name=bad;a.wallbox.reason=bad;a.dhw.status=bad;a.dhw.reason=bad;c.hass={states:{'sensor.solarpilot_status':{state:'x',attributes:a},'sensor.solarpilot_actuele_uitleg':c._hass.states['sensor.solarpilot_actuele_uitleg']},callService:async()=>{}};}""")
+    page.evaluate("""() => {const c=document.querySelector('solar-pilot-card');const a=JSON.parse(JSON.stringify(c._last.attributes));const bad='<img src=x onerror="window.injected=true">';a.devices[0].name=bad;a.wallbox.name=bad;a.wallbox.reason=bad;a.sg_boost.reason=bad;a.panasonic.status=bad;c.hass={states:{'sensor.solarpilot_status':{state:'x',attributes:a},'sensor.solarpilot_actuele_uitleg':c._hass.states['sensor.solarpilot_actuele_uitleg']},callService:async()=>{}};}""")
     page.locator('solar-pilot-card >> button[data-action="view"][data-value="loads"]').click()
     assert page.locator("solar-pilot-card >> img").count() == 0
     assert not page.evaluate("!!window.injected")
 
     assert not errors, errors
     browser.close()
-print("Browser checks passed: unified Control Center + Planning tab, editable climate/planner settings with advice/consequences, read-only Wallbox, responsive 320/390/768/1280, safe action routing and HTML escaping.")
+print("Browser checks passed: compact Panasonic/SG + Planning tab, readonly native monitoring and SG policy controls, read-only Wallbox, responsive 320/390/768/1280, safe action routing and HTML escaping.")

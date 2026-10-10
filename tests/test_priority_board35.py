@@ -10,7 +10,6 @@ from test_pv_api_config33 import function, Connection
 from custom_components.solar_pilot.const import DOMAIN
 from custom_components.solar_pilot.runtime import SolarRuntime
 from custom_components.solar_pilot.engine import Device, State, Site, plan
-from custom_components.solar_pilot.dhw import DHWReading, DHWDecision
 from custom_components.solar_pilot.priority_board import WALLBOX, EXTRA, device_key
 from custom_components.solar_pilot.wallbox_policy import reclaim_permission
 from custom_components.solar_pilot.wallbox import Reading
@@ -198,28 +197,28 @@ async def test_old_controls_cannot_override_active_board():
 
 def heat_context():
     r,h=multiple();activate(r,[WALLBOX,'device:a',EXTRA,'device:second_consumer'])
-    r.mode='solar';r.dhw.settings.update(enabled=True,safety_confirmed=True,target_entity='water_heater.tank',temperature_entity='sensor.temp')
-    r.dhw.config.update(r.dhw.settings);r.dhw.auto_enabled=True;r.dhw.needs_review=False;r.dhw.manual_hold=False;r.dhw.fault=''
-    r.dhw.reading=DHWReading(temperature_c=50,actual_target_c=50,cooling=False,pv_w=8000,export_w=4500,grid_w=-4500)
-    r.dhw.policy.result=DHWDecision(target_c=60,stage='surplus')
-    h.states.set('water_heater.tank','heat',{'hvac_action':'idle'})
+    r.mode='solar'
+    r.sg_boost.update_config({'entity_id':'switch.sg_contact','enabled':True,
+        'commissioning_confirmed':True,'watchdog_confirmed':True})
+    r.settings['pv_entity']='sensor.pv'
+    h.states.set('sensor.pv',8000,{'unit_of_measurement':'W'})
+    h.states.set('sensor.grid',-4500,{'unit_of_measurement':'W'})
     r.grid_w=r.filtered=-4500
     return r,h
 
 
-def test_optional_heat_waits_for_fitting_higher_consumer_only():
+def test_optional_sg_waits_for_fitting_higher_consumer_only():
     r,h=heat_context();s=r.states['a'];s.enabled=s.available=s.demand=s.interlock=s.cycle_armed=True
-    now=time.monotonic();reading=deepcopy(r.dhw.reading)
-    r.priority_board.guard_extra(reading,now)
-    assert not reading.luxury_allowed and r.configs['a']['name'] in reading.luxury_reason
-    s.on=True;reading=deepcopy(r.dhw.reading);r.priority_board.guard_extra(reading,now)
-    assert reading.luxury_allowed
-    s.on=False;r.grid_w=r.filtered=-50;reading=deepcopy(r.dhw.reading);r.priority_board.guard_extra(reading,now)
-    assert reading.luxury_allowed
+    now=time.monotonic()
+    assert not r.priority_board.sg_priority_allowed(now)
+    s.on=True
+    assert r.priority_board.sg_priority_allowed(now)
+    s.on=False;h.states.set('sensor.grid',-50,{'unit_of_measurement':'W'});r.grid_w=r.filtered=-50
+    assert r.priority_board.sg_priority_allowed(now)
 
 
 @pytest.mark.parametrize('condition',['disabled','unknown','no_demand','interlock','not_armed','fault','manual','rest','planner'])
-def test_nonclaiming_higher_consumer_does_not_block_optional_heat(condition):
+def test_nonclaiming_higher_consumer_does_not_block_optional_sg(condition):
     r,h=heat_context();s=r.states['a'];s.enabled=s.available=s.demand=s.interlock=s.cycle_armed=True;now=time.monotonic()
     if condition=='disabled':s.enabled=False
     elif condition=='unknown':s.available=False
@@ -230,11 +229,10 @@ def test_nonclaiming_higher_consumer_does_not_block_optional_heat(condition):
     elif condition=='manual':s.manual_until=now+100
     elif condition=='rest':s.last_off=now;r.configs['a']['min_off_s']=100
     else:s.planner_hold=True
-    reading=deepcopy(r.dhw.reading);r.priority_board.guard_extra(reading,now)
-    assert reading.luxury_allowed
+    assert r.priority_board.sg_priority_allowed(now)
 
 
-def test_extra_heat_blocks_only_new_lower_starts_not_running_higher_or_urgent():
+def test_sg_blocks_only_new_lower_starts_not_running_higher_or_urgent():
     r,h=heat_context();now=time.monotonic();b=r.priority_board
     assert set(b.extra_start_blocks(now))=={'second_consumer'}
     for attr,value in [('on',True),('manual_forced',True),('boost_until',now+100),('deadline_force',True),('planner_grid_force',True)]:
@@ -243,16 +241,15 @@ def test_extra_heat_blocks_only_new_lower_starts_not_running_higher_or_urgent():
         setattr(r.states['second_consumer'],attr,False)
 
 
-@pytest.mark.parametrize('temp,heating,blocks',[(50,False,True),(57,False,False),(57,True,True),(60,True,False),(None,False,False)])
-def test_extra_does_not_reserve_forever_above_native_restart_threshold(temp,heating,blocks):
-    r,h=heat_context();r.dhw.reading.temperature_c=temp
-    h.states.set('water_heater.tank','heat',{'hvac_action':'heating' if heating else 'idle'})
-    assert bool(r.priority_board.extra_start_blocks(time.monotonic()))==blocks
-
-
-@pytest.mark.parametrize('stage',['base','space_priority','protected','night','disabled','unavailable','solar'])
-def test_only_real_surplus_policy_can_block_lower_loads(stage):
-    r,h=heat_context();r.dhw.policy.result.stage=stage
+@pytest.mark.parametrize('condition',['disabled','not_commissioned','no_watchdog','observe','no_solar','blocked'])
+def test_unqualified_sg_request_never_reserves_lower_starts(condition):
+    r,h=heat_context()
+    if condition=='disabled':r.sg_boost.settings['enabled']=False
+    elif condition=='not_commissioned':r.sg_boost.settings['commissioning_confirmed']=False
+    elif condition=='no_watchdog':r.sg_boost.settings['watchdog_confirmed']=False
+    elif condition=='observe':r.mode='observe'
+    elif condition=='no_solar':h.states.set('sensor.grid',0,{'unit_of_measurement':'W'});r.filtered=0
+    else:r.sg_boost.fault='lease failed'
     assert not r.priority_board.extra_start_blocks(time.monotonic())
 
 

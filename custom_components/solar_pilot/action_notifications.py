@@ -7,14 +7,11 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import math
 import re
-import time
 
 _LOGGER = logging.getLogger(__name__)
 _MAX_ITEMS = 32
 _MAX_REASON = 220
-_AUTOMATIC_WAIT_NOTICE_S = 900
 
 
 def _text(value, limit=_MAX_REASON):
@@ -33,6 +30,7 @@ class ActionRequiredNotifications:
         self._active = False
         self._dirty = False
         self._transport_failed = False
+        self._resync_after_restore = False
 
     def snapshot(self):
         """Persist delivery state, not household labels or fault text."""
@@ -48,66 +46,31 @@ class ActionRequiredNotifications:
             return
         self._active = raw["active"]
         self._last_signature = signature
+        # HA notifications are process-local. A persisted receipt does not
+        # prove the notice still exists after a real HA restart. Stable ids
+        # make this one initial create idempotent without per-tick spam.
+        self._resync_after_restore = self._active
 
     def _save_delivery(self):
         if self._dirty:
             self.runtime.store.async_delay_save(self.runtime._snapshot, 1)
             self._dirty = False
 
-    def _name(self, entity_id, fallback):
-        states = self.runtime.hass.states
-        state = states.get(entity_id) if entity_id else None
-        return _text((getattr(state, "attributes", {}) or {}).get("friendly_name") or fallback, 80)
-
-    @staticmethod
-    def _automatic_wait_notice(recovery):
-        """Escalate a long connection/target wait without changing recovery."""
-        state = recovery.get("state")
-        if state not in ("waiting_sources", "waiting_reports", "waiting_external_target"):
-            return ""
-        stamp = recovery.get("failed_wall")
-        if isinstance(stamp, bool):
-            return ""
-        try:
-            failed = float(stamp)
-        except (TypeError, ValueError, OverflowError):
-            return ""
-        now = time.time()
-        if not math.isfinite(failed) or not 0 < failed <= now or now - failed < _AUTOMATIC_WAIT_NOTICE_S:
-            return ""
-        waiting = {
-            "waiting_sources": "betrouwbare toestelgegevens",
-            "waiting_reports": "een nieuwe doelterugmelding",
-            "waiting_external_target": "een gewoon boilerdoel",
-        }[state]
-        return ("Automatische boilercontrole wacht al minstens 15 minuten op " + waiting
-                + ". Controleer de actuele verbinding en doeltemperatuur in Home Assistant of de toestelapp. "
-                "Open SolarPilot → Overzicht → Sanitair warm water voor de actuele reden. "
-                "De automatische controle blijft doorlopen; geen reset nodig.")
-
     def _items(self):
         r = self.runtime
         items = []
-        dhw = getattr(r, "dhw", None)
-        if dhw is not None:
-            fault = getattr(dhw, "fault", "")
-            recovery = getattr(dhw, "automatic_recovery", None)
-            known = getattr(dhw, "_known_command_fault", lambda _reason: False)
-            automatic = bool(isinstance(recovery, dict) and recovery.get("fault") == fault
-                             and fault and known(fault) and not getattr(dhw, "manual_hold", False)
-                             and not getattr(dhw, "needs_review", False))
-            protected = bool(getattr(getattr(dhw, "reading", None), "protected", False))
-            review = bool(getattr(dhw, "needs_review", False) and not protected)
-            unexpected_hold = bool(getattr(dhw, "manual_hold", False)
-                                   and getattr(dhw, "auto_enabled", False) and not protected)
-            if automatic:
-                if notice := self._automatic_wait_notice(recovery):
-                    items.append(notice)
-            elif fault or review or unexpected_hold:
-                reason = fault or getattr(dhw, "status", "") or "De boilertoestand vraagt controle"
-                items.append("Sanitair warm water: " + _text(reason)
-                             + ". Open SolarPilot → Overzicht → Sanitair warm water; "
-                             "pauzeer zo nodig en kies Boilercontrole afronden.")
+        sg = getattr(r, "sg_boost", None)
+        if sg is not None:
+            # SG owns only its assigned relay. Routine sun/source/rest waits
+            # are dashboard states, not user-action faults or global pauses.
+            view = sg.overview() if callable(getattr(sg, "overview", None)) else {}
+            if isinstance(view, dict) and view.get("action_required") is True:
+                reason = view.get("fault") or view.get("reason") or "De SG-koppeling vraagt controle"
+                items.append("Extra zonneboost via SG: " + _text(reason)
+                             + ". Open SolarPilot → Warmtepomp — Panasonic-regeling → Instellen en details; "
+                             "controleer de toegewezen uitgang, één eigenaar en de lokaal aflopende toestemming. "
+                             "Bevestig de contactmapping en lokale timer alleen na een echte ingebruiknamecontrole. "
+                             "Panasonic en de overige geldige toestellen behouden hun eigen regeling.")
 
         configs = getattr(r, "configs", {})
         faults = getattr(r, "faults", {})
@@ -119,14 +82,6 @@ class ActionRequiredNotifications:
                 items.append(name + ": " + _text("; ".join(reasons))
                              + ". Open SolarPilot → Overzicht of Toestellen; controleer de actuele "
                              "toestelstand en kies Controle afronden als het toestel veilig uit is.")
-
-        climate = getattr(r, "smart_climate", None)
-        for entity_id, reason in sorted(getattr(climate, "command_faults", {}).items()):
-            if reason:
-                name = self._name(entity_id, f"Klimaatzone {entity_id}")
-                items.append(name + ": " + _text(reason)
-                             + ". Open SolarPilot → Warmte & comfort → Ruimteklimaat; "
-                             "controleer de actuele stand en rond de controle voor deze zone af.")
 
         batteries = getattr(r, "battery_fleet", None)
         battery_configs = getattr(batteries, "configs", {})
@@ -181,7 +136,8 @@ class ActionRequiredNotifications:
         try:
             message = self.message()
             signature = hashlib.sha256(message.encode("utf-8")).hexdigest() if message else ""
-            if signature == self._last_signature and bool(message) == self._active:
+            if (signature == self._last_signature and bool(message) == self._active
+                    and not self._resync_after_restore):
                 self._save_delivery()
                 self._transport_failed = False
                 return
@@ -197,6 +153,7 @@ class ActionRequiredNotifications:
             # receipt fails. That persistence is retried without another notice.
             self._last_signature = signature
             self._active = bool(message)
+            self._resync_after_restore = False
             self._dirty = True
             self._save_delivery()
         except Exception:

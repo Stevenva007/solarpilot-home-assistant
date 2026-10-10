@@ -23,7 +23,6 @@ SESSION_DEFAULTS = {
     "session_manual_states": "Manueel laden;Manueel laden · klaar;Manueel / solar uit",
     "session_stopped_states": "Laden gestopt",
     "trust_solar_setting": False,
-    "manual_suspend_extra_dhw": True,
 }
 RECLAIM_POLICIES = ("priority", "never", "legacy")
 

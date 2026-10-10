@@ -22,9 +22,9 @@ def test_all_modules_and_sources_present_without_writes():
     r,h=report_context();r.note('Regelvoorbeeld');before=list(h.services.calls)
     data=r.analysis.build(include_names=True)
     assert data['schema']=='solarpilot.analysis'
-    for k in ['runtime_and_models','energy_planning_climate','consumers','wallbox','dhw','consumer_history','dishwasher']:
+    for k in ['runtime_and_models','energy_planning_climate','consumers','wallbox','panasonic','sg_boost','consumer_history','dishwasher']:
         assert k in data['components']
-    for k in ['local_pv','battery_analysis','battery_fleet','smart_climate','phase_learning','unified_planner','electricity_cost']:
+    for k in ['local_pv','battery_analysis','battery_fleet','panasonic_archive','sg_boost','phase_learning','unified_planner','electricity_cost']:
         assert k in data['components']['runtime_and_models']
     assert data['entities']['sensor.grid']['attributes']['unit_of_measurement']=='W'
     assert data['entities']['sensor.grid']['last_reported']
@@ -84,12 +84,13 @@ def test_private_labels_preserve_protocol_modes_units_and_entity_joins(label):
     r,h=report_context()
     r.configs['a']['name']=label
     r.note(f'{label} gebruikt sensor.grid; Wattmeting en automatische regeling.')
-    r.smart_climate.state.expected_mode={'climate.zone':'auto'}
+    r.panasonic_archive['backup_store']={'smart_climate':{'expected_mode':{'climate.zone':'auto'}}}
     report=r.analysis.build()
     assert next(iter(report['effective_configuration']['devices'].values()))['name']!=label
     assert report['units']['power']=='W'
-    assert report['components']['runtime_and_models']['smart_climate']['expected_mode']
-    assert set(report['components']['runtime_and_models']['smart_climate']['expected_mode'].values())=={'auto'}
+    old=report['components']['runtime_and_models']['panasonic_archive']['backup_store']['smart_climate']
+    assert old['expected_mode']
+    assert set(old['expected_mode'].values())=={'auto'}
     grid=report['configuration']['site']['grid_entity']
     assert grid.startswith('sensor.source_') and grid in report['entities']
     assert 'Wattmeting' in json.dumps(report,ensure_ascii=False)
@@ -248,7 +249,7 @@ def test_disabled_collection_stops_new_samples_events():
 def test_partial_error_does_not_hide_other_modules():
     r,h=report_context();r.ems_overview=lambda:(_ for _ in ()).throw(ValueError('fail'))
     data=r.analysis.build();assert data['coverage']['section_errors']=={'energy_planning_climate':'ValueError'}
-    assert data['components']['dhw']
+    assert data['components']['panasonic']
 
 
 def test_payload_snapshot_is_detached_for_worker():
@@ -260,6 +261,39 @@ def test_payload_snapshot_is_detached_for_worker():
 def test_export_size_guard(monkeypatch):
     monkeypatch.setattr(ae,'MAX_EXPORT_BYTES',100)
     with pytest.raises(ValueError):ae.serialize_report({'a':'x'*101})
+
+
+def test_archive_mapping_keeps_all_entries_while_generic_telemetry_stays_bounded():
+    data={str(index):index for index in range(50001)}
+    assert ae.safe_archive(data)==data
+    assert len(ae.safe(data))==50000
+    assert ae.safe('x'*9001)=='x'*8000
+    assert ae.safe_archive('x'*9001)=='x'*9001
+
+
+@pytest.mark.parametrize('invalid',[object(), {1:'invalid JSON key'}])
+def test_archive_non_json_evidence_fails_explicitly_instead_of_dropping_it(invalid):
+    with pytest.raises(ae.ArchiveExportError):
+        ae.safe_archive(invalid)
+
+
+def test_archive_depth_and_cycle_fail_explicitly_instead_of_truncating_history():
+    value={'samples':[1,2,3]}
+    for _ in range(ae.MAX_ARCHIVE_JSON_DEPTH+1):
+        value={'evidence':value}
+    with pytest.raises(ae.ArchiveExportError,match='diep genest'):
+        ae.safe_archive(value)
+    cyclic={};cyclic['evidence']=cyclic
+    with pytest.raises(ae.ArchiveExportError,match='kringverwijzing'):
+        ae.safe_archive(cyclic)
+
+
+def test_invalid_archive_aborts_whole_private_export_with_visible_failure():
+    r,h=report_context()
+    r.panasonic_archive={'backup_store':{'invalid':object()}}
+    with pytest.raises(ae.ArchiveExportError):
+        r.analysis.build(include_names=True)
+    assert not h.services.calls
 
 @pytest.mark.asyncio
 async def test_storage_roundtrip_and_fast_trace_not_backfilled():

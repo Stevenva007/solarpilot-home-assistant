@@ -5,6 +5,7 @@ import voluptuous as vol
 from homeassistant.helpers import selector
 from homeassistant.exceptions import HomeAssistantError
 from .live_options import replacement_profile, PENDING, pending_rows
+from .sg_config import actuator_conflicts
 
 
 class LiveOptionsMixin:
@@ -14,6 +15,13 @@ class LiveOptionsMixin:
         return self._options_base
 
     async def _live_save(self, options):
+        # Native options and imported profiles share the same backend boundary.
+        # No stale browser form may reintroduce a removed Panasonic writer.
+        if any(group in options for group in ("dhw", "smart_climate")):
+            raise HomeAssistantError("Deze Panasonic-regeling is vervallen. Gebruik uitsluitend de SG-zonneboostkoppeling.")
+        if (actuator_conflicts(options.get("sg_boost", {}), options.get("devices", []))
+                or actuator_conflicts(options.get("sg_boost", {}), options.get("batteries", []))):
+            raise HomeAssistantError("De SG-uitgang krijgt één eigenaar en mag niet ook een gewoon toestel zijn.")
         self._live_desired = deepcopy(options)
         self._live_error = ""
         return await self.async_step_apply_changes()

@@ -1,6 +1,7 @@
 """Beta.36 heat-pump classification and conservative power learning."""
 from types import SimpleNamespace as NS
 from datetime import datetime, timezone
+import pytest
 from test_runtime import build
 
 from custom_components.solar_pilot.heatpump_learning import (
@@ -11,6 +12,7 @@ from custom_components.solar_pilot.heatpump_learning import (
     HeatPumpActivityModel,
     classify_heatpump,
 )
+from custom_components.solar_pilot.panasonic_monitor import PanasonicMonitor
 
 
 class States:
@@ -25,30 +27,28 @@ class States:
 
 def fake_runtime():
     states = States()
-    dhw = NS(
-        configured=False,
-        settings={},
-        config={},
-        reading=NS(protection_reason=""),
-    )
-    climate = NS(settings={"zone_entities": ["climate.zone_1"]})
-    return NS(hass=NS(states=states), dhw=dhw, smart_climate=climate), states
+    runtime = NS(hass=NS(states=states), settings={}, configs={})
+    runtime._power = lambda entity, stale=None: (None, 0)
+    runtime.panasonic = PanasonicMonitor(runtime, {"zone_entities": ["climate.zone_1"]})
+    return runtime, states
 
 
-def test_classifies_space_heating_and_cooling_from_panasonic_action():
+@pytest.mark.parametrize("action,expected", [
+    ("heating", CONTEXT_HEATING), ("preheating", CONTEXT_HEATING),
+    (" HEATING ", CONTEXT_HEATING), ("cooling", CONTEXT_COOLING),
+    ("precooling", CONTEXT_COOLING), (" COOLING ", CONTEXT_COOLING),
+])
+def test_classifies_space_heating_and_cooling_from_panasonic_action(action, expected):
     runtime, states = fake_runtime()
-    states.set("climate.zone_1", "auto", {"hvac_action": "heating"})
-    assert classify_heatpump(runtime, NS())[0] == CONTEXT_HEATING
-    states.set("climate.zone_1", "auto", {"hvac_action": "cooling"})
-    assert classify_heatpump(runtime, NS())[0] == CONTEXT_COOLING
+    states.set("climate.zone_1", "auto", {"hvac_action": action})
+    assert classify_heatpump(runtime, NS())[0] == expected
 
 
-def test_classifies_tapwater_before_space_action():
+@pytest.mark.parametrize("action", ["heating", "preheating", "heat", "dhw", "hot_water", " HEATING "])
+def test_classifies_tapwater_before_space_action(action):
     runtime, states = fake_runtime()
-    runtime.dhw.configured = True
-    runtime.dhw.config = {"target_entity": "water_heater.tank"}
-    runtime.dhw.settings = {"hygiene_schedule_enabled": False}
-    states.set("water_heater.tank", "heat", {"hvac_action": "heating"})
+    runtime.panasonic.settings["tank_target_entity"] = "water_heater.tank"
+    states.set("water_heater.tank", "heat", {"hvac_action": action})
     states.set("climate.zone_1", "auto", {"hvac_action": "cooling"})
     assert classify_heatpump(runtime, NS(weekday=lambda: 1, time=lambda: None))[0] == CONTEXT_DHW
 

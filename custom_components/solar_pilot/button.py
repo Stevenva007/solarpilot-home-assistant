@@ -9,11 +9,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 def _entities(r):
     buttons = [SolarButton(r, "reset", "Herstartcontrole en fouten wissen"),
-               SolarButton(r, "reset_learning", "Apparaat-, lokale PV-, fase- en klimaatleerdata wissen"),
+               SolarButton(r, "reset_learning", "Apparaat-, lokale PV-, fase- en activiteitsleerdata wissen"),
                SolarButton(r, "prepare_remove", "Verwijderen voorbereiden")]
-    if r.dhw.configured:
-        buttons += [SolarButton(r, "dhw_review", "Boilercontrole afronden"),
-                    SolarButton(r, "dhw_takeover", "Boiler handmatig overnemen — verandert niets")]
+    buttons.append(SolarButton(r, "sg_boost_resume", "Automatische zonneboost hervatten"))
     for i in r.configs:
         if r.configs[i].get("kind") == "dishwasher":
             buttons += [SolarButton(r, "dishwasher_arm", "Eén afwasbeurt klaarzetten", i),
@@ -36,10 +34,8 @@ class SolarButton(SolarEntity, ButtonEntity):
             await self.runtime.arm_dishwasher(self.key)
         elif self.suffix == "dishwasher_cancel":
             await self.runtime.cancel_dishwasher(self.key)
-        elif self.suffix == "dhw_review":
-            await self.runtime.dhw.review()
-        elif self.suffix == "dhw_takeover":
-            await self.runtime.dhw.takeover()
+        elif self.suffix == "sg_boost_resume":
+            await self.runtime.sg_boost.resume_automation()
         elif self.suffix == "reset_learning":
             await self.runtime.reset_learning()
         elif self.suffix == "reset":

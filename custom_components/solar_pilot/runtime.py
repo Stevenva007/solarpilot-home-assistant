@@ -45,8 +45,10 @@ from .pv_forecast import PVForecast
 from .phase_learning import PhaseLearning, phase_allocation_from_hint, phase_total_headroom_w
 from .battery_analysis import BATTERY_ANALYSIS_DEFAULTS, BatteryOpportunitySimulator
 from .battery_runtime import BatteryFleetManager
-from .thermal_runtime import SmartClimateManager
-from .dhw_runtime import DHWManager
+from .panasonic_monitor import PanasonicMonitor
+from .panasonic_migration import migrate_panasonic
+from .sg_boost import SGBoostManager
+from .panasonic_authority import PanasonicCommandAuthority
 from .ems import (CAPACITY_DEFAULTS, ECONOMY_DEFAULTS, FORECAST_DEFAULTS,
                   PLANNER_DEFAULTS, PHASE_DEFAULTS, KNOWN_LEGACY_CONFLICTS,
                   accounting_step, capacity_decision, fresh_daily_stats,
@@ -57,7 +59,7 @@ from .learning_hub import LearningHub
 from .live_options import LiveOptions, ARCHIVED, keyed
 from .platforms import LivePlatforms
 from .priority_board import PriorityBoard
-from .heatpump_budget import climate_solar_budget, heatpump_power, heatpump_shared, shared_commitment
+from .heatpump_budget import sg_solar_budget, heatpump_power, heatpump_shared
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -79,7 +81,9 @@ class SolarRuntime:
         self.phase_learning = PhaseLearning(self.phase_settings)
         self.battery_analysis = BatteryOpportunitySimulator(self.battery_analysis_settings, self.historical_seed)
         self.battery_fleet = BatteryFleetManager(self)
-        self.smart_climate = SmartClimateManager(self)
+        migrated, _, _ = migrate_panasonic(entry.options, {})
+        self.panasonic_archive = {"backup_options": deepcopy(entry.options)}
+        self.panasonic = PanasonicMonitor(self, migrated["sg_boost"])
         self.capacity = capacity_decision(datetime.now().astimezone(), None, None, None, {"enabled": False})
         self.phase = phase_decision((None, None, None), {"enabled": False})
         self.ems_stats = fresh_daily_stats()
@@ -147,7 +151,8 @@ class SolarRuntime:
         self.removal_requested = False
         self._removal_ready_noted = False
         self.store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
-        self.dhw = DHWManager(self)
+        self.sg_boost = SGBoostManager(self)
+        self.command_authority = PanasonicCommandAuthority(self)
         self.analysis = AnalysisRecorder(self)
         self.action_notifications = ActionRequiredNotifications(self)
         self.learning_hub = LearningHub(self)
@@ -182,9 +187,8 @@ class SolarRuntime:
             return False, "Wacht op bevestiging van de vorige verdeling"
         if not check_capacity:
             return True, "Actuele bronnen en eerdere opdrachten gecontroleerd vóór veilig vrijmaken"
-        hp = heatpump_power(self)
-        planned = float(self.dhw.settings["estimated_heat_power_w"])
-        incremental = shared_commitment(planned, 0, hp["watts"] if hp["valid"] else None)
+        # Native HP draw remains in P1; SG cannot reclaim it.
+        incremental = float(self.sg_boost.settings["expected_power_w"])
         isolated = max(0.0, float(self.isolated_reserve_w))
         unconsumed = sum(max(0.0, st.target_w - st.measured_w)
                          for i, st in self.states.items() if st.owned and st.on
@@ -207,65 +211,11 @@ class SolarRuntime:
                 return False, "Kwartierpiek laat nu geen extra warmtepompbedrijf toe"
         return True, "Actuele elektrische ruimte gecontroleerd"
 
-    def climate_solar_budget(self):
-        budget = climate_solar_budget(self)
-        allowed, reason = self.heat_pump_increase_allowed()
-        if not allowed:
-            budget.update(valid=False, reason=reason)
-        return budget
-
     def _dishwasher_comfort_context(self):
-        """Respect ordinary heat-pump demand; never stop it for a wash start.
-
-        Ongoing heat consumption is ALREADY in P1. Reserve only an imminent normal
-        tank demand not yet drawing confirmed heat, never subtract it twice.
-        A missing configured comfort source blocks a new priority start.
-        """
-        manager = self.dhw
-        if not manager.configured:
-            return 0.0, ""
-        r = manager.reading
-        if r.protected:
-            # A protected manufacturer cycle is not an absolute dishwasher veto:
-            # reserve its configured load, without writing ANY tank target. With
-            # ample genuine power both appliances may operate. Unknown protection
-            # feedback is not permission to start a competing protected cycle.
-            if "onbekend" in r.protection_reason.casefold():
-                return 0.0, "Afwasstart wacht op betrouwbare fabrikant-/hygiënebescherming"
-            if "staat uit" in r.protection_reason.casefold():
-                return 0.0, ""
-            hp = heatpump_power(self)
-            return shared_commitment(manager.settings["estimated_heat_power_w"], 0,
-                                     hp["watts"] if hp["valid"] else None), ""
-        if r.temperature_c is None or r.actual_target_c is None:
-            return 0.0, "Afwasstart wacht op betrouwbare gekoppelde boilerstatus"
-        target, obj = manager._target()
-        normal = float(manager.settings["normal_c"])
-        differential = float(manager.settings["tank_differential_c"])
-        # A verified requested evening reserve up to its configured cap is also
-        # ordinary comfort. The optional 60 C target is explicitly excluded.
-        ordinary_target = normal
-        if normal < r.actual_target_c <= float(manager.settings["evening_cap_c"]) and r.actual_target_c < float(manager.settings["surplus_c"]):
-            ordinary_target = r.actual_target_c
-        # water_heater.state may be an operating MODE, not proof of current
-        # compressor activity. Only explicit action or an exclusive live meter
-        # can establish that heating is already included in the net reading.
-        hp = heatpump_power(self)
-        measured = hp["watts"] if hp["valid"] else None
-        heating = bool(obj and obj.attributes.get("hvac_action") == "heating")
-        heating = heating or bool(not self.heat_pump_shared() and manager.exclusive_meter()
-                                  and measured is not None and measured > 100)
-        reserve = 0.0
-        if r.temperature_c <= ordinary_target+differential and not heating:
-            reserve = shared_commitment(manager.settings["estimated_heat_power_w"], 0,
-                                        measured if manager.exclusive_meter() else None)
-        # Existing ordinary space heat is never a stop reason or a blanket veto.
-        # Pending climate/DHW commands still use the existing serialized gate.
-        return reserve, ""
+        """Native heat demand is already in P1; SG is the lower priority request."""
+        return 0.0, ""
 
     def _update_dishwasher_priority(self, now, local_now, grid, valid, discharge, ready, wb):
-        if self.dhw.configured:
-            self.dhw.read(grid, valid, discharge, local_now)
         reserve, comfort_block = self._dishwasher_comfort_context()
         self._shared_heatpump_comfort_reserve_w = reserve
         for i, watch in list(self.dishwasher_priority.watches.items()):
@@ -331,7 +281,7 @@ class SolarRuntime:
 
     @property
     def editable(self):
-        return (self.mode != "solar" and not self.dhw.busy and not self.pending and not self.handover
+        return (self.mode != "solar" and not self.sg_boost.busy and not self.pending and not self.handover
                 and not self.battery_fleet.busy and not self.recovery and not any(s.owned for s in self.states.values()))
 
     def _snapshot(self):
@@ -350,13 +300,14 @@ class SolarRuntime:
             "dishwasher": self.dishwasher.snapshot(),
             "dishwasher_app": self.dishwasher_app.snapshot(),
             "dishwasher_priority": self.dishwasher_priority.snapshot(),
-            "dhw": self.dhw.snapshot(),
+            "sg_boost": self.sg_boost.snapshot(),
+            "panasonic_archive": deepcopy(self.panasonic_archive),
             "priorities": self.priorities, "device_modes": self.device_modes,
             "others_first": self.others_first, "learning": self.learning.snapshot(),
             "heatpump_learning": self.heatpump_learning.snapshot(),
             "local_pv": self.local_pv.snapshot(), "pv_forecast": self.pv_forecast.snapshot(), "phase_learning": self.phase_learning.snapshot(),
             "battery_analysis": self.battery_analysis.snapshot(),
-            "battery_fleet": self.battery_fleet.snapshot(), "smart_climate": self.smart_climate.snapshot(),
+            "battery_fleet": self.battery_fleet.snapshot(),
             "unified_planner": self.unified_planner.snapshot(),
             "cycle_learning": self.cycle_learning.snapshot(),
             "reclaim_blocks": self.reclaim_blocks,
@@ -373,104 +324,25 @@ class SolarRuntime:
                        for i, s in self.states.items() if s.owned}},
         }
 
-    async def _migrate_beta37_activation_profile(self):
-        """One-time activation of safe, already configured regulation and learning.
-
-        It never invents entity mappings, confirms a safety acknowledgement,
-        grants a new appliance start right or enables unconfirmed battery control.
-        The marker makes later user choices sticky.
-        """
-        current = dict(self.entry.options)
-        if current.get("_beta37_activation_profile") == 1:
-            return False
-        options = deepcopy(current)
-
-        def merge_group(name, **updates):
-            value = deepcopy(options.get(name, {})) if isinstance(options.get(name, {}), dict) else {}
-            value.update(updates)
-            options[name] = value
-            return value
-
-        merge_group("analysis", enabled=True, retention_days=7, sample_interval_s=300)
-        merge_group("planner", enabled=True, base_load_learning=True, replay_enabled=True,
-                    forecast_deferral_enabled=True, adaptive_power_guard=True)
-        merge_group("local_pv", enabled=True, seed_enabled=True)
-        merge_group("pv_forecast", enabled=True, auto_discover=True,
-                    calibration_enabled=True, shadow_enabled=True)
-        merge_group("battery_analysis", enabled=True, seed_enabled=True)
-        merge_group("economy", enabled=True)
-
-        forecast = deepcopy(options.get("forecast", {})) if isinstance(options.get("forecast", {}), dict) else {}
-        if any(forecast.get(k) for k in ("current_hour_entity", "next_hour_entity",
-                                         "remaining_today_entity", "tomorrow_entity")):
-            forecast["enabled"] = True
-            options["forecast"] = forecast
-        capacity = deepcopy(options.get("capacity", {})) if isinstance(options.get("capacity", {}), dict) else {}
-        if capacity.get("average_demand_entity"):
-            capacity["enabled"] = True
-            options["capacity"] = capacity
-        phase = deepcopy(options.get("phase", {})) if isinstance(options.get("phase", {}), dict) else {}
-        phase_sources = [phase.get("phase_1_entity"), phase.get("phase_2_entity"), phase.get("phase_3_entity")]
-        if all(phase_sources):
-            phase.update(enabled=True, learning_enabled=True, use_learned_device_map=True, control_starts=True)
-            phase["shed_on_overlimit"] = bool(phase.get("shed_on_overlimit", False))
-            options["phase"] = phase
-        wallbox = deepcopy(options.get("wallbox", {})) if isinstance(options.get("wallbox", {}), dict) else {}
-        if wallbox.get("power_entity"):
-            wallbox["enabled"] = True
-            options["wallbox"] = wallbox
-        climate = deepcopy(options.get("smart_climate", {})) if isinstance(options.get("smart_climate", {}), dict) else {}
-        zones = list(climate.get("zone_entities", []) or [])
-        zones_ok = bool(zones)
-        for entity_id in zones:
-            obj = self.hass.states.get(entity_id)
-            modes = {str(x).casefold() for x in (getattr(obj, "attributes", {}) or {}).get("hvac_modes", [])} if obj else set()
-            if obj is None or not {"auto", "off"}.issubset(modes):
-                zones_ok = False
-                break
-        if zones:
-            climate["enabled"] = True
-            if zones_ok:
-                climate["control_enabled"] = True
-            options["smart_climate"] = climate
-        dhw = deepcopy(options.get("dhw", {})) if isinstance(options.get("dhw", {}), dict) else {}
-        if dhw.get("target_entity") and dhw.get("temperature_entity") and dhw.get("safety_confirmed") is True:
-            dhw["enabled"] = True
-            options["dhw"] = dhw
-        batteries = [b for b in options.get("batteries", []) if isinstance(b, dict)]
-        if batteries:
-            fleet = deepcopy(options.get("battery_fleet", {})) if isinstance(options.get("battery_fleet", {}), dict) else {}
-            fleet["enabled"] = True
-            fleet["control_enabled"] = bool(fleet.get("control_enabled", False))
-            options["battery_fleet"] = fleet
-        reserved = {self.settings.get("grid_entity"), self.settings.get("export_entity"), self.settings.get("pv_entity"), wallbox.get("power_entity"), dhw.get("power_entity")}
-        devices = []
-        for row in options.get("devices", []) or []:
-            if not isinstance(row, dict):
-                continue
-            item = deepcopy(row)
-            meter = item.get("power_entity")
-            if meter and meter not in reserved:
-                item["cycle_learning_enabled"] = True
-            devices.append(item)
-        if devices or "devices" in options:
-            options["devices"] = devices
-        options["_beta37_activation_profile"] = 1
-        await self.live_options.accept(options)
-        updater = getattr(getattr(self.hass, "config_entries", None), "async_update_entry", None)
-        if updater is not None:
-            updater(self.entry, options=options)
-        else:
-            self.entry.options = options
-        self.learning.enabled = True
-        self.learning_hub.policy.update(sampling="metered", adaptation="automatic", notifications=True)
-        self.learning_hub.last_notification = time.time()
-        self.unified_planner.base_load.adaptive_enabled = True
-        self.note("Beta.37 startprofiel toegepast: beschikbare regelingen en leermodules zijn actief; ontbrekende bronnen en rechten zijn niet verzonnen.")
-        return True
-
     async def start(self):
         data = await self.store.async_load() or {}
+        migrated_options, data, migration = migrate_panasonic(self.entry.options, data)
+        self.panasonic_archive = deepcopy(data.get("panasonic_archive", {}))
+        if migration.get("changed"):
+            await self.store.async_save(data)
+            updater = getattr(getattr(self.hass, "config_entries", None), "async_update_entry", None)
+            if updater:
+                updater(self.entry, options=migrated_options)
+            else:
+                self.entry.options = migrated_options
+        self.panasonic.update_config(migrated_options.get("sg_boost", {}))
+        self.sg_boost.update_config(migrated_options.get("sg_boost", {}))
+        self.panasonic.learning_archive = deepcopy(self.panasonic_archive.get("backup_store", {}).get("smart_climate", {}))
+        if migration.get("retired_only_pause"):
+            # Retired software error is archived, not reported as physical repair.
+            data["pause_cause"] = "legacy"
+            self.note("Oude Panasonic-opdrachtfout gearchiveerd; normale herstartkeuze blijft gelden. SG blijft uit tot ingebruikname.")
+
         # A setting changes only the next restart, never the live mode. Old
         # stores default to automatic recovery from an ordinary saved Pause;
         # Observe and first installation still require explicit activation.
@@ -485,9 +357,7 @@ class SolarRuntime:
         self.dishwasher.restore(data.get("dishwasher", {}))
         self.dishwasher_app.restore(data.get("dishwasher_app", {}))
         self.dishwasher_priority.restore(data.get("dishwasher_priority", {}), self.configs)
-        self.dhw.restore(data.get("dhw", {}))
-        await self.dhw.migrate_beta36(data.get("dhw", {}))
-        await self.dhw.migrate_beta56()
+        self.sg_boost.restore(data.get("sg_boost", {}))
         self.electricity_cost.restore(data.get("electricity_cost", {}))
         self.others_first = data.get("others_first", True) is True
         self.learning.restore(data.get("learning", {}), self.configs)
@@ -499,12 +369,10 @@ class SolarRuntime:
         self.phase_learning.restore(data.get("phase_learning", {}), list(self.configs) + list(self._phase_monitor_configs()))
         self.battery_analysis.restore(data.get("battery_analysis", {}))
         self.battery_fleet.restore(data.get("battery_fleet", {}))
-        self.smart_climate.restore(data.get("smart_climate", {}))
         self.unified_planner.restore(data.get("unified_planner", {}))
         self.learning_hub.restore(data.get("learning_hub", {}))
         self.action_notifications.restore(data.get("action_notifications", {}))
         self.cycle_learning.restore(data.get("cycle_learning", {}))
-        activated_beta37 = await self._migrate_beta37_activation_profile()
         self.reclaim_blocks = {i: str(reason) for i, reason in data.get("reclaim_blocks", {}).items() if i in self.configs}
         self.priorities = {i: p for i, p in data.get("priorities", {}).items() if i in self.configs}
         self.device_modes = {i: m for i, m in data.get("device_modes", {}).items() if i in self.configs}
@@ -527,16 +395,11 @@ class SolarRuntime:
                 self.device_modes[recovered_id] = "auto"
                 self.note(f'{self.configs[recovered_id]["name"]}: beta.38 herstelde de afgesproken Auto-deelname; APP-vrijgave blijft per belading verplicht.')
         migrated_priority_board = await self.priority_board.migrate_beta36()
-        migrated_heat_priority = await self.priority_board.migrate_beta57()
         # Build the guard after migration so schema-2 per-device Wallbox rights
         # are active immediately after a beta.35 restart, not one reload later.
         self.wallbox_guard = self._make_wallbox_guard()
         if migrated_priority_board:
             self.note("Beta.36-migratie: bestaande flexibele voorrang exact vastgelegd als centrale prioriteitenlijst.")
-        if migrated_heat_priority:
-            self.note("Beta.57: extra warm water krijgt voorrang op onderbreekbare toestellen; afwas, ruimtecomfort en autoladen blijven beschermd.")
-        if activated_beta37:
-            self.note("Beta.37: veilige automatische activering is éénmalig toegepast; latere keuzes blijven behouden.")
         self.energy_kwh = max(0, float(data.get("energy_kwh", 0)))
         stored_stats = data.get("ems_stats", {})
         self.ems_stats = dict(stored_stats) if isinstance(stored_stats, dict) else fresh_daily_stats()
@@ -577,10 +440,8 @@ class SolarRuntime:
         for i, cfg in self.configs.items():
             if cfg.get("kind") == "dishwasher" and self.dishwasher.tickets.get(i, {}).get("attempted"):
                 leases.setdefault(i, {"watts": cfg["nominal_w"], "name": cfg["name"]})
-        clean_interruption = (not self.faults and not self.dhw.fault and not self.dhw.manual_hold
-                              and not self.dhw.needs_review
-                              and (any(i in self.configs and self.device_modes.get(i) == "auto" for i in leases)
-                                   or bool(getattr(self.dhw, "restart_recovery", None))))
+        clean_interruption = (not self.faults and any(
+            i in self.configs and self.device_modes.get(i) == "auto" for i in leases))
         requested_mode = data.get("restart_requested_mode") or str(data.get("mode", "observe"))
         if requested_mode not in ("observe", "solar", "paused"):
             requested_mode = "observe"
@@ -623,7 +484,7 @@ class SolarRuntime:
         self.restart_requested_mode = requested_mode
         if self.restart_blocking:
             self.mode = "observe"
-        elif requested_mode == "solar" and not self.dhw.needs_review and not self.legacy_conflicts():
+        elif requested_mode == "solar" and not self.legacy_conflicts():
             self.mode = "solar"
             self.restart_requested_mode = None
             self.pause_cause = ""
@@ -643,7 +504,7 @@ class SolarRuntime:
             await self.notify("SolarPilot houdt na de herstart tijdelijk apart: " + names + ". " + continuation + "De controle wordt automatisch herhaald; beschermde programma's worden niet gestopt en eerdere opdrachten worden niet opnieuw verzonden.", restart=True)
         await self.store.async_save(self._snapshot())
         self.dishwasher_app.start()
-        self.smart_climate.start()
+        await self.sg_boost.start()
         await self.tick()
         self._remove_timer = async_track_time_interval(self.hass, self.tick, timedelta(seconds=self.settings["interval_s"]))
 
@@ -735,6 +596,13 @@ class SolarRuntime:
     @property
     def isolated_reserve_w(self):
         return sum(info["reserve_w"] for info in self.source_isolated_devices.values())
+
+    @property
+    def sg_unconfirmed_reserve_w(self):
+        """An uncertain own contact is not an observed OFF or available power."""
+        sg = self.sg_boost
+        uncertain = sg.relay_on is None and (sg.owned or getattr(sg, "_possibly_owned", False))
+        return max(0.0, float(sg.settings["expected_power_w"])) if uncertain else 0.0
 
     def _owned_source_problem(self):
         """Describe derived source guards separately from durable command faults.
@@ -853,7 +721,7 @@ class SolarRuntime:
             self._restart_resume_from_pause = False
             changed = True
         if not self.restart_blocking and requested is not None:
-            if requested != "solar" or (not self.dhw.needs_review and not self.legacy_conflicts()):
+            if requested != "solar" or (not self.legacy_conflicts()):
                 self.mode = requested
                 self.restart_requested_mode = None
                 self._restart_resume_from_pause = False
@@ -865,7 +733,7 @@ class SolarRuntime:
                 changed = True
         if changed:
             await self.store.async_save(self._snapshot())
-        if not self.recovery and self._restart_notice and not self.dhw.needs_review and not self.faults:
+        if not self.recovery and self._restart_notice and not self.faults:
             self._restart_notice = False
             if self.hass.services.has_service("persistent_notification", "dismiss"):
                 await self.hass.services.async_call("persistent_notification", "dismiss", {
@@ -874,7 +742,8 @@ class SolarRuntime:
     async def close(self, *, persist=True):
         self._closed = True
         self.dishwasher_app.close()
-        self.smart_climate.close()
+        self.panasonic.native_program.close()
+        await self.sg_boost.close(persist=persist)
         if self._remove_timer:
             self._remove_timer()
             self._remove_timer = None
@@ -1172,7 +1041,8 @@ class SolarRuntime:
         battery_analysis = self.battery_analysis.overview(
             imp, exp, existing_battery=bool(self.settings.get("battery_power_entity") or self.battery_fleet.configured))
         battery_fleet = self.battery_fleet.overview()
-        smart_climate = self.smart_climate.overview()
+        panasonic = self.panasonic.overview()
+        sg_boost = self.sg_boost.overview()
         conflicts = self.legacy_conflicts()
         warnings = []
         if conflicts:
@@ -1189,10 +1059,6 @@ class SolarRuntime:
             warnings.append("Zonnevoorspelling niet beschikbaar of te oud")
         if self.battery_fleet.settings.get("control_enabled") and self.battery_fleet.state.faults:
             warnings.append("Batterijbediening heeft een fout en is voor het betrokken profiel geblokkeerd")
-        if self.smart_climate.settings.get("enabled") and self.smart_climate.last_forecast_error:
-            warnings.append(self.smart_climate.last_forecast_error)
-        if self.smart_climate.settings.get("enabled") and self.smart_climate.state.fault:
-            warnings.append(self.smart_climate.state.fault)
         value = imp - exp
         advice = []
         if e["enabled"]:
@@ -1208,8 +1074,8 @@ class SolarRuntime:
             nxt = local_pv.get("corrected_next_hour_kwh") if local_pv.get("corrected_next_hour_kwh") is not None else nxt
             if local_pv.get("state") in ("shadow_expected", "recovery_expected"):
                 advice.append(local_pv.get("reason", "Lokaal PV-profiel verandert"))
-        if smart_climate.get("enabled"):
-            advice.append("Klimaat: " + smart_climate.get("decision", {}).get("reason", "thermisch model verzamelt data"))
+        if sg_boost.get("configured"):
+            advice.append("Warmtepomp: " + sg_boost.get("reason", "Panasonic regelt zelfstandig"))
         if battery_fleet.get("enabled"):
             advice.append("Batterijvloot: " + battery_fleet.get("reason", "alleen monitoren"))
         # De Unified Planner beoordeelt de volledige horizon; geen losse één-uurregel
@@ -1245,7 +1111,7 @@ class SolarRuntime:
             "phase_learning": phase_learning, "phase_attribution": self._phase_attribution(),
             "historical_phase_profile": self.historical_seed.get("phases", {}),
             "battery_analysis": battery_analysis, "battery_fleet": battery_fleet,
-            "smart_climate": smart_climate,
+            "panasonic": panasonic, "sg_boost": sg_boost,
             "cycle_learning": self.cycle_learning.overview(self.configs),
             "planner": {**self.unified_planner.overview(self._planner_device_configs_for_overview()),
                         "settings": dict(self.planner_settings),
@@ -1291,7 +1157,9 @@ class SolarRuntime:
         """Reject placeholders and invalid reports without aging static helpers."""
         if obj is None or obj.attributes.get("restored"):
             return None
-        stamp = getattr(obj, "last_reported", None) or getattr(obj, "last_updated", None)
+        stamp = getattr(obj, "last_reported", None)
+        if stamp is None:
+            stamp = getattr(obj, "last_updated", None)
         try:
             wall = stamp.timestamp()
             if isinstance(wall, bool) or not isinstance(wall, (int, float)):
@@ -1490,8 +1358,8 @@ class SolarRuntime:
         if self.wallbox_settings["enabled"]:
             reserved.add(self.wallbox_settings.get("power_entity"))
         reserved.update(c.get("power_entity") for i, c in self.configs.items() if i != device_id)
-        if self.dhw.configured:
-            reserved.add(self.dhw.config.get("power_entity"))
+        if self.panasonic.configured:
+            reserved.add(self.panasonic.settings.get("power_entity"))
         return bool(meter) and meter not in reserved
 
     def _reclaim_meter(self, device_id):
@@ -2085,6 +1953,14 @@ class SolarRuntime:
         changed = False
         for i, cfg in self.configs.items():
             s = self.states[i]
+            authority_error = self._profile_authority_error(cfg)
+            if authority_error:
+                s.available = False
+                s.enabled = False
+                s.demand = False
+                s.start_since = None
+                s.fault = authority_error
+                continue
             if i in self.recovery:
                 # The durable lease has not yet been reconciled. Do not let a
                 # restored/default state masquerade as OFF or consume a ticket.
@@ -2224,12 +2100,12 @@ class SolarRuntime:
                     # Retain the original fault and publish the Pause even if
                     # storage itself caused the failed controller round.
                     _LOGGER.exception("SolarPilot foutpauze kon niet worden bewaard")
+                # A local relay lease remains valid without HA. Try releasing
+                # our SG contact; failure must not hide the original exception.
                 try:
-                    self.dhw.diagnose_runtime_block(time.monotonic(), None, False, 0,
-                        code="internal_fault", reason=self.problem)
+                    await self.sg_boost.prepare_for_removal()
                 except Exception:
-                    # Diagnostics must never hide the original controller fault.
-                    _LOGGER.debug("Warmwaterdiagnose na regelcyclusfout niet beschikbaar", exc_info=True)
+                    _LOGGER.debug("SG-vrijgave na interne fout niet bevestigd", exc_info=True)
             try:
                 await self.learning_hub.tick()
             except Exception as err:
@@ -2355,53 +2231,45 @@ class SolarRuntime:
             self.note(self.configs[device_id]["name"]+": "+message)
             await self.notify(message)
             self.store.async_delay_save(self._snapshot, 1)
-        dhw_dispatch_blocks = [
-            (bool(self.pending), "load_confirmation", "Wacht op bevestiging van een eerdere toestelopdracht"),
-            (bool(self.handover), "power_transfer", "Wacht tot de verdeling van zonnestroom is afgerond"),
-            (self.smart_climate.busy, "climate_confirmation", "Wacht op bevestiging van de ruimteregeling"),
-            (self.battery_fleet.busy, "battery_confirmation", "Wacht op bevestiging van de batterijregeling"),
-            (now - self.last_issued < self.settings["settle_s"], "settling",
-             f"Wacht nog {max(0, math.ceil(self.settings['settle_s'] - (now - self.last_issued)))} s op stabiele metingen na de laatste opdracht"),
-        ]
-        dhw_block = next(((code, reason) for blocked, code, reason in dhw_dispatch_blocks if blocked), ("", ""))
-        dhw_sent = await self.dhw.tick(now, grid, valid, discharge,
-            allow_command=not bool(dhw_block[0]), local_now=local_now,
-            dispatch_block_code=dhw_block[0], dispatch_block_reason=dhw_block[1])
+        budget = sg_solar_budget(self)
+        sg_dispatch = not (self.pending or self.handover or self.battery_fleet.busy
+                           or self.restart_blocking or self.faults or self.removal_requested)
+        sg_start_allowed, sg_reason = self.heat_pump_increase_allowed()
+        actual_phase_ok = (not self.phase_settings.get("enabled") or
+            self.phase.valid and not self.phase.release_flexible and not self.phase.block_increase)
+        hard_limit = (bool(discharge and discharge > self.settings.get("battery_discharge_tolerance_w", 50))
+                      or bool(valid and grid > self.settings["max_import_w"])
+                      or not actual_phase_ok)
+        if self.capacity_settings.get("enabled"):
+            cap_limit = self.capacity.allowed_grid_w
+            if cap_limit is None:
+                cap_limit = max(0.0, self.capacity.effective_target_w-self.capacity_settings["margin_w"])
+            hard_limit = hard_limit or not self.capacity.valid or bool(valid and grid > cap_limit)
+        priority_allowed = self.priority_board.sg_priority_allowed(now)
+        tank = self.panasonic.overview()
+        sg_sent = await self.sg_boost.tick(
+            surplus_w=budget["available_w"], data_fresh=budget["valid"],
+            phase_allowed=actual_phase_ok if self.sg_boost.busy else sg_start_allowed,
+            priority_allowed=priority_allowed and sg_dispatch,
+            grid_import_w=max(0.0, grid or 0), hard_limit=hard_limit,
+            dispatch_reason=sg_reason, tank_observation={
+                "entity_id": tank["temperature_entity"], "temperature_c": tank["temperature_c"],
+                "stamp": tank["temperature_stamp"]})
         extra_reclaim = None
         wash_due = any(self.dishwasher_app.due(cfg, time.time()) and not self.states[i].on
                        for i, cfg in self.configs.items())
-        if (can_increase and valid and ready and not dhw_sent and not self.dhw.blocks_increase
-                and not self.smart_climate.busy and not self.handover and not wash_due):
+        if can_increase and valid and ready and not sg_sent and not self.handover and not wash_due:
             allowed, _reason = self.heat_pump_increase_allowed(check_capacity=False)
             if allowed:
                 extra_reclaim = self.priority_board.extra_reclaim_action(now, local_now)
         extra_start_blocks = self.priority_board.extra_start_blocks(now)
         runtime_start_blocks.update(extra_start_blocks)
         device_start_blocks.update(extra_start_blocks)
-        climate_dispatch_blocks = [
-            (self.mode != "solar", "operating_mode", "Automatisch regelen staat niet aan"),
-            (bool(self.pending), "load_confirmation", "Wacht op bevestiging van een eerdere toestelopdracht"),
-            (bool(self.handover), "power_transfer", "Wacht tot de verdeling van zonnestroom is afgerond"),
-            (self.battery_fleet.busy, "battery_confirmation", "Wacht op bevestiging van de batterijregeling"),
-            (bool(dhw_sent), "dhw_issued", "Warm water kreeg zojuist een opdracht; ruimtebediening wacht"),
-            (bool(extra_reclaim), "dhw_reclaim", "Een onderbreekbaar toestel maakt eerst zonnestroom vrij voor extra warm water"),
-            (bool(self.dhw.pending), "dhw_confirmation", "Wacht op bevestiging van het warmwaterdoel"),
-            (self.dhw.blocks_increase, "dhw_review", "Warmwaterregeling vraagt eerst controle"),
-            (self.dhw.reading.protected, "dhw_protection", self.dhw.status or "Beschermde warmwaterfunctie actief; ruimtebediening wacht"),
-            (self.restart_blocking, "restart_recovery", "Wacht op afronding van de herstartcontrole"),
-        ]
-        climate_block = next(((code, reason) for blocked, code, reason in climate_dispatch_blocks if blocked), ("", ""))
-        climate_sent = await self.smart_climate.tick(
-            local_now=local_now, allow_command=not bool(climate_block[0]),
-            dispatch_block_code=climate_block[0], dispatch_block_reason=climate_block[1])
-        if ((self.removal_requested or self.mode == "paused") and not climate_sent and not dhw_sent and not self.pending
-                and not self.handover and not self.dhw.busy and not self.battery_fleet.busy):
-            climate_sent = await self.smart_climate.prepare_for_removal()
         use_phase_map = bool(self.phase_settings.get("use_learned_device_map", False))
         phase_global_block = self.phase.block_increase and (not use_phase_map or not self.phase.valid)
         non_ev_can_increase = can_increase
         can_increase = (can_increase and not wb.block_increase and not phase_global_block and not self.handover
-                        and not dhw_sent and not climate_sent and not self.smart_climate.busy and not self.dhw.blocks_increase)
+                        and not sg_sent)
         transfer = self.handover
         waiting = transfer is not None and transfer.status == "waiting"
         rollback = transfer is not None and transfer.status == "rollback"
@@ -2443,7 +2311,7 @@ class SolarRuntime:
                     ordered_priorities=self.priority_board.active,
                     priority_ids={i for i,c in self.configs.items() if dishwasher_has_priority(c)},
                     protected_ev_credit=priority.ev_credit,
-                    comfort_reserve_w=getattr(self,"_dishwasher_comfort_reserve",0) + isolated_reserve,
+                    comfort_reserve_w=getattr(self,"_dishwasher_comfort_reserve",0) + isolated_reserve + self.sg_unconfirmed_reserve_w,
                     reclaimable_w=getattr(self.wallbox_guard, "reclaimable_w", 0),
                     max_takeover_w=self.wallbox_settings["max_takeover_w"],
                     handover_s=self.wallbox_settings["handover_s"],
@@ -2490,8 +2358,7 @@ class SolarRuntime:
                 device_increase_limits={i:max(0.0,v-other_commitment) for i,v in site.device_increase_limits.items()},
                 reclaimable_w=0, bridge_w=0,
                 can_increase=(non_ev_can_increase and not phase_global_block and not self.handover
-                              and not dhw_sent and not climate_sent and not self.smart_climate.busy
-                              and not self.dhw.blocks_increase))
+                              and not sg_sent))
             candidate = plan(deadline_site, due_devices, deepcopy(self.states))
             if candidate.action and candidate.action.watts > 0:
                 self.result.action = replace(candidate.action, reason="AEG-startdeadline bereikt; zo nodig netstroom toegestaan")
@@ -2555,12 +2422,10 @@ class SolarRuntime:
         self._record_automatic_value(local_now, dt, grid, valid, discharge, imp_price, exp_price)
         if valid:
             self.battery_analysis.step(dt, grid)
-        if (self.removal_requested and not self.pending and not self.handover and not dhw_sent
-                and not climate_sent and not self.smart_climate.busy and not self.battery_fleet.busy
+        if (self.removal_requested and not self.pending and not self.handover and not sg_sent and not self.battery_fleet.busy
                 and not self.result.action):
             battery_sent = await self.battery_fleet.prepare_for_removal()
-        elif (self.mode == "paused" and not self.pending and not self.handover and not dhw_sent
-                and not climate_sent and not self.smart_climate.busy and not self.battery_fleet.busy
+        elif (self.mode == "paused" and not self.pending and not self.handover and not sg_sent and not self.battery_fleet.busy
                 and not self.result.action):
             battery_sent = await self.battery_fleet.release_owned_targets()
         else:
@@ -2569,9 +2434,9 @@ class SolarRuntime:
                 capacity_allowed_grid_w=(self.capacity.allowed_grid_w if self.capacity_settings.get("enabled") and self.capacity.valid else None),
                 allow_command=(self.mode == "solar" and not self.removal_requested
                                and valid and not self.pending and not self.handover
-                               and not dhw_sent and not climate_sent and not self.smart_climate.busy
+                               and not sg_sent
                                and not self.result.action and not self.restart_blocking
-                               and not self.dhw.recovery_barrier))
+))
         if now - self.energy_saved_at >= 300:
             self.energy_saved_at = now
             self.store.async_delay_save(self._snapshot, 1)
@@ -2603,12 +2468,9 @@ class SolarRuntime:
                               and now - self.states[i].last_on > c["max_on_s"]]
             if overdue_cycles:
                 self.problem = "Cyclus langer actief dan verwacht: " + ", ".join(overdue_cycles)
-        if not self.problem and (self.dhw.fault or self.dhw.needs_review):
-            self.problem = self.dhw.status
-            self.problem_kind = "dhw_review"
         if self.pending:
             self.result.reasons[self.pending["id"]] = "Wacht op opdrachtbevestiging"
-        if self.result.action and self.mode != "observe" and not self.restart_blocking and not self.pending and not self.dhw.pending and not climate_sent and not battery_sent:
+        if self.result.action and self.mode != "observe" and not self.restart_blocking and not self.pending and not sg_sent and not battery_sent:
             # Even reductions are serialized and rate-limited. Stale data can
             # still trigger a safe release without waiting for a new grid sample.
             if now - self.last_issued >= self.settings["settle_s"]:
@@ -2621,23 +2483,112 @@ class SolarRuntime:
                 await self.notify("SolarPilot is veilig vrijgegeven en kan nu via Instellingen → Apparaten & diensten worden verwijderd.")
 
     async def _call(self, entity_id, service, extra=None):
+        if not isinstance(entity_id, str):
+            raise HomeAssistantError("Ongeldige toestelkoppeling: verwacht één entity_id")
         if protected_entity(self.hass, self.wallbox_settings, entity_id):
             raise HomeAssistantError("Wallbox-monitor is alleen-lezen: deze opdracht is geblokkeerd")
         domain = entity_id.split(".", 1)[0]
         if not self.hass.services.has_service(domain, service):
             raise HomeAssistantError(f"Actie {domain}.{service} niet beschikbaar")
         await self.hass.services.async_call(domain, service,
-                                           {"entity_id": entity_id, **(extra or {})}, blocking=True)
+                                           self.command_authority.assert_allowed(domain, service, entity_id, extra), blocking=True)
+
+    def _profile_authority_error(self, cfg):
+        """Invalid imported profiles are local exclusions, not global faults."""
+        if cfg.get("kind") == "dishwasher":
+            targets = [(cfg.get("start_button"), "press")]
+        elif cfg.get("kind") == "script":
+            targets = [(cfg.get("start_script"), "turn_on"), (cfg.get("stop_script"), "turn_on")]
+        else:
+            targets = [(cfg.get("control_entity"), "turn_on")]
+            if cfg.get("kind") == "number":
+                targets.append((cfg.get("number_entity"), "set_value"))
+        try:
+            for entity_id, service in targets:
+                if entity_id is not None and not isinstance(entity_id, str):
+                    return "Ongeldige toestelkoppeling: verwacht één entity_id"
+                if entity_id:
+                    self.command_authority.assert_allowed(entity_id.split(".", 1)[0], service, entity_id)
+        except HomeAssistantError as err:
+            return str(err)
+        return ""
+
+    async def set_sg_enabled(self, enabled):
+        """Persist policy authority without calling the controller recursively."""
+        from .sg_config import validate_config, actuator_conflicts
+        options = deepcopy(dict(self.entry.options))
+        config = {**self.sg_boost.settings, "enabled": enabled}
+        if enabled and (validate_config(config) or actuator_conflicts(config, list(self.configs.values()))
+                or actuator_conflicts(config, list(self.battery_fleet.configs.values()))):
+            raise HomeAssistantError("Controleer de SG-koppeling, exclusieve uitgang en ingebruikname vóór activering.")
+        options["sg_boost"] = config
+        self._skip_options_reload_once = True
+        updater = getattr(getattr(self.hass, "config_entries", None), "async_update_entry", None)
+        if updater:
+            updater(self.entry, options=options)
+        else:
+            self.entry.options = options
+        self.panasonic.update_config(config)
+        self.publish()
+
+    def sg_dispatch_allowed(self, *, renewal=False):
+        """Recheck live electrical truth after asynchronous Shelly preflight."""
+        from .sg_config import actuator_conflicts
+        if (actuator_conflicts(self.sg_boost.settings, list(self.configs.values()))
+                or actuator_conflicts(self.sg_boost.settings, list(self.battery_fleet.configs.values()))):
+            return False
+        budget = sg_solar_budget(self)
+        if (self._closed or self.mode != "solar" or self.removal_requested
+                or self.restart_blocking or self.faults or self.pending or self.handover
+                or self.battery_fleet.busy or not budget["valid"]
+                or budget["discharge_w"] > self.settings.get("battery_discharge_tolerance_w", 50)
+                or not self.priority_board.sg_priority_allowed(time.monotonic())):
+            return False
+        if not renewal and budget["available_w"] < self.sg_boost.settings["threshold_w"]:
+            return False
+        if (not renewal and (budget["stamp"] <= self.last_issued_wall or
+                time.monotonic()-self.last_issued < self.settings["settle_s"])):
+            return False
+        increment = 0.0 if renewal else float(self.sg_boost.settings["expected_power_w"])
+        envelope = increment+self.isolated_reserve_w
+        envelope += sum(max(0, st.target_w-st.measured_w) for i,st in self.states.items()
+                        if st.owned and st.on and i not in self.source_isolated_devices)
+        projected = budget["grid_w"]+envelope
+        if projected > self.settings["max_import_w"]:
+            return False
+        if renewal and budget["grid_w"] > self.sg_boost.settings["hysteresis_w"]:
+            return False
+        if self.phase_settings.get("enabled") and self.phase_settings.get("control_starts"):
+            current_phase = phase_decision(tuple(self._power(self.phase_settings.get(key), self.phase_settings["stale_s"])[0]
+                for key in ("phase_1_entity", "phase_2_entity", "phase_3_entity")), self.phase_settings)
+            if (not current_phase.valid or current_phase.block_increase or current_phase.release_flexible
+                    or current_phase.headroom_w is None or current_phase.headroom_w < envelope):
+                return False
+        if self.capacity_settings.get("enabled"):
+            avg = self._power(self.capacity_settings.get("average_demand_entity"),self.capacity_settings["stale_s"])[0]
+            peak = self._power(self.capacity_settings.get("monthly_peak_entity"),max(3600,self.capacity_settings["stale_s"]))[0]
+            current_capacity = capacity_decision(self._local_now(),avg,peak,budget["grid_w"],self.capacity_settings)
+            limit = current_capacity.allowed_grid_w
+            if limit is None:
+                limit = max(0.0,current_capacity.effective_target_w-self.capacity_settings["margin_w"])
+            if not current_capacity.valid or projected > limit:
+                return False
+        return True
 
     async def _send(self, action, now):
         i = action.id
         cfg, s = self.configs[i], self.states[i]
-        extra_stop = action.reason.startswith("Zonnestroom vrijmaken voor extra warm water")
+        authority_error = self._profile_authority_error(cfg)
+        if authority_error:
+            s.fault = authority_error
+            self.result.reasons[i] = authority_error
+            return
+        extra_stop = action.reason.startswith("Zonnestroom vrijmaken voor SG-zonneboost")
         if extra_stop:
             allowed, _reason = self.heat_pump_increase_allowed(check_capacity=False)
             candidate = self.priority_board.extra_reclaim_action(now, self._local_now()) if allowed else None
             if candidate is None or candidate.id != i or action.watts != 0:
-                self.result.reasons[i] = "Extra warm water wacht: vermogen of toestelbescherming is veranderd"
+                self.result.reasons[i] = "SG-zonneboost wacht: vermogen of toestelbescherming is veranderd"
                 return
         isolated = self.source_isolated_devices
         if i in isolated:
@@ -2765,7 +2716,7 @@ class SolarRuntime:
         self.pending = {"id": i, "watts": action.watts, "issued": now, "issued_wall": self.last_issued_wall,
                         "reason": action.reason,
                         "max_runtime": action.reason.startswith("Maximale looptijd")}
-        if action.reason.startswith("Zonnestroom vrijmaken voor extra warm water"):
+        if action.reason.startswith("Zonnestroom vrijmaken voor SG-zonneboost"):
             self.priority_board.extra_reclaim_sent(action, now)
         self.consumer_history.command(i, action.watts, action.reason)
         # Durable intent BEFORE any physical command, including an uncertain result.
@@ -2838,10 +2789,8 @@ class SolarRuntime:
         owned = [self.configs[i]["name"] for i, st in self.states.items() if st.owned]
         if owned:
             blockers.append("Nog door SolarPilot beheerd: " + ", ".join(owned))
-        if self.dhw.busy:
-            blockers.append("Boilerdoel wordt nog veilig vrijgegeven")
-        if self.smart_climate.removal_blocked():
-            blockers.append("Ruimteklimaat wordt nog terug vrijgegeven aan Panasonic AUTO")
+        if self.sg_boost.busy:
+            blockers.append("SG-contact wordt nog veilig teruggezet naar normaal")
         if self.battery_fleet.removal_blocked():
             blockers.append("Batterijopdracht of batterijvermogen is nog niet neutraal")
         ready = self.mode != "solar" and not blockers
@@ -2870,7 +2819,6 @@ class SolarRuntime:
             for st in self.states.values():
                 st.boost_until = 0
                 st.start_since = None
-            self.dhw.auto_enabled = False
             self.note("Verwijderen voorbereid: Pauze actief; SolarPilot geeft eigen regelingen veilig vrij.")
             await self.store.async_save(self._snapshot())
         await self.tick()
@@ -2879,13 +2827,12 @@ class SolarRuntime:
         async with self._lock:
             if mode not in ("observe", "solar", "paused"):
                 raise HomeAssistantError("Onbekende modus")
-            if mode == "solar" and (self.restart_blocking or self.dhw.needs_review):
+            if mode == "solar" and (self.restart_blocking):
                 raise HomeAssistantError("Rond eerst de herstartcontrole af")
             if mode == "solar" and self.legacy_conflicts():
                 names = ", ".join(x["name"] for x in self.legacy_conflicts())
                 raise HomeAssistantError("Schakel eerst de vervangen regelaars uit: " + names)
-            if mode == "observe" and (self.dhw.busy or self.pending
-                    or self.smart_climate.removal_blocked() or self.battery_fleet.removal_blocked()
+            if mode == "observe" and (self.sg_boost.busy or self.pending or self.battery_fleet.removal_blocked()
                     or any(s.owned for s in self.states.values())):
                 raise HomeAssistantError("Kies eerst Pauze. Wacht tot de beheerde toestellen veilig zijn vrijgegeven.")
             if mode != self.mode:
@@ -2919,11 +2866,7 @@ class SolarRuntime:
 
     def _pause_resume_faulted(self):
         """A fault discovered during deferred recovery cannot promote Pause."""
-        dhw_auto = self.dhw.automatic_recovery
-        recoverable_dhw_fault = (dhw_auto and dhw_auto.get("fault") == self.dhw.fault
-                                 and not self.dhw.manual_hold)
-        return bool(self.faults or self.dhw.fault and not recoverable_dhw_fault or self.battery_fleet.state.faults
-                    or self.smart_climate.command_faults)
+        return bool(self.faults or self.battery_fleet.state.faults)
 
     async def set_auto_resume_after_restart(self, enabled):
         if not isinstance(enabled, bool):
@@ -3085,14 +3028,6 @@ class SolarRuntime:
             if self.pending:
                 raise HomeAssistantError("Wacht eerst op de lopende opdracht")
             ids = set(self.recovery) | set(self.faults) | set(self.reclaim_blocks) | set(self.dishwasher_priority.ev_blocks)
-            if (not ids and (self.dhw.fault or self.dhw.needs_review or self.dhw.manual_hold)
-                    and not self.battery_fleet.state.faults):
-                # This button reviews ordinary loads. A boiler-only warning
-                # needs its own guarded review, not a successful no-op or the
-                # clearing of an unrelated battery command journal.
-                raise HomeAssistantError(
-                    "Rond de boilercontrole af bij Sanitair warm water. "
-                    "Kies eerst Pauze en daarna Boilercontrole afronden.")
             if not ids and self.problem_kind in ("source_wait", "source_configuration"):
                 # A stale page or direct button call must not claim all devices
                 # were verified OFF when only a derived source guard exists.
@@ -3440,15 +3375,15 @@ class SolarRuntime:
             self.learning.reset()
             self.local_pv.reset_live()
             self.phase_learning.reset()
-            self.smart_climate.state.reset_learning()
+            self.heatpump_learning = HeatPumpActivityModel()
             await self.store.async_save(self._snapshot())
-            self.note("Apparaat-, lokale PV-, fase- en klimaatleerdata gewist. Operationele toestand, historische PV-bootstrap en veiligheidsinstellingen blijven behouden.")
+            self.note("Apparaat-, lokale PV-, fase- en activiteitsleerdata gewist. Privéklimaatarchief behouden. Operationele toestand, historische PV-bootstrap en veiligheidsinstellingen blijven behouden.")
         self.publish()
 
     def learning_overview(self):
         return {**self.learning.overview(self.wallbox_settings["stable_s"]),
                 "pv_model": self.local_pv.overview(),
                 "phase_learning": self.phase_learning.overview(self.configs, self._phase_monitor_configs()),
-                "thermal_model": self.smart_climate.overview(),
+                "thermal_model": self.panasonic.learning_overview(),
                 "switch_entity": self.entity_id("switch", "learning"),
                 "reset_entity": self.entity_id("button", "reset_learning")}

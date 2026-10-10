@@ -1,97 +1,89 @@
-"""Beta.37 one-time activation profile: configured modules on, no invented rights."""
+"""Current migration preserves earlier activation choices without replaying them.
+
+The retired beta.37 activation API is absent. Its non-Panasonic invariants remain
+covered here: explicit phase/capacity/PV/AEG/Wallbox/learning choices survive, and
+no migration grants a new physical start or SG commissioning right.
+"""
+from copy import deepcopy
 import pytest
-from test_runtime import build
+from custom_components.solar_pilot.panasonic_migration import migrate_panasonic
 
 
-@pytest.mark.asyncio
-async def test_activation_enables_configured_models_and_safe_controls_once():
-    r, h = build(power=True)
-    for entity in ("sensor.p1", "sensor.p2", "sensor.p3"):
-        h.states.set(entity, 0, {"unit_of_measurement": "W"})
-    h.states.set("climate.zone", "auto", {
-        "hvac_modes": ["off", "auto", "heat", "cool"],
-        "current_temperature": 21, "temperature": 21,
-        "temperature_unit": "°C", "hvac_action": "idle",
-    })
-    h.states.set("water_heater.tank", "heat", {"current_temperature": 50, "temperature": 50})
-    h.states.set("sensor.tank", 50, {"unit_of_measurement": "°C"})
-    h.states.set("sensor.wallbox", 0, {"unit_of_measurement": "kW"})
-
-    r.entry.options.update({
-        "planner": {"enabled": False, "base_load_learning": False, "replay_enabled": False,
-                    "forecast_deferral_enabled": False, "adaptive_power_guard": False},
-        "analysis": {"enabled": False},
-        "local_pv": {"enabled": False, "seed_enabled": False},
-        "battery_analysis": {"enabled": False, "seed_enabled": False},
-        "economy": {"enabled": False},
-        "phase": {"enabled": False, "learning_enabled": False, "control_starts": False,
-                  "phase_1_entity": "sensor.p1", "phase_2_entity": "sensor.p2",
-                  "phase_3_entity": "sensor.p3"},
-        "smart_climate": {"enabled": False, "control_enabled": False,
+def configured_legacy(enabled):
+    options = {
+        "planner": {"enabled": enabled, "base_load_learning": enabled,
+                    "replay_enabled": enabled, "forecast_deferral_enabled": enabled,
+                    "adaptive_power_guard": enabled},
+        "analysis": {"enabled": enabled, "retention_days": 12},
+        "local_pv": {"enabled": enabled, "seed_enabled": enabled},
+        "pv_forecast": {"enabled": enabled, "calibration_enabled": enabled,
+                        "panel_peak_wp": 12000, "inverter_limit_w": 9000},
+        "battery_analysis": {"enabled": enabled, "seed_enabled": enabled},
+        "economy": {"enabled": enabled},
+        "capacity": {"enabled": enabled, "average_demand_entity": "sensor.demand"},
+        "phase": {"enabled": enabled, "learning_enabled": enabled,
+                  "control_starts": enabled, "shed_on_overlimit": False,
+                  "phase_1_entity": "sensor.phase_a", "phase_2_entity": "sensor.phase_b",
+                  "phase_3_entity": "sensor.phase_c"},
+        "wallbox": {"enabled": enabled, "power_entity": "sensor.wallbox"},
+        "devices": [{"id": "washer", "kind": "dishwasher", "name": "Dishwasher",
+                     "cycle_learning_enabled": enabled, "dishwasher_mapping_confirmed": False,
+                     "start_button": "button.dishwasher_start", "priority": 35}],
+        "dhw": {"enabled": True, "safety_confirmed": True,
+                "target_entity": "water_heater.tank", "temperature_entity": "sensor.tank"},
+        "smart_climate": {"enabled": True, "control_enabled": True,
                           "zone_entities": ["climate.zone"]},
-        "dhw": {"enabled": False, "safety_confirmed": True,
-                "target_entity": "water_heater.tank", "temperature_entity": "sensor.tank"},
-        "wallbox": {"enabled": False, "power_entity": "sensor.wallbox"},
-        "devices": [{**r.entry.options["devices"][0], "cycle_learning_enabled": False}],
-    })
-
-    changed = await r._migrate_beta37_activation_profile()
-    assert changed is True
-    o = r.entry.options
-    assert o["_beta37_activation_profile"] == 1
-    assert o["analysis"]["enabled"] is True
-    assert o["planner"]["enabled"] and o["planner"]["base_load_learning"]
-    assert o["planner"]["replay_enabled"] and o["planner"]["forecast_deferral_enabled"]
-    assert o["local_pv"]["enabled"] and o["battery_analysis"]["enabled"]
-    assert o["economy"]["enabled"] is True
-    assert o["phase"]["enabled"] and o["phase"]["learning_enabled"] and o["phase"]["control_starts"]
-    assert o["smart_climate"]["enabled"] and o["smart_climate"]["control_enabled"]
-    assert o["dhw"]["enabled"] is True
-    assert o["wallbox"]["enabled"] is True
-    assert o["devices"][0]["cycle_learning_enabled"] is True
-    assert r.learning.enabled is True
-    assert r.learning_hub.policy["adaptation"] == "automatic"
-    assert r.learning_hub.policy["notifications"] is True
-    assert r.device_modes.get("a", "disabled") == "disabled"
-    assert h.services.calls == []
+    }
+    stored = {"mode": "solar", "auto_resume_after_restart": False,
+              "device_modes": {"washer": "disabled"},
+              "learning": {"enabled": enabled, "profiles": {"washer": {"n": 8}}},
+              "learning_hub": {"policy": {"adaptation": "automatic" if enabled else "assisted",
+                                            "notifications": enabled}},
+              "dishwasher_app": {"data": {"washer": {"cycle": {"status": "completed"}}}}}
+    return options, stored
 
 
-@pytest.mark.asyncio
-async def test_activation_does_not_invent_safety_or_missing_control_sources():
-    r, h = build()
-    r.entry.options.update({
-        "smart_climate": {"enabled": False, "control_enabled": False,
-                          "zone_entities": ["climate.missing"]},
-        "dhw": {"enabled": False, "safety_confirmed": False,
-                "target_entity": "water_heater.tank", "temperature_entity": "sensor.tank"},
-        "phase": {"enabled": False, "learning_enabled": False,
-                  "phase_1_entity": "sensor.p1", "phase_2_entity": "", "phase_3_entity": ""},
-        "wallbox": {"enabled": False, "power_entity": ""},
-    })
-    await r._migrate_beta37_activation_profile()
-    o = r.entry.options
-    assert o["smart_climate"]["enabled"] is True
-    assert o["smart_climate"]["control_enabled"] is False
-    assert o["dhw"]["enabled"] is False
-    assert o["dhw"]["safety_confirmed"] is False
-    assert o["phase"]["enabled"] is False
-    assert o["wallbox"]["enabled"] is False
-    assert h.services.calls == []
+@pytest.mark.parametrize("enabled", [False, True])
+def test_migration_preserves_explicit_model_and_other_device_choices(enabled):
+    options, stored = configured_legacy(enabled)
+    before = deepcopy((options, stored))
+    new, data, _ = migrate_panasonic(options, stored)
+    assert (options, stored) == before
+    for group in ("planner", "analysis", "local_pv", "pv_forecast", "battery_analysis",
+                  "economy", "capacity", "phase", "wallbox", "devices"):
+        assert new[group] == options[group], group
+    for key in ("mode", "auto_resume_after_restart", "device_modes", "learning", "learning_hub", "dishwasher_app"):
+        assert data[key] == stored[key], key
+    assert "_beta37_activation_profile" not in new
+    assert "dhw" not in new and "smart_climate" not in new
+    assert all(new["sg_boost"][key] is False for key in
+               ("enabled", "commissioning_confirmed", "watchdog_confirmed"))
 
 
-@pytest.mark.asyncio
-async def test_activation_marker_makes_later_user_choices_sticky():
-    r, h = build(power=True)
-    r.entry.options["_beta37_activation_profile"] = 1
-    r.entry.options["planner"] = {"enabled": False, "base_load_learning": False}
-    r.learning.enabled = False
-    r.learning_hub.policy["adaptation"] = "assisted"
-    before = dict(r.entry.options["planner"])
+def test_old_activation_marker_and_later_user_choices_remain_exact():
+    options, stored = configured_legacy(False)
+    options["_beta37_activation_profile"] = 1
+    options["planner"]["quality_retention_days"] = 19
+    new, data, _ = migrate_panasonic(options, stored)
+    assert new["_beta37_activation_profile"] == 1
+    assert new["planner"] == options["planner"]
+    assert data["learning_hub"]["policy"]["adaptation"] == "assisted"
+    assert data["panasonic_archive"]["backup_options"] == options
+    assert data["panasonic_archive"]["backup_store"] == stored
 
-    changed = await r._migrate_beta37_activation_profile()
 
-    assert changed is False
-    assert r.entry.options["planner"] == before
-    assert r.learning.enabled is False
-    assert r.learning_hub.policy["adaptation"] == "assisted"
-    assert h.services.calls == []
+def test_missing_sources_or_experimental_sg_flags_never_create_new_rights():
+    options, stored = configured_legacy(False)
+    options["phase"].update(phase_2_entity="", phase_3_entity="")
+    options["wallbox"]["power_entity"] = ""
+    options["smart_climate"]["zone_entities"] = ["climate.missing"]
+    options["sg_boost"] = {"entity_id": "switch.guessed", "enabled": True,
+                           "commissioning_confirmed": True, "watchdog_confirmed": True}
+    new, data, _ = migrate_panasonic(options, stored)
+    assert new["phase"] == options["phase"] and new["wallbox"] == options["wallbox"]
+    assert new["sg_boost"]["entity_id"] == ""
+    assert all(new["sg_boost"][key] is False for key in
+               ("enabled", "commissioning_confirmed", "watchdog_confirmed"))
+    assert new["sg_boost"]["zone_entities"] == ["climate.missing"]
+    assert data["device_modes"]["washer"] == "disabled"
+    assert data["panasonic_archive"]["backup_options"]["sg_boost"] == options["sg_boost"]

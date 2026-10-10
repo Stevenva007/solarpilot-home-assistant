@@ -13,7 +13,6 @@ import math
 import statistics
 import time
 
-from .dhw import hygiene_schedule_active
 
 CONTEXT_NORMAL = "normal"
 CONTEXT_HEATING = "space_heating"
@@ -60,75 +59,11 @@ def _action(obj, stale_s=300):
 
 def classify_heatpump(runtime, local_now):
     """Classify only states backed by current HA/Panasonic state information."""
-    dhw = getattr(runtime, "dhw", None)
-    if dhw is not None and getattr(dhw, "configured", False):
-        try:
-            if hygiene_schedule_active(dhw.settings, local_now):
-                return CONTEXT_HYGIENE, "Panasonic-sterilisatievenster actief"
-        except Exception:
-            pass
-        reading = getattr(dhw, "reading", None)
-        protection = str(getattr(reading, "protection_reason", "") or "").casefold()
-        if any(word in protection for word in ("hygiëne", "hygiene", "sterili", "legionella", "disinfect")):
-            return CONTEXT_HYGIENE, "Panasonic-hygiëne/sterilisatie gemeld"
-        if bool(getattr(reading, "protected", False)):
-            return CONTEXT_UNKNOWN, "Warmtepomp/DHW is beschermd of handmatig actief; functie niet als huishoudelijke basislast leren"
-
-    hass = getattr(runtime, "hass", None)
-    states = getattr(hass, "states", None)
-    get = getattr(states, "get", lambda _entity: None)
-
-    # A direct DHW hvac_action is the strongest tank-heating evidence.
-    if dhw is not None and getattr(dhw, "configured", False):
-        entity_id = getattr(dhw, "config", {}).get("target_entity")
-        obj = get(entity_id) if entity_id else None
-        action = _action(obj, dhw.settings.get("stale_s", 300))
-        if action is None and str(entity_id or "").startswith(("climate.", "water_heater.")):
-            return CONTEXT_UNKNOWN, "Panasonic-tapwateractiviteit niet betrouwbaar beschikbaar"
-        if action in {"heating", "preheating", "heat", "dhw", "hot_water"}:
-            return CONTEXT_DHW, "Panasonic meldt actieve tapwaterverwarming"
-
-    climate = getattr(runtime, "smart_climate", None)
-    settings = getattr(climate, "settings", {}) if climate is not None else {}
-    zone_ids = list(settings.get("zone_entities", []) or [])
-    actions = []
-    unavailable = False
-    for entity_id in zone_ids:
-        obj = get(entity_id)
-        action = _action(obj, settings.get("stale_s", 1800))
-        if action is None:
-            unavailable = True
-            continue
-        actions.append(action)
-
-    if any(a in {"cooling", "precooling"} for a in actions):
-        return CONTEXT_COOLING, "Panasonic meldt actieve ruimtekoeling"
-    if any(a in {"heating", "preheating"} for a in actions):
-        return CONTEXT_HEATING, "Panasonic meldt actieve ruimteverwarming"
-    if any(a in {"defrosting", "unknown"} for a in actions):
-        return CONTEXT_UNKNOWN, "Warmtepomp actief maar functie niet eenduidig"
-    if zone_ids and unavailable:
-        return CONTEXT_UNKNOWN, "Panasonic-ruimteactiviteit niet betrouwbaar beschikbaar"
-
-    # Some supported Panasonic adapter versions expose AUTO as heat_cool while hvac_action
-    # temporarily remains idle/off during a reported PUMP task.  A separately
-    # configured task-direction source protects the household baseline without
-    # inventing whether the task is HEAT or COOL or claiming compressor watts.
-    if dhw is not None and hasattr(dhw, "space_activity_status"):
-        try:
-            busy, reason, relevant, source = dhw.space_activity_status()
-        except (AttributeError, KeyError, TypeError, ValueError):
-            busy, reason, relevant, source = None, "", False, {}
-        raw = str(source.get("state") or "").strip().casefold()
-        inactive = {part.strip().casefold() for part in str(
-            getattr(dhw, "settings", {}).get("space_activity_inactive_states", "IDLE;WATER")
-        ).split(";") if part.strip()}
-        if source.get("valid") and raw == "water" and raw in inactive:
-            return CONTEXT_UNKNOWN, "Panasonic meldt WATER als taakrichting; dit is geen bewijs van compressoractiviteit of vermogen"
-        if relevant and busy is not False:
-            return CONTEXT_UNKNOWN, reason or "Panasonic-ruimteactiviteit niet betrouwbaar eenduidig"
-
-    return CONTEXT_NORMAL, "Geen actieve Panasonic verwarmings-/koelactie gemeld"
+    monitor = getattr(runtime, "panasonic", None)
+    if monitor is None:
+        return CONTEXT_UNKNOWN, "Panasonic-bronnen niet gekoppeld"
+    observed = monitor.overview()
+    return observed.get("context", CONTEXT_UNKNOWN), observed.get("status", "Activiteit onbekend")
 
 
 @dataclass(frozen=True)

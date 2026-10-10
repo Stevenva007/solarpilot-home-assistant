@@ -11,13 +11,11 @@ from types import SimpleNamespace
 import pytest
 
 from custom_components.solar_pilot import dishwasher_app
-from custom_components.solar_pilot import thermal_runtime
 from custom_components.solar_pilot.analysis_export import AnalysisLogHandler
 from custom_components.solar_pilot.const import DOMAIN, PLATFORMS
 from homeassistant.helpers import event
 from test_dishwasher_app31 import configured
 from test_runtime import build
-from test_thermal_runtime import setup_climate
 from test_battery_runtime import setup_battery
 from homeassistant.exceptions import HomeAssistantError
 
@@ -76,15 +74,11 @@ async def test_actual_runtime_abort_cleans_all_resources_without_writing_any_of_
         return lambda: services.discard(token)
 
     monkeypatch.setattr(dishwasher_app, "async_track_state_change_event", track_states)
-    monkeypatch.setattr(thermal_runtime, "async_track_state_change_event", track_states)
     hass.bus = SimpleNamespace(async_listen=listen)
     runtime.dishwasher_app.start()
-    runtime.smart_climate.settings["zone_entities"] = ["climate.home"]
-    runtime.smart_climate.start()
     runtime._remove_timer = track_timer(hass, runtime.tick, None)
     runtime.consumer_history.loaded = runtime.analysis.loaded = True
-    runtime.smart_climate.state.profile("climate.home").samples = 633
-    runtime.smart_climate.manual_off.add("climate.home")
+    runtime.panasonic_archive["backup_store"] = {"smart_climate": {"profiles": {"climate.home": {"samples": 633}}, "manual_off": ["climate.home"]}}
     runtime.states["a"].owned = runtime.states["a"].on = True
     runtime.consumer_history.model.event("a", runtime.configs["a"], "Existing history", runtime.consumer_history.now())
     runtime.analysis.samples.append({"ts": 633., "values": {"pv_w": 633.}})
@@ -104,8 +98,7 @@ async def test_actual_runtime_abort_cleans_all_resources_without_writing_any_of_
     saved = tuple(deepcopy(store.data) for store in stores)
     save_counts = tuple(len(store.saves) for store in stores)
     # A setup failure may happen while only part of the saved journal is restored.
-    runtime.smart_climate.state.profiles.clear()
-    runtime.smart_climate.manual_off.clear()
+    runtime.panasonic_archive.clear()
     runtime.states["a"].owned = False
     runtime.consumer_history.model.devices.clear()
     runtime.analysis.samples.clear()
@@ -124,18 +117,6 @@ async def test_actual_runtime_abort_cleans_all_resources_without_writing_any_of_
     assert not hass.services.calls
 
 
-@pytest.mark.asyncio
-async def test_observe_cannot_abandon_an_owned_climate_coast():
-    runtime, hass = setup_climate(control=True, mode="off")
-    runtime.mode = "solar"
-    runtime.smart_climate.state.expected_mode = {"climate.home": "off"}
-
-    with pytest.raises(HomeAssistantError, match="Pauze"):
-        await runtime.set_mode("observe")
-
-    assert runtime.mode == "solar"
-    assert runtime.smart_climate.state.expected_mode == {"climate.home": "off"}
-    assert not hass.services.calls
 
 
 @pytest.mark.asyncio
@@ -176,7 +157,6 @@ async def test_options_waiting_for_dispatch_cannot_reopen_resources_after_close(
     monkeypatch.setattr(dishwasher_app, "async_track_state_change_event", track_states)
     hass.bus = SimpleNamespace(async_listen=listen)
     runtime.dishwasher_app.start()
-    runtime.smart_climate.start()
     runtime._remove_timer = track_timer(hass, runtime.tick, None)
     interval = runtime.settings["interval_s"]
     old_remote = runtime.configs["a"]["dishwasher_remote_entity"]
@@ -264,7 +244,7 @@ async def test_dispatch_cannot_start_a_new_lease_while_platform_unload_waits(pla
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("handler", ["_handle_set_climate_setting", "_handle_set_planner_setting"])
+@pytest.mark.parametrize("handler", ["_handle_set_planner_setting"])
 async def test_setting_services_reject_unloaded_runtime_without_mutation(handler):
     runtime, hass = build()
     runtime.entry.runtime_data = runtime

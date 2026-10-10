@@ -37,6 +37,10 @@ def apply_first_install_suggestions(hass, values: dict, group: str) -> dict:
             out[key] = candidate
         elif _exists(hass, candidate):
             out[key] = candidate
+    # Retired Panasonic control groups must not be recreated from an old private
+    # profile. Current SG profile suggestions contain links only, no authority.
+    if group in ("dhw", "smart_climate"):
+        return out
     # Installation-specific candidates may live in HACS' persistent userfiles
     # directory. They are never part of the public repository and only appear
     # when the referenced entity currently exists in Home Assistant.

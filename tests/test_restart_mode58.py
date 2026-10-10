@@ -363,20 +363,13 @@ def put_fault(runtime, data, kind):
     reason = "Geen opdrachtbevestiging; controle nodig"
     if kind == "ordinary":
         data["faults"] = {"a": reason}
-    elif kind == "dhw":
-        data["dhw"] = {"fault": reason}
     elif kind == "battery":
         data["battery_fleet"] = {"faults": {"restart": reason}}
-    elif kind == "climate_command":
-        # Selected IDs are the restore admission boundary for climate journals.
-        runtime.entry.options["smart_climate"] = {"enabled": False, "zone_entities": ["climate.zone"]}
-        runtime.smart_climate.settings.update(enabled=False, zone_entities=["climate.zone"])
-        data["smart_climate"] = {"command_faults": {"climate.zone": reason}}
     return reason
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("kind", ["ordinary", "dhw", "battery", "climate_command"])
+@pytest.mark.parametrize("kind", ["ordinary", "battery"])
 async def test_persisted_pause_resume_queue_rechecks_all_actual_module_faults(kind):
     runtime, hass = build()
     runtime.entry.options["_beta37_activation_profile"] = 1
@@ -397,7 +390,7 @@ async def test_persisted_pause_resume_queue_rechecks_all_actual_module_faults(ki
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("kind", ["ordinary", "dhw", "battery", "climate_command"])
+@pytest.mark.parametrize("kind", ["ordinary", "battery"])
 async def test_deferred_pause_resume_is_cancelled_if_a_fault_arrives_before_final_retry(kind, monkeypatch):
     runtime, hass = build()
     runtime.store.data = {"mode": "paused", "pause_cause": "user", "device_modes": {"a": "auto"}}
@@ -407,12 +400,8 @@ async def test_deferred_pause_resume_is_cancelled_if_a_fault_arrives_before_fina
     reason = "Nieuwe opdrachtfout tijdens opstartcontrole"
     if kind == "ordinary":
         runtime.faults["a"] = reason
-    elif kind == "dhw":
-        runtime.dhw.fault = reason
     elif kind == "battery":
         runtime.battery_fleet.state.faults["restart"] = reason
-    elif kind == "climate_command":
-        runtime.smart_climate.command_faults["climate.zone"] = reason
     monkeypatch.setattr(runtime, "legacy_conflicts", lambda: [])
 
     await runtime._retry_restart_recovery(time.monotonic())
@@ -480,13 +469,13 @@ async def test_transient_climate_source_wait_does_not_block_an_independent_load(
     await runtime.start()
     if arrival == "during_retry":
         assert runtime.mode == "observe" and runtime._restart_resume_from_pause
-        runtime.smart_climate.state.fault = reason
+        runtime.panasonic_archive.setdefault("backup_store", {})["smart_climate"] = {"fault": reason}
         monkeypatch.setattr(runtime, "legacy_conflicts", lambda: [])
     await runtime.tick()
     await runtime.tick()
 
     assert runtime.mode == "solar" and runtime.pause_cause == ""
-    assert runtime.smart_climate.state.fault == reason
+    assert runtime.panasonic_archive["backup_store"]["smart_climate"]["fault"] == reason
     assert runtime.states["a"].owned and runtime.states["a"].on
     assert commands(hass) == [("switch", "turn_on", {"entity_id": "switch.load"})]
 

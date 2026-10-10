@@ -24,21 +24,9 @@ from .dishwasher_recovery import LegacyDishwasherRecoveryRetry, recover_legacy_d
 
 from .const import DOMAIN, PLATFORMS
 from .runtime import SolarRuntime
-from .dhw import DHW_NUMBERS
 
-SERVICE_SET_CLIMATE_SETTING = "set_climate_setting"
-SERVICE_SET_CLIMATE_OVERRIDE = "set_climate_override"
 SERVICE_SET_PLANNER_SETTING = "set_planner_setting"
 _LOGGER = logging.getLogger(__name__)
-
-
-async def _handle_set_climate_setting(hass: HomeAssistant, call) -> None:
-    entry_id = str(call.data.get("config_entry_id") or "")
-    entries = list(hass.config_entries.async_entries(DOMAIN))
-    entry = next((e for e in entries if not entry_id or e.entry_id == entry_id), None)
-    if entry is None or getattr(entry, "runtime_data", None) is None or entry.runtime_data._closed:
-        raise ValueError("SolarPilot-configuratie niet geladen")
-    await entry.runtime_data.smart_climate.async_set_setting(call.data["setting"], call.data.get("value"))
 
 
 async def _handle_set_planner_setting(hass: HomeAssistant, call) -> None:
@@ -48,28 +36,6 @@ async def _handle_set_planner_setting(hass: HomeAssistant, call) -> None:
     if entry is None or getattr(entry, "runtime_data", None) is None or entry.runtime_data._closed:
         raise ValueError("SolarPilot-configuratie niet geladen")
     await entry.runtime_data.async_set_planner_setting(call.data["setting"], call.data.get("value"))
-
-
-async def _handle_set_climate_override(hass: HomeAssistant, call) -> None:
-    """Apply dashboard intent to exactly one entry, through its normal tick gate."""
-    entry_id = str(call.data.get("config_entry_id") or "")
-    entity_id = call.data["entity_id"]
-    entries = list(hass.config_entries.async_entries(DOMAIN))
-    candidates = [entry for entry in entries
-                  if (not entry_id or entry.entry_id == entry_id)
-                  and getattr(entry, "runtime_data", None) is not None
-                  and entity_id in (entry.runtime_data.smart_climate.settings.get("zone_entities") or [])]
-    if len(candidates) != 1:
-        raise ValueError("Kies één geladen SolarPilot-configuratie voor deze klimaatzone")
-    runtime = candidates[0].runtime_data
-    async with runtime._lock:
-        if runtime._closed:
-            raise ValueError("SolarPilot-configuratie niet geladen")
-        await runtime.smart_climate.async_set_override(entity_id, call.data["mode"])
-    # Queued dashboard intent shares source, pending-command and electrical
-    # guards with every other action. Never call climate directly in this handler.
-    if call.data["mode"] != "review":
-        await runtime.tick()
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -121,7 +87,7 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.runtime_data = runtime
     # Remove only SolarPilot's orphaned virtual entities, never underlying devices.
     valid_prefixes = [f"{entry.entry_id}_{i}_" for i in runtime.configs]
-    hub_suffixes = {"status", "grid", "surplus", "managed", "energy", "problem", "mode", "reset", "prepare_remove", "others_first", "learning", "reset_learning", "ems_status", "guide", "ems_solar_today", "ems_value_today", "ems_self_consumption", "battery_fleet_status", "battery_fleet_soc", "battery_fleet_power", "smart_climate_status", "smart_climate_confidence", "smart_climate_predicted_min", "smart_climate_predicted_max"}
+    hub_suffixes = {"status", "grid", "surplus", "managed", "energy", "problem", "mode", "reset", "prepare_remove", "others_first", "learning", "reset_learning", "auto_resume_after_restart", "ems_status", "guide", "ems_solar_today", "ems_value_today", "ems_self_consumption", "battery_fleet_status", "battery_fleet_soc", "battery_fleet_power"}
     hub_suffixes.update(PV_SENSOR_DEFINITIONS)
     hub_suffixes.update({"electricity_cost_today", "electricity_import_cost_today", "electricity_export_revenue_today", "electricity_pv_avoided_today",
                         "local_pv_status", "local_pv_corrected_power", "local_pv_confidence", "battery_analysis_status", "battery_10_5_avoided", "phase_learning_status"})
@@ -132,9 +98,8 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hub_suffixes.update({"phase_status", "phase_headroom"})
     if runtime.wallbox_settings["enabled"]:
         hub_suffixes.update({"wallbox_status", "wallbox_power"})
-    if runtime.dhw.configured:
-        hub_suffixes.update({"dhw_status", "dhw_temperature", "dhw_target", "dhw_enabled", "dhw_review", "dhw_takeover"})
-        hub_suffixes.update("dhw_" + k for k in DHW_NUMBERS)
+    hub_suffixes.update({"dhw_status", "dhw_temperature", "dhw_target", "sg_boost_status",
+                         "sg_boost_enabled", "sg_boost_resume", "panasonic_status", "panasonic_power"})
     registry = er.async_get(hass)
     for ent in er.async_entries_for_config_entry(registry, entry.entry_id):
         hub = ent.unique_id.removeprefix(f"{entry.entry_id}_") in hub_suffixes
@@ -158,19 +123,6 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         import logging
         logging.getLogger(__name__).exception("SolarPilot frontend kon niet automatisch registreren")
 
-    if not hass.services.has_service(DOMAIN, SERVICE_SET_CLIMATE_SETTING):
-        async def handle_climate_setting(call):
-            await _handle_set_climate_setting(hass, call)
-        hass.services.async_register(
-            DOMAIN,
-            SERVICE_SET_CLIMATE_SETTING,
-            handle_climate_setting,
-            schema=vol.Schema({
-                vol.Optional("config_entry_id", default=""): str,
-                vol.Required("setting"): str,
-                vol.Required("value"): vol.Any(bool, int, float, str, [str]),
-            }),
-        )
     if not hass.services.has_service(DOMAIN, SERVICE_SET_PLANNER_SETTING):
         async def handle_planner_setting(call):
             await _handle_set_planner_setting(hass, call)
@@ -180,17 +132,6 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 vol.Optional("config_entry_id", default=""): str,
                 vol.Required("setting"): str,
                 vol.Required("value"): vol.Any(bool, int, float, str),
-            }),
-        )
-    if not hass.services.has_service(DOMAIN, SERVICE_SET_CLIMATE_OVERRIDE):
-        async def handle_climate_override(call):
-            await _handle_set_climate_override(hass, call)
-        hass.services.async_register(
-            DOMAIN, SERVICE_SET_CLIMATE_OVERRIDE, handle_climate_override,
-            schema=vol.Schema({
-                vol.Optional("config_entry_id", default=""): str,
-                vol.Required("entity_id"): str,
-                vol.Required("mode"): vol.In(("automatic", "auto", "off", "review")),
             }),
         )
     entry.async_on_unload(entry.add_update_listener(_options_updated))
@@ -216,9 +157,8 @@ async def async_unload_entry(hass, entry):
     # Use the dedicated Prepare for removal action first.
     async with runtime._lock:
         if not runtime.removal_overview()["ready"] and (
-            runtime.dhw.busy or runtime.pending or runtime.battery_fleet.busy
+            runtime.sg_boost.busy or runtime.pending or runtime.battery_fleet.busy
             or any(s.owned for s in runtime.states.values())
-            or runtime.smart_climate.removal_blocked()
             or runtime.battery_fleet.removal_blocked()
         ):
             return False
@@ -245,14 +185,15 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     # devices are never touched.
     await hass.async_add_executor_job(delete_private_files_if_requested)
     if hass.services.has_service("persistent_notification", "dismiss"):
-        await hass.services.async_call(
-            "persistent_notification", "dismiss",
-            {"notification_id": f"{DOMAIN}_{entry.entry_id}"}, blocking=False,
-        )
+        for notification_id in (f"{DOMAIN}_{entry.entry_id}", f"{DOMAIN}_{entry.entry_id}_action_required"):
+            await hass.services.async_call(
+                "persistent_notification", "dismiss",
+                {"notification_id": notification_id}, blocking=False,
+            )
     # Config entry is already gone here. Keep the frontend only if another
     # SolarPilot entry still exists.
     if not hass.config_entries.async_entries(DOMAIN):
         async_unregister_frontend(hass, final=True)
-        for service in (SERVICE_SET_CLIMATE_SETTING, SERVICE_SET_PLANNER_SETTING, SERVICE_SET_CLIMATE_OVERRIDE):
+        for service in (SERVICE_SET_PLANNER_SETTING,):
             if hass.services.has_service(DOMAIN, service):
                 hass.services.async_remove(DOMAIN, service)

@@ -154,7 +154,7 @@ class NativeClimateProgram:
         return watch
 
     def _stale_s(self):
-        settings = getattr(getattr(self.runtime, "smart_climate", None), "settings", {})
+        settings = getattr(getattr(self.runtime, "panasonic", None), "settings", {})
         value = settings.get("stale_s", 300) if isinstance(settings, dict) else 300
         if isinstance(value, bool):
             return 300.0

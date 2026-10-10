@@ -4,6 +4,7 @@ from .const import VERSION
 
 async def async_get_config_entry_diagnostics(hass, entry):
     r = entry.runtime_data
+    sg = r.sg_boost.overview()
     return {"version": VERSION, "mode": r.mode, "device_count": len(r.configs),
             "recovery_count": len(r.recovery), "fault_count": len(r.faults),
             "pending": r.pending is not None, "meter_valid": r.grid_w is not None,
@@ -13,11 +14,13 @@ async def async_get_config_entry_diagnostics(hass, entry):
                         "state": r.wallbox_guard.result.state,
                         "block_increase": r.wallbox_guard.result.block_increase,
                         "possible_interactions": r.wallbox_guard.conflict_count},
-            "dhw": {"configured": r.dhw.configured, "enabled": r.dhw.auto_enabled,
-                    "pending": bool(r.dhw.pending), "owned": r.dhw.owned_target is not None,
-                    "needs_review": r.dhw.needs_review, "manual_hold": r.dhw.manual_hold,
-                    "fault": bool(r.dhw.fault), "cooling_sources": len(r.dhw.config.get("cooling_entities", [])),
-                    "exclusive_power_meter": r.dhw.exclusive_meter()},
+            "panasonic": {"configured": r.panasonic.configured, "read_only": True,
+                          "power_scope": r.panasonic.settings.get("power_scope", "unconfirmed"),
+                          "power_meter": bool(r.panasonic.settings.get("power_entity")),
+                          "zone_count": len(r.panasonic.settings.get("zone_entities", []))},
+            "sg_boost": {key: sg.get(key) for key in (
+                "configured", "enabled", "state", "desired_on", "relay_on",
+                "action_required", "commissioning_confirmed", "watchdog_confirmed")},
             "ems": {"capacity_enabled": r.capacity_settings["enabled"],
                     "phase_enabled": r.phase_settings["enabled"],
                     "phase_control_starts": r.phase_settings.get("control_starts", False),
