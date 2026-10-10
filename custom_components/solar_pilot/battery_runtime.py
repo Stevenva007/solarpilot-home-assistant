@@ -11,6 +11,7 @@ import time
 from homeassistant.exceptions import HomeAssistantError
 from .battery_fleet import BATTERY_DEFAULTS, BATTERY_FLEET_DEFAULTS, BatteryReading, BatteryFleetState, aggregate, recommend, finite
 from .wallbox import protected_entity
+from .panasonic_authority import PanasonicCommandAuthority
 
 
 class BatteryFleetManager:
@@ -242,6 +243,13 @@ class BatteryFleetManager:
                 "power_kw": abs(target_w)/1000.0, "signed_power_w": target_w}}
         else:
             raise HomeAssistantError("Onbekend batterij-controltype")
+        authority = PanasonicCommandAuthority(self.runtime)
+        try:
+            data = authority.assert_allowed(domain, action, entity_id,
+                {key: value for key, value in data.items() if key != "entity_id"})
+        except HomeAssistantError as err:
+            await self._fault(battery_id, f"Batterijactuator niet toegestaan; niets verzonden: {err}")
+            return False
         self.state.pending = {"id": battery_id, "target_w": target_w, "issued_wall": time.time(),
                               "entity_id": entity_id, "kind": kind}
         self.state.last_command_mono = time.monotonic()
@@ -271,6 +279,10 @@ class BatteryFleetManager:
         self.runtime.note(f'{cfg.get("name",battery_id)}: batterijdoel {target_w:+.0f} W aangevraagd.')
         try:
             async with asyncio.timeout(20):
+                # Persistence yielded: a script, registry scope or SG binding
+                # may have changed. Revalidate the exact target at dispatch.
+                data = authority.assert_allowed(domain, action, entity_id,
+                    {key: value for key, value in data.items() if key != "entity_id"})
                 await self.runtime.hass.services.async_call(domain, action, data, blocking=False)
         except (HomeAssistantError, TimeoutError, ValueError, TypeError) as err:
             await self._fault(battery_id, f"Onzekere batterijopdracht ({type(err).__name__}); controle vereist, geen herhaling")

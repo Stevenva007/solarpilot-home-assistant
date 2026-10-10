@@ -34,34 +34,30 @@ _ENTITY_FIELDS: dict[str, set[str]] = {
     "forecast": {"current_hour_entity", "next_hour_entity", "remaining_today_entity", "tomorrow_entity"},
     "local_pv": {"forecast_power_entity", "sun_entity"},
     "economy": {"import_price_entity", "export_price_entity"},
-    "dhw": {"target_entity", "temperature_entity", "power_entity", "space_activity_entity",
-            "hygiene_entity", "manual_entity"},
-    "smart_climate": {"weather_entity", "outside_temp_entity"},
+    "sg_boost": {"entity_id", "tank_target_entity", "tank_temperature_entity", "power_entity", "activity_entity"},
     "wallbox": {"power_entity", "status_entity", "demand_entity", "mode_entity"},
 }
 _ENTITY_LIST_FIELDS: dict[str, set[str]] = {
-    "dhw": {"cooling_entities", "manual_entities"},
-    "smart_climate": {"zone_entities"},
+    "sg_boost": {"zone_entities"},
 }
 
 # Non-entity suggestion keys accepted from a private profile.
 _VALUE_FIELDS: dict[str, set[str]] = {
     "site": {"grid_sign", "battery_sign"},
-    "dhw": {"space_activity_active_states", "space_activity_inactive_states"},
+    "sg_boost": {"power_scope"},
     "wallbox": {"name"},
 }
 
 # Safe first-import flags. They enable monitoring/advice only. Explicit physical
-# control remains off. DHW is intentionally left disabled until the user confirms
-# the safety checkbox in its own wizard.
+# control remains off. SG commissioning and the local fallback require a separate
+# confirmed check in their own wizard and can never come from a private profile.
 _SAFE_FIRST_IMPORT: dict[str, dict[str, Any]] = {
     "capacity": {"enabled": True},
     "phase": {"enabled": True, "control_starts": False, "shed_on_overlimit": False},
     "forecast": {"enabled": True},
     "local_pv": {"enabled": True, "seed_enabled": True},
     "economy": {"enabled": True},
-    "dhw": {"enabled": False, "safety_confirmed": False},
-    "smart_climate": {"enabled": True, "control_enabled": False},
+    "sg_boost": {"enabled": False, "commissioning_confirmed": False, "watchdog_confirmed": False},
     "wallbox": {"enabled": True},
     "battery_analysis": {"enabled": True, "seed_enabled": True},
 }
@@ -138,7 +134,21 @@ def _entity_exists(hass, entity_id: str) -> bool:
 def private_group_suggestions(hass, group: str, bundle: dict[str, Any] | None = None) -> dict[str, Any]:
     """Return validated private suggestions for one config group."""
     data = bundle if bundle is not None else load_private_bundle()
-    raw = _profile_suggestions(data).get(group, {})
+    suggestions = _profile_suggestions(data)
+    raw = suggestions.get(group, {})
+    if group == "sg_boost":
+        # Older bundles can suggest monitoring only. Their target actuator and
+        # climate permissions do not identify the new physical SG relay.
+        old = suggestions.get("dhw", {})
+        climate = suggestions.get("smart_climate", {})
+        old = old if isinstance(old, dict) else {}
+        climate = climate if isinstance(climate, dict) else {}
+        raw = {"tank_target_entity": old.get("target_entity", ""),
+               "tank_temperature_entity": old.get("temperature_entity", ""),
+               "power_entity": old.get("power_entity", ""),
+               "activity_entity": old.get("space_activity_entity", ""),
+               "zone_entities": climate.get("zone_entities", []),
+               **(raw if isinstance(raw, dict) else {})}
     if not isinstance(raw, dict):
         return {}
     out: dict[str, Any] = {}
@@ -154,7 +164,7 @@ def private_group_suggestions(hass, group: str, bundle: dict[str, Any] | None = 
                 out[key] = valid
     for key in _VALUE_FIELDS.get(group, set()):
         value = raw.get(key)
-        if group == "dhw" and key.startswith("space_activity_") and not isinstance(value, str):
+        if group == "sg_boost" and key == "power_scope" and value not in ("unconfirmed", "total", "supply1", "supply2"):
             continue
         if value not in (None, "", []):
             out[key] = deepcopy(value)
@@ -187,8 +197,6 @@ def _required_present(group: str, values: dict[str, Any]) -> bool:
         return bool(values.get("forecast_power_entity") and values.get("sun_entity"))
     if group == "economy":
         return bool(values.get("import_price_entity") or values.get("export_price_entity"))
-    if group == "smart_climate":
-        return bool(values.get("zone_entities") and values.get("weather_entity"))
     if group == "wallbox":
         return bool(values.get("power_entity") and (values.get("status_entity") or values.get("demand_entity")))
     return True
@@ -231,7 +239,7 @@ def build_private_import(hass, entry_data: dict[str, Any], current_options: dict
     if missing_site:
         missing["site"] = sorted(missing_site)
 
-    for group in ("capacity", "phase", "forecast", "local_pv", "economy", "dhw", "smart_climate", "wallbox"):
+    for group in ("capacity", "phase", "forecast", "local_pv", "economy", "sg_boost", "wallbox"):
         values = private_group_suggestions(hass, group, bundle)
         raw = raw_suggestions.get(group, {}) if isinstance(raw_suggestions.get(group), dict) else {}
         target = deepcopy(options.get(group, {}))

@@ -12,8 +12,7 @@ def _entities(r):
     entities = [SolarSwitch(r, "others_first", "Andere toestellen voorrang"),
                 SolarSwitch(r, "learning", "Toestelvermogen en Wallbox-respons leren"),
                 SolarSwitch(r, "auto_resume_after_restart", "Na herstart automatisch hervatten")]
-    if r.dhw.configured:
-        entities.append(SolarSwitch(r, "dhw_enabled", "Boiler automatisch regelen"))
+    entities.append(SolarSwitch(r, "sg_boost_enabled", "Automatische zonneboost"))
     return entities
 
 
@@ -34,8 +33,8 @@ class SolarSwitch(SolarEntity, SwitchEntity):
     def is_on(self):
         if self.suffix == "auto_resume_after_restart":
             return self.runtime.auto_resume_after_restart is True
-        if self.suffix == "dhw_enabled":
-            return self.runtime.dhw.auto_enabled
+        if self.suffix == "sg_boost_enabled":
+            return self.runtime.sg_boost.overview().get("enabled") is True
         return self.runtime.others_first if self.suffix == "others_first" else self.runtime.learning.enabled
 
     @property
@@ -48,8 +47,8 @@ class SolarSwitch(SolarEntity, SwitchEntity):
                 "protection_meaning": "Een fout of voorbereiding voor verwijderen wordt nooit automatisch opgeheven",
                 "default": "on",
             }
-        if self.suffix == "dhw_enabled":
-            return self.runtime.dhw.overview()
+        if self.suffix == "sg_boost_enabled":
+            return self.runtime.sg_boost.overview()
         if self.suffix == "others_first":
             return {"on_meaning": "Andere toestellen eerst; Wallbox gebruikt restoverschot",
                     "off_meaning": "Wallbox eerst; eigen flexibele lasten wijken",
@@ -67,8 +66,8 @@ class SolarSwitch(SolarEntity, SwitchEntity):
     async def _set(self, value):
         if self.suffix == "others_first":
             await self.runtime.set_others_first(value)
-        elif self.suffix == "dhw_enabled":
-            await self.runtime.dhw.set_enabled(value)
+        elif self.suffix == "sg_boost_enabled":
+            await self.runtime.sg_boost.set_enabled(value)
         elif self.suffix == "auto_resume_after_restart":
             await self.runtime.set_auto_resume_after_restart(value)
         else:

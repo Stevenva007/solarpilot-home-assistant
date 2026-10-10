@@ -88,18 +88,15 @@ def _entities(r):
         entities += [SolarSensor(r, "battery_fleet_status", "Batterijvloot"),
                      SolarSensor(r, "battery_fleet_soc", "Batterijvloot laadniveau"),
                      SolarSensor(r, "battery_fleet_power", "Batterijvloot vermogen")]
-    if r.smart_climate.configured or r.smart_climate.settings.get("enabled"):
-        entities += [SolarSensor(r, "smart_climate_status", "Slim klimaatbeheer"),
-                     SolarSensor(r, "smart_climate_confidence", "Thermisch model zekerheid"),
-                     SolarSensor(r, "smart_climate_predicted_min", "Voorspelde minimum binnentemperatuur"),
-                     SolarSensor(r, "smart_climate_predicted_max", "Voorspelde maximum binnentemperatuur")]
     if r.wallbox_settings["enabled"]:
         entities += [SolarSensor(r, "wallbox_status", "Wallbox samenspel"),
                      SolarSensor(r, "wallbox_power", "Wallbox laadvermogen")]
-    if r.dhw.configured:
-        entities += [SolarSensor(r, "dhw_status", "Boiler regeling"),
-                     SolarSensor(r, "dhw_temperature", "Boiler gemeten temperatuur"),
-                     SolarSensor(r, "dhw_target", "Boiler voorgesteld doel")]
+    entities += [SolarSensor(r, "sg_boost_status", "Zonneboost status"),
+                 SolarSensor(r, "panasonic_status", "Panasonic regeling"),
+                 SolarSensor(r, "panasonic_power", "Warmtepomp vermogen"),
+                 SolarSensor(r, "dhw_status", "Warm water toestelstatus"),
+                 SolarSensor(r, "dhw_temperature", "Tank gemeten temperatuur"),
+                 SolarSensor(r, "dhw_target", "Tank gemeld doel")]
     entities += [SolarSensor(r, "status", "Regelstatus", i) for i in r.configs]
     entities += [PVForecastSensor(r,k,v) for k,v in PV_SENSOR_DEFINITIONS.items()]
     return entities
@@ -113,7 +110,7 @@ class SolarSensor(SolarEntity, SensorEntity):
         "smart_climate", "battery_fleet", "device_management", "priority_board", "historical_phase_profile", "today", "forecast",
         "capacity", "phase", "economy", "warnings", "advice", "legacy_conflicts", "dishwasher_setup", "isolated_devices",
         "energy_display", "pv_model", "thermal_model", "learning_insights", "removal",
-        "pv_forecast", "savings", "electricity_today",
+        "pv_forecast", "savings", "electricity_today", "panasonic", "sg_boost", "panasonic_archive", "legacy_panasonic_archive",
     })
 
     def __init__(self, runtime, suffix, name, device_id=None):
@@ -121,7 +118,7 @@ class SolarSensor(SolarEntity, SensorEntity):
         power_suffixes = {
             "grid", "surplus", "managed", "wallbox_power", "capacity_limit", "capacity_headroom", "phase_headroom",
             "local_pv_corrected_power", "phase_l1_known", "phase_l2_known", "phase_l3_known",
-            "phase_l1_residual", "phase_l2_residual", "phase_l3_residual", "battery_fleet_power",
+            "phase_l1_residual", "phase_l2_residual", "phase_l3_residual", "battery_fleet_power", "panasonic_power",
         }
         if suffix in COST_SENSORS:
             self._attr_native_unit_of_measurement = "EUR"
@@ -132,7 +129,7 @@ class SolarSensor(SolarEntity, SensorEntity):
             self._attr_native_unit_of_measurement = "W"
             self._attr_device_class = SensorDeviceClass.POWER
             self._attr_state_class = SensorStateClass.MEASUREMENT
-        elif suffix in ("dhw_temperature", "dhw_target", "smart_climate_predicted_min", "smart_climate_predicted_max"):
+        elif suffix in ("dhw_temperature", "dhw_target"):
             self._attr_native_unit_of_measurement = "°C"
             self._attr_device_class = SensorDeviceClass.TEMPERATURE
             self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -151,7 +148,7 @@ class SolarSensor(SolarEntity, SensorEntity):
         elif suffix == "ems_value_today":
             self._attr_native_unit_of_measurement = "EUR"
             self._attr_state_class = SensorStateClass.MEASUREMENT
-        elif suffix in ("ems_self_consumption", "local_pv_confidence", "battery_fleet_soc", "smart_climate_confidence"):
+        elif suffix in ("ems_self_consumption", "local_pv_confidence", "battery_fleet_soc"):
             self._attr_native_unit_of_measurement = "%"
             self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_icon = "mdi:book-open-page-variant" if suffix == "guide" else "mdi:solar-power-variant"
@@ -182,9 +179,17 @@ class SolarSensor(SolarEntity, SensorEntity):
             return GUIDE_VERSION
         if self.suffix == "energy" and not r.data_loaded:
             return None
-        if self.suffix.startswith("dhw_"):
-            return {"dhw_status": r.dhw.status[:250], "dhw_temperature": r.dhw.reading.temperature_c,
-                    "dhw_target": r.dhw.policy.result.target_c}[self.suffix]
+        if self.suffix == "sg_boost_status":
+            data = r.sg_boost.overview()
+            return str(data.get("reason") or data.get("status") or "Zonneboost uit")[:250]
+        if self.suffix in {"panasonic_status", "panasonic_power", "dhw_status", "dhw_temperature", "dhw_target"}:
+            data = r.panasonic.overview()
+            return {
+                "panasonic_status": str(data.get("status") or "Panasonic regelt zelfstandig")[:250],
+                "panasonic_power": data.get("power_w"),
+                "dhw_status": str(data.get("tank_status") or data.get("status") or "Toestelstatus onbekend")[:250],
+                "dhw_temperature": data.get("temperature_c"), "dhw_target": data.get("target_c"),
+            }[self.suffix]
         if self.suffix in ("ems_solar_today", "ems_value_today", "ems_self_consumption"):
             today = self._ems().get("today", {})
             if self.suffix == "ems_solar_today":
@@ -221,16 +226,6 @@ class SolarSensor(SolarEntity, SensorEntity):
             return self._ems().get("battery_fleet", {}).get("aggregate", {}).get("soc_pct")
         if self.suffix == "battery_fleet_power":
             return self._ems().get("battery_fleet", {}).get("aggregate", {}).get("power_w")
-        if self.suffix == "smart_climate_status":
-            c = self._ems().get("smart_climate", {})
-            return c.get("decision", {}).get("reason", "Thermisch model leert")[:250]
-        if self.suffix == "smart_climate_confidence":
-            value = self._ems().get("smart_climate", {}).get("model_confidence")
-            return None if value is None else round(float(value)*100, 1)
-        if self.suffix == "smart_climate_predicted_min":
-            return self._ems().get("smart_climate", {}).get("decision", {}).get("predicted_min_c")
-        if self.suffix == "smart_climate_predicted_max":
-            return self._ems().get("smart_climate", {}).get("decision", {}).get("predicted_max_c")
         if self.suffix == "battery_analysis_status":
             b = self._ems().get("battery_analysis", {})
             period = b.get("seed_period", {})
@@ -284,15 +279,16 @@ class SolarSensor(SolarEntity, SensorEntity):
                 "canonical": "docs/ACTUELE_WERKING.md",
                 "note": "Deze uitleg vervangt oudere regels; UPDATE-bestanden zijn alleen migratiegeschiedenis.",
             }
-        if self.suffix.startswith("dhw_"):
-            return r.dhw.overview()
+        if self.suffix == "sg_boost_status":
+            return r.sg_boost.overview()
+        if self.suffix in {"panasonic_status", "panasonic_power", "dhw_status", "dhw_temperature", "dhw_target"}:
+            return {**r.panasonic.overview(), "read_only": True}
         if self.suffix in {
             "ems_status", "capacity_status", "capacity_limit", "capacity_headroom", "phase_status", "phase_headroom",
             "phase_learning_status", "phase_l1_known", "phase_l2_known", "phase_l3_known", "phase_l1_residual",
             "phase_l2_residual", "phase_l3_residual", "ems_solar_today", "ems_value_today", "ems_self_consumption",
             "local_pv_status", "local_pv_corrected_power", "local_pv_confidence", "battery_analysis_status",
             "battery_10_5_avoided", "battery_fleet_status", "battery_fleet_soc", "battery_fleet_power",
-            "smart_climate_status", "smart_climate_confidence", "smart_climate_predicted_min", "smart_climate_predicted_max",
         }:
             return self._ems()
         if self.suffix == "learning":
@@ -325,7 +321,7 @@ class SolarSensor(SolarEntity, SensorEntity):
                     "budget_w": r.result.budget_w,
                     "budget_note": "Voorwaardelijk regelbudget; geen gemeten vrije injectie", "managed_w": round(r.managed_w, 1),
                     "reserve_w": r.settings["reserve_w"], "max_import_w": r.settings["max_import_w"],
-                    "dhw": r.dhw.overview(), "devices": r.overview(), "wallbox": r.wallbox_overview(), "learning": self._learning(),
+                    "panasonic": r.panasonic.overview(), "sg_boost": r.sg_boost.overview(), "devices": r.overview(), "wallbox": r.wallbox_overview(), "learning": self._learning(),
                 "learning_insights": r.learning_hub.summary(),
                     "device_management": r.live_options.overview(),
                     "priority_board": r.priority_board.overview(),

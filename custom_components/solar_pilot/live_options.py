@@ -20,6 +20,7 @@ from .const import DEVICE_DEFAULTS
 from .dishwasher import normalize_config
 from .dishwasher_app import deadline_time
 from .engine import State
+from .sg_config import actuator_conflicts, validate_config as validate_sg
 
 PENDING = "_live_pending"
 ARCHIVED = "_archived_devices"
@@ -35,7 +36,7 @@ REFERENCE_KEYS = frozenset({"control_entity", "active_entity", "number_entity", 
     "dishwasher_connection_entity", "dishwasher_phase_entity", "dishwasher_alert_entity",
     "cycle_program_entity", "dishwasher_delay_entity"})
 DISPLAY_GROUPS = {"priority_board", "economy", "forecast", "planner", "local_pv", "pv_forecast", "analysis", "battery_analysis"}
-SENSITIVE_GROUPS = {"settings", "capacity", "phase", "wallbox", "dhw", "smart_climate", "batteries", "battery_fleet", "_private_bundle"}
+SENSITIVE_GROUPS = {"settings", "capacity", "phase", "wallbox", "sg_boost", "batteries", "battery_fleet", "_private_bundle"}
 
 
 def keyed(rows):
@@ -63,7 +64,7 @@ def pending_rows(value):
                           raw.get("replacement") is True and new.get("replaces_device_id") == device_id)))
         elif valid and kind == "group":
             group = raw.get("group")
-            valid = isinstance(group, str) and bool(group) and key == "group:" + group
+            valid = isinstance(group, str) and bool(group) and key == "group:" + group and group not in ("dhw", "smart_climate")
             if valid and group in DISPLAY_GROUPS | SENSITIVE_GROUPS:
                 shape = list if group == "batteries" else dict
                 valid = all(raw.get(field) is None or isinstance(raw.get(field), shape) for field in ("old", "new"))
@@ -183,19 +184,18 @@ class LiveOptions:
         keys = changed_keys(old if isinstance(old, dict) else {}, new if isinstance(new, dict) else {})
         if group in DISPLAY_GROUPS:
             return ""
-        if r.pending or r.handover or r.dhw.pending or r.smart_climate.busy or r.battery_fleet.busy:
+        sg = getattr(r, "sg_boost", None)
+        # Turning optimisation off is not blocked by its own outstanding ON.
+        if group == "sg_boost" and keys <= {"enabled"} and (new or {}).get("enabled") is False:
+            return ""
+        if r.pending or r.handover or (sg is not None and sg.busy) or r.battery_fleet.busy:
             return "Wacht op de al verstuurde opdracht/overdracht"
         if group == "wallbox" and (r.dishwasher_priority.watches or r.handover):
             return "Wallbox-vermogensoverdracht wordt nog bevestigd"
-        if group == "dhw":
-            binding = any(k.endswith("entity") or k.endswith("entities") for k in keys)
-            if binding and (r.dhw.busy or r.dhw.reading.protected):
-                return "Boilerkoppeling wacht op gerichte vrijgave/hygiëne-einde; andere toestellen blijven werken"
-        if group == "smart_climate":
-            deactivating = any(k in keys and not (new or {}).get(k, False)
-                               for k in ("enabled", "control_enabled"))
-            if (deactivating or any(k.endswith("entity") or k.endswith("entities") for k in keys)) and r.smart_climate.removal_blocked():
-                return "Klimaatkoppeling wacht op vrijgave van de bestaande zones"
+        if group == "sg_boost" and "entity_id" in keys and sg is not None:
+            status = sg.overview()
+            if sg.busy or getattr(sg, "owned", False) or getattr(sg, "relay_on", None) is True:
+                return "SG-koppeling wacht op bevestigde vrijgave van de huidige uitgang; andere toestellen blijven werken"
         if group in ("batteries", "battery_fleet") and r.battery_fleet.removal_blocked():
             return "Batterijbinding wacht op bevestigde neutrale toestand"
         if group == "_private_bundle" and not r.editable:
@@ -205,6 +205,7 @@ class LiveOptions:
     def prepare(self, base, desired):
         current = deepcopy(dict(self.r.entry.options))
         target = merge_three(base, desired, current)
+        self._validate_sg_boundary(target)
         out = deepcopy(current)
         queue = pending_rows(current.get(PENDING, {}))
         effects = []
@@ -309,12 +310,23 @@ class LiveOptions:
         def conflicts(options):
             site={**self.r.entry.data,**options.get("settings",{})}
             reserved={site.get(k) for k in ("grid_entity","export_entity","pv_entity","battery_power_entity")}
-            reserved.update(options.get(g,{}).get("power_entity") for g in ("dhw","wallbox"))
+            reserved.update(options.get(g,{}).get("power_entity") for g in ("sg_boost","wallbox"))
             reserved.update(b.get("power_entity") for b in options.get("batteries",[]))
             return {(c["id"],c.get("power_entity")) for c in options.get("devices",[])
                     if c.get("power_entity") and c["power_entity"] in reserved}
         if conflicts(after)-conflicts(before):
-            raise HomeAssistantError("Een toestelmeter mag niet tegelijk de net-, PV-, batterij-, boiler- of Wallbox-meter zijn.")
+            raise HomeAssistantError("Een toestelmeter mag niet tegelijk de net-, PV-, batterij-, warmtepomp- of Wallbox-meter zijn.")
+
+    def _validate_sg_boundary(self, options):
+        """Merged transactions cannot install retired writers or share SG."""
+        if any(k in options for k in ("dhw", "smart_climate")):
+            raise HomeAssistantError("Oude Panasonic-sturing is vervallen; gebruik uitsluitend de SG-uitgang.")
+        sg = options.get("sg_boost", {})
+        if sg and validate_sg(sg):
+            raise HomeAssistantError("SG-instellingen ongeldig; controleer koppeling, ingebruikname en lokale terugval.")
+        if (actuator_conflicts(sg, options.get("devices", []))
+                or actuator_conflicts(sg, options.get("batteries", []))):
+            raise HomeAssistantError("De SG-uitgang mag niet tegelijk als gewoon SolarPilot-toestel worden beheerd.")
 
     def _change_current_requests(self, before, after, ids):
         devices = keyed(after.get("devices"))
@@ -544,21 +556,9 @@ class LiveOptions:
             r.wallbox_profile.next_discovery=0;r.wallbox_profile.sources={};r.wallbox_profile.cached={}
             r.consumer_wallbox.settings=r.wallbox_settings
             r.wallbox_guard=r._make_wallbox_guard()
-        elif group == "dhw":
-            from .dhw import normalized_settings
-            m=r.dhw;c=normalized_settings(value)
-            keys=changed_keys(previous or {}, value)
-            for k in keys: m.tunables.pop(k,None)
-            m.config=c;m.settings={**c,**m.tunables};m.policy.settings=m.settings
-            if "enabled" in keys: m.auto_enabled=bool(c["enabled"])
-            m._comfort_forecast_stamp=None;m._prediction_check_wall=None
-            m.policy.reset_stability()
-        elif group == "smart_climate":
-            from .thermal_climate import SMART_CLIMATE_DEFAULTS
-            # Dashboard and wizard edits must invalidate the same learned
-            # sources and retire the same zone intents. A removed zone must
-            # never inherit a stale dashboard override when selected again.
-            r.smart_climate.apply_settings({**SMART_CLIMATE_DEFAULTS,**value})
+        elif group == "sg_boost":
+            r.sg_boost.update_config(value)
+            r.panasonic.update_config(value)
         elif group in ("batteries","battery_fleet"):
             from .battery_fleet import BATTERY_DEFAULTS, BATTERY_FLEET_DEFAULTS
             if group=="batteries":r.battery_fleet.configs={b["id"]:{**BATTERY_DEFAULTS,**b} for b in (value or [])}
@@ -597,6 +597,7 @@ class LiveOptions:
             queue.pop(key,None);changed=True
         if changed:
             options[PENDING]=queue
+            self._validate_sg_boundary(options)
             self._validate_meter_scopes(dict(self.r.entry.options), options)
             self.last_message="Wachtende wijzigingen veilig toegepast; overige regeling bleef actief."
             self._persist(options);await self.accept(options);self.r.note(self.last_message)

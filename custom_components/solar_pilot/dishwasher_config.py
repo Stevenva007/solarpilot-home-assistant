@@ -42,7 +42,7 @@ class DishwasherOptionsMixin:
                     errors["power_entity"] = "power_unit"
                 reserved = {self._site().get(key) for key in ("grid_entity", "export_entity", "pv_entity", "battery_power_entity")}
                 reserved.update(x.get("power_entity") for x in self._base_options().get("devices", []) if x["id"] not in (d["id"], d.get("replaces_device_id")))
-                reserved.add(self._base_options().get("dhw", {}).get("power_entity"))
+                reserved.add(self._base_options().get("sg_boost", {}).get("power_entity"))
                 reserved.add(self._base_options().get("wallbox", {}).get("power_entity"))
                 if d["power_entity"] in reserved:
                     errors["power_entity"] = "dedicated_meter"

@@ -241,8 +241,15 @@ class LearningHub:
         base = r.unified_planner.base_load.coverage(local, r.planner_settings.get("base_load_min_days", 4))
         quality = r.unified_planner.quality.overview()
         pv = r.local_pv.overview()
-        thermal = r.smart_climate.overview()
-        dhw = r.dhw.overview()
+        native = r.panasonic.overview()
+        # Old thermal models remain private diagnosis evidence. This page has
+        # no current Panasonic control model or delayed comfort command.
+        archive = getattr(r, "panasonic_archive", {})
+        backup = archive.get("backup_store", {}) if isinstance(archive, dict) else {}
+        old_thermal = backup.get("smart_climate", {}) if isinstance(backup, dict) else {}
+        old_thermal = old_thermal if isinstance(old_thermal, dict) else {}
+        old_profiles = old_thermal.get("profiles", {})
+        old_profiles = old_profiles if isinstance(old_profiles, dict) else {}
         power = r.learning.overview(r.wallbox_settings.get("stable_s", 180))
         phase = r.phase_learning.overview(r.configs)
         heatpump = r.heatpump_learning.overview()
@@ -252,23 +259,21 @@ class LearningHub:
              "state": f'{base["live_buckets"]}/48 uur/dagtype-vakken met genoeg live dagen',
              "evidence": {**base, "heatpump_separation": heatpump},
              "effect": "Gewone huishoudlast voor de planner. Duidelijke ruimteverwarming, koeling, tapwater en sterilisatie worden niet als normale basislast geleerd; actuele vrije netruimte blijft uitsluitend gemeten."},
-            {"id": "heatpump", "name": "Warmtepompactiviteit", "enabled": r.dhw.configured or r.smart_climate.configured,
+            {"id": "heatpump", "name": "Warmtepompactiviteit", "enabled": bool(native.get("configured")),
              "state": "Afzonderlijke activiteit en planningsschatting",
              "evidence": heatpump,
              "effect": "Schattingen uit stabiele compressorstarts/stops zijn alleen voor planning en classificatie; nooit voor realtime netruimte."},
             {"id": "pv", "name": "Zonnepanelen en lokale schaduw", "enabled": pv.get("enabled"),
              "state": pv.get("reason", "Leren"), "evidence": {**pv, "forecast_calibration": r.pv_forecast.cached},
              "effect": "Lokale correctie van zonnevoorspellingen binnen bestaande drempels; geen virtueel overschot."},
-            {"id": "climate", "name": "Woning en vloerverwarming", "enabled": thermal.get("enabled"),
-             "state": thermal.get("decision", {}).get("reason", "Niet gekoppeld"),
-             "evidence": {"confidence": thermal.get("model_confidence"), "profiles": thermal.get("profiles", {}),
-                          "reliability": thermal.get("reliability", {}),
-                          "weather_bias": thermal.get("weather_bias", {}), "coast_feedback": thermal.get("coast_feedback", {})},
-             "effect": "Bestaande leerfuncties en grenzen blijven gelden. Geen nieuwe AUTO/OFF-vrijgave of HEAT/COOL-keuze door deze pagina."},
-            {"id": "tank", "name": "Boiler en nachtvoorraad", "enabled": dhw.get("configured"),
-             "state": "Normaal doel en comfortgrens veranderen niet door leren",
-             "evidence": dhw.get("tank_learning", {}),
-             "effect": "Afkoeling/opwarming voorspellen; zonnevoorraad binnen je plafond. Geen herstelboost naar 52 °C of Force DHW."},
+            {"id": "climate", "name": "Bestaande woningmetingen", "enabled": False,
+             "state": "Alleen-lezen archief; Panasonic regelt de ruimtes",
+             "evidence": {"archived_profile_count": len(old_profiles), "archived": bool(old_profiles)},
+             "effect": "Bestaande leerdata blijft in de privé-opslag en analyse-export behouden. Geen AUTO/UIT- of temperatuursturing door dit model."},
+            {"id": "tank", "name": "Warmtepompmetingen", "enabled": bool(native.get("configured")),
+             "state": "Uitlezen van native temperatuur en bedrijfsinformatie",
+             "evidence": native,
+             "effect": "Panasonic beheert het tankdoel, comfort en sterilisatie. SolarPilot maakt geen nachtvoorraadplan of temperatuurwijziging."},
             {"id": "devices", "name": "Verbruikers en Wallbox-reactie", "enabled": power.get("enabled"),
              "state": f'{len(power.get("profiles", {}))} vermogensprofielen; {power.get("samples", 0)} gemeten overdrachten',
              "evidence": power, "effect": "Alleen echte gekoppelde meters leren vermogen. Bekende schattingen zijn geen nieuwe metingen; bestaande minimumtijden blijven staan."},
@@ -282,7 +287,7 @@ class LearningHub:
         findings = []
         context = {"sources": {k: r.settings.get(k) for k in ("grid_entity", "pv_entity", "battery_power_entity")},
                    "devices": {i: (c.get("kind"), c.get("power_entity")) for i, c in r.configs.items()},
-                   "dhw_meter": r.dhw.config.get("power_entity"),
+                   "heatpump_meter": r.sg_boost.config.get("power_entity"),
                    "wallbox_session":r.wallbox_settings.get("session_mode_entity"),
                    "pv_sources":r.pv_forecast.source.refs, "pv_settings":r.pv_forecast.settings}
         context_hash = hashlib.sha256(json.dumps(context, sort_keys=True).encode()).hexdigest()[:16]
@@ -318,11 +323,8 @@ class LearningHub:
         if (number(q.get("pv_daylight_mae_w")) or 0) > 700 and q.get("pv_daylight_samples", 0) >= 12:
             ask("pv_error", "De zonnevoorspelling overdag wijkt af", f'Gemiddelde absolute fout bij zon {q["pv_daylight_mae_w"]:g} W. De richting en dekking staan onder meetkwaliteit. Wolken, schaduw en bronverschillen zijn mogelijke verklaringen; deze score bewijst geen oorzaak. Nieuwe zonnecorrecties mogen nooit een gemeten tekort vervangen.',
                 [{"id": "export", "label": "Zongegevens exporteren"}, {"id": "configure", "label": "Bronnen bekijken"}, {"id": "later", "label": "Morgen beoordelen"}])
-        if thermal.get("fault"):
-            ask("thermal_fault", "Ruimteklimaat vraagt controle", str(thermal["fault"]) + " De leermodule verruimt geen comfortband en verandert geen Panasonic-stand om de melding te laten verdwijnen.",
-                [{"id": "configure", "label": "Klimaatinstellingen bekijken"}, {"id": "export", "label": "Analyse-export"}, {"id": "later", "label": "Morgen beoordelen"}], "attention")
-        if dhw.get("configured") and not dhw.get("own_meter_available") and (number(q.get("base_mae_w")) or 0) > 400:
-            ask("heatpump_meter", "Warmtepompvermogen wordt nog bijgeleerd", "SolarPilot houdt duidelijke ruimteverwarming, koeling, tapwater en sterilisatie nu uit de gewone huishoudelijke basislast. Zonder onafhankelijke W-meter leert het alleen een conservatieve planningsschatting uit stabiele starts/stops. Die schatting wordt nooit van realtime P1-netruimte afgetrokken.",
+        if native.get("configured") and native.get("power_kind") != "measured" and (number(q.get("base_mae_w")) or 0) > 400:
+            ask("heatpump_meter", "Warmtepompmeting vraagt controle", "Zonder onafhankelijke betrouwbare totaalmeting blijft het warmtepompverbruik geheel of gedeeltelijk onbekend. Een planningsschatting wordt nooit als actuele netruimte gebruikt. Controleer ook of de meter het hele toestel of slechts één voeding omvat.",
                 [{"id": "configure", "label": "Beschikbare meters bekijken"}, {"id": "keep", "label": "Nog geen aparte meter"}, {"id": "later", "label": "Later bekijken"}])
         no_meter = [c.get("name", i) for i, c in r.configs.items() if not c.get("power_entity")]
         if no_meter:

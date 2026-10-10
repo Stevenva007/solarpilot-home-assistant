@@ -24,16 +24,15 @@
       "number_range": "Het ingestelde bereik of de stap past niet op de gekozen number-entiteit.",
       "cycle_requires_ready": "Een niet-onderbreekbare cyclus vereist het type Script en een vraag-/klaarsignaal.",
       "number_unit": "Kies een vermogens-/stroomregelaar met eenheid W, kW, A of %. Geen temperatuur of andere grootheid. Bij W moet de wattfactor 1 zijn; bij kW 1000.",
-      "dhw_range": "Ongeldige waarde of hysterese groter dan de inschakeldrempel.",
-      "dhw_step": "De waarde past niet bij de instelbare stapgrootte.",
-      "dhw_order": "Minimum + differentie + buffer moet ≤ zonnedoel ≤ overschotdoel blijven; controleer ook de koellimiet en sterilisatietemperatuur.",
-      "dhw_night": "Gebruik verschillende begin- en eindtijden, met seconden op 00.",
-      "dhw_safety": "Controleer eerst met de fabrikant/installateur of deze lage doelen en 60°C geschikt zijn. Hygiëne moet onafhankelijk gewaarborgd blijven.",
-      "dhw_pv_required": "Koppel eerst het actuele zonnepanelenvermogen in de algemene SolarPilot-instellingen (W/kW).",
-      "dhw_target_invalid": "De doelbediening is niet bruikbaar: controleer verse °C-terugmelding, bereik, stap, ondersteunde doeltemperatuur en dubbele koppeling.",
-      "dhw_temperature_invalid": "Een verse werkelijke watertemperatuur in °C ontbreekt. Koppel de juiste sensor.",
       "energy_unit": "Kies een energiesensor met eenheid kWh.",
-      "range": "Waarden liggen buiten het toegestane bereik."
+      "range": "Waarden liggen buiten het toegestane bereik.",
+      "sg_switch_required": "Choose the existing physical Shelly switch, not a helper or script.",
+      "sg_commissioning": "First confirm SG mapping, native base settings and absence of competing control.",
+      "sg_watchdog": "First test local expiry without Home Assistant and renewal without relay cycling.",
+      "sg_duplicate": "This SG output is already linked as an ordinary load; one output has one owner.",
+      "sg_pv_required": "First link measured solar production.",
+      "panasonic_read_only": "Panasonic entities are read-only; use the assigned SG output only.",
+      "sg_reopen": "The SG binding or commissioning proof changed while this form was open. Review the current values and confirm again after the local test."
     },
     "abort": {
       "already_configured": "Er is al een SolarPilot-regelaar. Voeg toestellen toe via Configureren."
@@ -48,7 +47,7 @@
           "overview": "Overzicht & controle",
           "energy_hub": "Energie & net",
           "loads_hub": "Devices",
-          "comfort_hub": "Heat & comfort",
+          "comfort_hub": "Heat pump — Panasonic control",
           "storage_hub": "EV & battery",
           "intelligence_hub": "Forecast & learning",
           "advanced_hub": "Advanced & system"
@@ -153,69 +152,7 @@
           "minimum_current_a": "Minimum solar charging current (A)",
           "minimum_from_profile": "Derive solar-start minimum from profile",
           "session_mode_entity": "Effectieve laadsessie — bevestigde bron (aanbevolen)",
-          "trust_solar_setting": "Alleen Full Solar-instelling vertrouwen zonder sessiebron",
-          "manual_suspend_extra_dhw": "Extra 60 °C uitstellen bij manueel/onzeker laden"
-        }
-      },
-      "dhw": {
-        "title": "Sanitair warm water · koppelingen",
-        "description": "Only the DHW setpoint is controlled. Normal target and monitored comfort floor are independent. No Force DHW and no deadband-compensating boost; Panasonic retains compressor, hygiene and task allocation.",
-        "data": {
-          "enabled": "Allow hot-water control (active only during Automatic control)",
-          "target_entity": "Boilerdoel bedienen (niet de ruimtethermostaat)",
-          "temperature_entity": "Werkelijke watertemperatuur (optioneel bij water_heater/climate)",
-          "power_entity": "Optioneel: uitsluitend het elektrische boilervermogen",
-          "cooling_entities": "Ruimteklimaatzones voor verwarmings- en koelbewaking",
-          "space_activity_entity": "Optional reported heat-pump task/direction (read only)",
-          "space_activity_active_states": "Space-operation values (semicolon separated)",
-          "space_activity_inactive_states": "No-space-operation values (semicolon separated)",
-          "hygiene_entity": "Hygiënecyclus actief: on = alle boileropdrachten blokkeren",
-          "manual_entity": "Combined manual/powerful signal (optional)",
-          "safety_confirmed": "Bevestigd: fabrikantregeling, onafhankelijke hygiëne en verbrandingsbeveiliging gecontroleerd",
-          "manual_active_states": "Waarden die handmatige/krachtige modus betekenen (komma-gescheiden)",
-          "manual_entities": "Manual/powerful signals (select e.g. Powerful mode and Force DHW)"
-        }
-      },
-      "dhw_rules": {
-        "title": "Domestic hot water · temperature policy",
-        "description": "Normal target 50 °C, monitored comfort floor 46 °C. The native differential does not change the target: -5 °C allows a nominal restart around 45 °C. Only separately permitted solar reserves may request a higher target.",
-        "data": {
-          "normal_c": "Normal tank setpoint (°C)",
-          "minimum_c": "Monitored comfort floor (°C; not a guaranteed minimum)",
-          "tank_differential_c": "Native tank differential (°C; information and forecast only)",
-          "solar_c": "Doel bij voldoende zonneopbrengst (°C)",
-          "surplus_c": "Doel bij ruim zonneoverschot (°C)",
-          "cooling_cap_c": "Maximum bij actieve/onzekere koeling (°C)",
-          "pv_threshold_w": "Zonneopbrengst vanaf (W) — niet het overschot",
-          "surplus_threshold_w": "Zonneoverschot strikt groter dan (W)",
-          "estimated_heat_power_w": "Geschat elektrisch vermogen voor piekbewaking (W)",
-          "night_enabled": "Nachtbeperking actief",
-          "night_start": "Nacht vanaf",
-          "night_end": "Nacht tot",
-          "hygiene_schedule_enabled": "Fabriekssterilisatievenster beschermen",
-          "hygiene_weekdays": "Sterilisatiedagen, maandag=0 … zondag=6 (komma-gescheiden)",
-          "hygiene_start": "Starttijd fabrikantsterilisatie",
-          "hygiene_target_c": "Ingestelde fabrikantsterilisatietemperatuur (°C)",
-          "hygiene_guard_before_s": "Geen SolarPilot-opdrachten vanaf zoveel seconden vóór start",
-          "hygiene_guard_after_s": "Geen SolarPilot-opdrachten tot zoveel seconden na start"
-        }
-      },
-      "dhw_stability": {
-        "title": "Sanitair warm water · terugmelding en stabiliteit",
-        "description": "Solar stability and time between optional increases reduce setpoint churn. New extra heating waits for genuinely active or unreliable space climate. Fresh native aquarea idle/off remains valid despite a generic PUMP task. Only confirmed cooling extends the cooling wait; the normal target and existing protections remain authoritative.",
-        "data": {
-          "rise_delay_s": "Voldoende zon/overschot gedurende (s)",
-          "fall_delay_s": "Wait after solar power or surplus falls (s)",
-          "pv_hysteresis_w": "Terugvalmarge zonneopbrengst (W)",
-          "surplus_hysteresis_w": "Terugvalmarge overschot (W)",
-          "cooling_clear_s": "Wait after confirmed cooling (s)",
-          "stale_s": "Maximum leeftijd temperatuur- en klimaatrapport (s)",
-          "ack_timeout_s": "Maximum wachten op doelbevestiging (s)",
-          "max_surplus_import_w": "Grid import above which the extra 60 °C target is released immediately (W; not electrical protection)",
-          "cooling_detection": "Herkenning actieve koeling",
-          "compensate_own_power": "Eigen gemeten boilerverbruik meetellen bij vasthouden 60°C-fase (niet bij starten)",
-          "optional_raise_interval_s": "Minimum time between optional setpoint increases (s)",
-          "respect_space_climate": "Defer extra solar heating while space heating/cooling is active"
+          "trust_solar_setting": "Alleen Full Solar-instelling vertrouwen zonder sessiebron"
         }
       },
       "capacity": {
@@ -230,7 +167,6 @@
           "margin_w": "Veiligheidsmarge onder doel (W)",
           "minimum_elapsed_s": "Eerste deel van kwartier alleen conservatief bewaken (s)",
           "stale_s": "Meting te oud na (s)",
-          "respect_optional_dhw": "Optionele 50°C-boilerfase uitstellen bij te weinig piekruimte",
           "respect_billing_floor": "Do not optimise below the configured billing floor",
           "billing_floor_w": "Billing floor / minimum relevant monthly peak (W)"
         }
@@ -334,22 +270,6 @@
           "powers_kw": "Charge/discharge powers to compare (kW, comma separated)"
         }
       },
-      "smart_climate": {
-        "title": "Ruimteklimaat · automatisch AUTO/UIT",
-        "description": "SolarPilot schakelt de geselecteerde ruimtes automatisch tussen AUTO en UIT op basis van comfort, temperatuurverloop en beschikbare voorspellingen. Panasonic behoudt de keuze tussen verwarmen en koelen. Handmatige AUTO/UIT-bediening staat per ruimte op het dashboard.",
-        "data": {
-          "enabled": "Thermisch model en advies inschakelen",
-          "control_enabled": "Ruimtes fysiek via AUTO/UIT laten regelen",
-          "zone_entities": "Panasonic-zones (moeten AUTO en OFF ondersteunen)",
-          "weather_entity": "Weerentiteit voor uurvoorspelling",
-          "outside_temp_entity": "Actuele buitentemperatuur (optioneel)",
-          "soft_band_c": "Gewenste comfortband rond thermostaatdoel (±°C)",
-          "hard_band_c": "Harde comfortgrens (±°C)",
-          "decision_interval_h": "Uitgebreide langetermijnplanning om de (uren)",
-          "forecast_horizon_h": "Voorspellingshorizon (uren)",
-          "automatic_zone_control": "Ruimtes automatisch aan en uit regelen"
-        }
-      },
       "battery": {
         "title": "Home batteries",
         "description": "Batteries are modeled as separate energy resources. Monitoring/advice is available now; physical control remains off by default and later requires two explicit permissions.",
@@ -414,7 +334,7 @@
       },
       "overview": {
         "title": "Overzicht & controle",
-        "description": "Mode: {mode}\nGrid meter: {grid} · PV: {pv}\nDevices: {devices}\nHot water: {dhw} · Smart climate: {climate}\nWallbox: {wallbox} · Batteries: {batteries}\nOther controllers active at the same time: {conflicts}\nPrivate profile: {private_bundle}\n\nUse the dashboard for daily operation. Choose Back to change settings.",
+        "description": "Mode: {mode}\nGrid meter: {grid} · PV: {pv}\nDevices: {devices}\nHeat pump: {sg_boost}\nWallbox: {wallbox} · Batteries: {batteries}\nOther controllers active at the same time: {conflicts}\nPrivate profile: {private_bundle}\n\nUse the dashboard for daily operation. Choose Back to change settings.",
         "data": {}
       },
       "energy_hub": {
@@ -441,12 +361,12 @@
         }
       },
       "comfort_hub": {
-        "title": "Heat & comfort",
-        "description": "Warm water en ruimteklimaat gebruiken dezelfde Panasonic-installatie maar blijven aparte regelblokken met duidelijke voorrangsregels.",
+        "title": "Heat pump — Panasonic control",
+        "description": "Panasonic owns the tank target, zones, compressor and electric support. SolarPilot uses one optional SG solar boost contact only.",
         "menu_options": {
-          "dhw": "Sanitair warm water",
-          "smart_climate": "Ruimteklimaat · basis",
-          "smart_climate_advanced": "Ruimteklimaat · leren & geavanceerd"
+          "sg_boost": "Heat pump — Panasonic control",
+          "sg_sources": "Heat pump — read-only sources",
+          "sg_advanced": "Solar boost — stability and local fallback"
         }
       },
       "storage_hub": {
@@ -519,31 +439,6 @@
           "learning_min_confidence": "Minimum vertrouwen",
           "use_learned_device_map": "Geleerde fasekaart voor regeling gebruiken",
           "stale_s": "Fasemeting te oud na (s)"
-        }
-      },
-      "smart_climate_advanced": {
-        "title": "Ruimteklimaat · leren & geavanceerd",
-        "description": "Automatische regeling controleert iedere regelronde de actuele behoefte per ruimte. Geleerde respons en beschikbare uurvoorspellingen helpen eerder AUTO vrij te geven. De percentages tonen leerbewijs; voorspelfout wordt afzonderlijk gemeten. AUTO alleen garandeert geen afkoeling van de bouwschil vooraf.",
-        "data": {
-          "forecast_refresh_s": "Weersvoorspelling vernieuwen om de (s)",
-          "shoulder_band_c": "Tussenseizoen-band rond binnendoel (±°C)",
-          "season_extreme_delta_c": "Duidelijke zomer/winter vanaf gemiddeld verschil (°C)",
-          "allow_winter_summer_coast": "Oude coastregeling: ook in zomer/winter",
-          "min_coast_window_h": "Minimum nuttige coastperiode (uren)",
-          "min_state_hold_h": "Oude coastregeling: minimum AUTO/OFF-vasthoudtijd (uren)",
-          "thermal_start_margin_h": "Extra herstartmarge boven geleerde vloerreactie (uren)",
-          "manual_hold_h": "Tijdelijke rust na externe bediening (uren)",
-          "sample_interval_s": "Thermisch leersample om de (s)",
-          "learning_min_samples": "Minimum leersamples",
-          "learning_min_days": "Minimum verschillende leerdagen",
-          "model_confidence_min": "Minimum leerbewijs voor voorspellende regeling",
-          "solar_preconditioning_enabled": "PV mag noodzakelijke AUTO-herstart vervroegen",
-          "precondition_min_pv_w": "Minimum PV voor vervroegde AUTO-vrijgave (W)",
-          "solar_precondition_extra_lead_h": "Extra voorsprong met PV (uren)",
-          "max_commands_per_day": "Max gewone AUTO/OFF-opdrachten per dag",
-          "stale_s": "Klimaatmeting te oud na (s)",
-          "automatic_min_run_h": "Minimum AUTO-periode bij automatische regeling (uren)",
-          "automatic_min_off_h": "Minimum UIT-periode bij automatische regeling (uren)"
         }
       },
       "wallbox_advanced": {
@@ -632,33 +527,9 @@
       },
       "private_bundle": {
         "title": "Privéprofiel & historiek",
-        "description": "Status: {status}\nHistorische bootstrap: {history}\nOntbrekende bron-groepen: {missing}\n\nPlaats één privébestand als `/config/custom_components/solar_pilot/userfiles/private_bundle.json`. Het bestand blijft buiten GitHub en wordt door HACS bij gewone updates behouden. Import vult alleen lege koppelingen in. Fysieke klimaatbediening, fase-ingrepen en boilerregeling worden niet automatisch vrijgegeven. SolarPilot blijft na herladen in Observatie.",
+        "description": "Status: {status}\nHistorical bootstrap: {history}\nMissing source groups: {missing}\n\nKeep one private local file at `/config/custom_components/solar_pilot/userfiles/private_bundle.json`, outside GitHub. Ordinary HACS updates preserve it. Import fills only empty existing links. Panasonic remains read-only; SG commissioning and physical permissions are not granted by import. Existing global user mode stays protected.",
         "data": {
           "apply_now": "Privéprofiel en historiek nu importeren / herladen"
-        }
-      },
-      "dhw_comfort": {
-        "title": "Domestic hot water · night, morning and evening reserve",
-        "description": "Morning monitoring can restore the normal setpoint but never boosts it. One bounded evening solar reserve is considered per day. The clock or a low temperature does not force a compressor start.",
-        "data": {
-          "night_policy": "Night policy",
-          "morning_enabled": "Monitor morning supply (normal target only, no boost)",
-          "morning_time": "Assess supply at",
-          "morning_c": "Morning measured goal (at least the comfort floor)",
-          "morning_margin_c": "Forecast and evening reserve margin (°C)",
-          "morning_max_lead_min": "Maximum morning assessment lead (minutes)",
-          "morning_extra_lead_min": "Additional warm-up margin (minutes)",
-          "morning_hold_min": "Monitor goal after deadline (minutes)",
-          "tank_loss_fallback_c_h": "Fallback tank loss (°C/hour)",
-          "tank_heat_fallback_c_h": "Fallback warming rate (°C/hour)",
-          "evening_enabled": "Evening reserve on last useful solar",
-          "evening_cap_c": "Maximum evening setpoint (°C)",
-          "evening_lookahead_h": "Window before last useful solar (hours)",
-          "evening_fallback_start": "Start time without usable forecast",
-          "evening_draw_buffer_c": "Evening/night water-draw reserve (°C)",
-          "evening_margin_w": "Evening power margin (W)",
-          "predictive_cooling_enabled": "Defer extra heating for predicted cooling",
-          "predictive_cooling_horizon_h": "Cooling look-ahead (hours)"
         }
       },
       "dishwasher_connection": {
@@ -698,7 +569,7 @@
           "dishwasher_deadline_grid_allowed": "Netstroom toestaan bij de startdeadline",
           "dishwasher_deadline_grace_min": "Nog proberen na geblokkeerde deadline (minuten)",
           "dishwasher_alert_mode": "Herkenning van storingen en verbruiksmateriaal",
-          "dishwasher_priority_enabled": "Priority profile: heat-pump comfort, then dishwasher, before EV/lower loads/extra 60 C",
+          "dishwasher_priority_enabled": "Keep dishwasher preference ahead of Wallbox and lower solar requests",
           "dishwasher_ev_solar_priority": "Prefer dishwasher over current solar EV power — temporary grid use is possible"
         },
         "data_description": {
@@ -781,6 +652,45 @@
           "device_id": "Toestel",
           "section": "Wat wil je aanpassen?"
         }
+      },
+      "sg_boost": {
+        "title": "Heat pump — Panasonic control",
+        "description": "Panasonic owns comfort and protection. SolarPilot may only request and release this SG contact. A new binding is saved disabled; confirm the local mapping and expiry timer afterwards. A power estimate is not a measurement or a zero-import guarantee.",
+        "data": {
+          "entity_id": "Existing Shelly output for SG solar boost",
+          "enabled": "Automatic solar boost enabled",
+          "commissioning_confirmed": "Correct SG stage and extra hot-water-only request checked",
+          "watchdog_confirmed": "Local expiry timer and renewal without switching tested",
+          "threshold_w": "Usable solar surplus required to start (W)",
+          "expected_power_w": "Provisional additional demand estimate (W)"
+        }
+      },
+      "sg_sources": {
+        "title": "Heat pump — read-only sources",
+        "description": "These sources are read-only. Verify meter coverage; a partial measurement is not total power. An unchanged normal tank target does not confirm the effective SG target.",
+        "data": {
+          "tank_temperature_entity": "Actual tank temperature — read only",
+          "tank_target_entity": "Native tank target — read only",
+          "power_entity": "Heat-pump power (W/kW) — read only",
+          "power_scope": "Which supply does this meter cover?",
+          "activity_entity": "Actual operating information — read only",
+          "zone_entities": "Room thermostats — read only"
+        }
+      },
+      "sg_advanced": {
+        "title": "Solar boost — stability and local fallback",
+        "description": "Defaults normally suffice. The short local expiry timer guards communication and is separate from the boost session. Renewal must not cycle the physical relay. Hard limits and unreliable readings take precedence over delays.",
+        "data": {
+          "start_delay_s": "Stable surplus before starting (s)",
+          "stop_delay_s": "Low-surplus delay (s)",
+          "hysteresis_w": "Start/hold margin (W)",
+          "rest_s": "Rest after a boost (s)",
+          "max_session_s": "Maximum boost session (s)",
+          "lease_s": "Local permission expires after (s)",
+          "renew_s": "Renew permission every (s)",
+          "ack_timeout_s": "Relay confirmation wait (s)",
+          "stale_s": "Maximum measurement age (s)"
+        }
       }
     },
     "error": {
@@ -800,27 +710,16 @@
       "reclaim_requirements": "Overname vereist een eigen vermogensmeter, een onderbreekbaar toestel en een minimale looptijd niet langer dan de overnametermijn. Gebruik dit alleen bij direct voorspelbaar elektrisch verbruik.",
       "wallbox_meter_duplicate": "Kies de afzonderlijke laadvermogensmeter, niet de net-, PV- of batterijmeter.",
       "dedicated_meter": "Kies een eigen vermogensmeter voor dit toestel, niet de net-, PV-, batterijmeter of die van een ander toestel.",
-      "dhw_range": "Ongeldige waarde of hysterese groter dan de inschakeldrempel.",
-      "dhw_step": "De waarde past niet bij de instelbare stapgrootte.",
-      "dhw_order": "Choose comfort floor ≤ normal target ≤ solar target ≤ surplus target; cooling cap must be at least the normal target.",
-      "dhw_night": "Gebruik verschillende begin- en eindtijden, met seconden op 00.",
-      "dhw_safety": "Controleer eerst met de fabrikant/installateur of deze lage doelen en 60°C geschikt zijn. Hygiëne moet onafhankelijk gewaarborgd blijven.",
-      "dhw_pv_required": "Koppel eerst het actuele zonnepanelenvermogen in de algemene SolarPilot-instellingen (W/kW).",
-      "dhw_target_invalid": "De doelbediening is niet bruikbaar: controleer °C-terugmelding, bereik, stap, ondersteunde doeltemperatuur en dubbele koppeling.",
-      "dhw_temperature_invalid": "Een verse werkelijke watertemperatuur in °C ontbreekt. Koppel de juiste sensor.",
-      "dhw_space_activity_states": "Enter non-empty, disjoint values for space operation and no space operation; one status cannot be in both lists.",
       "energy_unit": "Kies een energiesensor met eenheid kWh.",
       "range": "Waarden liggen buiten het toegestane bereik.",
       "daily_runtime": "Daily maximum runtime must be 0 or at least the daily minimum runtime.",
       "time": "Enter a valid time.",
-      "climate_modes": "Elke gekozen klimaatzone moet AUTO en OFF ondersteunen. SolarPilot stuurt nooit HEAT of COOL.",
       "temperature_unit": "Select a °C temperature sensor.",
       "exclusive_control_required": "Confirm exclusive ownership before enabling physical battery control.",
       "cycle_learning_requires_meter": "Cyclusleren vereist een beschermde cyclus met een exclusieve vermogensmeter.",
       "cycle_duration_required": "Geef een verwachte cyclusduur op of schakel cyclusleren in.",
       "invalid_precedence": "Choose a valid Wallbox priority.",
       "priority_reclaim_conflict": "A device yielding to the Wallbox cannot also reclaim charging power.",
-      "dhw_morning_required": "Enable the morning objective before scheduling an evening reserve.",
       "invalid_current_source": "Use the charging-current limit, not the ICP/main fuse.",
       "invalid_number": "Enter a valid number within the allowed range.",
       "dishwasher_restored": "This is a restored old button. Select the current START button of the linked device.",
@@ -831,7 +730,14 @@
       "dishwasher_exact_remote": "Gebruik voor fysieke APP-vrijgave uitsluitend de volledige waarde Enabled.",
       "invalid_selection": "Ongeldige keuze; selecteer een aangeboden optie.",
       "invalid_pv_setting": "Ongeldige PV-instelling: controleer type, eenheid en bereik.",
-      "live_change": "De wijziging is nog niet opgeslagen. Lees de melding hierboven; heropen bij een gelijktijdige wijziging."
+      "live_change": "De wijziging is nog niet opgeslagen. Lees de melding hierboven; heropen bij een gelijktijdige wijziging.",
+      "sg_switch_required": "Choose the existing physical Shelly switch, not a helper or script.",
+      "sg_commissioning": "First confirm SG mapping, native base settings and absence of competing control.",
+      "sg_watchdog": "First test local expiry without Home Assistant and renewal without relay cycling.",
+      "sg_duplicate": "This SG output is already linked as an ordinary load; one output has one owner.",
+      "sg_pv_required": "First link measured solar production.",
+      "panasonic_read_only": "Panasonic entities are read-only; use the assigned SG output only.",
+      "sg_reopen": "The SG binding or commissioning proof changed while this form was open. Review the current values and confirm again after the local test."
     },
     "abort": {
       "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",

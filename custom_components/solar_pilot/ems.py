@@ -22,7 +22,6 @@ CAPACITY_DEFAULTS = {
     "margin_w": 100.0,
     "minimum_elapsed_s": 60,
     "stale_s": 120,
-    "respect_optional_dhw": True,
 }
 
 ECONOMY_DEFAULTS = {
