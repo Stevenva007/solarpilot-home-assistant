@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0-beta.65 — warmtepomp zichtbaar en afzonderlijk SG-bewijs
+
+- Herstelt Warmte & comfort: de actuele Panasonic-/SG-weergave vervangt de meldingen over vervallen boiler- en klimaatregeling. De warmtepomp verschijnt ook tussen de overige blokken in Overzicht en Toestellen, met vermogen, bedrijfsrichting, tankinformatie en duidelijke wacht-/blokkeerreden waar bekend.
+- Voegt een afzonderlijke read-only bedrijfsstatus toe. Verse gevalideerde compressorfrequentie is leidend; alleen zonder gekoppelde compressorbron kan verse passende native hvac_action bedrijf of rust bevestigen. Vermogen, WATER/klepstand of gekozen HEAT-programma bewijst geen activiteit. Oude/onbeschikbare bronnen geven onbekend en worden niet door verse andere data verhuld.
+- Grafische activiteit markeert bevestigd bedrijf. SG-aanvraag, gemelde contactstand/lokale timer en werkelijk ontvangen SG-status krijgen afzonderlijke labels; een aanvraag of gesloten contact bewijst geen ontvangen SG of extra warmteopname.
+- Het zijbalkpaneel laadt de bij deze release horende kaart, ook als de browser een oude paneelweergave kende. Backend- en geladen kaartversie staan afzonderlijk zichtbaar met herlaadadvies bij verschil. De gewone Lovelace-kaart krijgt nieuwe code na volledig herladen van pagina/app.
+- Sluit uitsluitend de nieuwe veranderlijke waarnemingstijdstippen van de warmtepomppresentatie uit van de herhaalde Recorder-attributenkopie. Zo veroorzaakt een onveranderde rusttoestand geen nieuw detailrecord bij iedere vijfsecondenronde. Actuele sensorwaarden, live attributen, eigen metingen en export blijven behouden; geen retentiewijziging.
+- Voegt een vijfde CI-gate toe voor de echte browserweergave. De werkelijk uitgevoerde resultaten worden apart vastgelegd; het toevoegen van de gate is geen geslaagde browsertest.
+- Behoudt de bestaande SG-policy, timer, sessie-/koel-/bron-/prioriteitsvoorwaarden, toestellen, lokale bevestigingen en privégegevens. Geen fysieke actie door renderen en geen algemene herbevestiging door een ongewijzigde upgrade. Canonieke uitleg, hulp, overdracht en installatie/rollback worden samen bijgewerkt. Nieuwe verificatie hoort in `docs/TESTRESULTATEN_BETA65.md`; beta.64-resultaten zijn geen beta.65-testbewijs.
+
 ## 1.0.0-beta.64 — algemene SG-zonneboost en betrouwbare observatie
 
 - Voegt een lokaal bevestigd toepassingsbereik toe: uitsluitend tapwater of algemene SG-boost volgens Panasonic-bedrijf. Geen automatische algemene toestemming bij upgrade en geen wijziging van lokaal ingestelde Panasonic-SG-waarden. De aparte bevestiging van bestaande condens-/dauwpuntbeveiliging beschermt extra koeling; AUTO/onbekende context is geen bewijs van veiligheid.

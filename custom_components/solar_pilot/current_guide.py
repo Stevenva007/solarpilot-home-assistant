@@ -3,13 +3,15 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.64'
+GUIDE_VERSION = '1.0.0-beta.65'
 GUIDE_UPDATED = '2026-10-10'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.64',
+ 'version': '1.0.0-beta.65',
  'updated': '2026-10-10',
- 'intro': 'SolarPilot geeft één rustige, begrensde SG-zonneboost warmtepomp. Het lokaal bevestigde '
+ 'intro': 'De warmtepomp staat naast de andere toestellen met een duidelijke indicatie van bevestigd '
+          'bedrijf en afzonderlijke SG-aanvraag, contactstand en ontvangen status. SolarPilot geeft één '
+          'rustige, begrensde SG-zonneboost warmtepomp. Het lokaal bevestigde '
           'toepassingsbereik bepaalt of uitsluitend tapwater of het algemene Panasonic-bedrijf wordt '
           'ondersteund. Panasonic blijft volledig eigenaar van comfort en beveiligingen. Twee bevestigde '
           'afzonderlijke voedingen kunnen samen het warmtepompvermogen tonen; aanvraag, contactstand, '
@@ -96,15 +98,31 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'fabrikantprogramma’s worden op Panasonic ingesteld. De nieuwe regeling '
                               'corrigeert geen mogelijk door een oudere versie achtergelaten native '
                               'instelling: controleer die eenmalig bij ingebruikname.',
+                              'De warmtepomp staat in Overzicht en Toestellen tussen de andere blokken en '
+                              'krijgt dezelfde actuele uitleg onder Warmtepomp. Daar verschijnt de '
+                              'huidige Panasonic-/SG-weergave; de vervallen boiler- en klimaatregeling wordt '
+                              'niet meer als ontbrekende configuratie getoond. Het blok toont waar beschikbaar '
+                              'vermogen, bedrijfsrichting, tanktemperatuur en reden van wachten of blokkeren. '
+                              'Een grafische activiteit en het bedrijfslabel verschijnen bij bevestigd '
+                              'bedrijf. Rust en onbekend blijven apart zichtbaar; onbekend wordt geen UIT.',
+                              'De actuele echte compressorfrequentie is het primaire bedrijfsbewijs. Alleen '
+                              'wanneer geen compressorbron is gekoppeld kan een verse passende native '
+                              'activiteitsmelding bedrijf of rust bevestigen. Een gekoppelde maar oude, '
+                              'onbeschikbare of ongeldige compressorbron blijft onbekend; een andere verse '
+                              'bron verbergt dit niet. Een programma- of klepstand, bijvoorbeeld WATER of '
+                              'gekozen HEAT, en alleen het gemeten vermogen bewijzen geen compressorbedrijf. '
+                              'De gekozen modus en de werkelijk gemelde bedrijfsactiviteit blijven apart.',
                               'Eén compact warmtepompblok toont SolarPilot-aanvraag, eigenaar en actuele '
                               'reden, de door Shelly gemelde contactstand met bevestigde lokale resterende '
                               'toestemming, compressorbedrijf en native context, metingen en afzonderlijke '
-                              'ontvangen SG-status. Een compressor die draait bewijst geen door SG '
-                              'veroorzaakte extra opname. Een programma- of klepstand, bijvoorbeeld WATER, '
-                              'bewijst geen compressorbedrijf. Een geschikte actuele SG-bron kan de ontvangen '
-                              'stand bevestigen; causaal extra warmte- of verbruikseffect blijft afzonderlijk '
-                              'onbewezen. Een gelijkblijvend app-tankdoel is geen relaisfout; stijgende '
-                              'tanktemperatuur alleen bewijst geen SG-eigendom.'],
+                              'ontvangen SG-status. SG aangevraagd is de SolarPilot-aanvraag. SG-contact AAN '
+                              'is de gemelde uitgangsstand; alleen een passende echte actuele SG-bron kan '
+                              'SG ontvangen bevestigen. Zonder die bron blijft ontvangen onbekend, ook met '
+                              'een AAN-contact. Oude bronwaarden krijgen geen actief/inactief-bewijs uit '
+                              'hun laatst bekende stand. Een compressor die draait bewijst geen door SG '
+                              'veroorzaakte extra opname. Causaal extra warmte- of verbruikseffect blijft '
+                              'afzonderlijk onbewezen. Een gelijkblijvend app-tankdoel is geen relaisfout; '
+                              'stijgende tanktemperatuur alleen bewijst geen SG-eigendom.'],
                'bullets': []},
               {'title': '4. SG-zonneboost warmtepomp: lokaal toepassingsbereik en rustige herbeoordeling',
                'paragraphs': ['Automatische zonneboost staat standaard Uit. Activeren vereist de juiste '
@@ -248,7 +266,9 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'heatervermogen wanneer de lokale dekking dat werkelijk bevestigt. Het '
                               'SG-contact is een apart signaal, geen voeding: compressorbedrijf met 0 W op de '
                               'heatermeter is mogelijk en bewijst geen SG-effect. Optionele '
-                              'compressorfrequentie gebruikt een echte actuele Hz-bron; een handmatig '
+                              'compressorfrequentie gebruikt een echte actuele Hz-bron. Zonder gekoppelde '
+                              'compressorbron kan een verse passende native activiteitsmelding bedrijf of '
+                              'rust bevestigen, met het brononderscheid zichtbaar. Een handmatig '
                               'waargenomen getal wordt geen permanente sensor. Een programma-, klep- of '
                               'vermogenswaarde vervangt geen compressorbewijs. Een geschikte actuele '
                               'ontvangen-SG-bron kan een expliciete actieve/inactieve SG-stand bevestigen. Een '
@@ -475,7 +495,12 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'geen kans dat een fysieke actie juist is.',
                               'Grote model- en leerattributen blijven live en in eigen '
                               'SolarPilot-opslag/export beschikbaar. Alleen herhaalde zware kopieën in de '
-                              'gewone Home Assistant Recorderhistoriek zijn uitgesloten. De 16 KiB-grens '
+                              'gewone Home Assistant Recorderhistoriek zijn uitgesloten. Ook de nieuwe '
+                              'veranderlijke waarnemingstijden van de warmtepompweergave worden alleen uit '
+                              'die herhaalde attributenkopie uitgesloten. Een onveranderde rusttoestand maakt '
+                              'daardoor geen nieuw detailrecord bij iedere vijfsecondenronde. Actuele '
+                              'sensorwaarden, live attributen, eigen metingen en export blijven behouden. '
+                              'De 16 KiB-grens '
                               'betreft één attribuutpakket, niet vrije schijfruimte. Gedeelde weergavecache '
                               'vermindert rekenwerk tijdens één publicatieronde; beslissingen en export '
                               'gebruiken verse directe gegevens.',
@@ -582,11 +607,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'oorspronkelijke apparaatentiteiten.'],
                'bullets': []},
               {'title': '19. Migratie en veilige ingebruikname',
-               'paragraphs': ['Beta.64 behoudt de beta.63-fix voor onveranderbare en geneste Home '
+               'paragraphs': ['Beta.65 behoudt de beta.63-fix voor onveranderbare en geneste Home '
                               'Assistant-opties. Verwijder de integratie, configuratie, modellen of opslag '
                               'niet. De upgrade houdt geldige single-meterkoppelingen, bestaande overige '
-                              'toestellen en privégegevens intact. Nieuwe profiel-, splitmeter-, compressor- '
-                              'en SG-bronvelden leveren geen stilzwijgende toestemming. De algemene SG-keuze '
+                              'toestellen en privégegevens intact. Ongewijzigde geldige SG-, profiel-, '
+                              'meter- en koelbeveiligingsbevestigingen uit beta.64 blijven staan; een '
+                              'codeupdate vraagt daarvoor geen herbevestiging. Nieuwe profiel-, splitmeter-, '
+                              'compressor- en SG-bronvelden leveren geen stilzwijgende toestemming. De algemene SG-keuze '
                               'vraagt expliciete lokale bevestiging.',
                               'Een oude tankgebonden beleidswachtstand wordt bij bevestigde omschakeling naar '
                               'het algemene profiel gericht beoordeeld. De oude herkomst blijft privé bewaard '
@@ -616,14 +643,21 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze '
                               'nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef '
                               'gebeurt alleen met expliciete toestemming en zonder elektrische metingen in '
-                              'geopende apparatuur. Gebruik de korte controle in BETA64_INSTELLEN.md.'],
+                              'geopende apparatuur. Gebruik de korte controle in BETA65_INSTELLEN.md.'],
                'bullets': []},
               {'title': '20. Installatie, verwijderen en rollback',
                'paragraphs': ['Installeer of update de Integration via HACS en herstart Home Assistant. De '
                               'frontend wordt meegeleverd en automatisch geregistreerd: geen aparte '
                               'Lovelace-resource, dashboard-YAML of www-kopie. Heropen de webpagina/app en '
-                              'controleer geladen backend- en kaartversie afzonderlijk. Een download bewijst '
-                              'geen geladen browsercode.',
+                              'controleer geladen backend- en kaartversie afzonderlijk: beide staan zichtbaar '
+                              'onder Instellingen & controle. Een oude kaart kon alleen de nieuwe backendversie tonen terwijl '
+                              'zij zelf nog oude weergavecode gebruikte. Het zijbalkpaneel gebruikt nu de '
+                              'releasekaart. Bij een verschil in versies geeft de kaart herlaadadvies. '
+                              'Herlaad de pagina volledig of sluit de app volledig af en open haar opnieuw, '
+                              'ook voor een bestaande Lovelace-kaart. Een oude kaart kan de nieuwe '
+                              'versieverschilwaarschuwing zelf nog niet tonen. Alleen '
+                              'naar een ander tabblad gaan of de integratie herladen vervangt niet zeker '
+                              'de al geladen browsercode. Een download bewijst geen geladen browsercode.',
                               'Een privéprofiel blijft optioneel en uitsluitend lokaal. Importeren kan lege '
                               'geldige bronkoppelingen aanvullen, maar activeert de SG-functie of nieuwe '
                               'fysieke apparaatbediening niet. Bewaar userfiles en eigen HA-opslag; voeg ze '
@@ -633,13 +667,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van '
                               'SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, AEG- '
                               'of Shelly-integratie.',
-                              'Rollback naar de gecontroleerde beta.63-basis vereist de bij de upgrade '
-                              'behorende privé HA-back-up naast de code, zodat nieuwe profiel-/meetvelden en '
-                              'bewaarde beleidsherkomst passend terugkeren. Geef eerst de SG-aanvraag vrij en '
-                              'controleer lokale terugval; laat nooit twee runtimes tegelijk werken. Voor '
+                              'Rollback naar de gecontroleerde beta.64-basis vereist de bij de upgrade '
+                              'behorende privé HA-back-up naast de code, zodat instellingen, opgeslagen '
+                              'bewijslagen en modellen samen passend terugkeren. Geef eerst de SG-aanvraag vrij '
+                              'en controleer lokale terugval; laat nooit twee runtimes tegelijk werken. Voor '
                               'terugkeer naar de oude directe beta.61-regeling blijft de volledige back-up van '
                               'vóór de beta.62-migratie nodig. Alleen een oudere ZIP herstelt gewijzigde '
-                              'opslag niet. Zie BETA64_INSTELLEN.md.'],
+                              'opslag niet. Zie BETA65_INSTELLEN.md.'],
                'bullets': []},
               {'title': '21. Release- en documentatieregel',
                'paragraphs': ['Dit is de enige volledige actuele regelbeschrijving. current_guide.py genereert '

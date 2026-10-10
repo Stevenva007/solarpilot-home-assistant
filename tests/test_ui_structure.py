@@ -169,7 +169,8 @@ def test_frontend_assets_are_release_bound_to_manifest_version():
     version = manifest["version"]
     option_js = (ROOT / "custom_components" / "solar_pilot" / "frontend" / "option-help.js").read_text(encoding="utf-8")
     assert CARD.startswith(f"/* SolarPilot {version}.")
-    assert f"option-help.js?v={version}" in CARD
+    assert f"const SP_CARD_VERSION = '{version}';" in CARD
+    assert "import(`/solar_pilot_static/option-help.js?v=${SP_CARD_VERSION}`)" in CARD
     assert option_js.startswith(f"/* SolarPilot {version}.")
     assert f"option-help.json?v={version}" in option_js
     assert json.loads(OPTION_HELP)["version"] == version

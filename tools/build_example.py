@@ -350,6 +350,10 @@ attributes["panasonic"] = {
     "power_supply1_valid": True, "power_supply2_valid": True,
     "power_reason": "Twee bevestigde niet-overlappende voedingen; gemeten nul op voeding 2",
     "compressor_running": True, "compressor_frequency_hz": 33,
+    "compressor_entity": "sensor.example_compressor_frequency",
+    "source_stale_s": 300,
+    "operation": {"state": "active", "label": "Compressor draait",
+                  "evidence": "compressor_frequency", "observed_at": 0, "stale_s": 300},
     "context": "space_heating", "context_reliable": True, "cooling_possible": False,
     "program": "heating", "status": "Panasonic meldt ruimteverwarming",
     "sg_status": "unknown", "sg_status_confirmed": False, "sg_effect_confirmed": False,
@@ -420,6 +424,17 @@ html = f'''<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name
 const attributes = {json.dumps(attributes, ensure_ascii=False)};
 // Start the explicitly fictitious meter snapshot when the example opens.
 for(const source of ['pv','grid']) attributes.energy_display[source].reported_at=Date.now()/1000;
+// Explicitly fictitious source receipt times. These age normally after opening;
+// a card refresh never invents a fresh sensor report.
+const exampleObservedAt=Date.now()/1000;
+for(const key of ['power_stamp','power_observed_at','power_supply1_observed_at','power_supply2_observed_at',
+  'temperature_stamp','target_stamp','context_stamp','compressor_stamp','compressor_frequency_observed_at']) attributes.panasonic[key]=exampleObservedAt;
+for(const zone of attributes.panasonic.zones) zone.observed_at=exampleObservedAt;
+attributes.panasonic.operation.observed_at=exampleObservedAt;
+attributes.sg_boost.observed_at=exampleObservedAt;
+attributes.sg_boost.relay_observed_at=exampleObservedAt;
+attributes.sg_boost.relay_valid_until=exampleObservedAt+attributes.sg_boost.lease_remaining_s;
+attributes.sg_boost.relay_stale_s=300;
 const card=document.querySelector('solar-pilot-card'); card.setConfig({{}});
 const guideAttributes = {json.dumps(guide_attributes, ensure_ascii=False)};
 card.hass={{user:{{is_admin:true}},callWS:async msg=>{{if(msg.type==='solar_pilot/priority_board'&&!msg.save)return structuredClone(attributes.priority_board);throw new Error('Offline voorbeeld: er wordt niets opgeslagen of opgehaald.');}},states:{{'sensor.solarpilot_status':{{state:'Zonnestroom',attributes}},'sensor.solarpilot_actuele_uitleg':{{state:guideAttributes.version,attributes:guideAttributes}}}}, callService:async()=>{{throw new Error('Deze voorbeeldpagina bedient geen apparaten. Gebruik de kaart binnen Home Assistant voor echte bediening.');}}}};

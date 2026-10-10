@@ -126,6 +126,9 @@ def test_other_policy_switches_keep_their_current_attributes_and_avoid_learning_
 
     monkeypatch.setattr(runtime, "sensor_overview", unexpected)
     monkeypatch.setattr(runtime, "learning_overview", unexpected)
+    # The snapshot now carries its true rendering time; make repeated reads
+    # deterministic while checking that live policy attributes are unchanged.
+    monkeypatch.setattr(runtime.sg_boost, "_wall_clock", lambda: 1_800_000_000.0)
     entity = switch(runtime, suffix)
 
     live = entity.extra_state_attributes
