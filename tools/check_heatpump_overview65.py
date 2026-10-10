@@ -468,15 +468,18 @@ with sync_playwright() as playwright:
 
     page.locator('solar-pilot-card >> .footer [data-action=learning_hub]').click()
     quality = page.locator('solar-pilot-card >> solar-pilot-learning-dialog-1-0-0-beta-67')
-    page.wait_for_function('!c._learningDialog._busy')
+    page.wait_for_function('!c._learningDialog._busy && !!c._learningDialog._data')
     assert quality.locator('h2').inner_text() == 'Meetkwaliteit'
     assert 'Oude interactieve vraag' not in quality.locator('.body').inner_text()
     assert quality.locator('[data-question],[data-policy],[data-action=answer],[data-action=policy]').count() == 0
-    assert page.evaluate("qaWS.filter(x=>x.type==='solar_pilot/learning').every(x=>x.operation==='read')")
+    assert page.evaluate("qaWS.filter(x=>x.type==='solar_pilot/learning')") == [
+        {'type': 'solar_pilot/learning', 'config_entry_id': 'offline-example', 'operation': 'read'}]
     quality.locator('.close').click()
 
     page.locator('solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value=export]').click()
-    page.wait_for_function("!c._analysisFeedbackBusy && c._analysisFeedbackLoadedEntry==='offline-example'")
+    page.wait_for_function("!c._analysisFeedbackBusy && c._analysisFeedbackEntry==='offline-example' && c._analysisFeedbackReport?.current_release==='1.0.0-beta.67'")
+    assert page.evaluate("qaWS.filter(x=>x.type==='solar_pilot/analysis_feedback')") == [
+        {'type': 'solar_pilot/analysis_feedback', 'config_entry_id': 'offline-example', 'action': 'status'}]
     assert 'Fictieve bevinding voor analyse' in page.locator('solar-pilot-card >> .analysis-export').inner_text()
     assert page.locator('solar-pilot-card >> [data-question],[data-policy],[data-action=answer],[data-action=policy]').count() == 0
     page.evaluate('''async() => {await c._importAnalysisFeedback({size:1048577,text:async()=>{
@@ -517,6 +520,7 @@ with sync_playwright() as playwright:
     page.wait_for_function('!c._analysisFeedbackBusy && !c._analysisFeedbackReport?.report')
     assert report.count() == 0
     assert page.locator('solar-pilot-card >> [data-action=analysis_feedback_remove]').count() == 0
+    assert page.evaluate("qaWS.filter(x=>x.type==='solar_pilot/analysis_feedback').map(x=>x.action)") == ['status', 'import', 'status', 'remove']
     page.evaluate("c.hass={...c._hass,user:{id:'fictional-viewer',is_admin:false}};window.qaWSBeforeViewer=qaWS.length")
     for action in ('analysis_download', 'analysis_feedback_upload', 'analysis_feedback_reload'):
         assert page.locator(f'solar-pilot-card >> .analysis-export [data-action={action}]').is_disabled()

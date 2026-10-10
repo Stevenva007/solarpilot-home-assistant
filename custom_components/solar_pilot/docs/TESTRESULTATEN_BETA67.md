@@ -14,8 +14,8 @@ De regressies toetsen Meetkwaliteit/éénklikexport zonder leervragen, exacte ge
 
 | Controle | Werkelijk beta.67-resultaat |
 | --- | --- |
-| Volledige pytest, Python 3.12 | **3533 geslaagd in 53,41 s**. |
-| Volledige pytest, Python 3.14 | **3533 geslaagd in 52,86 s**. |
+| Volledige pytest, Python 3.12 | **3534 geslaagd in 52,50 s**. |
+| Volledige pytest, Python 3.14 | **3534 geslaagd in 52,28 s**. |
 | Officiële lokale Hassfest | **1 geldige integratie, 0 ongeldige; geslaagd in 1,326 s**. |
 | Canonieke uitleg, guidehash en exacte mirrors | **Geslaagd**; guidehash `5879c0b8cd8905d4`. |
 | Overdracht, SG-bevoegdheidsgrens, Python-/Node-syntax en diff | **Geslaagd**; AST-parse van alle 72 productie-Pythonbestanden en Node-controle van de kaart. |

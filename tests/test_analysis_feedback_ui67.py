@@ -1,4 +1,5 @@
 """Read-only analysis feedback UI, local file bounds and escaped report text."""
+import ast
 import json
 import shutil
 import subprocess
@@ -19,16 +20,39 @@ const context={HTMLElement:class {},window:{},customElements:{get:key=>definitio
   CustomEvent:class{constructor(type,opts){this.type=type;this.detail=opts?.detail;}},console};
 vm.createContext(context);vm.runInContext(fs.readFileSync(args.path,'utf8')+'\n globalThis.Card=SolarPilotCard;globalThis.Quality=SolarPilotLearningDialog;globalThis.Analysis=SolarPilotAnalysisDialog;',context);
 (async()=>{
- const card=Object.create(context.Card.prototype),calls=[],serviceCalls=[],events=[];
+ const card=Object.create(context.Card.prototype),calls=[],serviceCalls=[],events=[],checkpoints=[];
  let readCount=0,renders=0;
+ let feedback=args.status??{report:null,current_release:'1.0.0-beta.67'};
  card._last={state:'Zonnestroom',attributes:{config_entry_id:'fictitious-entry',learning_insights:{open_questions:2,findings:[{title:'Fictieve bevinding',message:'Meetkwaliteit controleren'}]}}};
- card._hass={user:{id:'example-admin',is_admin:args.admin!==false},callService:async(...x)=>serviceCalls.push(x),callWS:async message=>{calls.push(message);if(args.wsError)throw new Error(args.wsError);return args.status??{report:null};}};
+ card._hass={user:{id:'example-admin',is_admin:args.admin!==false},callService:async(...x)=>serviceCalls.push(x),callWS:async message=>{
+   calls.push(message);if(args.wsError)throw new Error(args.wsError);
+   if(args.case==='roundtrip'){
+     if(message.action==='import')feedback={...feedback,report:JSON.parse(message.content)};
+     if(message.action==='remove')feedback={...feedback,report:null};
+   }
+   return feedback;
+ }};
  card._render=()=>renders++;
  let html='';
  if(args.case==='render')html=card._analysisFeedbackHtml(args.status);
  if(args.case==='banner')html=card._analysisBanner(card._last.attributes);
  if(args.case==='action')await card._analysisFeedbackAction(args.action,args.content);
  if(args.case==='import')await card._importAnalysisFeedback({size:args.size,text:async()=>{readCount++;if(args.readError)throw new Error(args.readError);return args.content;}});
+ if(args.case==='roundtrip'){
+   const snapshot=stage=>checkpoints.push({stage,entry:card._analysisFeedbackEntry,
+     busy:card._analysisFeedbackBusy===true,reading:card._analysisFeedbackReading===true,
+     report:card._analysisFeedbackReport?.report??null,current_release:card._analysisFeedbackReport?.current_release,
+     error:card._analysisFeedbackError??'',callCount:calls.length,
+     loadedWait:args.loaded_wait?new vm.Script(args.loaded_wait).runInNewContext({c:card}):null});
+   snapshot('before');
+   await card._loadAnalysisFeedback();snapshot('loaded');
+   await card._loadAnalysisFeedback();snapshot('loaded-again');
+   await card._importAnalysisFeedback({size:1048577,text:async()=>{readCount++;return '{}';}});snapshot('oversized');
+   await card._importAnalysisFeedback({size:100,text:async()=>{readCount++;return '{broken';}});snapshot('invalid');
+   await card._importAnalysisFeedback({size:args.content.length,text:async()=>{readCount++;return args.content;}});snapshot('imported');
+   await card._analysisFeedbackAction('status');snapshot('reloaded');
+   await card._analysisFeedbackAction('remove');snapshot('removed');
+ }
  if(args.case==='changed_user'){
    let resolve;const reading=card._importAnalysisFeedback({size:100,text:()=>{readCount++;return new Promise(done=>resolve=done);}});
    card._hass.user={id:'different-admin',is_admin:true};resolve(args.content);await reading;
@@ -44,7 +68,7 @@ vm.createContext(context);vm.runInContext(fs.readFileSync(args.path,'utf8')+'\n 
    await dialog._download();html=elements['.status'].textContent;
  }
  if(!html&&args.case!=='download')html=card._export(card._ctx());
- process.stdout.write(JSON.stringify({html,calls,serviceCalls,readCount,renders,error:card._analysisFeedbackError??'',reading:card._analysisFeedbackReading===true,events}));
+ process.stdout.write(JSON.stringify({html,calls,serviceCalls,readCount,renders,error:card._analysisFeedbackError??'',reading:card._analysisFeedbackReading===true,events,checkpoints}));
 })().catch(error=>{console.error(error);process.exitCode=1;});
 """
 
@@ -97,6 +121,32 @@ def test_import_sends_original_json_once_and_does_not_apply_recommendations():
     result = run("import", admin=False, size=len(content), content=content)
     assert result["readCount"] == 0 and result["calls"] == []
     assert "beheerder" in result["html"]
+
+
+def test_browser_feedback_flow_waits_for_real_status_and_settles_all_read_import_remove_states():
+    data = report()
+    checker = CARD.parents[3] / "tools/check_heatpump_overview65.py"
+    waits = [node.args[0].value for node in ast.walk(ast.parse(checker.read_text()))
+             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+             and node.func.attr == "wait_for_function" and node.args
+             and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str)
+             and "offline-example" in node.args[0].value and "_analysisFeedback" in node.args[0].value]
+    assert len(waits) == 1
+    result = run("roundtrip", content=json.dumps(data), loaded_wait=waits[0].replace("offline-example", "fictitious-entry"))
+    checks = {row["stage"]: row for row in result["checkpoints"]}
+    assert checks["loaded"]["entry"] == "fictitious-entry"
+    assert checks["loaded"]["current_release"] == "1.0.0-beta.67"
+    assert checks["before"]["loadedWait"] is False and checks["loaded"]["loadedWait"] is True
+    assert checks["loaded"]["callCount"] == checks["loaded-again"]["callCount"] == 1
+    assert checks["oversized"]["callCount"] == checks["invalid"]["callCount"] == 1
+    assert "maximaal 1 MiB" in checks["oversized"]["error"]
+    assert "geen geldige JSON" in checks["invalid"]["error"]
+    assert checks["imported"]["report"] == checks["reloaded"]["report"] == data
+    assert checks["removed"]["report"] is None
+    assert all(not row["busy"] and not row["reading"] for row in checks.values())
+    assert [call["action"] for call in result["calls"]] == ["status", "import", "status", "remove"]
+    assert all(call["config_entry_id"] == "fictitious-entry" for call in result["calls"])
+    assert result["readCount"] == 2  # oversize rejected before read; malformed and valid read once
 
 
 def test_file_read_started_by_another_user_cannot_import_after_user_changes():
