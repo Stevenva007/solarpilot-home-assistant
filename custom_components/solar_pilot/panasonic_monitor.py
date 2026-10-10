@@ -76,6 +76,68 @@ class PanasonicMonitor:
             return None
         return round(number, 2) if (0 if tank else -50) <= number <= (100 if tank else 80) else None
 
+    def _operation(self, frequency, frequency_obj, zones, target, activity):
+        """Presentation evidence only; a selected programme is not operation.
+
+        A configured compressor source is the specific source of truth for its
+        motion. Missing/stale/invalid frequency must not be hidden by a broader
+        native heat request, and electrical watts never prove heat production.
+        With no such binding, explicit fresh native actions can report activity
+        without claiming that the compressor is turning or that SG caused it.
+        """
+        result = {"state": "unknown", "label": "Bedrijf onbekend", "evidence": "none",
+                  "observed_at": None, "stale_s": self.settings["stale_s"]}
+        if self.settings["compressor_frequency_entity"]:
+            if frequency is None:
+                return {**result, "label": "Compressorstatus onbekend"}
+            return {**result, "state": "active" if frequency > 0 else "idle",
+                    "label": "Compressor draait" if frequency > 0 else "Compressor staat stil",
+                    "evidence": "compressor_frequency",
+                    "observed_at": self._reported_stamp(frequency_obj)}
+
+        active = {"heating", "preheating", "cooling", "precooling", "dhw", "hot_water"}
+        inactive = {"idle", "off", "inactive", "none"}
+
+        def action_stamp(obj):
+            if obj is None or any(obj.attributes.get(key) for key in ("estimated", "is_estimated")):
+                return None
+            return self._reported_stamp(obj)
+
+        readings = []
+        for row in zones:
+            action = str(row.get("action") or "").strip().casefold()
+            readings.append((action, action_stamp(self._object(row["entity_id"]))))
+        tank_action = ""
+        if self.settings["tank_target_entity"].startswith(("water_heater.", "climate.")):
+            tank_action = str(target.attributes.get("hvac_action", "")).strip().casefold() if target else ""
+            readings.append((tank_action, action_stamp(target)))
+        if self.settings["activity_entity"]:
+            # A generic activity sensor may actually expose a chosen programme
+            # or valve position. Bare DHW/HOT_WATER is not an operating action.
+            raw_action = str(activity.state).strip().casefold() if activity else ""
+            readings.append((raw_action if raw_action in (active - {"dhw", "hot_water"}) | inactive else "",
+                             action_stamp(activity)))
+        valid = [(action, stamp) for action, stamp in readings
+                 if action in active | inactive and stamp is not None]
+        current = [(action, stamp) for action, stamp in valid if action in active]
+        if current:
+            actions = {action for action, _stamp in current}
+            tank_only = bool(tank_action in active and not any(
+                str(row.get("action") or "").strip().casefold() in active for row in zones)
+                and not (activity and str(activity.state).strip().casefold() in active))
+            label = ("Panasonic meldt koeling" if actions <= {"cooling", "precooling"} else
+                     "Panasonic meldt tapwateropwarming" if actions <= {"dhw", "hot_water"} or tank_only else
+                     "Panasonic meldt verwarming" if actions <= {"heating", "preheating"} else
+                     "Panasonic meldt actief bedrijf")
+            return {**result, "state": "active", "label": label,
+                    "evidence": "native_action", "observed_at": max(stamp for _action, stamp in current)}
+        # Inactivity needs all configured action sources, not merely one idle
+        # zone while another source is unavailable or only reports a programme.
+        if readings and len(valid) == len(readings):
+            return {**result, "state": "idle", "label": "Panasonic meldt rust",
+                    "evidence": "native_action", "observed_at": min(stamp for _action, stamp in valid)}
+        return result
+
     def overview(self):
         c = self.settings
         tank = self._object(c["tank_temperature_entity"])
@@ -94,7 +156,8 @@ class PanasonicMonitor:
                 "target_c": self._temperature(obj, obj.attributes.get("temperature"), native=True) if obj else None,
                 "mode": obj.state if obj else "unknown",
                 "action": obj.attributes.get("hvac_action") if obj else None,
-                "available": obj is not None, "read_only": True})
+                "available": obj is not None, "read_only": True,
+                "observed_at": self._reported_stamp(obj)})
         activity = self._object(c["activity_entity"])
         native = [self.native_program.read(eid) for eid in c["zone_entities"]]
         programs = {row["program"] for row in native if row.get("fresh")}
@@ -198,6 +261,9 @@ class PanasonicMonitor:
             "temperature_entity": c["tank_temperature_entity"],
             "temperature_stamp": self._reported_stamp(tank) if temp is not None else None,
             "target_c": target_c, "power_w": power["watts"], "power_stamp": power["measured_wall"],
+            "target_stamp": self._reported_stamp(target) if target_c is not None else None,
+            "target_observed_at": self._reported_stamp(target) if target_c is not None else None,
+            "source_stale_s": c["stale_s"], "power_observed_at": power["measured_wall"],
             "power_kind": "measured" if power["valid"] else "unknown",
             "power_scope": power["meter_scope"], "power_entity": c["power_entity"],
             "power_complete": power["complete"], "power_reason": power["reason"],
@@ -205,15 +271,20 @@ class PanasonicMonitor:
             "power_supply2_w": power["supplies"].get("supply2", {}).get("watts"),
             "power_supply1_valid": power["supplies"].get("supply1", {}).get("valid", False),
             "power_supply2_valid": power["supplies"].get("supply2", {}).get("valid", False),
+            "power_supply1_observed_at": power["supplies"].get("supply1", {}).get("measured_wall"),
+            "power_supply2_observed_at": power["supplies"].get("supply2", {}).get("measured_wall"),
             "power_supply1_entity": c["power_supply1_entity"], "power_supply2_entity": c["power_supply2_entity"],
             "compressor_running": compressor_running, "compressor_frequency_hz": frequency,
             "compressor_stamp": self._reported_stamp(frequency_obj) if frequency is not None else None,
+            "compressor_frequency_observed_at": self._reported_stamp(frequency_obj) if frequency is not None else None,
             "compressor_entity": c["compressor_frequency_entity"],
             "sg_status": sg_status, "sg_status_confirmed": sg_status != "unknown",
             "sg_status_stamp": self._reported_stamp(sg_obj) if sg_status != "unknown" else None,
+            "sg_status_observed_at": self._reported_stamp(sg_obj) if sg_status != "unknown" else None,
             "sg_status_entity": c["sg_status_entity"], "sg_effect_confirmed": False,
             "zones": zones, "program": next(iter(programs)) if len(programs) == 1 else None,
             "activity": activity.state if activity else None,
+            "operation": self._operation(frequency, frequency_obj, zones, target, activity),
             "context": context, "context_reliable": context_reliable, "context_stamp": context_stamp,
             "context_signature": context_signature, "cooling_possible": cooling_possible, "status": status,
             "note": "SG vraagt zonneboost. Het normale Panasonic-doel kan ongewijzigd blijven; dit bewijst geen relaisfout."}

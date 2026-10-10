@@ -2,9 +2,9 @@
 
 SolarPilot is een lokale Home Assistant-integratie voor zonnestroomverdeling, flexibele verbruikers, een beschermde AEG-afwasmachine, read-only Wallbox-informatie, voorspellingen, kosten, lokaal leren en batterijfuncties.
 
-**Actuele versie: 1.0.0-beta.64.** Panasonic regelt de warmtepomp zelfstandig. SolarPilot kan voor die warmtepomp alleen een extra SG-zonneboost aanvragen via één bewust gekoppelde bestaande Shelly-uitgang, met bewezen lokale aflooptimer. Het schrijft geen tank-/kamertemperatuur, AUTO/UIT, heaterkeuze of fabrikantprogramma. Nieuwe SG-sturing staat standaard uit tot gecontroleerde ingebruikname.
+**Actuele versie: 1.0.0-beta.65.** Panasonic regelt de warmtepomp zelfstandig. SolarPilot kan voor die warmtepomp alleen een extra SG-zonneboost aanvragen via één bewust gekoppelde bestaande Shelly-uitgang, met bewezen lokale aflooptimer. Het schrijft geen tank-/kamertemperatuur, AUTO/UIT, heaterkeuze of fabrikantprogramma. Nieuwe SG-sturing staat standaard uit tot gecontroleerde ingebruikname.
 
-[Installatie en veilige upgrade](START_HIER.md) · [Volledige actuele werking](docs/ACTUELE_WERKING.md) · [Beta.64 instellen](docs/BETA64_INSTELLEN.md) · [Testresultaten](docs/TESTRESULTATEN_BETA64.md) · [Technische overdracht](OVERDRACHT.md)
+[Installatie en veilige upgrade](START_HIER.md) · [Volledige actuele werking](docs/ACTUELE_WERKING.md) · [Beta.65 instellen](docs/BETA65_INSTELLEN.md) · [Testresultaten](docs/TESTRESULTATEN_BETA65.md) · [Technische overdracht](OVERDRACHT.md)
 
 Dezelfde actuele uitleg staat binnen Home Assistant onder **SolarPilot → Uitleg**. Historische veranderingen staan in [CHANGELOG.md](CHANGELOG.md); oudere instelbestanden beschrijven hun eigen release.
 
@@ -15,11 +15,11 @@ Dezelfde actuele uitleg staat binnen Home Assistant onder **SolarPilot → Uitle
 3. Voeg **SolarPilot** toe onder **Instellingen → Apparaten & diensten**.
 4. Selecteer betrouwbare P1-/PV-bronnen en begin bij nieuwe installatie met **Alleen bekijken**.
 
-De frontend wordt meegeleverd en automatisch geregistreerd. Geen aparte Lovelace-resource, dashboard-YAML of www-kopie is nodig. Backend- en geladen kaartversie worden afzonderlijk gecontroleerd na heropenen van browser/app.
+De frontend wordt meegeleverd en automatisch geregistreerd. Geen aparte Lovelace-resource, dashboard-YAML of www-kopie is nodig. De warmtepomp staat tussen de andere toestellen in Overzicht en Toestellen en heeft een eigen uitleg onder Warmtepomp. De kaart toont gemeten vermogen, bewezen bedrijf en afzonderlijke SG-aanvraag, contactstand en ontvangen status. Backend- en geladen kaartversie staan allebei zichtbaar onder Instellingen & controle. Bij een verschil geeft de kaart advies om de pagina volledig te herladen of de app volledig af te sluiten en opnieuw te openen; de backendversie alleen bewijst geen actuele kaart.
 
 ## Herstel van de beta.62-opstartfout
 
-Update via HACS naar de actuele beta.64 en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging.
+Update via HACS naar de actuele beta.65 en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.64 blijven behouden; beta.65 vraagt geen herbevestiging alleen door de codeupdate.
 
 ## Upgrade vanaf beta.61
 

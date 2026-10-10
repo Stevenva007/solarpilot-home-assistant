@@ -217,7 +217,8 @@ def test_overview_device_why_contains_real_start_requirements_and_stability_wait
 
 
 def test_sg_explanation_uses_actual_block_reasons_and_no_retired_boiler_gates():
-    _, root = board(panasonic={"configured": True, "temperature_c": 48, "target_c": 50},
+    _, root = board(panasonic={"configured": True, "temperature_c": 48, "target_c": 50,
+                             "temperature_stamp": time.time(), "target_stamp": time.time()},
                     sgBoost={"configured": True, "reason": "Wacht op rusttijd",
                              "blocked_reasons": ["Wacht nog 80 s op rusttijd"],
                              "rest_remaining_s": 80, "start_threshold_w": 3000})
@@ -340,7 +341,7 @@ def test_null_battery_journal_does_not_invent_a_pending_command():
 
 def test_shared_heatpump_meter_is_shown_once_and_not_attributed_to_each_room():
     _, root = board(panasonic={"configured": True, "temperature_c": 48, "target_c": 50,
-        "power_w": 1234, "power_kind": "measured", "power_scope": "total", "zones": [
+        "power_w": 1234, "power_kind": "measured", "power_scope": "total", "power_stamp": time.time(), "zones": [
             {"entity_id": "climate.a", "name": "Ruimte A", "mode": "auto", "current": 21},
             {"entity_id": "climate.b", "name": "Ruimte B", "mode": "auto", "current": 21}]},
         sgBoost={"configured": True, "reason": "Zonneboost actief", "relay_confirmed": True, "relay_on": True})
@@ -362,7 +363,7 @@ def test_unreliable_or_expired_shared_meter_is_not_presented_as_measured_power(v
 
 def test_partial_supply_meter_is_labeled_and_not_claimed_as_a_heatpump_total():
     _, root = board(panasonic={"configured": True, "power_w": 800,
-                              "power_kind": "measured", "power_scope": "supply_1"})
+                              "power_kind": "measured", "power_scope": "supply_1", "power_stamp": time.time()})
     row = article(root, "Warmtepomp — Panasonic-regeling")
     assert "800 W" in row.text() and "Alleen voeding 1 · gedeeltelijke meting" in row.text()
     assert "Totaal warmtepomp" not in row.text()
@@ -372,7 +373,7 @@ def test_readonly_room_information_does_not_resurrect_removed_climate_planning()
     _, root = board(panasonic={"configured": True, "zones": [
         {"entity_id": "climate.zone", "name": "Ruimte", "mode": "off", "current": 22, "target": 21,
          "execution_reason": "Vervallen klimaatopdracht", "decision_reason": "Vervallen klimaatplan"}]},
-        sgBoost={"configured": True, "reason": "Geen extra zonneboost nodig"})
+        sgBoost={"configured": True, "reason": "Geen extra zonneboost nodig", "observed_at": time.time()})
     content = article(root, "Warmtepomp — Panasonic-regeling").text()
     assert "Geen extra zonneboost nodig" in content and "Ruimte" in content
     assert "Vervallen klimaatopdracht" not in content and "Vervallen klimaatplan" not in content

@@ -63,6 +63,33 @@ jobs:
       - name: Hassfest validation
         uses: home-assistant/actions/hassfest@master
 
+  frontend-browser:
+    name: Warmtepomp browser validation
+    runs-on: ubuntu-latest
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install browser test runner
+        run: python -m pip install playwright==1.63.0
+      - name: Install isolated Chromium test browser
+        run: python -m playwright install chromium
+      - name: Build self-contained preview from this exact release
+        run: python -B tools/build_example.py
+      - name: Validate warmtepomp states and mobile layout with fictitious data
+        run: python tools/check_heatpump_overview65.py
+      - name: Retain fictitious browser validation screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: warmtepomp-browser-validation
+          path: ${{ runner.temp }}/solarpilot-browser-tests
+          if-no-files-found: ignore
+
   real-ha-startup:
     name: Real Home Assistant startup
     runs-on: ubuntu-latest
@@ -105,6 +132,7 @@ jobs:
       - repository-checks
       - validate-hacs
       - hassfest
+      - frontend-browser
       - real-ha-startup
     runs-on: ubuntu-latest
     permissions:

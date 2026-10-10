@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import logging
+import re
 
 from homeassistant.components import frontend as ha_frontend
 from homeassistant.components.http import StaticPathConfig
@@ -21,6 +22,10 @@ _DATA_KEY = f"{DOMAIN}_frontend"
 _STATIC_URL = "/solar_pilot_static"
 _PANEL_URL = "solar-pilot"
 _CARD_URL = f"{_STATIC_URL}/solar-pilot-card.js?v={VERSION}"
+# Custom-element definitions cannot be replaced in an existing browser page.
+# Give each sidebar release its own constructor even when an older Lovelace
+# card already registered the stable solar-pilot-card compatibility name.
+_PANEL_ELEMENT_NAME = "solar-pilot-panel-" + re.sub(r"[^a-z0-9]+", "-", VERSION.lower()).strip("-")
 
 
 async def async_register_frontend(hass: HomeAssistant) -> None:
@@ -46,7 +51,7 @@ async def async_register_frontend(hass: HomeAssistant) -> None:
         frontend_url_path=_PANEL_URL,
         config={
             "_panel_custom": {
-                "name": "solar-pilot-card",
+                "name": _PANEL_ELEMENT_NAME,
                 "embed_iframe": False,
                 "trust_external": False,
                 # Match add_extra_js_url's default module loading. A classic

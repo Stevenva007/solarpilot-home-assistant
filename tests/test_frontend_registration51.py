@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 import importlib.util
 from pathlib import Path
+import re
 import sys
 from types import ModuleType, SimpleNamespace
 
@@ -85,7 +86,8 @@ async def test_sidebar_and_extra_bundle_use_the_same_release_module_after_static
     assert "js_url" not in config
     assert calls[1][2] is False
     assert urls == {config["module_url"]}
-    assert config["name"] == "solar-pilot-card"
+    assert config["name"] == "solar-pilot-panel-" + re.sub(r"[^a-z0-9]+", "-", VERSION.lower()).strip("-")
+    assert config["name"] != "solar-pilot-card"
     assert panel["update"] is True and panel["component_name"] == "custom"
     assert panel["require_admin"] is False
     assert config["trust_external"] is False and config["embed_iframe"] is False
@@ -107,6 +109,18 @@ async def test_registered_directory_contains_the_exact_release_bundle_and_help(f
     assert (path / "option-help.js").is_file()
     assert (path / "option-help.json").is_file()
     assert len(urls) == 1 and len(panels) == 1
+
+
+@pytest.mark.asyncio
+async def test_sidebar_constructor_is_release_bound_even_when_stable_alias_is_old(frontend_registration):
+    module, hass, calls, urls, panels = frontend_registration
+    await module.async_register_frontend(hass)
+    current = panels["solar-pilot"]["config"]["_panel_custom"]
+    # A connected app can retain old customElements after a backend restart.
+    # Backend always points the sidebar at this release's independent alias.
+    old_name = "solar-pilot-panel-1-0-0-beta-61"
+    assert current["name"] not in ("solar-pilot-card", old_name)
+    assert current["module_url"].endswith(f"?v={VERSION}")
 
 
 @pytest.mark.asyncio

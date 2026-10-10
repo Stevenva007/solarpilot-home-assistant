@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import time
 
 import pytest
 
@@ -82,7 +83,9 @@ def test_central_battery_status_uses_actual_control_and_confirmation_contract(fl
 
 def test_panasonic_programme_is_readonly_without_setting_or_mode_controls():
     html = browser_double({'render': {'devices': [], 'panasonic': {'configured': True, 'program': 'cooling',
-        'zones': [{'name': 'Ruimte', 'mode': 'auto', 'temperature_c': 22, 'target_c': 21}]}}})['html']
+        'context_stamp': time.time(),
+        'zones': [{'name': 'Ruimte', 'mode': 'auto', 'temperature_c': 22, 'target_c': 21,
+                   'observed_at': time.time()}]}}})['html']
     assert 'Panasonic en ruimtes · alleen uitlezen' in html and 'Koelen' in html
     assert 'data-climate-setting' not in html and 'climate_manual' not in html
     assert 'input_select.programme' not in html
@@ -90,19 +93,26 @@ def test_panasonic_programme_is_readonly_without_setting_or_mode_controls():
 
 def test_archived_pause_programme_intent_is_never_presented_as_current_heating():
     html = browser_double({'render': {'devices': [], 'panasonic': {'configured': True, 'program': 'off',
+        'context_stamp': time.time(),
         'zones': [{'entity_id': 'climate.one', 'name': 'Ruimte', 'mode': 'off', 'temperature_c': 22,
-                   'target_c': 21, 'programme_intent': 'heating', 'source': 'owned_off_programme'}]}}})['html']
+                   'target_c': 21, 'programme_intent': 'heating', 'source': 'owned_off_programme',
+                   'observed_at': time.time()}]}}})['html']
     assert 'Uit' in html and '21 °C' in html and '22 °C' in html
     assert 'Verwarmt' not in html and 'eerder verwarmen' not in html
 
 
 def test_central_board_keeps_reported_target_sg_reason_and_readonly_rooms_distinct_and_escaped():
+    stamp = time.time()
     result = browser_double({'render': {
         'panasonic': {'configured': True, 'temperature_c': 49, 'target_c': 50,
-            'zones': [{'name': 'Ruimte A', 'mode': 'off', 'temperature_c': 22, 'target_c': 21},
-                      {'name': 'Ruimte B <script>', 'mode': 'auto', 'temperature_c': 20, 'target_c': 21}]},
+            'temperature_stamp': stamp, 'target_stamp': stamp,
+            'zones': [{'name': 'Ruimte A', 'mode': 'off', 'temperature_c': 22, 'target_c': 21,
+                       'observed_at': stamp},
+                      {'name': 'Ruimte B <script>', 'mode': 'auto', 'temperature_c': 20, 'target_c': 21,
+                       'observed_at': stamp}]},
         'sgBoost': {'configured': True, 'reason': 'Wacht op stabiele zon tot 15:00',
-                    'relay_on': False, 'relay_confirmed': True, 'desired_on': False},
+                    'relay_on': False, 'relay_confirmed': True, 'desired_on': False,
+                    'observed_at': stamp, 'relay_observed_at': stamp, 'relay_stale_s': 120},
         'devices': []}})
     html = result['html']
     assert 'Wat gebeurt er en waarom?' in html

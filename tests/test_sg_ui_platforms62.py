@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -16,13 +17,20 @@ CARD = ROOT / "custom_components/solar_pilot/frontend/solar-pilot-card.js"
 
 
 def attributes(**boost):
+    observed_at = time.time()
     return {"mode": "solar", "config_entry_id": "example", "devices": [],
             "panasonic": {"configured": True, "temperature_c": 48, "target_c": 50,
                 "power_w": 3700, "power_kind": "measured", "power_scope": "total",
-                "zones": [{"name": "Ruimte", "current": 21, "target": 21, "mode": "auto", "action": "idle"}]},
+                "source_stale_s": 120, "temperature_stamp": observed_at,
+                "target_stamp": observed_at, "context_stamp": observed_at,
+                "power_stamp": observed_at, "power_observed_at": observed_at,
+                "compressor_stamp": observed_at, "sg_status_stamp": observed_at,
+                "power_supply1_observed_at": observed_at, "power_supply2_observed_at": observed_at,
+                "zones": [{"name": "Ruimte", "current": 21, "target": 21, "mode": "auto", "action": "idle", "observed_at": observed_at}]},
             "sg_boost": {"configured": True, "enabled": True, "state": "waiting",
                 "reason": "Wacht op voldoende stabiel zonneoverschot", "desired_on": False,
                 "relay_on": False, "relay_confirmed": True, "panasonic_confirmed": None,
+                "observed_at": observed_at, "relay_observed_at": observed_at, "relay_stale_s": 120,
                 "switch_entity": "switch.physical_sg_output", "enabled_entity": "switch.example_sg_enabled", "resume_entity": "button.example_sg_resume",
                 "start_threshold_w": 3000, "estimated_power_w": 3200, **boost}}
 

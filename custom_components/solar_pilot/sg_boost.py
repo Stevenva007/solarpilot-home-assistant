@@ -45,6 +45,8 @@ class SGBoostManager:
         self.desired_on = False
         self.relay_on = None
         self.relay_confirmed = False
+        self._relay_observed_at = None
+        self._relay_valid_until = None
         self.panasonic_confirmed = None
         self.manual_hold = False
         self.completion_hold = False
@@ -136,6 +138,8 @@ class SGBoostManager:
                 self.completion_hold = False
                 self.relay_on = None
                 self.relay_confirmed = False
+                self._relay_observed_at = None
+                self._relay_valid_until = None
                 self._lease_expiry = self._lease_deadline = None
                 self._commissioned_fingerprint = self._observed_fingerprint = None
         if (updated.get("tank_temperature_entity") != old_tank_entity
@@ -316,6 +320,12 @@ class SGBoostManager:
             self._note("SG-uitgang meldt " + ("AAN" if raw["output"] else "UIT"))
         self.relay_on = raw["output"]
         self.relay_confirmed = True
+        # A live readback is source evidence. Rendering the overview must never
+        # refresh this timestamp or turn an expired cached contact into proof.
+        self._relay_observed_at = self._wall_clock()
+        remaining = finite(raw.get("lease_remaining_s"))
+        self._relay_valid_until = (self._relay_observed_at + remaining
+                                  if raw["output"] and remaining is not None and 0 < remaining <= 600 else None)
         return raw
 
     @staticmethod
@@ -1183,6 +1193,7 @@ class SGBoostManager:
         session_remaining = (max(0.0, float(self.settings["max_session_s"]) - (now - self._session_started))
                              if self._session_started is not None else 0.0)
         return {"configured": self.configured, "enabled": self.auto_enabled,
+                "observed_at": self._wall_clock(),
                 "commissioning_confirmed": self.settings.get("commissioning_confirmed") is True,
                 "watchdog_confirmed": self.settings.get("watchdog_confirmed") is True,
                 "profile": self.settings.get("profile", "dhw_only"),
@@ -1197,6 +1208,9 @@ class SGBoostManager:
                 "state": self.state, "status": self.status, "reason": self.reason,
                 "desired_on": self.desired_on, "relay_on": self.relay_on,
                 "relay_confirmed": self.relay_confirmed, "panasonic_confirmed": self.panasonic_confirmed,
+                "relay_observed_at": self._relay_observed_at if self.relay_confirmed else None,
+                "relay_valid_until": self._relay_valid_until if self.relay_confirmed else None,
+                "relay_stale_s": self.settings["stale_s"],
                 "remaining_s": int(session_remaining), "rest_remaining_s": int(max(0.0, self._rest_until - now)),
                 "lease_remaining_s": int(max(0.0, (self._lease_deadline or now) - now)),
                 "manual_hold": self.manual_hold, "completion_hold": self.completion_hold,

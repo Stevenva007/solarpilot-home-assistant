@@ -23,6 +23,9 @@ class SolarSwitch(SolarEntity, SwitchEntity):
     _unrecorded_attributes = frozenset({
         "profiles", "reported_interval_median_s", "response_p90_s",
         "pv_model", "phase_learning", "thermal_model",
+        # Presentation clocks remain live, but an unchanged idle SG policy
+        # must not create a new Recorder row merely because it was rendered.
+        "observed_at", "relay_observed_at", "relay_valid_until",
     })
 
     @property

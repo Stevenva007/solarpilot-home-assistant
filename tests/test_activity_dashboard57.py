@@ -1,5 +1,6 @@
 """Execute the dashboard to distinguish real activity from available control."""
 from html.parser import HTMLParser
+import time
 
 import pytest
 
@@ -44,6 +45,16 @@ def rendered(**payload):
     return markup, parsed.rows
 
 
+def row_named(rows, name):
+    matches = [row for row in rows if row["name"] == name]
+    assert len(matches) == 1, (name, [row["name"] for row in rows])
+    return matches[0]
+
+
+def heatpump_row(rows):
+    return row_named(rows, "Warmtepomp — Panasonic-regeling / SG-zonneboost")
+
+
 @pytest.mark.parametrize("device,label", [
     ({"on": True, "owned": True, "power_w": 310}, "Actief · SolarPilot"),
     ({"on": True, "owned": False}, "Actief · toestel"),
@@ -55,8 +66,9 @@ def rendered(**payload):
 ])
 def test_confirmed_on_and_running_programmes_have_blue_edge_and_readable_status(device, label):
     markup, rows = rendered(devices=[{"id": "one", "name": "Toestel", "available": True, **device}])
-    assert rows[0]["activity"] == "active" and "is-active" in rows[0]["classes"]
-    assert rows[0]["state"] == label
+    row = row_named(rows, "Toestel")
+    assert row["activity"] == "active" and "is-active" in row["classes"]
+    assert row["state"] == label
     assert "Bevestigd actief" in markup
     assert ".reason-row.is-active{border-color:var(--sp-activity-blue)" in markup
     assert "--sp-activity-blue:#03a9f4" in markup
@@ -69,8 +81,9 @@ def test_confirmed_on_and_running_programmes_have_blue_edge_and_readable_status(
 ])
 def test_offline_old_on_and_off_meter_noise_do_not_show_activity(device, activity, label):
     _, rows = rendered(devices=[{"id": "one", "name": "Toestel", **device}])
-    assert rows[0]["activity"] == activity
-    assert rows[0]["state"] == label and "is-active" not in rows[0]["classes"]
+    row = row_named(rows, "Toestel")
+    assert row["activity"] == activity
+    assert row["state"] == label and "is-active" not in row["classes"]
 
 
 @pytest.mark.parametrize("zone", [
@@ -80,44 +93,84 @@ def test_offline_old_on_and_off_meter_noise_do_not_show_activity(device, activit
     {"mode": "auto", "action": None},
 ])
 def test_readonly_room_activity_does_not_invent_a_sg_request_or_contact_confirmation(zone):
+    stamp = time.time()
     markup, rows = rendered(panasonic={"configured": True, "zones": [{"entity_id": "climate.one",
-        "name": "Ruimte", "temperature_c": 22, "target_c": 21, **zone}]},
-        sgBoost={"configured": True, "desired_on": False, "relay_on": False, "relay_confirmed": True})
+        "name": "Ruimte", "temperature_c": 22, "target_c": 21, "observed_at": stamp, **zone}]},
+        sgBoost=sg_fixture())
     assert len(rows) == 1
-    assert rows[0]["activity"] == "inactive" and rows[0]["state"] == "SG-contact open"
-    assert "Ruimte" in rows[0]["text"] and "22 °C" in rows[0]["text"]
+    row = heatpump_row(rows)
+    # A room action is read-only context. This frontend requires the monitor's
+    # independent operation evidence; the reported zone alone cannot invent it.
+    assert row["activity"] == "unknown" and row["state"] == "Werking onbekend"
+    assert "SG-contact open" in row["text"] and "Niet aangevraagd" in row["text"]
+    assert "Ruimte" in row["text"]
+    if zone.get("available") is False:
+        assert "22 °C" not in row["text"] and "Onbekend of verouderd" in row["text"]
+    else:
+        assert "22 °C" in row["text"]
     assert "Panasonic en ruimtes · alleen uitlezen" in markup
     assert 'data-action="climate_' not in markup
 
 
 def sg_fixture(**overrides):
+    stamp = time.time()
     return {"configured": True, "desired_on": False, "relay_on": False,
-            "relay_confirmed": True, "panasonic_confirmed": None, **overrides}
+            "relay_confirmed": True, "panasonic_confirmed": None,
+            "observed_at": stamp, "relay_observed_at": stamp, "relay_stale_s": 120, **overrides}
 
 
 def test_high_reported_tank_target_alone_is_not_a_sg_request_or_contact_activity():
-    _, rows = rendered(panasonic={"configured": True, "temperature_c": 49, "target_c": 60},
+    stamp = time.time()
+    _, rows = rendered(panasonic={"configured": True, "temperature_c": 49, "target_c": 60,
+                                 "temperature_stamp": stamp, "target_stamp": stamp},
                        sgBoost=sg_fixture())
-    assert rows[0]["activity"] == "inactive"
-    assert rows[0]["state"] == "SG-contact open"
-    assert "60 °C" in rows[0]["text"] and "Afzonderlijk bevestigd" not in rows[0]["text"]
+    row = heatpump_row(rows)
+    assert row["activity"] == "unknown" and row["state"] == "Werking onbekend"
+    assert "SG-contact open" in row["text"]
+    assert "60 °C" in row["text"] and "Afzonderlijk bevestigd" not in row["text"]
 
 
-def test_sg_request_is_dashed_while_the_contact_is_not_confirmed():
+def test_sg_request_is_separately_active_without_inventing_heatpump_activity():
     markup, rows = rendered(panasonic={"configured": True, "temperature_c": 49, "target_c": 50},
                            sgBoost=sg_fixture(desired_on=True, relay_confirmed=False, relay_on=None))
-    assert rows[0]["activity"] == "available"
-    assert rows[0]["state"] == "Contactstatus onbekend"
-    assert ".reason-row.is-available{border-color:var(--sp-activity-blue);border-style:dashed}" in markup
-    assert "Panasonic-reactie niet afzonderlijk bevestigd" not in rows[0]["state"]
+    row = heatpump_row(rows)
+    assert row["activity"] == "unknown" and row["state"] == "Werking onbekend"
+    assert 'class="sg-stage is-active" data-sg-stage="request"' in markup
+    assert 'class="sg-stage is-unknown" data-sg-stage="relay"' in markup
+    assert "Aangevraagd" in row["text"] and "Nog niet bevestigd" in row["text"]
+    assert "is-active" not in row["classes"] and "is-available" not in row["classes"]
 
 
-def test_only_confirmed_active_sg_contact_gets_solid_blue_contact_activity():
-    _, rows = rendered(panasonic={"configured": True, "temperature_c": 49, "target_c": 50},
+def test_confirmed_active_sg_contact_is_visible_without_a_blue_heatpump_activity_edge():
+    markup, rows = rendered(panasonic={"configured": True, "temperature_c": 49, "target_c": 50},
                        sgBoost=sg_fixture(desired_on=True, relay_on=True))
-    assert rows[0]["activity"] == "active" and "is-active" in rows[0]["classes"]
-    assert rows[0]["state"] == "SG-contact actief"
-    assert "Panasonic-reactie niet afzonderlijk bevestigd" in rows[0]["text"]
+    row = heatpump_row(rows)
+    assert row["activity"] == "unknown" and "is-active" not in row["classes"]
+    assert row["state"] == "Werking onbekend"
+    assert 'class="sg-stage is-active" data-sg-stage="relay"' in markup
+    assert "SG-contact actief" in row["text"]
+    assert "Panasonic-reactie niet afzonderlijk bevestigd" in row["text"]
+
+
+@pytest.mark.parametrize("state,label,activity", [("active", "Compressor draait", "active"),
+                                                ("idle", "Compressor staat stil", "inactive")])
+def test_fresh_native_operation_controls_blue_edge_independently_of_open_sg(state, label, activity):
+    markup, rows = rendered(panasonic={"configured": True, "operation": {
+        "state": state, "label": label, "evidence": "compressor_frequency",
+        "observed_at": time.time(), "stale_s": 120}}, sgBoost=sg_fixture())
+    row = heatpump_row(rows)
+    assert row["activity"] == activity and row["state"] == label
+    assert ("is-active" in row["classes"]) is (state == "active")
+    assert 'class="sg-stage is-inactive" data-sg-stage="relay"' in markup
+    assert "SG-contact open" in row["text"]
+
+
+@pytest.mark.parametrize("program", ["heating", "cooling", "dhw", "auto", "off"])
+def test_selected_native_programme_alone_never_animates_the_heatpump(program):
+    _, rows = rendered(panasonic={"configured": True, "program": program}, sgBoost=sg_fixture())
+    row = heatpump_row(rows)
+    assert row["activity"] == "unknown" and row["state"] == "Werking onbekend"
+    assert "is-active" not in row["classes"]
 
 
 @pytest.mark.parametrize("contact", [
@@ -128,17 +181,19 @@ def test_only_confirmed_active_sg_contact_gets_solid_blue_contact_activity():
     {"relay_on": True, "relay_confirmed": None},
 ])
 def test_old_or_unavailable_contact_feedback_cannot_show_confirmed_sg_activity(contact):
-    _, rows = rendered(panasonic={"configured": True, "temperature_c": 49, "target_c": 60},
+    markup, rows = rendered(panasonic={"configured": True, "temperature_c": 49, "target_c": 60},
                        sgBoost=sg_fixture(**contact))
-    assert rows[0]["activity"] == "unknown" and "is-active" not in rows[0]["classes"]
-    assert rows[0]["state"] == "Contactstatus onbekend"
+    row = heatpump_row(rows)
+    assert row["activity"] == "unknown" and "is-active" not in row["classes"]
+    assert row["state"] == "Werking onbekend"
+    assert 'class="sg-stage is-unknown" data-sg-stage="relay"' in markup
 
 
 @pytest.mark.parametrize("known,power,activity", [(True, 3500, "active"), (True, 0, "inactive"), (False, 3500, "unknown")])
 def test_wallbox_graphic_uses_current_measured_charging_not_configured_solar_mode(known, power, activity):
     _, rows = rendered(wb={"enabled": True, "configured_mode": "Full Solar", "activity_known": known,
                            "power_w": power, "charging_threshold_w": 50})
-    assert rows[0]["activity"] == activity
+    assert row_named(rows, "Auto laden")["activity"] == activity
 
 
 @pytest.mark.parametrize("aggregate,activity,label", [
@@ -150,12 +205,14 @@ def test_wallbox_graphic_uses_current_measured_charging_not_configured_solar_mod
 def test_battery_proposed_power_is_not_current_activity(aggregate, activity, label):
     _, rows = rendered(batteryFleet={"enabled": True, "control_enabled": True,
                                     "recommendation_w": -1000, "aggregate": aggregate})
-    assert rows[0]["activity"] == activity and label in rows[0]["state"]
+    row = row_named(rows, "Batterij")
+    assert row["activity"] == activity and label in row["state"]
 
 
 def test_activity_markup_remains_textual_and_escapes_device_names_and_reasons():
     markup, rows = rendered(devices=[{"id": "one", "name": '<img src=x onerror="bad()">',
                                     "available": True, "on": True, "reason": "Actief <script>"}])
-    assert rows[0]["activity"] == "active" and "Actief · toestel" in rows[0]["state"]
+    row = row_named(rows, '<img src=x onerror="bad()">')
+    assert row["activity"] == "active" and "Actief · toestel" in row["state"]
     assert "<img" not in markup and "<script>" not in markup
     assert "&lt;img" in markup and "Actief &lt;script&gt;" in markup
