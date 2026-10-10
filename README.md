@@ -2,9 +2,9 @@
 
 SolarPilot is een lokale Home Assistant-integratie voor zonnestroomverdeling, flexibele verbruikers, een beschermde AEG-afwasmachine, read-only Wallbox-informatie, voorspellingen, kosten, lokaal leren en batterijfuncties.
 
-**Actuele versie: 1.0.0-beta.63.** Panasonic regelt de warmtepomp zelfstandig. SolarPilot kan voor die warmtepomp alleen een extra SG-zonneboost aanvragen via één bewust gekoppelde bestaande Shelly-uitgang, met bewezen lokale aflooptimer. Het schrijft geen tank-/kamertemperatuur, AUTO/UIT, heaterkeuze of fabrikantprogramma. Nieuwe SG-sturing staat standaard uit tot gecontroleerde ingebruikname.
+**Actuele versie: 1.0.0-beta.64.** Panasonic regelt de warmtepomp zelfstandig. SolarPilot kan voor die warmtepomp alleen een extra SG-zonneboost aanvragen via één bewust gekoppelde bestaande Shelly-uitgang, met bewezen lokale aflooptimer. Het schrijft geen tank-/kamertemperatuur, AUTO/UIT, heaterkeuze of fabrikantprogramma. Nieuwe SG-sturing staat standaard uit tot gecontroleerde ingebruikname.
 
-[Installatie en veilige upgrade](START_HIER.md) · [Volledige actuele werking](docs/ACTUELE_WERKING.md) · [Beta.63 instellen](docs/BETA63_INSTELLEN.md) · [Testresultaten](docs/TESTRESULTATEN_BETA63.md) · [Technische overdracht](OVERDRACHT.md)
+[Installatie en veilige upgrade](START_HIER.md) · [Volledige actuele werking](docs/ACTUELE_WERKING.md) · [Beta.64 instellen](docs/BETA64_INSTELLEN.md) · [Testresultaten](docs/TESTRESULTATEN_BETA64.md) · [Technische overdracht](OVERDRACHT.md)
 
 Dezelfde actuele uitleg staat binnen Home Assistant onder **SolarPilot → Uitleg**. Historische veranderingen staan in [CHANGELOG.md](CHANGELOG.md); oudere instelbestanden beschrijven hun eigen release.
 
@@ -19,7 +19,7 @@ De frontend wordt meegeleverd en automatisch geregistreerd. Geen aparte Lovelace
 
 ## Herstel van de beta.62-opstartfout
 
-Update via HACS naar beta.63 en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De SG-regels en vereiste lokale ingebruikname veranderen niet.
+Update via HACS naar de actuele beta.64 en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging.
 
 ## Upgrade vanaf beta.61
 
@@ -32,8 +32,9 @@ Geldige andere toestellen, prioriteiten, APP-tickets, geschiedenis, leerdata en 
 - P1/PV, fysieke grenzen en fabrikantbeveiligingen gaan vóór forecasts en plannen.
 - Panasonic bezit comfort, verwarmen/koelen, warm water, elektrische ondersteuning en sterilisatie.
 - SG is een optionele extra flexibele vraag en neemt geen Wallbox-, afwas- of noodzakelijk comfortvermogen af.
-- Aanvraag, gemelde contactstand en fysieke warmtepompreactie zijn afzonderlijke bewijslagen.
-- Een SG-sessie is standaard begrensd tot één uur; na rust laat betrouwbaar gemeten tankafkoeling een nieuwe zonbeoordeling toe. Onbekende data laten geen eindeloze herstarts toe.
+- Aanvraag/eigenaar, gemelde contactstand/lokale timer, compressor/native context en ontvangen SG-status zijn afzonderlijke bewijslagen. Compressorbedrijf bewijst geen extra SG-effect.
+- Eén totaalmeter of twee complete bevestigde niet-overlappende voedingen; ontbrekend totaal blijft onbekend en inbegrepen heater wordt niet nogmaals opgeteld.
+- Een SG-sessie is standaard begrensd tot één uur. Tapwater-only behoudt tankafkoeling; het lokaal bevestigde algemene profiel vraagt na rust betekenisvol nieuw zon-/native bewijs. Tijd, reload of dezelfde samples geeft geen eindeloze herstarts. Extra koeling heeft afzonderlijke bestaande condensbeveiliging nodig tenzij betrouwbare native context koeling uitsluit.
 - De Wallbox blijft read-only; een afwasbeurt krijgt maximaal één native START en wordt nooit onderbroken.
 - Batterijbediening houdt haar eigen expliciete toestemming/eigenaarschap en commandobevestiging.
 - Een EMS en lokale timer vervangen geen elektrische beveiliging.

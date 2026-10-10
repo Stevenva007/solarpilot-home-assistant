@@ -192,7 +192,7 @@ class LiveOptions:
             return "Wacht op de al verstuurde opdracht/overdracht"
         if group == "wallbox" and (r.dishwasher_priority.watches or r.handover):
             return "Wallbox-vermogensoverdracht wordt nog bevestigd"
-        if group == "sg_boost" and "entity_id" in keys and sg is not None:
+        if group == "sg_boost" and keys & {"entity_id", "profile"} and sg is not None:
             status = sg.overview()
             if sg.busy or getattr(sg, "owned", False) or getattr(sg, "relay_on", None) is True:
                 return "SG-koppeling wacht op bevestigde vrijgave van de huidige uitgang; andere toestellen blijven werken"
@@ -311,6 +311,8 @@ class LiveOptions:
             site={**self.r.entry.data,**options.get("settings",{})}
             reserved={site.get(k) for k in ("grid_entity","export_entity","pv_entity","battery_power_entity")}
             reserved.update(options.get(g,{}).get("power_entity") for g in ("sg_boost","wallbox"))
+            reserved.update(options.get("sg_boost",{}).get(key) for key in
+                            ("power_supply1_entity", "power_supply2_entity"))
             reserved.update(b.get("power_entity") for b in options.get("batteries",[]))
             return {(c["id"],c.get("power_entity")) for c in options.get("devices",[])
                     if c.get("power_entity") and c["power_entity"] in reserved}

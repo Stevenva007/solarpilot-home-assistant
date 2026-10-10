@@ -341,11 +341,18 @@ attributes = {
 }
 
 
-# Fictitious beta.62 SG observations: three independent confirmation layers.
+# Fictitious SG observations: request, relay/timer, operation and received SG
+# remain separate. These values are not sampled from any installation.
 attributes["panasonic"] = {
     "configured": True, "read_only": True, "temperature_c": 46.2, "target_c": 50,
-    "power_w": 2800, "power_kind": "measured", "power_scope": "supply1",
-    "program": "cooling", "status": "Panasonic regelt zelfstandig",
+    "power_w": 1720, "power_kind": "measured", "power_scope": "split", "power_complete": True,
+    "power_supply1_w": 1720, "power_supply2_w": 0,
+    "power_supply1_valid": True, "power_supply2_valid": True,
+    "power_reason": "Twee bevestigde niet-overlappende voedingen; gemeten nul op voeding 2",
+    "compressor_running": True, "compressor_frequency_hz": 33,
+    "context": "space_heating", "context_reliable": True, "cooling_possible": False,
+    "program": "heating", "status": "Panasonic meldt ruimteverwarming",
+    "sg_status": "unknown", "sg_status_confirmed": False, "sg_effect_confirmed": False,
     "zones": [{"entity_id": "climate.example_zone_1", "name": "Zone 1",
                "temperature_c": 21, "target_c": 21, "mode": "off", "action": "off", "read_only": True},
               {"entity_id": "climate.example_zone_2", "name": "Zone 2",
@@ -356,6 +363,8 @@ attributes["sg_boost"] = {
     "reason": "SG-contact actief; Panasonic-reactie niet afzonderlijk bevestigd",
     "desired_on": True, "relay_on": True, "relay_confirmed": True, "panasonic_confirmed": None,
     "commissioning_confirmed": True, "watchdog_confirmed": True,
+    "profile": "general", "profile_confirmed": True, "cooling_protection_confirmed": False,
+    "owner": "solarpilot", "lease_confirmed": True, "lease_remaining_s": 180,
     "enabled_entity": "switch.example_sg_boost_enabled", "resume_entity": "button.example_sg_boost_resume",
     "switch_entity": "switch.example_sg_contact", "start_threshold_w": 3000,
     "estimated_power_w": 3200, "remaining_s": 1200, "rest_remaining_s": 0, "blocked_reasons": [],

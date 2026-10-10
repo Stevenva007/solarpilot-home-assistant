@@ -553,10 +553,10 @@
         }
       },
       "comfort_hub": {
-        "title": "Warmtepomp — Panasonic-regeling",
+        "title": "Warmtepomp — Panasonic-regeling / SG-zonneboost",
         "description": "Panasonic blijft eigenaar van tankdoel, ruimtes, compressor en elektrische hulp. SolarPilot gebruikt uitsluitend één extra SG-zonneboostcontact.",
         "menu_options": {
-          "sg_boost": "Warmtepomp — Panasonic-regeling",
+          "sg_boost": "SG-zonneboost warmtepomp",
           "sg_sources": "Warmtepomp — uitleesbronnen",
           "sg_advanced": "Zonneboost — stabiliteit en lokale terugval"
         }
@@ -1015,35 +1015,46 @@
         }
       },
       "sg_boost": {
-        "title": "Warmtepomp — Panasonic-regeling",
-        "description": "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen dit SG-contact aanvragen en vrijgeven. Nieuwe koppeling slaat altijd uit op; bevestig daarna de lokale werking en aflooptimer. Een vermogensraming is geen meting en geen garantie voor nul netverbruik.",
+        "title": "SG-zonneboost warmtepomp",
+        "description": "Panasonic regelt zelfstandig. Kies het lokaal gecontroleerde toepassingsbereik; één contact reageert volgens het actieve Panasonic-bedrijf. Een profielwissel vraagt nieuwe lokale bevestiging. Extra koeling vereist afzonderlijk bevestigde condens-/dauwpuntbeveiliging. Nieuwe koppeling blijft uit tot lokale mapping en timer zijn getest.",
         "data": {
           "entity_id": "Bestaande Shelly-uitgang voor SG-zonneboost",
           "enabled": "Automatische zonneboost aan",
-          "commissioning_confirmed": "Juiste SG-trap en uitsluitend extra warmwateraanvraag gecontroleerd",
+          "commissioning_confirmed": "Juiste SG-trap, gekozen toepassingsbereik en externe schrijvers gecontroleerd",
           "watchdog_confirmed": "Lokale aflooptimer en verlengen zonder schakelen getest",
           "threshold_w": "Benodigd bruikbaar zonneoverschot voor starten (W)",
-          "expected_power_w": "Voorlopige raming van de extra vraag (W)"
+          "expected_power_w": "Voorlopige raming van de extra vraag (W)",
+          "profile": "Toepassingsbereik SG-zonneboost",
+          "profile_confirmed": "Toepassingsbereik lokaal bevestigd",
+          "cooling_protection_confirmed": "Bestaande condens-/dauwpuntbeveiliging voor extra koeling bevestigd"
         },
         "data_description": {
           "entity_id": "Kies de bestaande fysieke Shelly-uitgang die de SG-aanvraag bedient.",
           "enabled": "Staat standaard uit.",
-          "commissioning_confirmed": "Bevestig pas na lokale controle van de juiste SG-trap, gewenste native basisinstellingen, tankreactie en afwezigheid van onbedoelde extra ruimtevraag of dubbele automatiseringen.",
+          "commissioning_confirmed": "Bevestig pas na lokale controle van de juiste SG-trap, gewenste native basisinstellingen, gekozen toepassingsbereik en afwezigheid van dubbele automatiseringen.",
           "watchdog_confirmed": "Bevestig pas na een echte lokale proef: de Shelly opent het contact wanneer vernieuwing uitblijft, en tijdige vernieuwing verlengt de timer zonder UIT/AAN-geklapper.",
           "threshold_w": "Benodigd werkelijk bruikbaar zonneoverschot voor een nieuwe SG-aanvraag, standaard 3000 W.",
-          "expected_power_w": "Voorlopige raming van de extra SG-vraag, standaard 3200 W."
+          "expected_power_w": "Voorlopige raming van de extra SG-vraag, standaard 3200 W.",
+          "profile": "Kies het lokaal gecontroleerde toepassingsbereik: uitsluitend tapwater of algemene SG-boost volgens de actieve Panasonic-bedrijfsmodus.",
+          "profile_confirmed": "Bevestig dat het geselecteerde toepassingsbereik overeenkomt met de lokaal ingestelde SG-capaciteit.",
+          "cooling_protection_confirmed": "Bevestig alleen een geschikte bestaande condens-/dauwpuntbeveiliging voor extra koeling."
         }
       },
       "sg_sources": {
         "title": "Warmtepomp — uitleesbronnen",
-        "description": "Deze bronnen worden uitsluitend uitgelezen. Controleer de dekking van de vermogensmeter; een gedeeltelijke meting is geen totaal. De normale tankdoelweergave bevestigt geen effectief SG-doel.",
+        "description": "Alleen uitlezen. Gebruik één bevestigde totaalmeter OF twee volledige niet-overlappende voedingen; geen totaal plus deelmeter. Bevestig dekking lokaal zonder geopende elektrische apparatuur. Ontbrekende bronnen blijven onbekend. Compressorbedrijf bewijst geen SG-effect.",
         "data": {
           "tank_temperature_entity": "Werkelijke tanktemperatuur — alleen uitlezen",
           "tank_target_entity": "Native tankdoel — alleen uitlezen",
-          "power_entity": "Warmtepompvermogen (W/kW) — alleen uitlezen",
+          "power_entity": "Bestaande enkelvoudige vermogensmeter (W/kW)",
           "power_scope": "Welke voeding omvat deze vermogensmeter?",
           "activity_entity": "Werkelijke bedrijfsinformatie — alleen uitlezen",
-          "zone_entities": "Kamerthermostaten — alleen uitlezen"
+          "zone_entities": "Kamerthermostaten — alleen uitlezen",
+          "power_supply1_entity": "Deelmeter voeding 1 (W/kW) — alleen uitlezen",
+          "power_supply2_entity": "Deelmeter voeding 2 (W/kW) — alleen uitlezen",
+          "split_power_confirmed": "Twee volledige niet-overlappende voedingen lokaal bevestigd",
+          "compressor_frequency_entity": "Werkelijke compressorfrequentie (Hz) — alleen uitlezen",
+          "sg_status_entity": "Werkelijk ontvangen SG-status — alleen uitlezen"
         },
         "data_description": {
           "tank_temperature_entity": "Werkelijke tanktemperatuur uit een geschikte bron.",
@@ -1051,7 +1062,12 @@
           "power_entity": "Een fysieke W/kW-meter met expliciet aangegeven dekking.",
           "power_scope": "Selecteer wat deze fysieke meter werkelijk omvat: het gehele toestel of uitsluitend voeding 1/2.",
           "activity_entity": "Alleen-lezen fysieke bedrijfsinformatie van Panasonic.",
-          "zone_entities": "Alleen uitlezen van kamertemperaturen en native standen."
+          "zone_entities": "Alleen uitlezen van kamertemperaturen en native standen.",
+          "power_supply1_entity": "Optionele fysieke W/kW-meter voor voeding 1.",
+          "power_supply2_entity": "Optionele fysieke W/kW-meter voor voeding 2.",
+          "split_power_confirmed": "Bevestig lokaal dat beide meters samen de twee volledige voedingen meten zonder overlap.",
+          "compressor_frequency_entity": "Optionele bestaande compressorfrequentiebron in Hz; uitsluitend uitlezen.",
+          "sg_status_entity": "Optionele bestaande bron die werkelijk de ontvangen SG-status op Panasonic meldt."
         }
       },
       "sg_advanced": {
@@ -1126,7 +1142,13 @@
       "sg_duplicate": "Deze SG-uitgang is al gekoppeld als gewoon toestel; één uitgang krijgt één eigenaar.",
       "sg_pv_required": "Koppel eerst het werkelijk gemeten zonnepanelenvermogen.",
       "panasonic_read_only": "Panasonic-entiteiten zijn alleen uitleesbaar; gebruik uitsluitend de toegewezen SG-uitgang.",
-      "sg_reopen": "SG-koppeling of ingebruiknamebewijs is intussen veranderd. Controleer de nieuwe waarden en bevestig opnieuw na de lokale proef."
+      "sg_reopen": "SG-koppeling of ingebruiknamebewijs is intussen veranderd. Controleer de nieuwe waarden en bevestig opnieuw na de lokale proef.",
+      "sg_profile_review": "Het toepassingsbereik is gewijzigd. Controleer de nieuwe keuze lokaal en vink de nieuwe bevestiging bewust aan; automatische SG blijft eerst uit.",
+      "sg_split_review": "Het meterpaar is gewijzigd. Controleer opnieuw de volledige niet-overlappende dekking en bevestig deze bewust.",
+      "sg_profile_confirmation": "Bevestig eerst het geselecteerde algemene SG-toepassingsbereik lokaal.",
+      "sg_meter_overlap": "Gebruik één totaalmeter of twee afzonderlijke niet-overlappende deelmeters; geen dubbele meting.",
+      "sg_frequency_unit": "Kies een werkelijke compressorfrequentiebron in Hz.",
+      "sg_status_source": "Kies een onafhankelijke bron voor werkelijk ontvangen SG, geen relaisstand of programma-/klepstand."
     },
     "abort": {
       "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",

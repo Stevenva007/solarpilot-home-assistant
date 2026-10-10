@@ -1,4 +1,4 @@
-/* SolarPilot 1.0.0-beta.63. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+/* SolarPilot 1.0.0-beta.64. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
 const spEscape = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const spPower = value => value == null || !Number.isFinite(Number(value)) ? "—" : Math.abs(Number(value)) >= 1000 ? `${(Number(value)/1000).toLocaleString("nl-BE",{maximumFractionDigits:2})} kW` : `${Math.round(Number(value))} W`;
 const spTemp = value => value == null || !Number.isFinite(Number(value)) ? "—" : `${Number(value).toLocaleString("nl-BE",{maximumFractionDigits:1})} °C`;
@@ -663,8 +663,8 @@ class SolarPilotCard extends HTMLElement {
     const rows=[],p=c.panasonic||{},s=c.sgBoost||{};
     if(p.configured||s.configured){
       const active=s.relay_confirmed===true&&s.relay_on===true;
-      const status=s.relay_confirmed!==true?'Contactstatus onbekend':active?'SG-contact actief':'SG-contact open';
-      rows.push(this._reasonRow({name:'Warmtepomp — Panasonic-regeling',state:status,reason:s.reason||'Panasonic regelt zelfstandig; zonneboost is niet ingesteld.',extra:`Tank ${spTemp(p.temperature_c??s.temperature_c)} · ${active&&s.panasonic_confirmed!==true?'Panasonic-reactie niet afzonderlijk bevestigd.':'Panasonic regelt comfort en beveiligingen.'}`,view:'comfort',key:'overview:sg',details:this._sgDetails(c,'overview'),power:this._heatpumpPower(c),activity:active?'active':s.desired_on===true?'available':s.relay_confirmed!==true?'unknown':'inactive'}));
+      const status=s.relay_confirmed!==true||typeof s.relay_on!=='boolean'?'Contactstatus onbekend':active?'SG-contact actief':'SG-contact open';
+      rows.push(this._reasonRow({name:'Warmtepomp — Panasonic-regeling / SG-zonneboost',state:status,reason:s.reason||'Panasonic regelt zelfstandig; zonneboost is niet ingesteld.',extra:this._sgObservation(c),view:'comfort',key:'overview:sg',details:this._sgDetails(c,'overview'),power:this._heatpumpPower(c),activity:active?'active':s.desired_on===true?'available':s.relay_confirmed!==true?'unknown':'inactive'}));
     }
     for(const device of c.devices||[]){
       const reason=device.isolation_reason||device.start_diagnostics?.summary||device.reason;
@@ -839,30 +839,44 @@ class SolarPilotCard extends HTMLElement {
   }
   _climateModeLabel(mode){return ({auto:'Automatisch',off:'Uit',heat:'Verwarmen',cool:'Koelen',heat_cool:'Automatisch'})[mode]||mode||'Onbekend';}
   _panasonicProgramLabel(program){return ({heating:'Verwarmen',cooling:'Koelen',off:'Uit',auto:'Automatisch',dhw:'Warm water',unknown:'Warmtepompprogramma onbekend'})[String(program||'').toLowerCase()]||'Warmtepompprogramma onbekend';}
-  _sgConfirmation(s){
+  _sgConfirmation(s,p={}){
     const desired=s.desired_on===true?'Aangevraagd':s.desired_on===false?'Niet aangevraagd':'Onbekend';
     const relay=s.relay_confirmed===true?(s.relay_on===true?'Actief':s.relay_on===false?'Open':'Onbekend'):'Nog niet bevestigd';
-    const response=s.panasonic_confirmed===true?'Afzonderlijk bevestigd':'Niet afzonderlijk bevestigd';
-    return this._reasonFacts([['SolarPilot-aanvraag',desired],['SG-contact',relay],['Panasonic-reactie',response]]);
+    const received=p.sg_status_confirmed===true?({active:'Actief · afzonderlijk bevestigd',inactive:'Niet actief · afzonderlijk bevestigd'})[p.sg_status]||'Onbekend':'Onbekend';
+    const owner=({solarpilot:'SolarPilot',manual:'Handmatige overname',none:'Geen',unknown:'Onbekend'})[s.owner]||(s.manual_hold===true?'Handmatige overname':'Onbekend');
+    const lease=s.lease_confirmed===true&&s.lease_remaining_s!=null&&Number.isFinite(Number(s.lease_remaining_s))?this._remainingTime(s.lease_remaining_s):'Niet bevestigd';
+    return this._reasonFacts([['SolarPilot-aanvraag',desired],['Eigenaar SG-aanvraag',owner],['SG-contact',relay],['Bevestigde lokale toestemming',lease],['Ontvangen SG-status',received],['SG-effect op verbruik','Niet afzonderlijk bevestigd']]);
+  }
+  _sgObservation(c){
+    const p=c.panasonic||{},s=c.sgBoost||{};
+    const compressor=p.compressor_running===true?'compressor draait':p.compressor_running===false?'compressor stil':'compressorstatus onbekend';
+    const frequency=p.compressor_frequency_hz!=null&&Number.isFinite(Number(p.compressor_frequency_hz))?` · ${Number(p.compressor_frequency_hz).toLocaleString('nl-BE',{maximumFractionDigits:1})} Hz`:'';
+    const parts=p.power_scope==='split'?` · voeding 1 ${p.power_supply1_valid===true?spPower(p.power_supply1_w):'onbekend'} · voeding 2 ${p.power_supply2_valid===true?spPower(p.power_supply2_w):'onbekend'}`:'';
+    return `${s.relay_confirmed===true&&typeof s.relay_on==='boolean'?(s.relay_on===true?'SG-contact actief':'SG-contact open'):'SG-contact onbekend'} · ${compressor}${frequency}${parts} · SG-effect niet afzonderlijk bevestigd`;
   }
   _heatpumpPower(c){
     const p=c.panasonic||{},s=c.sgBoost||{};
     const value=p.power_w??s.power_w,kind=p.power_kind??s.power_kind,scope=p.power_scope??s.power_scope;
-    const labels={total:'Totaal warmtepomp',heat_pump:'Totaal warmtepomp',supply_1:'Alleen voeding 1 · gedeeltelijke meting',supply1:'Alleen voeding 1 · gedeeltelijke meting',supply_2:'Alleen voeding 2 · gedeeltelijke meting',supply2:'Alleen voeding 2 · gedeeltelijke meting',heater:'Alleen elektrische ondersteuning',unknown:'Dekking onbekend',unconfirmed:'Dekking nog niet bevestigd'};
+    const labels={total:'Totaal warmtepomp',heat_pump:'Totaal warmtepomp',split:p.power_complete===true?'Totaal voeding 1 + voeding 2':'Totaal onbekend · deelmeting onvolledig',supply_1:'Alleen voeding 1 · gedeeltelijke meting',supply1:'Alleen voeding 1 · gedeeltelijke meting',supply_2:'Alleen voeding 2 · gedeeltelijke meting',supply2:'Alleen voeding 2 · gedeeltelijke meting',heater:'Alleen elektrische ondersteuning',unknown:'Dekking onbekend',unconfirmed:'Dekking nog niet bevestigd'};
     const known=value!=null&&Number.isFinite(Number(value))&&Number(value)>=0&&['measured','estimated'].includes(kind);
+    if(!known&&scope==='split')return `<div class="reason-power"><b>Vermogen nog niet bekend</b><small>${spEscape(labels.split)}</small></div>`;
     return this._knownPower(value,{known,estimated:kind==='estimated',label:p.power_label||labels[scope]||'Dekking onbekend'});
   }
   _sgDetails(c,scope='comfort'){
     const s=c.sgBoost||{},p=c.panasonic||{},zones=p.zones||c.smartClimate?.zones||[];
-    const facts=[['Tanktemperatuur',spTemp(p.temperature_c??s.temperature_c)],['Gemeld tankdoel',spTemp(p.target_c??s.target_c)],['Startdrempel',spPower(s.start_threshold_w)],['Voorlopige vermogensraming',spPower(s.estimated_power_w)],['Resterende sessie',this._remainingTime(s.remaining_s)],['Rusttijd',this._remainingTime(s.rest_remaining_s)]];
+    const profile=({general:'Algemene SG-boost',dhw_only:'Uitsluitend tapwater'})[s.profile]||'Niet bekend';
+    const context=p.context_reliable===true?p.status||'Betrouwbare bedrijfscontext beschikbaar':'Bedrijfscontext onbekend of verouderd';
+    const cooling=s.profile!=='general'?'Niet vereist voor tapwater-only':s.cooling_protection_confirmed===true?'Lokaal bevestigd':'Niet bevestigd · geen extra SG in koelbedrijf of onzekere koelcontext';
+    const facts=[['Toepassingsbereik',profile],['Profiel lokaal bevestigd',s.profile_confirmed===true?'Ja':'Nee'],['Extra-koelbeveiliging',cooling],['Tanktemperatuur',spTemp(p.temperature_c??s.temperature_c)],['Gemeld tankdoel',spTemp(p.target_c??s.target_c)],['Startdrempel',spPower(s.start_threshold_w)],['Voorlopige vermogensraming',spPower(s.estimated_power_w)],['Resterende sessie',this._remainingTime(s.remaining_s)],['Rusttijd',this._remainingTime(s.rest_remaining_s)]];
+    if(p.power_scope==='split')facts.push(['Voeding 1',p.power_supply1_valid===true?spPower(p.power_supply1_w):'Onbekend'],['Voeding 2',p.power_supply2_valid===true?spPower(p.power_supply2_w):'Onbekend']);
     const blocks=Array.isArray(s.blocked_reasons)?s.blocked_reasons:[];
-    return `${this._sgConfirmation(s)}${this._reasonFacts(facts)}${blocks.length?`<div class="condition-group waiting"><b>Nog nodig</b><ul>${blocks.map(x=>`<li>${spEscape(this._plainReason(typeof x==='string'?x:x.reason))}</li>`).join('')}</ul></div>`:''}<p class="note">${s.relay_on===true&&s.relay_confirmed===true&&s.panasonic_confirmed!==true?'SG-contact actief; Panasonic-reactie niet afzonderlijk bevestigd. ':''}Een normaal tankdoel in de app bewijst niet welk effectief SG-doel Panasonic gebruikt.</p><details data-ui-key="sg:${spEscape(scope)}:monitor"><summary>Panasonic en ruimtes · alleen uitlezen</summary><p>${spEscape(p.program_label||this._panasonicProgramLabel(p.program))}</p>${zones.map(z=>`<div class="zone"><span><b>${spEscape(z.name||'Ruimte')}</b><small>Gewenst ${spTemp(z.target??z.target_c)}</small></span><b>${spTemp(z.current??z.temperature_c)}</b><em>${spEscape(this._climateModeLabel(String(z.mode||'').toLowerCase()))}${z.action?` · ${spEscape(({heating:'verwarmt',cooling:'koelt',idle:'niet actief',off:'niet actief'})[z.action]||z.action)}`:''}</em></div>`).join('')||'<p>Geen betrouwbare ruimtemetingen beschikbaar.</p>'}<p class="note">Panasonic regelt comfort, verwarmen/koelen, elektrische ondersteuning en sterilisatie. SolarPilot schrijft geen tankdoel of kamerstand. Het gemeten verbruik kan na het vrijgeven van SG blijven doorlopen.</p></details>`;
+    return `${this._sgConfirmation(s,p)}${this._reasonFacts(facts)}${blocks.length?`<div class="condition-group waiting"><b>Nog nodig</b><ul>${blocks.map(x=>`<li>${spEscape(this._plainReason(typeof x==='string'?x:x.reason))}</li>`).join('')}</ul></div>`:''}${s.uptake_diagnostic?`<p class="note">${spEscape(s.uptake_diagnostic)}</p>`:''}<p class="note">${s.relay_on===true&&s.relay_confirmed===true&&p.sg_status_confirmed!==true?'SG-contact actief; Panasonic-reactie niet afzonderlijk bevestigd. ':''}Een normaal tankdoel in de app bewijst niet welk effectief SG-doel Panasonic gebruikt. Compressorbedrijf bewijst geen extra verbruik door SG.</p><details data-ui-key="sg:${spEscape(scope)}:monitor"><summary>Panasonic en ruimtes · alleen uitlezen</summary><p>${spEscape(context)}</p><p>${spEscape(p.program_label||this._panasonicProgramLabel(p.program))}</p>${p.power_reason?`<p>${spEscape(p.power_reason)}</p>`:''}${zones.map(z=>`<div class="zone"><span><b>${spEscape(z.name||'Ruimte')}</b><small>Gewenst ${spTemp(z.target??z.target_c)}</small></span><b>${spTemp(z.current??z.temperature_c)}</b><em>${spEscape(this._climateModeLabel(String(z.mode||'').toLowerCase()))}${z.action?` · ${spEscape(({heating:'verwarmt',cooling:'koelt',idle:'niet actief',off:'niet actief'})[z.action]||z.action)}`:''}</em></div>`).join('')||'<p>Geen betrouwbare ruimtemetingen beschikbaar.</p>'}<p class="note">Panasonic regelt comfort, verwarmen/koelen, elektrische ondersteuning en sterilisatie. SolarPilot schrijft geen tankdoel of kamerstand. Het gemeten verbruik kan na het vrijgeven van SG blijven doorlopen.</p></details>`;
   }
   _heatpump(c){
     const s=c.sgBoost||{},p=c.panasonic||{},active=s.relay_confirmed===true&&s.relay_on===true;
     const switchEntity=s.enabled_entity,ready=!!switchEntity&&!this._busy;
     const manual=s.manual_hold===true||s.state==='manual_hold';
-    return `<section class="heatpump-sg${active?' sg-active':''}" style="border:1px solid ${active?'#03a9f4':'var(--divider-color)'};border-radius:16px;padding:16px"><div class="sectionhead"><div><h2>Warmtepomp — Panasonic-regeling</h2><p>Panasonic regelt zelfstandig. SolarPilot vraagt alleen extra zonneboost aan.</p></div><button type="button" role="switch" aria-checked="${s.enabled===true}" aria-label="Automatische zonneboost" class="toggle ${s.enabled===true?'active':''}" data-action="sg_boost_enabled" ${ready?'':'disabled'}>${s.enabled===true?'Aan':'Uit'}</button></div><p><b>${spEscape(this._plainReason(s.reason||'Automatische zonneboost is nog niet gekoppeld.'))}</b></p><div class="flowgrid three">${this._tile('Tanktemperatuur',spTemp(p.temperature_c??s.temperature_c),'Panasonic-meting')}${this._tile('SG-contact',s.relay_confirmed===true?(s.relay_on===true?'Actief':s.relay_on===false?'Open':'Onbekend'):'Nog niet bevestigd',s.desired_on===true?'SolarPilot vraagt boost aan':'Geen actuele boostaanvraag')}${this._heatpumpPower(c)}</div>${manual?`<p class="note">Handmatige bediening blijft behouden.</p><button type="button" class="mini" data-action="sg_boost_resume" ${!s.resume_entity||this._busy?'disabled':''}>Automatische zonneboost hervatten</button>`:''}<details data-ui-key="sg:comfort:details"><summary>Details en voorwaarden</summary>${this._sgDetails(c)}<button type="button" class="mini" data-action="configure" data-config-step="sg_boost">Zonneboost instellen</button></details></section>`;
+    return `<section class="heatpump-sg${active?' sg-active':''}" style="border:1px solid ${active?'#03a9f4':'var(--divider-color)'};border-radius:16px;padding:16px"><div class="sectionhead"><div><h2>Warmtepomp — Panasonic-regeling / SG-zonneboost</h2><p>SG-zonneboost warmtepomp. Panasonic kiest de reactie volgens zijn actieve bedrijf.</p></div><button type="button" role="switch" aria-checked="${s.enabled===true}" aria-label="Automatische zonneboost" class="toggle ${s.enabled===true?'active':''}" data-action="sg_boost_enabled" ${ready?'':'disabled'}>${s.enabled===true?'Aan':'Uit'}</button></div><p><b>${spEscape(this._plainReason(s.reason||'SG-zonneboost warmtepomp is nog niet gekoppeld.'))}</b></p><p class="sub">${spEscape(this._sgObservation(c))}</p><div class="flowgrid three">${this._tile('Tanktemperatuur',spTemp(p.temperature_c??s.temperature_c),'Panasonic-meting')}${this._tile('SG-contact',s.relay_confirmed===true?(s.relay_on===true?'Actief':s.relay_on===false?'Open':'Onbekend'):'Nog niet bevestigd',s.desired_on===true?'SolarPilot vraagt boost aan':'Geen actuele boostaanvraag')}${this._heatpumpPower(c)}</div>${manual?`<p class="note">Handmatige bediening blijft behouden.</p><button type="button" class="mini" data-action="sg_boost_resume" ${!s.resume_entity||this._busy?'disabled':''}>Automatische zonneboost hervatten</button>`:''}<details data-ui-key="sg:comfort:details"><summary>Details en voorwaarden</summary>${this._sgDetails(c)}<button type="button" class="mini" data-action="configure" data-config-step="sg_boost">Zonneboost instellen</button></details></section>`;
   }
   _comfort(c){return `<section class="view">${this._heatpump(c)}</section>`;}
   _plannerSettingControl(item){
@@ -961,7 +975,7 @@ class SolarPilotCard extends HTMLElement {
   }
   async _loadOptionHelpers(){
     if(!customElements.get('solar-pilot-option-help-dialog')){
-      if(!this._optionLoad)this._optionLoad=import('/solar_pilot_static/option-help.js?v=1.0.0-beta.63').catch(e=>{this._optionLoad=null;throw e;});
+      if(!this._optionLoad)this._optionLoad=import('/solar_pilot_static/option-help.js?v=1.0.0-beta.64').catch(e=>{this._optionLoad=null;throw e;});
       await this._optionLoad;
     }
   }

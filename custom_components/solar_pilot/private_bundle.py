@@ -34,7 +34,8 @@ _ENTITY_FIELDS: dict[str, set[str]] = {
     "forecast": {"current_hour_entity", "next_hour_entity", "remaining_today_entity", "tomorrow_entity"},
     "local_pv": {"forecast_power_entity", "sun_entity"},
     "economy": {"import_price_entity", "export_price_entity"},
-    "sg_boost": {"entity_id", "tank_target_entity", "tank_temperature_entity", "power_entity", "activity_entity"},
+    "sg_boost": {"entity_id", "tank_target_entity", "tank_temperature_entity", "power_entity", "activity_entity",
+                 "power_supply1_entity", "power_supply2_entity", "compressor_frequency_entity", "sg_status_entity"},
     "wallbox": {"power_entity", "status_entity", "demand_entity", "mode_entity"},
 }
 _ENTITY_LIST_FIELDS: dict[str, set[str]] = {
@@ -57,7 +58,8 @@ _SAFE_FIRST_IMPORT: dict[str, dict[str, Any]] = {
     "forecast": {"enabled": True},
     "local_pv": {"enabled": True, "seed_enabled": True},
     "economy": {"enabled": True},
-    "sg_boost": {"enabled": False, "commissioning_confirmed": False, "watchdog_confirmed": False},
+    "sg_boost": {"enabled": False, "commissioning_confirmed": False, "watchdog_confirmed": False,
+                 "profile_confirmed": False, "cooling_protection_confirmed": False, "split_power_confirmed": False},
     "wallbox": {"enabled": True},
     "battery_analysis": {"enabled": True, "seed_enabled": True},
 }

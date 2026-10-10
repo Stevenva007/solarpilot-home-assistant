@@ -18,6 +18,8 @@ from .sg_config import actuator_conflicts, finite, normalize_config, validate_co
 # Anti-repeat evidence thresholds, not Panasonic targets or comfort settings.
 NEW_STORAGE_DROP_C = 2.0
 NEW_STORAGE_CONFIRM_S = 300.0
+NEW_CONTEXT_CONFIRM_S = 300.0
+RELEVANT_NATIVE_CONTEXTS = frozenset({"space_heating", "space_cooling", "tapwater_heating"})
 
 
 class SGBoostManager:
@@ -71,6 +73,18 @@ class SGBoostManager:
         self._tank_source_changed = False
         self._last_rearm = None
         self._last_session = None
+        self._native_observation = {}
+        self._solar_observation = None
+        self._general_reference = None
+        self._session_reference = None
+        self._general_candidate = None
+        self._general_reset_candidate = None
+        self._hold_provenance = None
+        self._hold_reason = ""
+        self._profile_change_release = False
+        self._low_uptake_noted = False
+        self._low_uptake_since = None
+        self._low_uptake_stamp = None
         self._commissioned_fingerprint = None
         self._observed_fingerprint = None
         self.sent_this_tick = False
@@ -101,6 +115,10 @@ class SGBoostManager:
         updated = normalize_config(value)
         old_entity = self.settings.get("entity_id")
         old_tank_entity = self.settings.get("tank_temperature_entity")
+        old_profile = self.settings.get("profile", "dhw_only")
+        old_profile_confirmed = self.settings.get("profile_confirmed") is True
+        native_sources_changed = any(updated.get(key) != self.settings.get(key) for key in (
+            "activity_entity", "zone_entities", "tank_target_entity"))
         new_confirmation = (self.settings.get("watchdog_confirmed") is not True
                             and updated.get("watchdog_confirmed") is True
                             and updated.get("commissioning_confirmed") is True)
@@ -125,6 +143,23 @@ class SGBoostManager:
             self._tank_source_changed = True
             self._need_candidate = None
         self.settings = updated
+        scope_changed = updated.get("profile", "dhw_only") != old_profile
+        scope_confirmed = (updated.get("profile") == "general"
+                           and updated.get("profile_confirmed") is True
+                           and (scope_changed or not old_profile_confirmed))
+        if scope_changed:
+            self.desired_on = False
+            self._profile_change_release = self.owned or self._possibly_owned
+            self._general_reference = None
+            self._general_candidate = self._general_reset_candidate = None
+        if scope_confirmed and self.completion_hold:
+            self._convert_legacy_hold()
+        elif native_sources_changed and self._general_reference is not None:
+            # Selecting another reader is not evidence of new native demand.
+            self._general_reference.update(signature=None, native_stamp=None,
+                native_reset_stamp=None, profile_transition=False,
+                native_rebase=True, native_after=self._wall_clock())
+            self._general_candidate = self._general_reset_candidate = None
         if new_confirmation and self.fault_code == "firmware_changed":
             if not self._injected_adapter:
                 self._adapter = None
@@ -144,7 +179,12 @@ class SGBoostManager:
                 "commissioned_fingerprint": deepcopy(self._commissioned_fingerprint),
                 "need_reference": deepcopy(self._need_reference),
                 "tank_source_changed": self._tank_source_changed,
-                "last_rearm": deepcopy(self._last_rearm)}
+                "last_rearm": deepcopy(self._last_rearm),
+                "profile": self.settings.get("profile", "dhw_only"),
+                "hold_reason": self._hold_reason,
+                "general_reference": deepcopy(self._general_reference),
+                "session_reference": deepcopy(self._session_reference),
+                "hold_provenance": deepcopy(self._hold_provenance)}
 
     def restore(self, stored):
         """A stored ON can authorize reconciliation OFF, never a new ON."""
@@ -164,7 +204,8 @@ class SGBoostManager:
                 and 0 <= finite(reference.get("temperature_c")) <= 100
                 and finite(reference.get("stamp")) is not None
                 and finite(reference.get("ended_at")) is not None):
-            self._need_reference = {key: reference[key] for key in ("schema", "entity_id", "temperature_c", "stamp", "ended_at")}
+            self._need_reference = {"schema": 1, "entity_id": reference["entity_id"],
+                **{key: finite(reference[key]) for key in ("temperature_c", "stamp", "ended_at")}}
             if reference["entity_id"] != self.settings.get("tank_temperature_entity"):
                 self._tank_source_changed = True
         self._need_candidate = None  # New real reports are required after reload.
@@ -179,6 +220,43 @@ class SGBoostManager:
         self._last_session = deepcopy(last) if isinstance(last, dict) else None
         fingerprint = stored.get("commissioned_fingerprint")
         self._commissioned_fingerprint = deepcopy(fingerprint) if isinstance(fingerprint, dict) else None
+        reason = stored.get("hold_reason")
+        self._hold_reason = (reason if reason in {"session_limit", "native_completed", "no_uptake", "profile_changed", "response_unknown"}
+                             else "session_limit" if self.completion_hold else "")
+        reference = stored.get("general_reference")
+        if (isinstance(reference, dict) and reference.get("schema") == 1
+                and finite(reference.get("ended_at")) is not None):
+            self._general_reference = {"schema": 1, "ended_at": finite(reference["ended_at"]),
+                "signature": reference.get("signature") if isinstance(reference.get("signature"), str) else None,
+                **{key: finite(reference.get(key)) for key in (
+                    "native_stamp", "solar_stamp", "solar_reset_stamp", "native_reset_stamp")},
+                "profile_transition": reference.get("profile_transition") is True,
+                "native_rebase": reference.get("native_rebase") is True,
+                "native_after": finite(reference.get("native_after"))}
+        provenance = stored.get("hold_provenance")
+        self._hold_provenance = deepcopy(provenance) if isinstance(provenance, dict) else None
+        session = stored.get("session_reference")
+        if isinstance(session, dict) and session.get("schema") == 1:
+            self._session_reference = {"schema": 1,
+                "signature": session.get("signature") if isinstance(session.get("signature"), str) else None,
+                "native_stamp": finite(session.get("native_stamp")),
+                "solar_stamp": finite(session.get("solar_stamp"))}
+        if (stored.get("owned") is True and not self.completion_hold
+                and self.settings.get("profile") == "general"):
+            self.completion_hold = True
+            self._hold_reason = "response_unknown"
+            self._general_reference = {"schema": 1, "ended_at": self._wall_clock(),
+                "signature": (self._session_reference or {}).get("signature"),
+                "native_stamp": (self._session_reference or {}).get("native_stamp"),
+                "solar_stamp": (self._session_reference or {}).get("solar_stamp"),
+                "solar_reset_stamp": None, "native_reset_stamp": None,
+                "profile_transition": False, "native_rebase": False, "native_after": None}
+        if (self.completion_hold and self.settings.get("profile") == "general"
+                and self.settings.get("profile_confirmed") is True
+                and self._general_reference is None):
+            self._convert_legacy_hold()
+        # Reload preserves completed evidence, never a partly observed window.
+        self._general_candidate = self._general_reset_candidate = None
         code = stored.get("fault_code")
         if code in {"on_failed", "lease_invalid", "lease_failed", "firmware_changed"}:
             self._fault(code, "SG-zonneboost vraagt controle van de lokale terugval; overige toestellen blijven werken")
@@ -234,6 +312,8 @@ class SGBoostManager:
     def _status(self, raw):
         if not isinstance(raw, dict) or type(raw.get("output")) is not bool:
             raise ValueError("missing_output")
+        if type(self.relay_on) is bool and self.relay_on != raw["output"]:
+            self._note("SG-uitgang meldt " + ("AAN" if raw["output"] else "UIT"))
         self.relay_on = raw["output"]
         self.relay_confirmed = True
         return raw
@@ -356,6 +436,10 @@ class SGBoostManager:
                 and getattr(self.runtime, "mode", "observe") == "solar"
                 and self.settings.get("commissioning_confirmed") is True
                 and self.settings.get("watchdog_confirmed") is True
+                and (self.settings.get("profile", "dhw_only") != "general"
+                     or self.settings.get("profile_confirmed") is True)
+                and not self.cooling_block_reason(live=True)
+                and not self._profile_change_release
                 and not self.manual_hold and not self.completion_hold and not self.fault)
 
     def _on_authorized(self, generation, renewal):
@@ -489,14 +573,23 @@ class SGBoostManager:
         self._last_renewed = self._clock()
         if not renewal:
             self._need_reference = self._need_candidate = None
+            self._general_reference = self._general_candidate = self._general_reset_candidate = None
+            self._hold_reason = ""
+            self._low_uptake_noted = False
+            self._low_uptake_since = self._low_uptake_stamp = None
+            native = self._valid_native_observation(self._native_observation)
+            self._session_reference = ({"schema": 1, "signature": native["signature"],
+                "native_stamp": native["stamp"], "solar_stamp": (self._solar_observation or {}).get("stamp")}
+                if native is not None else None)
             self._tank_source_changed = False
             self._session_started = issued_at
             self._session_finishing = (self._lease_deadline is not None and
                 self._lease_deadline >= issued_at + float(self.settings["max_session_s"]) - float(self.settings["ack_timeout_s"]))
             self._stable_since = self._import_since = None
-            self._note("SG-zonneboost aangevraagd; alleen het bestaande SG-contact wordt bediend")
+            self._note("SG-zonneboost aangevraagd; alleen het bestaande SG-contact wordt bediend" + self._observation_summary())
         else:
             self.renewed_this_tick = True
+            self._note("Lokale SG-toestemming bevestigd vernieuwd zonder relaiscyclus" + self._observation_summary())
         self._set_state("boost_requested", self._active_reason())
         await self._save()
         return True
@@ -506,10 +599,54 @@ class SGBoostManager:
             return "SG-contact actief; Panasonic meldt de extra SG-aanvraag"
         return "SG-contact actief; Panasonic-reactie niet afzonderlijk bevestigd"
 
-    async def _release(self, reason, *, rest=True, preserve_fault=False):
+    def _observation_summary(self):
+        value = self._native_observation
+        parts = []
+        context = value.get("context")
+        if context in RELEVANT_NATIVE_CONTEXTS | {"normal", "heatpump_unknown"}:
+            parts.append("native " + context)
+        power = finite(value.get("power_w"))
+        if power is not None and value.get("power_kind") == "measured":
+            parts.append(f"gemeten {power:g} W")
+        for key, label in (("power_supply1_w", "voeding 1"), ("power_supply2_w", "voeding 2")):
+            watts = finite(value.get(key))
+            if watts is not None:
+                parts.append(f"{label} {watts:g} W")
+        hz = finite(value.get("compressor_frequency_hz"))
+        if hz is not None:
+            parts.append(f"compressor {hz:g} Hz")
+        return "; " + " · ".join(parts) if parts else ""
+
+    def _observe_low_uptake(self):
+        value = self._native_observation
+        power, stamp = finite(value.get("power_w")), finite(value.get("power_stamp"))
+        valid = (power is not None and 0 <= power <= 100
+                 and value.get("power_kind") == "measured" and stamp is not None
+                 and -5 <= self._wall_clock() - stamp <= float(self.settings["stale_s"])
+                 and value.get("compressor_running") is not True)
+        if not valid:
+            self._low_uptake_since = self._low_uptake_stamp = None
+            return
+        now = self._clock()
+        if self._low_uptake_since is None:
+            self._low_uptake_since, self._low_uptake_stamp = now, stamp
+            return
+        new_report = stamp > self._low_uptake_stamp
+        if new_report:
+            self._low_uptake_stamp = stamp
+        if not self._low_uptake_noted and new_report and now - self._low_uptake_since >= 1200:
+            self._low_uptake_noted = True
+            self._note("SG-contact actief; extra warmteopname nog niet aangetoond")
+
+    async def _release(self, reason, *, rest=True, preserve_fault=False, policy_hold=True):
         self.desired_on = False
         self._stable_since = self._import_since = None
         had_authority = self.owned or self._possibly_owned
+        if (policy_hold and self.settings.get("profile") == "general"
+                and self._session_started is not None and not self.completion_hold):
+            self.completion_hold = True
+            self._hold_reason = "response_unknown"
+            self._capture_need_reference()
         if had_authority and not self._off_attempted:
             self._off_attempted = True
             self._in_flight = True
@@ -535,6 +672,7 @@ class SGBoostManager:
         if self._session_started is not None:
             self._last_session = {"ended_at": self._wall_clock(), "reason": reason,
                                   "duration_s": max(0, self._clock() - self._session_started)}
+            self._note("SG-aanvraag beëindigd: " + reason + self._observation_summary())
         self._session_started = None
         self._session_finishing = False
         self._last_renewed = None
@@ -550,8 +688,12 @@ class SGBoostManager:
         ours = self.owned or self._possibly_owned
         if ours and raw["output"] is False:
             expired = self._lease_deadline is not None and now >= self._lease_deadline - 1
-            if expired and self._session_finishing:
+            limit_reached = (self._session_started is not None and
+                now-self._session_started >= float(self.settings["max_session_s"]))
+            if (expired and (self._session_finishing or limit_reached)
+                    or self.settings.get("profile") == "general" and not self.completion_hold):
                 self.completion_hold = True
+                self._hold_reason = "session_limit" if self._session_finishing or limit_reached else "response_unknown"
                 self._capture_need_reference()
             self._session_finishing = False
             releasing = self._off_attempted or not self.desired_on
@@ -599,6 +741,148 @@ class SGBoostManager:
         self._need_reference = ({"schema": 1, **observation, "ended_at": self._wall_clock()}
                                 if observation is not None and not self._tank_source_changed else None)
         self._need_candidate = None
+        if self.settings.get("profile") == "general":
+            native = self._valid_native_observation(self._native_observation)
+            self._general_reference = {
+                "schema": 1, "ended_at": self._wall_clock(),
+                "signature": native["signature"] if native else None,
+                "native_stamp": native["stamp"] if native else None,
+                "solar_stamp": (self._solar_observation or {}).get("stamp"),
+                "solar_reset_stamp": None, "native_reset_stamp": None,
+                "profile_transition": False, "native_rebase": False, "native_after": None}
+            self._general_candidate = self._general_reset_candidate = None
+
+    def _read_native(self):
+        monitor = getattr(self.runtime, "panasonic", None)
+        try:
+            value = monitor.overview() if monitor is not None else None
+        except Exception:
+            return {}
+        return value if isinstance(value, dict) else {}
+
+    def _valid_native_observation(self, value):
+        if not isinstance(value, dict) or value.get("context_reliable") is not True:
+            return None
+        stamp = finite(value.get("context_stamp"))
+        signature = value.get("context_signature")
+        context = value.get("context")
+        if (stamp is None or not isinstance(signature, str) or not signature
+                or context not in RELEVANT_NATIVE_CONTEXTS | {"normal"}
+                or not -5 <= self._wall_clock() - stamp <= float(self.settings["stale_s"])):
+            return None
+        return {"stamp": stamp, "signature": signature, "context": context}
+
+    def cooling_block_reason(self, *, live=False):
+        """A scope choice never certifies protection from condensation."""
+        if self.settings.get("profile", "dhw_only") != "general":
+            return ""
+        if self.settings.get("cooling_protection_confirmed") is True:
+            return ""
+        value = self._read_native() if live else self._native_observation
+        native = self._valid_native_observation(value)
+        if native is not None and value.get("cooling_possible") is False:
+            return ""
+        return "Extra SG-koeling niet vrijgegeven: condens-/dauwpuntbeveiliging niet bevestigd of actieve context onbekend"
+
+    def _convert_legacy_hold(self):
+        """Convert only the old tank policy, keeping its rollback provenance."""
+        if self._general_reference is not None:
+            return
+        self._hold_provenance = {
+            "profile": "dhw_only", "completion_hold": self.completion_hold,
+            "need_reference": deepcopy(self._need_reference),
+            "tank_source_changed": self._tank_source_changed,
+            "converted_at": self._wall_clock()}
+        self._general_reference = {
+            "schema": 1, "ended_at": self._wall_clock(), "signature": None,
+            "native_stamp": None, "solar_stamp": None,
+            "solar_reset_stamp": None, "native_reset_stamp": None,
+            "profile_transition": True, "native_rebase": False, "native_after": None}
+        self._hold_reason = "profile_changed"
+        self._general_candidate = self._general_reset_candidate = None
+        self._need_candidate = None
+        self._note("Bevestigde algemene SG-keuze: oude tankwachtstand wordt met verse native context of een nieuwe zonneperiode herbeoordeeld")
+
+    @staticmethod
+    def _confirmed_reports(candidate, kind, signature, stamp, now):
+        """A real new final report is required, not elapsed wall time alone."""
+        if candidate is None or candidate["kind"] != kind or candidate["signature"] != signature:
+            return {"kind": kind, "signature": signature, "first_seen": now,
+                    "last_stamp": stamp, "reports": 1}, False
+        new_report = stamp > candidate["last_stamp"]
+        if new_report:
+            candidate["last_stamp"] = stamp
+            candidate["reports"] += 1
+        return candidate, (new_report and candidate["reports"] >= 2
+                           and now - candidate["first_seen"] >= NEW_CONTEXT_CONFIRM_S)
+
+    def _general_reassessment(self):
+        if (self.settings.get("profile") != "general" or not self.completion_hold
+                or self.settings.get("profile_confirmed") is not True):
+            return False
+        reference = self._general_reference
+        if reference is None:
+            return False
+        now = self._clock()
+        native = self._valid_native_observation(self._native_observation)
+        ended = reference["ended_at"]
+        native_new = (native is not None and native["stamp"] > max(
+            ended, finite(reference.get("native_stamp")) or ended,
+            finite(reference.get("native_after")) or ended))
+        if reference.get("native_rebase") is True and native_new:
+            # First fresh report of a newly selected reader establishes a
+            # baseline only. A later actual context change must still be proven.
+            reference.update(signature=native["signature"], native_stamp=native["stamp"], native_rebase=False)
+            native_new = False
+        solar = self._solar_observation
+        solar_new = (solar is not None and solar["stamp"] > max(
+            ended, finite(reference.get("solar_stamp")) or ended))
+        # Observe a real inactive interval after the session. Temporary missing
+        # sources do not reset an episode and cannot supply new demand evidence.
+        reset_kind = None
+        if solar_new and solar["watts"] <= float(self.settings["hysteresis_w"]):
+            reset_kind, signature, stamp = "solar", "near_zero", solar["stamp"]
+        elif native_new and native["context"] == "normal":
+            reset_kind, signature, stamp = "native", native["signature"], native["stamp"]
+        if reset_kind:
+            self._general_reset_candidate, confirmed = self._confirmed_reports(
+                self._general_reset_candidate, reset_kind, signature, stamp, now)
+            if confirmed:
+                reference[reset_kind + "_reset_stamp"] = stamp
+                self._general_reset_candidate = None
+        else:
+            self._general_reset_candidate = None
+        if now < self._rest_until:
+            self._general_candidate = None
+            return False
+        kind = None
+        if (native_new and native["context"] in RELEVANT_NATIVE_CONTEXTS
+                and (reference.get("profile_transition") is True
+                     or (reference.get("signature") is not None
+                         and native["signature"] != reference["signature"])
+                     or (finite(reference.get("native_reset_stamp")) is not None
+                         and native["stamp"] > reference["native_reset_stamp"]))):
+            kind, signature, stamp = "fresh_native_context", native["signature"], native["stamp"]
+        elif (solar_new and solar["watts"] >= float(self.settings["threshold_w"])
+                and finite(reference.get("solar_reset_stamp")) is not None
+                and solar["stamp"] > reference["solar_reset_stamp"]):
+            kind, signature, stamp = "new_solar_period", "qualified_surplus", solar["stamp"]
+        if kind is None:
+            self._general_candidate = None
+            return False
+        self._general_candidate, confirmed = self._confirmed_reports(
+            self._general_candidate, kind, signature, stamp, now)
+        if not confirmed:
+            return False
+        self._last_rearm = {"kind": kind, "at": self._wall_clock()}
+        self.completion_hold = False
+        self._hold_reason = ""
+        self._general_reference = self._general_candidate = self._general_reset_candidate = None
+        self._need_reference = self._need_candidate = None
+        self._tank_source_changed = False
+        self._stable_since = None
+        self._note("Nieuwe betrouwbare SG-aanleiding vastgesteld; verse zonne- en veiligheidsbeoordeling volgt")
+        return True
 
     def _new_storage_available(self):
         """A sustained measured decline permits another solar evaluation.
@@ -606,7 +890,8 @@ class SGBoostManager:
         This proves additional tank storage space, not comfort demand, previous
         SG ownership, a successful Panasonic boost or an effective SG setpoint.
         """
-        if not self.completion_hold or self._tank_source_changed or self._need_reference is None:
+        if (self.settings.get("profile", "dhw_only") == "general" or not self.completion_hold
+                or self._tank_source_changed or self._need_reference is None):
             return False
         reference = self._need_reference
         observation = self._valid_tank_observation(self._tank_observation)
@@ -630,12 +915,20 @@ class SGBoostManager:
         self._last_rearm = {"kind": "fresh_tank_decline", "at": self._wall_clock(),
                            "drop_c": round(reference["temperature_c"] - observation["temperature_c"], 2)}
         self.completion_hold = False
+        self._hold_reason = ""
         self._need_reference = self._need_candidate = None
         self._stable_since = None
         self._note("Tank na vorige SG-sessie aantoonbaar afgekoeld; nieuw zonneoverschot wordt beoordeeld")
         return True
 
     def _completion_reason(self):
+        if self.settings.get("profile") == "general":
+            prefix = {"native_completed": "Native voltooiing bevestigd",
+                      "no_uptake": "Geen extra opname bevestigd",
+                      "response_unknown": "Vorige SG-aanvraag beëindigd; extra opname niet bewezen",
+                      "profile_changed": "Algemene SG-keuze bevestigd"}.get(
+                          self._hold_reason, "Begrensde sessieduur bereikt; SG-effect onbekend")
+            return prefix + "; wacht op een nieuwe zonneperiode of betrouwbare gewijzigde native context"
         if self._tank_source_changed:
             return "Tankbron gewijzigd; hervat de automatisering na controle van de nieuwe bron"
         if self._need_reference is None:
@@ -665,6 +958,12 @@ class SGBoostManager:
             reasons.append("Bevestig eerst de SG-mapping en Panasonic-instellingen")
         if self.settings.get("watchdog_confirmed") is not True:
             reasons.append("Test en bevestig eerst de lokale Shelly-aflooptimer")
+        if (self.settings.get("profile") == "general"
+                and self.settings.get("profile_confirmed") is not True):
+            reasons.append("Bevestig eerst lokaal het toepassingsbereik van de algemene SG-zonneboost")
+        cooling_reason = self.cooling_block_reason()
+        if cooling_reason:
+            reasons.append(cooling_reason)
         if validate_config(self.settings):
             reasons.append("SG-instellingen vragen controle")
         if data_fresh is not True:
@@ -682,27 +981,58 @@ class SGBoostManager:
         return reasons
 
     async def tick(self, *, surplus_w, data_fresh, phase_allowed, priority_allowed=True,
-                   grid_import_w=0, physical_evidence=None, tank_observation=None, hard_limit=False, **_context):
+                   grid_import_w=0, physical_evidence=None, tank_observation=None,
+                   native_observation=None, solar_stamp=None, hard_limit=False, **_context):
         if not self._started:
             await self.start()
         async with self._lock:
             self.sent_this_tick = self.renewed_this_tick = False
             now = self._clock()
             self._tank_observation = self._valid_tank_observation(tank_observation)
+            self._native_observation = (dict(native_observation) if isinstance(native_observation, dict)
+                                        else self._read_native())
+            surplus, imported, stamp = finite(surplus_w), finite(grid_import_w), finite(solar_stamp)
+            data_fresh = data_fresh is True and surplus is not None and imported is not None and surplus >= 0 and imported >= 0
+            self._solar_observation = ({"watts": surplus, "stamp": stamp}
+                if data_fresh and stamp is not None
+                and -5 <= self._wall_clock() - stamp <= float(self.settings["stale_s"]) else None)
+            native = self._valid_native_observation(self._native_observation)
+            if native is not None and (self.owned or self._in_flight):
+                self._session_reference = {"schema": 1, "signature": native["signature"],
+                    "native_stamp": native["stamp"],
+                    "solar_stamp": (self._solar_observation or {}).get("stamp")}
             self._physical = dict(physical_evidence) if isinstance(physical_evidence, dict) else {}
             physical = self._physical
             self.panasonic_confirmed = (physical.get("sg_active") if physical.get("verified") is True
                                         and type(physical.get("sg_active")) is bool else None)
-            if self.completion_hold and physical.get("verified") is True and physical.get("restart_ready") is True:
+            if self._native_observation.get("sg_status_confirmed") is True:
+                status = self._native_observation.get("sg_status")
+                self.panasonic_confirmed = True if status == "active" else False if status == "inactive" else None
+            if (self.settings.get("profile", "dhw_only") != "general" and self.completion_hold
+                    and physical.get("verified") is True and physical.get("restart_ready") is True):
                 self.completion_hold = False
+                self._hold_reason = ""
                 self._need_reference = self._need_candidate = None
                 self._stable_since = None
             if self._new_storage_available():
                 await self._save()
+            previous_reference = deepcopy(self._general_reference)
+            rearmed = self._general_reassessment()
+            if rearmed or previous_reference != self._general_reference:
+                await self._save()
             raw = await self._read() if self.configured and not self._closed else None
+            observed = (self.owned, self._possibly_owned, self.manual_hold, self.completion_hold,
+                        self._session_started, self.fault_code)
             self._observe_contact(raw)
-            surplus, imported = finite(surplus_w), finite(grid_import_w)
-            data_fresh = data_fresh is True and surplus is not None and imported is not None and surplus >= 0 and imported >= 0
+            if observed != (self.owned, self._possibly_owned, self.manual_hold, self.completion_hold,
+                            self._session_started, self.fault_code):
+                await self._save()
+            if self._profile_change_release:
+                self._profile_change_release = False
+                if self.owned or self._possibly_owned:
+                    await self._release("SG-toepassingsbereik gewijzigd; vorige aanvraag veilig vrijgegeven")
+                self._stable_since = None
+                await self._save()
             gates = self._gates(data_fresh=data_fresh, phase_allowed=phase_allowed,
                                  priority_allowed=priority_allowed, hard_limit=hard_limit)
             self._blocked_reasons = gates
@@ -722,11 +1052,16 @@ class SGBoostManager:
                 complete = physical.get("verified") is True and (physical.get("completed") is True or physical.get("no_uptake") is True)
                 if complete or elapsed >= float(self.settings["max_session_s"]):
                     self.completion_hold = True
+                    self._hold_reason = ("no_uptake" if complete and physical.get("no_uptake") is True
+                                         else "native_completed" if complete else "session_limit")
                     self._capture_need_reference()
                     self._generation += 1
                     reason = "Bevestigde boost voltooid of geen extra opname" if complete else "Begrensde SG-sessieduur bereikt"
                     await self._release(reason)
                     return self.sent_this_tick
+                # One read-only diagnostic per session; neither absence of proof
+                # nor low power permits a pulse, fault or a Panasonic command.
+                self._observe_low_uptake()
                 # Residual export need not retain the original start threshold:
                 # consuming the admitted solar energy is the intended effect.
                 if imported > float(self.settings["hysteresis_w"]):
@@ -809,6 +1144,8 @@ class SGBoostManager:
             self.manual_hold = False
             self.completion_hold = False
             self._need_reference = self._need_candidate = None
+            self._general_reference = self._general_candidate = self._general_reset_candidate = None
+            self._hold_reason = ""
             self._tank_source_changed = False
             self.fault_code = self.fault = ""
             self._off_attempted = False
@@ -816,7 +1153,7 @@ class SGBoostManager:
             # authority to continue an unleased/manual ON or to control Panasonic.
             if raw["output"]:
                 self._possibly_owned = True
-                await self._release("Handmatige SG-stand vrijgegeven; verse zonnebeoordeling volgt")
+                await self._release("Handmatige SG-stand vrijgegeven; verse zonnebeoordeling volgt", policy_hold=False)
             self._stable_since = None
             self._started = True
             self._set_state("rest" if self._clock() < self._rest_until else "waiting_surplus",
@@ -848,6 +1185,15 @@ class SGBoostManager:
         return {"configured": self.configured, "enabled": self.auto_enabled,
                 "commissioning_confirmed": self.settings.get("commissioning_confirmed") is True,
                 "watchdog_confirmed": self.settings.get("watchdog_confirmed") is True,
+                "profile": self.settings.get("profile", "dhw_only"),
+                "profile_confirmed": self.settings.get("profile_confirmed") is True,
+                "cooling_protection_confirmed": self.settings.get("cooling_protection_confirmed") is True,
+                "cooling_block_reason": self.cooling_block_reason(),
+                "policy_hold_reason": self._hold_reason,
+                "owner": ("manual" if self.manual_hold else "solarpilot" if self.owned or self._possibly_owned
+                          else "unknown" if self.relay_on is None else "none"),
+                "lease_confirmed": bool(self.owned and self.relay_confirmed and self.relay_on is True
+                    and self._lease_deadline is not None and now < self._lease_deadline),
                 "state": self.state, "status": self.status, "reason": self.reason,
                 "desired_on": self.desired_on, "relay_on": self.relay_on,
                 "relay_confirmed": self.relay_confirmed, "panasonic_confirmed": self.panasonic_confirmed,
@@ -856,10 +1202,12 @@ class SGBoostManager:
                 "manual_hold": self.manual_hold, "completion_hold": self.completion_hold,
                 "fault": self.fault, "fault_code": self.fault_code, "action_required": self.action_required,
                 "blocked_reasons": list(self._blocked_reasons), "last_session": deepcopy(self._last_session),
-                "automatic_rearm_available": self._need_reference is not None and not self._tank_source_changed,
+                "automatic_rearm_available": ((self._general_reference is not None) if self.settings.get("profile") == "general"
+                    else self._need_reference is not None and not self._tank_source_changed),
                 "last_rearm": deepcopy(self._last_rearm),
                 "start_threshold_w": self.settings["threshold_w"], "estimated_power_w": self.settings["expected_power_w"],
                 "switch_entity": self.settings.get("entity_id", ""), "enabled_entity": enabled_entity,
                 "resume_entity": resume_entity, "power_w": source.get("power_w"),
                 "power_kind": source.get("power_kind", "unknown"), "power_scope": source.get("power_scope", self.settings["power_scope"]),
-                "temperature_c": source.get("temperature_c"), "target_c": source.get("target_c")}
+                "temperature_c": source.get("temperature_c"), "target_c": source.get("target_c"),
+                "uptake_diagnostic": "SG-contact actief; extra warmteopname nog niet aangetoond" if self._low_uptake_noted else ""}

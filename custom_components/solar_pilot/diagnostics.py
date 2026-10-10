@@ -17,10 +17,14 @@ async def async_get_config_entry_diagnostics(hass, entry):
             "panasonic": {"configured": r.panasonic.configured, "read_only": True,
                           "power_scope": r.panasonic.settings.get("power_scope", "unconfirmed"),
                           "power_meter": bool(r.panasonic.settings.get("power_entity")),
+                          "split_power_meters": all(r.panasonic.settings.get(key) for key in
+                                                    ("power_supply1_entity", "power_supply2_entity")),
+                          "split_power_confirmed": r.panasonic.settings.get("split_power_confirmed") is True,
                           "zone_count": len(r.panasonic.settings.get("zone_entities", []))},
             "sg_boost": {key: sg.get(key) for key in (
                 "configured", "enabled", "state", "desired_on", "relay_on",
-                "action_required", "commissioning_confirmed", "watchdog_confirmed")},
+                "action_required", "commissioning_confirmed", "watchdog_confirmed", "profile",
+                "profile_confirmed", "cooling_protection_confirmed")},
             "ems": {"capacity_enabled": r.capacity_settings["enabled"],
                     "phase_enabled": r.phase_settings["enabled"],
                     "phase_control_starts": r.phase_settings.get("control_starts", False),

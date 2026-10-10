@@ -1,8 +1,10 @@
 """Read-only Panasonic observations; no command or target ownership."""
 from __future__ import annotations
+import hashlib
+import json
 import math
 import time
-from .sg_config import normalize_config
+from .sg_config import normalize_config, meter_sources_overlap
 
 
 class PanasonicMonitor:
@@ -16,11 +18,13 @@ class PanasonicMonitor:
     @property
     def configured(self):
         return any(self.settings.get(k) for k in (
-            "tank_temperature_entity", "tank_target_entity", "activity_entity", "zone_entities", "power_entity"))
+            "tank_temperature_entity", "tank_target_entity", "activity_entity", "zone_entities", "power_entity",
+            "power_supply1_entity", "power_supply2_entity", "compressor_frequency_entity", "sg_status_entity"))
 
     def update_config(self, config):
         self.settings = normalize_config(config)
-        for key in ("tank_temperature_entity", "tank_target_entity", "activity_entity", "power_entity"):
+        for key in ("tank_temperature_entity", "tank_target_entity", "activity_entity", "power_entity",
+                    "power_supply1_entity", "power_supply2_entity", "compressor_frequency_entity", "sg_status_entity"):
             if not isinstance(self.settings.get(key), str):
                 self.settings[key] = ""
         zones = self.settings.get("zone_entities")
@@ -96,12 +100,37 @@ class PanasonicMonitor:
         programs = {row["program"] for row in native if row.get("fresh")}
         actions = [str(z["action"]).strip().casefold() if z["action"] is not None else None for z in zones]
         tank_action = str(target.attributes.get("hvac_action", "")).strip().casefold() if target else ""
-        if tank_action in ("heating", "preheating", "heat", "dhw", "hot_water"):
+        # A programme/action describes native context, never compressor motion.
+        # Explicit cooling outranks a simultaneous tank action; conflicting
+        # zone/programme evidence remains ambiguous rather than made safe.
+        heat_actions = any(action in ("heating", "preheating") for action in actions)
+        cool_actions = any(action in ("cooling", "precooling") for action in actions)
+        fresh_programs = [row for row in native if row.get("fresh") and row.get("program") in ("heating", "cooling", "off")]
+        native_heat = bool(fresh_programs) and all(row["program"] in ("heating", "off") for row in fresh_programs) and any(row["program"] == "heating" for row in fresh_programs)
+        native_cool = any(row["program"] == "cooling" for row in fresh_programs)
+        modes = [str(z["mode"]).strip().casefold() for z in zones]
+        heat_modes = bool(zones) and all(z["available"] and mode in ("heat", "off") for z, mode in zip(zones, modes)) and "heat" in modes
+        cool_modes = any(z["available"] and mode == "cool" for z, mode in zip(zones, modes))
+        conflict = ((heat_actions and cool_actions) or (native_heat and (cool_actions or cool_modes))
+                    or (native_cool and (heat_actions or heat_modes)) or ("heating" in programs and "cooling" in programs))
+        context_reliable = False
+        context_stamps = []
+        if conflict:
+            context, status = "heatpump_unknown", "Tegenstrijdige Panasonic-bedrijfscontext; extra koeling niet veilig uitgesloten"
+        elif cool_actions or native_cool or cool_modes:
+            context, status = "space_cooling", "Panasonic meldt ruimtekoeling als actie of gekozen programma"
+            context_reliable = True
+            context_stamps = [self._reported_stamp(self._object(eid)) for eid in c["zone_entities"]]
+            context_stamps.extend(row.get("observed_at") for row in fresh_programs)
+        elif heat_actions or native_heat or heat_modes:
+            context, status = "space_heating", "Panasonic meldt ruimteverwarming als actie of gekozen programma"
+            context_reliable = True
+            context_stamps = [self._reported_stamp(self._object(eid)) for eid in c["zone_entities"]]
+            context_stamps.extend(row.get("observed_at") for row in fresh_programs)
+        elif tank_action in ("heating", "preheating", "heat", "dhw", "hot_water"):
             context, status = "tapwater_heating", "Panasonic meldt warmwateropwarming"
-        elif any(action in ("cooling", "precooling") for action in actions):
-            context, status = "space_cooling", "Panasonic meldt ruimtekoeling"
-        elif any(action in ("heating", "preheating") for action in actions):
-            context, status = "space_heating", "Panasonic meldt ruimteverwarming"
+            context_reliable = True
+            context_stamps = [self._reported_stamp(target)]
         elif self.configured and (any(not z["available"] for z in zones) or c["activity_entity"] and
                 (not activity or str(activity.state).strip().casefold() not in ("idle", "off", "inactive", "none"))
                 or c["tank_target_entity"].startswith(("water_heater.", "climate.")) and target is None
@@ -110,17 +139,83 @@ class PanasonicMonitor:
             context, status = "heatpump_unknown", "Panasonic-activiteit niet betrouwbaar beschikbaar"
         else:
             context, status = "normal", "Panasonic regelt zelfstandig; geen actieve warmte- of koelactie bevestigd"
+            context_stamps = [self._reported_stamp(self._object(eid)) for eid in c["zone_entities"]]
+            if activity:
+                context_stamps.append(self._reported_stamp(activity))
+            if target and c["tank_target_entity"].startswith(("water_heater.", "climate.")):
+                context_stamps.append(self._reported_stamp(target))
+            context_reliable = bool(context_stamps)
+            # AUTO may expose an idle action while the real native programme is
+            # unknown. Losing its programme poll is unavailable evidence, not a
+            # proven inactive episode that can reset a completed SG session.
+            if any(mode in ("auto", "heat_cool") and not (row.get("fresh") and row.get("program") == "off")
+                   for mode, row in zip(modes, native)):
+                context_reliable = False
+        # A missing configured zone or conflicting AUTO interpretation cannot
+        # certify that an ON lease is safe from potential cooling.
+        if any(not z["available"] for z in zones):
+            context_reliable = False
+        stamps = [stamp for stamp in context_stamps if self._number(stamp) is not None]
+        context_stamp = min(stamps) if context_reliable and stamps else None
+        if context_stamp is None:
+            context_reliable = False
+        every_zone_heat_only = bool(zones) and all(
+            z["available"] and (row.get("fresh") and row.get("program") in ("heating", "off")
+                                or mode in ("heat", "off"))
+            for z, row, mode in zip(zones, native, modes))
+        cooling_possible = not (context_reliable and not conflict and not cool_actions and not cool_modes
+            and not native_cool and every_zone_heat_only and (native_heat or heat_modes))
+        # The semantic signature excludes samples and optional-provider proof
+        # arrival/disappearance. Those cannot create another request by themselves.
+        signature_payload = [context,
+                             [[z["entity_id"], str(z["mode"]).casefold(), z["action"]] for z in zones]]
+        if context == "tapwater_heating":
+            signature_payload.append([c["tank_target_entity"], tank_action])
+        context_signature = hashlib.sha256(json.dumps(signature_payload, sort_keys=True,
+            separators=(",", ":"), default=str).encode()).hexdigest() if context_reliable else None
+        frequency_obj = self._object(c["compressor_frequency_entity"])
+        frequency = self._number(frequency_obj.state) if frequency_obj else None
+        if (not c["compressor_frequency_entity"].startswith("sensor.") or not frequency_obj
+                or frequency_obj.attributes.get("unit_of_measurement") != "Hz"
+                or any(frequency_obj.attributes.get(k) for k in ("estimated", "is_estimated"))
+                or frequency is None or not 0 <= frequency <= 200):
+            frequency = None
+        compressor_running = None if frequency is None else frequency > 0
+        sg_obj = self._object(c["sg_status_entity"])
+        sg_value = str(sg_obj.state).strip().casefold() if sg_obj else "unknown"
+        # The explicit read role names a received SG-status source. Numeric
+        # capacity codes are deliberately not guessed across provider enums.
+        active_states, inactive_states = {"active", "on"}, {"inactive", "off"}
+        if (c["sg_status_entity"] == c["entity_id"] or meter_sources_overlap(self.runtime.hass, c["sg_status_entity"], c["entity_id"])
+                or not c["sg_status_entity"].startswith(("sensor.", "binary_sensor."))
+                or not sg_obj or sg_obj.attributes.get("unit_of_measurement")
+                or any(sg_obj.attributes.get(k) for k in ("estimated", "is_estimated"))):
+            sg_value = "unknown"
+        sg_status = "active" if sg_value in active_states else "inactive" if sg_value in inactive_states else "unknown"
         from .heatpump_budget import heatpump_power
         power = heatpump_power(self.runtime)
         return {"configured": self.configured, "read_only": True, "temperature_c": temp,
             "temperature_entity": c["tank_temperature_entity"],
             "temperature_stamp": self._reported_stamp(tank) if temp is not None else None,
-            "target_c": target_c, "power_w": power["watts"],
+            "target_c": target_c, "power_w": power["watts"], "power_stamp": power["measured_wall"],
             "power_kind": "measured" if power["valid"] else "unknown",
-            "power_scope": c["power_scope"], "power_entity": c["power_entity"],
+            "power_scope": power["meter_scope"], "power_entity": c["power_entity"],
+            "power_complete": power["complete"], "power_reason": power["reason"],
+            "power_supply1_w": power["supplies"].get("supply1", {}).get("watts"),
+            "power_supply2_w": power["supplies"].get("supply2", {}).get("watts"),
+            "power_supply1_valid": power["supplies"].get("supply1", {}).get("valid", False),
+            "power_supply2_valid": power["supplies"].get("supply2", {}).get("valid", False),
+            "power_supply1_entity": c["power_supply1_entity"], "power_supply2_entity": c["power_supply2_entity"],
+            "compressor_running": compressor_running, "compressor_frequency_hz": frequency,
+            "compressor_stamp": self._reported_stamp(frequency_obj) if frequency is not None else None,
+            "compressor_entity": c["compressor_frequency_entity"],
+            "sg_status": sg_status, "sg_status_confirmed": sg_status != "unknown",
+            "sg_status_stamp": self._reported_stamp(sg_obj) if sg_status != "unknown" else None,
+            "sg_status_entity": c["sg_status_entity"], "sg_effect_confirmed": False,
             "zones": zones, "program": next(iter(programs)) if len(programs) == 1 else None,
             "activity": activity.state if activity else None,
-            "context": context, "status": status,
+            "context": context, "context_reliable": context_reliable, "context_stamp": context_stamp,
+            "context_signature": context_signature, "cooling_possible": cooling_possible, "status": status,
             "note": "SG vraagt zonneboost. Het normale Panasonic-doel kan ongewijzigd blijven; dit bewijst geen relaisfout."}
 
     def learning_overview(self):

@@ -1361,7 +1361,8 @@ class SolarRuntime:
             reserved.add(self.wallbox_settings.get("power_entity"))
         reserved.update(c.get("power_entity") for i, c in self.configs.items() if i != device_id)
         if self.panasonic.configured:
-            reserved.add(self.panasonic.settings.get("power_entity"))
+            reserved.update(self.panasonic.settings.get(key) for key in
+                            ("power_entity", "power_supply1_entity", "power_supply2_entity"))
         return bool(meter) and meter not in reserved
 
     def _reclaim_meter(self, device_id):
@@ -2254,7 +2255,8 @@ class SolarRuntime:
             phase_allowed=actual_phase_ok if self.sg_boost.busy else sg_start_allowed,
             priority_allowed=priority_allowed and sg_dispatch,
             grid_import_w=max(0.0, grid or 0), hard_limit=hard_limit,
-            dispatch_reason=sg_reason, tank_observation={
+            dispatch_reason=sg_reason, native_observation=tank, solar_stamp=budget.get("stamp"),
+            tank_observation={
                 "entity_id": tank["temperature_entity"], "temperature_c": tank["temperature_c"],
                 "stamp": tank["temperature_stamp"]})
         extra_reclaim = None
@@ -2538,6 +2540,8 @@ class SolarRuntime:
         from .sg_config import actuator_conflicts
         if (actuator_conflicts(self.sg_boost.settings, list(self.configs.values()))
                 or actuator_conflicts(self.sg_boost.settings, list(self.battery_fleet.configs.values()))):
+            return False
+        if self.sg_boost.cooling_block_reason(live=True):
             return False
         budget = sg_solar_budget(self)
         if (self._closed or self.mode != "solar" or self.removal_requested
