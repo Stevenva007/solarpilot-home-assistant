@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.64 — algemene SG-zonneboost en betrouwbare observatie
+
+- Voegt een lokaal bevestigd toepassingsbereik toe: uitsluitend tapwater of algemene SG-boost volgens Panasonic-bedrijf. Geen automatische algemene toestemming bij upgrade en geen wijziging van lokaal ingestelde Panasonic-SG-waarden. De aparte bevestiging van bestaande condens-/dauwpuntbeveiliging beschermt extra koeling; AUTO/onbekende context is geen bewijs van veiligheid.
+- Behoudt de tapwater-only tankafkoelregel. Het algemene profiel gebruikt geen verplichte tankmeting, maar na iedere beëindigde/onderbroken algemene sessie betekenisvol nieuw bewezen zon-/native bewijs en rust. Constante zon, dezelfde samples, tijd, timerafloop, bronverlies, netvrijgave of reload geeft geen eindeloze herstartlus. Oude tankhold-herkomst blijft privé bewaard; echte handmatige, transport- en veiligheidsblokkeringen blijven afzonderlijk beschermd.
+- Ondersteunt één bestaande bevestigde meter of twee bevestigde volledige niet-overlappende voedingen. Split totaal alleen bij beide actuele gevalideerde W/kW-bronnen; bekende deelwaarden blijven zichtbaar bij ontbrekend totaal. Geen heaterdubbeltelling of totaal als vrij te maken flexvermogen. Optionele echte compressorfrequentie en ontvangen SG-status verbeteren read-only observatie; compressorbedrijf bewijst geen SG-effect.
+- Behoudt één SG-only actuator, lokale 300 s-toestemming/60 s-vernieuwing zonder relaiscyclus, sessiebegrenzing, immutable/geneste HA-opties, overige toestelregels, geschiedenis en gebruikersvolgorde. Geen laagvermogenpulsen, reboottruc of Panasonic-writes. De oorzaak van eerdere verschillende bedrijfsmomenten blijft onbeslist.
+- Canonieke uitleg/mirrors, hulp, installatie/upgrade/rollback, overdracht en nieuw testverslag horen samen bij beta.64. Nieuwe volledige software-/Core-/CI-/pakketgates staan in `docs/TESTRESULTATEN_BETA64.md`; historische beta.63-tellers worden niet als nieuw bewijs gebruikt.
+
 ## 1.0.0-beta.63 — opstarten met echte Home Assistant-configuratie
 
 - Herstelt de beta.62-opstartfout bij Home Assistant `ConfigEntry.options`: HA levert een onveranderbare mapping; SolarPilot kopieert die nu als een gewone lokale dictionary vóór deepcopy en migratie. De migratie accepteert ook deze mapping en bewaart geneste opties in het privéarchief, zonder het originele HA-object te wijzigen.

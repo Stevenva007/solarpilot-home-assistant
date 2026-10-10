@@ -5,7 +5,7 @@ import voluptuous as vol
 from homeassistant.helpers import selector
 from homeassistant.exceptions import HomeAssistantError
 from .live_options import replacement_profile, PENDING, pending_rows
-from .sg_config import actuator_conflicts
+from .sg_config import actuator_conflicts, normalize_config as normalize_sg
 
 
 class LiveOptionsMixin:
@@ -19,6 +19,24 @@ class LiveOptionsMixin:
         # No stale browser form may reintroduce a removed Panasonic writer.
         if any(group in options for group in ("dhw", "smart_climate")):
             raise HomeAssistantError("Deze Panasonic-regeling is vervallen. Gebruik uitsluitend de SG-zonneboostkoppeling.")
+        if "sg_boost" in options:
+            current = normalize_sg(self.config_entry.options.get("sg_boost", {}))
+            candidate = normalize_sg(options["sg_boost"])
+            profile_change = (current["profile"], candidate["profile"])
+            if (profile_change[0] != profile_change[1] and
+                    getattr(self, "_sg_local_confirmed_profile", None) != profile_change):
+                # Imported/stale options cannot reuse proof of another scope.
+                candidate.update(enabled=False, profile_confirmed=False,
+                                 cooling_protection_confirmed=False)
+            old_split = (current["power_supply1_entity"], current["power_supply2_entity"])
+            new_split = (candidate["power_supply1_entity"], candidate["power_supply2_entity"])
+            if (old_split != new_split and
+                    getattr(self, "_sg_local_confirmed_split", None) != (old_split, new_split)):
+                candidate["split_power_confirmed"] = False
+            if any(candidate[key] != current[key] for key in ("activity_entity", "zone_entities", "tank_target_entity")):
+                candidate["cooling_protection_confirmed"] = False
+            options = {**options, "sg_boost": candidate}
+            self._sg_local_confirmed_profile = self._sg_local_confirmed_split = None
         if (actuator_conflicts(options.get("sg_boost", {}), options.get("devices", []))
                 or actuator_conflicts(options.get("sg_boost", {}), options.get("batteries", []))):
             raise HomeAssistantError("De SG-uitgang krijgt één eigenaar en mag niet ook een gewoon toestel zijn.")

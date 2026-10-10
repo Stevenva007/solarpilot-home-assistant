@@ -95,6 +95,8 @@ jobs:
         run: python tools/check_real_ha_startup.py --source-root "${RUNNER_TEMP}/solarpilot-beta62-fixture" --expect-mappingproxy-failure
       - name: Verify production setup, platforms, reload and unload
         run: python tools/check_real_ha_startup.py
+      - name: Verify immutable current general SG configuration and split read-only sources
+        run: python tools/check_real_ha_startup.py --current-sg-fixture
 
   publish:
     name: Publish new version

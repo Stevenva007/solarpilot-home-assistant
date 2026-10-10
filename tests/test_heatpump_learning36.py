@@ -45,12 +45,31 @@ def test_classifies_space_heating_and_cooling_from_panasonic_action(action, expe
 
 
 @pytest.mark.parametrize("action", ["heating", "preheating", "heat", "dhw", "hot_water", " HEATING "])
-def test_classifies_tapwater_before_space_action(action):
+def test_explicit_space_cooling_remains_visible_beside_tapwater_action(action):
     runtime, states = fake_runtime()
     runtime.panasonic.settings["tank_target_entity"] = "water_heater.tank"
     states.set("water_heater.tank", "heat", {"hvac_action": action})
     states.set("climate.zone_1", "auto", {"hvac_action": "cooling"})
-    assert classify_heatpump(runtime, NS(weekday=lambda: 1, time=lambda: None))[0] == CONTEXT_DHW
+    # Current SG safety must not hide reported cooling behind a tank action.
+    # Both can be reported while tank heat uses an electrical auxiliary heater;
+    # this does not prove which compressor task is physically active.
+    assert classify_heatpump(runtime, NS(weekday=lambda: 1, time=lambda: None))[0] == CONTEXT_COOLING
+    observed = runtime.panasonic.overview()
+    assert observed["context_reliable"] and observed["cooling_possible"]
+    assert observed["compressor_running"] is None
+
+
+@pytest.mark.parametrize("action", ["heating", "preheating", "heat", "dhw", "hot_water", " HEATING "])
+def test_tapwater_action_still_classifies_when_no_space_action_is_reported(action):
+    runtime, states = fake_runtime()
+    runtime.panasonic.settings["tank_target_entity"] = "water_heater.tank"
+    states.set("water_heater.tank", "heat", {"hvac_action": action})
+    states.set("climate.zone_1", "auto", {"hvac_action": "idle"})
+    assert classify_heatpump(runtime, NS())[0] == CONTEXT_DHW
+    observed = runtime.panasonic.overview()
+    assert observed["context_reliable"] and observed["compressor_running"] is None
+    # A tank action alone does not rule out an AUTO cooling programme.
+    assert observed["cooling_possible"]
 
 
 def test_stable_transitions_learn_planning_power_but_never_claim_realtime_headroom():

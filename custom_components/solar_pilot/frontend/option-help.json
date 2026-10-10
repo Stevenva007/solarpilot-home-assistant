@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.63",
+  "version": "1.0.0-beta.64",
   "language": "nl",
   "steps": {
     "init": {
@@ -515,10 +515,10 @@
       }
     },
     "comfort_hub": {
-      "title": "Warmtepomp — Panasonic-regeling",
+      "title": "Warmtepomp — Panasonic-regeling / SG-zonneboost",
       "description": "Panasonic blijft eigenaar van tankdoel, ruimtes, compressor en elektrische hulp. SolarPilot gebruikt uitsluitend één extra SG-zonneboostcontact.",
       "menu_options": {
-        "sg_boost": "Warmtepomp — Panasonic-regeling",
+        "sg_boost": "SG-zonneboost warmtepomp",
         "sg_sources": "Warmtepomp — uitleesbronnen",
         "sg_advanced": "Zonneboost — stabiliteit en lokale terugval"
       }
@@ -977,35 +977,46 @@
       }
     },
     "sg_boost": {
-      "title": "Warmtepomp — Panasonic-regeling",
-      "description": "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen dit SG-contact aanvragen en vrijgeven. Nieuwe koppeling slaat altijd uit op; bevestig daarna de lokale werking en aflooptimer. Een vermogensraming is geen meting en geen garantie voor nul netverbruik.",
+      "title": "SG-zonneboost warmtepomp",
+      "description": "Panasonic regelt zelfstandig. Kies het lokaal gecontroleerde toepassingsbereik; één contact reageert volgens het actieve Panasonic-bedrijf. Een profielwissel vraagt nieuwe lokale bevestiging. Extra koeling vereist afzonderlijk bevestigde condens-/dauwpuntbeveiliging. Nieuwe koppeling blijft uit tot lokale mapping en timer zijn getest.",
       "data": {
         "entity_id": "Bestaande Shelly-uitgang voor SG-zonneboost",
         "enabled": "Automatische zonneboost aan",
-        "commissioning_confirmed": "Juiste SG-trap en uitsluitend extra warmwateraanvraag gecontroleerd",
+        "commissioning_confirmed": "Juiste SG-trap, gekozen toepassingsbereik en externe schrijvers gecontroleerd",
         "watchdog_confirmed": "Lokale aflooptimer en verlengen zonder schakelen getest",
         "threshold_w": "Benodigd bruikbaar zonneoverschot voor starten (W)",
-        "expected_power_w": "Voorlopige raming van de extra vraag (W)"
+        "expected_power_w": "Voorlopige raming van de extra vraag (W)",
+        "profile": "Toepassingsbereik SG-zonneboost",
+        "profile_confirmed": "Toepassingsbereik lokaal bevestigd",
+        "cooling_protection_confirmed": "Bestaande condens-/dauwpuntbeveiliging voor extra koeling bevestigd"
       },
       "data_description": {
         "entity_id": "Kies de bestaande fysieke Shelly-uitgang die de SG-aanvraag bedient.",
         "enabled": "Staat standaard uit.",
-        "commissioning_confirmed": "Bevestig pas na lokale controle van de juiste SG-trap, gewenste native basisinstellingen, tankreactie en afwezigheid van onbedoelde extra ruimtevraag of dubbele automatiseringen.",
+        "commissioning_confirmed": "Bevestig pas na lokale controle van de juiste SG-trap, gewenste native basisinstellingen, gekozen toepassingsbereik en afwezigheid van dubbele automatiseringen.",
         "watchdog_confirmed": "Bevestig pas na een echte lokale proef: de Shelly opent het contact wanneer vernieuwing uitblijft, en tijdige vernieuwing verlengt de timer zonder UIT/AAN-geklapper.",
         "threshold_w": "Benodigd werkelijk bruikbaar zonneoverschot voor een nieuwe SG-aanvraag, standaard 3000 W.",
-        "expected_power_w": "Voorlopige raming van de extra SG-vraag, standaard 3200 W."
+        "expected_power_w": "Voorlopige raming van de extra SG-vraag, standaard 3200 W.",
+        "profile": "Kies het lokaal gecontroleerde toepassingsbereik: uitsluitend tapwater of algemene SG-boost volgens de actieve Panasonic-bedrijfsmodus.",
+        "profile_confirmed": "Bevestig dat het geselecteerde toepassingsbereik overeenkomt met de lokaal ingestelde SG-capaciteit.",
+        "cooling_protection_confirmed": "Bevestig alleen een geschikte bestaande condens-/dauwpuntbeveiliging voor extra koeling."
       }
     },
     "sg_sources": {
       "title": "Warmtepomp — uitleesbronnen",
-      "description": "Deze bronnen worden uitsluitend uitgelezen. Controleer de dekking van de vermogensmeter; een gedeeltelijke meting is geen totaal. De normale tankdoelweergave bevestigt geen effectief SG-doel.",
+      "description": "Alleen uitlezen. Gebruik één bevestigde totaalmeter OF twee volledige niet-overlappende voedingen; geen totaal plus deelmeter. Bevestig dekking lokaal zonder geopende elektrische apparatuur. Ontbrekende bronnen blijven onbekend. Compressorbedrijf bewijst geen SG-effect.",
       "data": {
         "tank_temperature_entity": "Werkelijke tanktemperatuur — alleen uitlezen",
         "tank_target_entity": "Native tankdoel — alleen uitlezen",
-        "power_entity": "Warmtepompvermogen (W/kW) — alleen uitlezen",
+        "power_entity": "Bestaande enkelvoudige vermogensmeter (W/kW)",
         "power_scope": "Welke voeding omvat deze vermogensmeter?",
         "activity_entity": "Werkelijke bedrijfsinformatie — alleen uitlezen",
-        "zone_entities": "Kamerthermostaten — alleen uitlezen"
+        "zone_entities": "Kamerthermostaten — alleen uitlezen",
+        "power_supply1_entity": "Deelmeter voeding 1 (W/kW) — alleen uitlezen",
+        "power_supply2_entity": "Deelmeter voeding 2 (W/kW) — alleen uitlezen",
+        "split_power_confirmed": "Twee volledige niet-overlappende voedingen lokaal bevestigd",
+        "compressor_frequency_entity": "Werkelijke compressorfrequentie (Hz) — alleen uitlezen",
+        "sg_status_entity": "Werkelijk ontvangen SG-status — alleen uitlezen"
       },
       "data_description": {
         "tank_temperature_entity": "Werkelijke tanktemperatuur uit een geschikte bron.",
@@ -1013,7 +1024,12 @@
         "power_entity": "Een fysieke W/kW-meter met expliciet aangegeven dekking.",
         "power_scope": "Selecteer wat deze fysieke meter werkelijk omvat: het gehele toestel of uitsluitend voeding 1/2.",
         "activity_entity": "Alleen-lezen fysieke bedrijfsinformatie van Panasonic.",
-        "zone_entities": "Alleen uitlezen van kamertemperaturen en native standen."
+        "zone_entities": "Alleen uitlezen van kamertemperaturen en native standen.",
+        "power_supply1_entity": "Optionele fysieke W/kW-meter voor voeding 1.",
+        "power_supply2_entity": "Optionele fysieke W/kW-meter voor voeding 2.",
+        "split_power_confirmed": "Bevestig lokaal dat beide meters samen de twee volledige voedingen meten zonder overlap.",
+        "compressor_frequency_entity": "Optionele bestaande compressorfrequentiebron in Hz; uitsluitend uitlezen.",
+        "sg_status_entity": "Optionele bestaande bron die werkelijk de ontvangen SG-status op Panasonic meldt."
       }
     },
     "sg_advanced": {
@@ -1088,7 +1104,13 @@
     "sg_duplicate": "Deze SG-uitgang is al gekoppeld als gewoon toestel; één uitgang krijgt één eigenaar.",
     "sg_pv_required": "Koppel eerst het werkelijk gemeten zonnepanelenvermogen.",
     "panasonic_read_only": "Panasonic-entiteiten zijn alleen uitleesbaar; gebruik uitsluitend de toegewezen SG-uitgang.",
-    "sg_reopen": "SG-koppeling of ingebruiknamebewijs is intussen veranderd. Controleer de nieuwe waarden en bevestig opnieuw na de lokale proef."
+    "sg_reopen": "SG-koppeling of ingebruiknamebewijs is intussen veranderd. Controleer de nieuwe waarden en bevestig opnieuw na de lokale proef.",
+    "sg_profile_review": "Het toepassingsbereik is gewijzigd. Controleer de nieuwe keuze lokaal en vink de nieuwe bevestiging bewust aan; automatische SG blijft eerst uit.",
+    "sg_split_review": "Het meterpaar is gewijzigd. Controleer opnieuw de volledige niet-overlappende dekking en bevestig deze bewust.",
+    "sg_profile_confirmation": "Bevestig eerst het geselecteerde algemene SG-toepassingsbereik lokaal.",
+    "sg_meter_overlap": "Gebruik één totaalmeter of twee afzonderlijke niet-overlappende deelmeters; geen dubbele meting.",
+    "sg_frequency_unit": "Kies een werkelijke compressorfrequentiebron in Hz.",
+    "sg_status_source": "Kies een onafhankelijke bron voor werkelijk ontvangen SG, geen relaisstand of programma-/klepstand."
   },
   "abort": {
     "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",
@@ -3759,10 +3781,10 @@
       ]
     },
     "sg_boost.commissioning_confirmed": {
-      "title": "Juiste SG-trap en uitsluitend extra warmwateraanvraag gecontroleerd",
-      "short": "Bevestig pas na lokale controle van de juiste SG-trap, gewenste native basisinstellingen, tankreactie en afwezigheid van onbedoelde extra ruimtevraag of dubbele automatiseringen.",
+      "title": "Juiste SG-trap, gekozen toepassingsbereik en externe schrijvers gecontroleerd",
+      "short": "Bevestig pas na lokale controle van de juiste SG-trap, gewenste native basisinstellingen, gekozen toepassingsbereik en afwezigheid van dubbele automatiseringen.",
       "paragraphs": [
-        "Bevestig pas na lokale controle van de juiste SG-trap, gewenste native basisinstellingen, tankreactie en afwezigheid van onbedoelde extra ruimtevraag of dubbele automatiseringen. Deze keuze is geen bewijs van een geslaagde fysieke proef door SolarPilot.",
+        "Bevestig pas na lokale controle van de juiste SG-trap, gewenste native basisinstellingen, gekozen toepassingsbereik en afwezigheid van dubbele automatiseringen. Bewust gekozen ruimteboost is geen configuratiefout. Deze keuze is geen bewijs van een geslaagde fysieke proef door SolarPilot.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -3794,6 +3816,33 @@
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
+    "sg_boost.profile": {
+      "title": "Toepassingsbereik SG-zonneboost",
+      "short": "Kies het lokaal gecontroleerde toepassingsbereik: uitsluitend tapwater of algemene SG-boost volgens de actieve Panasonic-bedrijfsmodus.",
+      "paragraphs": [
+        "Kies het lokaal gecontroleerde toepassingsbereik: uitsluitend tapwater of algemene SG-boost volgens de actieve Panasonic-bedrijfsmodus. Eén contact geeft toestemming; het kiest geen twee gelijktijdige warmtevragen. Een ander profiel vraagt nieuwe expliciete lokale bevestiging en wijzigt geen native percentages of temperaturen.",
+        "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "sg_boost.profile_confirmed": {
+      "title": "Toepassingsbereik lokaal bevestigd",
+      "short": "Bevestig dat het geselecteerde toepassingsbereik overeenkomt met de lokaal ingestelde SG-capaciteit.",
+      "paragraphs": [
+        "Bevestig dat het geselecteerde toepassingsbereik overeenkomt met de lokaal ingestelde SG-capaciteit. Bij profielwisseling verschijnt eerst een nieuwe bevestiging zonder vinkje; een oud vinkje wordt niet overgenomen. Dit is afzonderlijk van de condens-/dauwpuntbeveiliging.",
+        "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "sg_boost.cooling_protection_confirmed": {
+      "title": "Bestaande condens-/dauwpuntbeveiliging voor extra koeling bevestigd",
+      "short": "Bevestig alleen een geschikte bestaande condens-/dauwpuntbeveiliging voor extra koeling.",
+      "paragraphs": [
+        "Bevestig alleen een geschikte bestaande condens-/dauwpuntbeveiliging voor extra koeling. Een losse luchtvochtigheidssensor of vaste minimumtemperatuur bewijst geen volledige bescherming. Zonder bevestiging blokkeert algemene SG bij koelbedrijf of onzekere koelcontext; normale Panasonic-koeling en SG-instellingen blijven behouden.",
+        "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
     "sg_sources.tank_temperature_entity": {
       "title": "Werkelijke tanktemperatuur — alleen uitlezen",
       "short": "Werkelijke tanktemperatuur uit een geschikte bron.",
@@ -3813,10 +3862,10 @@
       ]
     },
     "sg_sources.power_entity": {
-      "title": "Warmtepompvermogen (W/kW) — alleen uitlezen",
+      "title": "Bestaande enkelvoudige vermogensmeter (W/kW)",
       "short": "Een fysieke W/kW-meter met expliciet aangegeven dekking.",
       "paragraphs": [
-        "Een fysieke W/kW-meter met expliciet aangegeven dekking. Het totale toestelvermogen is geen gegarandeerd terugwinbaar SG-vermogen: normaal comfort kan na vrijgeven doorgaan.",
+        "Een fysieke W/kW-meter met expliciet aangegeven dekking. Het totale toestelvermogen is geen gegarandeerd terugwinbaar SG-vermogen: normaal comfort kan na vrijgeven doorgaan. Gebruik één bevestigde totaalmeter of de twee deelmeters hieronder; geen totaalmeter plus nogmaals een inbegrepen voeding.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -3844,6 +3893,51 @@
       "short": "Alleen uitlezen van kamertemperaturen en native standen.",
       "paragraphs": [
         "Alleen uitlezen van kamertemperaturen en native standen. Panasonic blijft eigenaar; SolarPilot schakelt deze thermostaten niet tussen AUTO en UIT.",
+        "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "sg_sources.power_supply1_entity": {
+      "title": "Deelmeter voeding 1 (W/kW) — alleen uitlezen",
+      "short": "Optionele fysieke W/kW-meter voor voeding 1.",
+      "paragraphs": [
+        "Optionele fysieke W/kW-meter voor voeding 1. Deze voeding kan naast de compressor ook andere onderdelen omvatten. Gebruik samen met voeding 2 alleen na bevestiging van volledige niet-overlappende dekking.",
+        "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "sg_sources.power_supply2_entity": {
+      "title": "Deelmeter voeding 2 (W/kW) — alleen uitlezen",
+      "short": "Optionele fysieke W/kW-meter voor voeding 2.",
+      "paragraphs": [
+        "Optionele fysieke W/kW-meter voor voeding 2. Noem deze alleen heaterverbruik als die dekking lokaal is bevestigd. Gemeten 0 W is nul; een ontbrekende of verouderde bron blijft onbekend en maakt de som onvolledig.",
+        "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "sg_sources.split_power_confirmed": {
+      "title": "Twee volledige niet-overlappende voedingen lokaal bevestigd",
+      "short": "Bevestig lokaal dat beide meters samen de twee volledige voedingen meten zonder overlap.",
+      "paragraphs": [
+        "Bevestig lokaal dat beide meters samen de twee volledige voedingen meten zonder overlap. Namen bewijzen die dekking niet. Gelijke of inspecteerbaar overlappende bronnen worden geweigerd. Een gewijzigd meterpaar vraagt nieuwe bevestiging; de bestaande totale meting wordt nooit dubbel opgeteld.",
+        "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "sg_sources.compressor_frequency_entity": {
+      "title": "Werkelijke compressorfrequentie (Hz) — alleen uitlezen",
+      "short": "Optionele bestaande compressorfrequentiebron in Hz; uitsluitend uitlezen.",
+      "paragraphs": [
+        "Optionele bestaande compressorfrequentiebron in Hz; uitsluitend uitlezen. Een handmatig bekeken waarde wordt geen sensor. Actuele frequentie kan compressorbedrijf bevestigen, geen effect van SG.",
+        "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "sg_sources.sg_status_entity": {
+      "title": "Werkelijk ontvangen SG-status — alleen uitlezen",
+      "short": "Optionele bestaande bron die werkelijk de ontvangen SG-status op Panasonic meldt.",
+      "paragraphs": [
+        "Optionele bestaande bron die werkelijk de ontvangen SG-status op Panasonic meldt. Relaisstand, programma WATER, stijgende temperatuur of compressorbedrijf zijn daarvoor geen vervanging. Zonder geschikte actuele bron blijft ontvangen SG onbekend; extra verbruik door SG is niet afzonderlijk bewezen.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -3879,7 +3973,7 @@
       "title": "Rusttijd na een boost (s)",
       "short": "Na een boost volgt standaard 900 seconden rust.",
       "paragraphs": [
-        "Na een boost volgt standaard 900 seconden rust. Na een gewone vrijgave kunnen verse geldige metingen weer een aanvraag toelaten. Na de maximale sessieduur is bovendien een betrouwbare afkoeling van dezelfde tank ten opzichte van de verse eindmeting nodig. Rusttijd of herstart alleen reset die grens niet.",
+        "Na een boost volgt standaard 900 seconden rust. Daarna blijven de profielregels leidend. Tapwater-only behoudt de bewezen tankafkoelregel. Algemene SG beoordeelt verse zonnevoorwaarden en betrouwbare native context; elke beëindigde of onderbroken algemene sessie vraagt een betekenisvolle nieuwe aanleiding, ook bij onbekende opname. Rusttijd, dezelfde samples opnieuw lezen of herstart alleen reset die grens niet.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -3888,7 +3982,7 @@
       "title": "Maximale boostsessie (s)",
       "short": "Een SG-aanvraag duurt maximaal 3600 seconden per sessie.",
       "paragraphs": [
-        "Een SG-aanvraag duurt maximaal 3600 seconden per sessie. Bij afloop wordt alleen het contact vrijgegeven; Panasonic kan een eigen cyclus laten doorlopen. Na rust kan dezelfde tankbron een nieuwe beoordeling toestaan bij minstens 2 °C afkoeling ten opzichte van haar verse eindmeting, bevestigd door minimaal twee latere echte rapporten gedurende vijf minuten. Dit toont nieuwe opslagruimte, geen comfortvraag of bewezen eerdere SG-reactie. Daarna gelden de volledige startvertraging en alle actuele grenzen opnieuw. Herstart vraagt een nieuwe vijfminutenbevestiging met echte nieuwe rapporten. Ontbrekende eindmeting, gewijzigde bron of onbetrouwbare data houden de sessie vast; bewust Automatisering hervatten blijft mogelijk na controle. Herstart of rusttijd alleen heft dit niet op.",
+        "Een SG-aanvraag duurt maximaal 3600 seconden per sessie. Bij afloop wordt alleen het contact vrijgegeven; Panasonic kan een eigen cyclus laten doorlopen. Voor tapwater-only kan na rust dezelfde tankbron een nieuwe beoordeling toestaan bij minstens 2 °C afkoeling ten opzichte van haar verse eindmeting, bevestigd door minimaal twee latere echte rapporten gedurende vijf minuten. Dit toont nieuwe opslagruimte, geen comfortvraag of bewezen eerdere SG-reactie. Daarna gelden de volledige startvertraging en alle actuele grenzen opnieuw. Herstart vraagt een nieuwe vijfminutenbevestiging met echte nieuwe rapporten. Bij algemene SG is tankafkoeling geen universele voorwaarde: beschikbare native context en een betekenisvolle nieuwe aanleiding bepalen herbeoordeling. De sessielimiet en onbekende opname betekenen geen bewezen volle tank. Geen eindeloze herstartlus; herstart of rusttijd alleen is geen nieuw bewijs.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]

@@ -868,9 +868,22 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
  'sg_boost:enabled': 'Staat standaard uit. Aan staat uitsluitend extra SG-zonneboost toe in Automatisch '
                      'regelen, na bevestigde ingebruikname, werkende lokale aflooptimer en actuele bronnen. '
                      'Panasonic blijft zelfstandig comfort en beveiligingen regelen.',
+ 'sg_boost:profile': 'Kies het lokaal gecontroleerde toepassingsbereik: uitsluitend tapwater of algemene '
+                     'SG-boost volgens de actieve Panasonic-bedrijfsmodus. Eén contact geeft toestemming; '
+                     'het kiest geen twee gelijktijdige warmtevragen. Een ander profiel vraagt nieuwe '
+                     'expliciete lokale bevestiging en wijzigt geen native percentages of temperaturen.',
+ 'sg_boost:profile_confirmed': 'Bevestig dat het geselecteerde toepassingsbereik overeenkomt met de lokaal '
+                               'ingestelde SG-capaciteit. Bij profielwisseling verschijnt eerst een '
+                               'nieuwe bevestiging zonder vinkje; een oud vinkje wordt niet overgenomen. '
+                               'Dit is afzonderlijk van de condens-/dauwpuntbeveiliging.',
+ 'sg_boost:cooling_protection_confirmed': 'Bevestig alleen een geschikte bestaande condens-/dauwpuntbeveiliging '
+                                          'voor extra koeling. Een losse luchtvochtigheidssensor of vaste '
+                                          'minimumtemperatuur bewijst geen volledige bescherming. Zonder '
+                                          'bevestiging blokkeert algemene SG bij koelbedrijf of onzekere '
+                                          'koelcontext; normale Panasonic-koeling en SG-instellingen blijven behouden.',
  'sg_boost:commissioning_confirmed': 'Bevestig pas na lokale controle van de juiste SG-trap, gewenste native '
-                                     'basisinstellingen, tankreactie en afwezigheid van onbedoelde extra '
-                                     'ruimtevraag of dubbele automatiseringen. Deze keuze is geen bewijs van '
+                                     'basisinstellingen, gekozen toepassingsbereik en afwezigheid van dubbele '
+                                     'automatiseringen. Bewust gekozen ruimteboost is geen configuratiefout. Deze keuze is geen bewijs van '
                                      'een geslaagde fysieke proef door SolarPilot.',
  'sg_boost:watchdog_confirmed': 'Bevestig pas na een echte lokale proef: de Shelly opent het contact wanneer '
                                 'vernieuwing uitblijft, en tijdige vernieuwing verlengt de timer zonder '
@@ -899,7 +912,25 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                                'statussen.',
  'sg_sources:power_entity': 'Een fysieke W/kW-meter met expliciet aangegeven dekking. Het totale '
                             'toestelvermogen is geen gegarandeerd terugwinbaar SG-vermogen: normaal comfort '
-                            'kan na vrijgeven doorgaan.',
+                            'kan na vrijgeven doorgaan. Gebruik één bevestigde totaalmeter of de twee '
+                            'deelmeters hieronder; geen totaalmeter plus nogmaals een inbegrepen voeding.',
+ 'sg_sources:power_supply1_entity': 'Optionele fysieke W/kW-meter voor voeding 1. Deze voeding kan naast de '
+                                    'compressor ook andere onderdelen omvatten. Gebruik samen met voeding 2 '
+                                    'alleen na bevestiging van volledige niet-overlappende dekking.',
+ 'sg_sources:power_supply2_entity': 'Optionele fysieke W/kW-meter voor voeding 2. Noem deze alleen heaterverbruik '
+                                    'als die dekking lokaal is bevestigd. Gemeten 0 W is nul; een ontbrekende '
+                                    'of verouderde bron blijft onbekend en maakt de som onvolledig.',
+ 'sg_sources:split_power_confirmed': 'Bevestig lokaal dat beide meters samen de twee volledige voedingen meten '
+                                     'zonder overlap. Namen bewijzen die dekking niet. Gelijke of inspecteerbaar '
+                                     'overlappende bronnen worden geweigerd. Een gewijzigd meterpaar vraagt '
+                                     'nieuwe bevestiging; de bestaande totale meting wordt nooit dubbel opgeteld.',
+ 'sg_sources:compressor_frequency_entity': 'Optionele bestaande compressorfrequentiebron in Hz; uitsluitend '
+                                            'uitlezen. Een handmatig bekeken waarde wordt geen sensor. Actuele '
+                                            'frequentie kan compressorbedrijf bevestigen, geen effect van SG.',
+ 'sg_sources:sg_status_entity': 'Optionele bestaande bron die werkelijk de ontvangen SG-status op Panasonic '
+                               'meldt. Relaisstand, programma WATER, stijgende temperatuur of compressorbedrijf '
+                               'zijn daarvoor geen vervanging. Zonder geschikte actuele bron blijft ontvangen '
+                               'SG onbekend; extra verbruik door SG is niet afzonderlijk bewezen.',
  'sg_advanced:lease_s': 'Korte lokaal aflopende toestemming, standaard 300 seconden. Zonder tijdige '
                         'vernieuwing opent het contact ook wanneer Home Assistant uitvalt. Dit is afzonderlijk '
                         'van de langere boostsessie.',
@@ -917,20 +948,24 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                              'tijdens een geldige boost niet als resterende injectie aanwezig te blijven: het '
                              'toegelaten zonnevermogen wordt dan gebruikt. Deze buffer is geen extra zon, geen '
                              'gegarandeerd nulimport en geen ruimte voorbij een harde limiet.',
- 'sg_advanced:rest_s': 'Na een boost volgt standaard 900 seconden rust. Na een gewone vrijgave kunnen verse '
-                       'geldige metingen weer een aanvraag toelaten. Na de maximale sessieduur is bovendien '
-                       'een betrouwbare afkoeling van dezelfde tank ten opzichte van de verse eindmeting '
-                       'nodig. Rusttijd of herstart alleen reset die grens niet.',
+ 'sg_advanced:rest_s': 'Na een boost volgt standaard 900 seconden rust. Daarna blijven de profielregels '
+                       'leidend. Tapwater-only behoudt de bewezen '
+                       'tankafkoelregel. Algemene SG beoordeelt verse zonnevoorwaarden en betrouwbare native '
+                       'context; elke beëindigde of onderbroken algemene sessie vraagt een betekenisvolle '
+                       'nieuwe aanleiding, ook bij onbekende opname. '
+                       'Rusttijd, dezelfde samples opnieuw lezen of herstart alleen reset die grens niet.',
  'sg_advanced:max_session_s': 'Een SG-aanvraag duurt maximaal 3600 seconden per sessie. Bij afloop wordt '
                               'alleen het contact vrijgegeven; Panasonic kan een eigen cyclus laten doorlopen. '
-                              'Na rust kan dezelfde tankbron een nieuwe beoordeling toestaan bij minstens '
+                              'Voor tapwater-only kan na rust dezelfde tankbron een nieuwe beoordeling toestaan bij minstens '
                               '2 °C afkoeling ten opzichte van haar verse eindmeting, bevestigd door minimaal '
                               'twee latere echte rapporten gedurende vijf minuten. Dit toont nieuwe opslagruimte, '
                               'geen comfortvraag of bewezen eerdere SG-reactie. Daarna gelden de volledige '
                               'startvertraging en alle actuele grenzen opnieuw. Herstart vraagt een nieuwe '
-                              'vijfminutenbevestiging met echte nieuwe rapporten. Ontbrekende eindmeting, gewijzigde '
-                              'bron of onbetrouwbare data houden de sessie vast; bewust Automatisering hervatten '
-                              'blijft mogelijk na controle. Herstart of rusttijd alleen heft dit niet op.',
+                              'vijfminutenbevestiging met echte nieuwe rapporten. Bij algemene SG is tankafkoeling '
+                              'geen universele voorwaarde: beschikbare native context en een betekenisvolle '
+                              'nieuwe aanleiding bepalen herbeoordeling. De sessielimiet en onbekende opname '
+                              'betekenen geen bewezen volle tank. Geen eindeloze herstartlus; herstart of '
+                              'rusttijd alleen is geen nieuw bewijs.',
  'sg_advanced:ack_timeout_s': 'Korte begrensde wachttijd voor fysieke relaisterugmelding, standaard 20 '
                               'seconden. Een geslaagde servicecall of ongewijzigd tankdoel geldt niet als '
                               'relaisbevestiging.',

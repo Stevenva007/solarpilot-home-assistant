@@ -266,6 +266,7 @@ class PriorityBoard:
                 and not actuator_conflicts(c, list(r.configs.values()))
                 and not actuator_conflicts(c, list(r.battery_fleet.configs.values()))
                 and not r.sg_boost.manual_hold and not r.sg_boost.completion_hold
+                and not r.sg_boost.cooling_block_reason(live=True)
                 and not r.battery_fleet.busy
                 and not r.sg_boost.busy and not r.sg_boost.overview().get("action_required")
                 and not r.pending and not r.handover and not r.restart_blocking and not r.faults)

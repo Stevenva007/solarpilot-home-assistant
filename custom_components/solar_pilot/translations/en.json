@@ -361,10 +361,10 @@
         }
       },
       "comfort_hub": {
-        "title": "Heat pump — Panasonic control",
+        "title": "Heat pump — Panasonic control / SG solar boost",
         "description": "Panasonic owns the tank target, zones, compressor and electric support. SolarPilot uses one optional SG solar boost contact only.",
         "menu_options": {
-          "sg_boost": "Heat pump — Panasonic control",
+          "sg_boost": "Heat-pump SG solar boost",
           "sg_sources": "Heat pump — read-only sources",
           "sg_advanced": "Solar boost — stability and local fallback"
         }
@@ -654,27 +654,35 @@
         }
       },
       "sg_boost": {
-        "title": "Heat pump — Panasonic control",
-        "description": "Panasonic owns comfort and protection. SolarPilot may only request and release this SG contact. A new binding is saved disabled; confirm the local mapping and expiry timer afterwards. A power estimate is not a measurement or a zero-import guarantee.",
+        "title": "Heat-pump SG solar boost",
+        "description": "Panasonic controls itself. Choose the locally checked scope; one contact responds according to the active Panasonic operation. A scope change requires fresh local confirmation. Additional cooling requires separately confirmed condensation/dew-point protection. A new binding remains disabled until local mapping and timer checks.",
         "data": {
           "entity_id": "Existing Shelly output for SG solar boost",
           "enabled": "Automatic solar boost enabled",
-          "commissioning_confirmed": "Correct SG stage and extra hot-water-only request checked",
+          "commissioning_confirmed": "Correct SG stage, selected scope and external writers checked",
           "watchdog_confirmed": "Local expiry timer and renewal without switching tested",
           "threshold_w": "Usable solar surplus required to start (W)",
-          "expected_power_w": "Provisional additional demand estimate (W)"
+          "expected_power_w": "Provisional additional demand estimate (W)",
+          "profile": "SG solar-boost scope",
+          "profile_confirmed": "Scope confirmed locally",
+          "cooling_protection_confirmed": "Existing condensation/dew-point protection for additional cooling confirmed"
         }
       },
       "sg_sources": {
         "title": "Heat pump — read-only sources",
-        "description": "These sources are read-only. Verify meter coverage; a partial measurement is not total power. An unchanged normal tank target does not confirm the effective SG target.",
+        "description": "Read only. Use one confirmed total meter OR two complete non-overlapping supplies; never total plus part. Confirm coverage locally without opening electrical equipment. Missing sources remain unknown. Compressor operation does not prove an SG effect.",
         "data": {
           "tank_temperature_entity": "Actual tank temperature — read only",
           "tank_target_entity": "Native tank target — read only",
-          "power_entity": "Heat-pump power (W/kW) — read only",
+          "power_entity": "Existing single power meter (W/kW)",
           "power_scope": "Which supply does this meter cover?",
           "activity_entity": "Actual operating information — read only",
-          "zone_entities": "Room thermostats — read only"
+          "zone_entities": "Room thermostats — read only",
+          "power_supply1_entity": "Supply 1 partial meter (W/kW) — read only",
+          "power_supply2_entity": "Supply 2 partial meter (W/kW) — read only",
+          "split_power_confirmed": "Two complete non-overlapping supplies confirmed locally",
+          "compressor_frequency_entity": "Actual compressor frequency (Hz) — read only",
+          "sg_status_entity": "Actual received SG status — read only"
         }
       },
       "sg_advanced": {
@@ -737,7 +745,13 @@
       "sg_duplicate": "This SG output is already linked as an ordinary load; one output has one owner.",
       "sg_pv_required": "First link measured solar production.",
       "panasonic_read_only": "Panasonic entities are read-only; use the assigned SG output only.",
-      "sg_reopen": "The SG binding or commissioning proof changed while this form was open. Review the current values and confirm again after the local test."
+      "sg_reopen": "The SG binding or commissioning proof changed while this form was open. Review the current values and confirm again after the local test.",
+      "sg_profile_review": "The scope changed. Check the new selection locally and explicitly tick the fresh confirmation; automatic SG initially remains disabled.",
+      "sg_split_review": "The meter pair changed. Recheck complete non-overlapping coverage and confirm explicitly.",
+      "sg_profile_confirmation": "First confirm the selected general SG scope locally.",
+      "sg_meter_overlap": "Use one total meter or two separate non-overlapping partial meters; no double counting.",
+      "sg_frequency_unit": "Choose an actual compressor frequency source in Hz.",
+      "sg_status_source": "Choose an independent source for actual received SG, not relay feedback or program/valve state."
     },
     "abort": {
       "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",

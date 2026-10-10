@@ -1,38 +1,34 @@
-# SolarPilot beta.63 — installatie en upgrade
+# SolarPilot beta.64 — installatie en upgrade
 
-Panasonic regelt zelfstandig de warmtepomp. SolarPilot kan alleen een gecontroleerde extra zonneboost via één SG-contact aanvragen. De oude tank-/klimaatbediening is verwijderd. Andere bestaande apparaatfuncties en privédata blijven behouden.
+Panasonic blijft zelfstandig regelen. SolarPilot geeft één rustige, begrensde SG-zonneboost warmtepomp volgens het expliciet lokaal bevestigde toepassingsbereik. De algemene keuze en aparte koelbeveiliging worden niet automatisch bevestigd door een upgrade. Bestaande andere apparaten en privégegevens blijven behouden.
 
-**Begin met [BETA63_INSTELLEN.md](docs/BETA63_INSTELLEN.md).** Daar staan back-up, migratie, lokale ingebruikname en rollback. De volledige actuele werking staat in [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en identiek binnen Home Assistant onder **SolarPilot → Uitleg**. Test-/publicatiestatus: [TESTRESULTATEN_BETA63.md](docs/TESTRESULTATEN_BETA63.md).
+**Begin met [BETA64_INSTELLEN.md](docs/BETA64_INSTELLEN.md).** Daar staan back-up, lokale profiel-/meter-/koelbeveiligingscontrole, korte acceptatie en rollback. De volledige actuele werking staat in [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en **SolarPilot → Uitleg**. Nieuwe software-/publicatiestatus: [TESTRESULTATEN_BETA64.md](docs/TESTRESULTATEN_BETA64.md).
 
-## Herstellen na een mislukte beta.62-start
+## Installeren en behouden
 
-Installeer beta.63 en herstart Home Assistant volledig. Wis geen gegevens en verwijder de bestaande SolarPilot-integratie niet. De fout bij het lezen van onveranderbare HA-opties is hersteld; geldige opgeslagen instellingen worden meegenomen. SG krijgt hierdoor geen extra toestemming.
+1. Maak vóór upgrade een volledige privé HA-back-up, inclusief configuratie, SolarPilot-opslag, modellen en userfiles. Bewaar beta.63-code samen met de passende back-up.
+2. Controleer de eigen SG-aanvraag/contactstand en geef de aanvraag vrij vóór programmavervanging. Behoud een draaiende beschermde afwascyclus; maak geen nieuw APP-ticket als updateproef.
+3. Installeer via HACS exact `1.0.0-beta.64` zodra gepubliceerd, herstart HA volledig en heropen browser/app. Controleer backend- en kaartversie afzonderlijk.
+4. Bij lokale installatie vervang je uitsluitend `custom_components/solar_pilot`; bewaar userfiles en HA-opslag. Verwijder/herschep de bestaande entry niet.
 
-## Voor de upgrade
+Eerste installatie: voeg de GitHub-repository toe aan HACS als **Integration**, voeg SolarPilot toe onder **Instellingen → Apparaten & diensten** en controleer P1/PV eerst in **Alleen bekijken**. De frontend wordt automatisch geregistreerd. Er is geen aparte Lovelace-resource, dashboard-YAML of www-kopie nodig.
 
-1. Maak een volledige privé Home Assistant-back-up, inclusief SolarPilot-configuratie, opslag en userfiles.
-2. Bewaar de gecontroleerde beta.61-release als codebasis voor rollback, samen met die passende back-up.
-3. Controleer de gewenste native Panasonic-tank-/zone-/programma-instellingen; de nieuwe runtime schrijft niets terug.
-4. Laat automatische SG uit tot de juiste bestaande uitgang, contactmapping, native reactie, één eigenaar en lokale aflooptimer werkelijk zijn bevestigd.
+Beta.64 behoudt de beta.63-fix voor onveranderbare en geneste HA-opties. Een update herstelt geen toestemming door gegevens te wissen. Bestaande geldige single-meterconfig, prioriteiten, APP-tickets, geschiedenis, modellen, bewaartermijnen en de globale hervatvoorkeur blijven behouden.
 
-Een lopende beschermde afwascyclus wordt niet onderbroken en de update maakt geen nieuwe APP-aanvraag. De globale keuze **Na herstart automatisch hervatten** blijft behouden; zij bevestigt geen SG-ingebruikname.
+## Lokaal bevestigen
 
-## Installeren
+Kies **Uitsluitend tapwater** of **Algemene SG-boost volgens Panasonic-bedrijf**. Bevestig het gekozen bereik bewust; SolarPilot wijzigt Panasonic-percentages/temperaturen niet. Voor extra koeling is geschikte bestaande condens-/dauwpuntbeveiliging een afzonderlijke controle. AUTO of onbekende context bewijst geen veilige extra koeling.
 
-Voeg bij eerste gebruik de GitHub-repository aan HACS toe als **Integration**, installeer exact `1.0.0-beta.63` zodra gepubliceerd en herstart Home Assistant. Heropen browser/app en controleer backend- en kaartversie afzonderlijk. Voeg bij een nieuwe installatie SolarPilot toe via **Instellingen → Apparaten & diensten** en controleer P1/PV eerst met **Alleen bekijken**.
+Koppel één echte bevestigde meter of twee volledige niet-overlappende voedingen. Split totaal bestaat alleen bij twee actuele geldige deelwaarden; bekende nul blijft nul en een ontbrekend deel geeft geen verzonnen totaal. Optionele echte compressorfrequentie en ontvangen SG-status helpen observatie. Compressorbedrijf bewijst geen SG-veroorzaakt extra verbruik.
 
-De frontend verschijnt automatisch. Er is geen aparte Lovelace-resource, dashboard-YAML of www-kopie nodig. Lokale installatie vervangt alleen `custom_components/solar_pilot`; bewaar userfiles en eigen HA-opslag.
+Eén compact blok onderscheidt aanvraag/eigenaar/reden, Shelly-stand/lokale timer, native bedrijf, metingen en ontvangen SG-status. De lokale timer blijft standaard 300 s, vernieuwd iedere 60 s zonder fysieke UIT/AAN-cyclus. Herstart, rust of langdurig laag vermogen geeft geen pulstruc, Force-opdracht of automatische nieuwe toestemming.
 
-## Na laden
+Een sessie duurt standaard maximaal één uur. Tapwater-only behoudt de tankafkoelregel. Algemeen gebruikt na iedere beëindigde/onderbroken sessie rust en aantoonbaar nieuw zon-/native bewijs; een warme of ontbrekende tank is niet zelfstandig een permanente blokkering. Constante zon of dezelfde samples geeft geen eindeloze herstartlus. De volledige startvertraging en actuele guards blijven gelden.
 
-De versiegebonden migratie archiveert oude uitvoerings-/modelinformatie zonder fysieke opdrachten. SG start standaard niet. **Warmtepomp — Panasonic-regeling** toont één reden, tanktemperatuur en bekende watts/dekking. Uitklapbare Details onderscheidt aanvraag, SG-contact en Panasonic-reactie; onbekend blijft onbekend.
-
-Configureer de bestaande uitgang en metingen onder de warmtepompinstellingen. Zonder echte lokale timerproef blijft automatisch SG geblokkeerd; de rest van SolarPilot kan onder haar eigen voorwaarden werken. Proefdraaien in de woning gebeurt uitsluitend na expliciete toestemming. De korte ingebruiknamecontrole vereist geen meting in geopende elektrische apparatuur.
-
-Een SG-sessie duurt standaard maximaal één uur. Na rust kan betrouwbare tankafkoeling ten opzichte van de verse eindmeting een nieuwe zonbeoordeling toestaan. Zonder bruikbaar bewijs blijft zij wachten; bewust **Automatisering hervatten** is mogelijk na controle. Rusttijd of een herstart alleen heft de sessiegrens niet op.
-
-Gerichte resterende controlefouten verschijnen ook onder **Home Assistant → Meldingen → SolarPilot: controle nodig**. Een gewone wachttijd/rusttijd is geen fout. Oude boilercontrole-/AUTO-knoppen horen bij eerdere versies en bestaan hier niet meer.
+De korte lokale controle opent geen elektrische apparatuur. Fysieke SG-/timerproef en natuurlijke automatische sessie worden uitsluitend na expliciete toestemming uitgevoerd. Zonder echte mapping-/timer-/profielbevestiging blijft automatische SG geblokkeerd; gezonde andere apparaten houden hun eigen voorwaarden. De historische stilstandoorzaak blijft onbeslist.
 
 ## Rollback
 
-Geef eerst de eigen SG-aanvraag vrij en bevestig het geopende contact/lokale terugval. Stop de nieuwe SG-runtime voordat beta.61-writers terugkomen. Herstel beta.61-code én de volledige passende privéback-up van vóór migratie. Een oudere ZIP alleen herstelt de opslag niet. Laat nooit de oude Panasonic-regelaar en nieuwe SG-regelaar tegelijk werken.
+Geef eerst de eigen SG-aanvraag vrij en controleer contactstand/lokale afloop. Stop de nieuwe runtime voordat beta.63 terugkomt. Herstel beta.63-code én de volledige passende privéback-up van vóór deze upgrade; een oude ZIP alleen herstelt nieuwe schema-/bewijsvelden niet exact. Laat nooit twee versies tegelijk het contact beheren.
+
+Voor terugkeer naar de oude directe beta.61-regeling blijft de volledige passende back-up van vóór beta.62-migratie noodzakelijk. Privé herkomstarchief is geen complete HA-restore en doet geen fysieke replay. Zie de releasehandleiding voor de volledige procedure.

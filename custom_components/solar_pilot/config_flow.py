@@ -619,13 +619,42 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
     async def _sg_save_form(self, step_id, user_input, schema, *, cleared=()):
         if user_input is None:
             self._refresh_sg_base()
+            self._sg_profile_review = None
+            self._sg_split_review = None
         current = self._sg_values()
         candidate = {**current, **{k: deepcopy(SG_DEFAULTS[k]) for k in cleared}, **(user_input or {})}
         # Changing a physical endpoint invalidates commissioning proof even if
         # an old browser form retains both checked boxes.
         if user_input is not None and candidate["entity_id"] != current["entity_id"]:
-            candidate.update(enabled=False, commissioning_confirmed=False, watchdog_confirmed=False)
+            candidate.update(enabled=False, commissioning_confirmed=False, watchdog_confirmed=False,
+                             profile_confirmed=False, cooling_protection_confirmed=False)
         errors = self._sg_errors(candidate) if user_input is not None else {}
+        # A checkbox carried over from the old scope is not local confirmation
+        # of a new one. First show the proposed scope with fresh unchecked
+        # proof; only the next explicit submission can confirm it.
+        if user_input is not None and candidate["profile"] != current["profile"]:
+            review = (current["profile"], candidate["profile"])
+            if getattr(self, "_sg_profile_review", None) != review:
+                self._sg_profile_review = review
+                candidate.update(enabled=False, profile_confirmed=False,
+                                 cooling_protection_confirmed=False)
+                errors["profile_confirmed"] = "sg_profile_review"
+            elif user_input.get("profile_confirmed") is not True:
+                candidate.update(enabled=False, profile_confirmed=False)
+                errors["profile_confirmed"] = "sg_profile_review"
+        if user_input is not None and step_id == "sg_sources":
+            if any(candidate[key] != current[key] for key in ("activity_entity", "zone_entities", "tank_target_entity")):
+                # A new read-only operating source can change the cooling
+                # context. Retain no old local cooling proof by implication.
+                candidate["cooling_protection_confirmed"] = user_input.get("cooling_protection_confirmed") is True
+            old_split = (current["power_supply1_entity"], current["power_supply2_entity"])
+            new_split = (candidate["power_supply1_entity"], candidate["power_supply2_entity"])
+            review = (old_split, new_split)
+            if old_split != new_split and getattr(self, "_sg_split_review", None) != review:
+                self._sg_split_review = review
+                candidate["split_power_confirmed"] = False
+                if user_input.get("split_power_confirmed") is True or current["split_power_confirmed"] is True:
+                    errors["split_power_confirmed"] = "sg_split_review"
         entry = getattr(self, "config_entry", None)
         if user_input is not None and entry is not None and normalize_sg(entry.options.get("sg_boost", {})) != current:
             # A firmware/device change may revoke both checked proofs while
@@ -633,10 +662,18 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
             # stale checked boxes as a new commissioning decision.
             self._refresh_sg_base()
             candidate = self._sg_values()
+            self._sg_profile_review = None
+            self._sg_split_review = None
             errors = {"base": "sg_reopen"}
         if user_input is not None and not errors:
             opts = deepcopy(dict(self._base_options()))
             opts["sg_boost"] = normalize_sg(candidate)
+            self._sg_local_confirmed_profile = ((current["profile"], candidate["profile"])
+                if candidate["profile"] != current["profile"] and user_input.get("profile_confirmed") is True else None)
+            old_split = (current["power_supply1_entity"], current["power_supply2_entity"])
+            new_split = (candidate["power_supply1_entity"], candidate["power_supply2_entity"])
+            self._sg_local_confirmed_split = ((old_split, new_split)
+                if old_split != new_split and user_input.get("split_power_confirmed") is True else None)
             return await self._save(opts)
         return self.async_show_form(step_id=step_id, data_schema=vol.Schema(schema(candidate)), errors=errors)
 
@@ -644,6 +681,11 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
         def schema(c):
             return {
                 optional("entity_id", c): entity(["switch"]),
+                vol.Required("profile", default=c["profile"]): selector.SelectSelector({"options": [
+                    {"value": "dhw_only", "label": "Uitsluitend tapwater"},
+                    {"value": "general", "label": "Algemene SG-boost volgens Panasonic-bedrijf"}]}),
+                vol.Required("profile_confirmed", default=c["profile_confirmed"]): selector.BooleanSelector(),
+                vol.Required("cooling_protection_confirmed", default=c["cooling_protection_confirmed"]): selector.BooleanSelector(),
                 vol.Required("enabled", default=c["enabled"]): selector.BooleanSelector(),
                 vol.Required("commissioning_confirmed", default=c["commissioning_confirmed"]): selector.BooleanSelector(),
                 vol.Required("watchdog_confirmed", default=c["watchdog_confirmed"]): selector.BooleanSelector(),
@@ -663,11 +705,18 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
                     {"value": "total", "label": "Hele warmtepomp inclusief elektrische hulp"},
                     {"value": "supply1", "label": "Alleen voeding 1 — gedeeltelijke meting"},
                     {"value": "supply2", "label": "Alleen voeding 2 — gedeeltelijke meting"}]}),
+                optional("power_supply1_entity", c): entity(["sensor"]),
+                optional("power_supply2_entity", c): entity(["sensor"]),
+                vol.Required("split_power_confirmed", default=c["split_power_confirmed"]): selector.BooleanSelector(),
                 optional("activity_entity", c): entity(["sensor", "binary_sensor"]),
+                optional("compressor_frequency_entity", c): entity(["sensor"]),
+                optional("sg_status_entity", c): entity(["sensor", "binary_sensor"]),
                 vol.Optional("zone_entities", default=c["zone_entities"]): selector.EntitySelector({"domain": ["climate"], "multiple": True}),
             }
         return await self._sg_save_form("sg_sources", user_input, schema,
-            cleared=("tank_temperature_entity", "tank_target_entity", "power_entity", "activity_entity", "zone_entities") if user_input is not None else ())
+            cleared=("tank_temperature_entity", "tank_target_entity", "power_entity", "power_supply1_entity",
+                     "power_supply2_entity", "activity_entity", "compressor_frequency_entity",
+                     "sg_status_entity", "zone_entities") if user_input is not None else ())
 
     async def async_step_sg_advanced(self, user_input=None):
         def schema(c):

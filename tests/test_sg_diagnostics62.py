@@ -32,7 +32,8 @@ async def test_diagnostics_keep_power_scope_and_proof_flags_without_private_deta
     result = await async_get_config_entry_diagnostics(hass, runtime.entry)
     assert overview_calls == [1]
     assert result['panasonic'] == {'configured': True, 'read_only': True,
-                                  'power_scope': scope, 'power_meter': True, 'zone_count': 2}
+                                  'power_scope': scope, 'power_meter': True, 'zone_count': 2,
+                                  'split_power_meters': False, 'split_power_confirmed': False}
     assert result['sg_boost']['action_required'] is True
     assert result['sg_boost']['relay_on'] is None
     assert not result['sg_boost']['watchdog_confirmed']
