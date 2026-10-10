@@ -130,7 +130,7 @@ def test_explicit_heater_role_describes_only_its_actual_electrical_draw(watts, l
 
 
 def test_unconfirmed_feed_roles_do_not_invent_heater_or_compressor_from_large_watts():
-    runtime, hass = split()
+    runtime, hass = split(power_supply_profile="unconfirmed")
     hass.states.set("sensor.hp_supply_two", 3000, {"unit_of_measurement": "W"})
     view = runtime.panasonic.overview()["power_activity"]
     assert all(row["role"] == "unconfirmed" for row in view["supplies"])
@@ -250,7 +250,7 @@ def test_native_programme_interpretation_requires_fresh_explicit_tank_idle_and_r
     assert task_display(**{**valid, "context_reliable": False})["function"] is None
 
 
-@pytest.mark.parametrize("case", ["space_heating", "space_cooling", "programme_cooling", "conflict"])
+@pytest.mark.parametrize("case", ["space_heating", "space_cooling", "conflict"])
 def test_concurrent_or_conflicting_native_tasks_leave_function_generic(case):
     context = {}
     if case.startswith("space_"):

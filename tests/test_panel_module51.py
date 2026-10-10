@@ -40,8 +40,14 @@ class ElementDouble extends NodeDouble {
 class LegacySolarPilotCard extends ElementDouble {
   constructor() { super(); this.legacySolarPilotCard = true; }
 }
-if (input.scenario === 'existing_old_stable_class') {
+class LegacyAnalysisDialog extends ElementDouble {}
+class LegacyLearningDialog extends ElementDouble {}
+if (['existing_old_stable_class', 'existing_old_helper_classes'].includes(input.scenario)) {
   definitions.set('solar-pilot-card', LegacySolarPilotCard);
+}
+if (input.scenario === 'existing_old_helper_classes') {
+  definitions.set('solar-pilot-analysis-dialog', LegacyAnalysisDialog);
+  definitions.set('solar-pilot-learning-dialog', LegacyLearningDialog);
 }
 const firstForeign = {type: 'foreign-card', name: 'Other integration', extension: {keep: true}};
 const secondForeign = {type: 'foreign-card', name: 'Other duplicate deliberately retained'};
@@ -94,15 +100,32 @@ async function run() {
     const next = await compileModule('/solar_pilot_static/solar-pilot-card.js?v=next');
     await next.evaluate();
   }
-  assert.equal(definitions.size, 8);
-  assert.equal(defineCalls, input.scenario === 'existing_old_stable_class' ? 7 : 8);
+  assert.equal(definitions.size, 10);
+  assert.equal(defineCalls, input.scenario === 'existing_old_helper_classes' ? 7 : input.scenario === 'existing_old_stable_class' ? 9 : 10);
   assert(definitions.has(input.panelName), 'Current release has its own panel constructor');
-  if (input.scenario === 'existing_old_stable_class') {
+  assert(definitions.has(input.analysisTag) && definitions.has(input.qualityTag), 'Current analysis and read-only quality dialogs have release-bound constructors');
+  if (['existing_old_stable_class', 'existing_old_helper_classes'].includes(input.scenario)) {
     assert.equal(definitions.get('solar-pilot-card'), LegacySolarPilotCard,
       'An already registered Lovelace compatibility class must remain intact');
     assert.notEqual(definitions.get(input.panelName), LegacySolarPilotCard,
       'The current sidebar must never instantiate the retained old card');
   }
+  if (input.scenario === 'existing_old_helper_classes') {
+    assert.equal(definitions.get('solar-pilot-analysis-dialog'), LegacyAnalysisDialog);
+    assert.equal(definitions.get('solar-pilot-learning-dialog'), LegacyLearningDialog);
+    assert.notEqual(definitions.get(input.analysisTag), LegacyAnalysisDialog);
+    assert.notEqual(definitions.get(input.qualityTag), LegacyLearningDialog);
+  }
+  const helperCard = Object.create(definitions.get(input.panelName).prototype), createdDialogs = [];
+  helperCard.shadowRoot = new NodeDouble();
+  helperCard._uiHistory = {prepare() {}, track() {}};
+  helperCard._last = {attributes: {config_entry_id: 'synthetic_entry'}};
+  const originalCreateElement = sandbox.document.createElement;
+  sandbox.document.createElement = name => { createdDialogs.push(name); return {open() {}, addEventListener() {}}; };
+  helperCard._openAnalysis();
+  helperCard._openLearning();
+  assert.deepEqual(createdDialogs, [input.analysisTag, input.qualityTag], 'Factories must use the fresh helpers instead of legacy interactive classes');
+  sandbox.document.createElement = originalCreateElement;
   assert.equal(sandbox.window.customCards, catalog, 'Preserve the shared catalog array');
   for (const type of ['solar-pilot-card', 'solar-pilot-guide-card']) {
     assert.equal(catalog.filter(item => item.type === type).length, 1, `One catalog entry for ${type}`);
@@ -158,6 +181,8 @@ def run_module_probe(scenario, *, dirty_catalog=False):
         [node, "--experimental-vm-modules", "--no-warnings", "-e", MODULE_PROBE, str(CARD)],
         input=json.dumps({"scenario": scenario, "dirtyCatalog": dirty_catalog,
                           "panelName": "solar-pilot-panel-" + re.sub(r"[^a-z0-9]+", "-", VERSION.lower()).strip("-"),
+                          "analysisTag": "solar-pilot-analysis-dialog-" + re.sub(r"[^a-z0-9]+", "-", VERSION.lower()).strip("-"),
+                          "qualityTag": "solar-pilot-learning-dialog-" + re.sub(r"[^a-z0-9]+", "-", VERSION.lower()).strip("-"),
                           "cardVersion": VERSION, "backendVersion": "99.0.0-beta.1"}),
         text=True, capture_output=True,
     )
@@ -168,12 +193,13 @@ def run_module_probe(scenario, *, dirty_catalog=False):
 @pytest.mark.parametrize("scenario", [
     "module_once", "module_same_url_twice", "module_next_url", "legacy_classic_to_module",
     "existing_old_stable_class",
+    "existing_old_helper_classes",
 ])
 def test_actual_module_loading_keeps_single_registration_and_constructs_ha_panel(scenario):
-    assert run_module_probe(scenario) == {"registered": 8, "catalogEntries": 4, "writes": 0}
+    assert run_module_probe(scenario) == {"registered": 10, "catalogEntries": 4, "writes": 0}
 
 
 def test_actual_module_repairs_only_its_own_existing_catalog_duplicates():
     assert run_module_probe("module_next_url", dirty_catalog=True) == {
-        "registered": 8, "catalogEntries": 4, "writes": 0,
+        "registered": 10, "catalogEntries": 4, "writes": 0,
     }

@@ -87,7 +87,11 @@ async def test_seven_day_report_above_old_ws_ceiling_is_complete_and_private(api
     try:
         assert not errors and len(results) == 1
         answer = results[0]
-        assert 'content' not in answer and len(json.dumps(answer)) < 1000
+        # Source association, a small advice template and quality summary travel
+        # over WS; the large recorded evidence remains in the streamed artifact.
+        assert 'content' not in answer and len(json.dumps(answer)) < 8 * 1024
+        assert 'history' not in answer and 'telemetry' not in answer
+        assert answer['feedback_template']['source_export'] == answer['source_export']
         assert answer['uncompressed_bytes'] > ae.MAX_EXPORT_BYTES
         assert answer['filename'].endswith('-168h.json.gz')
         assert answer['media_type'] == 'application/gzip'
@@ -350,6 +354,7 @@ def test_registration_adds_one_authenticated_route_and_shutdown_cleanup(api, htt
     monkeypatch.setattr(api, 'analysis_download_view', lambda: http_view)
     api.async_register_analysis_api(hass)
     api.async_register_analysis_api(hass)
-    assert len(hass.registered) == 1 and views == [http_view]
+    assert hass.registered == [api.websocket_analysis_export, api.websocket_analysis_feedback]
+    assert views == [http_view]
     assert len(listeners) == 1 and listeners[0][0] == 'homeassistant_stop'
     assert http_view.url == '/api/solar_pilot/analysis/{token}'

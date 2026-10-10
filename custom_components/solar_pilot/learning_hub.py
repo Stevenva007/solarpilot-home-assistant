@@ -17,6 +17,7 @@ import time
 from .heatpump_learning import (
     ACTIVE_CONTEXTS, CONTEXT_NORMAL, CONTEXT_UNKNOWN, classify_heatpump,
 )
+from .const import VERSION
 
 
 def number(value):
@@ -151,6 +152,7 @@ class LearningHub:
         self.latest_sample = {"valid": False, "watts": None, "code": "initializing", "reason": "Eerste meetcontrole afwachten."}
         self.cached = {"models": [], "questions": [], "ready": False, "policy": dict(self.policy)}
         self.active_candidates = set()
+        self.current_findings = []
         self.error = ""
 
     def snapshot(self):
@@ -285,15 +287,35 @@ class LearningHub:
              "effect": "Gebruik gemeten energiestromen voor vergelijking; scenarioaannames en 20% round-tripverlies worden niet als meetbewijs geleerd."},
         ]
         findings = []
-        context = {"sources": {k: r.settings.get(k) for k in ("grid_entity", "pv_entity", "battery_power_entity")},
+        context = {"release": VERSION,
+                   "sources": {k: r.settings.get(k) for k in ("grid_entity", "pv_entity", "battery_power_entity")},
                    "devices": {i: (c.get("kind"), c.get("power_entity")) for i, c in r.configs.items()},
                    "heatpump_meter": r.sg_boost.config.get("power_entity"),
+                   "heatpump_supplies": {k: r.sg_boost.config.get(k) for k in ("power_supply1_entity", "power_supply2_entity", "power_supply_profile", "power_supply1_role", "power_supply2_role")},
                    "wallbox_session":r.wallbox_settings.get("session_mode_entity"),
                    "pv_sources":r.pv_forecast.source.refs, "pv_settings":r.pv_forecast.settings}
         context_hash = hashlib.sha256(json.dumps(context, sort_keys=True).encode()).hexdigest()[:16]
 
         def ask(key, title, message, choices, severity="choice"):
-            revision = hashlib.sha256((key+context_hash+(self.policy["adaptation"] if key == "adaptation" else "")).encode()).hexdigest()[:16]
+            # Reopen an analysed finding for changed causes, wiring or meaningful
+            # quality bands, rather than for each new sample or small float drift.
+            facts = {}
+            if key == "adaptation":
+                eligible = base["eligible_candidates"]
+                facts = {"policy": self.policy["adaptation"], "eligible_band": 0 if eligible == 0 else 1 if eligible < 12 else 2}
+            elif key == "base_error":
+                facts = {"error_band": min(20, int((number(q.get("base_mae_w")) or 0) // 200))}
+            elif key == "pv_error":
+                facts = {"error_band": min(20, int((number(q.get("pv_daylight_mae_w")) or 0) // 350))}
+            elif key == "heatpump_meter":
+                facts = {"power_kind": native.get("power_kind")}
+            elif key == "base_disabled":
+                facts = {"enabled": r.planner_settings.get("enabled", True), "learning": r.planner_settings.get("base_load_learning", True)}
+            elif key.startswith("source_"):
+                facts = {"reason": self.latest_sample.get("reason")}
+            elif key == "pv_source":
+                facts = {"warning": r.pv_forecast.source.warning}
+            revision = hashlib.sha256(json.dumps([key, context_hash, facts], sort_keys=True).encode()).hexdigest()[:16]
             answer = self.answers.get(key, {})
             if answer.get("revision") == revision and (answer.get("action") == "keep" or answer.get("until", 0) > stamp):
                 return
@@ -334,6 +356,20 @@ class LearningHub:
             for finding in findings:
                 if finding["id"] == "adaptation":
                     finding["message"] += f' Nu zijn {base["eligible_candidates"]} uur/dagtype-vakken geschikt volgens die vergelijking. Dit is geen gemeten energiebesparing.'
+        self.current_findings = deepcopy(findings)
+        reviewed = []
+        pending = []
+        feedback = getattr(r, "analysis_feedback", None)
+        for finding in findings:
+            review = feedback.question_review(finding["id"], finding["revision"]) if feedback else None
+            if review and review["outcome"] == "reviewed":
+                reviewed.append({"id": finding["id"], "revision": finding["revision"], "title": finding["title"], "answer_note": review["answer"]})
+                continue
+            if review:
+                finding["answer_note"] = review["answer"]
+                finding["analysis_outcome"] = "needs_more_data"
+            pending.append(finding)
+        findings = pending
         candidates = {x["bucket"] for x in base["buckets"] if x["candidate_applied"]}
         if candidates != self.active_candidates:
             self._event("adaptatie_gebruik", {"actieve_vakken": sorted(candidates), "vorige_vakken": sorted(self.active_candidates)})
@@ -346,7 +382,8 @@ class LearningHub:
             if cutoff <= day <= local.date().isoformat():
                 for key, n in counts.items(): totals[key] = totals.get(key, 0) + n
         self.cached = {"ready": True, "updated_at": stamp, "policy": dict(self.policy), "models": models,
-                       "questions": findings, "open_questions": len(findings), "quality": quality,
+                       "questions": findings, "open_questions": len(findings), "pending_findings": len(findings),
+                       "reviewed_findings": reviewed, "analysis_needed": bool(findings), "analysis_action": "export_7d", "quality": quality,
                        "sampling": {"last": deepcopy(self.latest_sample), "attempts_7d": totals, "days": deepcopy(self.days)},
                        "audit": list(self.audit), "error": self.error,
                        "contract": "Geen perfecte voorkennis van jouw huis. Modelzekerheid is geen kans op een juiste fysieke actie. Alleen expliciet gekoppelde bronnen, geen automatische camerabeelden/aanwezigheidsprofielen of cloud-AI. Bediening blijft door bestaande vrijgaven, actuele meters, prioriteiten en grenzen bepaald."}
@@ -423,12 +460,15 @@ class LearningHub:
         if services.has_service("persistent_notification", "create"):
             await services.async_call("persistent_notification", "create", {
                 "notification_id": "solar_pilot_learning_" + self.r.entry.entry_id,
-                "title": "SolarPilot · Leren & vragen",
-                "message": f'{len(questions)} vragen of bevindingen. Open SolarPilot → Leren & vragen. Er zijn geen comfort- of veiligheidsinstellingen gewijzigd.'}, blocking=False)
+                "title": "SolarPilot · Analyse nodig",
+                "message": f'{len(questions)} bevindingen vragen analyse. Open SolarPilot → Export en download de analyse van 7 dagen. Laat het bestand analyseren en upload desgewenst het adviesrapport. Instellingen en apparaten worden niet automatisch aangepast.'}, blocking=False)
             self.last_notification = stamp
             self.notification_signature = signature
             self.r.store.async_delay_save(self.r._snapshot, 60)
 
     def summary(self):
         return {"ready": self.cached.get("ready", False), "open_questions": self.cached.get("open_questions", 0),
+                "pending_findings": self.cached.get("open_questions", 0), "analysis_needed": bool(self.cached.get("open_questions", 0)),
+                "analysis_action": "export_7d", "findings": [{key: row[key] for key in ("id", "revision", "title", "message", "answer_note") if key in row}
+                    for row in self.cached.get("questions", [])[:100]],
                 "updated_at": self.cached.get("updated_at"), "adaptation": self.policy["adaptation"], "error": self.error}

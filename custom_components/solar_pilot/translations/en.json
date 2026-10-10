@@ -670,7 +670,7 @@
       },
       "sg_sources": {
         "title": "Heat pump — read-only sources",
-        "description": "Read only. Power shows electrical consumption; additional current Panasonic information can distinguish its purpose. Select each locally known supply function; names do not confirm it. Use one confirmed total meter OR two complete non-overlapping supplies; never total plus part. Coverage and supply function are separate confirmations. Compressor operation does not prove an SG effect.",
+        "description": "Read only. Existing paired meters work automatically: the Panasonic display profile treats supply 1 as the heat-pump circuit including controls/pumps and supply 2 as electrical auxiliary heating. No new input is required. Explicitly selected other supply functions are preserved. Power shows electrical consumption; additional current Panasonic information distinguishes the task. Meter coverage and SG permission remain separate. Never add a total meter and an included part.",
         "data": {
           "tank_temperature_entity": "Actual tank temperature — read only",
           "tank_target_entity": "Native tank target — read only",
@@ -684,13 +684,13 @@
           "compressor_frequency_entity": "Actual compressor frequency (Hz) — read only",
           "sg_status_entity": "Actual received SG status — read only",
           "power_activity_threshold_w": "Active consumption from (W) — display only",
-          "power_supply1_role": "Supply 1 function — display only",
-          "power_supply2_role": "Supply 2 function — display only"
+          "power_supply1_role": "Supply 1 function — automatic display",
+          "power_supply2_role": "Supply 2 function — automatic display"
         },
         "data_description": {
           "power_activity_threshold_w": "Display threshold per valid supply, default 200 W. This does not change SG control or identify the compressor.",
-          "power_supply1_role": "Locally known supply function; never inferred from names or total-meter coverage. This changes the display only.",
-          "power_supply2_role": "Locally known supply function; select electrical support only for a meter dedicated to it. This changes the display only."
+          "power_supply1_role": "The existing meter pair automatically uses the Panasonic display profile: heat-pump circuit including controls/pumps. Explicit other functions are preserved. No new input or control permission.",
+          "power_supply2_role": "The existing meter pair automatically uses the Panasonic display profile: electrical auxiliary heating. Explicit other functions are preserved. No separate heater feedback or control permission."
         }
       },
       "sg_advanced": {

@@ -19,18 +19,21 @@ def browser_double(payload):
         pytest.skip('Node required for real frontend execution')
     script = r'''
 const fs=require('node:fs'),vm=require('node:vm'),input=JSON.parse(fs.readFileSync(0,'utf8'));
-const calls=[],parts={'.download':{disabled:false},'.status':{textContent:''},'.hours':{value:'168'},'.names':{checked:false}};
-const sandbox={HTMLElement:class{},window:{},customElements:{get:()=>null,define:()=>{}},Blob,
+const calls=[],events=[],parts={'.download':{disabled:false},'.status':{textContent:''},'.hours':{value:'168'},'.names':{checked:false}};
+const sandbox={HTMLElement:class{dispatchEvent(event){events.push({type:event.type,detail:event.detail,bubbles:event.bubbles,composed:event.composed});return true;}},
+ CustomEvent:class{constructor(type,options={}){this.type=type;Object.assign(this,options);}},
+ window:{},customElements:{get:()=>null,define:()=>{}},Blob,
  URL:{createObjectURL:b=>{calls.push({blob:b.size});return 'blob:local';},revokeObjectURL:()=>{}},
- document:{body:{appendChild:()=>{}},createElement:()=>({click(){calls.push({download:this.download});},remove(){}})},setTimeout:()=>0,input,calls,parts};
+ document:{body:{appendChild:()=>{}},createElement:()=>({click(){calls.push({download:this.download});},remove(){}})},setTimeout:()=>0,input,calls,events,parts};
 vm.createContext(sandbox);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),sandbox);
 vm.runInContext(`(async()=>{
  const card=Object.create(SolarPilotCard.prototype);card._hass={config:{time_zone:'Europe/Brussels'}};
  if(input.render)return {html:card._decisionBoard(input.render)};
  const d=Object.create(SolarPilotAnalysisDialog.prototype);d._seq=0;d._open=true;d._entryId='entry';d.shadowRoot={querySelector:s=>parts[s]};
- d._hass={callWS:async m=>{calls.push(m);if(input.close)d.close();return {download_url:input.url||'/api/solar_pilot/analysis/token',filename:'SolarPilot-168h.json.gz'};},
+ d._hass={user:input.missingUser?undefined:{is_admin:input.admin!==false},
+ callWS:async m=>{calls.push(m);if(input.close)d.close();return {download_url:input.url||'/api/solar_pilot/analysis/token',filename:'SolarPilot-168h.json.gz',source_export:{export_id:'synthetic-export'},quality:{state:'partial'}};},
  fetchWithAuth:async(path,options)=>{calls.push({path,method:options.method});if(input.hangCleanup&&options.method==='DELETE')return new Promise(()=>{});return {ok:!input.expired,status:input.expired?410:200,blob:async()=>new Blob(['compressed-file'])};}};
- d._dialog={open:false};await d._download();return {calls,status:parts['.status'].textContent,disabled:parts['.download'].disabled};
+ d._dialog={open:false};await d._download();return {calls,events,status:parts['.status'].textContent,disabled:parts['.download'].disabled};
 })()`,sandbox).then(x=>process.stdout.write(JSON.stringify(x))).catch(e=>{process.stderr.write(e.stack);process.exitCode=1;});
 '''
     result = subprocess.run([node, '-e', script, str(CARD)], input=json.dumps(payload),
@@ -44,6 +47,18 @@ def test_seven_day_download_uses_authenticated_binary_route_then_removes_private
     assert [x['method'] for x in result['calls'] if 'method' in x] == ['GET', 'DELETE']
     assert any(x.get('download') == 'SolarPilot-168h.json.gz' for x in result['calls'])
     assert 'gedownload' in result['status'] and result['disabled'] is False
+    assert result['events'] == [{'type': 'analysis-prepared',
+        'detail': {'source_export': {'export_id': 'synthetic-export'}, 'quality': {'state': 'partial'}},
+        'bubbles': True, 'composed': True}]
+
+
+@pytest.mark.parametrize('identity', [{'admin': False}, {'missingUser': True}])
+def test_analysis_export_blocks_nonadministrator_before_any_private_request(identity):
+    result = browser_double(identity)
+    assert result['calls'] == []
+    assert result['events'] == []
+    assert 'beheerder' in result['status']
+    assert 'gedownload' not in result['status']
 
 
 @pytest.mark.parametrize('url', ['https://example.invalid/private', '//example.invalid/private', '/api/other/token'])

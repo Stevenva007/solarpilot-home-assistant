@@ -86,8 +86,16 @@ def test_relay_feedback_is_never_presented_as_panasonic_confirmation(view):
                       reason="SG-contact actief; Panasonic-reactie niet afzonderlijk bevestigd")
     result = execute(data, view=view)
     rendered = text(result["initial"])
-    assert "SG-contact actief; Panasonic-reactie niet afzonderlijk bevestigd" in rendered
-    assert "Niet afzonderlijk bevestigd" in rendered
+    root = Markup(result["initial"]).root
+    stages = [n for n in root.walk() if "data-sg-stage" in n.attributes]
+    assert len(stages) == 1 and stages[0].attributes["data-sg-stage"] == "relay"
+    assert stages[0].attributes["class"] == "sg-stage is-active"
+    assert "SG-contact actief." in rendered
+    assert "Panasonic-reactie niet afzonderlijk bevestigd" not in rendered
+    assert "Ontvangen SG-status" not in rendered and "compressorstatus onbekend" not in rendered
+    assert "SolarPilot-aanvraag Aangevraagd" in rendered  # request remains in Details
+    assert "Compressorbedrijf bewijst geen extra verbruik door SG" in rendered
+    assert not any("data-heatpump-operation" in n.attributes for n in root.walk())
     assert "50 °C" in rendered  # unchanged native target does not become a fault
     assert "Boilercontrole" not in rendered and "niet bevestigde boileropdracht" not in rendered
     assert not result["calls"]
@@ -283,6 +291,7 @@ async def test_entry_removal_clears_both_software_notifications_without_equipmen
     namespace = {"DOMAIN": "solar_pilot", "Store": Store,
         "history_storage_key": lambda entry: f"history.{entry}",
         "analysis_storage_key": lambda entry: f"analysis.{entry}",
+        "feedback_storage_key": lambda entry: f"feedback.{entry}",
         "delete_private_files_if_requested": lambda: None,
         "async_unregister_frontend": lambda *_args, **kwargs: frontend.append(kwargs),
         "SERVICE_SET_PLANNER_SETTING": "set_planner_setting"}
@@ -292,5 +301,5 @@ async def test_entry_removal_clears_both_software_notifications_without_equipmen
     await namespace["async_remove_entry"](hass, SimpleNamespace(entry_id="entry"))
     assert calls == [("persistent_notification", "dismiss", {"notification_id": "solar_pilot_entry"}),
                      ("persistent_notification", "dismiss", {"notification_id": "solar_pilot_entry_action_required"})]
-    assert set(removed) == {"solar_pilot.entry", "history.entry", "analysis.entry"}
+    assert set(removed) == {"solar_pilot.entry", "history.entry", "analysis.entry", "feedback.entry"}
     assert frontend == [{"final": True}]

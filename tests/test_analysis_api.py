@@ -75,4 +75,4 @@ async def test_worker_failure_releases_flag(api,monkeypatch):
 
 def test_idempotent_registration(api):
     r,h,c,out,err=context();api.async_register_analysis_api(h);api.async_register_analysis_api(h)
-    assert len(h.registered)==1
+    assert h.registered == [api.websocket_analysis_export, api.websocket_analysis_feedback]

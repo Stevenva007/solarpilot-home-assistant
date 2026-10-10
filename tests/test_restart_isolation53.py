@@ -1,6 +1,7 @@
 """Quarantine uncertain device sources while independently safe loads proceed."""
 from copy import deepcopy
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 import time
 
 import pytest
@@ -8,6 +9,7 @@ from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.solar_pilot.engine import Action
 from custom_components.solar_pilot.runtime import SolarRuntime
+from custom_components.solar_pilot import runtime as runtime_module
 from test_runtime import build
 
 
@@ -216,8 +218,17 @@ async def test_live_owned_power_outage_is_local_and_cannot_stop_protected_cycle(
 
 
 @pytest.mark.asyncio
-async def test_unprotected_owned_bad_meter_cannot_generate_engine_stop_or_direct_command():
+@pytest.mark.parametrize('local_now', [datetime(2026, 10, 10, 12, tzinfo=ZoneInfo('Europe/Brussels')),
+                                     datetime(2026, 10, 11, 0, 30, tzinfo=ZoneInfo('Europe/Brussels'))])
+async def test_unprotected_owned_bad_meter_cannot_generate_engine_stop_or_direct_command(monkeypatch, local_now):
     runtime, hass = paired_runtime()
+    # Runtime counters use the HA calendar day. Near local midnight that differs
+    # from UTC; keep the same explicit HA clock for the tick and follow-up check.
+    class FixedClock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return local_now.astimezone(tz) if tz else local_now.astimezone().replace(tzinfo=None)
+    monkeypatch.setattr(runtime_module, 'datetime', FixedClock)
     runtime.store.data["device_modes"]["b"] = "disabled"
     hass.states.set("switch.load", "on")
     hass.states.set("sensor.load", 1000, {"unit_of_measurement": "W"})
@@ -229,7 +240,7 @@ async def test_unprotected_owned_bad_meter_cannot_generate_engine_stop_or_direct
     assert runtime.result.action is None
     assert runtime.managed_w == 0 and runtime.energy_estimated
     daily_before = (runtime.states["a"].daily_runtime_s, runtime.states["a"].daily_energy_kwh)
-    runtime._update_daily_runtime(datetime.now(timezone.utc), 30)
+    runtime._update_daily_runtime(runtime._local_now(), 30)
     assert (runtime.states["a"].daily_runtime_s, runtime.states["a"].daily_energy_kwh) == daily_before
     await runtime._send(Action("a", 0, "synthetic phase release"), time.monotonic())
     await runtime._send(Action("a", 1000, "synthetic deadline"), time.monotonic())

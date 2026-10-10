@@ -33,6 +33,7 @@ from .dishwasher_priority import DishwasherPriority, enabled as dishwasher_has_p
 from .dishwasher import DishwasherControl, read as read_dishwasher, normalize_config as normalize_dishwasher
 from .dishwasher_recovery import RECOVERED_AUTO_KEY, RECOVERY_KEY, RECOVERY_SOURCE
 from .analysis_export import AnalysisRecorder
+from .feedback_store import AnalysisFeedbackStore
 from .action_notifications import ActionRequiredNotifications
 from .house_first import HOUSE_DEFAULTS, HouseFirstGuard, Handover
 from .learning import LocalLearning
@@ -156,6 +157,7 @@ class SolarRuntime:
         self.sg_boost = SGBoostManager(self)
         self.command_authority = PanasonicCommandAuthority(self)
         self.analysis = AnalysisRecorder(self)
+        self.analysis_feedback = AnalysisFeedbackStore(self)
         self.action_notifications = ActionRequiredNotifications(self)
         self.learning_hub = LearningHub(self)
         self.live_options = LiveOptions(self)
@@ -356,6 +358,7 @@ class SolarRuntime:
         self.live_options.restore(data.get("live_options", {}))
         await self.consumer_history.start()
         await self.analysis.start()
+        await self.analysis_feedback.start()
         self.dishwasher.restore(data.get("dishwasher", {}))
         self.dishwasher_app.restore(data.get("dishwasher_app", {}))
         self.dishwasher_priority.restore(data.get("dishwasher_priority", {}), self.configs)
@@ -755,13 +758,14 @@ class SolarRuntime:
                 # HA Store has no public cancel-only operation; these bounded
                 # cleanup hooks remove its delayed and final-write listeners
                 # without deleting or replacing any saved data.
-                for store in (self.store, self.consumer_history.store, self.analysis.store):
+                for store in (self.store, self.consumer_history.store, self.analysis.store, self.analysis_feedback.store):
                     for name in ("_async_cleanup_delay_listener", "_async_cleanup_final_write_listener"):
                         cleanup = getattr(store, name, None)
                         if callable(cleanup):
                             cleanup()
             await self.consumer_history.close(persist=persist)
             await self.analysis.close(persist=persist)
+            await self.analysis_feedback.close(persist=persist)
             if persist:
                 await self.store.async_save(self._snapshot())
 

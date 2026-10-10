@@ -354,15 +354,24 @@ attributes["panasonic"] = {
     "source_stale_s": 300,
     "operation": {"state": "active", "label": "Compressor draait",
                   "evidence": "compressor_frequency", "observed_at": 0, "stale_s": 300},
+    "native_task": {"function": "space_heating", "label": "Panasonic meldt ruimte verwarmen",
+                    "note": "Gemelde bedrijfsactie; compressorbedrijf en warmteproductie niet afzonderlijk gemeten.",
+                    "source": "aquarea_poll", "observed_at": 0, "stale_s": 300},
+    "task_context": {"function": "space_heating", "label": "Verwarmen gekozen",
+                     "note": "Gekozen stand; een actuele actie is daarmee niet afzonderlijk bevestigd.",
+                     "source": "native_program", "kind": "selected_program", "observed_at": 0, "stale_s": 300},
+    "defrost": {"state": "inactive", "label": "Niet aan het ontdooien", "source": "aquarea_entity",
+                "observed_at": 0, "stale_s": 300},
     "power_activity": {"state": "active", "active": True, "label": "Ruimte verwarmen",
         "note": "Afgeleid uit gemeten verbruik en Panasonic-bedrijfsmelding.",
         "evidence": "metered_power_and_context", "threshold_w": 200,
         "observed_at": 0, "context_observed_at": 0, "stale_s": 300,
         "total_w": 1720, "complete": True, "function": "space_heating",
+        "function_source": "aquarea_poll", "function_kind": "native_action", "activity_kind": "main",
         "supplies": [
-            {"number": 1, "role": "unconfirmed", "watts": 1720, "valid": True,
+            {"number": 1, "role": "main", "role_assumed": True, "watts": 1720, "valid": True,
              "state": "active", "observed_at": 0},
-            {"number": 2, "role": "unconfirmed", "watts": 0, "valid": True,
+            {"number": 2, "role": "heater", "role_assumed": True, "watts": 0, "valid": True,
              "state": "off", "observed_at": 0}]},
     "context": "space_heating", "context_reliable": True, "cooling_possible": False,
     "program": "heating", "status": "Panasonic meldt ruimteverwarming",
@@ -372,6 +381,15 @@ attributes["panasonic"] = {
               {"entity_id": "climate.example_zone_2", "name": "Zone 2",
                "temperature_c": 21.1, "target_c": 21, "mode": "auto", "action": "idle", "read_only": True}],
 }
+attributes["panasonic"]["display_tank"] = {
+    "entity_id": "water_heater.example_panasonic_tank", "temperature_c": 46.2, "target_c": 50,
+    "temperature_stamp": 0, "target_stamp": 0, "mode": "off", "action": "idle",
+    "available": True, "observed_at": 0, "read_only": True, "automatic": True,
+}
+attributes["panasonic"]["display_zones"] = [
+    {**zone, "available": True, "action_valid": True, "automatic": True}
+    for zone in attributes["panasonic"]["zones"]
+]
 attributes["sg_boost"] = {
     "configured": True, "enabled": True, "state": "active", "status": "SG-contact actief",
     "reason": "SG-contact actief; Panasonic-reactie niet afzonderlijk bevestigd",
@@ -411,6 +429,13 @@ attributes["devices"][0]["wallbox_precedence"] = "wallbox_first"
 
 # Fictitious beta.35 priority data, not household preferences or live HA state.
 attributes["config_entry_id"] = "offline-example"
+attributes["learning_insights"] = {
+    "open_questions": 1, "analysis_needed": True, "analysis_action": "export_7d",
+    "findings": [{"id": "example-source-quality", "revision": "fictional",
+        "title": "Fictieve meetkwaliteit voor analyse",
+        "message": "Controleer de beschikbare voedingsmetingen en de waargenomen Panasonic-taak."}],
+}
+
 _order = ["device:dishwasher", "wallbox", "device:flex_load", "device:extra", "dhw_extra"]
 _names = {"device:" + d["id"]: d["name"] for d in attributes["devices"]}
 _names.update(wallbox="Auto laden · Wallbox", dhw_extra="Warmtepomp — SG-zonneboost")
@@ -440,7 +465,12 @@ const exampleObservedAt=Date.now()/1000;
 for(const key of ['power_stamp','power_observed_at','power_supply1_observed_at','power_supply2_observed_at',
   'temperature_stamp','target_stamp','context_stamp','compressor_stamp','compressor_frequency_observed_at']) attributes.panasonic[key]=exampleObservedAt;
 for(const zone of attributes.panasonic.zones) zone.observed_at=exampleObservedAt;
+for(const zone of attributes.panasonic.display_zones) zone.observed_at=exampleObservedAt;
+for(const key of ['temperature_stamp','target_stamp','observed_at']) attributes.panasonic.display_tank[key]=exampleObservedAt;
 attributes.panasonic.operation.observed_at=exampleObservedAt;
+attributes.panasonic.native_task.observed_at=exampleObservedAt;
+attributes.panasonic.task_context.observed_at=exampleObservedAt;
+attributes.panasonic.defrost.observed_at=exampleObservedAt;
 attributes.panasonic.power_activity.observed_at=exampleObservedAt;
 attributes.panasonic.power_activity.context_observed_at=exampleObservedAt;
 for(const supply of attributes.panasonic.power_activity.supplies) supply.observed_at=exampleObservedAt;
@@ -450,7 +480,7 @@ attributes.sg_boost.relay_valid_until=exampleObservedAt+attributes.sg_boost.leas
 attributes.sg_boost.relay_stale_s=300;
 const card=document.querySelector('solar-pilot-card'); card.setConfig({{}});
 const guideAttributes = {json.dumps(guide_attributes, ensure_ascii=False)};
-card.hass={{user:{{is_admin:true}},callWS:async msg=>{{if(msg.type==='solar_pilot/priority_board'&&!msg.save)return structuredClone(attributes.priority_board);throw new Error('Offline voorbeeld: er wordt niets opgeslagen of opgehaald.');}},states:{{'sensor.solarpilot_status':{{state:'Zonnestroom',attributes}},'sensor.solarpilot_actuele_uitleg':{{state:guideAttributes.version,attributes:guideAttributes}}}}, callService:async()=>{{throw new Error('Deze voorbeeldpagina bedient geen apparaten. Gebruik de kaart binnen Home Assistant voor echte bediening.');}}}};
+card.hass={{user:{{is_admin:true}},callWS:async msg=>{{if(msg.type==='solar_pilot/priority_board'&&!msg.save)return structuredClone(attributes.priority_board);if(msg.type==='solar_pilot/analysis_feedback'&&msg.action==='status')return {{report:null,current_release:guideAttributes.version,association:{{state:'unverified',reason:'Fictief offline voorbeeld'}},logic_updates:[],question_review:[]}};if(msg.type==='solar_pilot/learning'&&msg.operation==='read')return {{models:[],questions:[],audit:[]}};throw new Error('Offline voorbeeld: er wordt niets opgeslagen of opgehaald.');}},states:{{'sensor.solarpilot_status':{{state:'Zonnestroom',attributes}},'sensor.solarpilot_actuele_uitleg':{{state:guideAttributes.version,attributes:guideAttributes}}}}, callService:async()=>{{throw new Error('Deze voorbeeldpagina bedient geen apparaten. Gebruik de kaart binnen Home Assistant voor echte bediening.');}}}};
 card.addEventListener('hass-more-info',()=>window.alert('Dit is een offline voorbeeld.'));
 </script></body></html>'''
 (ROOT / "SolarPilot-voorbeeld.html").write_text(html, encoding="utf-8")

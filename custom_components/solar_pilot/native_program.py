@@ -69,6 +69,7 @@ def _action_inputs(device):
         return tuple(frozen(value) for value in (
             getattr(device, "current_direction", None), getattr(device, "mode", None),
             getattr(device, "operation_status", None), getattr(device, "has_tank", None),
+            getattr(device, "device_mode_status", None), getattr(device, "mode_status", None),
             getattr(tank, "operation_status", None)))
     except (AttributeError, KeyError, TypeError, ValueError, RuntimeError):
         return None
@@ -91,6 +92,130 @@ class NativeClimateProgram:
         self._watches, self._tank_watches = {}, {}
         for watch in watches.values():
             self._unsubscribe(watch)
+
+    def _display_identity(self, row):
+        """Exact native registry identity, independent of control bindings."""
+        from homeassistant.helpers import device_registry as dr
+        hass = self.runtime.hass
+        if row is None or getattr(row, "platform", None) != "aquarea" or getattr(row, "disabled_by", None) is not None:
+            return None
+        entry_id, uid = getattr(row, "config_entry_id", None), getattr(row, "unique_id", None)
+        entry = hass.config_entries.async_get_entry(entry_id) if isinstance(entry_id, str) else None
+        device = dr.async_get(hass).async_get(getattr(row, "device_id", None))
+        missing = object()
+        owner = getattr(device, "config_entry_id", missing)
+        same_entry = (owner == entry_id if owner is not missing else
+                      entry_id in getattr(device, "config_entries", ()))
+        if (entry is None or getattr(entry, "domain", None) != "aquarea" or device is None
+                or not same_entry or not isinstance(uid, str)):
+            return None
+        matches = [native_id for domain, native_id in getattr(device, "identifiers", ())
+                   if domain == "aquarea" and isinstance(native_id, str) and native_id]
+        if len(matches) != 1:
+            return None
+        return entry_id, getattr(row, "device_id", None), matches[0], uid
+
+    def display_sources(self, anchors=()):
+        """Find read-only siblings on one exact registered Aquarea device.
+
+        Never persist these sources, rebind SG or choose between installations
+        by their entity names. A configured native source anchors the device;
+        without one, discovery requires one unambiguous native device group.
+        """
+        result = {"tank_entity": "", "zone_entities": [], "direction_entity": "",
+                  "defrost_entity": "", "automatic": True, "reason": ""}
+        try:
+            from homeassistant.helpers import entity_registry as er
+            registry = er.async_get(self.runtime.hass)
+            entities = getattr(registry, "entities", {})
+            rows = list(entities.values()) if hasattr(entities, "values") else []
+            groups = {}
+            for row in rows:
+                identity = self._display_identity(row)
+                if identity is None:
+                    continue
+                entry_id, device_id, native_id, uid = identity
+                eid = getattr(row, "entity_id", "")
+                role = ("tank_entity" if eid.startswith("water_heater.") and uid == f"{native_id}_tank" else
+                        "direction_entity" if eid.startswith("sensor.") and uid == f"{native_id}_direction" else
+                        "defrost_entity" if eid.startswith("binary_sensor.") and uid == f"{native_id}_defrost" else
+                        "zone_entities" if eid.startswith("climate.") and uid.startswith(f"{native_id}_climate_")
+                        and uid[len(f"{native_id}_climate_"):].isdigit() else None)
+                if role:
+                    group = groups.setdefault((entry_id, device_id), {})
+                    group.setdefault(role, []).append(eid)
+            selected = set()
+            for eid in anchors:
+                identity = self._display_identity(registry.async_get(eid)) if isinstance(eid, str) else None
+                if identity is not None:
+                    selected.add(identity[:2])
+            if len(selected) > 1 or not selected and len(groups) != 1:
+                return {**result, "reason": "Geen eenduidig gekoppeld Panasonic-apparaat voor automatische uitlezing."}
+            key = next(iter(selected or groups), None)
+            group = groups.get(key, {})
+            for role, eids in group.items():
+                if role == "zone_entities":
+                    result[role] = sorted(eids)
+                elif len(eids) == 1:
+                    result[role] = eids[0]
+            return result
+        except (ImportError, AttributeError, KeyError, TypeError, ValueError, RuntimeError):
+            return result
+
+    def _display_object(self, entity_id):
+        obj = self.runtime.hass.states.get(entity_id)
+        attrs = getattr(obj, "attributes", {}) or {}
+        if (obj is None or str(obj.state).strip().casefold() in ("unknown", "unavailable", "")
+                or any(attrs.get(key) for key in ("restored", "estimated", "is_estimated"))):
+            return None, None
+        stamp = getattr(obj, "last_reported", None) or getattr(obj, "last_updated", None)
+        try:
+            stamp = stamp.timestamp()
+            if isinstance(stamp, bool) or not math.isfinite(stamp) or not -5 <= time.time() - stamp <= self._stale_s():
+                return None, None
+        except (AttributeError, TypeError, ValueError, OverflowError, OSError):
+            return None, None
+        return obj, stamp
+
+    def read_tank_context(self, entity_id):
+        """Aquarea's WATER/tank report is routing context, never native action.
+
+        Verified Aquarea water_heater implementations report heating from the
+        WATER route/current water action. Turning the tank on reports idle.
+        This narrow provider context is intentionally not a generic WH mode.
+        """
+        result = {"function": None, "label": "", "note": "", "source": "none",
+                  "kind": "none", "observed_at": None, "stale_s": self._stale_s()}
+        try:
+            from homeassistant.helpers import entity_registry as er
+            if not isinstance(entity_id, str) or not entity_id.startswith("water_heater."):
+                return result
+            identity = self._display_identity(er.async_get(self.runtime.hass).async_get(entity_id))
+            if identity is None or identity[3] != f"{identity[2]}_tank":
+                return result
+            obj, stamp = self._display_object(entity_id)
+            if (obj is None or str(obj.state).strip().casefold() not in ("heating", "heat_pump")
+                    or str(obj.attributes.get("operation_mode", "")).strip().casefold() != "heating"):
+                return result
+            return {**result, "function": "tapwater_heating", "label": "Panasonic meldt tankroute",
+                    "note": "Tankroute gemeld; actuele warmteproductie niet afzonderlijk gemeten.",
+                    "source": "aquarea_entity", "kind": "tank_route", "observed_at": stamp}
+        except (ImportError, AttributeError, KeyError, TypeError, ValueError, RuntimeError):
+            return result
+
+    def is_display_zone(self, entity_id):
+        """Keep a registered space zone from becoming tank display evidence."""
+        try:
+            from homeassistant.helpers import entity_registry as er
+            if not isinstance(entity_id, str) or not entity_id.startswith("climate."):
+                return False
+            identity = self._display_identity(er.async_get(self.runtime.hass).async_get(entity_id))
+            if identity is None:
+                return False
+            prefix = f"{identity[2]}_climate_"
+            return identity[3].startswith(prefix) and identity[3][len(prefix):].isdigit()
+        except (ImportError, AttributeError, KeyError, TypeError, ValueError, RuntimeError):
+            return False
 
     @staticmethod
     def _unsubscribe(watch):
@@ -165,6 +290,12 @@ class NativeClimateProgram:
         """Exact native tank registry/device identity for display-only action."""
         if not isinstance(entity_id, str) or not entity_id.startswith("water_heater."):
             return None
+        return self._resolve_action(entity_id)
+
+    def _resolve_action(self, entity_id):
+        """Display-only device action through an exact tank or zone binding."""
+        if not isinstance(entity_id, str) or not entity_id.startswith(("water_heater.", "climate.")):
+            return None
         try:
             from homeassistant.helpers import entity_registry as er
             hass = self.runtime.hass
@@ -199,11 +330,15 @@ class NativeClimateProgram:
             matches = []
             for device_id, coordinator in coordinators.items():
                 device = getattr(coordinator, "device", None)
-                if (isinstance(device_id, str) and device_id and unique_id == f"{device_id}_tank"
+                tank_binding = (entity_id.startswith("water_heater.") and unique_id == f"{device_id}_tank"
+                                and getattr(device, "has_tank", None) is True
+                                and getattr(device, "tank", None) is not None)
+                zones = getattr(device, "zones", None)
+                zone_binding = (entity_id.startswith("climate.") and isinstance(zones, dict)
+                                and any(unique_id == f"{device_id}_climate_{zone_id}" for zone_id in zones))
+                if (isinstance(device_id, str) and device_id and (tank_binding or zone_binding)
                         and getattr(getattr(coordinator, "device_info", None), "device_id", None) == device_id
-                        and getattr(device, "device_id", None) == device_id
-                        and getattr(device, "has_tank", None) is True
-                        and getattr(device, "tank", None) is not None):
+                        and getattr(device, "device_id", None) == device_id):
                     matches.append(coordinator)
             if len(matches) != 1:
                 return None
@@ -261,10 +396,21 @@ class NativeClimateProgram:
 
     def read_tank_action(self, entity_id):
         """Fresh successful provider action used only for task presentation."""
+        return self._read_action(entity_id, self._resolve_tank)
+
+    def read_device_action(self, entity_id):
+        """The whole device's action can be read through a registered zone.
+
+        An OFF zone does not hide the other zone or a tank task. This uses the
+        display watcher, never the programme/controller's source namespace.
+        """
+        return self._read_action(entity_id, self._resolve_action)
+
+    def _read_action(self, entity_id, resolve):
         result = {"action": "unknown", "raw_action": None, "source": "",
                   "entity_id": entity_id, "fresh": False, "binding_key": None,
                   "observed_at": None}
-        resolved = self._resolve_tank(entity_id)
+        resolved = resolve(entity_id)
         if resolved is None:
             return result
         coordinator, result["binding_key"], entry_id = resolved
@@ -289,6 +435,14 @@ class NativeClimateProgram:
             return result
         result.update(action=watch["action"][1], raw_action=watch["action"][0], fresh=True,
                       observed_at=watch["action_observed_at"])
+        mode = _native_mode(device)
+        if mode is not None and mode == watch["mode"]:
+            result.update(program=mode[1], raw_mode=mode[0])
+        status = getattr(device, "device_mode_status", None)
+        if (isinstance(status, Enum) and type(status).__name__ == "DeviceModeStatus"
+                and type(status).__module__.startswith("aioaquarea.")
+                and status.name == "DEFROST" and not isinstance(status.value, bool) and status.value == 1):
+            result["defrost_active"] = True
         return result
 
     def _stale_s(self):

@@ -17,6 +17,7 @@ from .pv_forecast_api import async_register_pv_api
 from .priority_api import async_register_priority_api
 from .pv_forecast import PV_SENSOR_DEFINITIONS
 from .analysis_export import storage_key as analysis_storage_key
+from .feedback_store import storage_key as feedback_storage_key
 from .consumer_history_runtime import history_storage_key
 from .private_bundle import build_private_import, delete_private_files_if_requested, load_private_bundle
 from .historical import load_bundled_seed
@@ -180,6 +181,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     await Store(hass, 1, f"{DOMAIN}.{entry.entry_id}").async_remove()
     await Store(hass, 1, history_storage_key(entry.entry_id)).async_remove()
     await Store(hass, 1, analysis_storage_key(entry.entry_id)).async_remove()
+    await Store(hass, 1, feedback_storage_key(entry.entry_id)).async_remove()
     # Remove SolarPilot-owned optional private profile/bootstrap when the private
     # bundle opted into deletion. Underlying Home Assistant integrations and
     # devices are never touched.

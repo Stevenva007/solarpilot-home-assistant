@@ -35,9 +35,13 @@ class LiveOptionsMixin:
                 candidate["split_power_confirmed"] = False
             if (old_split != new_split and
                     getattr(self, "_sg_local_confirmed_roles", None) != (old_split, new_split)):
-                for index, (old_meter, new_meter) in enumerate(zip(old_split, new_split), 1):
-                    if old_meter != new_meter:
-                        candidate[f"power_supply{index}_role"] = "unconfirmed"
+                standard_roles = (candidate["power_supply_profile"] == "panasonic_standard"
+                    and candidate["power_supply1_role"] == "main" and candidate["power_supply2_role"] == "heater")
+                if not standard_roles:
+                    candidate["power_supply_profile"] = "unconfirmed"
+                    for index, (old_meter, new_meter) in enumerate(zip(old_split, new_split), 1):
+                        if old_meter != new_meter:
+                            candidate[f"power_supply{index}_role"] = "unconfirmed"
             if any(candidate[key] != current[key] for key in ("activity_entity", "zone_entities", "tank_target_entity")):
                 candidate["cooling_protection_confirmed"] = False
             options = {**options, "sg_boost": candidate}

@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.66",
+  "version": "1.0.0-beta.67",
   "language": "nl",
   "steps": {
     "init": {
@@ -1004,7 +1004,7 @@
     },
     "sg_sources": {
       "title": "Warmtepomp — uitleesbronnen",
-      "description": "Alleen uitlezen. Vermogen toont elektrisch verbruik; aanvullende actuele Panasonic-informatie kan het doel onderscheiden. Kies de bekende functie van iedere voeding; namen bevestigen die functie niet. Gebruik één bevestigde totaalmeter OF twee volledige niet-overlappende voedingen; geen totaal plus deelmeter. Meetdekking en voedingsfunctie worden apart bevestigd. Compressorbedrijf bewijst geen SG-effect.",
+      "description": "Alleen uitlezen. Je bestaande meterpaar werkt automatisch: het Panasonic-profiel beschouwt voeding 1 als warmtepompvoeding inclusief regeling/pompen en voeding 2 als elektrische bijverwarming. Je hoeft daarvoor niets opnieuw in te vullen. Een expliciet andere voedingsfunctie blijft behouden. Vermogen toont elektrisch verbruik; aanvullende actuele Panasonic-informatie onderscheidt de taak. Meetdekking en SG-toestemming blijven afzonderlijk. Geen totaal plus deelmeter optellen.",
       "data": {
         "tank_temperature_entity": "Werkelijke tanktemperatuur — alleen uitlezen",
         "tank_target_entity": "Native tankdoel — alleen uitlezen",
@@ -1018,8 +1018,8 @@
         "compressor_frequency_entity": "Werkelijke compressorfrequentie (Hz) — alleen uitlezen",
         "sg_status_entity": "Werkelijk ontvangen SG-status — alleen uitlezen",
         "power_activity_threshold_w": "Actief verbruik vanaf (W) — alleen weergave",
-        "power_supply1_role": "Functie voeding 1 — alleen weergave",
-        "power_supply2_role": "Functie voeding 2 — alleen weergave"
+        "power_supply1_role": "Functie voeding 1 — automatische weergave",
+        "power_supply2_role": "Functie voeding 2 — automatische weergave"
       },
       "data_description": {
         "tank_temperature_entity": "Werkelijke tanktemperatuur uit een geschikte bron.",
@@ -1034,8 +1034,8 @@
         "compressor_frequency_entity": "Optionele bestaande compressorfrequentiebron in Hz; uitsluitend uitlezen.",
         "sg_status_entity": "Optionele bestaande bron die werkelijk de ontvangen SG-status op Panasonic meldt.",
         "power_activity_threshold_w": "Actief verbruik wordt vanaf deze waarde per geldige voeding weergegeven, standaard 200 W.",
-        "power_supply1_role": "Kies de lokaal bekende functie van voeding 1 voor de vermogensuitleg.",
-        "power_supply2_role": "Kies de lokaal bekende functie van voeding 2 voor de vermogensuitleg."
+        "power_supply1_role": "Het bestaande meterpaar gebruikt automatisch het Panasonic-profiel: voeding 1 is de warmtepompvoeding inclusief regeling en pompen.",
+        "power_supply2_role": "Het bestaande meterpaar gebruikt automatisch het Panasonic-profiel: voeding 2 is de elektrische bijverwarming."
       }
     },
     "sg_advanced": {
@@ -3917,7 +3917,7 @@
       "title": "Deelmeter voeding 2 (W/kW) — alleen uitlezen",
       "short": "Optionele fysieke W/kW-meter voor voeding 2.",
       "paragraphs": [
-        "Optionele fysieke W/kW-meter voor voeding 2. Noem deze alleen heaterverbruik als die dekking lokaal is bevestigd. Gemeten 0 W is nul; een ontbrekende of verouderde bron blijft onbekend en maakt de som onvolledig.",
+        "Optionele fysieke W/kW-meter voor voeding 2. Het automatische Panasonic-profiel duidt deze voeding als elektrische bijverwarming, met een zichtbare profielaanname; een eerder bewust gekozen andere functie blijft behouden. Alleen actueel geldig vermogen telt: gemeten 0 W is nul, een ontbrekende of verouderde bron blijft onbekend en maakt de som onvolledig. Totale niet-overlappende dekking wordt afzonderlijk bevestigd; de profielrol is geen heater-terugmelding of SG-toestemming.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -3959,19 +3959,19 @@
       ]
     },
     "sg_sources.power_supply1_role": {
-      "title": "Functie voeding 1 — alleen weergave",
-      "short": "Kies de lokaal bekende functie van voeding 1 voor de vermogensuitleg.",
+      "title": "Functie voeding 1 — automatische weergave",
+      "short": "Het bestaande meterpaar gebruikt automatisch het Panasonic-profiel: voeding 1 is de warmtepompvoeding inclusief regeling en pompen.",
       "paragraphs": [
-        "Kies de lokaal bekende functie van voeding 1 voor de vermogensuitleg. Hoofdvoeding omvat ook regeling en pompen; verbruik bewijst daarom niet afzonderlijk compressorbedrijf. Kies elektrische ondersteuning alleen als de meter uitsluitend die ondersteuning omvat. Een naam of bevestigde totale meetdekking bepaalt de functie niet. Bij twijfel blijft de functie onbevestigd. Deze keuze bedient niets en geeft geen SG-toestemming.",
+        "Het bestaande meterpaar gebruikt automatisch het Panasonic-profiel: voeding 1 is de warmtepompvoeding inclusief regeling en pompen. Hiervoor hoef je niets opnieuw in te vullen. Dit is een herkenbare weergave-aanname, geen afzonderlijke compressor-terugmelding. Een eerder bewust gekozen andere functie blijft behouden. De totale meetdekking en SG-toestemming blijven afzonderlijk; deze optionele keuze bedient niets.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
     "sg_sources.power_supply2_role": {
-      "title": "Functie voeding 2 — alleen weergave",
-      "short": "Kies de lokaal bekende functie van voeding 2 voor de vermogensuitleg.",
+      "title": "Functie voeding 2 — automatische weergave",
+      "short": "Het bestaande meterpaar gebruikt automatisch het Panasonic-profiel: voeding 2 is de elektrische bijverwarming.",
       "paragraphs": [
-        "Kies de lokaal bekende functie van voeding 2 voor de vermogensuitleg. Elektrische ondersteuning betekent een meter die uitsluitend die ondersteuning meet; het voedingsnummer bepaalt dat niet. Hoofdvoeding omvat ook regeling en pompen. Bij twijfel blijft de functie onbevestigd. De totale niet-overlappende meetdekking wordt apart bevestigd. Deze keuze verandert uitsluitend de weergave en geeft geen SG-toestemming.",
+        "Het bestaande meterpaar gebruikt automatisch het Panasonic-profiel: voeding 2 is de elektrische bijverwarming. Hiervoor hoef je niets opnieuw in te vullen. De grafiek duidt de opgenomen elektrische hulp aan op basis van het vermogen; dit is geen afzonderlijke heater-terugmelding. Een eerder bewust gekozen andere functie blijft behouden. De totale niet-overlappende meetdekking wordt apart bevestigd. Deze keuze geeft geen nieuwe SG-toestemming.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -4075,9 +4075,9 @@
     },
     "dashboard.learning_hub": {
       "title": "Leren & vragen",
-      "short": "Opent Leren & vragen met de meetbasis per model, ontbrekende broninformatie, voorstellen en jouw eerdere antwoorden.",
+      "short": "Toont Meetkwaliteit met de meetbasis per model en open analysebevindingen.",
       "paragraphs": [
-        "Opent Leren & vragen met de meetbasis per model, ontbrekende broninformatie, voorstellen en jouw eerdere antwoorden. Alleen een Home Assistant-beheerder kan de keuzes aanpassen. De getoonde zekerheid is een technische maat, geen kans dat elke voorspelling of opdracht klopt. Meer planberekeningen zijn geen extra onafhankelijke leerdagen.",
+        "Toont Meetkwaliteit met de meetbasis per model en open analysebevindingen. Bij Analyse nodig download je onder Export met één klik de analyse van 7 dagen. Laat het bestand hier analyseren en upload desgewenst het JSON-adviesrapport. Alleen een beheerder beheert die rapporten. Een antwoord handelt een bevinding alleen af bij dezelfde uitgegeven export en de nog actuele bevindingversie. Meer gegevens nodig houdt de bevinding open. Adviezen voor Panasonic, SolarPilot-instellingen en logica blijven voorstellen; een upload wijzigt geen leerbeleid, instellingen, code of apparaten. Logica met een proposal_id wordt alleen als uitgevoerd getoond als het vertrouwde register van de geïnstalleerde release dat bevestigt. Modelzekerheid is een technische maat; meer planberekeningen zijn geen extra onafhankelijke leerdagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -4171,9 +4171,9 @@
     },
     "learning_hub.notifications": {
       "title": "Vragen als HA-melding",
-      "short": "Toon nieuwe leervragen ook onder Home Assistant-meldingen.",
+      "short": "Toon Analyse nodig ook onder Home Assistant-meldingen.",
       "paragraphs": [
-        "Toon nieuwe leervragen ook onder Home Assistant-meldingen. Standaard uit; de vragen staan altijd in de SolarPilot-popup. Maximaal eenmaal per 24 uur wordt een afzonderlijke melding bijgewerkt bij een gewijzigde vragenlijst; dezelfde vraag wordt niet iedere regelcyclus herhaald. Dit is geen mobiele push en geen bericht vanuit ChatGPT. Later stelt dezelfde vraag een dag uit; een bewuste behoud-keuze blijft bewaard tot de relevante bronconfiguratie verandert.",
+        "Toon Analyse nodig ook onder Home Assistant-meldingen. Standaard uit; open bevindingen staan altijd bij Meetkwaliteit en Export. Maximaal eenmaal per 24 uur wordt een afzonderlijke melding bijgewerkt bij betekenisvol gewijzigde bevindingen. Download de analyse van 7 dagen en upload eventueel het bijbehorende adviesrapport. Beoordeeld verbergt alleen de nog actuele bevindingversie; meer gegevens nodig houdt die open. Gewijzigde oorzaken, bronkoppelingen of software maken een nieuwe beoordeling nodig. Dit is geen mobiele push of ChatGPT-bericht en verandert geen instellingen of bediening.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     }

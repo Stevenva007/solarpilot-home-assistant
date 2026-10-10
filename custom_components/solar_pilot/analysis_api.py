@@ -1,25 +1,109 @@
 """Admin-only analysis preparation and private streamed local downloads."""
 from __future__ import annotations
 import asyncio
+import json
 import os
 import secrets
 import time
+from copy import deepcopy
 from homeassistant.components import websocket_api
 from homeassistant.components.websocket_api.messages import BASE_COMMAND_MESSAGE_SCHEMA
 from homeassistant.core import callback
 from .const import DOMAIN
 from .analysis_export import serialize_report, write_compressed_report
+from .feedback_store import FeedbackValidationError, MAX_FEEDBACK_BYTES, SOURCE_FIELDS
 
 if type(BASE_COMMAND_MESSAGE_SCHEMA).__module__.split('.', 1)[0] == 'probatio':
     import probatio as vol
 else:
     import voluptuous as vol
 COMMAND = 'solar_pilot/analysis_export'
+FEEDBACK_COMMAND = 'solar_pilot/analysis_feedback'
 _REGISTERED = DOMAIN + '_analysis_api'
 _DOWNLOADS = DOMAIN + '_analysis_downloads'
 DOWNLOAD_URL = '/api/solar_pilot/analysis/{token}'
 DOWNLOAD_TTL_S = 600
 MAX_READY_DOWNLOADS = 2
+MAX_RESPONSE_METADATA_BYTES = 64 * 1024
+
+
+def _finalize_export(recorder, raw, names, download):
+    """Return the final provenance alongside its successfully written bytes."""
+    from .analysis_review import feedback_template
+    report = recorder.finalize(raw, names)
+    source = {key: report['export_provenance'][key] for key in SOURCE_FIELDS}
+    request = report.get('analysis_request', {})
+    template = feedback_template(report)
+    quality = deepcopy(request.get('quality', {}))
+    refs = [{'question_id': row['question_id'], 'revision': row['revision']}
+            for row in template['question_answers']]
+    if len(json.dumps({'source_export': source, 'feedback_template': template, 'quality': quality},
+                      ensure_ascii=False, allow_nan=False).encode('utf-8')) > MAX_RESPONSE_METADATA_BYTES:
+        raise ValueError('De analysemetadata is te groot; er is geen onvolledig bestand gemaakt')
+    result = write_compressed_report(report) if download else {'content': serialize_report(report)}
+    return {**result, 'source_export': source, 'feedback_template': template,
+            'quality': quality, 'question_refs': refs}
+
+
+@websocket_api.websocket_command({
+    vol.Required('type'): FEEDBACK_COMMAND,
+    vol.Required('config_entry_id'): str,
+    vol.Required('action'): str,
+    vol.Optional('content'): str,
+})
+@websocket_api.async_response
+async def websocket_analysis_feedback(hass, connection, msg):
+    """Import plain advice only; this handler exposes no apply operation."""
+    user = connection.user
+    if user is None or not user.is_admin:
+        connection.send_error(msg['id'], 'unauthorized', 'Alleen een Home Assistant-beheerder mag adviesrapporten beheren')
+        return
+    action = msg.get('action')
+    required = {'id', 'type', 'config_entry_id', 'action'}
+    if (action not in ('status', 'import', 'remove')
+            or set(msg) - (required | ({'content'} if action == 'import' else set()))
+            or (action == 'import' and type(msg.get('content')) is not str)):
+        connection.send_error(msg['id'], 'invalid_action', 'Kies advies bekijken, uploaden of verwijderen')
+        return
+    # Production WS validation supplies the required strings. Direct handler
+    # calls still cannot use another shape to bypass entry isolation.
+    if type(msg.get('config_entry_id')) is not str:
+        connection.send_error(msg['id'], 'invalid_action', 'Ongeldige SolarPilot-configuratie')
+        return
+    r = _runtime(hass, msg['config_entry_id'])
+    if r is None:
+        connection.send_error(msg['id'], 'not_loaded', 'SolarPilot is niet geladen')
+        return
+    try:
+        if action == 'import':
+            if len(msg['content']) > MAX_FEEDBACK_BYTES:
+                raise FeedbackValidationError('Adviesrapport is groter dan 1 MiB')
+            result = await r.analysis_feedback.import_content(msg['content'])
+        elif action == 'remove':
+            result = await r.analysis_feedback.remove()
+        else:
+            result = r.analysis_feedback.status()
+        if _runtime(hass, msg['config_entry_id']) is not r:
+            connection.send_error(msg['id'], 'not_loaded', 'SolarPilot is herladen; bekijk het rapport opnieuw')
+            return
+        # The imported report is already persisted. A diagnostic refresh failure
+        # cannot turn that successful write into a claimed rollback.
+        try:
+            r.learning_hub.refresh(force=True)
+        except Exception:
+            pass
+        result = r.analysis_feedback.status()
+        connection.send_result(msg['id'], result)
+        try:
+            r.publish()
+        except Exception:
+            # Presentation diagnostics run after the committed response. Their
+            # failure does not undo persistence or create a second WS response.
+            pass
+    except FeedbackValidationError as err:
+        connection.send_error(msg['id'], 'invalid_feedback', str(err))
+    except Exception:
+        connection.send_error(msg['id'], 'feedback_failed', 'Adviesrapport niet bewaard. Het vorige rapport blijft behouden; instellingen en apparaten zijn niet gewijzigd.')
 
 
 def _runtime(hass, entry_id):
@@ -157,7 +241,7 @@ async def websocket_analysis_export(hass, connection, msg):
             raw = recorder.prepare(hours)
         # Sanitization, pseudonyms and large JSON serialization run off the event loop.
         if download:
-            task = asyncio.create_task(_worker(hass, lambda: write_compressed_report(recorder.finalize(raw, names))))
+            task = asyncio.create_task(_worker(hass, lambda: _finalize_export(recorder, raw, names, True)))
             try:
                 artifact = await asyncio.shield(task)
             except asyncio.CancelledError:
@@ -168,6 +252,10 @@ async def websocket_analysis_export(hass, connection, msg):
             if downloads.get('closed') or _runtime(hass, msg['config_entry_id']) is not r:
                 connection.send_error(msg['id'], 'not_loaded', 'SolarPilot is herladen tijdens het exporteren; probeer opnieuw')
                 return
+            await r.analysis_feedback.note_export(artifact['source_export'], requested_hours=hours, question_refs=artifact['question_refs'])
+            if downloads.get('closed') or _runtime(hass, msg['config_entry_id']) is not r:
+                connection.send_error(msg['id'], 'not_loaded', 'SolarPilot is herladen tijdens het exporteren; probeer opnieuw')
+                return
             token = secrets.token_urlsafe(32)
             filename = 'SolarPilot-analyse-' + raw['release'] + '-' + str(hours) + 'h.json.gz'
             downloads['files'][token] = {**artifact, 'user_id': user.id, 'entry_id': msg['config_entry_id'],
@@ -175,12 +263,20 @@ async def websocket_analysis_export(hass, connection, msg):
                 'timer': asyncio.get_running_loop().call_later(DOWNLOAD_TTL_S, _expire_download, hass, token)}
             metadata = {'filename': filename, 'download_url': DOWNLOAD_URL.format(token=token),
                 'media_type': 'application/gzip', 'size_bytes': artifact['size_bytes'],
-                'uncompressed_bytes': artifact['uncompressed_bytes'], 'expires_in_s': DOWNLOAD_TTL_S}
+                'uncompressed_bytes': artifact['uncompressed_bytes'], 'expires_in_s': DOWNLOAD_TTL_S,
+                'source_export': artifact['source_export'], 'feedback_template': artifact['feedback_template'],
+                'quality': artifact['quality']}
             artifact = None  # The expiring download registry now owns the file.
             connection.send_result(msg['id'], metadata)
         else:
-            text = await _worker(hass, lambda: serialize_report(recorder.finalize(raw, names)))
-            connection.send_result(msg['id'], {'filename': 'SolarPilot-analyse-' + raw['release'] + '-' + str(hours) + 'h.json', 'content': text, 'media_type': 'application/json'})
+            prepared = await _worker(hass, lambda: _finalize_export(recorder, raw, names, False))
+            if _runtime(hass, msg['config_entry_id']) is not r:
+                connection.send_error(msg['id'], 'not_loaded', 'SolarPilot is herladen tijdens het exporteren; probeer opnieuw')
+                return
+            await r.analysis_feedback.note_export(prepared['source_export'], requested_hours=hours, question_refs=prepared['question_refs'])
+            connection.send_result(msg['id'], {'filename': 'SolarPilot-analyse-' + raw['release'] + '-' + str(hours) + 'h.json',
+                'content': prepared['content'], 'media_type': 'application/json', 'source_export': prepared['source_export'],
+                'feedback_template': prepared['feedback_template'], 'quality': prepared['quality']})
         recorder.last_export = time.monotonic()
     except ValueError as err:
         if download:
@@ -208,6 +304,7 @@ def async_register_analysis_api(hass):
     if hass.data.get(_REGISTERED):
         return
     websocket_api.async_register_command(hass, websocket_analysis_export)
+    websocket_api.async_register_command(hass, websocket_analysis_feedback)
     # HA always exposes http for the integration's frontend. Test doubles may
     # only provide the WebSocket registrar, so keep that contract independent.
     if getattr(hass, 'http', None) is not None:
