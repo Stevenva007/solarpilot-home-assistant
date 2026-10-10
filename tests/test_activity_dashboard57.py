@@ -5,6 +5,7 @@ import time
 import pytest
 
 from test_decision_dashboard56 import browser_double
+from test_heatpump_ui65 import metered_sample
 
 
 class ReasonRows(HTMLParser):
@@ -55,6 +56,12 @@ def heatpump_row(rows):
     return row_named(rows, "Warmtepomp — Panasonic-regeling / SG-zonneboost")
 
 
+def assert_unknown_heatpump_operation_is_hidden(row):
+    assert row["activity"] == "unknown" and row["state"] == ""
+    assert "is-active" not in row["classes"] and "is-inactive" not in row["classes"]
+    assert "Werking onbekend" not in row["text"]
+
+
 @pytest.mark.parametrize("device,label", [
     ({"on": True, "owned": True, "power_w": 310}, "Actief · SolarPilot"),
     ({"on": True, "owned": False}, "Actief · toestel"),
@@ -101,7 +108,7 @@ def test_readonly_room_activity_does_not_invent_a_sg_request_or_contact_confirma
     row = heatpump_row(rows)
     # A room action is read-only context. This frontend requires the monitor's
     # independent operation evidence; the reported zone alone cannot invent it.
-    assert row["activity"] == "unknown" and row["state"] == "Werking onbekend"
+    assert_unknown_heatpump_operation_is_hidden(row)
     assert "SG-contact open" in row["text"] and "Niet aangevraagd" in row["text"]
     assert "Ruimte" in row["text"]
     if zone.get("available") is False:
@@ -125,7 +132,7 @@ def test_high_reported_tank_target_alone_is_not_a_sg_request_or_contact_activity
                                  "temperature_stamp": stamp, "target_stamp": stamp},
                        sgBoost=sg_fixture())
     row = heatpump_row(rows)
-    assert row["activity"] == "unknown" and row["state"] == "Werking onbekend"
+    assert_unknown_heatpump_operation_is_hidden(row)
     assert "SG-contact open" in row["text"]
     assert "60 °C" in row["text"] and "Afzonderlijk bevestigd" not in row["text"]
 
@@ -134,7 +141,7 @@ def test_sg_request_is_separately_active_without_inventing_heatpump_activity():
     markup, rows = rendered(panasonic={"configured": True, "temperature_c": 49, "target_c": 50},
                            sgBoost=sg_fixture(desired_on=True, relay_confirmed=False, relay_on=None))
     row = heatpump_row(rows)
-    assert row["activity"] == "unknown" and row["state"] == "Werking onbekend"
+    assert_unknown_heatpump_operation_is_hidden(row)
     assert 'class="sg-stage is-active" data-sg-stage="request"' in markup
     assert 'class="sg-stage is-unknown" data-sg-stage="relay"' in markup
     assert "Aangevraagd" in row["text"] and "Nog niet bevestigd" in row["text"]
@@ -145,8 +152,7 @@ def test_confirmed_active_sg_contact_is_visible_without_a_blue_heatpump_activity
     markup, rows = rendered(panasonic={"configured": True, "temperature_c": 49, "target_c": 50},
                        sgBoost=sg_fixture(desired_on=True, relay_on=True))
     row = heatpump_row(rows)
-    assert row["activity"] == "unknown" and "is-active" not in row["classes"]
-    assert row["state"] == "Werking onbekend"
+    assert_unknown_heatpump_operation_is_hidden(row)
     assert 'class="sg-stage is-active" data-sg-stage="relay"' in markup
     assert "SG-contact actief" in row["text"]
     assert "Panasonic-reactie niet afzonderlijk bevestigd" in row["text"]
@@ -165,12 +171,28 @@ def test_fresh_native_operation_controls_blue_edge_independently_of_open_sg(stat
     assert "SG-contact open" in row["text"]
 
 
+@pytest.mark.parametrize("watts,label,activity", [(0, "Geen elektrisch verbruik", "inactive"),
+                                                 (199, "Basisverbruik", "inactive"),
+                                                 (200, "Warmtepomp werkt", "active")])
+def test_metered_heatpump_activity_preserves_other_device_badges_and_independent_sg(watts, label, activity):
+    data = metered_sample(watts)
+    markup, rows = rendered(panasonic=data["panasonic"], sgBoost=sg_fixture(desired_on=True, relay_on=True),
+        devices=[{"id": "one", "name": "Toestel", "available": True, "on": True, "owned": True}])
+    row = heatpump_row(rows)
+    assert row["state"] == label and row["activity"] == activity
+    assert ("is-active" in row["classes"]) is (activity == "active")
+    assert "Afgeleid uit gemeten elektrisch verbruik" in row["text"]
+    assert "Bevestigd actief of afgeleid uit verbruik" in markup
+    assert 'class="sg-stage is-active" data-sg-stage="relay"' in markup
+    device = row_named(rows, "Toestel")
+    assert device["state"] == "Actief · SolarPilot" and device["activity"] == "active"
+
+
 @pytest.mark.parametrize("program", ["heating", "cooling", "dhw", "auto", "off"])
 def test_selected_native_programme_alone_never_animates_the_heatpump(program):
     _, rows = rendered(panasonic={"configured": True, "program": program}, sgBoost=sg_fixture())
     row = heatpump_row(rows)
-    assert row["activity"] == "unknown" and row["state"] == "Werking onbekend"
-    assert "is-active" not in row["classes"]
+    assert_unknown_heatpump_operation_is_hidden(row)
 
 
 @pytest.mark.parametrize("contact", [
@@ -184,8 +206,7 @@ def test_old_or_unavailable_contact_feedback_cannot_show_confirmed_sg_activity(c
     markup, rows = rendered(panasonic={"configured": True, "temperature_c": 49, "target_c": 60},
                        sgBoost=sg_fixture(**contact))
     row = heatpump_row(rows)
-    assert row["activity"] == "unknown" and "is-active" not in row["classes"]
-    assert row["state"] == "Werking onbekend"
+    assert_unknown_heatpump_operation_is_hidden(row)
     assert 'class="sg-stage is-unknown" data-sg-stage="relay"' in markup
 
 

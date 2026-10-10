@@ -354,6 +354,16 @@ attributes["panasonic"] = {
     "source_stale_s": 300,
     "operation": {"state": "active", "label": "Compressor draait",
                   "evidence": "compressor_frequency", "observed_at": 0, "stale_s": 300},
+    "power_activity": {"state": "active", "active": True, "label": "Ruimte verwarmen",
+        "note": "Afgeleid uit gemeten verbruik en Panasonic-bedrijfsmelding.",
+        "evidence": "metered_power_and_context", "threshold_w": 200,
+        "observed_at": 0, "context_observed_at": 0, "stale_s": 300,
+        "total_w": 1720, "complete": True, "function": "space_heating",
+        "supplies": [
+            {"number": 1, "role": "unconfirmed", "watts": 1720, "valid": True,
+             "state": "active", "observed_at": 0},
+            {"number": 2, "role": "unconfirmed", "watts": 0, "valid": True,
+             "state": "off", "observed_at": 0}]},
     "context": "space_heating", "context_reliable": True, "cooling_possible": False,
     "program": "heating", "status": "Panasonic meldt ruimteverwarming",
     "sg_status": "unknown", "sg_status_confirmed": False, "sg_effect_confirmed": False,
@@ -431,6 +441,9 @@ for(const key of ['power_stamp','power_observed_at','power_supply1_observed_at',
   'temperature_stamp','target_stamp','context_stamp','compressor_stamp','compressor_frequency_observed_at']) attributes.panasonic[key]=exampleObservedAt;
 for(const zone of attributes.panasonic.zones) zone.observed_at=exampleObservedAt;
 attributes.panasonic.operation.observed_at=exampleObservedAt;
+attributes.panasonic.power_activity.observed_at=exampleObservedAt;
+attributes.panasonic.power_activity.context_observed_at=exampleObservedAt;
+for(const supply of attributes.panasonic.power_activity.supplies) supply.observed_at=exampleObservedAt;
 attributes.sg_boost.observed_at=exampleObservedAt;
 attributes.sg_boost.relay_observed_at=exampleObservedAt;
 attributes.sg_boost.relay_valid_until=exampleObservedAt+attributes.sg_boost.lease_remaining_s;

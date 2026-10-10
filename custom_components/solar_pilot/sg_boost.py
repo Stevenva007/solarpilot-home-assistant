@@ -13,7 +13,7 @@ import time
 
 from homeassistant.exceptions import HomeAssistantError
 
-from .sg_config import actuator_conflicts, finite, normalize_config, validate_config
+from .sg_config import DISPLAY_ONLY_KEYS, actuator_conflicts, finite, normalize_config, validate_config
 
 # Anti-repeat evidence thresholds, not Panasonic targets or comfort settings.
 NEW_STORAGE_DROP_C = 2.0
@@ -124,7 +124,11 @@ class SGBoostManager:
         new_confirmation = (self.settings.get("watchdog_confirmed") is not True
                             and updated.get("watchdog_confirmed") is True
                             and updated.get("commissioning_confirmed") is True)
-        if updated != self.settings:
+        # Meter interpretation is presentation metadata. Editing it must not
+        # revoke an in-flight dispatch or restart the stable-solar window.
+        control_changed = any(updated.get(key) != self.settings.get(key)
+                              for key in updated if key not in DISPLAY_ONLY_KEYS)
+        if control_changed:
             self._generation += 1
             self._stable_since = None
             if updated.get("enabled") is not True:

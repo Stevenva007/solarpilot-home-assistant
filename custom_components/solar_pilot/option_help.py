@@ -920,6 +920,24 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
  'sg_sources:power_supply2_entity': 'Optionele fysieke W/kW-meter voor voeding 2. Noem deze alleen heaterverbruik '
                                     'als die dekking lokaal is bevestigd. Gemeten 0 W is nul; een ontbrekende '
                                     'of verouderde bron blijft onbekend en maakt de som onvolledig.',
+ 'sg_sources:power_activity_threshold_w': 'Actief verbruik wordt vanaf deze waarde per geldige voeding weergegeven, '
+                                          'standaard 200 W. Deze drempel verandert uitsluitend de uitleg en '
+                                          'grafische weergave; hij schakelt niets en verandert de SG-startdrempel '
+                                          'niet. Kies een waarde boven het gemeten rustverbruik. Vermogen toont '
+                                          'elektrische activiteit; alleen aanvullende actuele Panasonic-informatie '
+                                          'kan tapwater, ruimteverwarming of koeling onderscheiden.',
+ 'sg_sources:power_supply1_role': 'Kies de lokaal bekende functie van voeding 1 voor de vermogensuitleg. '
+                                 'Hoofdvoeding omvat ook regeling en pompen; verbruik bewijst daarom niet '
+                                 'afzonderlijk compressorbedrijf. Kies elektrische ondersteuning alleen als '
+                                 'de meter uitsluitend die ondersteuning omvat. Een naam of bevestigde totale '
+                                 'meetdekking bepaalt de functie niet. Bij twijfel blijft de functie '
+                                 'onbevestigd. Deze keuze bedient niets en geeft geen SG-toestemming.',
+ 'sg_sources:power_supply2_role': 'Kies de lokaal bekende functie van voeding 2 voor de vermogensuitleg. '
+                                 'Elektrische ondersteuning betekent een meter die uitsluitend die '
+                                 'ondersteuning meet; het voedingsnummer bepaalt dat niet. Hoofdvoeding '
+                                 'omvat ook regeling en pompen. Bij twijfel blijft de functie onbevestigd. '
+                                 'De totale niet-overlappende meetdekking wordt apart bevestigd. Deze keuze '
+                                 'verandert uitsluitend de weergave en geeft geen SG-toestemming.',
  'sg_sources:split_power_confirmed': 'Bevestig lokaal dat beide meters samen de twee volledige voedingen meten '
                                      'zonder overlap. Namen bewijzen die dekking niet. Gelijke of inspecteerbaar '
                                      'overlappende bronnen worden geweigerd. Een gewijzigd meterpaar vraagt '

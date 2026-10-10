@@ -51,6 +51,23 @@ with sync_playwright() as playwright:
         c.hass={...c._hass,callService:async(...args)=>qaCalls.push(args),
           states:{...c._hass.states,[c._entity]:{...old,state:'Zonnestroom',attributes:a}}};
       };
+      window.qaMeter=(settings={})=>{
+        const stamp=Date.now()/1000,o={power1:1720,power2:0,complete:true,native:'unknown',sg:true,threshold:200,...settings};
+        const readings=[o.power1,o.power2],complete=o.complete&&readings.every(value=>typeof value==='number');
+        const total=complete?readings[0]+readings[1]:null,active=complete?total>=o.threshold:readings.some(value=>typeof value==='number'&&value>=o.threshold);
+        const contextStamp=o.contextStamp??stamp;
+        const power_activity={state:complete?(active?'active':total===0?'off':'basis'):'partial',active,
+          label:'Fictieve vermogensafleiding',note:'Afgeleid uit gemeten verbruik',threshold_w:o.threshold,
+          evidence:o.function?'metered_power_and_context':'metered_power',observed_at:o.function?Math.min(stamp,contextStamp):stamp,
+          stale_s:120,total_w:total,complete,function:o.function??null,context_observed_at:o.function?contextStamp:null,
+          supplies:readings.map((watts,index)=>({number:index+1,role:o['role'+(index+1)]??'unknown',
+            label:'Fictieve voeding '+(index+1),watts,valid:typeof watts==='number',
+            state:typeof watts!=='number'?'unknown':watts===0?'off':watts>=o.threshold?'active':'basis',
+            observed_at:o['stamp'+(index+1)]??(typeof watts==='number'?stamp:null)}))};
+        qaApply(o.native,o.sg,{power_activity,power_w:total,power_kind:complete?'measured':'unknown',
+          power_complete:complete,power_supply1_w:o.power1,power_supply2_w:o.power2,
+          power_supply1_valid:typeof o.power1==='number',power_supply2_valid:typeof o.power2==='number'});
+      };
       qaApply();
       const style=document.createElement('style');style.textContent=`body{max-width:1100px;background:#111;color:#eee}
         solar-pilot-card{--card-background-color:#1e1e1e;--ha-card-background:#1e1e1e;--secondary-background-color:#282828;
@@ -59,6 +76,7 @@ with sync_playwright() as playwright:
     }''')
     row = page.locator('solar-pilot-card >> [data-reason-key="overview:sg"]')
     assert row.count() == 1
+    assert 'Bevestigd actief of afgeleid uit verbruik' in page.locator('solar-pilot-card >> .activity-legend').inner_text()
     assert row.get_attribute('data-activity') == 'active'
     assert row.locator('[data-sg-stage=request]').inner_text().endswith('Niet aangevraagd')
     assert row.locator('[data-sg-stage=relay]').inner_text().endswith('Open')
@@ -80,6 +98,112 @@ with sync_playwright() as playwright:
     page.evaluate("qaApply('unknown',true,{power_w:5000})")
     assert row.get_attribute('data-activity') == 'unknown'
     assert '5 kW' in row.inner_text()
+    assert 'Werking onbekend' not in row.inner_text()
+    assert row.locator('.row > .badge').count() == 0
+    assert row.locator('.heatpump-operation,.heatpump-fan').count() == 0
+    assert row.locator('[data-sg-stage]').count() == 3
+    assert row.locator('[data-sg-stage=relay]').get_attribute('class') == 'sg-stage is-active'
+
+    # Unknown, absent and expired operation observations do not insert another
+    # large status placeholder. All views retain their measurements, SG rails,
+    # reason and diagnostic details without inferring operation from watts.
+    for view in ('overview', 'comfort', 'loads'):
+        page.locator(f'solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value={view}]').click()
+        panel = row if view == 'overview' else page.locator('solar-pilot-card >> .heatpump-sg')
+        for observation in ('unknown', 'missing', 'expired'):
+            page.evaluate('''kind => {
+              const operation=kind==='missing'?null:kind==='expired'?{state:'active',label:'Compressor draait',
+                evidence:'compressor_frequency',observed_at:Date.now()/1000-121,stale_s:120}:
+                {state:'unknown',label:'Werking onbekend',evidence:'none',observed_at:Date.now()/1000,stale_s:120};
+              qaApply('unknown',true,{operation,power_w:5000});
+            }''', observation)
+            assert panel.get_attribute('data-activity') == 'unknown'
+            assert panel.locator('.heatpump-operation,.heatpump-fan').count() == 0
+            assert 'Werking onbekend' not in panel.inner_text()
+            assert 'Actuele compressor- of toestelactie ontbreekt' not in panel.inner_text()
+            assert panel.locator('.reason-power>b').inner_text() == '5 kW'
+            assert panel.locator('[data-sg-stage]').count() == 3
+            assert panel.locator('[data-sg-stage=relay]').get_attribute('class') == 'sg-stage is-active'
+            assert panel.locator('details').count() >= 1
+            assert 'SG-contact actief; Panasonic-reactie afzonderlijk gemeld.' in panel.inner_text()
+            assert page.evaluate('c._heatpumpActivity(c._ctx()).state') == 'unknown'
+            assert page.evaluate('c._heatpumpActivity(c._ctx()).evidence') == 'none'
+            if view == 'overview':
+                assert panel.locator('.row > .badge').count() == 0
+        # Positive evidence keeps its operation graphic and native status.
+        for operation in ('active', 'idle'):
+            page.evaluate('state=>qaApply(state,true)', operation)
+            assert panel.locator('.heatpump-operation').count() == 1
+            assert panel.get_attribute('data-activity') == ('active' if operation == 'active' else 'inactive')
+            if view == 'overview':
+                assert panel.locator('.row > .badge').count() == 1
+    page.locator('solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value=overview]').click()
+
+    # Metered activity is an explicitly separate display inference. It cannot
+    # create compressor movement, received SG proof or device-control calls.
+    for view in ('overview', 'comfort', 'loads'):
+        page.locator(f'solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value={view}]').click()
+        panel = row if view == 'overview' else page.locator('solar-pilot-card >> .heatpump-sg')
+        page.evaluate('qaMeter()')
+        assert panel.get_attribute('data-activity') == 'active'
+        assert 'Warmtepomp werkt' in panel.inner_text()
+        assert 'Afgeleid uit gemeten elektrisch verbruik' in panel.inner_text()
+        assert 'Actief verbruik vanaf 200 W' in panel.inner_text()
+        assert panel.locator('.heatpump-operation').get_attribute('data-evidence') == 'metered_power'
+        assert panel.locator('.heatpump-fan').evaluate('element=>getComputedStyle(element).animationName') == 'none'
+        assert panel.locator('[data-supply-number="2"]').inner_text().endswith('0 W\nGeen verbruik')
+        assert 'Elektrische ondersteuning' not in panel.locator('[data-supply-number="2"]').inner_text()
+        assert panel.locator('[data-sg-stage]').count() == 3
+        for function,label in [('tapwater_heating','Sanitair water opwarmen'),('space_heating','Ruimte verwarmen'),('space_cooling','Ruimte koelen')]:
+            page.evaluate('functionName=>qaMeter({function:functionName})', function)
+            assert label in panel.inner_text()
+            assert 'Afgeleid uit gemeten verbruik' in panel.inner_text()
+            assert panel.locator('.heatpump-operation').get_attribute('data-evidence') == 'metered_power_and_context'
+        # An expired context removes only the inferred function, retaining fresh
+        # generic electrical activity from the independently current meters.
+        page.evaluate("qaMeter({function:'tapwater_heating',contextStamp:Date.now()/1000-121})")
+        assert 'Sanitair water opwarmen' not in panel.inner_text()
+        assert 'Warmtepomp werkt' in panel.inner_text()
+        assert panel.get_attribute('data-activity') == 'active'
+        # Idle compressor plus high electrical support is reported honestly;
+        # a static fan and explicit 0 Hz prevent a false compressor claim.
+        page.evaluate("qaMeter({native:'idle',power1:0,power2:3700,role1:'main',role2:'heater'})")
+        assert 'Compressor staat stil' in panel.inner_text()
+        assert '0 Hz' in panel.inner_text()
+        assert panel.locator('.heatpump-operation strong').inner_text().startswith('Warmtepomp werkt')
+        assert panel.locator('.heatpump-operation').get_attribute('data-compressor-running') == 'false'
+        assert panel.locator('.heatpump-fan').evaluate('element=>getComputedStyle(element).animationName') == 'none'
+        assert 'regeling en pompen' in panel.locator('[data-supply-number="1"]').inner_text()
+        assert 'Elektrische ondersteuning' in panel.locator('[data-supply-number="2"]').inner_text()
+        for function,label in [('tapwater_heating','Sanitair water opwarmen'),('space_heating','Ruimte verwarmen'),('space_cooling','Ruimte koelen')]:
+            page.evaluate('functionName=>qaMeter({native:"idle",power1:0,power2:3700,function:functionName})', function)
+            assert panel.locator('.heatpump-operation strong').inner_text().startswith(label)
+            assert 'Compressor staat stil' in panel.inner_text() and '0 Hz' in panel.inner_text()
+            assert panel.locator('.heatpump-operation').get_attribute('data-compressor-running') == 'false'
+            assert panel.locator('.heatpump-fan').evaluate('element=>getComputedStyle(element).animationName') == 'none'
+        for watts,label in [(0,'Geen elektrisch verbruik'),(99,'Basisverbruik')]:
+            page.evaluate('watts=>qaMeter({power1:watts,power2:0})', watts)
+            assert panel.get_attribute('data-activity') == 'inactive'
+            assert label in panel.inner_text()
+        page.evaluate('qaMeter({power1:900,power2:null,complete:false})')
+        assert 'Actief verbruik op voeding 1' in panel.inner_text()
+        assert panel.locator('.reason-power>b').inner_text() == 'Vermogen nog niet bekend'
+        assert panel.locator('[data-supply-number="2"]').inner_text().endswith('Geen actuele meting')
+        for watts in (0,99):
+            page.evaluate('watts=>qaMeter({power1:watts,power2:null,complete:false})', watts)
+            assert panel.locator('.heatpump-operation').count() == 0
+            assert panel.get_attribute('data-activity') == 'unknown'
+        # Stale supporting supply cannot keep an old complete-total or function
+        # inference active. The other current supply retains its measured value.
+        page.evaluate("qaMeter({function:'tapwater_heating',power1:1000,power2:700,stamp1:Date.now()/1000-121})")
+        assert panel.locator('.heatpump-operation').count() == 0
+        assert panel.get_attribute('data-activity') == 'unknown'
+        assert panel.locator('.reason-power>b').inner_text() == 'Vermogen nog niet bekend'
+        assert panel.locator('[data-supply-number="1"]').inner_text().endswith('Geen actuele meting')
+        assert '700 W' in panel.locator('[data-supply-number="2"]').inner_text()
+        assert 'Sanitair water opwarmen' not in panel.inner_text()
+        assert 'Werking onbekend' not in panel.inner_text()
+    page.locator('solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value=overview]').click()
 
     # Missing supply 2 preserves the known part but never fabricates a total.
     page.evaluate("qaApply('active',false,{power_w:null,power_kind:'unknown',power_complete:false,power_supply2_w:null,power_supply2_valid:false})")
@@ -117,7 +241,8 @@ with sync_playwright() as playwright:
       qaClockMs+=121000;c._refreshObservationDisplay();
     }''')
     assert panel.get_attribute('data-activity') == 'unknown'
-    assert panel.locator('.heatpump-fan').evaluate('element=>getComputedStyle(element).animationName') == 'none'
+    assert panel.locator('.heatpump-operation,.heatpump-fan').count() == 0
+    assert 'Werking onbekend' not in panel.inner_text()
     for stage in ('request', 'relay', 'received'):
         assert panel.locator(f'[data-sg-stage={stage}]').get_attribute('class') == 'sg-stage is-unknown'
     assert panel.locator('.reason-power>b').inner_text() == 'Vermogen nog niet bekend'
@@ -144,6 +269,8 @@ with sync_playwright() as playwright:
     # A lost SolarPilot state suppresses all stale activity indications.
     page.evaluate("c._last.state='unavailable';c._refreshObservationDisplay()")
     assert panel.get_attribute('data-activity') == 'unknown'
+    assert panel.locator('.heatpump-operation,.heatpump-fan').count() == 0
+    assert 'Werking onbekend' not in panel.inner_text()
     assert page.evaluate('qaCalls.length') == 0
     assert not errors, errors
     browser.close()

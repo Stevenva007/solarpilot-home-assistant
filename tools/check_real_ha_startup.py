@@ -109,6 +109,11 @@ def assert_current_sg(runtime, entry, expected_options, expected_journal):
     assert overview["compressor_running"] is True and overview["compressor_frequency_hz"] == 35
     assert overview["sg_status"] == "unknown" and overview["sg_status_confirmed"] is False
     assert overview["sg_effect_confirmed"] is False
+    assert runtime.panasonic.settings["power_activity_threshold_w"] == 200
+    assert runtime.panasonic.settings["power_supply1_role"] == "unconfirmed"
+    assert runtime.panasonic.settings["power_supply2_role"] == "unconfirmed"
+    assert overview["power_activity"]["active"] is True
+    assert overview["power_activity"]["threshold_w"] == 200
 
 
 class FailureEvidence(logging.Handler):
@@ -242,6 +247,26 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                 assert observed["compressor_running"] is None and observed["compressor_frequency_hz"] is None
                 # WATER is only programme context, never compressor proof.
                 assert observed["activity"] == "WATER" and observed["sg_effect_confirmed"] is False
+                # Existing bindings automatically gain the default read-only
+                # interpretation. No new role, threshold or helper entity is
+                # entered into these immutable pre-upgrade options.
+                assert not any(key in entry.options["sg_boost"] for key in (
+                    "power_activity_threshold_w", "power_supply1_role", "power_supply2_role"))
+                control_before = deepcopy(runtime.sg_boost.snapshot())
+                display = observed["power_activity"]
+                assert display["label"] == "Warmtepomp werkt" and display["active"] is True
+                assert display["threshold_w"] == 200 and display["function"] is None
+                hass.states.async_set("sensor.synthetic_supply1", "58", {"unit_of_measurement": "W"})
+                low = runtime.panasonic.overview()["power_activity"]
+                assert low["label"] == "Basisverbruik" and low["active"] is False
+                assert [row["state"] for row in low["supplies"]] == ["basis", "off"]
+                assert [row["watts"] for row in low["supplies"]] == [58, 0]
+                hass.states.async_set("sensor.synthetic_supply1", "0", {"unit_of_measurement": "W"})
+                off = runtime.panasonic.overview()["power_activity"]
+                assert off["label"] == "Geen elektrisch verbruik" and off["active"] is False
+                assert runtime.sg_boost.snapshot() == control_before
+                assert dict(entry.options) == expected_options and not physical_calls
+                hass.states.async_set("sensor.synthetic_supply1", "1.4", {"unit_of_measurement": "kW"})
                 hass.states.async_set("sensor.synthetic_supply2", "unavailable", {"unit_of_measurement": "W"})
                 observed = runtime.panasonic.overview()
                 assert observed["power_w"] is None and observed["power_complete"] is False
@@ -288,7 +313,8 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                     "configuration_preserved": True, "physical_service_calls": 0,
                     **({"fixture": "current general SG with split read-only sources",
                         "immutable_nested_options_exact": True, "manual_and_completion_holds_preserved": True,
-                        "split_units_zero_missing_and_sum": True, "compressor_and_sg_proof_separate": True}
+                        "split_units_zero_missing_and_sum": True, "compressor_and_sg_proof_separate": True,
+                        "automatic_power_display_without_new_settings": True}
                        if current_sg else {})}
         finally:
             logging.getLogger().removeHandler(evidence)
