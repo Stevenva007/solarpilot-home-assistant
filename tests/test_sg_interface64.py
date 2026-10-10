@@ -8,7 +8,7 @@ import pytest
 
 from custom_components.solar_pilot.sg_config import normalize_config, actuator_conflicts
 from test_sg_config62 import actual_flow_class, hass_with
-from test_sg_ui_platforms62 import attributes, execute, text
+from test_sg_ui_platforms62 import attributes, execute, text, Markup
 
 
 @pytest.fixture
@@ -126,26 +126,46 @@ async def test_imported_scope_and_meter_proof_do_not_grant_new_authority():
 
 
 @pytest.mark.parametrize("running,frequency,label", [(True, 31, "compressor draait"),
-    (False, 0, "compressor stil"), (None, None, "compressorstatus onbekend")])
+    (False, 0, "compressor stil"), (None, None, None)])
 def test_compressor_and_received_sg_are_separate_evidence(running, frequency, label):
     data = attributes(desired_on=True, relay_on=True, owner="solarpilot", lease_confirmed=True, lease_remaining_s=170)
     data["panasonic"].update(compressor_running=running, compressor_frequency_hz=frequency,
-        sg_status="unknown", sg_status_confirmed=False)
-    rendered = text(execute(data)["initial"])
-    assert label in rendered
-    assert "Ontvangen SG-status Onbekend" in rendered
-    assert "SG-effect op verbruik Niet afzonderlijk bevestigd" in rendered
+        sg_status="unknown", sg_status_confirmed=False,
+        operation={"state": "active" if running is True else "idle" if running is False else "unknown",
+                   "label": label or "Werking onbekend", "evidence": "compressor_frequency" if running is not None else "none",
+                   "observed_at": data["panasonic"]["compressor_stamp"], "stale_s": 120})
+    result = execute(data)
+    rendered = text(result["initial"])
+    root = Markup(result["initial"]).root
+    if label:
+        assert label in rendered and f"{frequency} Hz" in rendered
+        operation = next(n for n in root.walk() if "data-heatpump-operation" in n.attributes)
+        assert operation.attributes["data-compressor-running"] == ("true" if running else "false")
+    else:
+        assert "compressorstatus onbekend" not in rendered and "Werking onbekend" not in rendered
+        assert not any("data-heatpump-operation" in n.attributes for n in root.walk())
+    assert [n.attributes["data-sg-stage"] for n in root.walk() if "data-sg-stage" in n.attributes] == ["relay"]
+    assert "Ontvangen SG-status" not in rendered
+    assert "Compressorbedrijf bewijst geen extra verbruik door SG" in rendered
+    assert "SolarPilot-aanvraag Aangevraagd" in rendered
     assert "Eigenaar SG-aanvraag SolarPilot" in rendered
+    assert not result["calls"]
 
 
 def test_manual_contact_has_no_invented_local_permission_or_compressor_start():
     data = attributes(desired_on=False, relay_on=True, manual_hold=True,
         owner="manual", lease_confirmed=False, lease_remaining_s=300)
     data["panasonic"].update(program="dhw", activity="WATER", compressor_running=None)
-    rendered = text(execute(data)["initial"])
+    result = execute(data)
+    rendered = text(result["initial"])
+    root = Markup(result["initial"]).root
     assert "Bevestigde lokale toestemming Niet bevestigd" in rendered
-    assert "compressorstatus onbekend" in rendered
+    assert "compressorstatus onbekend" not in rendered and "Werking onbekend" not in rendered
+    assert not any("data-heatpump-operation" in n.attributes for n in root.walk())
+    assert next(n for n in root.walk() if "data-activity" in n.attributes).attributes["data-activity"] == "unknown"
+    assert "Geen zonneboost aangevraagd; het SG-contact is nog actief" in rendered
     assert "Handmatige overname" in rendered
+    assert not result["calls"]
 
 
 @pytest.mark.parametrize("view", ["comfort", "board"])
@@ -164,7 +184,8 @@ def test_complete_split_shows_known_zero_and_one_total_without_sg_causation():
     assert "voeding 1 1,45 kW · voeding 2 0 W" in rendered
     assert "Totaal voeding 1 + voeding 2" in rendered
     assert "Ontvangen SG-status Actief · afzonderlijk bevestigd" in rendered
-    assert "SG-effect op verbruik Niet afzonderlijk bevestigd" in rendered
+    assert "SG-effect op verbruik" not in rendered
+    assert "Compressorbedrijf bewijst geen extra verbruik door SG" in rendered
 
 
 def test_incomplete_split_retains_one_part_and_marks_total_unknown():

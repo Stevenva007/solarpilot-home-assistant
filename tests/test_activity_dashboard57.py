@@ -142,7 +142,8 @@ def test_sg_request_is_separately_active_without_inventing_heatpump_activity():
                            sgBoost=sg_fixture(desired_on=True, relay_confirmed=False, relay_on=None))
     row = heatpump_row(rows)
     assert_unknown_heatpump_operation_is_hidden(row)
-    assert 'class="sg-stage is-active" data-sg-stage="request"' in markup
+    assert 'data-sg-stage="request"' not in markup
+    assert "SolarPilot-aanvraag" in row["text"]
     assert 'class="sg-stage is-unknown" data-sg-stage="relay"' in markup
     assert "Aangevraagd" in row["text"] and "Nog niet bevestigd" in row["text"]
     assert "is-active" not in row["classes"] and "is-available" not in row["classes"]
@@ -155,7 +156,8 @@ def test_confirmed_active_sg_contact_is_visible_without_a_blue_heatpump_activity
     assert_unknown_heatpump_operation_is_hidden(row)
     assert 'class="sg-stage is-active" data-sg-stage="relay"' in markup
     assert "SG-contact actief" in row["text"]
-    assert "Panasonic-reactie niet afzonderlijk bevestigd" in row["text"]
+    assert 'data-sg-stage="received"' not in markup
+    assert "Ontvangen SG-status" not in row["text"]
 
 
 @pytest.mark.parametrize("state,label,activity", [("active", "Compressor draait", "active"),

@@ -10,7 +10,9 @@ from __future__ import annotations
 import argparse
 import asyncio
 from copy import deepcopy
+from datetime import datetime, timezone
 from importlib.metadata import version
+import inspect
 import json
 import logging
 from pathlib import Path
@@ -20,6 +22,79 @@ import tempfile
 import time
 from types import MappingProxyType
 from unittest.mock import patch
+
+
+async def verify_analysis_feedback(hass, runtime, entry):
+    """Exercise real Core storage and production admin handlers without control."""
+    from custom_components.solar_pilot import analysis_api
+    from custom_components.solar_pilot.analysis_review import export_digest
+    from custom_components.solar_pilot.feedback_store import SOURCE_FIELDS
+
+    class Connection:
+        def __init__(self, admin):
+            self.user = type("SyntheticUser", (), {"id": "synthetic_admin", "is_admin": admin})()
+            self.results = []
+            self.errors = []
+
+        def send_result(self, message_id, result):
+            self.results.append(result)
+
+        def send_error(self, message_id, code, message):
+            self.errors.append(code)
+
+    # Unwrap only HA's scheduling decorator; the production coroutine still
+    # performs its own admin/runtime checks against actual Core and Store.
+    export_handler = inspect.unwrap(analysis_api.websocket_analysis_export)
+    feedback_handler = inspect.unwrap(analysis_api.websocket_analysis_feedback)
+    message = {"id": 1, "config_entry_id": entry.entry_id, "hours": 168}
+    denied = Connection(False)
+    await export_handler(hass, denied, message)
+    assert denied.errors == ["unauthorized"] and not denied.results
+    admin = Connection(True)
+    await export_handler(hass, admin, message)
+    assert not admin.errors and len(admin.results) == 1, admin.errors
+    exported = json.loads(admin.results[0]["content"])
+    assert exported["analysis_request"]["schema"] == "solarpilot.analysis_request"
+    assert exported["export_provenance"]["export_sha256"] == export_digest(exported)
+    source = {key: exported["export_provenance"][key] for key in SOURCE_FIELDS}
+    report = {"schema": "solarpilot.analysis_feedback", "schema_version": 1,
+              "source_export": source, "analyzed_at": datetime.now(timezone.utc).isoformat(),
+              "summary": "Synthetic analysis: continue collecting measured evidence.",
+              "recommendations": [{"category": "observation", "text": "No setting change is justified by this short fixture.",
+                                   "evidence": ["coverage_summary.covered_hours"], "confidence": "low",
+                                   "limitations": ["Synthetic, brief observations."]}],
+              "question_answers": [], "limitations": ["No physical heat-pump test."]}
+    pending = exported["analysis_request"]["pending_questions"]
+    assert pending, "The assisted-learning fixture must expose a finding to analyse"
+    answered = pending[0]
+    report["question_answers"] = [{"question_id": answered["id"], "revision": answered["revision"],
+                                  "answer": "Synthetic review: keep the current learning policy.", "outcome": "reviewed"}]
+    baseline = (deepcopy(dict(entry.options)), deepcopy(runtime.sg_boost.snapshot()),
+                deepcopy(runtime.learning_hub.policy), deepcopy(runtime.learning_hub.answers))
+    upload = {"id": 2, "config_entry_id": entry.entry_id, "action": "import", "content": json.dumps(report)}
+    denied.errors.clear()
+    await feedback_handler(hass, denied, upload)
+    assert denied.errors == ["unauthorized"] and runtime.analysis_feedback.report is None
+    admin.results.clear()
+    await feedback_handler(hass, admin, upload)
+    assert not admin.errors and len(admin.results) == 1, admin.errors
+    status = admin.results[0]
+    assert status["report"] == report and status["association"]["state"] == "matched"
+    remaining = runtime.learning_hub.refresh(force=True)["questions"]
+    assert not any(row["id"] == answered["id"] and row["revision"] == answered["revision"] for row in remaining)
+    assert (dict(entry.options), runtime.sg_boost.snapshot(), runtime.learning_hub.policy,
+            runtime.learning_hub.answers) == baseline
+    saved = await runtime.analysis_feedback.store.async_load()
+    assert saved["report"] == report and saved["known_exports"][-1]["source_export"] == source
+    # Executable fields are rejected as a whole; the previously saved advice
+    # remains intact and no native/options/control operation is attempted.
+    invalid = {**report, "service": "switch.turn_on"}
+    admin.errors.clear()
+    await feedback_handler(hass, admin, {**upload, "id": 3, "content": json.dumps(invalid)})
+    assert admin.errors and runtime.analysis_feedback.report == report
+    assert (dict(entry.options), runtime.sg_boost.snapshot(), runtime.learning_hub.policy,
+            runtime.learning_hub.answers) == baseline
+    return report
 
 
 def fixture():
@@ -110,8 +185,8 @@ def assert_current_sg(runtime, entry, expected_options, expected_journal):
     assert overview["sg_status"] == "unknown" and overview["sg_status_confirmed"] is False
     assert overview["sg_effect_confirmed"] is False
     assert runtime.panasonic.settings["power_activity_threshold_w"] == 200
-    assert runtime.panasonic.settings["power_supply1_role"] == "unconfirmed"
-    assert runtime.panasonic.settings["power_supply2_role"] == "unconfirmed"
+    assert runtime.panasonic.settings["power_supply1_role"] == "main"
+    assert runtime.panasonic.settings["power_supply2_role"] == "heater"
     assert overview["power_activity"]["active"] is True
     assert overview["power_activity"]["threshold_w"] == 200
 
@@ -266,6 +341,121 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                 assert off["label"] == "Geen elektrisch verbruik" and off["active"] is False
                 assert runtime.sg_boost.snapshot() == control_before
                 assert dict(entry.options) == expected_options and not physical_calls
+                # Main and auxiliary supplies are separate observations. High
+                # auxiliary uptake does not become compressor operation.
+                hass.states.async_set("sensor.synthetic_supply1", "58", {"unit_of_measurement": "W"})
+                hass.states.async_set("sensor.synthetic_supply2", "250", {"unit_of_measurement": "W"})
+                heater = runtime.panasonic.overview()
+                assert heater["power_activity"]["label"] == "Elektrische bijverwarming actief"
+                assert heater["power_activity"]["activity_kind"] == "heater"
+                assert heater["power_activity"]["function"] is None and heater["compressor_running"] is None
+                assert [row["role"] for row in heater["power_activity"]["supplies"]] == ["main", "heater"]
+                assert all(row["role_assumed"] for row in heater["power_activity"]["supplies"])
+                hass.states.async_set("sensor.synthetic_supply1", "unavailable", {"unit_of_measurement": "W"})
+                partial_heater = runtime.panasonic.overview()
+                assert partial_heater["power_w"] is None and partial_heater["power_complete"] is False
+                auxiliary = partial_heater["power_activity"]["supplies"][1]
+                assert auxiliary["valid"] is True and auxiliary["state"] == "active" and auxiliary["watts"] == 250
+                assert partial_heater["power_activity"]["function"] is None
+                hass.states.async_set("sensor.synthetic_supply2", "0", {"unit_of_measurement": "W"})
+                assert runtime.panasonic.overview()["power_activity"]["supplies"][1]["state"] == "off"
+                # Explicit native actions remain useful even when every power
+                # meter reports zero. Their labels and metered activity are
+                # independent read-only layers.
+                hass.states.async_set("sensor.synthetic_supply1", "0", {"unit_of_measurement": "W"})
+                hass.states.async_set("water_heater.synthetic_tank", "idle", {
+                    "hvac_action": "idle", "operation_mode": "idle", "temperature": 51,
+                    "current_temperature": 48, "temperature_unit": "°C"})
+                for mode, action, function in (("heat", "heating", "space_heating"),
+                                                ("cool", "cooling", "space_cooling")):
+                    hass.states.async_set("climate.synthetic_zone", mode, {
+                        "hvac_action": action, "temperature": 20, "current_temperature": 20,
+                        "temperature_unit": "°C"})
+                    native = runtime.panasonic.overview()
+                    assert native["native_task"]["function"] == function
+                    assert native["native_task"]["source"] == "native_hvac_action"
+                    assert native["native_task"]["observed_at"] is not None
+                    assert native["power_activity"]["active"] is False
+                    hass.states.async_set("sensor.synthetic_supply1", "1.4", {"unit_of_measurement": "kW"})
+                    metered = runtime.panasonic.overview()
+                    assert metered["power_activity"]["function"] == function
+                    assert metered["power_activity"]["function_kind"] == "native_action"
+                    hass.states.async_set("sensor.synthetic_supply1", "0", {"unit_of_measurement": "W"})
+                hass.states.async_set("climate.synthetic_zone", "off", {
+                    "hvac_action": "off", "temperature": 20, "current_temperature": 20,
+                    "temperature_unit": "°C"})
+                hass.states.async_set("water_heater.synthetic_tank", "heating", {
+                    "hvac_action": "heating", "operation_mode": "heating", "temperature": 51,
+                    "current_temperature": 48, "temperature_unit": "°C"})
+                dhw = runtime.panasonic.overview()
+                assert dhw["native_task"]["function"] == "tapwater_heating"
+                assert dhw["native_task"]["source"] == "native_hvac_action"
+                assert dhw["power_activity"]["active"] is False
+                hass.states.async_set("sensor.synthetic_supply1", "1.4", {"unit_of_measurement": "kW"})
+                assert runtime.panasonic.overview()["power_activity"]["label"] == "Sanitair water opwarmen"
+                assert runtime.sg_boost.snapshot() == control_before
+                assert dict(entry.options) == expected_options and not physical_calls
+                hass.states.async_set("water_heater.synthetic_tank", "eco", {
+                    "temperature": 51, "current_temperature": 48, "temperature_unit": "°C"})
+                hass.states.async_set("climate.synthetic_zone", "heat", {
+                    "hvac_action": "idle", "temperature": 20, "current_temperature": 20,
+                    "temperature_unit": "°C"})
+                # Exercise automatic discovery against real Core registries.
+                # Only the native identity is installed; no Aquarea component,
+                # coordinator or cloud connection is loaded for this fixture.
+                from homeassistant.helpers import device_registry as dr
+                from custom_components.solar_pilot.panasonic_monitor import PanasonicMonitor
+                native_entry = ConfigEntry(
+                    version=1, minor_version=1, domain="aquarea", title="Synthetic native registry",
+                    source="ignore", unique_id="synthetic-native-registry", data={}, options={},
+                    discovery_keys=MappingProxyType({}), subentries_data=None,
+                )
+                hass.config_entries._entries[native_entry.entry_id] = native_entry
+                native_device = dr.async_get(hass).async_get_or_create(
+                    config_entry_id=native_entry.entry_id, identifiers={("aquarea", "synthetic_native")},
+                    manufacturer="Synthetic", name="Synthetic native heat pump")
+                native_registry = er.async_get(hass)
+                native_entities = {}
+                for domain, suffix, value, attrs in (
+                    ("water_heater", "tank", "heating", {"operation_mode": "heating", "temperature": 50,
+                        "current_temperature": 49, "temperature_unit": "°C"}),
+                    ("climate", "climate_1", "auto", {"hvac_action": "off", "temperature": 21,
+                        "current_temperature": 22, "temperature_unit": "°C"}),
+                    ("sensor", "direction", "WATER", {}),
+                    ("binary_sensor", "defrost", "off", {}),
+                ):
+                    native_row = native_registry.async_get_or_create(
+                        domain, "aquarea", f"synthetic_native_{suffix}", config_entry=native_entry,
+                        device_id=native_device.id, suggested_object_id=f"synthetic_native_{suffix}")
+                    native_entities[suffix] = native_row.entity_id
+                    hass.states.async_set(native_row.entity_id, value, attrs)
+                automatic = PanasonicMonitor(runtime, {**runtime.panasonic.settings,
+                    "tank_target_entity": "", "zone_entities": []})
+                automatic_before = deepcopy(automatic.settings)
+                inherited_control = deepcopy(runtime.panasonic.overview())
+                discovered = automatic.overview()
+                assert discovered["display_sources"]["tank_entity"] == native_entities["tank"]
+                assert discovered["display_sources"]["zone_entities"] == [native_entities["climate_1"]]
+                assert discovered["display_tank"]["temperature_c"] == 49
+                assert discovered["display_tank"]["target_c"] == 50
+                assert discovered["display_tank"]["automatic"] is True
+                assert discovered["native_task"]["function"] is None
+                assert discovered["task_context"]["kind"] == "tank_route"
+                assert discovered["power_activity"]["function"] == "tapwater_heating"
+                assert discovered["power_activity"]["function_kind"] == "tank_route"
+                assert discovered["defrost"]["state"] == "inactive"
+                hass.states.async_set(native_entities["defrost"], "on")
+                thaw = automatic.overview()
+                assert thaw["defrost"]["state"] == "active"
+                assert thaw["native_task"]["label"] == "Panasonic meldt ontdooien"
+                assert thaw["native_task"].get("conflict") is True
+                assert thaw["power_activity"]["function"] is None
+                hass.states.async_set(native_entities["defrost"], "off")
+                assert automatic.settings == automatic_before
+                for key in ("context", "context_reliable", "context_signature", "cooling_possible", "operation"):
+                    assert runtime.panasonic.overview()[key] == inherited_control[key]
+                assert runtime.sg_boost.snapshot() == control_before
+                assert dict(entry.options) == expected_options and not physical_calls
                 hass.states.async_set("sensor.synthetic_supply1", "1.4", {"unit_of_measurement": "kW"})
                 hass.states.async_set("sensor.synthetic_supply2", "unavailable", {"unit_of_measurement": "W"})
                 observed = runtime.panasonic.overview()
@@ -280,6 +470,7 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                 assert archive["backup_store"] == expected_journal
             persisted = await store.async_load()
             assert persisted["panasonic_archive"] == archive
+            feedback_report = await verify_analysis_feedback(hass, runtime, entry)
             registry = er.async_get(hass)
             rows = er.async_entries_for_config_entry(registry, entry.entry_id)
             domains = {row.entity_id.split(".", 1)[0] for row in rows}
@@ -293,6 +484,17 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
             assert runtime._closed
             assert entry.runtime_data.panasonic_archive == archive
             assert entry.options["devices"] == expected_options["devices"]
+            feedback_status = entry.runtime_data.analysis_feedback.status()
+            assert feedback_status["report"] == feedback_report
+            assert feedback_status["association"]["state"] == "matched"
+            await entry.runtime_data.analysis_feedback.remove()
+            assert entry.runtime_data.analysis_feedback.report is None
+            restored_findings = entry.runtime_data.learning_hub.refresh(force=True)["questions"]
+            assert any(row["id"] == feedback_report["question_answers"][0]["question_id"]
+                       and row["revision"] == feedback_report["question_answers"][0]["revision"]
+                       for row in restored_findings)
+            feedback_saved = await entry.runtime_data.analysis_feedback.store.async_load()
+            assert feedback_saved["report"] is None and feedback_saved["known_exports"]
             if current_sg:
                 assert_current_sg(entry.runtime_data, entry, expected_options, expected_journal)
             assert not physical_calls, physical_calls
@@ -311,10 +513,14 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                     "actual_platforms": sorted(domains), "registered_entities": len(rows),
                     "immutable_entry_mappings": True, "private_archive_exact": True,
                     "configuration_preserved": True, "physical_service_calls": 0,
+                    "analysis_export_feedback_admin_storage_reload_read_only": True,
                     **({"fixture": "current general SG with split read-only sources",
                         "immutable_nested_options_exact": True, "manual_and_completion_holds_preserved": True,
                         "split_units_zero_missing_and_sum": True, "compressor_and_sg_proof_separate": True,
-                        "automatic_power_display_without_new_settings": True}
+                        "automatic_power_display_without_new_settings": True,
+                        "independent_heater_supply_and_partial_measurement": True,
+                        "native_task_independent_of_metered_power": True,
+                        "automatic_registry_siblings_and_defrost_read_only": True}
                        if current_sg else {})}
         finally:
             logging.getLogger().removeHandler(evidence)

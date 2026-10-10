@@ -651,6 +651,9 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
             old_split = (current["power_supply1_entity"], current["power_supply2_entity"])
             new_split = (candidate["power_supply1_entity"], candidate["power_supply2_entity"])
             review = (old_split, new_split)
+            standard_roles = (candidate["power_supply_profile"] == "panasonic_standard"
+                and candidate["power_supply1_role"] in ("unconfirmed", "main")
+                and candidate["power_supply2_role"] in ("unconfirmed", "heater"))
             if old_split != new_split and getattr(self, "_sg_split_review", None) != review:
                 self._sg_split_review = review
                 candidate["split_power_confirmed"] = False
@@ -658,11 +661,12 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
                     errors["split_power_confirmed"] = "sg_split_review"
                 for index, (old_meter, new_meter) in enumerate(zip(old_split, new_split), 1):
                     role_key = f"power_supply{index}_role"
-                    if old_meter != new_meter:
+                    if old_meter != new_meter and not standard_roles:
                         # The old supply function belongs to its old meter.
                         # Display roles are never inferred from names or from
                         # full meter coverage. Reuse the current pair review.
                         candidate[role_key] = "unconfirmed"
+                        candidate["power_supply_profile"] = "unconfirmed"
                         if current[role_key] != "unconfirmed" or user_input.get(role_key, "unconfirmed") != "unconfirmed":
                             errors[role_key] = "sg_supply_role_review"
         entry = getattr(self, "config_entry", None)
@@ -712,7 +716,7 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
         def schema(c):
             def supply_role():
                 return selector.SelectSelector({"options": [
-                    {"value": "unconfirmed", "label": "Functie nog niet bevestigd"},
+                    {"value": "unconfirmed", "label": "Automatisch volgens Panasonic-voedingen"},
                     {"value": "main", "label": "Hoofdvoeding: warmtepomp, regeling en pompen"},
                     {"value": "heater", "label": "Elektrische ondersteuning"}]})
             return {

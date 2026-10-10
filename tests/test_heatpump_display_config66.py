@@ -11,12 +11,13 @@ from test_sg_controller62 import fixture, tick
 from test_sg_interface64 import live_flow
 
 
-def test_old_meter_coverage_and_names_do_not_assign_supply_functions():
+def test_existing_meter_pair_automatically_uses_readonly_panasonic_supply_model():
     config = normalize_config({"power_supply1_entity": "sensor.main_heatpump",
         "power_supply2_entity": "sensor.electric_heater", "split_power_confirmed": True,
         "power_scope": "total"})
     assert config["power_activity_threshold_w"] == 200.0
-    assert config["power_supply1_role"] == config["power_supply2_role"] == "unconfirmed"
+    assert config["power_supply_profile"] == "panasonic_standard"
+    assert config["power_supply1_role"] == "main" and config["power_supply2_role"] == "heater"
     assert config["split_power_confirmed"] is True
     assert not config["enabled"]
 
@@ -76,7 +77,7 @@ async def test_actual_sources_form_exposes_independent_display_controls(display_
     form = await display_flow.async_step_sg_sources()
     fields = form["data_schema"]
     assert fields["power_activity_threshold_w"] == (10, 2000, 10)
-    assert DISPLAY_ONLY_KEYS <= fields.keys()
+    assert DISPLAY_ONLY_KEYS - {"power_supply_profile"} <= fields.keys()
     for key in ("power_supply1_role", "power_supply2_role"):
         assert {option["value"] for option in fields[key]["options"]} == POWER_SUPPLY_ROLES
 
@@ -99,19 +100,19 @@ async def test_saving_interpretation_preserves_separate_meter_coverage_and_sg_pr
 
 @pytest.mark.asyncio
 async def test_changed_meter_does_not_inherit_old_or_carried_over_role(display_flow):
-    display_flow.options["sg_boost"].update(power_supply1_role="main", power_supply2_role="heater")
+    display_flow.options["sg_boost"].update(power_supply1_role="heater", power_supply2_role="main")
     display_flow.hass = hass_with(**{"switch.public_sg": {},
         "sensor.public_replacement": {"unit_of_measurement": "W"},
         "sensor.public_supply2": {"unit_of_measurement": "W"}})
     submission = {"power_supply1_entity": "sensor.public_replacement",
         "power_supply2_entity": "sensor.public_supply2",
-        "power_supply1_role": "main", "power_supply2_role": "heater"}
+        "power_supply1_role": "heater", "power_supply2_role": "main"}
     first = await display_flow.async_step_sg_sources(submission)
     assert first["errors"]["power_supply1_role"] == "sg_supply_role_review"
     assert display_flow.saved is None
     second = await display_flow.async_step_sg_sources(submission)
     saved = second["saved"]["sg_boost"]
-    assert saved["power_supply1_role"] == "main" and saved["power_supply2_role"] == "heater"
+    assert saved["power_supply1_role"] == "heater" and saved["power_supply2_role"] == "main"
     assert saved["split_power_confirmed"] is False
     assert display_flow._sg_local_confirmed_roles == (
         ("sensor.public_supply1", "sensor.public_supply2"),
@@ -120,28 +121,29 @@ async def test_changed_meter_does_not_inherit_old_or_carried_over_role(display_f
 
 
 @pytest.mark.asyncio
-async def test_unconfirmed_function_allows_meter_edit_without_extra_confirmation(display_flow):
+async def test_standard_supply_function_allows_meter_edit_without_new_role_inputs(display_flow):
     display_flow.hass = hass_with(**{"switch.public_sg": {},
         "sensor.public_replacement": {"unit_of_measurement": "W"},
         "sensor.public_supply2": {"unit_of_measurement": "W"}})
     result = await display_flow.async_step_sg_sources({"power_supply1_entity": "sensor.public_replacement",
         "power_supply2_entity": "sensor.public_supply2"})
-    assert result["saved"]["sg_boost"]["power_supply1_role"] == "unconfirmed"
+    assert result["saved"]["sg_boost"]["power_supply1_role"] == "main"
+    assert result["saved"]["sg_boost"]["power_supply2_role"] == "heater"
     assert not display_flow.hass.services.calls
 
 
 @pytest.mark.asyncio
-async def test_imported_changed_meter_cannot_reuse_old_function():
+async def test_imported_changed_meter_cannot_reuse_nonstandard_old_function():
     current = {"sg_boost": normalize_config({"power_supply1_entity": "sensor.public_supply1",
-        "power_supply2_entity": "sensor.public_supply2", "power_supply1_role": "main",
-        "power_supply2_role": "heater", "split_power_confirmed": True})}
+        "power_supply2_entity": "sensor.public_supply2", "power_supply1_role": "heater",
+        "power_supply2_role": "main", "split_power_confirmed": True})}
     desired = deepcopy(current)
     desired["sg_boost"]["power_supply1_entity"] = "sensor.public_replacement"
     saved = await live_flow(current)._live_save(desired)
     assert saved["sg_boost"]["power_supply1_role"] == "unconfirmed"
-    assert saved["sg_boost"]["power_supply2_role"] == "heater"
+    assert saved["sg_boost"]["power_supply2_role"] == "main"
     assert saved["sg_boost"]["split_power_confirmed"] is False
-    assert desired["sg_boost"]["power_supply1_role"] == "main"
+    assert desired["sg_boost"]["power_supply1_role"] == "heater"
 
 
 @pytest.mark.asyncio

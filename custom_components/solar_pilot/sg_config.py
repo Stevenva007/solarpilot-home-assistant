@@ -1,7 +1,8 @@
 """One explicit SG relay configuration; Panasonic bindings are read-only.
 
-This module performs validation only. Commissioning flags never arise from
-inferred device names, imported profiles or a successful service call.
+This module validates settings and applies the read-only Panasonic supply
+presentation model. Commissioning flags never arise from inferred device names,
+imported profiles or a successful service call.
 """
 from __future__ import annotations
 
@@ -21,6 +22,7 @@ SG_DEFAULTS = {
     "power_entity": "", "power_scope": "unconfirmed",
     "power_supply1_entity": "", "power_supply2_entity": "",
     "power_activity_threshold_w": 200.0,
+    "power_supply_profile": "panasonic_standard",
     "power_supply1_role": "unconfirmed", "power_supply2_role": "unconfirmed",
     "split_power_confirmed": False,
     "compressor_frequency_entity": "", "sg_status_entity": "",
@@ -36,7 +38,9 @@ PROFILES = frozenset({"dhw_only", "general"})
 REFERENCE_KEYS = frozenset({"entity_id", *READ_ENTITY_KEYS, "zone_entities"})
 POWER_SCOPES = frozenset({"unconfirmed", "total", "supply1", "supply2"})
 POWER_SUPPLY_ROLES = frozenset({"unconfirmed", "main", "heater"})
-DISPLAY_ONLY_KEYS = frozenset({"power_activity_threshold_w", "power_supply1_role", "power_supply2_role"})
+POWER_SUPPLY_PROFILES = frozenset({"panasonic_standard", "unconfirmed"})
+DISPLAY_ONLY_KEYS = frozenset({"power_activity_threshold_w", "power_supply_profile",
+                              "power_supply1_role", "power_supply2_role"})
 NUMBER_LIMITS = {
     "threshold_w": (500, 20000), "expected_power_w": (100, 30000),
     "hysteresis_w": (0, 5000), "start_delay_s": (30, 1800),
@@ -66,7 +70,18 @@ def normalize_config(raw=None):
         if isinstance(value, (list, tuple)):
             return [detached(item) for item in value]
         return deepcopy(value)
-    return {key: detached(raw.get(key, default)) for key, default in SG_DEFAULTS.items()}
+    config = {key: detached(raw.get(key, default)) for key, default in SG_DEFAULTS.items()}
+    # This is an explicit presentation model for the two configured Panasonic
+    # supplies, not discovery by household entity names or meter readings.
+    # Complete physical coverage and control permissions remain independent.
+    pair = (config["power_supply1_entity"], config["power_supply2_entity"])
+    if (config["power_supply_profile"] == "panasonic_standard"
+            and all(isinstance(value, str) and value.startswith("sensor.") for value in pair)
+            and pair[0] != pair[1]):
+        for key, role in (("power_supply1_role", "main"), ("power_supply2_role", "heater")):
+            if config[key] == "unconfirmed":
+                config[key] = role
+    return config
 
 
 def validate_config(raw):
@@ -95,6 +110,8 @@ def validate_config(raw):
     for key in ("power_supply1_role", "power_supply2_role"):
         if not isinstance(c[key], str) or c[key] not in POWER_SUPPLY_ROLES:
             errors[key] = "range"
+    if not isinstance(c["power_supply_profile"], str) or c["power_supply_profile"] not in POWER_SUPPLY_PROFILES:
+        errors["power_supply_profile"] = "range"
     if not isinstance(c["profile"], str) or c["profile"] not in PROFILES:
         errors["profile"] = "range"
     split = any(isinstance(c[key], str) and c[key] for key in POWER_ENTITY_KEYS[1:])

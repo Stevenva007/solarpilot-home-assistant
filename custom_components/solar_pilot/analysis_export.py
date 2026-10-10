@@ -20,6 +20,7 @@ import secrets
 import sys
 import tempfile
 import time
+from pathlib import Path
 
 from homeassistant.helpers.storage import Store
 from .const import DOMAIN, VERSION
@@ -40,6 +41,7 @@ ATTRS = {"unit_of_measurement", "device_class", "state_class", "friendly_name", 
          "operation_mode", "operation_list", "supported_features", "restored", "battery_level", "source", "entities",
          "preset_mode", "preset_modes", "min_temp", "max_temp", "target_temp_step", "is_on", "humidity",
          "cloud_coverage", "wind_speed", "attribution", "cycle_phase", "program", "remaining_time"}
+ATTRS.update({"estimated", "is_estimated", "temperature_unit"})
 
 # These values describe the report or device protocol, rather than household
 # names. A consumer called "auto", "W" or "temperature" must not rewrite them.
@@ -50,6 +52,17 @@ MACHINE_VALUE_FIELDS = {
     "state", "mode", "action", "hvac_action", "hvac_modes", "operation_mode",
     "operation_list", "preset_mode", "preset_modes", "stage", "cycle_phase",
     "command_mode", "last_command_mode", "requested_mode", "expected_mode", "device_modes",
+    "source", "source_kind", "function", "function_source", "function_kind", "role",
+    "activity_kind", "supply_profile", "power_supply_profile", "module", "distribution", "integration_domain",
+    "revision", "export_id", "export_sha256", "hash_scope", "record_quality", "regime",
+    "integration_version", "library_version", "library_distribution", "question_id", "proposal_id",
+    "created_at", "analyzed_at", "imported_at", "category", "confidence", "outcome",
+    "installed_release", "introduced_release", "current_release", "proposal_sha256",
+}
+MACHINE_STATUS_VALUES = {
+    "pending", "implemented", "untracked", "reviewed", "needs_more_data", "ignored_unverified", "ignored_stale",
+    "running", "waiting", "completed", "end_unconfirmed", "unknown", "unavailable", "available", "active",
+    "inactive", "off", "idle", "ready", "unconfigured", "error", "fault", "matched", "unverified",
 }
 DEVICE_REFERENCE_MAPS = {
     "devices", "batteries", "configs", "states", "targets", "reasons", "priorities",
@@ -60,6 +73,48 @@ DEVICE_REFERENCE_MAPS = {
 }
 DEVICE_ID_FIELDS = {"id", "device_id", "consumer_id", "battery_id", "replaces_device_id"}
 MAX_ARCHIVE_JSON_DEPTH = 128  # Leave stack room for pseudonyms, deepcopy and JSON.
+
+
+def installed_aquarea_metadata():
+    """Read fixed local package metadata in the export worker, never fetch online."""
+    result = {"integration_domain": "aquarea", "integration_version": None,
+              "library_distribution": None, "library_version": None,
+              "scope": "Current installed provider at export time; not historical installation metadata."}
+    module = sys.modules.get("custom_components.aquarea")
+    filename = getattr(module, "__file__", None)
+    result["integration_loaded"] = module is not None
+    distributions = ("aioaquarea-ng", "aioaquarea")
+    if filename:
+        try:
+            manifest = json.loads(Path(filename).with_name("manifest.json").read_text(encoding="utf-8"))
+            version = manifest.get("version") if isinstance(manifest, dict) else None
+            if isinstance(version, str) and len(version) <= 80:
+                result["integration_version"] = version
+            requirements = manifest.get("requirements", []) if isinstance(manifest, dict) else []
+            # Select only fixed distribution names from the installed manifest;
+            # requirement URLs, paths and unrelated packages are never opened.
+            declared = []
+            for requirement in requirements if isinstance(requirements, list) else []:
+                if isinstance(requirement, str):
+                    match = re.match(r"^(aioaquarea-ng|aioaquarea)(?=\s|[<>=!~]|$)", requirement.strip(), re.I)
+                    if match and match[1].lower() not in declared:
+                        declared.append(match[1].lower())
+            if declared:
+                distributions = tuple(declared)
+        except (OSError, ValueError, TypeError):
+            pass
+    try:
+        from importlib.metadata import PackageNotFoundError, version
+        for distribution in distributions:
+            try:
+                result["library_version"] = version(distribution)
+                result["library_distribution"] = distribution
+                break
+            except PackageNotFoundError:
+                continue
+    except ImportError:
+        pass
+    return result
 
 
 class ArchiveExportError(ValueError):
@@ -192,12 +247,16 @@ def pseudonymize(payload, references, labels):
     # their entity joins while removing both old and current household labels.
     def collect(value, owner=None):
         if isinstance(value, dict):
-            candidate = value.get("entity_id")
-            if isinstance(candidate, str):
+            candidate = value.get("entity_id") or next((value.get(field) for field in DEVICE_ID_FIELDS
+                                                        if isinstance(value.get(field), str) and value.get(field) in references), None)
+            if isinstance(candidate, str) and candidate in references:
                 owner = candidate
             label = value.get("friendly_name")
             if isinstance(label, str) and label.strip():
                 labels.setdefault(label, references.get(owner, "Bron " + str(len(labels)+1)))
+            name = value.get("name")
+            if isinstance(name, str) and name.strip() and owner in references:
+                labels.setdefault(name, references[owner])
             for key, item in value.items():
                 collect(item, key if key in references else owner)
         elif isinstance(value, list):
@@ -232,11 +291,24 @@ def pseudonymize(payload, references, labels):
                     qualified = re.fullmatch(r"(device|consumer|battery):(.+)", field)
                     if qualified and qualified[2] in consumer_references:
                         result_key = qualified[1] + ":" + consumer_references[qualified[2]]
-                out[result_key] = rewrite(item, field, machine_scope or field == "units" or field in MACHINE_VALUE_FIELDS or field.endswith("_mode"))
+                if key in ("questions", "choices", "pending_questions", "reviewed_findings", "current_findings", "findings") and field == "id":
+                    out[result_key] = item
+                else:
+                    out[result_key] = rewrite(item, field, machine_scope or field == "units" or field in MACHINE_VALUE_FIELDS or field.endswith("_mode"))
             return out
         if isinstance(value, list):
             return [rewrite(item, key, machine_scope) for item in value]
         if not isinstance(value, str):
+            return value
+        # Public protocol IDs may resemble HA entity IDs; their exact spelling
+        # binds finding revisions and trusted implementation catalogue entries.
+        if key in ("question_id", "proposal_id"):
+            return value
+        # A status can also be human prose containing an archived appliance
+        # name. Protect exact protocol codes, never the entire status subtree.
+        if key == "status" and value in MACHINE_STATUS_VALUES:
+            return value
+        if key == "evidence" and value in ("metered_power", "metered_power_and_context"):
             return value
         if ENTITY_RE.fullmatch(value) and value in references:
             return references[value]
@@ -315,6 +387,8 @@ class AnalysisRecorder:
         self.last_state = {}
         self.last_attributes = {}
         self.last_decision = None
+        self.last_heatpump_state = None
+        self.last_effective_settings = None
         self.dropped = {"samples": 0, "changes": 0, "events": 0}
         self.loaded = False
         self.exporting = False
@@ -366,8 +440,17 @@ class AnalysisRecorder:
         cfg = {"data": self.r.entry.data, "options": self.r.entry.options}
         discovered = set(getattr(getattr(getattr(self.r,"pv_forecast",None),"source",None),"refs",{}).values())
         explicit = sorted(e for e in (entity_refs(cfg) | discovered) if not PRIVATE_KEYS.search(e))
+        native = set()
         related = set()
         if self.settings.get("include_related_entities"):
+            monitor = getattr(self.r, "panasonic", None)
+            reader = getattr(getattr(monitor, "native_program", None), "display_sources", None)
+            if callable(reader):
+                settings = getattr(monitor, "settings", {})
+                anchors = [settings.get(key, "") for key in ("tank_target_entity", "tank_temperature_entity", "activity_entity")]
+                anchors.extend(settings.get("zone_entities", []))
+                native = entity_refs(reader(anchors))
+                native = {eid for eid in native if not PRIVATE_KEYS.search(eid)}
             try:
                 from homeassistant.helpers import entity_registry as er
                 registry = er.async_get(self.r.hass)
@@ -376,12 +459,19 @@ class AnalysisRecorder:
                     related.update(row.entity_id for row in er.async_entries_for_device(registry, device_id)
                                    if not getattr(row, "disabled_by", None) and row.entity_id.split(".")[0] in SAFE_DOMAINS
                                    and not PRIVATE_KEYS.search(row.entity_id))
-            except AttributeError:
+            except (ImportError, AttributeError):
                 # Core test doubles / unavailable registry: explicit sources remain exportable.
                 pass
-        related.difference_update(explicit)
-        self.source_count = len(explicit) + len(related)
-        return (explicit + sorted(related))[:250]
+        native.difference_update(explicit)
+        related.difference_update([*explicit, *native])
+        # Actual feeds and exact native siblings precede bulk related sources.
+        self.source_count = len(explicit) + len(native) + len(related)
+        monitor_settings = getattr(getattr(self.r, "panasonic", None), "settings", {})
+        priority = entity_refs({key: monitor_settings.get(key) for key in (
+            "power_entity", "power_supply1_entity", "power_supply2_entity", "tank_target_entity", "tank_temperature_entity", "zone_entities")})
+        priority.update(entity_refs({key: self.r.settings.get(key) for key in ("grid_entity", "pv_entity")}))
+        priority.intersection_update(explicit)
+        return (sorted(priority) + sorted(native) + [eid for eid in explicit if eid not in priority] + sorted(related))[:250]
 
     def capture(self, elapsed_ms):
         wall, r = time.time(), self.r
@@ -422,10 +512,43 @@ class AnalysisRecorder:
         fast["sg_boost"] = safe(r.sg_boost.overview())
         fast["monotonic_s"] = time.monotonic()
         self.fast.append(safe(fast))
+        from .analysis_review import discrete_heatpump_state, heatpump_record
+        heatpump_state = discrete_heatpump_state(fast["panasonic"], fast["sg_boost"])
+        if heatpump_state != self.last_heatpump_state:
+            self.event("heatpump_change", "Warmtepomp-/SG-meldingen of meetdrempel gewijzigd",
+                       {"state": heatpump_state, "observation": heatpump_record(fast)})
+            self.last_heatpump_state = heatpump_state
+        effective_settings = safe({"settings": r.settings, "devices": r.configs, "sg_boost": r.sg_boost.config,
+                                   "wallbox": r.wallbox_settings, "pv_forecast": r.pv_forecast.settings,
+                                   "analysis": self.settings})
+        if effective_settings != self.last_effective_settings:
+            self.event("settings_snapshot" if self.last_effective_settings is None else "settings_change",
+                       "Actuele instellingen bij start registratie" if self.last_effective_settings is None else "Effectieve SolarPilot-instellingen gewijzigd",
+                       {"effective_settings": effective_settings,
+                        "baseline": self.last_effective_settings is None,
+                        "not_a_retrospective_configuration": True})
+            self.last_effective_settings = effective_settings
         decision = [(i, re.sub(r"\b\d+\s*s\b", "<timer>", str(r.result.reasons.get(i, "")))) for i in r.configs]
         if decision != self.last_decision:
             self.event("decision_change", "Regelredenen gewijzigd", {"reasons": decision, "mode": r.mode})
             self.last_decision = decision
+        # Preserve discrete native state/target changes before the five-minute
+        # numeric sample. Continuous temperatures/watts remain numeric samples.
+        native_refs = entity_refs(fast["panasonic"].get("display_sources", {})) if self.settings.get("include_related_entities") else set()
+        native_refs.intersection_update(self.refs())
+        for eid in native_refs:
+            obj = entity_snapshot(r.hass, eid, wall)
+            attrs = obj.get("attributes", {})
+            discrete = {key: attrs[key] for key in ("hvac_action", "operation_mode", "preset_mode", "temperature",
+                "restored", "estimated", "is_estimated", "unit_of_measurement") if key in attrs}
+            identity = {"state": obj.get("state"), "attributes": discrete}
+            previous = getattr(self, "last_native_sources", {})
+            if identity != previous.get(eid):
+                self._append("changes", {"ts": wall, "release": VERSION, "entity_id": eid,
+                    **identity, "source_observed_at": obj.get("last_reported") or obj.get("last_updated"),
+                    "capture_kind": "native_discrete_change"})
+            previous[eid] = identity
+            self.last_native_sources = previous
         if wall-self.last_sample < self.settings["sample_interval_s"]:
             return
         self.last_sample = wall
@@ -497,6 +620,8 @@ class AnalysisRecorder:
 
         def usable_sample(row):
             try:
+                if isinstance(row.get("grid_w"), bool) or isinstance(row.get("pv_w"), bool):
+                    return False
                 grid = float(row.get("grid_w"))
                 if not math.isfinite(grid):
                     return False
@@ -541,6 +666,7 @@ class AnalysisRecorder:
             "uncovered_within_raw_span_hours": round(max(0.0, raw_span_s-covered_s)/3600.0, 2),
             "fast_telemetry_hours": round(fast_span_s/3600.0, 2),
             "coverage_method": "Dekking telt alleen korte intervallen tussen twee bruikbare P1/PV-samples. Opgeslagen maar ongeldige samples en grotere meetgaten tellen niet als meettijd.",
+            "coverage_scope": "Beschikbare numerieke P1/PV-samples; geen afzonderlijk bewijs van bronversheid, warmtepompmeting of onafgebroken werking. Historische PV-koppelingen zonder instellingensnapshot blijven onbekend.",
         }
         try:
             from homeassistant.const import __version__ as ha_version
@@ -555,6 +681,9 @@ class AnalysisRecorder:
                  "consumers": r.overview, "wallbox": r.wallbox_overview, "panasonic": r.panasonic.overview, "sg_boost": r.sg_boost.overview,
                  "dishwasher": r.dishwasher.snapshot, "dishwasher_app": r.dishwasher_app.snapshot,
                  "consumer_history": r.consumer_history.model.snapshot}
+        feedback = getattr(r, "analysis_feedback", None)
+        if callable(getattr(feedback, "status", None)):
+            calls["analysis_feedback"] = feedback.status
         failures = {}
         for key, call in calls.items():
             try:
@@ -572,6 +701,8 @@ class AnalysisRecorder:
             row["sessions"] = [x for x in row.get("sessions", []) if (x.get("end") or x.get("observed_until") or 0) >= cutoff]
             row["events"] = [x for x in row.get("events", []) if x.get("at", 0) >= cutoff]
         payload = {"schema": "solarpilot.analysis", "schema_version": SCHEMA_VERSION, "release": VERSION,
+                   "export_provenance": {"export_id": "export_" + secrets.token_hex(16), "export_sha256": None,
+                       "release": VERSION, "created_at": iso(wall)},
                    "module_status": {"dishwasher": any(c.get("kind") == "dishwasher" for c in r.configs.values()), "panasonic_monitor": bool(r.panasonic.overview().get("configured")), "sg_boost": bool(r.sg_boost.config.get("entity_id")), "battery": r.battery_fleet.configured, "wallbox": r.wallbox_settings.get("enabled", False)},
                    "created_at": iso(wall), "requested_hours": hours,
                    "units": {"power": "W", "energy": "kWh", "temperature": "degC", "time": "UTC ISO8601 or unix seconds", "currency": "EUR"},
@@ -615,7 +746,12 @@ class AnalysisRecorder:
 
     @staticmethod
     def finalize(payload, include_names=False):
+        from .analysis_review import HASH_SCOPE, finalize_review
         payload = safe_report(payload)
+        # Production export invokes finalize in a worker. Metadata files and
+        # distribution discovery therefore never block the HA event loop.
+        payload.setdefault("system", {})["aquarea"] = safe(installed_aquarea_metadata())
+        payload["export_provenance"]["hash_scope"] = HASH_SCOPE
         payload["privacy"]["entity_names_included"] = include_names
         refs = list(payload["entities"])
         current = payload["entities"]
@@ -659,7 +795,7 @@ class AnalysisRecorder:
             for i in batteries:
                 aliases.setdefault(i, "battery_" + hashlib.sha256((salt+i).encode()).hexdigest()[:8])
             payload = pseudonymize(payload, aliases, labels)
-        return payload
+        return finalize_review(payload)
 
 
 def serialize_report(report):

@@ -260,13 +260,75 @@ class PanasonicMonitor:
         from .power_activity import power_activity
         read_tank_action = getattr(self.native_program, "read_tank_action", None)
         native_tank_action = read_tank_action(c["tank_target_entity"]) if callable(read_tank_action) else {}
-        power_display = power_activity(power, c, tank=target, tank_entity=c["tank_target_entity"],
-            tank_stamp=self._reported_stamp(target), tank_action=native_tank_action,
-            zones=[{**row, "action_valid": not any(
-                (getattr(self._object(row["entity_id"]), "attributes", {}) or {}).get(key)
-                for key in ("estimated", "is_estimated"))} for row in zones],
-            native_programs=native, context=context, context_reliable=context_reliable,
-            context_stamp=context_stamp, conflict=conflict)
+        # Automatic siblings belong only to presentation. They never amend
+        # configured programme sources, native context, cooling or SG rights.
+        discover = getattr(self.native_program, "display_sources", None)
+        display_sources = discover([c["tank_target_entity"], c["tank_temperature_entity"],
+            c["activity_entity"], *c["zone_entities"]]) if callable(discover) else {}
+        display_tank_entity = (c["tank_target_entity"] if c["tank_target_entity"].startswith(("water_heater.", "climate."))
+                               else display_sources.get("tank_entity", ""))
+        is_display_zone = getattr(self.native_program, "is_display_zone", None)
+        if callable(is_display_zone) and is_display_zone(display_tank_entity):
+            display_tank_entity = display_sources.get("tank_entity", "")
+        display_tank_obj = self._object(display_tank_entity)
+        display_zone_ids = list(dict.fromkeys([*c["zone_entities"], *display_sources.get("zone_entities", [])]))
+        display_zones = []
+        for eid in display_zone_ids:
+            obj = self._object(eid)
+            attrs = getattr(obj, "attributes", {}) or {}
+            display_zones.append({"entity_id": eid, "name": attrs.get("friendly_name", eid),
+                "temperature_c": self._temperature(obj, attrs.get("current_temperature"), native=True),
+                "target_c": self._temperature(obj, attrs.get("temperature"), native=True),
+                "mode": obj.state if obj else "unknown", "action": attrs.get("hvac_action"),
+                "available": obj is not None, "read_only": True, "observed_at": self._reported_stamp(obj),
+                "action_valid": not any(attrs.get(key) for key in ("estimated", "is_estimated")),
+                "automatic": eid not in c["zone_entities"]})
+        read_device_action = getattr(self.native_program, "read_device_action", None)
+        device_actions = [read_device_action(eid) for eid in display_zone_ids] if callable(read_device_action) else []
+        display_tank_action = (native_tank_action if display_tank_entity == c["tank_target_entity"] else
+                              read_tank_action(display_tank_entity) if callable(read_tank_action) else {})
+        read_tank_context = getattr(self.native_program, "read_tank_context", None)
+        route_context = read_tank_context(display_tank_entity) if callable(read_tank_context) else {}
+        display_programs = [*native, *[{"program": row.get("program"), "fresh": row.get("fresh"),
+            "observed_at": row.get("observed_at")} for row in device_actions if row.get("program")]]
+        defrost_entity = display_sources.get("defrost_entity", "")
+        defrost_obj = self._object(defrost_entity)
+        defrost_attrs = getattr(defrost_obj, "attributes", {}) or {}
+        defrost_state = str(defrost_obj.state).casefold() if defrost_obj else "unknown"
+        if any(defrost_attrs.get(key) for key in ("estimated", "is_estimated")):
+            defrost_state = "unknown"
+        defrost = {"state": "active" if defrost_state == "on" else "inactive" if defrost_state == "off" else "unknown",
+                   "label": "Panasonic meldt ontdooien" if defrost_state == "on" else "Geen ontdooimelding" if defrost_state == "off" else "Ontdooistatus onbekend",
+                   "source": "aquarea_entity" if defrost_state in ("on", "off") else "none",
+                   "entity_id": defrost_entity, "observed_at": self._reported_stamp(defrost_obj) if defrost_state in ("on", "off") else None,
+                   "stale_s": c["stale_s"]}
+        defrost_proofs = [row for row in [display_tank_action, *device_actions]
+                          if row.get("fresh") is True and row.get("defrost_active") is True
+                          and self._object(row.get("entity_id")) is not None]
+        if defrost_proofs:
+            defrost.update(state="active", label="Panasonic meldt ontdooien", source="aquarea_poll",
+                           observed_at=min(min(row["observed_at"], self._reported_stamp(self._object(row["entity_id"])))
+                                           for row in defrost_proofs))
+        from .power_activity import task_observations
+        native_task, task_context = task_observations(c, tank=display_tank_obj, tank_entity=display_tank_entity,
+            tank_stamp=self._reported_stamp(display_tank_obj), tank_action=display_tank_action,
+            device_actions=device_actions, zones=display_zones, native_programs=display_programs,
+            route_context=route_context, defrost=defrost)
+        power_display = power_activity(power, c, tank=display_tank_obj, tank_entity=display_tank_entity,
+            tank_stamp=self._reported_stamp(display_tank_obj), tank_action=display_tank_action,
+            device_actions=device_actions, zones=display_zones, native_programs=display_programs,
+            context=context, context_reliable=context_reliable, context_stamp=context_stamp, conflict=conflict,
+            native_actual=native_task, display_context=task_context, defrost=defrost)
+        display_attrs = getattr(display_tank_obj, "attributes", {}) or {}
+        display_temperature = self._temperature(display_tank_obj, display_attrs.get("current_temperature"), tank=True, native=True)
+        display_target = self._temperature(display_tank_obj, display_attrs.get("temperature"), tank=True, native=True)
+        display_tank = {"entity_id": display_tank_entity, "temperature_c": display_temperature, "target_c": display_target,
+            "temperature_stamp": self._reported_stamp(display_tank_obj) if display_temperature is not None else None,
+            "target_stamp": self._reported_stamp(display_tank_obj) if display_target is not None else None,
+            "mode": display_attrs.get("operation_mode", display_tank_obj.state if display_tank_obj else "unknown"),
+            "action": display_attrs.get("hvac_action"), "available": display_tank_obj is not None,
+            "observed_at": self._reported_stamp(display_tank_obj), "read_only": True,
+            "automatic": display_tank_entity != c["tank_target_entity"]}
         return {"configured": self.configured, "read_only": True, "temperature_c": temp,
             "temperature_entity": c["tank_temperature_entity"],
             "temperature_stamp": self._reported_stamp(tank) if temp is not None else None,
@@ -296,6 +358,8 @@ class PanasonicMonitor:
             "activity": activity.state if activity else None,
             "operation": self._operation(frequency, frequency_obj, zones, target, activity),
             "power_activity": power_display,
+            "native_task": native_task, "task_context": task_context, "defrost": defrost,
+            "display_tank": display_tank, "display_zones": display_zones, "display_sources": display_sources,
             "context": context, "context_reliable": context_reliable, "context_stamp": context_stamp,
             "context_signature": context_signature, "cooling_possible": cooling_possible, "status": status,
             "note": "SG vraagt zonneboost. Het normale Panasonic-doel kan ongewijzigd blijven; dit bewijst geen relaisfout."}
