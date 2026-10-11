@@ -45,7 +45,7 @@ def test_configured_unreliable_compressor_source_cannot_fall_back_to_native_acti
 
 @pytest.mark.parametrize("mode,action,state", [
     ("heat", "heating", "active"), ("cool", "cooling", "active"),
-    ("heat", "idle", "idle"), ("off", "off", "idle"),
+    ("heat", "idle", "unknown"), ("off", "off", "unknown"),
     ("heat", None, "unknown"), ("auto", None, "unknown")])
 def test_only_explicit_native_action_is_activity_fallback(mode, action, state):
     runtime, hass = observed(zone_entities=["climate.room"])
@@ -75,7 +75,7 @@ def test_one_native_idle_action_cannot_hide_missing_second_zone():
     hass.states.set("climate.room", "heat", {"hvac_action": "idle"})
     assert runtime.panasonic.overview()["operation"]["state"] == "unknown"
     hass.states.set("climate.other_room", "off", {"hvac_action": "idle"}, reported_age=1)
-    assert runtime.panasonic.overview()["operation"]["state"] == "idle"
+    assert runtime.panasonic.overview()["operation"]["state"] == "unknown"
     hass.states.set("climate.other_room", "heat", {"hvac_action": "heating"}, reported_age=121)
     assert runtime.panasonic.overview()["operation"]["state"] == "unknown"
 

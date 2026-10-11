@@ -1,16 +1,16 @@
-# SolarPilot beta.73 — installatie en upgrade
+# SolarPilot beta.74 — installatie en upgrade
 
-Beta.73 maakt de SG-aanvraag rustiger bij wolken: gewone actueel gemeten netafname moet standaard continu boven 600 W blijven gedurende vijf minuten. Die tijd loopt samen met het minimum van twintig minuten. Korte leases blijven tijdens de geldige wachttijd veilig vernieuwd, ook na het minimum; harde guards blijven leidend.
+Beta.74 verduidelijkt SG-resetwachten, bronkwaliteit van een gekoppelde Wallboxsessie en het bereik van native warmtepomp-UIT. Geen herhaalde resetcountdown na een al bevestigde lage zonne- of rustige native resetfase; zone-UIT wordt geen hele-warmtepomp-UIT. De SG-regeling van 600 W gedurende vijf continue minuten met minimum twintig minuten, alle guards, instellingen en geschiedenis blijven behouden.
 
-**Begin met [BETA73_INSTELLEN.md](docs/BETA73_INSTELLEN.md).** Daar staan afzonderlijke import-/zonne-resetgrenzen, upgrade, minimum en korte leases. Volledige werking: [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en **SolarPilot → Uitleg**. Software-/publicatiebewijs: [TESTRESULTATEN_BETA73.md](docs/TESTRESULTATEN_BETA73.md).
+**Begin met [BETA74_INSTELLEN.md](docs/BETA74_INSTELLEN.md).** Daar staan de diagnosegrenzen, upgrade, behoud van de SG-regeling en rollback. Volledige werking: [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en **SolarPilot → Uitleg**. Software-/publicatiebewijs: [TESTRESULTATEN_BETA74.md](docs/TESTRESULTATEN_BETA74.md).
 
 ## Bestaande installatie bijwerken
 
-1. Maak een volledige privé HA-back-up met instellingen, eigen opslag, modellen, tickets, geschiedenis en userfiles. Bewaar gecontroleerde beta.72-code.
+1. Maak een volledige privé HA-back-up met instellingen, eigen opslag, modellen, tickets, geschiedenis en userfiles. Bewaar gecontroleerde beta.73-code.
 2. Geef vóór codevervanging een eigen SG-aanvraag vrij en controleer contact/lokale afloop. Onderbreek geen beschermde apparaatcyclus.
-3. Update via HACS naar exact `1.0.0-beta.73` na publicatie. Herstart HA volledig en herlaad browser/app volledig.
+3. Update via HACS naar exact `1.0.0-beta.74` na publicatie. Herstart HA volledig en herlaad browser/app volledig.
 4. Controleer backend- en kaartversie apart. Behoud dezelfde entry, bindings, volgorde en geldige SG-/profiel-/split-/koelbevestigingen.
-5. Controleer **Toegestane netafname vóór stopvertraging (W)**, **Netafname moet continu aanhouden (s)** en de aparte zonne-resetgrens, naast het behouden minimum/maximum.
+5. Controleer de resetwachtstatus, concrete Wallboxbronreden en scopebewuste warmtepompstatus. Bestaande import-/zonne-resetgrenzen, minimum/maximum en korte leases blijven staan.
 
 Ontbreekt de nieuwe importoptie bij de oude standaardcombinatie 300 W/60 s, dan gebruikt de runtime effectief 600 W/300 s zonder automatische opslagwrite. Andere oude expliciete beleidscombinaties en aanwezige nieuwe importwaarden blijven behouden. Nieuwe configuratie gebruikt 600 W/300 s. De zonne-resetgrens blijft afzonderlijk, standaard 300 W.
 
@@ -28,4 +28,4 @@ Korte lokale toestemming blijft standaard 300 s, veilig vernieuwd iedere 60 s ti
 
 Alle apparaten, gebruikerswaarden, modellen, tickets en geschiedenis blijven behouden. Panasonic-percentages, koelwaarden en programma's blijven ongewijzigd. Beta.71-wachtfasen en kalenderdag-export blijven behouden, met dertig dagen retentie apart van 1/24/168 uur en volledige grensdagtotalen zonder backfill.
 
-Voor rollback: geef de eigen SG-aanvraag vrij, controleer lokale afloop, stop beta.73 en herstel gecontroleerde beta.72-code. Behoud entry, opslag en userfiles. Beta.72 kent de nieuwe importbuffer/leasevernieuwing tijdens wolkenwachttijd na het minimum niet; code alleen herstelt geen oude instellingenwaarden. Exact herstel vraagt code én passende volledige privéback-up; bewaar gewenste nieuwe historie eerst. Geen twee runtimes tegelijk. Volledige stappen: [BETA73_INSTELLEN.md](docs/BETA73_INSTELLEN.md).
+Voor rollback: geef de eigen SG-aanvraag vrij, controleer lokale afloop, stop beta.74 en herstel gecontroleerde beta.73-code. Behoud entry, opslag en userfiles. Dezelfde SG-regeling blijft gelden; de eerdere diagnoseweergave keert terug. Code terugzetten corrigeert geen meter of fysieke toestand. Exact herstel vraagt code én passende volledige privéback-up; bewaar gewenste nieuwe historie eerst. Geen twee runtimes tegelijk. Volledige stappen: [BETA74_INSTELLEN.md](docs/BETA74_INSTELLEN.md).

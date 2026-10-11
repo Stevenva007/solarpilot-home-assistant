@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.74 — gerichte diagnose van wachten, bronkwaliteit en bedrijf
+
+- Verbergt een herhaalde laag-zon-resetcountdown nadat de lage zonne- of rustige native resetfase al bevestigd is. Werkelijk lopende teruggekeerde-zon/native bevestiging en startvertraging blijven apart. Controllerrolling bewijs, timers, guards en starttoestemming blijven gelijk.
+- Benoemt oude/onbekende/ongeldige gekoppelde Wallboxsessiebronnen als concrete vraagoorzaak. Geen stale-grensverlenging, Full Solar-aanname, extra EV-krediet of Wallboxwrite.
+- Houdt native ruimte-/zone-UIT binnen het gemelde bereik. Bij onvolledig warmtepomptotaal en onbewezen globaal UIT blijft de bedrijfsweergave onbekend; geldige deelwaarde nul is geen verzonnen totaal. Native taakovergangen bewijzen geen causale SG-energie of compressorbedrijf.
+- Behoudt de 600 W/5 minuten wolkenbuffer met minimum 20 minuten, zonne-resetgrens 300 W, korte veilige leases, harde guards, één SG-uitgang, Panasonic-native instellingen, alle apparaten, modellen, tickets en geschiedenis. Geen meter-tekenomkering of fysieke storingsdiagnose.
+- Bouwbasis: gepubliceerde beta.73 `37729bce6dc679e8b18bea6a5f44c9d2348f5aab`, alle vijf gates plus Publish en vier teruggedownloade assets gecontroleerd. Nieuwe software-/publicatiebewijzen: `docs/TESTRESULTATEN_BETA74.md`; installatie/behoud/rollback naar beta.73: `docs/BETA74_INSTELLEN.md`.
+
 ## 1.0.0-beta.73 — 600 W-wolkenbuffer gedurende vijf continue minuten
 
 - Voegt een afzonderlijke `import_threshold_w` toe, standaard 600 W. Gewone actueel gemeten netafname moet daar strikt boven blijven gedurende standaard 300 s; op of onder de grens vervalt de lopende tekorttimer.

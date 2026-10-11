@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.73",
+  "version": "1.0.0-beta.74",
   "language": "nl",
   "steps": {
     "init": {
@@ -1601,7 +1601,7 @@
       "title": "Effectieve laadsessie — bevestigde bron (aanbevolen)",
       "short": "Bron die de werkelijk actieve sessie onderscheidt: zonne-auto, manueel of gestopt.",
       "paragraphs": [
-        "Bron die de werkelijk actieve sessie onderscheidt: zonne-auto, manueel of gestopt. De ingestelde Full Solar-optie kan bij manueel starten aan blijven; daarom is alleen die instelling standaard onvoldoende om EV-vermogen over te nemen. Gebruik een actueel, gecontroleerd statusveld. Een dashboardhelper die alleen netimport naar manueel vertaalt is onvoldoende. Bij een ontbrekende, te oude of strijdige bron geen EV-overname; werkelijk restoverschot blijft bruikbaar.",
+        "Bron die de werkelijk actieve sessie onderscheidt: zonne-auto, manueel of gestopt. De ingestelde Full Solar-optie kan bij manueel starten aan blijven; daarom is alleen die instelling standaard onvoldoende om EV-vermogen over te nemen. Gebruik een actueel, gecontroleerd statusveld. Een dashboardhelper die alleen netimport naar manueel vertaalt is onvoldoende. Bij een ontbrekende, te oude of strijdige bron geen EV-overname; werkelijk restoverschot blijft bruikbaar. Een al gekoppelde maar oude of ongeldige bron blijft onbekend; de leervraag benoemt deze oorzaak zonder de actualiteitsgrens te verlengen.",
         "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -3903,7 +3903,7 @@
       "title": "Kamerthermostaten — alleen uitlezen",
       "short": "Alleen uitlezen van kamertemperaturen en native standen.",
       "paragraphs": [
-        "Alleen uitlezen van kamertemperaturen en native standen. Panasonic blijft eigenaar; SolarPilot schakelt deze thermostaten niet tussen AUTO en UIT.",
+        "Alleen uitlezen van kamertemperaturen en native standen. Panasonic blijft eigenaar; SolarPilot schakelt deze thermostaten niet tussen AUTO en UIT. Zone- of ruimte-UIT bewijst geen gehele warmtepomp-UIT; bronbereik, elektrische activiteit en native bedrijfsbewijs blijven apart.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]

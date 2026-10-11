@@ -688,6 +688,10 @@ def test_native_operation_gets_active_article_while_sg_is_open():
 def test_sg_contact_and_receipt_never_promote_idle_or_unknown_operation(operation, expected):
     data = sample()
     data["panasonic"]["operation"].update(state=operation, label="Geen actieve warmte- of koelactie")
+    if operation == "idle":
+        data["panasonic"]["native_task"] = {"function": None, "inactive": True,
+            "inactive_action": "off", "inactive_scope": "global", "verified_global_off": True,
+            "conflict": False, "source": "aquarea_poll", "observed_at": time.time(), "stale_s": 120}
     data["panasonic"].update(sg_status="active", compressor_running=False, compressor_frequency_hz=0)
     data["sg_boost"].update(desired_on=True, relay_on=True)
     _, root = parsed(data)
@@ -871,6 +875,9 @@ def test_manual_external_sg_contact_is_independent_from_solarpilot_policy_and_op
     data["panasonic"].update(operation={"state": "idle", "label": "Geen actieve warmte- of koelactie",
         "evidence": "native_action", "observed_at": time.time(), "stale_s": 120},
         sg_status="active", compressor_frequency_hz=0, compressor_running=False)
+    data["panasonic"]["native_task"] = {"function": None, "inactive": True,
+        "inactive_action": "off", "inactive_scope": "global", "verified_global_off": True,
+        "conflict": False, "source": "aquarea_poll", "observed_at": time.time(), "stale_s": 120}
     data["sg_boost"].update(enabled=False, desired_on=False, relay_on=True,
                            manual_hold=True, state="manual_hold", owner="manual")
     result, root = parsed(data)

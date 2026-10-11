@@ -39,6 +39,35 @@ def local_time(runtime):
         return datetime.now().astimezone()
 
 
+def wallbox_session_question(runtime, now):
+    """Explain the existing session proof failure without changing its policy."""
+    entity = runtime.wallbox_settings.get("session_mode_entity")
+    if not entity:
+        return "missing_binding", (
+            "De instelling Full Solar kan blijven staan tijdens manueel laden. Koppel onder Opslag & laden → Wallbox een gecontroleerde effectieve sessiesensor. "
+            "Tot dan gebruikt SolarPilot alleen echte restinjectie; comfort blijft werken. Geen antwoord geeft geen overnametoestemming.")
+    obj = runtime.hass.states.get(entity)
+    if obj is None:
+        cause, explanation = "missing_source", "De effectieve sessiesensor is al gekoppeld, maar de gekoppelde bron ontbreekt in Home Assistant."
+    elif (str(obj.state).strip().casefold() in ("unknown", "unavailable", "")
+            or (getattr(obj, "attributes", {}) or {}).get("restored")):
+        cause, explanation = "unavailable", "De effectieve sessiesensor is al gekoppeld, maar meldt onbekend, onbeschikbaar of alleen een herstelde waarde."
+    else:
+        source_stamp = runtime._reported_wall(obj)
+        stale = runtime.wallbox_settings.get("stale_s", 300)
+        if source_stamp is None:
+            cause, explanation = "timestamp_unknown", "De effectieve sessiesensor is al gekoppeld, maar heeft geen betrouwbaar rapporttijdstip."
+        elif now - source_stamp > stale:
+            cause, explanation = "stale", f"De effectieve sessiesensor is al gekoppeld, maar het laatste rapport is ouder dan de ingestelde grens van {stale:g} seconden."
+        else:
+            cause, explanation = "unrecognized_or_conflicting", (
+                "De effectieve sessiesensor is al gekoppeld en actueel, maar de sessiemelding wordt niet herkend of is strijdig met de ingestelde laadstand.")
+    return cause, (
+        explanation + " Controleer onder Opslag & laden → Wallbox de bestaande bron, haar actualiteit en de ingestelde statuslijsten. "
+        "De instelling Full Solar alleen bevestigt geen effectieve zonnelaadsessie. Tot er betrouwbare sessiegegevens zijn, gebruikt SolarPilot alleen echte restinjectie; "
+        "comfort blijft werken. Geen antwoord geeft geen overnametoestemming.")
+
+
 def measured_baseline(r, local_now, monotonic):
     """Return a synchronous, measurement-backed residual, or an explicit unknown.
 
@@ -275,7 +304,7 @@ class LearningHub:
             {"id": "heatpump", "name": "Warmtepompactiviteit", "enabled": bool(native.get("configured")),
              "state": "Afzonderlijke activiteit en planningsschatting",
              "evidence": heatpump,
-             "effect": "Schattingen uit stabiele compressorstarts/stops zijn alleen voor planning en classificatie; nooit voor realtime netruimte."},
+             "effect": "Schattingen uit bevestigde native taakovergangen zijn alleen voor planning en classificatie; nooit voor realtime netruimte."},
             {"id": "pv", "name": "Zonnepanelen en lokale schaduw", "enabled": pv.get("enabled"),
              "state": pv.get("reason", "Leren"), "evidence": {**pv, "forecast_calibration": r.pv_forecast.cached},
              "effect": "Lokale correctie van zonnevoorspellingen binnen bestaande drempels; geen virtueel overschot."},
@@ -306,6 +335,11 @@ class LearningHub:
                    "wallbox_session":r.wallbox_settings.get("session_mode_entity"),
                    "pv_sources":r.pv_forecast.source.refs, "pv_settings":r.pv_forecast.settings}
         context_hash = hashlib.sha256(json.dumps(context, sort_keys=True).encode()).hexdigest()[:16]
+        wallbox_question = None
+        if r.wallbox_settings.get("enabled"):
+            wallbox_reading = r._wallbox_reading()
+            if wallbox_reading.mode == "unknown":
+                wallbox_question = wallbox_session_question(r, stamp)
 
         def ask(key, title, message, choices, severity="choice"):
             # Reopen an analysed finding for changed causes, wiring or meaningful
@@ -326,6 +360,8 @@ class LearningHub:
                 facts = {"reason": self.latest_sample.get("reason")}
             elif key == "pv_source":
                 facts = {"warning": r.pv_forecast.source.warning}
+            elif key == "wallbox_session":
+                facts = {"cause": wallbox_question[0], "message": message}
             revision = hashlib.sha256(json.dumps([key, context_hash, facts], sort_keys=True).encode()).hexdigest()[:16]
             answer = self.answers.get(key, {})
             if answer.get("revision") == revision and (answer.get("action") == "keep" or answer.get("until", 0) > stamp):
@@ -333,9 +369,9 @@ class LearningHub:
             findings.append({"id": key, "revision": revision, "title": title, "message": message,
                              "severity": severity, "choices": choices})
 
-        if r.wallbox_settings.get("enabled") and r._wallbox_reading().mode == "unknown":
+        if wallbox_question is not None:
             ask("wallbox_session", "Welke laadsessie is werkelijk actief?",
-                "De instelling Full Solar kan blijven staan tijdens manueel laden. Koppel onder Opslag & laden → Wallbox een gecontroleerde effectieve sessiesensor. Tot dan gebruikt SolarPilot alleen echte restinjectie; comfort blijft werken. Geen antwoord geeft geen overnametoestemming.",
+                wallbox_question[1],
                 [{"id":"configure","label":"Wallbox-koppeling bekijken"},{"id":"keep","label":"Alleen restoverschot gebruiken"},{"id":"later","label":"Morgen vragen"}], "attention")
         if r.pv_forecast.settings.get("enabled") and (r.pv_forecast.source.warning or len(r.pv_forecast.source.candidates)>1 and not r.pv_forecast.source.entry_id):
             ask("pv_source", "Forecast.Solar-bron vraagt een keuze", r.pv_forecast.source.warning or "Kies één bron in Zon & voorspelling. Metingen blijven leidend; niets wordt dubbel opgeteld.",

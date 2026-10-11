@@ -25,7 +25,8 @@ IMPLEMENTED_PROPOSALS = {'sp.hp.task-presentation.v1': {'proposal_sha256': '4c47
                                           'title': 'Bewijs en afkeurreden per vermogensbron'},
  'sp.electrical.budget-versus-limits.v1': {'proposal_sha256': '8f26454092497698718bd732cd1727916886e3ce0c061e97684d450e5c3d0828',
                                            'introduced_release': '1.0.0-beta.69',
-                                           'title': 'Kwartierbudget en fysieke grenzen onderscheiden'},
+                                           'title': 'Kwartierbudget en fysieke grenzen '
+                                                    'onderscheiden'},
  'sp.sg.reassessment-progress.v1': {'proposal_sha256': 'd564b03bcc3c9916629fc94e65566476fa9c0eb9dc7d6500999772e2d345f0b5',
                                     'introduced_release': '1.0.0-beta.71',
                                     'title': 'Actuele SG-bevestiging en startvertraging zichtbaar'},
@@ -33,11 +34,21 @@ IMPLEMENTED_PROPOSALS = {'sp.hp.task-presentation.v1': {'proposal_sha256': '4c47
                                     'introduced_release': '1.0.0-beta.71',
                                     'title': 'Bewaartermijn en overlappende exportdagen scheiden'},
  'sp.sg.minimum-request-duration.v1': {'proposal_sha256': 'c4e8f9335b405eb89a6ca2df2a7b38765a88d03fd496f9adaeaff7ceecf1be9a',
-                                     'introduced_release': '1.0.0-beta.72',
-                                     'title': 'Minimale SG-aanvraagduur van twintig minuten'},
+                                       'introduced_release': '1.0.0-beta.72',
+                                       'title': 'Minimale SG-aanvraagduur van twintig minuten'},
  'sp.sg.cloud-import-buffer.v1': {'proposal_sha256': '9a57311e0f6eb6f376f1ef4916a78aaf624af31d955b7c8437bea1334eba8ed1',
                                   'introduced_release': '1.0.0-beta.73',
-                                  'title': 'SG-wolkenbuffer van 600 W en vijf minuten'}}
+                                  'title': 'SG-wolkenbuffer van 600 W en vijf minuten'},
+ 'sp.sg.confirmed-reset-display.v1': {'proposal_sha256': '65827961bb1b068354c5840c3b0e7a881f4025f3d32df4a9552fda3292bf3b0e',
+                                      'introduced_release': '1.0.0-beta.74',
+                                      'title': 'Al bevestigde SG-reset zonder herhaalde teller'},
+ 'sp.wallbox.session-source-diagnostics.v1': {'proposal_sha256': 'b3fd3fb152aeab63d061ff95fabc0bb9835a393c5078910944d9746130bdb455',
+                                              'introduced_release': '1.0.0-beta.74',
+                                              'title': 'Gekoppelde Wallbox-sessiebron gericht '
+                                                       'beoordelen'},
+ 'sp.hp.inactive-scope-display.v1': {'proposal_sha256': 'cae613e96f6fa7e6001486a0f95f04de98b9d6a4cc436a7d42a47b7c45877b3a',
+                                     'introduced_release': '1.0.0-beta.74',
+                                     'title': 'Totale warmtepomprust vraagt passend bewijs'}}
 _PART = r"(?:0|[1-9][0-9]*)"
 _RELEASE = re.compile(rf"({_PART})\.({_PART})\.({_PART})(?:-beta\.({_PART}))?\Z")
 _PROPOSAL_ID = re.compile(r"[a-z0-9][a-z0-9._:-]{0,119}\Z")

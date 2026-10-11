@@ -1397,6 +1397,11 @@ class SGBoostManager:
                     if not isinstance(candidate, dict):
                         continue
                     kind = candidate.get("kind")
+                    # A completed reset is already retained as evidence. The
+                    # controller keeps its rolling report checks unchanged;
+                    # their bookkeeping is not another user waiting period.
+                    if reset and kind in {"solar", "native"} and finite(reference.get(kind + "_reset_stamp")) is not None:
+                        continue
                     if not checks.get(kind) or not reset and now < self._rest_until:
                         continue
                     observation = solar if kind in {"new_solar_period", "solar"} else native

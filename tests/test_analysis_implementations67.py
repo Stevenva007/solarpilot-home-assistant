@@ -15,10 +15,14 @@ def test_shipped_catalog_only_contains_release_bound_generic_proposals():
         "sp.hp.task-presentation.v1", "sp.hp.context-and-learning.v1",
         "sp.meters.source-quality-evidence.v1", "sp.electrical.budget-versus-limits.v1",
         "sp.sg.reassessment-progress.v1", "sp.hp.history-export-window.v1",
-        "sp.sg.minimum-request-duration.v1", "sp.sg.cloud-import-buffer.v1"}
+        "sp.sg.minimum-request-duration.v1", "sp.sg.cloud-import-buffer.v1",
+        "sp.sg.confirmed-reset-display.v1", "sp.wallbox.session-source-diagnostics.v1",
+        "sp.hp.inactive-scope-display.v1"}
     for identifier, row in implementations.IMPLEMENTED_PROPOSALS.items():
         assert set(row) == {"introduced_release", "title", "proposal_sha256"}
-        assert row["introduced_release"] == ("1.0.0-beta.73" if identifier ==
+        assert row["introduced_release"] == ("1.0.0-beta.74" if identifier in {
+            "sp.sg.confirmed-reset-display.v1", "sp.wallbox.session-source-diagnostics.v1",
+            "sp.hp.inactive-scope-display.v1"} else "1.0.0-beta.73" if identifier ==
             "sp.sg.cloud-import-buffer.v1" else "1.0.0-beta.72" if identifier ==
             "sp.sg.minimum-request-duration.v1" else "1.0.0-beta.71" if identifier in {
             "sp.sg.reassessment-progress.v1", "sp.hp.history-export-window.v1"} else "1.0.0-beta.69")
