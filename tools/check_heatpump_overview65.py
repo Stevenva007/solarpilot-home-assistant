@@ -385,6 +385,10 @@ with sync_playwright() as playwright:
             page.set_viewport_size({'width': width, 'height': 1000})
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), ('dynamic-task', view, width)
             assert panel.evaluate('element=>element.scrollWidth<=element.clientWidth+1'), ('dynamic-task', view, width)
+            assert panel.locator('.heatpump-supply>span:last-child').evaluate_all('''values=>values.every(value=>{
+              const style=getComputedStyle(value);
+              return style.wordBreak==='normal'&&style.overflowWrap==='normal'&&value.scrollWidth<=value.clientWidth+1;
+            })'''), ('supply-value-wrapping', view, width)
             page.screenshot(path=str(OUT / f'SolarPilot-warmtepomp-taak68-{view}-{width}.png'), full_page=True)
         # A new stale or incompatible context cannot retain the cached inferred
         # function; current meter activity and animation remain independent.
@@ -395,6 +399,17 @@ with sync_playwright() as playwright:
         page.emulate_media(reduced_motion='reduce')
         assert panel.locator('.heatpump-fan').evaluate('element=>getComputedStyle(element).animationName') == 'none'
         page.emulate_media(reduced_motion='no-preference')
+        # Unknown meter copy may wrap at spaces but must not overflow, and a
+        # known 0 W / Geen verbruik must retain normal complete-word wrapping.
+        page.set_viewport_size({'width': 320, 'height': 1000})
+        page.evaluate('qaMeter({power1:1360,power2:null,complete:false})')
+        assert panel.locator('[data-supply-number="2"]>span:last-child').inner_text() == 'Geen actuele meting'
+        assert panel.locator('.heatpump-supply>span:last-child').evaluate_all('''values=>values.every(value=>{
+          const style=getComputedStyle(value);
+          return style.wordBreak==='normal'&&style.overflowWrap==='normal'&&value.scrollWidth<=value.clientWidth+1;
+        })'''), ('missing-supply-wrapping', view)
+        assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), ('missing-supply', view)
+        assert panel.evaluate('element=>element.scrollWidth<=element.clientWidth+1'), ('missing-supply', view)
     page.locator('solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value=overview]').click()
 
     # Missing supply 2 preserves the known part but never fabricates a total.
