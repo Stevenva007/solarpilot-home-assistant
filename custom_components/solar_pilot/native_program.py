@@ -58,6 +58,17 @@ def _native_action(device):
     return action.name, expected[1]
 
 
+def _native_enum_name(value, kind_name, allowed):
+    """Display metadata only, with the same narrow enum contract as actions."""
+    kind = type(value)
+    if (not isinstance(value, Enum) or kind.__name__ != kind_name
+            or not kind.__module__.startswith("aioaquarea.")
+            or isinstance(value.value, bool) or not isinstance(value.value, int)
+            or allowed.get(value.name) != value.value):
+        return None
+    return value.name
+
+
 def _action_inputs(device):
     """Freeze mutable inputs so optimistic valve/mode changes lose poll proof."""
     def frozen(value):
@@ -435,6 +446,19 @@ class NativeClimateProgram:
             return result
         result.update(action=watch["action"][1], raw_action=watch["action"][0], fresh=True,
                       observed_at=watch["action_observed_at"])
+        # The library checks main operation_status before WATER/tank status
+        # when deriving DeviceAction.OFF. Preserve those independent native
+        # fields; OFF alone does not establish that an enabled tank is OFF.
+        # These use the display watcher and never amend programme/SG evidence.
+        result["operation_status"] = _native_enum_name(getattr(device, "operation_status", None),
+            "OperationStatus", {"OFF": 0, "ON": 1, "UNKNOWN": 2})
+        result["direction"] = _native_enum_name(getattr(device, "current_direction", None),
+            "DeviceDirection", {"IDLE": 0, "PUMP": 1, "WATER": 2})
+        has_tank = getattr(device, "has_tank", None)
+        result["has_tank"] = has_tank if isinstance(has_tank, bool) else None
+        result["tank_operation_status"] = _native_enum_name(
+            getattr(getattr(device, "tank", None), "operation_status", None),
+            "OperationStatus", {"OFF": 0, "ON": 1, "UNKNOWN": 2}) if has_tank is True else None
         mode = _native_mode(device)
         if mode is not None and mode == watch["mode"]:
             result.update(program=mode[1], raw_mode=mode[0])

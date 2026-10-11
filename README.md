@@ -2,9 +2,9 @@
 
 SolarPilot is een lokale Home Assistant-integratie voor zonnestroomverdeling, flexibele verbruikers, een beschermde AEG-afwasmachine, read-only Wallbox-informatie, voorspellingen, kosten, lokaal leren en batterijfuncties.
 
-**Actuele versie: 1.0.0-beta.68.** Panasonic regelt de warmtepomp zelfstandig. SolarPilot kan voor die warmtepomp alleen een extra SG-zonneboost aanvragen via één bewust gekoppelde bestaande Shelly-uitgang, met bewezen lokale aflooptimer. Het schrijft geen tank-/kamertemperatuur, AUTO/UIT, heaterkeuze of fabrikantprogramma. Nieuwe SG-sturing staat standaard uit tot gecontroleerde ingebruikname.
+**Actuele versie: 1.0.0-beta.69.** Panasonic regelt de warmtepomp zelfstandig. SolarPilot kan voor die warmtepomp alleen een extra SG-zonneboost aanvragen via één bewust gekoppelde bestaande Shelly-uitgang, met bewezen lokale aflooptimer. Het schrijft geen tank-/kamertemperatuur, AUTO/UIT, heaterkeuze of fabrikantprogramma. Nieuwe SG-sturing staat standaard uit tot gecontroleerde ingebruikname.
 
-[Installatie en veilige upgrade](START_HIER.md) · [Volledige actuele werking](docs/ACTUELE_WERKING.md) · [Beta.68 instellen](docs/BETA68_INSTELLEN.md) · [Testresultaten](docs/TESTRESULTATEN_BETA68.md) · [Technische overdracht](OVERDRACHT.md)
+[Installatie en veilige upgrade](START_HIER.md) · [Volledige actuele werking](docs/ACTUELE_WERKING.md) · [Beta.69 instellen](docs/BETA69_INSTELLEN.md) · [Testresultaten](docs/TESTRESULTATEN_BETA69.md) · [Technische overdracht](OVERDRACHT.md)
 
 Dezelfde actuele uitleg staat binnen Home Assistant onder **SolarPilot → Uitleg**. Historische veranderingen staan in [CHANGELOG.md](CHANGELOG.md); oudere instelbestanden beschrijven hun eigen release.
 
@@ -21,7 +21,7 @@ Bij **Analyse nodig** maakt één klik een export van de beschikbare zeven dagen
 
 ## Herstel van de beta.62-opstartfout
 
-Update via HACS naar de actuele beta.68 en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.67 blijven behouden; beta.68 vraagt geen herbevestiging alleen door de codeupdate.
+Update via HACS naar de actuele beta.69 en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.68 blijven behouden; beta.69 vraagt geen herbevestiging alleen door de codeupdate.
 
 ## Upgrade vanaf beta.61
 
@@ -50,3 +50,5 @@ Geen back-ups, access tokens, huisadressen, persoonlijke entitybindings of ruwe 
 ## Verwijderen
 
 Kies **Verwijderen voorbereiden**, wacht op gerichte veilige vrijgave, verwijder de SolarPilot-entry en vervolgens de HACS-integratie. Dit verwijdert geen oorspronkelijke Shelly-, warmtepomp-, Wallbox-, AEG- of meterintegratie. Bewaar vooraf de gewenste privégegevens en back-up. Onzekere SG-status wordt niet als bevestigd UIT voorgesteld.
+
+De SG-startdrempel gebruikt vanaf beta.69 de gemeten gezamenlijke zonnebijdrage inclusief de complete actuele warmtepompmeting. Restinjectie en mogelijke extra SG-vraag blijven apart; net-/fasegrenzen en Wallboxvoorrang gelden volledig. Details tonen de gebruikte bijdrage, bronkwaliteit en concrete blokkering. Native en afgeleide taakvoorbeelden blijven afzonderlijk in leren/export.

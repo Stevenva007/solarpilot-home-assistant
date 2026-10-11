@@ -277,6 +277,9 @@ class PriorityBoard:
         guard = getattr(r.wallbox_guard, "result", None)
         if r.wallbox_settings.get("enabled") and getattr(guard, "block_increase", False):
             return False
+        sg_guard = getattr(getattr(r, "sg_wallbox_guard", None), "result", guard)
+        if r.wallbox_settings.get("enabled") and getattr(sg_guard, "block_increase", False):
+            return False
         budget = sg_solar_budget(r)
         if not budget["valid"]:
             return False
@@ -322,7 +325,7 @@ class PriorityBoard:
             return None
         r, c = self.r, self.r.sg_boost.settings
         budget = sg_solar_budget(r)
-        if not budget["valid"] or budget["available_w"] >= c["threshold_w"]:
+        if not budget["valid"] or budget["eligible_w"] >= c["threshold_w"]:
             self._clear_extra_reclaim()
             return None
         if budget["discharge_w"] > r.settings.get("battery_discharge_tolerance_w", 50):
@@ -334,6 +337,12 @@ class PriorityBoard:
         unconsumed = sum(max(0.0, st.target_w-st.measured_w) for i,st in r.states.items()
                          if st.owned and st.on and i not in r.source_isolated_devices)
         envelope = c["expected_power_w"]+r.isolated_reserve_w+unconsumed
+        guard = getattr(getattr(r, "sg_wallbox_guard", None), "result", getattr(r.wallbox_guard, "result", None))
+        wallbox_limit = getattr(guard, "max_increase_w", None)
+        if r.wallbox_settings.get("enabled") and wallbox_limit is not None:
+            if not finite(wallbox_limit) or wallbox_limit < envelope:
+                self._clear_extra_reclaim("SG wacht op voldoende stabiel restoverschot na de Wallbox")
+                return None
         limit = r.settings["max_import_w"]
         if r.capacity_settings.get("enabled"):
             if not r.capacity.valid:
@@ -351,13 +360,20 @@ class PriorityBoard:
                 self._clear_extra_reclaim("SG wacht op veilige faseruimte")
                 return None
         pool, selected = self._extra_candidates(now), []
+        def prospective_solar(freed):
+            # A pause proposal is not credited to the actual budget. Recompute
+            # its potential threshold room before clipping: an OFF first pays
+            # any existing import, battery contribution and protected reserve.
+            balance = ((budget["hp_power_w"] or 0.0)-budget["conservative_grid_w"]
+                       -budget["discharge_w"]+freed)
+            return max(0.0, min(budget["pv_w"], balance)-budget["reserve_w"])
         for candidate in pool:
             selected.append(candidate)
             freed = sum(w for _,w in selected)
-            if (budget["available_w"]+freed >= c["threshold_w"]
+            if (prospective_solar(freed) >= c["threshold_w"]
                     and budget["grid_w"]-freed+envelope <= limit):
                 break
-        if (not selected or budget["available_w"]+sum(w for _,w in selected) < c["threshold_w"]
+        if (not selected or prospective_solar(sum(w for _,w in selected)) < c["threshold_w"]
                 or budget["grid_w"]-sum(w for _,w in selected)+envelope > limit):
             self._clear_extra_reclaim("Geen veilig onderbreekbare lagere last kan voldoende zon vrijmaken")
             return None
@@ -385,7 +401,7 @@ class PriorityBoard:
             return {}
         budget = sg_solar_budget(self.r)
         prospective = self.extra_reclaim.get("state") in ("ready","stability")
-        actual = budget["valid"] and budget["available_w"] >= self.r.sg_boost.settings["threshold_w"]
+        actual = budget["valid"] and budget["eligible_w"] >= self.r.sg_boost.settings["threshold_w"]
         if not active_request and not prospective and not actual:
             return {}
         ranks, r = self.ranks(),self.r

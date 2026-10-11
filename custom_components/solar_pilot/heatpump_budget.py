@@ -1,4 +1,4 @@
-"""Actual solar budget; native Panasonic demand is never reclaimed or added back."""
+"""Actual residual solar and separately measured HP solar for SG eligibility."""
 from __future__ import annotations
 import math
 import time
@@ -32,25 +32,85 @@ def _reserved_meters(runtime):
     return {eid for eid in reserved if isinstance(eid, str) and eid}
 
 
+def _source_evidence(obj, now):
+    """Retain source facts without granting an unusable report freshness.
+
+    An absent last_reported may use HA's last_updated for older integrations.
+    A malformed last_reported must not fall back to another, newer timestamp.
+    A newer last_updated/last_changed never overrides an existing last_reported.
+    Reads and controller cycles never create or refresh a source timestamp.
+    The usable measured_wall remains separate and is set only after validation.
+    """
+    attrs = getattr(obj, "attributes", {}) or {}
+    raw_value = getattr(obj, "state", None)
+    unit = attrs.get("unit_of_measurement")
+    source_value = str(raw_value)[:128] if raw_value is not None else None
+    source_unit = str(unit)[:32] if unit is not None else None
+    stamp = getattr(obj, "last_reported", None)
+    kind = "last_reported" if stamp is not None else None
+    if stamp is None:
+        stamp = getattr(obj, "last_updated", None)
+        kind = "last_updated" if stamp is not None else None
+    try:
+        raw_reported = stamp.timestamp()
+        reported = (_number(raw_reported) if isinstance(raw_reported, (int, float))
+                    and not isinstance(raw_reported, bool) else None)
+        if reported is not None and reported < 0:
+            reported = None
+    except (AttributeError, TypeError, ValueError, OSError, OverflowError):
+        reported = None
+    value = _number(raw_value)
+    watts = value * (1000 if unit == "kW" else 1) if value is not None and unit in ("W", "kW") else None
+    if watts is not None and not math.isfinite(watts):
+        watts = None
+    return {"source_reported_wall": reported, "source_timestamp_kind": kind,
+            "source_unit": source_unit, "source_value": source_value,
+            "source_watts": watts, "source_age_s": now-reported if reported is not None else None}
+
+
 def _meter_reading(runtime, config, meter, reserved, now):
     result = {"valid": False, "watts": None, "measured_wall": None,
-              "entity_id": meter or None, "reason": "Geen actuele betrouwbare deelmeting"}
+              "entity_id": meter or None, "reason": "Geen vermogensbron ingesteld",
+              "rejection_reason": "not_configured", **_source_evidence(None, now)}
+
+    def rejected(code, reason):
+        return {**result, "rejection_reason": code, "reason": reason}
+
     if not isinstance(meter, str) or not meter:
         return result
     obj = runtime.hass.states.get(meter)
     attrs = getattr(obj, "attributes", {}) or {}
-    if (meter in reserved or any(meter_sources_overlap(runtime.hass, meter, other) for other in reserved)
-            or obj is None or any(attrs.get(k) for k in ("restored", "estimated", "is_estimated"))
+    result.update(_source_evidence(obj, now))
+    if obj is None:
+        return rejected("missing", "Vermogensbron ontbreekt")
+    if meter in reserved or any(meter_sources_overlap(runtime.hass, meter, other) for other in reserved):
+        return rejected("overlap", "Vermogensbron overlapt met een andere gebruikte meter")
+    if attrs.get("restored"):
+        return rejected("restored", "Herstelde toestand is geen nieuwe vermogensmeting")
+    if (any(attrs.get(k) for k in ("estimated", "is_estimated"))
             or any(word in str(attrs.get("friendly_name", "")).casefold() for word in ("geschat", "estimated"))):
-        return result
+        return rejected("estimated", "Geschat vermogen is geen werkelijke vermogensmeting")
     if attrs.get("unit_of_measurement") not in ("W", "kW"):
-        return result
+        return rejected("unsupported_unit", "Vermogenseenheid ontbreekt of is geen W/kW")
+    if result["source_watts"] is None:
+        return rejected("invalid_value", "Vermogenswaarde ontbreekt of is niet eindig numeriek")
+    if result["source_watts"] < 0:
+        return rejected("negative", "Negatieve vermogenswaarde is geen geldig warmtepompverbruik")
+    if result["source_watts"] > _POWER_PLAUSIBILITY_W:
+        return rejected("out_of_range", "Vermogenswaarde buiten plausibel meetbereik")
+    if result["source_reported_wall"] is None:
+        return rejected("invalid_timestamp", "Echte rapportagetijd ontbreekt of is ongeldig")
+    if result["source_age_s"] < -5:
+        return rejected("future_timestamp", "Rapportagetijd ligt in de toekomst")
+    if result["source_age_s"] > config.get("stale_s", 120):
+        return rejected("stale", "Vermogensrapport is te oud")
     watts, stamp = runtime._power(meter, config.get("stale_s", 120))
     watts, stamp = _number(watts), _number(stamp)
     if (watts is None or not 0 <= watts <= _POWER_PLAUSIBILITY_W or stamp is None
             or not -5 <= now-stamp <= config.get("stale_s", 120)):
-        return result
-    return {**result, "valid": True, "watts": watts, "measured_wall": stamp, "reason": ""}
+        return rejected("unusable_report", "Vermogensrapport is niet bruikbaar volgens de actuele broncontrole")
+    return {**result, "valid": True, "watts": watts, "measured_wall": stamp,
+            "rejection_reason": None, "reason": ""}
 
 
 def heatpump_power(runtime, *, now_wall=None):
@@ -67,7 +127,7 @@ def heatpump_power(runtime, *, now_wall=None):
     result = {"valid": False, "complete": False, "watts": None, "measured_wall": None,
               "entity_id": meter or None, "shared": True, "meter_scope": "split" if split else scope,
               "split_confirmed": config.get("split_power_confirmed") is True,
-              "reason": "Geen actuele betrouwbare warmtepompmeting", "supplies": {}}
+              "reason": "Geen actuele betrouwbare warmtepompmeting", "rejection_reason": "incomplete", "supplies": {}}
     now = time.time() if now_wall is None else now_wall
     reserved = _reserved_meters(runtime)
     if not split:
@@ -77,27 +137,54 @@ def heatpump_power(runtime, *, now_wall=None):
     two = _meter_reading(runtime, config, second, reserved, now)
     result.update(entity_id=None, supplies={"supply1": one, "supply2": two})
     if meter or (first and second and meter_sources_overlap(runtime.hass, first, second)):
+        result["rejection_reason"] = "overlap"
         result["reason"] = "Warmtepompmeters overlappen; geen bevestigd totaal"
         return result
     if config.get("split_power_confirmed") is not True:
+        result["rejection_reason"] = "split_unconfirmed"
         result["reason"] = "Dekking en niet-overlap van beide voedingen nog niet lokaal bevestigd"
         return result
     if not one["valid"] or not two["valid"]:
-        result["reason"] = "Warmtepomptotaal onvolledig; een deelmeter ontbreekt of is niet actueel"
+        failures = [f"voeding {index}: {reading['reason']}" for index, reading in ((1, one), (2, two)) if not reading["valid"]]
+        result["reason"] = "Warmtepomptotaal onvolledig; " + "; ".join(failures)
         return result
     total = one["watts"] + two["watts"]
     if total > _POWER_PLAUSIBILITY_W:
+        result["rejection_reason"] = "out_of_range"
         result["reason"] = "Warmtepomptotaal buiten plausibel meetbereik"
         return result
     return {**result, "valid": True, "complete": True, "watts": total,
-            "measured_wall": min(one["measured_wall"], two["measured_wall"]), "reason": ""}
+            "measured_wall": min(one["measured_wall"], two["measured_wall"]), "rejection_reason": None, "reason": ""}
 
 
 def sg_solar_budget(runtime):
+    """Keep physical export separate from the solar already used by the HP.
+
+    Only a complete, fresh dedicated actual HP measurement can credit the SG
+    start threshold. The combined measured balance discounts site import and
+    battery discharge, and measured PV caps the total. Its incremental credit
+    is an attribution, not a separate measured PV-to-HP share. This deliberately
+    conservative budget is not headroom, SG-owned watts or forecast power.
+    No prospective device OFF, EV reclaim or learned draw supplies this credit.
+    """
     grid, valid, discharge, ready, grid_stamp = runtime._site_data()
     pv, pv_stamp = runtime._power(runtime.settings.get("pv_entity"))
     values = [_number(x) for x in (grid, pv, discharge, grid_stamp, pv_stamp)]
-    result = {"valid": False, "available_w": 0.0, "reason": "Wacht op betrouwbare actuele zonnemetingen"}
+    result = {"valid": False, "available_w": 0.0, "eligible_w": 0.0, "hp_solar_w": 0.0,
+              "hp_power_w": None, "hp_credit_reason": "Wacht op betrouwbare actuele zonnemetingen",
+              "reason": "Wacht op betrouwbare actuele zonnemetingen"}
+    actual_entities = {runtime.settings.get(key) for key in ("grid_entity", "pv_entity")}
+    if runtime.settings.get("grid_sign") == "separate":
+        actual_entities.add(runtime.settings.get("export_entity"))
+    fleet = getattr(runtime, "battery_fleet", None)
+    if getattr(fleet, "settings", {}).get("enabled") and getattr(fleet, "configured", False):
+        actual_entities.update(config.get("power_entity") for config in getattr(fleet, "configs", {}).values())
+    else:
+        actual_entities.add(runtime.settings.get("battery_power_entity"))
+    for entity in actual_entities:
+        attrs = (getattr(runtime.hass.states.get(entity), "attributes", {}) or {}) if entity else {}
+        if any(attrs.get(key) for key in ("estimated", "is_estimated", "restored")):
+            return {**result, "reason": "Geschatte of herstelde bron is geen actuele werkelijke zonnemeting"}
     if not valid or not ready or any(v is None for v in values):
         return result
     grid, pv, discharge, grid_stamp, pv_stamp = values
@@ -107,9 +194,28 @@ def sg_solar_budget(runtime):
     filtered = _number(runtime.filtered)
     if runtime.filtered is not None and filtered is None:
         return result
-    reserve = max(0.0, runtime.settings["reserve_w"]) + max(0.0, runtime.isolated_reserve_w)
-    reserve += max(0.0, getattr(runtime, "_dishwasher_comfort_reserve", 0))
-    available = max(0.0, min(pv, -max(grid, filtered if filtered is not None else grid)-discharge)-reserve)
-    return {"valid": True, "available_w": available, "grid_w": grid, "discharge_w": discharge,
-            "pv_w": pv, "reserve_w": reserve, "stamp": min(grid_stamp, pv_stamp),
+    reserves = [_number(value) for value in (runtime.settings["reserve_w"], runtime.isolated_reserve_w,
+                                            getattr(runtime, "_dishwasher_comfort_reserve", 0))]
+    if any(value is None for value in reserves):
+        return result
+    reserve = sum(max(0.0, value) for value in reserves)
+    conservative_grid = max(grid, filtered if filtered is not None else grid)
+    available = max(0.0, min(pv, -conservative_grid-discharge)-reserve)
+    residual_stamp = min(grid_stamp, pv_stamp)
+    power = heatpump_power(runtime, now_wall=now)
+    hp, hp_stamp = _number(power.get("watts")), _number(power.get("measured_wall"))
+    complete = (power.get("valid") is True and power.get("complete") is True
+                and hp is not None and 0 <= hp <= _POWER_PLAUSIBILITY_W
+                and hp_stamp is not None and -5 <= now-hp_stamp <= stale)
+    eligible = max(0.0, min(pv, (hp if complete else 0.0)-conservative_grid-discharge)-reserve)
+    credit = max(0.0, eligible-available)
+    credit_reason = ("Actueel volledig warmtepompverbruik telt mee in het afgeleide SG-zonnebudget"
+                     if credit > 0 else "Geen extra zonnebijdrage uit de warmtepompmeting"
+                     if complete else power.get("reason") or "Warmtepomptotaal niet volledig of actueel")
+    return {"valid": True, "available_w": available, "eligible_w": eligible, "hp_solar_w": credit,
+            "hp_power_w": hp if complete else None, "hp_credit_reason": credit_reason,
+            "grid_w": grid, "conservative_grid_w": conservative_grid,
+            "discharge_w": discharge, "pv_w": pv, "reserve_w": reserve,
+            "stamp": min(residual_stamp, hp_stamp) if credit > 0 else residual_stamp,
+            "residual_stamp": residual_stamp,
             "reason": "Werkelijk restoverschot na beschermde toestellen"}

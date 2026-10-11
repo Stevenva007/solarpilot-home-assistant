@@ -956,7 +956,8 @@ class SGBoostManager:
         batteries = list(batteries.values()) if isinstance(batteries, dict) else batteries if isinstance(batteries, list) else []
         return actuator_conflicts(settings, profiles + batteries)
 
-    def _gates(self, *, data_fresh, phase_allowed, priority_allowed, hard_limit):
+    def _gates(self, *, data_fresh, phase_allowed, priority_allowed, hard_limit,
+               electrical_reason=None):
         reasons = []
         if self._closed:
             reasons.append("SolarPilot wordt afgesloten")
@@ -983,7 +984,8 @@ class SGBoostManager:
         if data_fresh is not True:
             reasons.append("Wachten op betrouwbare actuele net- en zonnemetingen")
         if phase_allowed is not True or hard_limit:
-            reasons.append("Elektrische grens of fasebewaking laat geen extra SG-aanvraag toe")
+            reasons.append(electrical_reason if isinstance(electrical_reason, str) and electrical_reason.strip()
+                           else "Elektrische grens of fasebewaking laat geen extra SG-aanvraag toe")
         if priority_allowed is not True:
             reasons.append("Hoger geplaatste of beschermde verbruikers krijgen voorrang")
         if self.manual_hold:
@@ -996,7 +998,8 @@ class SGBoostManager:
 
     async def tick(self, *, surplus_w, data_fresh, phase_allowed, priority_allowed=True,
                    grid_import_w=0, physical_evidence=None, tank_observation=None,
-                   native_observation=None, solar_stamp=None, hard_limit=False, **_context):
+                   native_observation=None, solar_stamp=None, hard_limit=False,
+                   real_surplus_w=None, electrical_reason=None, **_context):
         if not self._started:
             await self.start()
         async with self._lock:
@@ -1006,8 +1009,13 @@ class SGBoostManager:
             self._native_observation = (dict(native_observation) if isinstance(native_observation, dict)
                                         else self._read_native())
             surplus, imported, stamp = finite(surplus_w), finite(grid_import_w), finite(solar_stamp)
-            data_fresh = data_fresh is True and surplus is not None and imported is not None and surplus >= 0 and imported >= 0
-            self._solar_observation = ({"watts": surplus, "stamp": stamp}
+            residual = surplus if real_surplus_w is None else finite(real_surplus_w)
+            data_fresh = (data_fresh is True and surplus is not None and imported is not None
+                          and residual is not None and surplus >= 0 and imported >= 0 and residual >= 0)
+            # Already solar-fed native consumption qualifies only the start
+            # threshold. A new solar episode still needs fresh residual export;
+            # continuing native draw cannot create a completion-hold reset loop.
+            self._solar_observation = ({"watts": residual, "stamp": stamp}
                 if data_fresh and stamp is not None
                 and -5 <= self._wall_clock() - stamp <= float(self.settings["stale_s"]) else None)
             native = self._valid_native_observation(self._native_observation)
@@ -1048,7 +1056,8 @@ class SGBoostManager:
                 self._stable_since = None
                 await self._save()
             gates = self._gates(data_fresh=data_fresh, phase_allowed=phase_allowed,
-                                 priority_allowed=priority_allowed, hard_limit=hard_limit)
+                                 priority_allowed=priority_allowed, hard_limit=hard_limit,
+                                 electrical_reason=electrical_reason)
             self._blocked_reasons = gates
             if gates:
                 self._stable_since = None
@@ -1101,13 +1110,13 @@ class SGBoostManager:
                 return self.sent_this_tick
             if surplus < float(self.settings["threshold_w"]):
                 self._stable_since = None
-                self._set_state("waiting_surplus", f"Wachten op minstens {self.settings['threshold_w']:g} W bruikbaar zonneoverschot")
+                self._set_state("waiting_surplus", f"Wachten op minstens {self.settings['threshold_w']:g} W bruikbaar zonnevermogen")
                 return self.sent_this_tick
             if self._stable_since is None:
                 self._stable_since = now
             remaining = max(0.0, float(self.settings["start_delay_s"]) - (now - self._stable_since))
             if remaining > 0:
-                self._set_state("waiting_surplus", f"Voldoende zonneoverschot; stabiliteitscontrole nog {int(remaining + .999)} s")
+                self._set_state("waiting_surplus", f"Voldoende zonnevermogen; stabiliteitscontrole nog {int(remaining + .999)} s")
                 return self.sent_this_tick
             await self._issue_on()
             return self.sent_this_tick

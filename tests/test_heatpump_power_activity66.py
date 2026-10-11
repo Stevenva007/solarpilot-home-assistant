@@ -100,10 +100,13 @@ def test_overlap_does_not_double_a_below_threshold_meter_into_activity_or_a_func
     assert not view["complete"] and view["total_w"] is None and view["function"] is None
 
 
-def test_kw_conversion_and_oldest_actual_supply_stamp_are_retained():
+def test_kw_conversion_and_oldest_actual_supply_stamp_are_retained(monkeypatch):
     runtime, hass = split()
     hass.states.set("sensor.hp_supply_one", 0.15, {"unit_of_measurement": "kW"}, reported_age=35)
     hass.states.set("sensor.hp_supply_two", 0.05, {"unit_of_measurement": "kW"}, reported_age=1)
+    from custom_components.solar_pilot import heatpump_budget
+    wall = heatpump_budget.time.time()
+    monkeypatch.setattr(heatpump_budget.time, "time", lambda: wall)
     view = runtime.panasonic.overview()["power_activity"]
     assert view["total_w"] == 200 and view["active"]
     assert view["observed_at"] == view["supplies"][0]["observed_at"]

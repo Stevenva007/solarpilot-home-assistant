@@ -1,5 +1,5 @@
-/* SolarPilot 1.0.0-beta.68. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
-const SP_CARD_VERSION = '1.0.0-beta.68';
+/* SolarPilot 1.0.0-beta.69. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+const SP_CARD_VERSION = '1.0.0-beta.69';
 const SP_DIALOG_RELEASE = SP_CARD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g,'-');
 const SP_ANALYSIS_DIALOG_TAG = `solar-pilot-analysis-dialog-${SP_DIALOG_RELEASE}`;
 const SP_QUALITY_DIALOG_TAG = `solar-pilot-learning-dialog-${SP_DIALOG_RELEASE}`;
@@ -741,7 +741,7 @@ class SolarPilotCard extends HTMLElement {
       ${this._activeLoads(c)}<div class="summarygrid">
         ${this._tile('Wallbox',wb.enabled?`${spEscape(this._wallboxActivity(wb).label)} · ${spPower(wb.power_w)}`:'niet gemonitord',wb.enabled?'De Wallbox bepaalt zelf het laden; SolarPilot leest de status.':'',wb.enabled&&this._wallboxActivity(wb).active?'active-tile':'')}
         ${this._tile('Batterij',batteryText,batteryFleet.reason||batteryAnalysis.note||'')}
-        ${this._tile('Kwartierpiek',cap.enabled?(cap.current_average_w==null?'—':spPower(cap.current_average_w)):'uit',cap.enabled?`vrije ruimte ${spPower(cap.optional_headroom_w)}`:'')}
+        ${this._tile('Kwartierpiek',cap.enabled?(cap.current_average_w==null?'—':spPower(cap.current_average_w)):'uit',cap.enabled?`theoretisch kwartierbudget ${spPower(cap.optional_headroom_w)}`:'')}
         ${this._tile('Lokale PV-voorspelling',localPv.enabled?(localPv.corrected_power_w==null?'—':spPower(localPv.corrected_power_w)):'uit',localPv.enabled?`${Math.round(Number(localPv.confidence||0)*100)}% · ${localPv.reason||''}`:'')}
       </div></details>
       <div class="kpis">
@@ -915,8 +915,11 @@ class SolarPilotCard extends HTMLElement {
     const activeMain=freshSupplies.some(row=>row.role==='main'&&row.state==='active'&&row.watts>0&&row.watts>=(validNumber(power.threshold_w)?power.threshold_w:200));
     const idleContextAllowed=nativeTask.function==null&&nativeTask.source==='aquarea_poll'&&nativeTask.inactive_action==='idle'&&
       ['selected_program','tank_route'].includes(power.function_kind)&&complete&&supportFresh&&activeMain&&contextCompatible;
+    const tankCircuitAllowed=nativeTask.function==null&&nativeTask.source==='aquarea_poll'&&nativeTask.inactive_action==='off'&&
+      nativeTask.inactive_scope==='space_circuit'&&nativeTask.independent_tank_on===true&&nativeTask.verified_global_off!==true&&
+      power.function==='tapwater_heating'&&power.function_kind==='tank_route'&&complete&&supportFresh&&activeMain&&contextCompatible;
     const taskConflict=nativeTaskFresh&&(nativeTask.conflict===true&&['aquarea_entity','aquarea_poll','native_hvac_action','none'].includes(nativeTask.source)||
-      nativeTask.inactive===true&&['aquarea_poll','native_hvac_action'].includes(nativeTask.source)&&!idleContextAllowed);
+      nativeTask.inactive===true&&['aquarea_poll','native_hvac_action'].includes(nativeTask.source)&&!idleContextAllowed&&!tankCircuitAllowed);
     const routingInference=['selected_program','tank_route'].includes(power.function_kind);
     const functionName=active&&complete&&!partialActive&&!defrostActive&&!taskConflict&&(!routingInference||activeMain&&contextCompatible)&&power.activity_kind!=='heater'&&['tapwater_heating','space_heating','space_cooling'].includes(power.function)&&this._freshObservation(power.context_observed_at,limit)?power.function:null;
     const functions={tapwater_heating:'Boiler opwarmen',space_heating:'Verwarmen',space_cooling:'Koelen'};
@@ -991,6 +994,8 @@ class SolarPilotCard extends HTMLElement {
     add('Taakweergave',resolved.known?`${resolved.label}${resolved.kind==='inferred'?' · afgeleid uit verbruik en Panasonic-context':resolved.kind==='native'?' · Panasonic-melding':''}`:'Geen actuele taak vastgesteld');
     add('Native taakmelding',task.known?task.label:'Geen actuele native taakmelding');
     if(task.known)add('Onderbouwing native taak',task.note);
+    const rawTask=p.native_task||{};
+    if(rawTask.inactive_action)add('Oorspronkelijke native actie',`${rawTask.inactive_action.toUpperCase()} · ${({global:'gehele toestel bevestigd uit',space_circuit:'ruimtebedrijf uit; tank afzonderlijk actief',device_idle:'rustmelding',unknown:'bereik niet vastgesteld',mixed:'meldingen hebben verschillend bereik'})[rawTask.inactive_scope]||'bereik niet vastgesteld'}`);
     if(task.contextKnown)add(task.contextKind==='tank_route'?'Panasonic-route':'Gekozen Panasonic-stand',`${task.contextLabel}. ${task.contextNote}`);
     if(native.known)add('Bedrijfsmelding',`${native.label}. ${native.note}`);
     if(meter.known)add('Vermogensafleiding',meter.note);
@@ -1001,6 +1006,16 @@ class SolarPilotCard extends HTMLElement {
     for(const row of this._heatpumpSupplies(c)){
       const role=({main:'Hoofdvoeding: compressor, regeling en pompen',heater:'Elektrische ondersteuning: ruimte- of tankverwarming'})[row.role];
       if(role)add(`Functie voeding ${row.number}`,`${role}${row.role_assumed===true?' · Panasonic-voedingsprofiel (aanname)':''}`);
+    }
+    for(const [key,quality] of Object.entries(p.power_source_quality||{})){
+      if(!quality||typeof quality!=='object')continue;
+      const sourceLabel=key==='total'?(p.power_scope==='total'?'Totaalmeter':'Vermogensbron'):key==='supply1'?'Voeding 1':'Voeding 2';
+      if(quality.reason)add(`${sourceLabel}: meetcontrole`,quality.reason);
+      if(typeof quality.source_reported_wall==='number'&&Number.isFinite(quality.source_reported_wall)){
+        const age=Math.floor(Date.now()/1000-quality.source_reported_wall);
+        const ageLabel=age<0?`rapportagetijd ${-age} s in de toekomst`:`${age} s geleden`;
+        add(`${sourceLabel}: laatste bronrapport`,`${ageLabel} · ${quality.source_timestamp_kind||'bron'}${quality.source_unit?' · '+quality.source_unit:''}`);
+      }
     }
     return `<section data-heatpump-provenance><h3>Taak, metingen en herkomst</h3>${this._reasonFacts(rows)}<p class="note">De ventilatoranimatie volgt bevestigd bedrijf of actueel hoofdverbruik. Animatie en elektrisch verbruik bevestigen geen draaiende compressor. De bijverwarming wordt afzonderlijk uit haar voeding afgeleid; Panasonic stuurt haar zelfstandig.</p></section>`;
   }
@@ -1050,7 +1065,7 @@ class SolarPilotCard extends HTMLElement {
   }
   _heatpumpDisplaySignature(c){
     const p=c.panasonic||{};
-    return JSON.stringify([this._heatpumpActivity(c),this._heatpumpPresentation(c),this._heatpumpTaskEvidence(c),this._heatpumpSupplies(c).map(row=>[row.number,row.fresh,row.state]),(c.panasonic?.power_activity?.supplies||[]).map(row=>this._freshObservation(row.observed_at,c.panasonic?.power_activity?.stale_s??120)),this._sgDisplayStates(c),['power','supply1','supply2','compressor','context','temperature','target'].map(role=>this._panasonicSourceFresh(p,role)),(p.display_zones||p.zones||[]).map(zone=>this._freshObservation(zone.observed_at,p.source_stale_s??120)),['temperature_stamp','target_stamp','observed_at'].map(key=>this._freshObservation(p.display_tank?.[key],p.source_stale_s??120)),['lease_remaining_s','remaining_s','rest_remaining_s'].map(key=>Math.ceil((this._sgCountdown(c.sgBoost||{},key)??-1)/10))]);
+    return JSON.stringify([this._heatpumpActivity(c),this._heatpumpPresentation(c),this._heatpumpTaskEvidence(c),this._heatpumpSupplies(c).map(row=>[row.number,row.fresh,row.state]),(c.panasonic?.power_activity?.supplies||[]).map(row=>this._freshObservation(row.observed_at,c.panasonic?.power_activity?.stale_s??120)),this._sgDisplayStates(c),this._electricalLimits(c),['power','supply1','supply2','compressor','context','temperature','target'].map(role=>this._panasonicSourceFresh(p,role)),(p.display_zones||p.zones||[]).map(zone=>this._freshObservation(zone.observed_at,p.source_stale_s??120)),['temperature_stamp','target_stamp','observed_at'].map(key=>this._freshObservation(p.display_tank?.[key],p.source_stale_s??120)),['lease_remaining_s','remaining_s','rest_remaining_s'].map(key=>Math.ceil((this._sgCountdown(c.sgBoost||{},key)??-1)/10))]);
   }
   _sgConfirmation(s,p={}){
     const states=this._sgDisplayStates({sgBoost:s,panasonic:p});
@@ -1088,16 +1103,32 @@ class SolarPilotCard extends HTMLElement {
     }).join(''):`<small>Voeding 1: ${this._supplyPower(p,1)} · Voeding 2: ${this._supplyPower(p,2)}</small>`:'';
     return `<div class="reason-power"><b>${known?spPower(value):'Vermogen nog niet bekend'}</b><small>${spEscape(p.power_label||labels[scope]||'Dekking onbekend')}${known?(kind==='estimated'?' · geschat':' · gemeten'):''}</small>${supplies}</div>`;
   }
+  _electricalLimits(c){
+    const value=c.ems?.electrical_limits;
+    if(!value)return null;
+    const fresh=value.source_valid===true&&this._freshObservation(value.source_observed_at,value.source_stale_s??120);
+    const solarFresh=value.sg_solar_valid===true&&this._freshObservation(value.sg_solar_observed_at,value.source_stale_s??120);
+    return {...value,instantaneous_headroom_w:fresh?value.instantaneous_headroom_w:null,
+      sg_eligible_solar_w:solarFresh?value.sg_eligible_solar_w:null,
+      sg_hp_solar_w:solarFresh?value.sg_hp_solar_w:null,
+      sg_residual_solar_w:solarFresh?value.sg_residual_solar_w:null};
+  }
   _sgDetails(c,scope='comfort'){
     const s=c.sgBoost||{},p=c.panasonic||{},zones=Array.isArray(p.display_zones)?p.display_zones:Array.isArray(p.zones)?p.zones:[];
     const profile=({general:'Algemene SG-boost',dhw_only:'Uitsluitend tapwater'})[s.profile]||'Niet bekend';
     const context=p.context_reliable===true&&this._panasonicSourceFresh(p,'context')?p.status||'Betrouwbare bedrijfscontext beschikbaar':'Bedrijfscontext onbekend of verouderd';
     const cooling=s.profile!=='general'?'Niet vereist voor tapwater-only':s.cooling_protection_confirmed===true?'Lokaal bevestigd':'Niet bevestigd · geen extra SG in koelbedrijf of onzekere koelcontext';
     const facts=[['Toepassingsbereik',profile],['Profiel lokaal bevestigd',s.profile_confirmed===true?'Ja':'Nee'],['Extra-koelbeveiliging',cooling],['Tanktemperatuur',spTemp(this._heatpumpTankValue(c,'temperature_c'))],['Gemeld tankdoel',spTemp(this._heatpumpTankValue(c,'target_c'))],['Startdrempel',spPower(s.start_threshold_w)],['Voorlopige vermogensraming',spPower(s.estimated_power_w)],['Resterende sessie',this._remainingTime(this._sgCountdown(s,'remaining_s'))],['Rusttijd',this._remainingTime(this._sgCountdown(s,'rest_remaining_s'))]];
+    const electrical=this._electricalLimits(c);
+    if(electrical){
+      facts.push(['Zonnevermogen voor SG-drempel',spPower(electrical.sg_eligible_solar_w)],['Warmtepompbijdrage aan startdrempel (afgeleid)',spPower(electrical.sg_hp_solar_w)],['Resterende vrije zonnestroom',spPower(electrical.sg_residual_solar_w)],['Elektrische ruimte nu',spPower(electrical.instantaneous_headroom_w)]);
+      if(electrical.sg_protected_ev_headroom_w!=null)facts.push(['Stabiele ruimte na Wallbox',spPower(electrical.sg_protected_ev_headroom_w)]);
+      if(electrical.quarter_enabled)facts.push(['Theoretisch kwartierbudget',spPower(electrical.quarter_theoretical_headroom_w)]);
+    }
     if(p.power_scope==='split')facts.push(['Voeding 1',this._supplyPower(p,1)],['Voeding 2',this._supplyPower(p,2)]);
     const blocks=Array.isArray(s.blocked_reasons)?s.blocked_reasons:[];
     const sg=this._sgDisplayStates(c);
-    return `${this._sgConfirmation(s,p)}${this._heatpumpTechnicalDetails(c)}${this._reasonFacts(facts)}${blocks.length?`<div class="condition-group waiting"><b>Nog nodig</b><ul>${blocks.map(x=>`<li>${spEscape(this._plainReason(typeof x==='string'?x:x.reason))}</li>`).join('')}</ul></div>`:''}${s.uptake_diagnostic&&this._freshObservation(s.observed_at,s.relay_stale_s??120)?`<p class="note">${spEscape(s.uptake_diagnostic)}</p>`:''}<p class="note">Een normaal tankdoel in de app bewijst niet welk effectief SG-doel Panasonic gebruikt. Compressorbedrijf bewijst geen extra verbruik door SG.</p><details data-ui-key="sg:${spEscape(scope)}:monitor"><summary>Panasonic en ruimtes · alleen uitlezen</summary><p>${spEscape(context)}</p><p>${spEscape(this._panasonicSourceFresh(p,'context')?(p.program_label||this._panasonicProgramLabel(p.program)):'Warmtepompprogramma onbekend')}</p><p class="sub">${spEscape(this._sgObservation(c))}</p>${p.power_reason?`<p>${spEscape(p.power_reason)}</p>`:''}${zones.map(z=>{const fresh=z.available!==false&&this._freshObservation(z.observed_at,p.source_stale_s??120);return `<div class="zone"><span><b>${spEscape(z.name||'Ruimte')}</b><small>Gewenst ${spTemp(fresh?(z.target??z.target_c):null)}</small></span><b>${spTemp(fresh?(z.current??z.temperature_c):null)}</b><em>${spEscape(fresh?this._climateModeLabel(String(z.mode||'').toLowerCase()):'Onbekend of verouderd')}${fresh&&z.action_valid!==false&&z.action?` · ${spEscape(({heating:'verwarmt',cooling:'koelt',idle:'niet actief',off:'niet actief'})[z.action]||z.action)}`:''}</em></div>`}).join('')||'<p>Geen betrouwbare ruimtemetingen beschikbaar.</p>'}<p class="note">Panasonic regelt comfort, verwarmen/koelen, elektrische ondersteuning en sterilisatie. SolarPilot schrijft geen tankdoel of kamerstand. Het gemeten verbruik kan na het vrijgeven van SG blijven doorlopen.</p></details>`;
+    return `${this._sgConfirmation(s,p)}${this._heatpumpTechnicalDetails(c)}${this._reasonFacts(facts)}${electrical?'<p class="note">Zonnestroom die de warmtepomp al gebruikt telt mee voor de SG-startdrempel bij een compleet actueel bevestigd totaal. Dit geeft geen extra net- of faseruimte. De vermogensraming voor bijkomende SG-opname, echte vrije zonnestroom, voorrang en wachttijden blijven afzonderlijk gelden. Het theoretische kwartierbudget verruimt de vaste net- en fasegrenzen nooit.</p>':''}${blocks.length?`<div class="condition-group waiting"><b>Nog nodig</b><ul>${blocks.map(x=>`<li>${spEscape(this._plainReason(typeof x==='string'?x:x.reason))}</li>`).join('')}</ul></div>`:''}${s.uptake_diagnostic&&this._freshObservation(s.observed_at,s.relay_stale_s??120)?`<p class="note">${spEscape(s.uptake_diagnostic)}</p>`:''}<p class="note">Een normaal tankdoel in de app bewijst niet welk effectief SG-doel Panasonic gebruikt. Compressorbedrijf bewijst geen extra verbruik door SG.</p><details data-ui-key="sg:${spEscape(scope)}:monitor"><summary>Panasonic en ruimtes · alleen uitlezen</summary><p>${spEscape(context)}</p><p>${spEscape(this._panasonicSourceFresh(p,'context')?(p.program_label||this._panasonicProgramLabel(p.program)):'Warmtepompprogramma onbekend')}</p><p class="sub">${spEscape(this._sgObservation(c))}</p>${p.power_reason?`<p>${spEscape(p.power_reason)}</p>`:''}${zones.map(z=>{const fresh=z.available!==false&&this._freshObservation(z.observed_at,p.source_stale_s??120);return `<div class="zone"><span><b>${spEscape(z.name||'Ruimte')}</b><small>Gewenst ${spTemp(fresh?(z.target??z.target_c):null)}</small></span><b>${spTemp(fresh?(z.current??z.temperature_c):null)}</b><em>${spEscape(fresh?this._climateModeLabel(String(z.mode||'').toLowerCase()):'Onbekend of verouderd')}${fresh&&z.action_valid!==false&&z.action?` · ${spEscape(({heating:'verwarmt',cooling:'koelt',idle:'niet actief',off:'niet actief'})[z.action]||z.action)}`:''}</em></div>`}).join('')||'<p>Geen betrouwbare ruimtemetingen beschikbaar.</p>'}<p class="note">Panasonic regelt comfort, verwarmen/koelen, elektrische ondersteuning en sterilisatie. SolarPilot schrijft geen tankdoel of kamerstand. Het gemeten verbruik kan na het vrijgeven van SG blijven doorlopen.</p></details>`;
   }
   _heatpump(c,scope='comfort'){
     const s=c.sgBoost||{},p=c.panasonic||{},operation=this._heatpumpPresentation(c);
@@ -1146,14 +1177,16 @@ class SolarPilotCard extends HTMLElement {
   }
   _energy(c){
     const {cap,economy,forecast,planner,phase,localPv,phaseLearning,phaseAttribution,historicalPhase,learning,today}=c;
+    const electrical=this._electricalLimits(c);
     return `<section class="view ems"><h2>Energie, net & voorspelling</h2><p class="sub">Actuele meters zijn leidend; forecast en leren verfijnen alleen de planning.</p><div class="summarygrid">
-      ${this._tile('Kwartierpiek',cap.enabled?(cap.current_average_w==null?'—':spPower(cap.current_average_w)):'uit',cap.enabled?`vrije ruimte ${spPower(cap.optional_headroom_w)}`:'')}
+      ${this._tile('Kwartierpiek',cap.enabled?(cap.current_average_w==null?'—':spPower(cap.current_average_w)):'uit',cap.enabled?`theoretisch kwartierbudget ${spPower(cap.optional_headroom_w)}`:'')}
+      ${electrical?this._tile('Elektrische ruimte nu',spPower(electrical.instantaneous_headroom_w),`netafnamegrens ${spPower(electrical.fixed_import_limit_w)} · na bestaande reserves`):''}
       ${this._tile('Fasebewaking',phase.enabled?(phase.headroom_w==null?'—':`${spPower(phase.headroom_w)} vrij`):'uit',phase.reason||'')}
       ${this._tile('Zonnevoorspelling',forecast.enabled?(forecast.remaining_today_kwh==null?'—':`${Number(forecast.remaining_today_kwh).toLocaleString('nl-BE',{maximumFractionDigits:1})} kWh resterend`):'uit',forecast.tomorrow_kwh==null?'':`morgen ${Number(forecast.tomorrow_kwh).toLocaleString('nl-BE',{maximumFractionDigits:1})} kWh`)}
       ${this._tile('Lokale PV-correctie',localPv.enabled?(localPv.corrected_power_w==null?'—':spPower(localPv.corrected_power_w)):'uit',localPv.enabled?`${Math.round(Number(localPv.confidence||0)*100)}% · ${localPv.reason||''}`:'')}
       ${this._tile('Planner',planner.enabled?(planner.held_devices?.length?`${planner.held_devices.length} start(s) wachten`:'geen uitstel'):'uit',planner.early_grid_devices?.length?`netfallback: ${planner.early_grid_devices.join(', ')}`:'zonnestroom eerst')}
       ${this._tile('Waarde eigen zon',economy.enabled?`€ ${Number(economy.self_use_value_eur_kwh||0).toLocaleString('nl-BE',{maximumFractionDigits:3})}/kWh`:'—',economy.enabled?`afname €${Number(economy.import_eur_kwh||0).toLocaleString('nl-BE',{maximumFractionDigits:3})} · injectie €${Number(economy.export_eur_kwh||0).toLocaleString('nl-BE',{maximumFractionDigits:3})}`:'')}
-    </div>
+    </div>${electrical?`<p class="note">Het theoretische kwartierbudget is een energieberekening voor het piekdoel. Elektrische ruimte nu is begrensd door de vaste netafnamegrens, actieve fasecontrole en het kwartierdoel. Onbetrouwbare bronnen blijven onbekend. Zonnestroom, toestelvoorwaarden en wachttijden worden afzonderlijk beoordeeld.</p>`:''}
     ${phaseAttribution.enabled?`<details open><summary>Faseverdeling & herkende toestellen</summary><p class="note">P1-fasen zijn netto. Herkend toestelvermogen is bruto; batterijbijdrage is getekend. De restwaarde is geen exact onbekend verbruik.</p><div class="phaselist">${(phaseAttribution.phases||[]).map((x,idx)=>{const hist=historicalPhase.stats?.['L'+(idx+1)+' max W']||{};return `<div class="phaserow"><div><strong>${spEscape(x.name)}</strong><small>netto ${spPower(x.net_w)} · herkend ${spPower(x.known_device_w)}${Number(x.battery_net_w||0)?` · batterij ${(Number(x.battery_net_w)>=0?'+':'−')}${spPower(Math.abs(Number(x.battery_net_w)))}`:''}</small></div><b>rest ${spPower(x.residual_net_w)}</b><p>${(x.devices||[]).slice(0,5).map(d=>`${spEscape(d.name)} ${spPower(d.power_w)}`).join(' · ')||'Nog geen apparaten betrouwbaar herkend'}${hist.p95_import_w!=null?` · historisch P95 ${spPower(hist.p95_import_w)}`:''}</p></div>`}).join('')}</div></details>`:''}
     <details class="learning"><summary>Leren & modelkwaliteit</summary><div class="row"><div class="grow"><strong>Toestelvermogen en Wallbox-respons leren</strong><p>Deze schakelaar geldt alleen voor toestelvermogens en Wallbox-respons. Andere modellen hebben hun eigen instellingen; veiligheidsgrenzen worden nooit automatisch versoepeld.</p></div><button role="switch" class="toggle ${learning.enabled?'active':''}" data-action="learning" ${!learning.switch_entity?'disabled':''}>${learning.enabled?'Aan':'Uit'}</button></div><div class="facts"><span>Wallbox-overdrachten <b>${Number(learning.successes||0)}</b></span><span>Fase-events <b>${Number(phaseLearning.accepted_events||0)}</b></span><span>PV-model <b>${localPv.enabled?Math.round(Number(localPv.confidence||0)*100)+'%':'uit'}</b></span></div>${learning.reset_entity?'<button class="mini" data-action="reset_learning">Apparaat-, lokale PV-, fase- en activiteitsleerdata wissen</button>':''}</details>
     ${this._savings(c)}
@@ -1315,7 +1348,7 @@ class SolarPilotCard extends HTMLElement {
       b.addEventListener('pointerenter',explain,{once:true});b.addEventListener('focus',explain,{once:true});
     }
   }
-  _wallboxProfile(wb){const p=wb.charging_profile;if(!p)return '';return `<div class="charging-profile"><strong>${Number(p.phases)} fase${p.phases===1?'':'n'} · max. ${Number(p.max_current_a).toLocaleString('nl-BE')} A · ≈ ${spPower(p.maximum_power_w)}</strong>${this._question('wallbox','profile_auto','Automatisch laadprofiel')}<small>Stroom: ${spEscape(p.current_source)} · Fasen: ${spEscape(p.phase_source)}</small>${p.warning?`<small>${spEscape(p.warning)}</small>`:''}<small>Panasonic-comfort blijft beschikbaar; extra SG-zonneboost gebruikt werkelijk restoverschot.</small></div>`;}
+  _wallboxProfile(wb){const p=wb.charging_profile;if(!p)return '';return `<div class="charging-profile"><strong>${Number(p.phases)} fase${p.phases===1?'':'n'} · max. ${Number(p.max_current_a).toLocaleString('nl-BE')} A · ≈ ${spPower(p.maximum_power_w)}</strong>${this._question('wallbox','profile_auto','Automatisch laadprofiel')}<small>Stroom: ${spEscape(p.current_source)} · Fasen: ${spEscape(p.phase_source)}</small>${p.warning?`<small>${spEscape(p.warning)}</small>`:''}<small>Panasonic-comfort blijft beschikbaar; extra SG-zonneboost houdt voorrang voor de Wallbox.</small></div>`;}
   async _perform(domain,service,data,successMessage=''){if(this._busy)return false;this._busy=true;this._error="";this._feedback="";this._render();try{await this._hass.callService(domain,service,data);this._feedback=successMessage;return true;}catch(err){this._error=err?.message||String(err);return false;}finally{this._busy=false;this._render();}}
   _device(id){return this._last?.attributes?.devices?.find(d=>d.id===id);}
   async _click(ev){

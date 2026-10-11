@@ -119,9 +119,12 @@ def test_protected_context_scores_separately_and_does_not_train_normal_demand():
     r,h=metered()
     # The read-only monitor supplies native activity; no obsolete DHW writer
     # or clock-only sterilisation assumption is involved in this learning test.
-    r.panasonic.overview=lambda: {'context':'sterilization', 'status':'Native sterilisation confirmed'}
+    r.panasonic.overview=lambda: {'configured':True, 'context':'sterilization',
+        'status':'Native sterilisation confirmed', 'source_stale_s':120,
+        'native_task':{'function':'sterilization', 'source':'native_hvac_action', 'observed_at':time.time()}}
     x=r.learning_hub.observe(datetime.now(timezone.utc),time.monotonic())
     assert x['valid'] and x['context']=='sterilization'
+    assert x['context_evidence']['tier']=='confirmed'
     assert r.unified_planner.base_load.accepted==0
     assert next(iter(r.learning_hub.days.values()))['heatpump_sterilization']==1
     q=PlanQualityTracker();q.observe(wall_ts=1000,local_now=datetime(2026,9,28,12),predicted_pv_w=1000,actual_pv_w=1000,predicted_base_w=200,actual_base_w=3200,context=x['context'])

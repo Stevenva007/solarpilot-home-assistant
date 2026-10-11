@@ -12,6 +12,9 @@ from .sg_config import finite
 
 
 POWER_NOTE = "Afgeleid uit gemeten verbruik; compressorbedrijf/warmteproductie niet afzonderlijk gemeten."
+SOURCE_EVIDENCE_FIELDS = ("entity_id", "source_reported_wall", "source_timestamp_kind", "source_unit",
+                          "source_value", "source_watts", "source_age_s", "rejection_reason", "reason",
+                          "measured_wall")
 _HEATING = frozenset({"heating", "preheating"})
 _TANK_HEATING = _HEATING | {"dhw", "hot_water"}
 _COOLING = frozenset({"cooling", "precooling"})
@@ -60,8 +63,29 @@ def _supply(number, reading, config, threshold, now, stale):
         label = f"Voeding {number} onbekend" if watts is None else f"Voeding {number}: {watts:g} W"
     assumed = (config.get("power_supply_profile") == "panasonic_standard"
                and role == ("main" if number == 1 else "heater"))
-    return {"number": number, "role": role, "role_assumed": assumed, "label": label, "watts": watts,
+    return {**{key: reading.get(key) for key in SOURCE_EVIDENCE_FIELDS},
+            "number": number, "role": role, "role_assumed": assumed, "label": label, "watts": watts,
             "valid": valid, "state": _state(watts, threshold), "observed_at": stamp}
+
+
+def _inactive_scope(proof):
+    """Keep main-operation OFF distinct from an independently enabled tank.
+
+    The exact Aquarea adapter supplies typed, poll-fresh status names. Its
+    DeviceAction checks main operation OFF before tank status and WATER.
+    Missing legacy metadata cannot establish the narrower inactivity scope.
+    """
+    if proof.get("action") == "idle":
+        return "device_idle"
+    if proof.get("operation_status") != "OFF":
+        return "unknown"
+    if proof.get("has_tank") is False or (proof.get("has_tank") is True
+            and proof.get("tank_operation_status") == "OFF"):
+        return "global"
+    if (proof.get("has_tank") is True and proof.get("tank_operation_status") == "ON"
+            and proof.get("direction") == "WATER"):
+        return "space_circuit"
+    return "unknown"
 
 
 def task_observations(config, *, tank=None, tank_entity="", tank_stamp=None, tank_action=None,
@@ -96,7 +120,7 @@ def task_observations(config, *, tank=None, tank_entity="", tank_stamp=None, tan
         action = _text(zone.get("action"))
         if action in _HEATING | _COOLING:
             tasks.append(("space_heating" if action in _HEATING else "space_cooling", zone_stamp, "native_hvac_action"))
-    inactive = []
+    inactive, raw_evidence = [], []
     for proof in [tank_action or {}, *device_actions]:
         source_stamp = bound.get(proof.get("entity_id"))
         proof_stamp = _stamp(proof.get("observed_at"), now, stale)
@@ -105,17 +129,33 @@ def task_observations(config, *, tank=None, tank_entity="", tank_stamp=None, tan
                 or proof.get("source") != "aquarea_poll" or action is None or proof.get("action") != action):
             continue
         used_stamp = min(source_stamp, proof_stamp)
+        scope = _inactive_scope(proof) if action in ("off", "idle") else "device_action"
+        raw_evidence.append({"entity_id": proof.get("entity_id"), "source": "aquarea_poll",
+            "raw_action": proof.get("raw_action"), "action": action, "observed_at": used_stamp,
+            "operation_status": proof.get("operation_status"), "has_tank": proof.get("has_tank"),
+            "tank_operation_status": proof.get("tank_operation_status"), "direction": proof.get("direction"),
+            "inactive_scope": scope})
         if action in _TASK_LABELS:
             tasks.append((action, used_stamp, "aquarea_poll"))
         else:
-            inactive.append((action, used_stamp))
+            inactive.append((action, used_stamp, scope))
+    # Retain the original provider indication even when independent tank
+    # evidence qualifies a separate read-only interpretation.
+    actual["raw_evidence"] = raw_evidence
+    actual["inactive_zones"] = [{"entity_id": zone.get("entity_id"), "action": _text(zone.get("action")),
+        "observed_at": zone.get("observed_at"), "scope": "zone"}
+        for zone in zones if zone.get("available") is True and zone.get("action_valid", True) is True
+        and _stamp(zone.get("observed_at"), now, stale) is not None and _text(zone.get("action")) in _INACTIVE]
     inactive_stamps = [row[1] for row in inactive]
+    inactive_conflict = tasks and inactive and not (
+        {row[0] for row in tasks} == {"tapwater_heating"}
+        and all(row[2] == "space_circuit" for row in inactive))
     defrost = defrost or {}
     defrost_stamp = _stamp(defrost.get("observed_at"), now, stale)
     if defrost.get("state") == "active" and defrost_stamp is not None:
         actual.update(label="Panasonic meldt ontdooien", note="Ontdooimelding gaat vóór de afgeleide warmte- of koelrichting.",
                       source="aquarea_entity", observed_at=defrost_stamp, conflict=True)
-    elif len({task for task, _stamp_, _source in tasks}) > 1 or tasks and inactive:
+    elif len({task for task, _stamp_, _source in tasks}) > 1 or inactive_conflict:
         actual.update(label="Panasonic-taak niet eenduidig", note="Panasonic meldt meerdere of tegenstrijdige taken; de functie is niet eenduidig.",
                       observed_at=min([row[1] for row in tasks] + inactive_stamps), conflict=True)
     elif tasks:
@@ -126,7 +166,16 @@ def task_observations(config, *, tank=None, tank_entity="", tank_stamp=None, tan
                       source=source, observed_at=min(row[1] for row in tasks))
     elif inactive:
         actual.update(label="Panasonic meldt rust", source="aquarea_poll", observed_at=min(inactive_stamps), inactive=True,
-                      inactive_action=inactive[0][0] if len({row[0] for row in inactive}) == 1 else "mixed")
+                      inactive_action=inactive[0][0] if len({row[0] for row in inactive}) == 1 else "mixed",
+                      inactive_scope=inactive[0][2] if len({row[2] for row in inactive}) == 1 else "mixed")
+        actual["verified_global_off"] = actual["inactive_scope"] == "global"
+        actual["independent_tank_on"] = actual["inactive_scope"] == "space_circuit"
+        if actual["inactive_scope"] == "space_circuit":
+            actual.update(label="Panasonic meldt ruimtebedrijf uit",
+                note="Native hoofdstatus meldt OFF; de tank meldt onafhankelijk ON met WATER-route.")
+        elif actual["inactive_scope"] == "global":
+            actual.update(label="Panasonic meldt uit",
+                note="Actuele native hoofdstatus en alle vereiste tankstatussen melden uit.")
 
     route = route_context or {}
     route_stamp = _stamp(route.get("observed_at"), now, stale)
@@ -187,8 +236,13 @@ def _task(*, tank, tank_entity, tank_stamp, tank_action, zones, native_programs,
     actual_stamp = _stamp(native_actual.get("observed_at"), now, stale)
     if actual_stamp is not None and native_actual.get("conflict"):
         return None, native_actual.get("note", "Panasonic-taak niet eenduidig."), actual_stamp
+    if actual_stamp is not None and native_actual.get("verified_global_off") is True:
+        return None, "Panasonic meldt het gehele toestel uit; verbruik bevestigt geen afzonderlijke warmte- of koelactie.", actual_stamp
     native_idle = actual_stamp is not None and native_actual.get("inactive") is True
-    if native_idle and native_actual.get("inactive_action") != "idle":
+    space_inactive = (native_idle and native_actual.get("inactive_action") == "off"
+                      and native_actual.get("inactive_scope") == "space_circuit"
+                      and native_actual.get("independent_tank_on") is True)
+    if native_idle and native_actual.get("inactive_action") != "idle" and not space_inactive:
         return None, "Panasonic meldt rust; gemeten verbruik bevestigt geen afzonderlijke warmte- of koelactie.", actual_stamp
     actual_function = native_actual.get("function") if actual_stamp is not None else None
     programmes = {row.get("program") for row in native_programs if row.get("fresh") is True
@@ -207,7 +261,15 @@ def _task(*, tank, tank_entity, tank_stamp, tank_action, zones, native_programs,
             and any(row["valid"] and row["role"] == "main" and row["state"] == "active" for row in supplies)):
         main_stamps = [row["observed_at"] for row in supplies
                        if row["valid"] and row["role"] == "main" and row["state"] == "active"]
-        return "tapwater_heating", "Afgeleid uit gemeten verbruik op het hoofdcircuit en Panasonic-tankroute.", min(route_stamp, *main_stamps)
+        note = "Afgeleid uit gemeten verbruik op het hoofdcircuit en Panasonic-tankroute."
+        if space_inactive:
+            note += " De native OFF-melding betreft de hoofdstatus; de tank meldt onafhankelijk ON met WATER-route."
+        return "tapwater_heating", note, min(route_stamp, *main_stamps, *([actual_stamp] if space_inactive else []))
+
+    # The narrower OFF interpretation only permits a matching tank route.
+    # It cannot turn an inactive main operation into selected space heating.
+    if space_inactive:
+        return None, "Panasonic meldt ruimtebedrijf uit; actuele tankopwarming niet afzonderlijk vastgesteld.", actual_stamp
 
     heat, cool = [], []
     for zone in zones:

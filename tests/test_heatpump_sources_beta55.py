@@ -105,7 +105,9 @@ def test_each_native_activity_report_uses_shared_read_only_freshness_limit(role,
     manager.settings["stale_s"] = short
     assert classify_heatpump(runtime, datetime.now(timezone.utc))[0] == CONTEXT_UNKNOWN
     manager.settings["stale_s"] = long
-    expected = CONTEXT_NORMAL if action == "idle" else (
+    # AUTO idle without a fresh native programme is not a proven inactive
+    # episode; a tank idle beside an explicitly OFF zone remains normal.
+    expected = (CONTEXT_UNKNOWN if role == "zone" else CONTEXT_NORMAL) if action == "idle" else (
         CONTEXT_HEATING if role == "zone" else CONTEXT_DHW)
     assert classify_heatpump(runtime, datetime.now(timezone.utc))[0] == expected
 

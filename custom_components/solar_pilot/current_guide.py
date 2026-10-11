@@ -3,25 +3,18 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.68'
+GUIDE_VERSION = '1.0.0-beta.69'
 GUIDE_UPDATED = '2026-10-11'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.68',
+ 'version': '1.0.0-beta.69',
  'updated': '2026-10-11',
- 'intro': 'De warmtepomp staat naast de andere toestellen met een afzonderlijke taakmelding, gemeten '
-          'elektrische activiteit en elektrische bijverwarming. Verse native taakmeldingen blijven '
-          'herkenbaar als Panasonic meldt; verse actieve hoofdmeting met passende actuele gekozen '
-          'verwarmings-/koelcontext kan de taak afleiden ondanks een cloud-rustmelding. Details bewaren '
-          'de afzonderlijke bronmelding en afleiding. Het bestaande meterpaar gebruikt automatisch een '
-          'Panasonic-voedingsprofiel met uitleg in Details, zonder nieuwe '
-          'invoer. Een geanimeerd symbool toont actuele elektrische activiteit, geen afzonderlijk gemeten '
-          'compressorbeweging of warmteproductie. SolarPilot geeft één rustige, begrensde SG-zonneboost '
-          'warmtepomp. Het lokaal bevestigde toepassingsbereik bepaalt of uitsluitend tapwater of het '
-          'algemene Panasonic-bedrijf wordt ondersteund. Panasonic blijft volledig eigenaar van comfort en '
-          'beveiligingen. Alleen complete bevestigde niet-overlappende metingen vormen het totaal. Aanvraag, '
-          'contactstand, bedrijfsbewijs en ontvangen SG-status blijven afzonderlijk. Andere '
-          'SolarPilot-apparaten, instellingen en privédata behouden hun bestaande regels.',
+ 'intro': ('SolarPilot telt voor de SG-startdrempel het werkelijk resterende zonneoverschot en de '
+           'bruikbare gemeten warmtepompbijdrage samen. Zo vraagt een al draaiende warmtepomp niet opnieuw '
+           'de volledige drempel als extra injectie. Net-/fasegrenzen voor mogelijke extra vraag blijven '
+           'afzonderlijk. De actuele taak, native melding en afleiding blijven herkenbaar; Details tonen '
+           'concrete meet- en blokkeerredenen. Panasonic regelt zelfstandig comfort en beveiligingen. '
+           'Instellingen, overige apparaten en privédata blijven behouden.'),
  'sections': [{'title': '1. Basisprincipe en modi',
                'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele '
                               'net- en PV-metingen, echte toestelvoorwaarden en elektrische grenzen gaan '
@@ -83,7 +76,14 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'afzonderlijk. Een historische replay is richtinggevend en reconstrueert niet '
                               'iedere vroegere startvoorwaarde. Een volledige lokale dag heeft normaal 96 '
                               'kwartieren, bij de zomer-/wintertijdwissel 92 of 100; gaten worden geen '
-                              'volledige prestatie.'],
+                              'volledige prestatie.',
+                              ('Resterend kwartierbudget is een theoretische energiegrens voor de '
+                               'resterende seconden. Details/Energie tonen daarnaast de daadwerkelijk '
+                               'begrensde instantane ruimte na vaste import-, fase- en kwartiergrenzen. '
+                               'Een zeer hoog theoretisch kwartiergetal verruimt nooit de vaste '
+                               'elektrische grenzen, broncontrole, prioriteiten of zonnevoorwaarden. Een '
+                               'geblokkeerde SG-aanvraag benoemt de beperkende grens en benodigde extra '
+                               'raming.')],
                'bullets': []},
               {'title': '3. Warmtepomp — Panasonic-regeling / SG-zonneboost voor warm water, verwarmen en '
                         'koelen',
@@ -192,7 +192,16 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'animatie bewijst geen door SG veroorzaakte extra opname. De bevestigde '
                               'lokale resterende toestemming houdt haar eigen betekenis. Oude bronwaarden '
                               'geven geen actueel AAN/UIT- of ontvangenbewijs. Een gelijkblijvend '
-                              'app-tankdoel is geen relaisfout en geen bewijs over het effectieve SG-doel.'],
+                              'app-tankdoel is geen relaisfout en geen bewijs over het effectieve SG-doel.',
+                              ('Een Aquarea DeviceAction OFF kan het uitgeschakelde ruimtebedrijf '
+                               'weergeven terwijl de afzonderlijke tank aan staat. Alleen wanneer dezelfde '
+                               'verse getypeerde providerpoll ruimtebedrijf OFF, aanwezige tank ON en '
+                               'richting WATER bevestigt, kan een passende verse tankroute met complete '
+                               'actieve hoofdmeting Boiler opwarmen afleiden. De oorspronkelijke '
+                               'OFF-melding en het bereik blijven in Details/export. Bevestigd globaal '
+                               'UIT, onbekend bereik, conflicten, ontdooien, onvolledige/oude meting en '
+                               'alleen heaterverbruik houden hun eigen grenzen. Deze uitleesinterpretatie '
+                               'verandert geen koel- of native SG-vrijgave.')],
                'bullets': []},
               {'title': '4. SG-zonneboost warmtepomp: lokaal toepassingsbereik en rustige herbeoordeling',
                'paragraphs': ['Automatische zonneboost staat standaard Uit. Activeren vereist de juiste '
@@ -209,13 +218,17 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'van. Een gewenste klimaatverhoging is geen configuratiefout. Een wijziging van '
                               'toepassingsbereik vereist opnieuw bewuste lokale bevestiging; een upgrade '
                               'bevestigt of activeert het algemene profiel niet.',
-                              'De regeling onderscheidt normaal, wachten op voldoende overschot, boost '
-                              'aangevraagd, rusttijd en geblokkeerd. Voldoende bruikbaar werkelijk '
-                              'zonneoverschot moet stabiel beschikbaar zijn. Standaardwaarden blijven 3000 W '
-                              'startdrempel en een afzonderlijke conservatieve vermogensraming van 3200 W. Die '
-                              'raming is geen meting of gegarandeerd SG-verbruik. Oude drempels en '
-                              'vermogensramingen blijven als kandidaten in het private migratiearchief; '
-                              'beoordeel en bevestig de SG-instellingen afzonderlijk.',
+                              ('De regeling onderscheidt normaal, wachten op voldoende zonnebijdrage, '
+                               'boost aangevraagd, rusttijd en geblokkeerd. De SG-startdrempel gebruikt '
+                               'werkelijk restoverschot plus de extra meegetelde bijdrage uit een complete '
+                               'actuele bevestigde exclusieve warmtepompmeting. De gezamenlijke '
+                               'zonnebijdrage is begrensd door gemeten PV; actuele conservatieve '
+                               'netafname, batterijontlading en beschermde reserves worden afgetrokken. '
+                               'Dit is een afgeleide energiebegroting, geen afzonderlijk gemeten '
+                               'PV-aandeel van de warmtepomp. Bij oude/onvolledige/overlappende '
+                               'warmtepompmeting ontstaat geen extra credit. Standaard blijven 3000 W '
+                               'startdrempel en 3200 W aparte conservatieve raming van mogelijke extra '
+                               'SG-vraag; je bestaande waarden blijven staan.'),
                               'Standaardvertraging voor starten is 120 seconden, voor een aanhoudend tekort 60 '
                               'seconden, met 900 seconden rust tussen sessies en maximaal 3600 seconden per '
                               'sessie. Geldige recente metingen, toewijzing, fasegrenzen, eigen bediening en '
@@ -271,7 +284,23 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Een lager geplaatst eigen onderbreekbaar toestel mag alleen veilig wijken als '
                               'minimumlooptijd, gebruikerskeuze en overige bescherming dat toelaten. Een '
                               'afwascyclus, Wallbox en native noodzakelijk klimaat-/warmwaterverbruik worden '
-                              'daarvoor niet uitgezet.'],
+                              'daarvoor niet uitgezet.',
+                              ('Bij bijvoorbeeld 2000 W volledig gemeten warmtepompverbruik en 1000 W '
+                               'bruikbaar restoverschot zonder netafname of batterijontlading kan 3000 W '
+                               'voor de startdrempel meetellen. De vaste importgrens, kwartiergrens, '
+                               'fasemarge en hogere apparaatprioriteiten moeten de volledige mogelijke '
+                               'extra SG-vraag nog toelaten. Bestaand warmtepompverbruik blijft in P1 en '
+                               'vergroot geen vrije elektrische ruimte. Een reeds actieve of gevraagde '
+                               'Full solar-laadsessie houdt zijn actuele extra-vermogensgrens; SG mag die '
+                               'ruimte niet afnemen. Gewone verbruikers blijven uitsluitend werkelijk '
+                               'restoverschot gebruiken.'),
+                              ('De startvertraging controleert de gezamenlijke zonnebijdrage. Na starten '
+                               'blijven werkelijke netafname en de bestaande tekortvertraging bepalend '
+                               'voor vrijgave/vernieuwing. Nieuwe zonneperiode na een beëindigde algemene '
+                               'sessie blijft gebaseerd op echte restinjectie, niet op warmtepompcredit; '
+                               'dezelfde opname geeft dus geen herstartlus. Details tonen restoverschot, '
+                               'meegetelde warmtepompbijdrage, gezamenlijke startbijdrage en concrete '
+                               'elektrische beperkingen afzonderlijk.')],
                'bullets': []},
               {'title': '5. Lokale SG-terugval en handmatige bediening',
                'paragraphs': ['Opstartstand UIT is geen uitschakeling bij wifi- of Home Assistant-uitval. '
@@ -388,7 +417,15 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'zijn. Een afzonderlijk werkpunt is geen gegarandeerd totaal, heatermaximum of '
                               'startdrempel. Er is geen belofte van nul netafname of uitsluitend '
                               'compressorbedrijf. Bij aanhoudende ongewenste import wordt uitsluitend de '
-                              'optionele eigen SG-aanvraag vrijgegeven.'],
+                              'optionele eigen SG-aanvraag vrijgegeven.',
+                              ('Per vermogensbron blijven laatste echte rapportagetijd, W/kW-eenheid, '
+                               'gerapporteerde waarde en concrete afkeurreden beschikbaar, ook als de '
+                               'actuele bruikbare waarde onbekend is. Ontbrekend, oud, negatief, hersteld, '
+                               'geschat en verkeerde eenheid blijven afzonderlijk van gemeten nul. Een '
+                               'gelijkblijvende waarde met een nieuw werkelijk bronrapport is vers; een '
+                               'regelronde of wijziging van een ander attribuut maakt de oude waarde niet '
+                               'vers. Nieuwe historie/export bewaren dit bewijs zonder oude ontbrekende '
+                               'historie aan te vullen.')],
                'bullets': []},
               {'title': '7. Wallbox: uitsluitend uitlezen en voorrang',
                'paragraphs': ['SolarPilot bedient de Wallbox niet: geen start, stop, laadstroom, laadmodus of '
@@ -620,7 +657,16 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'geschatte, dubbele of ongeschikte bronnen zijn geen echte meting. Een '
                               'recente basislastaanpassing wordt eerst vergeleken en alleen binnen de '
                               'bestaande begrensde toestemming toegepast. Optionele HA-analysemeldingen '
-                              'verwijzen naar Export en blijven afzonderlijk van echte controlefouten.'],
+                              'verwijzen naar Export en blijven afzonderlijk van echte controlefouten.',
+                              ('Gekozen programma, verse native taak, afgeleide taak en de bestaande '
+                               'SG-veiligheidscontext blijven afzonderlijk. Afgeleide warmte-/koeltaken '
+                               'krijgen begrensde diagnostische voorbeelden en tellingen, zonder '
+                               'planningsgewicht in het bevestigde warmtepompmodel. Alleen nieuwe '
+                               'voldoende stabiele overgangen met verse bevestigde native '
+                               'taak-/rustbewijzen kunnen gevalideerde modellen opbouwen. Oude voorbeelden '
+                               'en dagen blijven exact bewaard; voorbeelden zonder bewijsherkomst tellen '
+                               'niet stil als bevestigd. Leren verandert nooit realtime netruimte. Er '
+                               'worden geen ontbrekende historische taken aangevuld.')],
                'bullets': []},
               {'title': '15. Overzicht, uitleg en meldingen',
                'paragraphs': ['Overzicht toont Wat gebeurt er en waarom? met per toestel de actuele '
@@ -831,12 +877,12 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'geen dubbele writers, contactmapping en lokale aflooptimer werkelijk zijn '
                               'bevestigd. De noodzakelijke lokale Panasonic/Shelly-controle is geen '
                               'softwaretest.',
-                              'Controleer eenmalig op Panasonic de gewenste normale '
-                              'tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en '
-                              'sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze '
-                              'nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef '
-                              'gebeurt alleen met expliciete toestemming en zonder elektrische metingen in '
-                              'geopende apparatuur. Gebruik de korte controle in BETA68_INSTELLEN.md.'],
+                              ('Controleer eenmalig op Panasonic de gewenste normale '
+                               'tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en '
+                               'sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze '
+                               'nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef '
+                               'gebeurt alleen met expliciete toestemming en zonder elektrische metingen '
+                               'in geopende apparatuur. Gebruik de korte controle in BETA69_INSTELLEN.md.')],
                'bullets': []},
               {'title': '20. Installatie, verwijderen en rollback',
                'paragraphs': ['Installeer of update de Integration via HACS en herstart Home Assistant. De '
@@ -860,13 +906,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van '
                               'SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, '
                               'AEG- of Shelly-integratie.',
-                              'Rollback naar de gecontroleerde beta.67-basis vereist de bij de upgrade '
-                              'behorende privé HA-back-up naast de code, zodat instellingen, opgeslagen '
-                              'bewijslagen en modellen samen passend terugkeren. Geef eerst de SG-aanvraag '
-                              'vrij en controleer lokale terugval; laat nooit twee runtimes tegelijk werken. '
-                              'Voor terugkeer naar de oude directe beta.61-regeling blijft de volledige '
-                              'back-up van vóór de beta.62-migratie nodig. Alleen een oudere ZIP herstelt '
-                              'gewijzigde opslag niet. Zie BETA68_INSTELLEN.md.'],
+                              ('Rollback naar de gecontroleerde beta.68-basis vereist de bij de upgrade '
+                               'behorende privé HA-back-up naast de code, zodat instellingen, opgeslagen '
+                               'bewijslagen en modellen samen passend terugkeren. Geef eerst de '
+                               'SG-aanvraag vrij en controleer lokale terugval; laat nooit twee runtimes '
+                               'tegelijk werken. Voor terugkeer naar de oude directe beta.61-regeling '
+                               'blijft de volledige back-up van vóór de beta.62-migratie nodig. Alleen een '
+                               'oudere ZIP herstelt gewijzigde opslag niet. Zie BETA69_INSTELLEN.md.')],
                'bullets': []},
               {'title': '21. Release- en documentatieregel',
                'paragraphs': ['Dit is de enige volledige actuele regelbeschrijving. current_guide.py genereert '

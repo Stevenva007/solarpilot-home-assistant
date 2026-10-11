@@ -63,14 +63,22 @@ def heatpump_record(row):
         matched = next((item for item in _items(activity.get("supplies"))
                         if isinstance(item, dict) and item.get("number") == number), {})
         supply.update(_pick(matched, ("role", "role_assumed", "state")))
+        quality = p.get("power_source_quality", {})
+        source = quality.get(f"supply{number}", {}) if isinstance(quality, dict) else {}
+        if source:
+            supply["source_quality"] = _pick(source, ("source_reported_wall", "source_timestamp_kind", "source_unit",
+                "source_value", "source_watts", "source_age_s", "rejection_reason", "reason"))
         supplies.append(supply)
     return {"ts": row.get("ts"), "release": row.get("release") or "unknown",
             "record_quality": "legacy_partial" if missing else "recorded", "missing_fields": missing,
             "supplies": supplies,
             "power": _pick(p, ("power_w", "power_complete", "power_kind", "power_scope", "power_observed_at", "source_stale_s")),
+            "power_source_quality": deepcopy(p.get("power_source_quality", {})),
+            "heatpump_classification": deepcopy(row.get("heatpump_classification", {})),
             "power_activity": _pick(p.get("power_activity"), ("state", "active", "function", "function_source", "function_kind",
                 "activity_kind", "evidence", "threshold_w", "observed_at", "context_observed_at", "complete", "total_w", "stale_s")),
-            "native_task": _pick(p.get("native_task"), ("function", "source", "observed_at", "stale_s", "conflict", "inactive", "inactive_action")),
+            "native_task": _pick(p.get("native_task"), ("function", "source", "observed_at", "stale_s", "conflict", "inactive", "inactive_action",
+                "inactive_scope", "verified_global_off", "independent_tank_on", "raw_evidence", "inactive_zones")),
             "task_context": _pick(p.get("task_context"), ("function", "kind", "source", "observed_at", "stale_s")),
             "defrost": _pick(p.get("defrost"), ("state", "source", "observed_at", "stale_s")),
             "tank": _pick(p.get("display_tank"), ("temperature_c", "target_c", "temperature_stamp", "target_stamp", "mode", "action", "available", "observed_at")),
@@ -86,7 +94,8 @@ def heatpump_record(row):
 def discrete_heatpump_state(p, sg):
     """Meaningful changes only: receipt clocks and continuous watts are samples."""
     activity = p.get("power_activity") if isinstance(p.get("power_activity"), dict) else {}
-    return {"native_task": _pick(p.get("native_task"), ("function", "source", "conflict", "inactive", "inactive_action")),
+    return {"native_task": _pick(p.get("native_task"), ("function", "source", "conflict", "inactive", "inactive_action",
+                "inactive_scope", "verified_global_off", "independent_tank_on")),
             "task_context": _pick(p.get("task_context"), ("function", "kind", "source")),
             "defrost": _pick(p.get("defrost"), ("state", "source")),
             "meter_activity": _pick(p.get("power_activity"), ("state", "active", "function", "function_kind", "activity_kind", "threshold_w")),
@@ -147,6 +156,11 @@ def _regime(row):
                 for item in row["supplies"]))
     inference_supported = (not inactive or task.get("inactive_action") == "idle"
                            and task.get("source") == "aquarea_poll" and routing)
+    independent_tank = (task.get("source") == "aquarea_poll" and task.get("inactive_action") == "off"
+                        and task.get("inactive_scope") == "space_circuit" and task.get("independent_tank_on") is True
+                        and task.get("verified_global_off") is not True
+                        and power.get("function") == "tapwater_heating" and power.get("function_kind") == "tank_route")
+    inference_supported = inference_supported or independent_tank
     inference_supported = inference_supported and (not routing or bound_context)
     if (metered and inference_supported and power.get("evidence") == "metered_power_and_context"
             and power.get("function") in FUNCTIONS and power.get("complete") is True and power.get("active") is True

@@ -15,7 +15,7 @@ import math
 import time
 
 from .heatpump_learning import (
-    ACTIVE_CONTEXTS, CONTEXT_NORMAL, CONTEXT_UNKNOWN, classify_heatpump,
+    ACTIVE_CONTEXTS, CONTEXT_NORMAL, CONTEXT_UNKNOWN, classify_heatpump_evidence,
 )
 from .const import VERSION
 
@@ -128,11 +128,13 @@ def measured_baseline(r, local_now, monotonic):
     base = grid + pv + battery - ev - owned
     if not 0 <= base <= 20000:
         return fail("balance", "De gemeten energiebalans is niet plausibel. Controleer bronkoppelingen/eenheden; geen negatief verbruik als nul leren.")
-    context, context_reason = classify_heatpump(r, local_now)
+    context_evidence = classify_heatpump_evidence(r, local_now)
+    context, context_reason = context_evidence["context"], context_evidence["reason"]
     return {"valid": True, "watts": round(base, 1), "code": "measured",
             "reason": "Gemeten restlast uit net + PV + batterijontlading − gemeten beheerde lasten − gemeten Wallbox.",
             "sources": refs, "parts": parts, "context": context,
             "context_reason": context_reason,
+            "context_evidence": context_evidence,
             "old_rule_would_skip": bool(ev > 100 or owned > 100),
             "note": "Warmtepompactiviteit wordt afzonderlijk geclassificeerd. Een geleerd warmtepompvermogen is alleen planningsbewijs en wordt nooit van realtime vrije netruimte afgetrokken."}
 
@@ -193,9 +195,6 @@ class LearningHub:
         # remain planning/diagnostic evidence and never change realtime headroom.
         if sample.get("valid"):
             context = sample.get("context", CONTEXT_UNKNOWN)
-            if context in ACTIVE_CONTEXTS | {CONTEXT_NORMAL, CONTEXT_UNKNOWN}:
-                r.heatpump_learning.observe(
-                    stamp, local_now.date().isoformat(), context, sample["watts"])
             if context == CONTEXT_NORMAL:
                 predicted, confidence, _source = model.estimate(
                     local_now, r.planner_settings.get("base_load_min_days", 4))
@@ -206,6 +205,17 @@ class LearningHub:
                         f"Onverklaarde restlastpiek {excess:.0f} W boven het gewone profiel; "
                         "niet als huishoudelijke basislast geleerd"
                     )
+                    sample["context_evidence"] = {**sample.get("context_evidence", {}),
+                        "context": CONTEXT_UNKNOWN, "reason": sample["context_reason"],
+                        "tier": "unknown", "model_eligible": False}
+            context = sample.get("context", CONTEXT_UNKNOWN)
+            if context in ACTIVE_CONTEXTS | {CONTEXT_NORMAL, CONTEXT_UNKNOWN}:
+                detail = sample.get("context_evidence", {})
+                r.heatpump_learning.observe(
+                    stamp, local_now.date().isoformat(), context, sample["watts"],
+                    evidence=detail.get("tier", "unknown"), detail=detail)
+        else:
+            r.heatpump_learning.interrupt()
 
         if stamp-self.last_attempt < 900:
             return sample
@@ -214,7 +224,8 @@ class LearningHub:
         if not r.planner_settings.get("base_load_learning", True):
             code = "learning_disabled"
         elif sample.get("valid") and sample.get("context") != CONTEXT_NORMAL:
-            code = "heatpump_" + str(sample.get("context") or CONTEXT_UNKNOWN)
+            prefix = "heatpump_derived_" if sample.get("context_evidence", {}).get("tier") == "derived" else "heatpump_"
+            code = prefix + str(sample.get("context") or CONTEXT_UNKNOWN)
         elif self.policy["sampling"] == "quiet" and sample.get("old_rule_would_skip"):
             code = "quiet_policy"
         elif sample["valid"]:

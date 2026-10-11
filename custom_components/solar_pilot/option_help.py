@@ -897,9 +897,10 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                                 'vernieuwing uitblijft, en tijdige vernieuwing verlengt de timer zonder '
                                 'UIT/AAN-geklapper. Opstartstand UIT beschermt niet tegen elke '
                                 'communicatie-uitval.',
- 'sg_boost:threshold_w': 'Benodigd werkelijk bruikbaar zonneoverschot voor een nieuwe SG-aanvraag, standaard '
-                         '3000 W. Dit is een startdrempel, geen meting of gegarandeerd totaalvermogen. '
-                         'Prognoses kunnen een tekort niet vervangen.',
+ 'sg_boost:threshold_w': 'Benodigde zonnebijdrage voor een nieuwe SG-aanvraag, standaard 3000 W: werkelijk '
+                         'restoverschot plus het actuele bevestigde warmtepompverbruik dat al door zon wordt '
+                         'gedekt. Onvolledige/oude meters, netafname en batterijontlading leveren geen '
+                         'zonnecredit. Dit verruimt geen elektrische net-/fasegrens. Prognoses vervangen geen tekort.',
  'sg_boost:expected_power_w': 'Voorlopige raming van de extra SG-vraag, standaard 3200 W. Dit is geen '
                               'heatermaximum, werkelijk gemeten vermogen of gegarandeerde nulimport. '
                               'Controleer de betekenis bij migratie; een oude tankdoelraming krijgt niet '

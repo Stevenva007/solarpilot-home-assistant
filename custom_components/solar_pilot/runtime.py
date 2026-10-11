@@ -107,6 +107,7 @@ class SolarRuntime:
         self.reclaim_blocks = {}
         self._yield_to_wallbox = False
         self.wallbox_guard = self._make_wallbox_guard()
+        self.sg_wallbox_guard = self._make_sg_wallbox_guard()
         self.wallbox_activity = WallboxActivityHistory(stale_s=self.wallbox_settings["stale_s"],
             charging_threshold_w=self.wallbox_settings["charging_threshold_w"])
         self.configs = {d["id"]: normalize_dishwasher({**DEVICE_DEFAULTS, **d}) for d in entry.options.get("devices", [])}
@@ -199,12 +200,24 @@ class SolarRuntime:
                          and i not in self.source_isolated_devices)
         projected = grid + incremental + isolated + unconsumed
         if projected > self.settings["max_import_w"]:
-            return False, "Extra warmtepompbedrijf wacht op ruimte binnen de netgrens"
+            free = max(0.0, self.settings["max_import_w"] - grid - isolated - unconsumed)
+            return False, (f"Netgrens: SG vraagt {incremental:.0f} W extra; "
+                           f"nu {free:.0f} W beschikbaar binnen {self.settings['max_import_w']:.0f} W netafname")
+        wallbox_cap = getattr(self.sg_wallbox_guard.result, "max_increase_w", None)
+        if (self.wallbox_settings.get("enabled")
+                and wallbox_cap is not None and incremental + isolated + unconsumed > wallbox_cap):
+            free = max(0.0, wallbox_cap - isolated - unconsumed)
+            return False, (f"Wallbox heeft voorrang: SG vraagt {incremental:.0f} W extra; "
+                           f"stabiele vrije zonnestroom laat nu {free:.0f} W toe")
         if (self.phase_settings.get("enabled") and self.phase_settings.get("control_starts")
                 and (not self.phase.valid or self.phase.block_increase
                      or self.phase.headroom_w is None
                      or self.phase.headroom_w < incremental + isolated + unconsumed)):
-            return False, self.phase.reason or "Wacht op veilige ruimte op de elektrische fasen"
+            if not self.phase.valid or self.phase.headroom_w is None:
+                return False, self.phase.reason or "Wacht op betrouwbare actuele fasevermogens"
+            free = max(0.0, self.phase.headroom_w - isolated - unconsumed)
+            return False, (f"Fasegrens: SG vraagt {incremental:.0f} W extra; "
+                           f"kleinste vrije faseruimte {free:.0f} W. {self.phase.reason}")
         if self.capacity_settings.get("enabled"):
             if not self.capacity.valid:
                 return False, "Wacht op betrouwbare kwartierpiekmeting"
@@ -212,8 +225,99 @@ class SolarRuntime:
             if limit is None:
                 limit = max(0.0, self.capacity.effective_target_w - self.capacity_settings["margin_w"])
             if projected > limit:
-                return False, "Kwartierpiek laat nu geen extra warmtepompbedrijf toe"
+                free = max(0.0, limit - grid - isolated - unconsumed)
+                return False, (f"Kwartierbudget: SG vraagt {incremental:.0f} W extra; "
+                               f"nu {free:.0f} W beschikbaar binnen het piekdoel")
         return True, "Actuele elektrische ruimte gecontroleerd"
+
+    def electrical_limits_overview(self):
+        """Read-only distinction between tariff arithmetic and current hard room.
+
+        The running-quarter ceiling can grow near the quarter's end. It never
+        creates electrical room: fixed import, guarded phases and already owed
+        load remain separate constraints. This presentation grants no start.
+        """
+        grid, valid, _discharge, ready, reported = self._site_data()
+        pv, _pv_reported = self._power(self.settings.get("pv_entity"))
+        sources_valid = bool(valid and ready and pv is not None and pv >= 0)
+        source_stamps = [reported, _pv_reported]
+        source_stale = min(self.settings["stale_s"], self.sg_boost.settings["stale_s"])
+        reserve = max(0.0, float(self.isolated_reserve_w)) + sum(
+            max(0.0, st.target_w - st.measured_w)
+            for i, st in self.states.items() if st.owned and st.on
+            and i not in self.source_isolated_devices)
+        fixed_limit = float(self.settings["max_import_w"])
+        fixed_room = max(0.0, fixed_limit - grid - reserve) if valid else None
+        rooms = [fixed_room] if fixed_room is not None else []
+        phase_control = bool(self.phase_settings.get("enabled") and self.phase_settings.get("control_starts"))
+        phase_room = None
+        if phase_control:
+            if self.phase.valid and self.phase.headroom_w is not None:
+                phase_room = max(0.0, self.phase.headroom_w - reserve)
+                rooms.append(phase_room)
+            else:
+                sources_valid = False
+        # SG's existing live cycle also blocks when an enabled phase monitor
+        # cannot supply a trustworthy current measurement, including advisory mode.
+        if self.phase_settings.get("enabled") and not self.phase.valid:
+            sources_valid = False
+        if self.phase_settings.get("enabled"):
+            source_stale = min(source_stale, self.phase_settings["stale_s"])
+            for key in ("phase_1_entity", "phase_2_entity", "phase_3_entity"):
+                if entity := self.phase_settings.get(key):
+                    value, stamp = self._power(entity, self.phase_settings["stale_s"])
+                    if value is None:
+                        sources_valid = False
+                    else:
+                        source_stamps.append(stamp)
+        quarter_enabled = bool(self.capacity_settings.get("enabled"))
+        quarter_room = None
+        if quarter_enabled:
+            source_stale = min(source_stale, self.capacity_settings["stale_s"])
+            if entity := self.capacity_settings.get("average_demand_entity"):
+                value, stamp = self._power(entity, self.capacity_settings["stale_s"])
+                if value is None:
+                    sources_valid = False
+                else:
+                    source_stamps.append(stamp)
+            if self.capacity.valid and valid:
+                ceiling = self.capacity.allowed_grid_w
+                if ceiling is None:
+                    ceiling = max(0.0, self.capacity.effective_target_w - self.capacity_settings["margin_w"])
+                quarter_room = max(0.0, ceiling - grid - reserve)
+                rooms.append(quarter_room)
+            else:
+                sources_valid = False
+        solar = sg_solar_budget(self)
+        instant_room = min(rooms) if sources_valid and rooms else None
+        if sources_valid and self.phase_settings.get("enabled") and (self.phase.block_increase or self.phase.release_flexible):
+            instant_room = 0.0
+        return {
+            "observed_at": time.time(), "source_valid": sources_valid,
+            "source_observed_at": min(source_stamps) if sources_valid else None,
+            "source_stale_s": source_stale,
+            "fixed_import_limit_w": fixed_limit, "net_grid_w": grid if valid else None,
+            "committed_reserve_w": reserve, "fixed_import_headroom_w": fixed_room,
+            "phase_control_enabled": phase_control, "phase_headroom_w": phase_room,
+            "quarter_enabled": quarter_enabled, "quarter_valid": self.capacity.valid,
+            "quarter_theoretical_allowed_grid_w": (self.capacity.allowed_grid_w
+                if quarter_enabled and self.capacity.valid else None),
+            "quarter_theoretical_headroom_w": (self.capacity.optional_headroom_w
+                if quarter_enabled and self.capacity.valid else None),
+            "quarter_guard_headroom_w": quarter_room,
+            "instantaneous_headroom_w": instant_room,
+            "phase_increase_blocked": bool(self.phase_settings.get("enabled")
+                and (self.phase.block_increase or self.phase.release_flexible)),
+            "sg_estimated_extra_w": float(self.sg_boost.settings["expected_power_w"]),
+            "sg_solar_valid": solar["valid"],
+            "sg_solar_observed_at": solar.get("stamp") if solar["valid"] else None,
+            "sg_eligible_solar_w": solar.get("eligible_w", solar["available_w"]) if solar["valid"] else None,
+            "sg_residual_solar_w": solar["available_w"] if solar["valid"] else None,
+            "sg_hp_solar_w": solar.get("hp_solar_w", 0.0) if solar["valid"] else None,
+            "sg_hp_credit_reason": solar.get("hp_credit_reason", ""),
+            "sg_protected_ev_headroom_w": (self.sg_wallbox_guard.result.max_increase_w
+                if self.wallbox_settings.get("enabled") else None),
+        }
 
     def _dishwasher_comfort_context(self):
         """Native heat demand is already in P1; SG is the lower priority request."""
@@ -282,6 +386,23 @@ class SolarRuntime:
              "stable_s": self.learning.effective_stable_s(self.wallbox_settings["stable_s"]),
              "sample_gap_s": max(30, self.settings["interval_s"] * 2)}
         return HouseFirstGuard(c) if self.others_first or per_device else WallboxGuard(c)
+
+    def _make_sg_wallbox_guard(self):
+        """SG never inherits another consumer's permission to reclaim EV watts."""
+        return WallboxGuard({**self.wallbox_settings, "policy": "priority",
+            "stable_s": self.learning.effective_stable_s(self.wallbox_settings["stable_s"]),
+            "sample_gap_s": max(30, self.settings["interval_s"] * 2)})
+
+    def _update_sg_wallbox_guard(self, now, reading, grid, reserve, discharge=0.0):
+        # An active/uncertain session keeps its EV priority. Ordinary consumers
+        # can use actual export even with an unknown/manual session, but SG's
+        # new native-HP threshold contribution must not bypass that residual
+        # limit. None preserves unknown session evidence without granting EV
+        # credit or claiming Full solar. Confirmed no-request keeps its fast path.
+        if (reading.valid and reading.mode in ("manual", "unknown", "stopped")
+                and not confirmed_no_active_request(reading, self.wallbox_settings)):
+            reading = replace(reading, mode=None)
+        return self.sg_wallbox_guard.update(now, reading, grid, reserve, discharge)
 
     @property
     def editable(self):
@@ -403,6 +524,7 @@ class SolarRuntime:
         # Build the guard after migration so schema-2 per-device Wallbox rights
         # are active immediately after a beta.35 restart, not one reload later.
         self.wallbox_guard = self._make_wallbox_guard()
+        self.sg_wallbox_guard = self._make_sg_wallbox_guard()
         if migrated_priority_board:
             self.note("Beta.36-migratie: bestaande flexibele voorrang exact vastgelegd als centrale prioriteitenlijst.")
         self.energy_kwh = max(0, float(data.get("energy_kwh", 0)))
@@ -1111,6 +1233,7 @@ class SolarRuntime:
             value_day = datetime.now().astimezone().date().isoformat()
         return {
             "capacity": self.capacity.__dict__, "phase": self.phase.__dict__,
+            "electrical_limits": self.electrical_limits_overview(),
             "legacy_conflicts": conflicts, "ready": not warnings, "warnings": warnings, "advice": advice,
             "economy": {"enabled": e["enabled"], "import_eur_kwh": imp, "export_eur_kwh": exp, "self_use_value_eur_kwh": value},
             "forecast": {"enabled": f["enabled"], **forecast}, "local_pv": local_pv, "pv_forecast": self.pv_forecast.cached,
@@ -2215,6 +2338,9 @@ class SolarRuntime:
         wb = self.wallbox_guard.update(now, wallbox_reading,
                                        grid if valid else None,
                                        self.settings["reserve_w"], discharge)
+        self.sg_wallbox_guard.settings["stable_s"] = self.learning.effective_stable_s(self.wallbox_settings["stable_s"])
+        self._update_sg_wallbox_guard(now, wallbox_reading, grid if valid else None,
+            self.settings["reserve_w"], discharge)
         if wb.state != previous_wb_state and wb.state in ("waiting", "cooldown", "unavailable", "idle", "charging"):
             self.note(f'Wallbox-monitor: {wb.reason}.')
         await self._advance_handover(now, wallbox_reading, grid if valid else None, reported, discharge, ready)
@@ -2223,6 +2349,7 @@ class SolarRuntime:
             if not any(s.owned for s in self.states.values()) and not self.pending:
                 self._yield_to_wallbox = False
                 self.wallbox_guard.note_action(now, time.time(), 0, 0)
+                self.sg_wallbox_guard.note_action(now, time.time(), 0, 0)
             wb = replace(wb, block_increase=True, release_flexible=True, max_increase_w=0,
                          reason="Voorrang gewijzigd: eigen lasten veilig vrijgeven voor Wallbox")
             self.wallbox_guard.result = wb
@@ -2247,19 +2374,34 @@ class SolarRuntime:
         hard_limit = (bool(discharge and discharge > self.settings.get("battery_discharge_tolerance_w", 50))
                       or bool(valid and grid > self.settings["max_import_w"])
                       or not actual_phase_ok)
+        hard_limit_reason = ""
+        if discharge and discharge > self.settings.get("battery_discharge_tolerance_w", 50):
+            hard_limit_reason = f"Batterij ontlaadt {discharge:.0f} W; extra SG-aanvraag wordt vrijgegeven"
+        elif valid and grid > self.settings["max_import_w"]:
+            hard_limit_reason = (f"Netgrens overschreden: {grid:.0f} W afname "
+                                 f"> {self.settings['max_import_w']:.0f} W")
+        elif not actual_phase_ok:
+            hard_limit_reason = self.phase.reason or "Actuele fasebewaking laat geen SG-aanvraag toe"
         if self.capacity_settings.get("enabled"):
             cap_limit = self.capacity.allowed_grid_w
             if cap_limit is None:
                 cap_limit = max(0.0, self.capacity.effective_target_w-self.capacity_settings["margin_w"])
             hard_limit = hard_limit or not self.capacity.valid or bool(valid and grid > cap_limit)
+            if not self.capacity.valid:
+                hard_limit_reason = hard_limit_reason or "Wacht op betrouwbare kwartierpiekmeting"
+            elif valid and grid > cap_limit:
+                hard_limit_reason = hard_limit_reason or (f"Kwartierbudget overschreden: {grid:.0f} W afname "
+                    f"> {cap_limit:.0f} W resterende kwartiergrens")
         priority_allowed = self.priority_board.sg_priority_allowed(now)
         tank = self.panasonic.overview()
         sg_sent = await self.sg_boost.tick(
-            surplus_w=budget["available_w"], data_fresh=budget["valid"],
+            surplus_w=budget.get("eligible_w", budget["available_w"]),
+            real_surplus_w=budget["available_w"], data_fresh=budget["valid"],
             phase_allowed=actual_phase_ok if self.sg_boost.busy else sg_start_allowed,
             priority_allowed=priority_allowed and sg_dispatch,
             grid_import_w=max(0.0, grid or 0), hard_limit=hard_limit,
-            dispatch_reason=sg_reason, native_observation=tank, solar_stamp=budget.get("stamp"),
+            electrical_reason=hard_limit_reason or sg_reason, native_observation=tank,
+            solar_stamp=budget.get("residual_stamp", budget.get("stamp")),
             tank_observation={
                 "entity_id": tank["temperature_entity"], "temperature_c": tank["temperature_c"],
                 "stamp": tank["temperature_stamp"]})
@@ -2554,7 +2696,16 @@ class SolarRuntime:
                 or budget["discharge_w"] > self.settings.get("battery_discharge_tolerance_w", 50)
                 or not self.priority_board.sg_priority_allowed(time.monotonic())):
             return False
-        if not renewal and budget["available_w"] < self.sg_boost.settings["threshold_w"]:
+        # Re-read the protected autonomous EV at the last asynchronous boundary.
+        # Credited native HP consumption is never reclaimable Wallbox power.
+        wallbox_cap = None
+        if self.wallbox_settings.get("enabled"):
+            current_wallbox = self._update_sg_wallbox_guard(time.monotonic(), self._wallbox_reading(),
+                budget["grid_w"], self.settings["reserve_w"], budget["discharge_w"])
+            if current_wallbox.block_increase or current_wallbox.release_flexible:
+                return False
+            wallbox_cap = current_wallbox.max_increase_w
+        if not renewal and budget.get("eligible_w", budget["available_w"]) < self.sg_boost.settings["threshold_w"]:
             return False
         if (not renewal and (budget["stamp"] <= self.last_issued_wall or
                 time.monotonic()-self.last_issued < self.settings["settle_s"])):
@@ -2563,6 +2714,8 @@ class SolarRuntime:
         envelope = increment+self.isolated_reserve_w
         envelope += sum(max(0, st.target_w-st.measured_w) for i,st in self.states.items()
                         if st.owned and st.on and i not in self.source_isolated_devices)
+        if wallbox_cap is not None and envelope > wallbox_cap:
+            return False
         projected = budget["grid_w"]+envelope
         if projected > self.settings["max_import_w"]:
             return False
@@ -2717,6 +2870,7 @@ class SolarRuntime:
                                      self.last_issued_wall, self.wallbox_settings["handover_s"])
             self.note(f'{cfg["name"]}: gecontroleerd {action.reclaimed_w:.0f} W van autonoom laden overnemen; geen Wallbox-opdracht.')
         self.wallbox_guard.note_action(now, self.last_issued_wall, old_target, action.watts)
+        self.sg_wallbox_guard.note_action(now, self.last_issued_wall, old_target, action.watts)
         if self._per_device_wallbox_enabled() and follows_wallbox(self.priority_board.effective_config(i, cfg), self.others_first):
             self.consumer_wallbox.note_action(now, self.last_issued_wall, i, old_target, action.watts, self.wallbox_guard.reading)
         if cfg.get("kind") == "dishwasher":
