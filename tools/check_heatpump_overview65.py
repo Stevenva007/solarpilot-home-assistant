@@ -486,12 +486,29 @@ with sync_playwright() as playwright:
         page.locator(f'solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value={view}]').click()
         panel = row if view == 'overview' else page.locator('solar-pilot-card >> .heatpump-sg')
         page.evaluate('qaElectrical()')
+        details_key = 'overview:sg:why' if view == 'overview' else f'sg:{view}:details'
+        details = panel.locator(f'details[data-ui-key="{details_key}"]')
+        if details.get_attribute('open') is None:
+            details.locator(':scope > summary').click()
+        assert details.get_attribute('open') is not None, (view, 'electrical Details should be open')
         facts = panel.locator('.start-facts>span')
-        assert facts.filter(has_text='Elektrische ruimte nu').locator('b').inner_text() == '500 W'
-        assert facts.filter(has_text='Theoretisch kwartierbudget').locator('b').inner_text() == '100 kW'
-        assert facts.filter(has_text='Zonnevermogen voor SG-drempel').locator('b').inner_text() == '4 kW'
-        assert facts.filter(has_text='Daarvan al bij warmtepomp').locator('b').inner_text() == '3,5 kW'
-        assert facts.filter(has_text='Resterende vrije zonnestroom').locator('b').inner_text() == '500 W'
+        hp_credit_label = 'Warmtepompbijdrage aan startdrempel (afgeleid)'
+
+        def assert_electrical_fact(label, expected):
+            fact = facts.filter(has_text=label).locator('b')
+            assert fact.count() == 1, (view, label, 'expected one electrical fact', fact.count())
+            assert fact.is_visible(), (view, label, 'electrical fact should be visible')
+            actual = fact.inner_text()
+            assert actual == expected, (view, label, f'expected {expected!r}, got {actual!r}')
+
+        for label, expected in (
+            ('Elektrische ruimte nu', '500 W'),
+            ('Theoretisch kwartierbudget', '100 kW'),
+            ('Zonnevermogen voor SG-drempel', '4 kW'),
+            (hp_credit_label, '3,5 kW'),
+            ('Resterende vrije zonnestroom', '500 W'),
+        ):
+            assert_electrical_fact(label, expected)
         assert 'verruimt de vaste net- en fasegrenzen nooit' in panel.text_content()
         assert '100 kW' not in prominent_text(panel)
         page.evaluate('''() => {
@@ -501,10 +518,13 @@ with sync_playwright() as playwright:
         }''')
         assert page.evaluate('c._last===qaStateBeforeBudgetExpiry')
         assert page.evaluate('JSON.stringify(c._last.attributes.ems.electrical_limits)===JSON.stringify(qaElectricalBeforeExpiry)')
-        assert facts.filter(has_text='Elektrische ruimte nu').locator('b').inner_text() == '—'
-        for label in ('Zonnevermogen voor SG-drempel', 'Daarvan al bij warmtepomp', 'Resterende vrije zonnestroom'):
-            assert facts.filter(has_text=label).locator('b').inner_text() == '—', (view, label)
+        assert details.get_attribute('open') is not None, (view, 'electrical Details should remain open after clock expiry')
+        for label in ('Elektrische ruimte nu', 'Zonnevermogen voor SG-drempel', hp_credit_label, 'Resterende vrije zonnestroom'):
+            assert_electrical_fact(label, '—')
         assert panel.locator('[data-heatpump-task=inferred]').count() == 0
+        # Restore the fixture's collapsed state for subsequent Details tests.
+        details.locator(':scope > summary').click()
+        assert details.get_attribute('open') is None, (view, 'electrical Details should close on request')
     page.locator('solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value=overview]').click()
 
     # Missing supply 2 preserves the known part but never fabricates a total.
