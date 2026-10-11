@@ -289,6 +289,16 @@ def assert_current_sg(runtime, entry, expected_options, expected_journal):
     assert runtime.sg_boost._general_reference == expected_journal["sg_boost"]["general_reference"]
     assert runtime.sg_boost.auto_enabled is False
     assert runtime.sg_boost.desired_on is False and runtime.sg_boost.owned is False
+    # Upgrade defaults are runtime-only: immutable pre-upgrade options and
+    # restored manual/completion holds grant no active minimum or new lease.
+    assert "min_session_s" not in expected_options["sg_boost"]
+    assert "min_session_s" not in entry.options["sg_boost"]
+    assert runtime.sg_boost.settings["min_session_s"] == 1200
+    assert runtime.sg_boost.settings["max_session_s"] == 3600
+    sg = runtime.sg_boost.overview()
+    assert sg["effective_min_session_s"] == 1200
+    assert sg["minimum_remaining_s"] is None
+    assert sg["minimum_valid_until"] is None and sg["minimum_active"] is False
     overview = runtime.panasonic.overview()
     assert overview["context"] == "space_heating" and overview["context_reliable"] is True
     assert overview["power_scope"] == "split" and overview["power_complete"] is True

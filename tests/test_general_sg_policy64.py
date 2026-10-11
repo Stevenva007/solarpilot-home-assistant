@@ -33,7 +33,8 @@ async def started(**config):
     await observe(manager, clock, row)
     clock.advance(120)
     await observe(manager, clock, row)
-    assert manager.owned and adapter.calls == [("on", 300)]
+    assert manager.owned and len(adapter.calls) == 1 and adapter.calls[0][0] == "on"
+    assert 0 < adapter.calls[0][1] <= min(manager.settings["lease_s"], manager.settings["max_session_s"])
     return manager, adapter, clock, runtime, row
 
 

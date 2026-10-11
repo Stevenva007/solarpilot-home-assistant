@@ -585,6 +585,63 @@ with sync_playwright() as playwright:
         assert page.evaluate('qaCalls.length===0'), (view, 'wait presentation never writes to devices')
     page.locator('solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value=overview]').click()
 
+    # beta72: the SG minimum is a request-duration policy, independently of
+    # native compressor activity. Its clock cannot release the contact, extend
+    # an expired lease or claim a 20-minute compressor run.
+    page.evaluate('''()=>{window.qaMinimum=(extra={})=>{
+      qaApply('idle',true);const stamp=Date.now()/1000,s=c._last.attributes.sg_boost;
+      Object.assign(s,{state:'active',remaining_s:1800,min_session_s:1200,
+        effective_min_session_s:1200,minimum_limited_by_max:false,minimum_active:true,
+        minimum_remaining_s:1120,minimum_valid_until:stamp+120,minimum_import_hold:false},extra);
+      c._render();
+    };}''')
+    for view in ('overview', 'comfort', 'loads'):
+        page.locator(f'solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value={view}]').click()
+        panel = row if view == 'overview' else page.locator('solar-pilot-card >> .heatpump-sg')
+        page.evaluate('qaMinimum()')
+        minimum = panel.locator('[data-sg-minimum]')
+        actual = minimum.inner_text()
+        assert 'Minimum SG-aanvraagduur · 20 min' in actual and 'Nog 18 min 40 s · alleen de SG-aanvraag' in actual, (view, 'confirmed SG request minimum', actual)
+        assert 'Na het minimum kan SG doorgaan' in actual and 'Panasonic bepaalt zelf de compressorlooptijd' in actual, (view, 'minimum is not compressor duration or fixed stop', actual)
+        assert panel.locator('[data-heatpump-operation]').get_attribute('data-compressor-running') == 'false', (view, 'SG minimum may coexist with idle native compressor')
+        details_key = 'overview:sg:why' if view == 'overview' else f'sg:{view}:details'
+        details = panel.locator(f'details[data-ui-key="{details_key}"]')
+        if details.get_attribute('open') is None:
+            details.locator(':scope > summary').click()
+        for label in ('Ingesteld SG-minimum', 'Effectief SG-minimum'):
+            actual = panel.locator('.start-facts>span').filter(has_text=label).locator('b').inner_text()
+            assert actual == '20 min', (view, label, 'expected20 min', actual)
+        for width in (320, 390, 768, 1280):
+            page.set_viewport_size({'width': width, 'height': 844 if width < 540 else 1000})
+            assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), (view, width, 'minimum content overflows viewport')
+            assert panel.evaluate('element=>element.scrollWidth<=element.clientWidth+1'), (view, width, 'minimum content overflows heatpump panel')
+        page.evaluate('qaMinimum({minimum_remaining_s:1})')
+        page.evaluate('''()=>{window.qaMinimumState=c._last;qaClockMs+=2000;c._refreshObservationDisplay();}''')
+        actual = minimum.inner_text()
+        assert 'Minimum verstreken' in actual and 'actuele regeling bepaalt het vrijgeven' in actual, (view, 'minimum zero is not stop authority', actual)
+        assert panel.locator('[data-sg-stage=relay] strong').inner_text() == 'Actief', (view, 'minimum expiry may not release SG contact')
+        assert page.evaluate('c._last===qaMinimumState && c._last.attributes.sg_boost.minimum_remaining_s===1 && c._last.attributes.sg_boost.desired_on===true'), (view, 'minimum clock must not mutate request state')
+        assert details.get_attribute('open') is not None, (view, 'minimum clock refresh preserves Details')
+        page.evaluate('qaMinimum({minimum_valid_until:Date.now()/1000+2})')
+        page.evaluate('''()=>{qaClockMs+=3000;c._refreshObservationDisplay();}''')
+        actual = minimum.inner_text()
+        assert 'Resterende minimumduur onbekend' in actual and 'Nog 18 min' not in actual, (view, 'minimum original proof expiry', actual)
+        page.evaluate('qaMinimum({relay_valid_until:Date.now()/1000+2})')
+        page.evaluate('''()=>{qaClockMs+=3000;c._refreshObservationDisplay();}''')
+        assert 'Resterende minimumduur onbekend' in minimum.inner_text(), (view, 'lease expiry cannot retain minimum authority', minimum.inner_text())
+        page.evaluate('qaMinimum({effective_min_session_s:900,minimum_limited_by_max:true,minimum_remaining_s:800})')
+        actual = minimum.inner_text()
+        assert 'Minimum SG-aanvraagduur · 15 min' in actual and 'maximale sessieduur begrenst het minimum' in actual, (view, 'existing lower hard max stays visible', actual)
+        page.evaluate('qaMinimum({effective_min_session_s:299.3,minimum_limited_by_max:true,minimum_remaining_s:300})')
+        actual = minimum.inner_text()
+        assert 'Nog 5 min · alleen de SG-aanvraag' in actual, (view, 'backend ceiling remains valid with fractional acknowledgement delay', actual)
+        page.evaluate('qaMinimum({minimum_import_hold:true})')
+        assert 'Tijdelijke netafname' in minimum.inner_text(), (view, 'soft import hold remains explicit')
+        if details.get_attribute('open') is not None:
+            details.locator(':scope > summary').click()
+        assert page.evaluate('qaCalls.length===0'), (view, 'minimum presentation must send no actuator writes')
+    page.locator('solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value=overview]').click()
+
     # Missing supply 2 preserves the known part but never fabricates a total.
     page.evaluate("qaApply('active',false,{power_w:null,power_kind:'unknown',power_complete:false,power_supply2_w:null,power_supply2_valid:false})")
     assert 'Voeding 1: 1,72 kW · Voeding 2: onbekend' in row.inner_text()

@@ -2745,7 +2745,8 @@ class SolarRuntime:
         projected = budget["grid_w"]+envelope
         if projected > self.settings["max_import_w"]:
             return False
-        if renewal and budget["grid_w"] > self.sg_boost.settings["hysteresis_w"]:
+        if (renewal and budget["grid_w"] > self.sg_boost.settings["hysteresis_w"]
+                and not self.sg_boost.minimum_hold_active):
             return False
         if self.phase_settings.get("enabled") and self.phase_settings.get("control_starts"):
             current_phase = phase_decision(tuple(self._power(self.phase_settings.get(key), self.phase_settings["stale_s"])[0]

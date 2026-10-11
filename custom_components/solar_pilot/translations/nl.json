@@ -1078,12 +1078,13 @@
       },
       "sg_advanced": {
         "title": "Zonneboost — stabiliteit en lokale terugval",
-        "description": "Normaal volstaan de standaardwaarden. De korte lokale aflooptimer is een communicatiebeveiliging en geen boostsessie. Vernieuwen moet zonder fysiek relaisgeklapper werken. Harde grenzen en onbetrouwbare metingen gaan vóór wachttijden.",
+        "description": "Minimale SG-aanvraagduur is standaard twintig minuten. Harde guards en het behouden maximum kunnen eerder vrijgeven. De korte vernieuwde lokale toestemming blijft afzonderlijk; dit is geen compressorlooptijd.",
         "data": {
           "start_delay_s": "Stabiel overschot vóór starten (s)",
           "stop_delay_s": "Wachttijd bij onvoldoende overschot (s)",
           "hysteresis_w": "Marge tussen starten en blijven aanvragen (W)",
           "rest_s": "Rusttijd na een boost (s)",
+          "min_session_s": "Minimale SG-aanvraagduur (s)",
           "max_session_s": "Maximale boostsessie (s)",
           "lease_s": "Lokale toestemming geldig voor (s)",
           "renew_s": "Toestemming vernieuwen om de (s)",
@@ -1092,12 +1093,13 @@
         },
         "data_description": {
           "start_delay_s": "De gezamenlijke zonnebijdrage en alle startvoorwaarden moeten gedurende de ingestelde vertraging geldig blijven vóór een nieuwe SG-aanvraag, standaard 120 seconden.",
-          "stop_delay_s": "Netafname boven de afzonderlijke kleine-importbuffer moet standaard 60 seconden aanhouden vóór de extra SG-aanvraag wordt vrijgegeven.",
+          "stop_delay_s": "Netafname boven de afzonderlijke kleine-importbuffer moet standaard 60 seconden aanhouden voordat gewone tekortvrijgave mogelijk is.",
           "hysteresis_w": "Toegestane kleine tijdelijke netafname vóór de gewone stopvertraging op de SG-aanvraag begint, standaard 300 W.",
           "rest_s": "Na een boost volgt standaard 900 seconden rust.",
+          "min_session_s": "Minimale SG-aanvraagduur, standaard 1200 seconden of twintig minuten.",
           "max_session_s": "Een SG-aanvraag duurt maximaal 3600 seconden per sessie.",
           "lease_s": "Korte lokaal aflopende toestemming, standaard 300 seconden.",
-          "renew_s": "Vernieuw de lokale toestemming standaard iedere 60 seconden zolang SG toegestaan blijft.",
+          "renew_s": "Vernieuw de lokale toestemming standaard iedere 60 seconden zolang SG veilig toegestaan blijft.",
           "ack_timeout_s": "Korte begrensde wachttijd voor fysieke relaisterugmelding, standaard 20 seconden.",
           "stale_s": "Maximale ouderdom van benodigde metingen, standaard 120 seconden."
         }

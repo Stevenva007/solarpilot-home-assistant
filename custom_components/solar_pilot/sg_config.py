@@ -16,7 +16,7 @@ SG_DEFAULTS = {
     "commissioning_confirmed": False, "watchdog_confirmed": False,
     "threshold_w": 3000.0, "expected_power_w": 3200.0,
     "start_delay_s": 120, "stop_delay_s": 60, "rest_s": 900,
-    "max_session_s": 3600, "lease_s": 300, "renew_s": 60,
+    "min_session_s": 1200, "max_session_s": 3600, "lease_s": 300, "renew_s": 60,
     "hysteresis_w": 300.0, "ack_timeout_s": 20, "stale_s": 120,
     "tank_temperature_entity": "", "tank_target_entity": "",
     "power_entity": "", "power_scope": "unconfirmed",
@@ -45,7 +45,7 @@ NUMBER_LIMITS = {
     "threshold_w": (500, 20000), "expected_power_w": (100, 30000),
     "hysteresis_w": (0, 5000), "start_delay_s": (30, 1800),
     "stop_delay_s": (5, 600), "rest_s": (60, 7200),
-    "max_session_s": (300, 14400), "lease_s": (60, 600),
+    "min_session_s": (0, 14400), "max_session_s": (300, 14400), "lease_s": (60, 600),
     "renew_s": (10, 120), "ack_timeout_s": (5, 60),
     "stale_s": (15, 600), "power_activity_threshold_w": (10, 2000),
 }
@@ -128,6 +128,9 @@ def validate_config(raw):
     if all(finite(c[k]) is not None for k in ("renew_s", "lease_s", "ack_timeout_s")):
         if finite(c["renew_s"]) + finite(c["ack_timeout_s"]) >= finite(c["lease_s"]):
             errors["renew_s"] = "timing"
+    # A saved hard maximum below the new minimum remains valid. The manager
+    # caps its effective minimum at that maximum instead of extending authority
+    # or disabling an existing installation during an upgrade.
     if c["enabled"] is True:
         if c["profile"] == "general" and c["profile_confirmed"] is not True:
             errors["profile_confirmed"] = "sg_profile_confirmation"

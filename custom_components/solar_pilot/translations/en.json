@@ -695,17 +695,21 @@
       },
       "sg_advanced": {
         "title": "Solar boost — stability and local fallback",
-        "description": "Defaults normally suffice. The short local expiry timer guards communication and is separate from the boost session. Renewal must not cycle the physical relay. Hard limits and unreliable readings take precedence over delays.",
+        "description": "Default minimum SG request duration is twenty minutes. Hard guards and the preserved session maximum can release earlier. The short renewed local permission remains separate; this is not compressor runtime.",
         "data": {
           "start_delay_s": "Stable surplus before starting (s)",
           "stop_delay_s": "Low-surplus delay (s)",
           "hysteresis_w": "Start/hold margin (W)",
           "rest_s": "Rest after a boost (s)",
+          "min_session_s": "Minimum SG request duration (s)",
           "max_session_s": "Maximum boost session (s)",
           "lease_s": "Local permission expires after (s)",
           "renew_s": "Renew permission every (s)",
           "ack_timeout_s": "Relay confirmation wait (s)",
           "stale_s": "Maximum measurement age (s)"
+        },
+        "data_description": {
+          "min_session_s": "Minimum duration of the SG request, default 1200 seconds; hard guards and the session maximum take precedence. This is not compressor runtime."
         }
       }
     },

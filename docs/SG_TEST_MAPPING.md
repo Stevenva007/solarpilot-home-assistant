@@ -269,4 +269,17 @@ Dit is module-/contractmapping, geen nieuwe testuitslag. De historische beta.70-
 | `analysis_export.py` en bestaande exportregressies | Eén eindtijdstip voor exportonderdelen, geen backfill/prorating of private ACL-/bindingidentiteiten; bestaande pseudonimisering behouden. |
 | Bestaande SG-/authority-/history-/API-/consumerregressies | Zelfde controllerbeslissingen, rechten, aparte Store en geschiedenis; alle overige apparaten en gebruikersgegevens behouden. |
 
-Dit is contractmapping. Actuele uitvoeringen, aantallen, CI en pakketbewijs staan uitsluitend in `TESTRESULTATEN_BETA71.md`. Alle eerdere testtellingen blijven historische evidence.
+Dit is contractmapping. De beta.71-uitvoeringen, aantallen, CI en pakketbewijs staan in `TESTRESULTATEN_BETA71.md`. Alle eerdere testtellingen blijven historische evidence.
+
+## Beta.72 — minimale SG-aanvraagduur
+
+| Module / proef | Hoofdafspraak |
+| --- | --- |
+| `sg_config.py`, geavanceerde opties en configuratieregressies | Ontbrekend minimum krijgt 1200 s; expliciete waarden inclusief nul en overige settings blijven staan. Min/max-combinatie blijft geldig; bestaande kortere max wordt niet verhoogd. |
+| `sg_boost.py` en minimumregressies | Anker na bevestigde AAN, gewone tekortvertraging loopt door, alleen zachte importstop wacht. Alle harde/native/manual/prioriteits-/foutvrijgaven blijven eerder beëindigen. |
+| Lease-/herstartregressies | Korte veilige vernieuwde toestemming tijdens uitsluitend minimumwacht, geen lokale timer 1200, relaiscyclus, minimumreset of nieuwe replayrechten. |
+| Frontendminimumproeven en bestaande browsergate | SG-aanvraagduur versus compressorbedrijf, effectief minimum/maxbegrenzing, verse resterende tijd en onbekende status onderscheiden. |
+| Echte Core-setup-/reload-/unloadproef | Onveranderbare legacy-opties behouden, nieuwe default en read-only overview zonder actuatoropdracht. |
+| Bestaande beta.71/beta.70- en consumerproeven | Wachtfasen, kalenderdag-export, eigen histories/opslag/READ-API, overige toestellen, modellen en tickets behouden. |
+
+Dit is contractmapping. Actuele beta.72-uitvoeringen, aantallen, CI en pakketbewijs staan uitsluitend in `TESTRESULTATEN_BETA72.md`. Eerdere tellingen blijven historische evidence.

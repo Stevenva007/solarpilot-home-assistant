@@ -3,13 +3,19 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.71'
+GUIDE_VERSION = '1.0.0-beta.72'
 GUIDE_UPDATED = '2026-10-11'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.71',
+ 'version': '1.0.0-beta.72',
  'updated': '2026-10-11',
- 'intro': ('Beta.71 maakt de afzonderlijke SG-wachtfasen zichtbaar: eerst bevestiging van een nieuwe aanleiding, daarna de ingestelde startvertraging. Het analysebestand onderscheidt daarnaast de bestaande dertig dagen warmtepompgeschiedenis van het gevraagde venster van 1, 24 of 168 uur. Alle overlappende lokale kalenderdagen blijven beschikbaar, met expliciete grensdagen en ongewijzigde geregistreerde dagtotalen. Panasonic regelt zelfstandig. Regelgrenzen, wachttijden, instellingen, apparaten, modellen en privédata blijven behouden.'),
+ 'intro': ('Beta.72 voegt een instelbare minimale SG-aanvraagduur toe, standaard twintig minuten. '
+           'Aanhoudende gewone netafname geeft de aanvraag pas na die minimumduur vrij. Harde bron-, '
+           'koel-, net-, fase- en prioriteitsgrenzen, handmatige overname, geverifieerde native '
+           'voltooiing en de maximale sessieduur blijven direct leidend. De kortlopende lokale '
+           'toestemming wordt veilig vernieuwd; zij wordt geen twintigminutentimer. Panasonic bepaalt '
+           'zelfstandig zijn compressorbedrijf. De afzonderlijke wachtfasen, volledige '
+           'kalenderdag-export, instellingen, apparaten en bestaande geschiedenis blijven behouden.'),
  'sections': [{'title': '1. Basisprincipe en modi',
                'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele '
                               'net- en PV-metingen, echte toestelvoorwaarden en elektrische grenzen gaan '
@@ -224,17 +230,43 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                                'warmtepompmeting ontstaat geen extra credit. Standaard blijven 3000 W '
                                'startdrempel en 3200 W aparte conservatieve raming van mogelijke extra '
                                'SG-vraag; je bestaande waarden blijven staan.'),
-                              'Standaardvertraging voor starten is 120 seconden, voor een aanhoudend tekort 60 '
-                              'seconden, met 900 seconden rust tussen sessies en maximaal 3600 seconden per '
-                              'sessie. Geldige recente metingen, toewijzing, fasegrenzen, eigen bediening en '
-                              'de lokale timer gaan vóór een gewenste minimale boostduur. Een harde limiet of '
-                              'onbetrouwbare noodzakelijke bron geeft de eigen aanvraag vrij.',
-                              'Na een toegelaten start hoeft de resterende injectie niet boven de startdrempel '
-                              'te blijven: de warmtepomp kan juist die zon gebruiken. De kleine-importbuffer '
-                              'blijft standaard 300 W. Netafname boven die buffer gedurende de stopvertraging '
-                              'geeft alleen de extra SG-aanvraag vrij; tijdens die tekortcontrole wordt de '
-                              'lokale toestemming niet verlengd. Dit garandeert geen nulimport en stopt geen '
-                              'noodzakelijke native cyclus.',
+                              'Standaardvertraging voor starten is 120 seconden, voor een aanhoudend '
+                              'tekort 60 seconden, met 900 seconden rust tussen sessies en maximaal '
+                              '3600 seconden per sessie. Vanaf beta.72 is de minimale SG-aanvraagduur '
+                              'standaard 1200 seconden, twintig minuten. Zij beschermt alleen tegen '
+                              'gewone zachte tekortvrijgave, niet tegen harde limieten, onbetrouwbare '
+                              'noodzakelijke bronnen, handmatige overname, geverifieerde native '
+                              'voltooiing of het harde sessiemaximum. Het is geen gegarandeerde '
+                              'compressorlooptijd. Ontbreekt de nieuwe instelling, dan geldt de '
+                              'standaard; een expliciete bestaande minimumwaarde, ook nul, blijft '
+                              'behouden. Het effectieve minimum is hoogstens het behouden harde '
+                              'maximum: een eerder korter ingestelde maximumduur blijft dus eerder '
+                              'beëindigen.',
+                              'Na een toegelaten start hoeft de resterende injectie niet boven de '
+                              'startdrempel te blijven: de warmtepomp kan juist die zon gebruiken. De '
+                              'kleine-importbuffer blijft standaard 300 W. Netafname boven die buffer '
+                              'doorloopt de behouden stopvertraging; gewone tekortvrijgave wacht '
+                              'bovendien op het ingestelde effectieve minimum. Zolang de minimumduur de '
+                              'enige reden is om een zachte tekortvrijgave uit te stellen, mag de korte '
+                              'lokale toestemming veilig worden vernieuwd. Harde guards blijven bij '
+                              'elke beoordeling en vernieuwing leidend. Dit garandeert geen nulimport '
+                              'en stopt geen noodzakelijke native cyclus.',
+                              ('De minimumduur begint pas na bevestigde contact-AAN. Een '
+                               'leasevernieuwing reset haar niet; herladen geeft geen nieuw minimum of '
+                               'AAN-recht. De gewone tekortvertraging loopt tijdens het minimum door. '
+                               'Is aanhoudende netafname daarna al lang genoeg bevestigd, dan kan de '
+                               'actuele beoordeling meteen vrijgeven, zonder nog eens de volledige '
+                               'stopvertraging te wachten. Zonder tekort hoeft de aanvraag na het '
+                               'minimum niet te stoppen. Het harde maximum loopt conservatief vanaf de '
+                               'oorspronkelijke verzending; de bij contact-AAN nog beschikbare '
+                               'maximumtijd begrenst het effectieve minimum. Bevestigd geen extra '
+                               'opname, geverifieerde native voltooiing, een verlopen lease of '
+                               'transportfout houden hun bestaande vroege beëindiging. Lage watts of '
+                               'onbekende reactie alleen geven geen dergelijk beëindigingsbewijs. Bij '
+                               'een kort hard sessiemaximum houdt de lokale toestemming ook vóór de '
+                               'eerste AAN ruimte voor bevestiging; zij kan daardoor conservatief '
+                               'eerder aflopen. De absolute maximumgrens wordt vóór eerste AAN en '
+                               'vernieuwing opnieuw gecontroleerd na opslag- en netwerkvoorcontrole.'),
                               'Een sessielimiet beëindigt de aanvraag, maar bewijst geen volle tank of '
                               'voltooide native cyclus. Wachtredenen onderscheiden sessielimiet, werkelijk '
                               'native voltooid, geen aangetoonde opname en onbekende reactie. De algemene '
@@ -289,13 +321,15 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                                'Full solar-laadsessie houdt zijn actuele extra-vermogensgrens; SG mag die '
                                'ruimte niet afnemen. Gewone verbruikers blijven uitsluitend werkelijk '
                                'restoverschot gebruiken.'),
-                              ('De startvertraging controleert de gezamenlijke zonnebijdrage. Na starten '
-                               'blijven werkelijke netafname en de bestaande tekortvertraging bepalend '
-                               'voor vrijgave/vernieuwing. Nieuwe zonneperiode na een beëindigde algemene '
-                               'sessie blijft gebaseerd op echte restinjectie, niet op warmtepompcredit; '
-                               'dezelfde opname geeft dus geen herstartlus. Details tonen restoverschot, '
-                               'meegetelde warmtepompbijdrage, gezamenlijke startbijdrage en concrete '
-                               'elektrische beperkingen afzonderlijk.'),
+                              ('De startvertraging controleert de gezamenlijke zonnebijdrage. Na '
+                               'starten blijven werkelijke netafname, de bestaande tekortvertraging en '
+                               'het effectieve minimum voor gewone tekortvrijgave bepalend. Het minimum '
+                               'doet geen nieuwe start, tellerreset of verlaging van fysieke guards '
+                               'ontstaan. Nieuwe zonneperiode na een beëindigde algemene sessie blijft '
+                               'gebaseerd op echte restinjectie, niet op warmtepompcredit; dezelfde '
+                               'opname geeft dus geen herstartlus. Details tonen restoverschot, '
+                               'meegetelde warmtepompbijdrage, gezamenlijke startbijdrage, minimumduur '
+                               'en concrete elektrische beperkingen afzonderlijk.'),
                               'De kaart en Details tonen de lopende herbeoordeling afzonderlijk van de gewone startvertraging. Nieuwe zonneperiode bevestigen duurt binnen de bestaande policy 300 seconden met echte nieuwe bronrapporten; eventuele reset- of native bewijsfasen houden hun eigen betekenis. Daarna kan de ingestelde startvertraging beginnen, standaard 120 seconden, terwijl alle actuele voorwaarden blijven gelden. Nul resterende bevestigingsseconden is geen starttoestemming: een passend actueel eindrapport en de bestaande beoordelingen zijn nog nodig. Oude brondata verbergt de lopende teller. De uitleesweergave start geen sessie en verandert geen timer, guard, minimumtijd, rangorde of herstartbeleid.'],
                'bullets': []},
               {'title': '5. Lokale SG-terugval en handmatige bediening',
@@ -920,7 +954,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'geen dubbele writers, contactmapping en lokale aflooptimer werkelijk zijn '
                               'bevestigd. De noodzakelijke lokale Panasonic/Shelly-controle is geen '
                               'softwaretest.',
-                              ('Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische metingen in geopende apparatuur. Gebruik de korte controle in BETA71_INSTELLEN.md.')],
+                              ('Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische metingen in geopende apparatuur. Gebruik de korte controle in BETA72_INSTELLEN.md.')],
                'bullets': []},
               {'title': '20. Installatie, verwijderen en rollback',
                'paragraphs': ['Installeer of update de Integration via HACS en herstart Home Assistant. De '
@@ -944,7 +978,17 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van '
                               'SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, '
                               'AEG- of Shelly-integratie.',
-                              ('Rollback naar de gecontroleerde beta.70-basis bewaart dezelfde afzonderlijke warmtepompgeschiedenis en bestaande instellingen. Alleen de verbeterde wachtweergave en exportvensteruitleg vallen dan terug. Voor exact herstel van de pre-upgradetoestand gebruik je code én de volledige passende privéback-up; bewaar gewenste nieuwe historie eerst. Geef vóór codevervanging de SG-aanvraag vrij en controleer lokale terugval. Laat nooit twee runtimes tegelijk werken en verwijder de bestaande entry niet. Voor terugkeer naar de oude directe beta.61-regeling blijft de volledige back-up van vóór de beta.62-migratie nodig. Zie BETA71_INSTELLEN.md.')],
+                              ('Rollback naar de gecontroleerde beta.71-basis bewaart dezelfde '
+                               'afzonderlijke warmtepompgeschiedenis en bestaande instellingen. Beta.71 '
+                               'kent de nieuwe minimumregeling niet: gewone aanhoudende netafname kan '
+                               'daar weer volgens de oude stopvertraging vrijgeven. Geef vóór '
+                               'codevervanging de eigen SG-aanvraag vrij en controleer lokale terugval. '
+                               'Voor exact herstel van de pre-upgradetoestand gebruik je code én de '
+                               'volledige passende privéback-up; bewaar gewenste nieuwe historie eerst. '
+                               'Laat nooit twee runtimes tegelijk werken en verwijder de bestaande '
+                               'entry niet. Voor terugkeer naar de oude directe beta.61-regeling blijft '
+                               'de volledige back-up van vóór de beta.62-migratie nodig. Zie '
+                               'BETA72_INSTELLEN.md.')],
                'bullets': []},
               {'title': '21. Release- en documentatieregel',
                'paragraphs': ['Dit is de enige volledige actuele regelbeschrijving. current_guide.py genereert '

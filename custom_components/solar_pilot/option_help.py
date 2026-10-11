@@ -969,16 +969,40 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                                'zijn daarvoor geen vervanging. Zonder geschikte actuele bron blijft ontvangen '
                                'SG onbekend; extra verbruik door SG is niet afzonderlijk bewezen.',
  'sg_advanced:lease_s': 'Korte lokaal aflopende toestemming, standaard 300 seconden. Zonder tijdige '
-                        'vernieuwing opent het contact ook wanneer Home Assistant uitvalt. Dit is afzonderlijk '
-                        'van de langere boostsessie.',
- 'sg_advanced:renew_s': 'Vernieuw de lokale toestemming standaard iedere 60 seconden zolang SG toegestaan '
-                        'blijft. Verlengen moet de lokale timer vernieuwen zonder de fysieke uitgang UIT/AAN '
-                        'te schakelen.',
+                        'vernieuwing opent het contact ook wanneer Home Assistant uitvalt. Zij blijft '
+                        'apart van de minimale en maximale SG-aanvraagduur: geen lokale '
+                        'twintigminutentimer. Een minimumduur schept geen recht om bron-, koel-, net-, '
+                        'fase-, prioriteits- of communicatieguards te negeren. Bij een kort hard '
+                        'sessiemaximum houdt de lokale toestemming ook vóór de eerste AAN ruimte voor '
+                        'bevestiging; zij kan daardoor conservatief eerder aflopen. De absolute '
+                        'maximumgrens wordt vóór eerste AAN en vernieuwing opnieuw gecontroleerd na '
+                        'opslag- en netwerkvoorcontrole.',
+ 'sg_advanced:renew_s': 'Vernieuw de lokale toestemming standaard iedere 60 seconden zolang SG veilig '
+                        'toegestaan blijft. Tijdens uitsluitend de minimumwacht op zachte '
+                        'tekortvrijgave kan dit doorgaan. Verlengen vernieuwt de korte lokale timer '
+                        'zonder fysieke UIT/AAN-cyclus; harde guards en het sessiemaximum blijven '
+                        'leidend.',
  'sg_advanced:start_delay_s': 'De gezamenlijke zonnebijdrage en alle startvoorwaarden moeten gedurende de ingestelde vertraging geldig blijven vóór een nieuwe SG-aanvraag, standaard 120 seconden. De kaart toont deze teller apart van de bestaande 300 seconden bevestiging van een nieuwe zonneperiode of native aanleiding na een beëindigde algemene sessie. Bevestiging op nul geeft geen starttoestemming zonder passend actueel eindrapport; daarna gelden deze vertraging en alle guards opnieuw. De nieuwe uitleesweergave verandert geen instelling of timer.',
- 'sg_advanced:stop_delay_s': 'Netafname boven de afzonderlijke kleine-importbuffer moet standaard 60 seconden '
-                             'aanhouden vóór de extra SG-aanvraag wordt vrijgegeven. Dit voorkomt '
-                             'relaisgeklapper bij wolken. Harde limieten en onbetrouwbare invoer wachten niet '
-                             'op deze termijn; tijdens de tekortcontrole wordt de lease niet verlengd.',
+ 'sg_advanced:min_session_s': 'Minimale SG-aanvraagduur, standaard 1200 seconden of twintig minuten. '
+                              'Aanhoudende gewone netafname geeft de aanvraag pas na dit effectieve '
+                              'minimum vrij. Harde guards, onbetrouwbare noodzakelijke bronnen, '
+                              'handmatige overname, geverifieerde native voltooiing en de maximale '
+                              'sessieduur kunnen eerder beëindigen. Alleen de SG-aanvraag wordt '
+                              'beschermd; Panasonic bepaalt de compressorlooptijd. Bereik 0–14400 '
+                              'seconden, stap 60; nul schakelt dit minimum uit. Een expliciete '
+                              'bestaande waarde blijft behouden. Het minimum begint na bevestigde '
+                              'contact-AAN en is hoogstens de nog beschikbare harde maximumtijd. De '
+                              'gewone tekortvertraging loopt intussen door, dus geen verplichte extra '
+                              'stopvertraging na het minimum; de korte lokale lease blijft '
+                              'afzonderlijk.',
+ 'sg_advanced:stop_delay_s': 'Netafname boven de afzonderlijke kleine-importbuffer moet standaard 60 '
+                             'seconden aanhouden voordat gewone tekortvrijgave mogelijk is. Vanaf '
+                             'beta.72 wacht die zachte vrijgave bovendien op het effectieve minimum, '
+                             'standaard twintig minuten. Tijdens uitsluitend die minimumwacht kan de '
+                             'korte lease veilig worden vernieuwd; harde limieten, onbetrouwbare '
+                             'noodzakelijke bronnen, handmatige overname, geverifieerde native '
+                             'voltooiing en het sessiemaximum blijven direct leidend. Dit is alleen de '
+                             'SG-aanvraag, geen compressorlooptijd.',
  'sg_advanced:hysteresis_w': 'Toegestane kleine tijdelijke netafname vóór de gewone stopvertraging op de '
                              'SG-aanvraag begint, standaard 300 W. De oorspronkelijke startdrempel hoeft '
                              'tijdens een geldige boost niet als resterende injectie aanwezig te blijven: het '
@@ -990,18 +1014,16 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                        'context; elke beëindigde of onderbroken algemene sessie vraagt een betekenisvolle '
                        'nieuwe aanleiding, ook bij onbekende opname. '
                        'Rusttijd, dezelfde samples opnieuw lezen of herstart alleen reset die grens niet.',
- 'sg_advanced:max_session_s': 'Een SG-aanvraag duurt maximaal 3600 seconden per sessie. Bij afloop wordt '
-                              'alleen het contact vrijgegeven; Panasonic kan een eigen cyclus laten doorlopen. '
-                              'Voor tapwater-only kan na rust dezelfde tankbron een nieuwe beoordeling toestaan bij minstens '
-                              '2 °C afkoeling ten opzichte van haar verse eindmeting, bevestigd door minimaal '
-                              'twee latere echte rapporten gedurende vijf minuten. Dit toont nieuwe opslagruimte, '
-                              'geen comfortvraag of bewezen eerdere SG-reactie. Daarna gelden de volledige '
-                              'startvertraging en alle actuele grenzen opnieuw. Herstart vraagt een nieuwe '
-                              'vijfminutenbevestiging met echte nieuwe rapporten. Bij algemene SG is tankafkoeling '
-                              'geen universele voorwaarde: beschikbare native context en een betekenisvolle '
-                              'nieuwe aanleiding bepalen herbeoordeling. De sessielimiet en onbekende opname '
-                              'betekenen geen bewezen volle tank. Geen eindeloze herstartlus; herstart of '
-                              'rusttijd alleen is geen nieuw bewijs.',
+ 'sg_advanced:max_session_s': 'Een SG-aanvraag duurt maximaal 3600 seconden per sessie. Dit harde '
+                              'maximum gaat vóór de minimale aanvraagduur; een bestaand korter maximum '
+                              'wordt niet verhoogd. Het effectieve minimum is hoogstens de bij '
+                              'bevestigde contact-AAN nog beschikbare harde maximumtijd, zichtbaar in '
+                              'Details. Bij afloop wordt alleen het contact vrijgegeven; Panasonic kan '
+                              'een eigen cyclus laten doorlopen. De behouden profielregels, rust, '
+                              'nieuwe aanleiding, volledige startvertraging en alle actuele guards '
+                              'blijven nodig voor een volgende aanvraag. Een sessielimiet of onbekende '
+                              'opname bewijst geen volle tank, en herstart of rusttijd alleen is geen '
+                              'nieuw bewijs.',
  'sg_advanced:ack_timeout_s': 'Korte begrensde wachttijd voor fysieke relaisterugmelding, standaard 20 '
                               'seconden. Een geslaagde servicecall of ongewijzigd tankdoel geldt niet als '
                               'relaisbevestiging.',

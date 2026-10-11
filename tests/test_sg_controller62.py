@@ -118,7 +118,8 @@ async def boosted(**kwargs):
     clock.advance(manager.settings["start_delay_s"])
     await tick(manager)
     assert manager.owned and manager.desired_on
-    assert adapter.calls == [("on", manager.settings["lease_s"])]
+    assert len(adapter.calls) == 1 and adapter.calls[0][0] == "on"
+    assert 0 < adapter.calls[0][1] <= min(manager.settings["lease_s"], manager.settings["max_session_s"])
     return manager, adapter, clock, runtime
 
 
@@ -174,7 +175,7 @@ async def test_boost_consuming_export_does_not_trigger_false_stop():
 
 @pytest.mark.asyncio
 async def test_stop_import_is_delayed_and_resets_when_cloud_passes():
-    manager, adapter, clock, _ = await boosted()
+    manager, adapter, clock, _ = await boosted(min_session_s=0)
     await tick(manager, imported=1000)
     clock.advance(59)
     await tick(manager, imported=1000)
@@ -249,7 +250,7 @@ async def test_max_duration_stops_and_does_not_repeat_unknown_completed_session(
     await tick(manager, physical_evidence={"verified": True, "restart_ready": True})
     clock.advance(120)
     await tick(manager)
-    assert adapter.calls[-1] == ("on", 300)
+    assert adapter.calls[-1] == ("on", 280)
 
 
 @pytest.mark.asyncio
@@ -737,7 +738,7 @@ async def test_first_local_lease_never_exceeds_short_configured_session():
     await tick(manager)
     clock.advance(120)
     await tick(manager)
-    assert manager.owned and adapter.calls == [("on", 300)]
+    assert manager.owned and adapter.calls == [("on", 280)]
     start = manager._session_started
     assert manager._lease_deadline <= start + manager.settings["max_session_s"]
     clock.advance(301)
@@ -750,7 +751,7 @@ async def test_renewed_local_permission_cannot_outlive_session_when_ha_disappear
     start = manager._session_started
     clock.advance(60)
     await tick(manager)
-    assert adapter.calls == [("on", 300)]  # Existing timer already ends at the session ceiling.
+    assert adapter.calls == [("on", 280)]  # Existing timer safely finishes before the session ceiling.
     assert manager._lease_deadline <= start + 300
     # Stop evaluating after this renewal; its local lease still ends within the
     # session ceiling rather than defaulting to a further full five minutes.
@@ -841,7 +842,7 @@ async def test_real_tank_decline_after_rest_rearms_automatically_with_new_full_s
     assert len(adapter.calls) == 1
     clock.advance(1)
     await tick(manager, tank_observation=tank_observation(manager, clock, 53))
-    assert adapter.calls == [("on", 300), ("on", 300)] and manager.owned
+    assert adapter.calls == [("on", 280), ("on", 280)] and manager.owned
 
 
 @pytest.mark.asyncio

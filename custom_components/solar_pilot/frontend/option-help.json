@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.71",
+  "version": "1.0.0-beta.72",
   "language": "nl",
   "steps": {
     "init": {
@@ -1040,12 +1040,13 @@
     },
     "sg_advanced": {
       "title": "Zonneboost — stabiliteit en lokale terugval",
-      "description": "Normaal volstaan de standaardwaarden. De korte lokale aflooptimer is een communicatiebeveiliging en geen boostsessie. Vernieuwen moet zonder fysiek relaisgeklapper werken. Harde grenzen en onbetrouwbare metingen gaan vóór wachttijden.",
+      "description": "Minimale SG-aanvraagduur is standaard twintig minuten. Harde guards en het behouden maximum kunnen eerder vrijgeven. De korte vernieuwde lokale toestemming blijft afzonderlijk; dit is geen compressorlooptijd.",
       "data": {
         "start_delay_s": "Stabiel overschot vóór starten (s)",
         "stop_delay_s": "Wachttijd bij onvoldoende overschot (s)",
         "hysteresis_w": "Marge tussen starten en blijven aanvragen (W)",
         "rest_s": "Rusttijd na een boost (s)",
+        "min_session_s": "Minimale SG-aanvraagduur (s)",
         "max_session_s": "Maximale boostsessie (s)",
         "lease_s": "Lokale toestemming geldig voor (s)",
         "renew_s": "Toestemming vernieuwen om de (s)",
@@ -1054,12 +1055,13 @@
       },
       "data_description": {
         "start_delay_s": "De gezamenlijke zonnebijdrage en alle startvoorwaarden moeten gedurende de ingestelde vertraging geldig blijven vóór een nieuwe SG-aanvraag, standaard 120 seconden.",
-        "stop_delay_s": "Netafname boven de afzonderlijke kleine-importbuffer moet standaard 60 seconden aanhouden vóór de extra SG-aanvraag wordt vrijgegeven.",
+        "stop_delay_s": "Netafname boven de afzonderlijke kleine-importbuffer moet standaard 60 seconden aanhouden voordat gewone tekortvrijgave mogelijk is.",
         "hysteresis_w": "Toegestane kleine tijdelijke netafname vóór de gewone stopvertraging op de SG-aanvraag begint, standaard 300 W.",
         "rest_s": "Na een boost volgt standaard 900 seconden rust.",
+        "min_session_s": "Minimale SG-aanvraagduur, standaard 1200 seconden of twintig minuten.",
         "max_session_s": "Een SG-aanvraag duurt maximaal 3600 seconden per sessie.",
         "lease_s": "Korte lokaal aflopende toestemming, standaard 300 seconden.",
-        "renew_s": "Vernieuw de lokale toestemming standaard iedere 60 seconden zolang SG toegestaan blijft.",
+        "renew_s": "Vernieuw de lokale toestemming standaard iedere 60 seconden zolang SG veilig toegestaan blijft.",
         "ack_timeout_s": "Korte begrensde wachttijd voor fysieke relaisterugmelding, standaard 20 seconden.",
         "stale_s": "Maximale ouderdom van benodigde metingen, standaard 120 seconden."
       }
@@ -3987,9 +3989,9 @@
     },
     "sg_advanced.stop_delay_s": {
       "title": "Wachttijd bij onvoldoende overschot (s)",
-      "short": "Netafname boven de afzonderlijke kleine-importbuffer moet standaard 60 seconden aanhouden vóór de extra SG-aanvraag wordt vrijgegeven.",
+      "short": "Netafname boven de afzonderlijke kleine-importbuffer moet standaard 60 seconden aanhouden voordat gewone tekortvrijgave mogelijk is.",
       "paragraphs": [
-        "Netafname boven de afzonderlijke kleine-importbuffer moet standaard 60 seconden aanhouden vóór de extra SG-aanvraag wordt vrijgegeven. Dit voorkomt relaisgeklapper bij wolken. Harde limieten en onbetrouwbare invoer wachten niet op deze termijn; tijdens de tekortcontrole wordt de lease niet verlengd.",
+        "Netafname boven de afzonderlijke kleine-importbuffer moet standaard 60 seconden aanhouden voordat gewone tekortvrijgave mogelijk is. Vanaf beta.72 wacht die zachte vrijgave bovendien op het effectieve minimum, standaard twintig minuten. Tijdens uitsluitend die minimumwacht kan de korte lease veilig worden vernieuwd; harde limieten, onbetrouwbare noodzakelijke bronnen, handmatige overname, geverifieerde native voltooiing en het sessiemaximum blijven direct leidend. Dit is alleen de SG-aanvraag, geen compressorlooptijd.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -4012,11 +4014,20 @@
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
+    "sg_advanced.min_session_s": {
+      "title": "Minimale SG-aanvraagduur (s)",
+      "short": "Minimale SG-aanvraagduur, standaard 1200 seconden of twintig minuten.",
+      "paragraphs": [
+        "Minimale SG-aanvraagduur, standaard 1200 seconden of twintig minuten. Aanhoudende gewone netafname geeft de aanvraag pas na dit effectieve minimum vrij. Harde guards, onbetrouwbare noodzakelijke bronnen, handmatige overname, geverifieerde native voltooiing en de maximale sessieduur kunnen eerder beëindigen. Alleen de SG-aanvraag wordt beschermd; Panasonic bepaalt de compressorlooptijd. Bereik 0–14400 seconden, stap 60; nul schakelt dit minimum uit. Een expliciete bestaande waarde blijft behouden. Het minimum begint na bevestigde contact-AAN en is hoogstens de nog beschikbare harde maximumtijd. De gewone tekortvertraging loopt intussen door, dus geen verplichte extra stopvertraging na het minimum; de korte lokale lease blijft afzonderlijk.",
+        "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
     "sg_advanced.max_session_s": {
       "title": "Maximale boostsessie (s)",
       "short": "Een SG-aanvraag duurt maximaal 3600 seconden per sessie.",
       "paragraphs": [
-        "Een SG-aanvraag duurt maximaal 3600 seconden per sessie. Bij afloop wordt alleen het contact vrijgegeven; Panasonic kan een eigen cyclus laten doorlopen. Voor tapwater-only kan na rust dezelfde tankbron een nieuwe beoordeling toestaan bij minstens 2 °C afkoeling ten opzichte van haar verse eindmeting, bevestigd door minimaal twee latere echte rapporten gedurende vijf minuten. Dit toont nieuwe opslagruimte, geen comfortvraag of bewezen eerdere SG-reactie. Daarna gelden de volledige startvertraging en alle actuele grenzen opnieuw. Herstart vraagt een nieuwe vijfminutenbevestiging met echte nieuwe rapporten. Bij algemene SG is tankafkoeling geen universele voorwaarde: beschikbare native context en een betekenisvolle nieuwe aanleiding bepalen herbeoordeling. De sessielimiet en onbekende opname betekenen geen bewezen volle tank. Geen eindeloze herstartlus; herstart of rusttijd alleen is geen nieuw bewijs.",
+        "Een SG-aanvraag duurt maximaal 3600 seconden per sessie. Dit harde maximum gaat vóór de minimale aanvraagduur; een bestaand korter maximum wordt niet verhoogd. Het effectieve minimum is hoogstens de bij bevestigde contact-AAN nog beschikbare harde maximumtijd, zichtbaar in Details. Bij afloop wordt alleen het contact vrijgegeven; Panasonic kan een eigen cyclus laten doorlopen. De behouden profielregels, rust, nieuwe aanleiding, volledige startvertraging en alle actuele guards blijven nodig voor een volgende aanvraag. Een sessielimiet of onbekende opname bewijst geen volle tank, en herstart of rusttijd alleen is geen nieuw bewijs.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -4025,16 +4036,16 @@
       "title": "Lokale toestemming geldig voor (s)",
       "short": "Korte lokaal aflopende toestemming, standaard 300 seconden.",
       "paragraphs": [
-        "Korte lokaal aflopende toestemming, standaard 300 seconden. Zonder tijdige vernieuwing opent het contact ook wanneer Home Assistant uitvalt. Dit is afzonderlijk van de langere boostsessie.",
+        "Korte lokaal aflopende toestemming, standaard 300 seconden. Zonder tijdige vernieuwing opent het contact ook wanneer Home Assistant uitvalt. Zij blijft apart van de minimale en maximale SG-aanvraagduur: geen lokale twintigminutentimer. Een minimumduur schept geen recht om bron-, koel-, net-, fase-, prioriteits- of communicatieguards te negeren. Bij een kort hard sessiemaximum houdt de lokale toestemming ook vóór de eerste AAN ruimte voor bevestiging; zij kan daardoor conservatief eerder aflopen. De absolute maximumgrens wordt vóór eerste AAN en vernieuwing opnieuw gecontroleerd na opslag- en netwerkvoorcontrole.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
     "sg_advanced.renew_s": {
       "title": "Toestemming vernieuwen om de (s)",
-      "short": "Vernieuw de lokale toestemming standaard iedere 60 seconden zolang SG toegestaan blijft.",
+      "short": "Vernieuw de lokale toestemming standaard iedere 60 seconden zolang SG veilig toegestaan blijft.",
       "paragraphs": [
-        "Vernieuw de lokale toestemming standaard iedere 60 seconden zolang SG toegestaan blijft. Verlengen moet de lokale timer vernieuwen zonder de fysieke uitgang UIT/AAN te schakelen.",
+        "Vernieuw de lokale toestemming standaard iedere 60 seconden zolang SG veilig toegestaan blijft. Tijdens uitsluitend de minimumwacht op zachte tekortvrijgave kan dit doorgaan. Verlengen vernieuwt de korte lokale timer zonder fysieke UIT/AAN-cyclus; harde guards en het sessiemaximum blijven leidend.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]

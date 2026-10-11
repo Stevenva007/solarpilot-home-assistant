@@ -59,6 +59,7 @@ class SGBoostManager:
         self._stable_since = None
         self._import_since = None
         self._session_started = None
+        self._minimum_started = None
         self._session_finishing = False
         self._rest_until = 0.0
         self._rest_until_wall = None
@@ -273,6 +274,34 @@ class SGBoostManager:
         self.owned = False
         self._possibly_owned = False
         self._stable_since = None
+        self._minimum_started = None
+
+    def _effective_minimum_s(self):
+        configured = finite(self.settings.get("min_session_s"))
+        maximum = finite(self.settings.get("max_session_s"))
+        if configured is None or maximum is None:
+            return 0.0
+        # The minimum starts at confirmed ON; the hard ceiling conservatively
+        # remains anchored before the asynchronous write/readback.
+        confirmation_delay = (max(0.0, self._minimum_started - self._session_started)
+                              if self._minimum_started is not None and self._session_started is not None else 0.0)
+        return max(0.0, min(configured, maximum - confirmation_delay))
+
+    def _confirmed_request_current(self):
+        stamp = finite(self._relay_observed_at)
+        relay_deadline = finite(self._relay_valid_until)
+        return (self.owned and self.desired_on and self.relay_confirmed and self.relay_on is True
+                and self._session_started is not None and self._lease_deadline is not None
+                and self._clock() < self._lease_deadline and stamp is not None
+                and relay_deadline is not None and self._wall_clock() < relay_deadline
+                and -5 <= self._wall_clock() - stamp <= float(self.settings["stale_s"]))
+
+    @property
+    def minimum_hold_active(self):
+        """Only a live confirmed request can postpone the soft import stop."""
+        return bool(self._minimum_started is not None and self._confirmed_request_current()
+                    and self._on_permission_current(self._generation)
+                    and self._clock() - self._minimum_started < self._effective_minimum_s())
 
     def _transport(self):
         if self._adapter is None:
@@ -459,7 +488,8 @@ class SGBoostManager:
 
     def _on_authorized(self, generation, renewal):
         """Recheck authority after async work and at the transport boundary."""
-        if not self._on_permission_current(generation):
+        if (not self._on_permission_current(generation)
+                or renewal and not self._confirmed_request_current()):
             return False
         gate = getattr(self.runtime, "sg_dispatch_allowed", None)
         if not callable(gate):
@@ -475,10 +505,13 @@ class SGBoostManager:
         return approved is True
 
     async def _issue_on(self, *, renewal=False):
-        # Renewal preflight can consume the entire bounded ACK interval. Leave
-        # that time within the session limit so a crash never extends SG beyond
-        # the admitted maximum, even with a short configured session.
-        lease_s = min(float(self.settings["lease_s"]), float(self.settings["max_session_s"]))
+        if renewal and not self._confirmed_request_current():
+            return False
+        # A physical write may arrive late within the bounded ACK interval.
+        # Reserve that delivery time on the initial lease as well as renewals,
+        # so the local fallback never extends a short hard session ceiling.
+        lease_s = min(float(self.settings["lease_s"]),
+                      float(self.settings["max_session_s"]) - float(self.settings["ack_timeout_s"]))
         if renewal:
             elapsed = self._clock() - self._session_started if self._session_started is not None else float(self.settings["max_session_s"])
             remaining = float(self.settings["max_session_s"]) - elapsed - float(self.settings["ack_timeout_s"])
@@ -504,12 +537,20 @@ class SGBoostManager:
         adapter = None
         callback = None
         supports_callback = False
+        write_guard_deadline = None
 
         def before_on():
             nonlocal issued_at
             if not self._on_authorized(generation, renewal):
                 return False
-            issued_at = self._clock()
+            final_now = self._clock()
+            remaining_ack = max(0.0, write_guard_deadline - final_now)
+            hard_deadline = ((self._session_started if renewal else final_now)
+                             + float(self.settings["max_session_s"]))
+            if (final_now >= write_guard_deadline
+                    or final_now + lease_s + remaining_ack > hard_deadline):
+                return False
+            issued_at = final_now
             if not renewal:
                 self._command_clock()
             return True
@@ -528,6 +569,19 @@ class SGBoostManager:
                     await self._save()
                 return False
             adapter = self._transport()
+            # Ownership storage is outside the bounded transport ACK timeout.
+            # Recompute after it, then retain an absolute check in before_on
+            # so neither slow storage nor transport preflight extends the cap.
+            write_guard_deadline = self._clock() + float(self.settings["ack_timeout_s"])
+            if renewal:
+                lease_s = int(min(lease_s, self._session_started + float(self.settings["max_session_s"])
+                                 - write_guard_deadline))
+                if (lease_s < 60 or self._lease_deadline is not None
+                        and self._lease_deadline >= self._clock() + lease_s):
+                    self._possibly_owned = False
+                    self._session_finishing = True
+                    await self._save()
+                    return False
             supports_callback = hasattr(adapter, "before_on")
             callback = before_on
             adapter.before_on = callback
@@ -598,6 +652,7 @@ class SGBoostManager:
                 if native is not None else None)
             self._tank_source_changed = False
             self._session_started = issued_at
+            self._minimum_started = self._clock()
             self._session_finishing = (self._lease_deadline is not None and
                 self._lease_deadline >= issued_at + float(self.settings["max_session_s"]) - float(self.settings["ack_timeout_s"]))
             self._stable_since = self._import_since = None
@@ -610,6 +665,9 @@ class SGBoostManager:
         return True
 
     def _active_reason(self):
+        if self._import_since is not None and self.minimum_hold_active:
+            remaining = math.ceil(max(0.0, self._effective_minimum_s() - (self._clock() - self._minimum_started)))
+            return f"Minimumduur SG-aanvraag nog {remaining} s; tijdelijke netafname binnen veiligheidsgrenzen"
         if self.panasonic_confirmed is True:
             return "SG-contact actief; Panasonic meldt de extra SG-aanvraag"
         return "SG-contact actief; Panasonic-reactie niet afzonderlijk bevestigd"
@@ -689,6 +747,7 @@ class SGBoostManager:
                                   "duration_s": max(0, self._clock() - self._session_started)}
             self._note("SG-aanvraag beëindigd: " + reason + self._observation_summary())
         self._session_started = None
+        self._minimum_started = None
         self._session_finishing = False
         self._last_renewed = None
         if not self.fault:
@@ -716,6 +775,7 @@ class SGBoostManager:
             self.desired_on = False
             self._lease_expiry = self._lease_deadline = None
             self._session_started = self._last_renewed = None
+            self._minimum_started = None
             self._begin_rest()
             self._stable_since = self._import_since = None
             if expired or releasing:
@@ -729,6 +789,7 @@ class SGBoostManager:
             expiry = self._expiry(raw)
             if expiry is not None and self._lease_expiry is not None and expiry > self._lease_expiry + 2:
                 self.owned = self._possibly_owned = self.desired_on = False
+                self._minimum_started = None
                 self.manual_hold = True
                 self._set_state("blocked", "SG-contact buiten SolarPilot gewijzigd; handmatige stand blijft behouden")
             elif self._lease_deadline is not None and now > self._lease_deadline + 2:
@@ -1091,18 +1152,21 @@ class SGBoostManager:
                 if imported > float(self.settings["hysteresis_w"]):
                     if self._import_since is None:
                         self._import_since = now
-                    if now - self._import_since >= float(self.settings["stop_delay_s"]):
+                    if (now - self._import_since >= float(self.settings["stop_delay_s"])
+                            and not self.minimum_hold_active):
                         self._generation += 1
                         await self._release("Aanhoudende netafname; extra SG-aanvraag vrijgegeven")
                         return self.sent_this_tick
-                    self._set_state("boost_requested", "Tijdelijke netafname; SG stopt als deze aanhoudt")
+                    self._set_state("boost_requested", self._active_reason() if self.minimum_hold_active
+                                    else "Tijdelijke netafname; SG stopt als deze aanhoudt")
                 else:
                     self._import_since = None
                     self._set_state("boost_requested", self._active_reason())
                 if self._last_renewed is not None and now - self._last_renewed >= float(self.settings["renew_s"]):
-                    # While import is waiting to stop, the current local lease
-                    # remains sufficient; do not extend unwanted consumption.
-                    if self._import_since is None:
+                    # A live minimum may bridge soft import by renewing only
+                    # the same bounded local request; all dispatch guards stay
+                    # authoritative. After it, do not extend pending import.
+                    if self._import_since is None or self.minimum_hold_active:
                         await self._issue_on(renewal=True)
                 return self.sent_this_tick
             if now < self._rest_until:
@@ -1278,6 +1342,7 @@ class SGBoostManager:
 
     def overview(self):
         now = self._clock()
+        wall = self._wall_clock()
         monitor = getattr(self.runtime, "panasonic", None)
         source = monitor.overview() if monitor is not None and callable(getattr(monitor, "overview", None)) else {}
         source = source if isinstance(source, dict) else {}
@@ -1286,8 +1351,18 @@ class SGBoostManager:
         resume_entity = entity_id("button", "sg_boost_resume") if callable(entity_id) else ""
         session_remaining = (max(0.0, float(self.settings["max_session_s"]) - (now - self._session_started))
                              if self._session_started is not None else 0.0)
+        minimum_current = (self._minimum_started is not None and self._confirmed_request_current()
+                           and self._on_permission_current(self._generation))
+        configured_minimum = finite(self.settings.get("min_session_s"))
+        effective_minimum = self._effective_minimum_s()
+        minimum_remaining = (math.ceil(max(0.0, effective_minimum - (now - self._minimum_started)))
+                             if minimum_current else None)
+        minimum_valid_until = (min(self._relay_observed_at + float(self.settings["stale_s"]),
+                                   self._relay_valid_until,
+                                   wall + max(0.0, self._lease_deadline - now), wall + session_remaining)
+                               if minimum_current else None)
         return {**self._wait_progress(now), "configured": self.configured, "enabled": self.auto_enabled,
-                "observed_at": self._wall_clock(),
+                "observed_at": wall,
                 "commissioning_confirmed": self.settings.get("commissioning_confirmed") is True,
                 "watchdog_confirmed": self.settings.get("watchdog_confirmed") is True,
                 "profile": self.settings.get("profile", "dhw_only"),
@@ -1307,6 +1382,11 @@ class SGBoostManager:
                 "relay_stale_s": self.settings["stale_s"],
                 "remaining_s": int(session_remaining), "rest_remaining_s": int(max(0.0, self._rest_until - now)),
                 "lease_remaining_s": int(max(0.0, (self._lease_deadline or now) - now)),
+                "min_session_s": configured_minimum, "effective_min_session_s": effective_minimum,
+                "minimum_limited_by_max": configured_minimum is not None and effective_minimum < configured_minimum,
+                "minimum_remaining_s": minimum_remaining, "minimum_active": self.minimum_hold_active,
+                "minimum_import_hold": self._import_since is not None and self.minimum_hold_active,
+                "minimum_valid_until": minimum_valid_until,
                 "manual_hold": self.manual_hold, "completion_hold": self.completion_hold,
                 "fault": self.fault, "fault_code": self.fault_code, "action_required": self.action_required,
                 "blocked_reasons": list(self._blocked_reasons), "last_session": deepcopy(self._last_session),
