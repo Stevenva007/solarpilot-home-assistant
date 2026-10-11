@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.72 — minimale SG-aanvraagduur van twintig minuten
+
+- Voegt `min_session_s` toe, standaard 1200 s vanaf bevestigde contact-AAN. Gewone aanhoudende netafname stelt vrijgave uit tot dit effectieve minimum; de bestaande tekortvertraging loopt intussen door, zonder verplichte extra 60 s daarna.
+- Vernieuwt tijdens uitsluitend deze minimumwacht de korte lokaal aflopende toestemming veilig zonder UIT/AAN-cyclus. Geen lokale twintigminutentimer, minimumreset door vernieuwing of nieuwe minimum-/AAN-toestemming bij reload.
+- Behoudt alle vroege harde bron-/elektrische-/batterij-/koel-/prioriteits- en transportvrijgaven, handmatige overname, Pauze, geverifieerde native voltooiing, bevestigd geen extra opname en het harde maximum. Het effectieve minimum is hoogstens de na bevestigde AAN resterende maximumtijd; een eerder korter maximum wordt niet verhoogd.
+- Alleen een ontbrekende nieuwe optie krijgt de standaard. Expliciete minimumwaarden inclusief nul, alle overige instellingen, Panasonic-native percentages/koelwaarden, één SG-uitgang, apparaten, modellen, tickets en geschiedenis blijven behouden. De minimumduur betreft geen compressorlooptijd.
+- Bouwbasis: gepubliceerde beta.71 `03ff51bfbe710eb9d20e40834b703fc68febf85e`, alle vijf CI-gates plus publicatie en vier teruggedownloade assets gecontroleerd. Actueel software-/publicatiebewijs: `docs/TESTRESULTATEN_BETA72.md`; installatie/behoud/rollback naar beta.71: `docs/BETA72_INSTELLEN.md`.
+
 ## 1.0.0-beta.71 — afzonderlijke SG-wachtfasen en juist historiekvenster
 
 - Toont de bestaande 300 seconden bevestiging van een nieuwe SG-zonneperiode of native aanleiding apart van de ingestelde startvertraging. Details benoemen bewijsfase, rapporten en actualiteit. Een verlopen bevestigingsteller blijft wachten op het passende nieuwe eindrapport; nul startvertraging wacht op de bestaande actuele beoordeling. Renderen geeft geen starttoestemming.

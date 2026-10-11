@@ -14,10 +14,12 @@ def test_shipped_catalog_only_contains_release_bound_generic_proposals():
     assert set(implementations.IMPLEMENTED_PROPOSALS) == {
         "sp.hp.task-presentation.v1", "sp.hp.context-and-learning.v1",
         "sp.meters.source-quality-evidence.v1", "sp.electrical.budget-versus-limits.v1",
-        "sp.sg.reassessment-progress.v1", "sp.hp.history-export-window.v1"}
+        "sp.sg.reassessment-progress.v1", "sp.hp.history-export-window.v1",
+        "sp.sg.minimum-request-duration.v1"}
     for identifier, row in implementations.IMPLEMENTED_PROPOSALS.items():
         assert set(row) == {"introduced_release", "title", "proposal_sha256"}
-        assert row["introduced_release"] == ("1.0.0-beta.71" if identifier in {
+        assert row["introduced_release"] == ("1.0.0-beta.72" if identifier ==
+            "sp.sg.minimum-request-duration.v1" else "1.0.0-beta.71" if identifier in {
             "sp.sg.reassessment-progress.v1", "sp.hp.history-export-window.v1"} else "1.0.0-beta.69")
         assert len(row["proposal_sha256"]) == 64
     report = proposal()
@@ -128,3 +130,14 @@ def test_repeated_ids_with_different_text_keep_their_original_recommendation_ass
     assert [item["recommendation_index"] for item in result] == [1, 2]
     assert [item["status"] for item in result] == ["implemented", "pending"]
     assert result[1]["reason"] == "proposal_content_changed"
+
+
+@pytest.mark.parametrize("installed,status", [("1.0.0-beta.71", "pending"), ("1.0.0-beta.72", "implemented")])
+def test_beta72_minimum_proposal_binds_exact_duration_authority_and_release(installed, status):
+    row = {'category': 'logic_update', 'proposal_id': 'sp.sg.minimum-request-duration.v1', 'text': 'Voeg een instelbare minimale SG-aanvraagduur toe met twintig minuten als standaard. Meet die duur vanaf een bevestigde nieuwe SG-aanvraag; vernieuwen begint geen nieuwe minimumduur en herstarten hervat geen aanvraag. Stel alleen de zachte stop wegens aanhoudende netafname uit, met veilige vernieuwing van de korte lokale aflooptimer zolang de aanvraag aantoonbaar geldig is. Na de minimumduur blijft de gewone importstop gelden. Handmatig stoppen, pauzeren, onbetrouwbare metingen, elektrische grenzen, voorrang, native voltooiing en fouten houden direct voorrang; de bestaande maximale sessieduur begrenst ook een langer minimum. Toon de ingestelde en effectieve duur en actuele resterende tijd. Panasonic behoudt zijn eigen compressorregeling en instellingen; dit garandeert geen compressorlooptijd of levensduurwinst.'}
+    before = deepcopy(row)
+    result = implementations.logic_update_status([row], installed)[0]
+    assert result["status"] == status and result["introduced_release"] == "1.0.0-beta.72"
+    assert row == before
+    changed = {**row, "text": row["text"].replace("twintig minuten", "onbegrensde duur")}
+    assert implementations.logic_update_status([changed], "1.0.0-beta.72")[0]["status"] == "pending"

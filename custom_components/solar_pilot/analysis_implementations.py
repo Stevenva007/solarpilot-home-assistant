@@ -31,7 +31,10 @@ IMPLEMENTED_PROPOSALS = {'sp.hp.task-presentation.v1': {'proposal_sha256': '4c47
                                     'title': 'Actuele SG-bevestiging en startvertraging zichtbaar'},
  'sp.hp.history-export-window.v1': {'proposal_sha256': '05a6a9c7ce72df91e83244a2a8c63881cc3d596d3a7fc142ec30e15b4c35587c',
                                     'introduced_release': '1.0.0-beta.71',
-                                    'title': 'Bewaartermijn en overlappende exportdagen scheiden'}}
+                                    'title': 'Bewaartermijn en overlappende exportdagen scheiden'},
+ 'sp.sg.minimum-request-duration.v1': {'proposal_sha256': 'c4e8f9335b405eb89a6ca2df2a7b38765a88d03fd496f9adaeaff7ceecf1be9a',
+                                     'introduced_release': '1.0.0-beta.72',
+                                     'title': 'Minimale SG-aanvraagduur van twintig minuten'}}
 _PART = r"(?:0|[1-9][0-9]*)"
 _RELEASE = re.compile(rf"({_PART})\.({_PART})\.({_PART})(?:-beta\.({_PART}))?\Z")
 _PROPOSAL_ID = re.compile(r"[a-z0-9][a-z0-9._:-]{0,119}\Z")

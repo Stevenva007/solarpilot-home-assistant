@@ -1,5 +1,5 @@
-/* SolarPilot 1.0.0-beta.71. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
-const SP_CARD_VERSION = '1.0.0-beta.71';
+/* SolarPilot 1.0.0-beta.72. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+const SP_CARD_VERSION = '1.0.0-beta.72';
 const SP_DIALOG_RELEASE = SP_CARD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g,'-');
 const SP_ANALYSIS_DIALOG_TAG = `solar-pilot-analysis-dialog-${SP_DIALOG_RELEASE}`;
 const SP_QUALITY_DIALOG_TAG = `solar-pilot-learning-dialog-${SP_DIALOG_RELEASE}`;
@@ -1128,7 +1128,7 @@ class SolarPilotCard extends HTMLElement {
     if(states.received.state!=='unknown')items.push(['received','Ontvangen door Panasonic','Afzonderlijk bevestigd met een actuele ontvangen-SG-bron.']);
     const mismatch=states.request.state!=='unknown'&&states.relay.state!=='unknown'&&states.request.state!==states.relay.state;
     const warning=mismatch?states.request.state==='active'?'Zonneboost aangevraagd; het SG-contact staat nog open.':'Geen zonneboost aangevraagd; het SG-contact is nog actief.':'';
-    return `<div class="sg-status-strip" aria-label="SG-contact en beschikbare ontvangstmelding">${items.map(([key,label,title])=>`<div class="sg-stage is-${states[key].state}" data-sg-stage="${key}" title="${spEscape(title)}"><span>${spEscape(label)}</span><strong>${spEscape(states[key].label)}</strong></div>`).join('')}</div>${warning?`<p class="note sg-signal-warning"><b>${spEscape(warning)}</b></p>`:''}<p class="note sg-policy">Zonneboost: <b>${s.enabled===true?'toegelaten':s.enabled===false?'uitgeschakeld':'onbekend'}</b></p>${this._sgWaitBanner(c)}`;
+    return `<div class="sg-status-strip" aria-label="SG-contact en beschikbare ontvangstmelding">${items.map(([key,label,title])=>`<div class="sg-stage is-${states[key].state}" data-sg-stage="${key}" title="${spEscape(title)}"><span>${spEscape(label)}</span><strong>${spEscape(states[key].label)}</strong></div>`).join('')}</div>${warning?`<p class="note sg-signal-warning"><b>${spEscape(warning)}</b></p>`:''}<p class="note sg-policy">Zonneboost: <b>${s.enabled===true?'toegelaten':s.enabled===false?'uitgeschakeld':'onbekend'}</b></p>${this._sgWaitBanner(c)}${this._sgMinimumBanner(c)}`;
   }
   _sgCountdown(s,key){
     const value=s[key];
@@ -1160,9 +1160,22 @@ class SolarPilotCard extends HTMLElement {
     return null;
   }
   _sgWaitBanner(c){const wait=this._sgWaitProgress(c);return wait?`<p class="note sg-wait" data-sg-wait="${wait.phase}"><b>${spEscape(wait.title)}</b><br>${spEscape(wait.label)}</p>`:'';}
+  _sgMinimumProgress(c){
+    const s=c.sgBoost||{},number=value=>typeof value==='number'&&Number.isFinite(value)&&value>=0;
+    if(s.desired_on!==true||!number(s.min_session_s))return null;
+    const states=this._sgDisplayStates(c),required=number(s.effective_min_session_s)&&s.effective_min_session_s<=s.min_session_s?s.effective_min_session_s:null;
+    const valid=states.request.state==='active'&&states.relay.state==='active'&&s.lease_confirmed===true&&s.owner==='solarpilot'&&this._sgCountdown(s,'lease_remaining_s')>0&&number(s.minimum_valid_until)&&Date.now()/1000<s.minimum_valid_until&&required!=null&&number(s.minimum_remaining_s)&&s.minimum_remaining_s<=Math.ceil(required)&&(s.minimum_remaining_s===0||s.minimum_active===true);
+    const remaining=valid?Math.ceil(Math.max(0,s.minimum_remaining_s-Math.max(0,Date.now()/1000-s.observed_at))):null;
+    return{configured:s.min_session_s,required,remaining,limited:s.minimum_limited_by_max===true,importHold:remaining>0&&s.minimum_import_hold===true,
+      label:remaining==null?'Resterende minimumduur onbekend · wacht op actuele SG-status.':remaining===0?'Minimum verstreken · actuele regeling bepaalt het vrijgeven.':`Nog ${this._sgWaitTime(remaining)} · alleen de SG-aanvraag.`};
+  }
+  _sgMinimumBanner(c){
+    const minimum=this._sgMinimumProgress(c);if(!minimum)return '';
+    return `<p class="note sg-minimum" data-sg-minimum><b>Minimum SG-aanvraagduur${minimum.required==null?'':` · ${spEscape(this._sgWaitTime(minimum.required))}`}</b><br>${spEscape(minimum.label)}${minimum.importHold?'<br>Tijdelijke netafname: minimum SG-aanvraagduur loopt nog.':''}${minimum.limited?'<br>De bestaande maximale sessieduur begrenst het minimum.':''}<br>Na het minimum kan SG doorgaan zolang de normale voorwaarden kloppen.<br>Panasonic bepaalt zelf de compressorlooptijd; beveiligingen kunnen SG eerder vrijgeven.</p>`;
+  }
   _heatpumpDisplaySignature(c){
     const p=c.panasonic||{};
-    return JSON.stringify([this._heatpumpActivity(c),this._heatpumpPresentation(c),this._heatpumpTaskEvidence(c),this._heatpumpSupplies(c).map(row=>[row.number,row.fresh,row.state]),(c.panasonic?.power_activity?.supplies||[]).map(row=>this._freshObservation(row.observed_at,c.panasonic?.power_activity?.stale_s??120)),this._sgDisplayStates(c),this._sgWaitProgress(c),this._electricalLimits(c),[p.history?.recording,p.history?.storage_available,p.history?.revision,p.history?.recording_error],['power','supply1','supply2','compressor','context','temperature','target'].map(role=>this._panasonicSourceFresh(p,role)),(p.display_zones||p.zones||[]).map(zone=>this._freshObservation(zone.observed_at,p.source_stale_s??120)),['temperature_stamp','target_stamp','observed_at'].map(key=>this._freshObservation(p.display_tank?.[key],p.source_stale_s??120)),['lease_remaining_s','remaining_s','rest_remaining_s'].map(key=>Math.ceil((this._sgCountdown(c.sgBoost||{},key)??-1)/10))]);
+    return JSON.stringify([this._heatpumpActivity(c),this._heatpumpPresentation(c),this._heatpumpTaskEvidence(c),this._heatpumpSupplies(c).map(row=>[row.number,row.fresh,row.state]),(c.panasonic?.power_activity?.supplies||[]).map(row=>this._freshObservation(row.observed_at,c.panasonic?.power_activity?.stale_s??120)),this._sgDisplayStates(c),this._sgWaitProgress(c),this._sgMinimumProgress(c),this._electricalLimits(c),[p.history?.recording,p.history?.storage_available,p.history?.revision,p.history?.recording_error],['power','supply1','supply2','compressor','context','temperature','target'].map(role=>this._panasonicSourceFresh(p,role)),(p.display_zones||p.zones||[]).map(zone=>this._freshObservation(zone.observed_at,p.source_stale_s??120)),['temperature_stamp','target_stamp','observed_at'].map(key=>this._freshObservation(p.display_tank?.[key],p.source_stale_s??120)),['lease_remaining_s','remaining_s','rest_remaining_s'].map(key=>Math.ceil((this._sgCountdown(c.sgBoost||{},key)??-1)/10))]);
   }
   _sgConfirmation(s,p={}){
     const states=this._sgDisplayStates({sgBoost:s,panasonic:p});
@@ -1218,6 +1231,8 @@ class SolarPilotCard extends HTMLElement {
     const facts=[['Toepassingsbereik',profile],['Profiel lokaal bevestigd',s.profile_confirmed===true?'Ja':'Nee'],['Extra-koelbeveiliging',cooling],['Tanktemperatuur',spTemp(this._heatpumpTankValue(c,'temperature_c'))],['Gemeld tankdoel',spTemp(this._heatpumpTankValue(c,'target_c'))],['Startdrempel',spPower(s.start_threshold_w)],['Voorlopige vermogensraming',spPower(s.estimated_power_w)],['Resterende sessie',this._remainingTime(this._sgCountdown(s,'remaining_s'))],['Rusttijd',this._remainingTime(this._sgCountdown(s,'rest_remaining_s'))]];
     const wait=this._sgWaitProgress(c);
     facts.push(['Ingestelde startvertraging',typeof s.start_required_s==='number'&&Number.isFinite(s.start_required_s)&&s.start_required_s>=0?this._sgWaitTime(s.start_required_s):'nog niet bekend']);
+    facts.push(['Ingesteld SG-minimum',typeof s.min_session_s==='number'&&Number.isFinite(s.min_session_s)&&s.min_session_s>=0?this._sgWaitTime(s.min_session_s):'nog niet bekend'],['Effectief SG-minimum',typeof s.effective_min_session_s==='number'&&Number.isFinite(s.effective_min_session_s)&&s.effective_min_session_s>=0?this._sgWaitTime(s.effective_min_session_s):'nog niet bekend']);
+    const minimum=this._sgMinimumProgress(c);if(minimum)facts.push(['Resterende minimumduur',minimum.label]);
     if(wait)facts.push([wait.phase==='reassessment'?'Herbevestiging nieuwe SG-sessie':'Resterende startvertraging',wait.label]);
     if(wait?.phase==='reassessment')facts.push(['Vereiste herbevestiging',wait.required==null?'nog niet bekend':this._sgWaitTime(wait.required)],['Verse bronmeldingen',wait.remaining!=null&&Number.isInteger(s.reassessment_reports)&&s.reassessment_reports>0?String(s.reassessment_reports):'nog niet bekend']);
     const electrical=this._electricalLimits(c);
