@@ -34,7 +34,10 @@ IMPLEMENTED_PROPOSALS = {'sp.hp.task-presentation.v1': {'proposal_sha256': '4c47
                                     'title': 'Bewaartermijn en overlappende exportdagen scheiden'},
  'sp.sg.minimum-request-duration.v1': {'proposal_sha256': 'c4e8f9335b405eb89a6ca2df2a7b38765a88d03fd496f9adaeaff7ceecf1be9a',
                                      'introduced_release': '1.0.0-beta.72',
-                                     'title': 'Minimale SG-aanvraagduur van twintig minuten'}}
+                                     'title': 'Minimale SG-aanvraagduur van twintig minuten'},
+ 'sp.sg.cloud-import-buffer.v1': {'proposal_sha256': '9a57311e0f6eb6f376f1ef4916a78aaf624af31d955b7c8437bea1334eba8ed1',
+                                  'introduced_release': '1.0.0-beta.73',
+                                  'title': 'SG-wolkenbuffer van 600 W en vijf minuten'}}
 _PART = r"(?:0|[1-9][0-9]*)"
 _RELEASE = re.compile(rf"({_PART})\.({_PART})\.({_PART})(?:-beta\.({_PART}))?\Z")
 _PROPOSAL_ID = re.compile(r"[a-z0-9][a-z0-9._:-]{0,119}\Z")

@@ -1078,11 +1078,12 @@
       },
       "sg_advanced": {
         "title": "Zonneboost — stabiliteit en lokale terugval",
-        "description": "Minimale SG-aanvraagduur is standaard twintig minuten. Harde guards en het behouden maximum kunnen eerder vrijgeven. De korte vernieuwde lokale toestemming blijft afzonderlijk; dit is geen compressorlooptijd.",
+        "description": "Gewone netafname moet standaard continu boven 600 W blijven gedurende vijf minuten. Die tijd loopt samen met de minimale aanvraagduur van twintig minuten. De zonne-resetgrens, korte lokale timer en harde guards blijven afzonderlijk.",
         "data": {
           "start_delay_s": "Stabiel overschot vóór starten (s)",
-          "stop_delay_s": "Wachttijd bij onvoldoende overschot (s)",
-          "hysteresis_w": "Marge tussen starten en blijven aanvragen (W)",
+          "stop_delay_s": "Netafname moet continu aanhouden (s)",
+          "import_threshold_w": "Toegestane netafname vóór stopvertraging (W)",
+          "hysteresis_w": "Grens restoverschot voor een nieuwe zonneperiode (W)",
           "rest_s": "Rusttijd na een boost (s)",
           "min_session_s": "Minimale SG-aanvraagduur (s)",
           "max_session_s": "Maximale boostsessie (s)",
@@ -1093,13 +1094,14 @@
         },
         "data_description": {
           "start_delay_s": "De gezamenlijke zonnebijdrage en alle startvoorwaarden moeten gedurende de ingestelde vertraging geldig blijven vóór een nieuwe SG-aanvraag, standaard 120 seconden.",
-          "stop_delay_s": "Netafname boven de afzonderlijke kleine-importbuffer moet standaard 60 seconden aanhouden voordat gewone tekortvrijgave mogelijk is.",
-          "hysteresis_w": "Toegestane kleine tijdelijke netafname vóór de gewone stopvertraging op de SG-aanvraag begint, standaard 300 W.",
+          "stop_delay_s": "Gewone actueel gemeten netafname moet continu boven de ingestelde wolkenbuffer blijven gedurende deze tijd, standaard 300 seconden of vijf minuten.",
+          "import_threshold_w": "Wolkenbuffer voor gewone actueel gemeten netafname, standaard 600 W.",
+          "hysteresis_w": "Grens voor het bevestigen van een nieuwe zonneperiode, standaard 300 W werkelijk restoverschot.",
           "rest_s": "Na een boost volgt standaard 900 seconden rust.",
           "min_session_s": "Minimale SG-aanvraagduur, standaard 1200 seconden of twintig minuten.",
           "max_session_s": "Een SG-aanvraag duurt maximaal 3600 seconden per sessie.",
           "lease_s": "Korte lokaal aflopende toestemming, standaard 300 seconden.",
-          "renew_s": "Vernieuw de lokale toestemming standaard iedere 60 seconden zolang SG veilig toegestaan blijft.",
+          "renew_s": "Vernieuw de korte lokale toestemming standaard iedere 60 seconden zolang SG veilig toegestaan blijft.",
           "ack_timeout_s": "Korte begrensde wachttijd voor fysieke relaisterugmelding, standaard 20 seconden.",
           "stale_s": "Maximale ouderdom van benodigde metingen, standaard 120 seconden."
         }

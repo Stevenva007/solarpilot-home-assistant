@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.72",
+  "version": "1.0.0-beta.73",
   "language": "nl",
   "steps": {
     "init": {
@@ -1040,11 +1040,12 @@
     },
     "sg_advanced": {
       "title": "Zonneboost — stabiliteit en lokale terugval",
-      "description": "Minimale SG-aanvraagduur is standaard twintig minuten. Harde guards en het behouden maximum kunnen eerder vrijgeven. De korte vernieuwde lokale toestemming blijft afzonderlijk; dit is geen compressorlooptijd.",
+      "description": "Gewone netafname moet standaard continu boven 600 W blijven gedurende vijf minuten. Die tijd loopt samen met de minimale aanvraagduur van twintig minuten. De zonne-resetgrens, korte lokale timer en harde guards blijven afzonderlijk.",
       "data": {
         "start_delay_s": "Stabiel overschot vóór starten (s)",
-        "stop_delay_s": "Wachttijd bij onvoldoende overschot (s)",
-        "hysteresis_w": "Marge tussen starten en blijven aanvragen (W)",
+        "stop_delay_s": "Netafname moet continu aanhouden (s)",
+        "import_threshold_w": "Toegestane netafname vóór stopvertraging (W)",
+        "hysteresis_w": "Grens restoverschot voor een nieuwe zonneperiode (W)",
         "rest_s": "Rusttijd na een boost (s)",
         "min_session_s": "Minimale SG-aanvraagduur (s)",
         "max_session_s": "Maximale boostsessie (s)",
@@ -1055,13 +1056,14 @@
       },
       "data_description": {
         "start_delay_s": "De gezamenlijke zonnebijdrage en alle startvoorwaarden moeten gedurende de ingestelde vertraging geldig blijven vóór een nieuwe SG-aanvraag, standaard 120 seconden.",
-        "stop_delay_s": "Netafname boven de afzonderlijke kleine-importbuffer moet standaard 60 seconden aanhouden voordat gewone tekortvrijgave mogelijk is.",
-        "hysteresis_w": "Toegestane kleine tijdelijke netafname vóór de gewone stopvertraging op de SG-aanvraag begint, standaard 300 W.",
+        "stop_delay_s": "Gewone actueel gemeten netafname moet continu boven de ingestelde wolkenbuffer blijven gedurende deze tijd, standaard 300 seconden of vijf minuten.",
+        "import_threshold_w": "Wolkenbuffer voor gewone actueel gemeten netafname, standaard 600 W.",
+        "hysteresis_w": "Grens voor het bevestigen van een nieuwe zonneperiode, standaard 300 W werkelijk restoverschot.",
         "rest_s": "Na een boost volgt standaard 900 seconden rust.",
         "min_session_s": "Minimale SG-aanvraagduur, standaard 1200 seconden of twintig minuten.",
         "max_session_s": "Een SG-aanvraag duurt maximaal 3600 seconden per sessie.",
         "lease_s": "Korte lokaal aflopende toestemming, standaard 300 seconden.",
-        "renew_s": "Vernieuw de lokale toestemming standaard iedere 60 seconden zolang SG veilig toegestaan blijft.",
+        "renew_s": "Vernieuw de korte lokale toestemming standaard iedere 60 seconden zolang SG veilig toegestaan blijft.",
         "ack_timeout_s": "Korte begrensde wachttijd voor fysieke relaisterugmelding, standaard 20 seconden.",
         "stale_s": "Maximale ouderdom van benodigde metingen, standaard 120 seconden."
       }
@@ -3988,19 +3990,28 @@
       ]
     },
     "sg_advanced.stop_delay_s": {
-      "title": "Wachttijd bij onvoldoende overschot (s)",
-      "short": "Netafname boven de afzonderlijke kleine-importbuffer moet standaard 60 seconden aanhouden voordat gewone tekortvrijgave mogelijk is.",
+      "title": "Netafname moet continu aanhouden (s)",
+      "short": "Gewone actueel gemeten netafname moet continu boven de ingestelde wolkenbuffer blijven gedurende deze tijd, standaard 300 seconden of vijf minuten.",
       "paragraphs": [
-        "Netafname boven de afzonderlijke kleine-importbuffer moet standaard 60 seconden aanhouden voordat gewone tekortvrijgave mogelijk is. Vanaf beta.72 wacht die zachte vrijgave bovendien op het effectieve minimum, standaard twintig minuten. Tijdens uitsluitend die minimumwacht kan de korte lease veilig worden vernieuwd; harde limieten, onbetrouwbare noodzakelijke bronnen, handmatige overname, geverifieerde native voltooiing en het sessiemaximum blijven direct leidend. Dit is alleen de SG-aanvraag, geen compressorlooptijd.",
+        "Gewone actueel gemeten netafname moet continu boven de ingestelde wolkenbuffer blijven gedurende deze tijd, standaard 300 seconden of vijf minuten. Bij de buffer of lager wordt de lopende tekorttimer gewist. Vrijgave wacht op zowel deze volledige aaneengesloten tijd als het effectieve minimum, standaard twintig minuten. De tekorttimer loopt tijdens het minimum door: vanaf minuut 18 betekent pas minuut 23, en eerder voltooide vijf minuten kunnen bij minuut 20 al gelden. Korte lokale leases worden tijdens geldige wolkenwachttijd veilig vernieuwd, ook na het minimum. Harde guards, geverifieerde native beëindiging, handmatige overname en sessiemaximum blijven direct leidend. Alleen de SG-aanvraag, geen compressorlooptijd. De wolkentimer gebruikt de actuele P1-netmeting. Resterende schermtijd blijft begrensd door de geldigheid vanaf de oorspronkelijke P1-rapportagetijd, de bevestigde lease en het harde maximum; een schermklok maakt oude brondata niet vers.",
+        "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "sg_advanced.import_threshold_w": {
+      "title": "Toegestane netafname vóór stopvertraging (W)",
+      "short": "Wolkenbuffer voor gewone actueel gemeten netafname, standaard 600 W.",
+      "paragraphs": [
+        "Wolkenbuffer voor gewone actueel gemeten netafname, standaard 600 W. Alleen strikt hogere netafname start de aaneengesloten tekorttimer, standaard vijf minuten; bij deze grens of lager wordt de timer gewist. Het effectieve minimum van twintig minuten en de volle tekorttijd moeten beide zijn verstreken. Korte veilige leasevernieuwing blijft tijdens de wolkenwachttijd mogelijk. Dit vergroot geen fysieke capaciteit, geeft geen nulimportgarantie en verandert de aparte zonne-resetgrens niet. Een oude standaardcombinatie 300 W/60 s wordt zonder opslagwrite effectief 600 W/300 s; afwijkende oude beleidswaarden en expliciete nieuwe importwaarden blijven behouden.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
     "sg_advanced.hysteresis_w": {
-      "title": "Marge tussen starten en blijven aanvragen (W)",
-      "short": "Toegestane kleine tijdelijke netafname vóór de gewone stopvertraging op de SG-aanvraag begint, standaard 300 W.",
+      "title": "Grens restoverschot voor een nieuwe zonneperiode (W)",
+      "short": "Grens voor het bevestigen van een nieuwe zonneperiode, standaard 300 W werkelijk restoverschot.",
       "paragraphs": [
-        "Toegestane kleine tijdelijke netafname vóór de gewone stopvertraging op de SG-aanvraag begint, standaard 300 W. De oorspronkelijke startdrempel hoeft tijdens een geldige boost niet als resterende injectie aanwezig te blijven: het toegelaten zonnevermogen wordt dan gebruikt. Deze buffer is geen extra zon, geen gegarandeerd nulimport en geen ruimte voorbij een harde limiet.",
+        "Grens voor het bevestigen van een nieuwe zonneperiode, standaard 300 W werkelijk restoverschot. Een laag-zoninterval op of onder deze grens moet met echte nieuwe rapporten vijf minuten bevestigd zijn voordat teruggekeerde sterke zon opnieuw beoordeeld kan worden. Dit is uitsluitend zonne-resetbewijs, apart van de nieuwe wolkenbuffer voor netafname, standaard 600 W. Een bestaande afwijkende zonne-resetwaarde blijft behouden; geen nieuwe starttoestemming door alleen timerafloop.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -4043,9 +4054,9 @@
     },
     "sg_advanced.renew_s": {
       "title": "Toestemming vernieuwen om de (s)",
-      "short": "Vernieuw de lokale toestemming standaard iedere 60 seconden zolang SG veilig toegestaan blijft.",
+      "short": "Vernieuw de korte lokale toestemming standaard iedere 60 seconden zolang SG veilig toegestaan blijft.",
       "paragraphs": [
-        "Vernieuw de lokale toestemming standaard iedere 60 seconden zolang SG veilig toegestaan blijft. Tijdens uitsluitend de minimumwacht op zachte tekortvrijgave kan dit doorgaan. Verlengen vernieuwt de korte lokale timer zonder fysieke UIT/AAN-cyclus; harde guards en het sessiemaximum blijven leidend.",
+        "Vernieuw de korte lokale toestemming standaard iedere 60 seconden zolang SG veilig toegestaan blijft. Tijdens geldige minimum- en wolkenwachttijd kan dit doorgaan, ook wanneer het minimum al is verstreken. Verlengen vernieuwt de lokale timer zonder UIT/AAN-cyclus. Harde guards, volledige bevestigde tekortafloop en het sessiemaximum blijven leidend; de timer wordt geen vijf- of twintigminuten-garantie.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]

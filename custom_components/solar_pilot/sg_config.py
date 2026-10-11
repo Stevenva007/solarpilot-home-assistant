@@ -15,9 +15,10 @@ SG_DEFAULTS = {
     "entity_id": "", "enabled": False,
     "commissioning_confirmed": False, "watchdog_confirmed": False,
     "threshold_w": 3000.0, "expected_power_w": 3200.0,
-    "start_delay_s": 120, "stop_delay_s": 60, "rest_s": 900,
+    "start_delay_s": 120, "stop_delay_s": 300, "rest_s": 900,
     "min_session_s": 1200, "max_session_s": 3600, "lease_s": 300, "renew_s": 60,
-    "hysteresis_w": 300.0, "ack_timeout_s": 20, "stale_s": 120,
+    "hysteresis_w": 300.0, "import_threshold_w": 600.0,
+    "ack_timeout_s": 20, "stale_s": 120,
     "tank_temperature_entity": "", "tank_target_entity": "",
     "power_entity": "", "power_scope": "unconfirmed",
     "power_supply1_entity": "", "power_supply2_entity": "",
@@ -43,7 +44,8 @@ DISPLAY_ONLY_KEYS = frozenset({"power_activity_threshold_w", "power_supply_profi
                               "power_supply1_role", "power_supply2_role"})
 NUMBER_LIMITS = {
     "threshold_w": (500, 20000), "expected_power_w": (100, 30000),
-    "hysteresis_w": (0, 5000), "start_delay_s": (30, 1800),
+    "hysteresis_w": (0, 5000), "import_threshold_w": (0, 20000),
+    "start_delay_s": (30, 1800),
     "stop_delay_s": (5, 600), "rest_s": (60, 7200),
     "min_session_s": (0, 14400), "max_session_s": (300, 14400), "lease_s": (60, 600),
     "renew_s": (10, 120), "ack_timeout_s": (5, 60),
@@ -71,6 +73,20 @@ def normalize_config(raw=None):
             return [detached(item) for item in value]
         return deepcopy(value)
     config = {key: detached(raw.get(key, default)) for key, default in SG_DEFAULTS.items()}
+    # Before the import limit had its own field, hysteresis also governed
+    # ordinary grid-import release. Presence of the new field makes explicit
+    # new-policy choices stable on every later normalization. Otherwise retain
+    # custom legacy policy, upgrading only the old effective 300 W / 60 s
+    # defaults. This affects the detached runtime view, never saved options.
+    if "import_threshold_w" not in raw and ({"hysteresis_w", "stop_delay_s"} & raw.keys()):
+        old_import = raw.get("hysteresis_w", 300.0)
+        old_delay = raw.get("stop_delay_s", 60)
+        if finite(old_import) == 300.0 and finite(old_delay) == 60:
+            config["import_threshold_w"] = SG_DEFAULTS["import_threshold_w"]
+            config["stop_delay_s"] = SG_DEFAULTS["stop_delay_s"]
+        else:
+            config["import_threshold_w"] = detached(old_import)
+            config["stop_delay_s"] = detached(old_delay)
     # This is an explicit presentation model for the two configured Panasonic
     # supplies, not discovery by household entity names or meter readings.
     # Complete physical coverage and control permissions remain independent.

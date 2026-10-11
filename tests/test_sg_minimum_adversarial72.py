@@ -4,6 +4,7 @@ These cases exercise confirmed authority and the real final runtime gate.
 They do not establish a physical Panasonic or Shelly commissioning result.
 """
 from copy import deepcopy
+import time
 
 import pytest
 
@@ -15,6 +16,16 @@ from test_sg_controller62 import boosted, fixture, tick
 
 def live_dispatch(manager, *, imported=400):
     """Use actual SolarRuntime policy, independently of controller doubles."""
+    # The synthetic session clock is monotonic; these HA meter doubles report
+    # actual wall times. Align contact proof with that distinct wall clock.
+    shift = time.time() - manager._wall_clock()
+    if manager._relay_observed_at is not None:
+        manager._relay_observed_at += shift
+    if manager._relay_valid_until is not None:
+        manager._relay_valid_until += shift
+    if manager._import_observation is not None:
+        manager._import_observation["stamp"] += shift
+    manager._wall_clock = time.time
     live, hass = configured(export=0, reserve=0)
     live.sg_boost = manager
     hass.states.set("sensor.grid", imported, {"unit_of_measurement": "W"})
@@ -35,7 +46,7 @@ async def advance_import(manager, clock, target):
     "lease_deadline", "relay_deadline", "fresh_contact",
 ])
 async def test_import_exception_requires_current_owned_on_and_live_lease(missing):
-    manager, _adapter, clock, _runtime = await boosted(min_session_s=1200)
+    manager, _adapter, clock, _runtime = await boosted(min_session_s=1200, import_threshold_w=300, stop_delay_s=60)
     live, _hass = live_dispatch(manager)
     assert live.sg_dispatch_allowed(renewal=True)
     if missing == "ownership":
@@ -50,16 +61,16 @@ async def test_import_exception_requires_current_owned_on_and_live_lease(missing
     elif missing == "lease_deadline":
         manager._lease_deadline = clock()
     elif missing == "relay_deadline":
-        manager._relay_valid_until = clock()
+        manager._relay_valid_until = manager._wall_clock()
     else:
-        manager._relay_observed_at = clock() - manager.settings["stale_s"] - 1
+        manager._relay_observed_at = manager._wall_clock() - manager.settings["stale_s"] - 1
     assert not manager.minimum_hold_active
     assert not live.sg_dispatch_allowed(renewal=True)
 
 
 @pytest.mark.asyncio
 async def test_renewal_flag_never_grants_an_initial_on_during_import():
-    manager, adapter, _clock, _runtime = fixture(min_session_s=1200)
+    manager, adapter, _clock, _runtime = fixture(min_session_s=1200, import_threshold_w=300, stop_delay_s=60)
     live_dispatch(manager)
     await manager.start()
     await manager._issue_on(renewal=True)
@@ -74,7 +85,7 @@ async def test_renewal_flag_never_grants_an_initial_on_during_import():
     "pause", "restart", "runtime_fault", "pending_command", "removal",
 ])
 async def test_minimum_import_permission_never_bypasses_final_live_hard_guards(hard_guard):
-    manager, _adapter, _clock, _runtime = await boosted(min_session_s=1200)
+    manager, _adapter, _clock, _runtime = await boosted(min_session_s=1200, import_threshold_w=300, stop_delay_s=60)
     live, hass = live_dispatch(manager)
     assert manager.minimum_hold_active and live.sg_dispatch_allowed(renewal=True)
     if hard_guard == "fixed_import":
@@ -112,7 +123,7 @@ async def test_minimum_import_permission_never_bypasses_final_live_hard_guards(h
 
 @pytest.mark.asyncio
 async def test_final_transport_gate_rechecks_minimum_after_async_preflight():
-    manager, adapter, clock, _runtime = await boosted(min_session_s=1200)
+    manager, adapter, clock, _runtime = await boosted(min_session_s=1200, import_threshold_w=300, stop_delay_s=60)
     live, _hass = live_dispatch(manager)
     confirmed = clock()
     await advance_import(manager, clock, confirmed + 1199)
@@ -140,7 +151,7 @@ async def test_final_transport_gate_rechecks_minimum_after_async_preflight():
 @pytest.mark.asyncio
 async def test_minimum_begins_after_on_readback_while_maximum_keeps_write_clock():
     manager, adapter, clock, _runtime = fixture(
-        min_session_s=1200, max_session_s=3600, start_delay_s=30)
+        min_session_s=1200, import_threshold_w=300, stop_delay_s=60, max_session_s=3600, start_delay_s=30)
     original_on = adapter.set_on
     first = True
     adapter.before_on = None
@@ -178,7 +189,7 @@ async def test_minimum_begins_after_on_readback_while_maximum_keeps_write_clock(
 @pytest.mark.asyncio
 async def test_shorter_hard_session_cap_is_not_extended_by_confirmed_minimum():
     manager, adapter, clock, _runtime = fixture(
-        min_session_s=1200, max_session_s=300, lease_s=600)
+        min_session_s=1200, import_threshold_w=300, stop_delay_s=60, max_session_s=300, lease_s=600)
     await tick(manager)
     clock.advance(manager.settings["start_delay_s"])
     await tick(manager)
@@ -200,7 +211,7 @@ async def test_shorter_hard_session_cap_is_not_extended_by_confirmed_minimum():
 @pytest.mark.parametrize("receipt_delay_s", [5, 19.9])
 async def test_initial_on_receipt_delay_cannot_extend_local_lease_past_hard_maximum(receipt_delay_s):
     manager, adapter, clock, _runtime = fixture(
-        min_session_s=1200, max_session_s=300, lease_s=600)
+        min_session_s=1200, import_threshold_w=300, stop_delay_s=60, max_session_s=300, lease_s=600)
     original_on = adapter.set_on
     adapter.before_on = None
     issued = []
@@ -226,7 +237,7 @@ async def test_initial_on_receipt_delay_cannot_extend_local_lease_past_hard_maxi
 @pytest.mark.asyncio
 async def test_slow_ownership_save_cannot_move_renewed_lease_past_hard_session_limit():
     manager, adapter, clock, runtime = await boosted(
-        min_session_s=1200, max_session_s=600)
+        min_session_s=1200, import_threshold_w=300, stop_delay_s=60, max_session_s=600)
     started = manager._session_started
     for _ in range(4):
         clock.advance(60)
@@ -252,7 +263,7 @@ async def test_slow_ownership_save_cannot_move_renewed_lease_past_hard_session_l
 
 @pytest.mark.asyncio
 async def test_restart_preserves_evidence_but_never_restores_minimum_authority():
-    previous, adapter, clock, runtime = await boosted(min_session_s=1200)
+    previous, adapter, clock, runtime = await boosted(min_session_s=1200, import_threshold_w=300, stop_delay_s=60)
     saved = deepcopy(previous.snapshot())
     manager = SGBoostManager(runtime, adapter=adapter, clock=clock)
     runtime.sg_boost = manager

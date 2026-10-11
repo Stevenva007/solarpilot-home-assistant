@@ -58,6 +58,8 @@ class SGBoostManager:
         self.reason = "Automatische zonneboost staat uit"
         self._stable_since = None
         self._import_since = None
+        self._import_observation = None
+        self._import_policy = None
         self._session_started = None
         self._minimum_started = None
         self._session_finishing = False
@@ -275,6 +277,7 @@ class SGBoostManager:
         self._possibly_owned = False
         self._stable_since = None
         self._minimum_started = None
+        self._import_since = self._import_observation = self._import_policy = None
 
     def _effective_minimum_s(self):
         configured = finite(self.settings.get("min_session_s"))
@@ -302,6 +305,72 @@ class SGBoostManager:
         return bool(self._minimum_started is not None and self._confirmed_request_current()
                     and self._on_permission_current(self._generation)
                     and self._clock() - self._minimum_started < self._effective_minimum_s())
+
+    def _import_policy_current(self):
+        threshold, delay = finite(self.settings.get("import_threshold_w")), finite(self.settings.get("stop_delay_s"))
+        return (threshold, delay) if threshold is not None and delay is not None else None
+
+    def _import_source_current(self):
+        observation = self._import_observation or {}
+        stamp = finite(observation.get("stamp"))
+        return (stamp is not None and finite(observation.get("watts")) is not None
+                and -5 <= self._wall_clock() - stamp < float(self.settings["stale_s"]))
+
+    @property
+    def cloud_hold_active(self):
+        """Fresh continuous soft-import evidence can retain only an owned ON."""
+        policy = self._import_policy_current()
+        return bool(self._confirmed_request_current() and self._on_permission_current(self._generation)
+                    and policy is not None
+                    and self._import_source_current() and self._import_since is not None
+                    and self._import_policy == policy
+                    and self._import_observation["watts"] > policy[0]
+                    and self._clock() - self._import_since < policy[1])
+
+    def soft_import_renewal_allowed(self, *, grid_import_w, grid_import_stamp, grid_import_source=None):
+        """Recheck the same soft policy against a fresh real P1 after awaits.
+
+        This method never starts or refreshes a candidate. A new live import
+        reading cannot revive expired evidence or invent a completed grace.
+        """
+        imported, stamp = finite(grid_import_w), finite(grid_import_stamp)
+        policy = self._import_policy_current()
+        if (not self._confirmed_request_current() or not self._on_permission_current(self._generation)
+                or policy is None
+                or imported is None or imported < 0 or stamp is None
+                or not -5 <= self._wall_clock() - stamp < float(self.settings["stale_s"])):
+            return False
+        if imported <= policy[0]:
+            return True
+        if self.minimum_hold_active:
+            return True
+        observation = self._import_observation or {}
+        return bool(self.cloud_hold_active and stamp >= observation["stamp"]
+                    and grid_import_source == observation.get("source"))
+
+    def _observe_import(self, imported, stamp, source, now):
+        policy = self._import_policy_current()
+        if policy is None:
+            self._import_since = self._import_observation = self._import_policy = None
+            return True  # Validation supplies the direct configuration gate.
+        previous = self._import_observation
+        continuous = (self._import_source_current() and previous.get("source") == source
+                      and stamp is not None and stamp >= previous["stamp"]
+                      and self._import_policy == self._import_policy_current())
+        current = (stamp is not None
+                   and -5 <= self._wall_clock() - stamp < float(self.settings["stale_s"]))
+        if (self.owned and self.desired_on and self._import_since is not None
+                and imported > policy[0] and not continuous):
+            # A backdated/rebound/expired report is not measured recovery.
+            # Missing continuity must never purchase a fresh five-minute hold.
+            return False
+        self._import_observation = {"watts": imported, "stamp": stamp, "source": source} if current else None
+        if imported <= policy[0] or not current:
+            self._import_since = None
+        elif self._import_since is None or not continuous:
+            self._import_since = now
+        self._import_policy = policy if current else None
+        return True
 
     def _transport(self):
         if self._adapter is None:
@@ -480,6 +549,7 @@ class SGBoostManager:
                 and getattr(self.runtime, "mode", "observe") == "solar"
                 and self.settings.get("commissioning_confirmed") is True
                 and self.settings.get("watchdog_confirmed") is True
+                and not validate_config(self.settings)
                 and (self.settings.get("profile", "dhw_only") != "general"
                      or self.settings.get("profile_confirmed") is True)
                 and not self.cooling_block_reason(live=True)
@@ -714,6 +784,7 @@ class SGBoostManager:
     async def _release(self, reason, *, rest=True, preserve_fault=False, policy_hold=True):
         self.desired_on = False
         self._stable_since = self._import_since = None
+        self._import_observation = self._import_policy = None
         had_authority = self.owned or self._possibly_owned
         if (policy_hold and self.settings.get("profile") == "general"
                 and self._session_started is not None and not self.completion_hold):
@@ -1061,7 +1132,8 @@ class SGBoostManager:
     async def tick(self, *, surplus_w, data_fresh, phase_allowed, priority_allowed=True,
                    grid_import_w=0, physical_evidence=None, tank_observation=None,
                    native_observation=None, solar_stamp=None, hard_limit=False,
-                   real_surplus_w=None, electrical_reason=None, **_context):
+                   real_surplus_w=None, electrical_reason=None, grid_import_stamp=None,
+                   grid_import_source=None, **_context):
         if not self._started:
             await self.start()
         async with self._lock:
@@ -1074,6 +1146,15 @@ class SGBoostManager:
             residual = surplus if real_surplus_w is None else finite(real_surplus_w)
             data_fresh = (data_fresh is True and surplus is not None and imported is not None
                           and residual is not None and surplus >= 0 and imported >= 0 and residual >= 0)
+            import_stamp = finite(grid_import_stamp)
+            import_policy = self._import_policy_current()
+            if (data_fresh and import_policy is not None and imported > import_policy[0]
+                    and (import_stamp is None or not -5 <= self._wall_clock() - import_stamp < self.settings["stale_s"])):
+                data_fresh = False
+            if data_fresh:
+                data_fresh = self._observe_import(imported, import_stamp, grid_import_source, now)
+            else:
+                self._observe_import(0, None, None, now)
             # Already solar-fed native consumption qualifies only the start
             # threshold. A new solar episode still needs fresh residual export;
             # continuing native draw cannot create a completion-hold reset loop.
@@ -1117,6 +1198,9 @@ class SGBoostManager:
                     await self._release("SG-toepassingsbereik gewijzigd; vorige aanvraag veilig vrijgegeven")
                 self._stable_since = None
                 await self._save()
+            now = self._clock()
+            if import_stamp is not None and not -5 <= self._wall_clock() - import_stamp < self.settings["stale_s"]:
+                data_fresh = False
             gates = self._gates(data_fresh=data_fresh, phase_allowed=phase_allowed,
                                  priority_allowed=priority_allowed, hard_limit=hard_limit,
                                  electrical_reason=electrical_reason)
@@ -1149,24 +1233,26 @@ class SGBoostManager:
                 self._observe_low_uptake()
                 # Residual export need not retain the original start threshold:
                 # consuming the admitted solar energy is the intended effect.
-                if imported > float(self.settings["hysteresis_w"]):
-                    if self._import_since is None:
-                        self._import_since = now
-                    if (now - self._import_since >= float(self.settings["stop_delay_s"])
+                if imported > float(self.settings["import_threshold_w"]):
+                    # Missing original P1 evidence cannot buy a cloud buffer.
+                    if self._import_since is None and not self.minimum_hold_active:
+                        self._generation += 1
+                        await self._release("Netmeting niet actueel; extra SG-aanvraag vrijgegeven")
+                        return self.sent_this_tick
+                    if (self._import_since is not None and now - self._import_since >= float(self.settings["stop_delay_s"])
                             and not self.minimum_hold_active):
                         self._generation += 1
                         await self._release("Aanhoudende netafname; extra SG-aanvraag vrijgegeven")
                         return self.sent_this_tick
                     self._set_state("boost_requested", self._active_reason() if self.minimum_hold_active
-                                    else "Tijdelijke netafname; SG stopt als deze aanhoudt")
+                                    else "Tijdelijke netafname; wolkenbuffer voorkomt vroeg vrijgeven")
                 else:
                     self._import_since = None
                     self._set_state("boost_requested", self._active_reason())
                 if self._last_renewed is not None and now - self._last_renewed >= float(self.settings["renew_s"]):
-                    # A live minimum may bridge soft import by renewing only
-                    # the same bounded local request; all dispatch guards stay
-                    # authoritative. After it, do not extend pending import.
-                    if self._import_since is None or self.minimum_hold_active:
+                    # Minimum and cloud grace overlap; renewing the same short
+                    # local lease never restarts either timer or the hard max.
+                    if imported <= float(self.settings["import_threshold_w"]) or self.minimum_hold_active or self.cloud_hold_active:
                         await self._issue_on(renewal=True)
                 return self.sent_this_tick
             if now < self._rest_until:
@@ -1361,6 +1447,18 @@ class SGBoostManager:
                                    self._relay_valid_until,
                                    wall + max(0.0, self._lease_deadline - now), wall + session_remaining)
                                if minimum_current else None)
+        cloud_current = (self._confirmed_request_current() and self._on_permission_current(self._generation)
+                         and self._import_source_current())
+        import_policy = self._import_policy_current()
+        cloud_active = (cloud_current and self._import_since is not None
+                        and self._import_policy == import_policy
+                        and self._import_observation["watts"] > import_policy[0])
+        cloud_remaining = (math.ceil(max(0.0, float(self.settings["stop_delay_s"]) - (now - self._import_since)))
+                           if cloud_active else None)
+        cloud_valid_until = (min(self._import_observation["stamp"] + float(self.settings["stale_s"]),
+                                 self._relay_observed_at + float(self.settings["stale_s"]),
+                                 self._relay_valid_until, wall + max(0.0, self._lease_deadline - now),
+                                 wall + session_remaining) if cloud_current else None)
         return {**self._wait_progress(now), "configured": self.configured, "enabled": self.auto_enabled,
                 "observed_at": wall,
                 "commissioning_confirmed": self.settings.get("commissioning_confirmed") is True,
@@ -1387,6 +1485,10 @@ class SGBoostManager:
                 "minimum_remaining_s": minimum_remaining, "minimum_active": self.minimum_hold_active,
                 "minimum_import_hold": self._import_since is not None and self.minimum_hold_active,
                 "minimum_valid_until": minimum_valid_until,
+                "import_threshold_w": self.settings["import_threshold_w"], "stop_delay_s": self.settings["stop_delay_s"],
+                "cloud_remaining_s": cloud_remaining, "cloud_active": bool(cloud_active),
+                "cloud_import_hold": bool(cloud_active and (self.minimum_hold_active or self.cloud_hold_active)),
+                "cloud_valid_until": cloud_valid_until,
                 "manual_hold": self.manual_hold, "completion_hold": self.completion_hold,
                 "fault": self.fault, "fault_code": self.fault_code, "action_required": self.action_required,
                 "blocked_reasons": list(self._blocked_reasons), "last_session": deepcopy(self._last_session),

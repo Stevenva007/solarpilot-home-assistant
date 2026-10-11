@@ -642,6 +642,64 @@ with sync_playwright() as playwright:
         assert page.evaluate('qaCalls.length===0'), (view, 'minimum presentation must send no actuator writes')
     page.locator('solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value=overview]').click()
 
+    # beta73: a cloud buffer is separate from the twenty-minute minimum and
+    # cannot gain fresh source/lease authority from rendering a newer snapshot.
+    page.evaluate('''()=>{window.qaCloud=(extra={})=>{
+      qaMinimum();const stamp=Date.now()/1000,s=c._last.attributes.sg_boost;
+      Object.assign(s,{minimum_remaining_s:0,minimum_active:false,minimum_import_hold:false,
+        import_threshold_w:600,stop_delay_s:300,cloud_active:true,cloud_import_hold:true,
+        cloud_remaining_s:250,cloud_valid_until:stamp+120},extra);c._render();
+    };}''')
+    for view in ('overview', 'comfort', 'loads'):
+        page.locator(f'solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value={view}]').click()
+        panel = row if view == 'overview' else page.locator('solar-pilot-card >> .heatpump-sg')
+        page.evaluate('qaCloud()')
+        cloud = panel.locator('[data-sg-cloud]')
+        actual = cloud.inner_text()
+        assert 'Wolkenbuffer · 600 W / 5 min' in actual and 'Netafname boven 600 W · nog 4 min 10 s' in actual, (view, 'effective cloud policy after SG minimum', actual)
+        assert 'lopen tegelijk' in actual, (view, 'cloud buffer must not add five minutes after the minimum', actual)
+        assert 'Minimum verstreken' in panel.locator('[data-sg-minimum]').inner_text(), (view, 'twenty-minute minimum remains a separate clock')
+        assert panel.locator('[data-heatpump-operation]').get_attribute('data-compressor-running') == 'false', (view, 'cloud buffer never claims native compressor runtime')
+        details_key = 'overview:sg:why' if view == 'overview' else f'sg:{view}:details'
+        details = panel.locator(f'details[data-ui-key="{details_key}"]')
+        if details.get_attribute('open') is None:
+            details.locator(':scope > summary').click()
+        for label, expected in (('Drempel netafname wolkenbuffer', '600 W'), ('Aaneengesloten bufferduur', '5 min')):
+            actual = panel.locator('.start-facts>span').filter(has_text=label).locator('b').inner_text()
+            assert actual == expected, (view, label, expected, actual)
+        for width in (320, 390, 768, 1280):
+            page.set_viewport_size({'width': width, 'height': 844 if width < 540 else 1000})
+            assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), (view, width, 'cloud buffer overflows viewport')
+            assert panel.evaluate('element=>element.scrollWidth<=element.clientWidth+1'), (view, width, 'cloud buffer overflows heatpump panel')
+        page.evaluate('qaCloud({cloud_remaining_s:1,minimum_remaining_s:480,minimum_active:true})')
+        page.evaluate('''()=>{window.qaCloudState=c._last;qaClockMs+=2000;c._refreshObservationDisplay();}''')
+        actual = cloud.inner_text()
+        assert 'Wolkenbuffer verstreken · actuele regeling bepaalt het vrijgeven' in actual, (view, 'cloud zero is not stop authority', actual)
+        assert 'Nog 7 min 58 s' in panel.locator('[data-sg-minimum]').inner_text(), (view, 'remaining minimum continues independently')
+        assert panel.locator('[data-sg-stage=relay] strong').inner_text() == 'Actief', (view, 'cloud clock cannot release the contact')
+        assert page.evaluate('c._last===qaCloudState && c._last.attributes.sg_boost.cloud_remaining_s===1 && c._last.attributes.sg_boost.desired_on===true'), (view, 'cloud clock must not mutate request state')
+        assert details.get_attribute('open') is not None, (view, 'cloud refresh preserves Details')
+        page.evaluate('qaCloud({cloud_valid_until:Date.now()/1000+2})')
+        page.evaluate('''()=>{qaClockMs+=3000;c._refreshObservationDisplay();}''')
+        actual = cloud.inner_text()
+        assert 'Resterende wolkenbuffer onbekend' in actual and 'nog 4 min' not in actual, (view, 'original grid source expiry without HA event', actual)
+        page.evaluate('qaCloud({cloud_valid_until:Date.now()/1000-1})')
+        assert 'Resterende wolkenbuffer onbekend' in cloud.inner_text(), (view, 'fresh overview cannot revive old cloud proof', cloud.inner_text())
+        page.evaluate('qaCloud({relay_valid_until:Date.now()/1000+2})')
+        page.evaluate('''()=>{qaClockMs+=3000;c._refreshObservationDisplay();}''')
+        assert 'Resterende wolkenbuffer onbekend' in cloud.inner_text(), (view, 'lease expiry invalidates cloud time', cloud.inner_text())
+        page.evaluate('qaCloud({cloud_active:false,cloud_remaining_s:null})')
+        assert 'Geen lopende importbuffer' in cloud.inner_text(), (view, 'idle cloud state requires original current sources', cloud.inner_text())
+        page.evaluate('qaCloud({cloud_active:false,cloud_remaining_s:null,cloud_valid_until:Date.now()/1000-1})')
+        assert 'Resterende wolkenbuffer onbekend' in cloud.inner_text() and 'Geen lopende importbuffer' not in cloud.inner_text(), (view, 'stale idle sources remain unknown', cloud.inner_text())
+        page.evaluate('qaCloud({import_threshold_w:450,stop_delay_s:90,cloud_remaining_s:60,hysteresis_w:900})')
+        actual = cloud.inner_text()
+        assert 'Wolkenbuffer · 450 W / 1 min 30 s' in actual and '900 W' not in actual, (view, 'custom import policy differs from solar-reset hysteresis', actual)
+        if details.get_attribute('open') is not None:
+            details.locator(':scope > summary').click()
+        assert page.evaluate('qaCalls.length===0'), (view, 'cloud presentation must send no device writes')
+    page.locator('solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value=overview]').click()
+
     # Missing supply 2 preserves the known part but never fabricates a total.
     page.evaluate("qaApply('active',false,{power_w:null,power_kind:'unknown',power_complete:false,power_supply2_w:null,power_supply2_valid:false})")
     assert 'Voeding 1: 1,72 kW · Voeding 2: onbekend' in row.inner_text()
@@ -846,4 +904,4 @@ with sync_playwright() as playwright:
     assert page.evaluate('qaCalls.length') == 0
     assert not errors, errors
     browser.close()
-print('OK: independent native/compact SG evidence, typed main OFF versus tank ON/WATER, global/unknown OFF vetoes, 3 views and 4 widths, separate theoretical/electrical/HP-solar/residual budgets, electrical expiry without HA events, reduced motion, draft/details preservation, partial/zero readings; one-click analysis/template, bounded escaped feedback, reload/removal/admin checks; zero device calls. Fiction only.')
+print('OK: independent native/compact SG evidence, typed main OFF versus tank ON/WATER, global/unknown OFF vetoes, 3 views and 4 widths, separate theoretical/electrical/HP-solar/residual budgets, electrical expiry without HA events, SG minimum and cloud-buffer clocks with original source/lease expiry and no revived authority, reduced motion, draft/details preservation, partial/zero readings; one-click analysis/template, bounded escaped feedback, reload/removal/admin checks; zero device calls. Fiction only.')
