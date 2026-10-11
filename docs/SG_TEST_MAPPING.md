@@ -282,4 +282,17 @@ Dit is contractmapping. De beta.71-uitvoeringen, aantallen, CI en pakketbewijs s
 | Echte Core-setup-/reload-/unloadproef | Onveranderbare legacy-opties behouden, nieuwe default en read-only overview zonder actuatoropdracht. |
 | Bestaande beta.71/beta.70- en consumerproeven | Wachtfasen, kalenderdag-export, eigen histories/opslag/READ-API, overige toestellen, modellen en tickets behouden. |
 
-Dit is contractmapping. Actuele beta.72-uitvoeringen, aantallen, CI en pakketbewijs staan uitsluitend in `TESTRESULTATEN_BETA72.md`. Eerdere tellingen blijven historische evidence.
+Dit is contractmapping. De beta.72-uitvoeringen, aantallen, CI en pakketbewijs staan in `TESTRESULTATEN_BETA72.md`. Eerdere tellingen blijven historische evidence.
+
+## Beta.73 — afzonderlijke netafnamebuffer en continue wolkenwachttijd
+
+| Module / proef | Hoofdafspraak |
+| --- | --- |
+| `sg_config.py`, `test_sg_import_config73.py` | Nieuwe importbuffer600 los van behouden zonne-reset300; oude standaard300/60 effectief600/300 zonder optieswrite; expliciete/custom/invalid policy blijft herkenbaar. |
+| `sg_boost.py`, `test_sg_cloud73.py` | Strikt boven grens, continue300 s, reset bij <=grens; overlap met min20; geen losse korte wolken optellen. Actuele P1-watts, rapporttijd en bron vormen één waarneming, ook na awaits; vaste net-/kwartiergrenzen houden voorrang. |
+| `test_sg_cloud_adversarial73.py` en behouden lease-/hardmaxproeven | Veilige shortlease renewal na minimum tijdens grace; source/contact/lease/max/preflight/ACK en alle harde gates blijven leidend. Bronwissel, teruglopende tijd of verlopen oorspronkelijk P1-bewijs koopt geen nieuwe buffer bij aanhoudende import. |
+| `test_sg_cloud_ui73.py`, `check_heatpump_overview65.py` | Read-only tekorttijd apart van minimum; fresh/unknown/zero geeft geen nieuw bedieningsrecht of compressorclaim. |
+| `analysis_implementations.py`, `test_sg_cloud_proposal73.py` | Alleen exact generiek voorstel plus releasegebonden digest bewijst implementatie; gewijzigd voorstel blijft open. Geen private bronidentiteit of regelopdracht in het register. |
+| Echte Core en behouden regressies | Immutable oude opties, setup/reload/unload zonder writes; SG-only authority, overige apparaten, geschiedenis/API/ACL en exportvensters behouden. |
+
+Dit is contractmapping. Actuele beta.73-uitvoeringen, aantallen, CI en pakketbewijs staan uitsluitend in `TESTRESULTATEN_BETA73.md`. Eerdere tellingen blijven historische evidence.

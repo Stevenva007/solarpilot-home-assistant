@@ -257,6 +257,9 @@ def current_sg_fixture():
         "power_supply2_entity": "sensor.synthetic_supply2", "split_power_confirmed": True,
         "compressor_frequency_entity": "sensor.synthetic_frequency",
         "sg_status_entity": "binary_sensor.synthetic_sg_received",
+        # Persisted beta.72 default pair: beta.73 upgrades only its effective
+        # import policy without changing these immutable options or bindings.
+        "hysteresis_w": 300, "stop_delay_s": 60,
     }
     journal.pop("dhw")
     journal.pop("smart_climate")
@@ -295,10 +298,20 @@ def assert_current_sg(runtime, entry, expected_options, expected_journal):
     assert "min_session_s" not in entry.options["sg_boost"]
     assert runtime.sg_boost.settings["min_session_s"] == 1200
     assert runtime.sg_boost.settings["max_session_s"] == 3600
+    assert "import_threshold_w" not in expected_options["sg_boost"]
+    assert "import_threshold_w" not in entry.options["sg_boost"]
+    assert entry.options["sg_boost"]["hysteresis_w"] == 300
+    assert entry.options["sg_boost"]["stop_delay_s"] == 60
+    assert runtime.sg_boost.settings["hysteresis_w"] == 300
+    assert runtime.sg_boost.settings["import_threshold_w"] == 600
+    assert runtime.sg_boost.settings["stop_delay_s"] == 300
     sg = runtime.sg_boost.overview()
     assert sg["effective_min_session_s"] == 1200
     assert sg["minimum_remaining_s"] is None
     assert sg["minimum_valid_until"] is None and sg["minimum_active"] is False
+    assert sg["import_threshold_w"] == 600 and sg["stop_delay_s"] == 300
+    assert sg["cloud_remaining_s"] is None and sg["cloud_active"] is False
+    assert sg["cloud_valid_until"] is None and sg["cloud_import_hold"] is False
     overview = runtime.panasonic.overview()
     assert overview["context"] == "space_heating" and overview["context_reliable"] is True
     assert overview["power_scope"] == "split" and overview["power_complete"] is True

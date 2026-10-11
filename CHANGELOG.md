@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta.73 — 600 W-wolkenbuffer gedurende vijf continue minuten
+
+- Voegt een afzonderlijke `import_threshold_w` toe, standaard 600 W. Gewone actueel gemeten netafname moet daar strikt boven blijven gedurende standaard 300 s; op of onder de grens vervalt de lopende tekorttimer.
+- Laat de tekorttijd samenvallen met minimum20: vanaf minuut 18 pas minuut 23; eerder voltooide vijf minuten kunnen bij minuut 20 al gelden. Minimumafloop zonder tekort is geen verplichte stop.
+- Vernieuwt korte lokale leases veilig tijdens geldige wolkenwachttijd, ook na het minimum, zonder relaiscyclus. Harde guards, geverifieerde native beëindiging, handmatige overname, transport/leasefouten en het behouden hardmaximum blijven vroeg vrijgeven.
+- Houdt `hysteresis_w` apart als behouden zonne-resetgrens, standaard 300 W. Zonder nieuwe importoptie wordt alleen de oude standaardcombinatie 300 W/60 s effectief 600 W/300 s; andere oude beleidscombinaties en expliciete nieuwe importwaarden blijven behouden. Runtime-normalisatie doet geen optieswrite of gegevensreset.
+- Behoudt minimum vanaf bevestigde AAN, hardmax-/ACK-/opslag-/netwerkgrenzen, alle apparaten, Panasonic-native instellingen, modellen, tickets en geschiedenis. Geen compressor- of levensduurgarantie.
+- Bouwbasis: gepubliceerde beta.72 `060249c6aa44656d8ecac119df5316e0bcb6437a`, alle vijf gates plus Publish en vier teruggedownloade assets gecontroleerd. Nieuwe software-/publicatiebewijzen: `docs/TESTRESULTATEN_BETA73.md`; installatie/behoud/rollback naar beta.72: `docs/BETA73_INSTELLEN.md`.
+
 ## 1.0.0-beta.72 — minimale SG-aanvraagduur van twintig minuten
 
 - Voegt `min_session_s` toe, standaard 1200 s vanaf bevestigde contact-AAN. Gewone aanhoudende netafname stelt vrijgave uit tot dit effectieve minimum; de bestaande tekortvertraging loopt intussen door, zonder verplichte extra 60 s daarna.

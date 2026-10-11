@@ -108,6 +108,7 @@ def fixture(*, enabled=True, mode="solar", **config):
 
 
 async def tick(manager, *, surplus=4000, imported=0, **kwargs):
+    kwargs.setdefault("grid_import_stamp", manager._wall_clock())
     return await manager.tick(surplus_w=surplus, grid_import_w=imported, data_fresh=True,
                               phase_allowed=True, **kwargs)
 
@@ -175,7 +176,7 @@ async def test_boost_consuming_export_does_not_trigger_false_stop():
 
 @pytest.mark.asyncio
 async def test_stop_import_is_delayed_and_resets_when_cloud_passes():
-    manager, adapter, clock, _ = await boosted(min_session_s=0)
+    manager, adapter, clock, _ = await boosted(min_session_s=0, import_threshold_w=300, stop_delay_s=60)
     await tick(manager, imported=1000)
     clock.advance(59)
     await tick(manager, imported=1000)

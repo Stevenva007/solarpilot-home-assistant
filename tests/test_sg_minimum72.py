@@ -42,7 +42,7 @@ async def test_default_minimum_bridges_soft_import_with_short_renewed_leases_unt
 
 @pytest.mark.asyncio
 async def test_existing_sixty_second_import_window_is_not_restarted_at_minimum_end():
-    manager, adapter, clock, _ = await boosted(min_session_s=1200)
+    manager, adapter, clock, _ = await boosted(min_session_s=1200, import_threshold_w=300, stop_delay_s=60)
     await advance(manager, clock, 1140, imported=0)
     clock.advance(50)
     await tick(manager, imported=1000)
@@ -53,7 +53,7 @@ async def test_existing_sixty_second_import_window_is_not_restarted_at_minimum_e
     assert manager.overview()["minimum_remaining_s"] == 0
     clock.advance(49)
     await tick(manager, imported=1000)
-    assert manager.owned and adapter.calls == calls  # No renewal during pending soft stop.
+    assert manager.owned and adapter.calls == calls  # The last renewal remains bounded during grace.
     clock.advance(1)
     await tick(manager, imported=1000)
     assert adapter.calls == calls + [("off", None)]
@@ -61,11 +61,11 @@ async def test_existing_sixty_second_import_window_is_not_restarted_at_minimum_e
 
 @pytest.mark.asyncio
 async def test_import_recovery_resets_continuous_stop_evidence_during_minimum():
-    manager, adapter, clock, _ = await boosted(min_session_s=180)
+    manager, adapter, clock, _ = await boosted(min_session_s=180, import_threshold_w=300, stop_delay_s=60)
     await tick(manager, imported=1000)
     await advance(manager, clock, 120)
     assert manager.owned
-    await tick(manager, imported=300)  # Exact hysteresis boundary is recovery.
+    await tick(manager, imported=300)  # Exact legacy import boundary is recovery.
     assert manager._import_since is None
     clock.advance(60)
     await tick(manager, imported=1000)
@@ -77,7 +77,7 @@ async def test_import_recovery_resets_continuous_stop_evidence_during_minimum():
 
 @pytest.mark.asyncio
 async def test_explicit_zero_keeps_original_soft_import_stop():
-    manager, adapter, clock, _ = await boosted(min_session_s=0)
+    manager, adapter, clock, _ = await boosted(min_session_s=0, import_threshold_w=300, stop_delay_s=60)
     assert not manager.minimum_hold_active
     await tick(manager, imported=1000)
     clock.advance(60)

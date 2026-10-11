@@ -1447,6 +1447,33 @@ class SolarRuntime:
                 "stable_s": g.settings["stable_s"], "stale_s": c["stale_s"],
                 "meter_note": "Laatste HA-rapport is niet noodzakelijk het fysieke meettijdstip"}
 
+    def _sg_import_observation(self):
+        """Actual signed P1 and its original report time, independent of PV/HP.
+
+        Separate import/export channels both have to be current. Source binding
+        stays internal; only the resulting proof deadline reaches the card.
+        """
+        sign = self.settings["grid_sign"]
+        entity = self.settings.get("grid_entity")
+        export_entity = self.settings.get("export_entity") if sign == "separate" else None
+        sources = (entity, export_entity) if export_entity else (entity,)
+        for source in sources:
+            obj = self.hass.states.get(source) if source else None
+            attrs = getattr(obj, "attributes", {}) or {}
+            if obj is None or any(attrs.get(key) for key in ("estimated", "is_estimated", "restored")):
+                return None
+        grid, stamp = self._power(entity, self.sg_boost.settings["stale_s"])
+        if sign == "separate":
+            export, export_stamp = self._power(export_entity, self.sg_boost.settings["stale_s"])
+            if grid is None or export is None or grid < 0 or export < 0:
+                return None
+            grid, stamp = grid - export, min(stamp, export_stamp)
+        elif grid is not None and sign == "export_positive":
+            grid = -grid
+        if grid is None:
+            return None
+        return {"watts": max(0.0, grid), "stamp": stamp, "source": (sign, entity, export_entity)}
+
     def _site_data(self):
         stamps = []
         grid, stamp = self._power(self.settings.get("grid_entity"))
@@ -2420,12 +2447,27 @@ class SolarRuntime:
                     f"> {cap_limit:.0f} W resterende kwartiergrens")
         priority_allowed = self.priority_board.sg_priority_allowed(now)
         tank = self.panasonic.overview()
+        import_observation = self._sg_import_observation() or {}
+        current_import = import_observation.get("watts")
+        # Handover/notification awaits may replace the P1 captured above. Its
+        # new watts and original report must also retain the hard ceilings.
+        if current_import is not None and current_import > self.settings["max_import_w"]:
+            hard_limit = True
+            hard_limit_reason = hard_limit_reason or (f"Netgrens overschreden: {current_import:.0f} W afname "
+                f"> {self.settings['max_import_w']:.0f} W")
+        if (current_import is not None and self.capacity_settings.get("enabled")
+                and current_import > cap_limit):
+            hard_limit = True
+            hard_limit_reason = hard_limit_reason or (f"Kwartierbudget overschreden: {current_import:.0f} W afname "
+                f"> {cap_limit:.0f} W resterende kwartiergrens")
         sg_sent = await self.sg_boost.tick(
             surplus_w=budget.get("eligible_w", budget["available_w"]),
-            real_surplus_w=budget["available_w"], data_fresh=budget["valid"],
+            real_surplus_w=budget["available_w"], data_fresh=budget["valid"] and bool(import_observation),
             phase_allowed=actual_phase_ok if self.sg_boost.busy else sg_start_allowed,
             priority_allowed=priority_allowed and sg_dispatch,
-            grid_import_w=max(0.0, grid or 0), hard_limit=hard_limit,
+            grid_import_w=import_observation.get("watts"), hard_limit=hard_limit,
+            grid_import_stamp=import_observation.get("stamp"),
+            grid_import_source=import_observation.get("source"),
             electrical_reason=hard_limit_reason or sg_reason, native_observation=tank,
             solar_stamp=budget.get("residual_stamp", budget.get("stamp")),
             tank_observation={
@@ -2745,9 +2787,13 @@ class SolarRuntime:
         projected = budget["grid_w"]+envelope
         if projected > self.settings["max_import_w"]:
             return False
-        if (renewal and budget["grid_w"] > self.sg_boost.settings["hysteresis_w"]
-                and not self.sg_boost.minimum_hold_active):
-            return False
+        if renewal:
+            import_observation = self._sg_import_observation() or {}
+            if not self.sg_boost.soft_import_renewal_allowed(
+                    grid_import_w=import_observation.get("watts"),
+                    grid_import_stamp=import_observation.get("stamp"),
+                    grid_import_source=import_observation.get("source")):
+                return False
         if self.phase_settings.get("enabled") and self.phase_settings.get("control_starts"):
             current_phase = phase_decision(tuple(self._power(self.phase_settings.get(key), self.phase_settings["stale_s"])[0]
                 for key in ("phase_1_entity", "phase_2_entity", "phase_3_entity")), self.phase_settings)

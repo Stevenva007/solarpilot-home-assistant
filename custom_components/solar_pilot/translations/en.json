@@ -695,11 +695,12 @@
       },
       "sg_advanced": {
         "title": "Solar boost — stability and local fallback",
-        "description": "Default minimum SG request duration is twenty minutes. Hard guards and the preserved session maximum can release earlier. The short renewed local permission remains separate; this is not compressor runtime.",
+        "description": "Ordinary grid import must remain continuously above 600 W for five minutes by default. This overlaps the twenty-minute minimum request duration. Solar-reset evidence, the short local timer and hard guards remain separate.",
         "data": {
           "start_delay_s": "Stable surplus before starting (s)",
-          "stop_delay_s": "Low-surplus delay (s)",
-          "hysteresis_w": "Start/hold margin (W)",
+          "stop_delay_s": "Continuous grid-import confirmation (s)",
+          "import_threshold_w": "Grid-import limit before stop delay (W)",
+          "hysteresis_w": "Residual-surplus threshold for a new solar period (W)",
           "rest_s": "Rest after a boost (s)",
           "min_session_s": "Minimum SG request duration (s)",
           "max_session_s": "Maximum boost session (s)",
@@ -709,7 +710,10 @@
           "stale_s": "Maximum measurement age (s)"
         },
         "data_description": {
-          "min_session_s": "Minimum duration of the SG request, default 1200 seconds; hard guards and the session maximum take precedence. This is not compressor runtime."
+          "min_session_s": "Minimum duration of the SG request, default 1200 seconds; hard guards and the session maximum take precedence. This is not compressor runtime.",
+          "import_threshold_w": "Ordinary grid-import cloud buffer, default 600 W; values at or below the limit reset the continuous shortage timer.",
+          "hysteresis_w": "Independent solar-reset evidence threshold, default 300 W residual surplus; this is separate from the cloud buffer.",
+          "stop_delay_s": "Grid import must stay continuously above the cloud buffer for this duration, default 300 seconds; this timer overlaps the minimum request duration."
         }
       }
     },
