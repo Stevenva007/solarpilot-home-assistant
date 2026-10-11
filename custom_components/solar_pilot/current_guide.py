@@ -3,16 +3,18 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.67'
+GUIDE_VERSION = '1.0.0-beta.68'
 GUIDE_UPDATED = '2026-10-11'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.67',
+ 'version': '1.0.0-beta.68',
  'updated': '2026-10-11',
  'intro': 'De warmtepomp staat naast de andere toestellen met een afzonderlijke taakmelding, gemeten '
           'elektrische activiteit en elektrische bijverwarming. Verse native taakmeldingen blijven '
-          'herkenbaar als Panasonic meldt; meter- en contextafleidingen krijgen hun eigen uitleg. Het '
-          'bestaande meterpaar gebruikt automatisch een zichtbaar Panasonic-voedingsprofiel, zonder nieuwe '
+          'herkenbaar als Panasonic meldt; verse actieve hoofdmeting met passende actuele gekozen '
+          'verwarmings-/koelcontext kan de taak afleiden ondanks een cloud-rustmelding. Details bewaren '
+          'de afzonderlijke bronmelding en afleiding. Het bestaande meterpaar gebruikt automatisch een '
+          'Panasonic-voedingsprofiel met uitleg in Details, zonder nieuwe '
           'invoer. Een geanimeerd symbool toont actuele elektrische activiteit, geen afzonderlijk gemeten '
           'compressorbeweging of warmteproductie. SolarPilot geeft één rustige, begrensde SG-zonneboost '
           'warmtepomp. Het lokaal bevestigde toepassingsbereik bepaalt of uitsluitend tapwater of het '
@@ -104,9 +106,14 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'De warmtepomp staat in Overzicht en Toestellen tussen de andere blokken en '
                               'heeft dezelfde actuele uitleg onder Warmtepomp. Vervallen boiler- en '
                               'klimaatregeling wordt niet meer als ontbrekende configuratie getoond. Twee '
-                              'vaste onderdelen tonen Taak van de warmtepomp en Elektrische bijverwarming; '
+                              'onderdelen tonen een vastgestelde Taak van de warmtepomp en Elektrische '
+                              'bijverwarming afzonderlijk; zonder bruikbare taak blijft het taakvak weg. '
                               'daarnaast blijven tankinformatie, beide voedingsmetingen, totaal waar '
-                              'compleet, SG-lagen, beslisreden en Details beschikbaar.',
+                              'compleet, SG-lagen, beslisreden en Details beschikbaar. De kaart houdt '
+                              'taaklabels en statusinformatie compact; uitgebreide bronuitleg, '
+                              'profielaannamen en onzekerheden staan in Details en export. De korte '
+                              'taaklabels zijn Verwarmen, Koelen, Boiler opwarmen en Ontdooien; een '
+                              'afgeleide taak krijgt de korte aanduiding Afgeleid.',
                               'De hoofdtaak gebruikt een verse passende werkelijke native taakmelding en '
                               'benoemt haar als Panasonic meldt. De exacte bestaande Aquarea-binding kan de '
                               'actuele DeviceAction HEATING (2), COOLING (3) of HEATING_WATER (4) '
@@ -120,14 +127,23 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Verse geldige meterwaarden tonen actief verbruik vanaf de standaard '
                               'weergavegrens van 200 W. Een passende verse tankroute kan alleen met verse '
                               'actieve hoofdvoeding én compleet actueel totaal sanitair water opwarmen '
-                              'afleiden, met de gebruikte bronnen als uitleg. Actieve ondersteuning met '
+                              'afleiden, met de gebruikte bronnen als uitleg. Zonder hogere actuele '
+                              'tapwater-/ontdooitaak kan dezelfde complete verse actieve hoofdmeting met '
+                              'een verse eenduidige gekozen verwarmings- of koelcontext Verwarmen of '
+                              'Koelen afleiden. Ook bij een cloudmelding idle/rust blijft die afgeleide '
+                              'taak leidend; de oorspronkelijke native melding blijft in Details/export '
+                              'staan. Een expliciete actuele UIT-melding of oude niet gespecificeerde '
+                              'inactiviteitsmelding geeft deze idle-afleiding niet. Watts of gekozen '
+                              'stand alleen, een deelmeting, verouderde of '
+                              'tegenstrijdige context geven deze functie niet. Actieve ondersteuning met '
                               'hoofdvoeding op nul of basisverbruik heet Elektrische bijverwarming actief '
                               'en geeft zelf geen warmwater- of ruimtefunctie. Alleen een gekozen '
-                              'heating-tankstand is geen werkelijk gemelde opwarmactie; de kaart noemt '
-                              'zulke informatie Tankroute of Gekozen stand wanneer zij alleen context '
+                              'heating-tankstand is geen werkelijk gemelde opwarmactie; Details tonen '
+                              'zulke informatie als tankroute of gekozen stand wanneer zij alleen context '
                               'geeft. Oude, ontbrekende of tegenstrijdige context levert geen actuele '
-                              'functieclaim. Zonder actuele taakmelding verschijnt Geen actuele '
-                              'taakmelding, zonder prominente Werking onbekend-badge.',
+                              'functieclaim. Zonder bruikbare taak toont de hoofdkaart geen taakvak; '
+                              'verse actieve meting kan wel Warmtepomp werkt tonen. Technische '
+                              'taakonzekerheid en oorspronkelijke meldingen blijven in Details/export.',
                               'Een gekozen koelprogramma met tankmogelijkheid is geen tegenstrijdige '
                               'werkelijke taakmelding: verse werkelijke tankopwarming kan naast die keuze '
                               'worden gemeld. Gelijktijdige tegenstrijdige werkelijke ruimte- en tankacties '
@@ -137,7 +153,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'gegokt en verandert geen native programma, koelvrijgave of SG-toestemming.',
                               'De elektrische bijverwarming heeft een eigen voedingswaarde en activiteit. '
                               'Het bestaande paar verschillende gebonden sensoren gebruikt automatisch het '
-                              'herkenbaar benoemde Panasonic-profiel: voeding 1 voor warmtepomp inclusief '
+                              'Panasonic-profiel met de aanname in Details: voeding 1 voor warmtepomp inclusief '
                               'regeling/pompen, voeding 2 voor elektrische bijverwarming. Dat is een '
                               'presentatie-aanname en geen gecontroleerde bedrading of afzonderlijke '
                               'heaterterugmelding. Eerder bewust gekozen afwijkende geldige rollen blijven '
@@ -317,7 +333,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Bij twee verschillende bestaande gebonden vermogenssensoren gebruikt de '
                               'weergave automatisch het Panasonic-voedingsprofiel: voeding 1 omvat de '
                               'warmtepomp, regeling en pompen; voeding 2 wordt als elektrische bijverwarming '
-                              'uitgelegd. De kaart noemt dit uitdrukkelijk een aanname. '
+                              'uitgelegd. Details benoemen dit uitdrukkelijk als aanname. '
                               'Panasonic-documentatie kent modelverschillen: elektrische ondersteuning kan '
                               'een interne backupheater en/of een externe tapwaterbooster omvatten, en bij '
                               'sommige varianten ligt backupverwarming op de eerste voeding. Het profiel '
@@ -613,8 +629,12 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'dezelfde backendtaak, metingen en SG-beslisreden, geen tweede '
                               'frontendregelaar. Taak van de warmtepomp en Elektrische bijverwarming blijven '
                               'afzonderlijk leesbaar. Een verse native taakmelding is iets anders dan '
-                              'elektrische activiteit of een gekozen stand. Zonder bruikbaar taakbewijs '
-                              'verschijnt Geen actuele taakmelding; brononzekerheid blijft in Details en '
+                              'elektrische activiteit of een gekozen stand. De compacte taakweergave kan '
+                              'actief verbruik en passende verse gekozen verwarmings-/koelcontext combineren '
+                              'bij complete meting, ook als de cloud rust meldt. De ruwe melding en '
+                              'gebruikte bronnen blijven in Details/export staan; uitgebreide '
+                              'bewijsuitleg en profielaannamen worden daar gelezen. Zonder bruikbaar taakbewijs '
+                              'blijft het taakvak weg; brononzekerheid blijft in Details en '
                               'export beschikbaar. Open details, formulieren, popup en scroll blijven bij '
                               'verversen op vaste ids bewaard.',
                               'Doorlopend blauw en een bewegend warmtepompsymbool kunnen actuele elektrische '
@@ -691,7 +711,10 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'gekozen context, ontdooimeldingen, SG-aanvraag/contact/beslisredenen, '
                               'bronkwaliteit, instellingenwijzigingen en Aquarea-versie. De bestaande '
                               'koppelingen worden automatisch gebruikt; hiervoor is geen extra entiteit of '
-                              'formulier nodig. De meetregistratie gebruikt standaard zeven dagen met '
+                              'formulier nodig. Nieuwe registraties houden de afgeleide taak, getypeerde '
+                              'gekozen context en oorspronkelijke native OFF/IDLE-melding afzonderlijk; '
+                              'ontbrekende oude gegevens worden niet achteraf aangevuld. De '
+                              'meetregistratie gebruikt standaard zeven dagen met '
                               'vijfminutenmeetpunten; bestaande instellingen en aantallimieten blijven gelden. '
                               'Een meetpunt is geen volledige registratie van iedere '
                               'korte piek of heater-/compressorwisseling. Meetgaten, gedeeltelijke dekking, '
@@ -777,11 +800,11 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'oorspronkelijke apparaatentiteiten.'],
                'bullets': []},
               {'title': '19. Migratie en veilige ingebruikname',
-               'paragraphs': ['Beta.67 behoudt de beta.63-fix voor onveranderbare en geneste Home '
+               'paragraphs': ['Beta.68 behoudt de beta.63-fix voor onveranderbare en geneste Home '
                               'Assistant-opties. Verwijder de integratie, configuratie, modellen of opslag '
                               'niet. De upgrade houdt geldige single-meterkoppelingen, bestaande overige '
                               'toestellen en privégegevens intact. Ongewijzigde geldige SG-, profiel-, '
-                              'meter- en koelbeveiligingsbevestigingen uit beta.66 blijven staan; een '
+                              'meter- en koelbeveiligingsbevestigingen uit beta.67 blijven staan; een '
                               'codeupdate vraagt daarvoor geen herbevestiging. Nieuwe profiel-, splitmeter-, '
                               'compressor- en SG-bronvelden leveren geen stilzwijgende toestemming. De '
                               'algemene SG-keuze vraagt expliciete lokale bevestiging.',
@@ -813,7 +836,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze '
                               'nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef '
                               'gebeurt alleen met expliciete toestemming en zonder elektrische metingen in '
-                              'geopende apparatuur. Gebruik de korte controle in BETA67_INSTELLEN.md.'],
+                              'geopende apparatuur. Gebruik de korte controle in BETA68_INSTELLEN.md.'],
                'bullets': []},
               {'title': '20. Installatie, verwijderen en rollback',
                'paragraphs': ['Installeer of update de Integration via HACS en herstart Home Assistant. De '
@@ -837,13 +860,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van '
                               'SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, '
                               'AEG- of Shelly-integratie.',
-                              'Rollback naar de gecontroleerde beta.66-basis vereist de bij de upgrade '
+                              'Rollback naar de gecontroleerde beta.67-basis vereist de bij de upgrade '
                               'behorende privé HA-back-up naast de code, zodat instellingen, opgeslagen '
                               'bewijslagen en modellen samen passend terugkeren. Geef eerst de SG-aanvraag '
                               'vrij en controleer lokale terugval; laat nooit twee runtimes tegelijk werken. '
                               'Voor terugkeer naar de oude directe beta.61-regeling blijft de volledige '
                               'back-up van vóór de beta.62-migratie nodig. Alleen een oudere ZIP herstelt '
-                              'gewijzigde opslag niet. Zie BETA67_INSTELLEN.md.'],
+                              'gewijzigde opslag niet. Zie BETA68_INSTELLEN.md.'],
                'bullets': []},
               {'title': '21. Release- en documentatieregel',
                'paragraphs': ['Dit is de enige volledige actuele regelbeschrijving. current_guide.py genereert '

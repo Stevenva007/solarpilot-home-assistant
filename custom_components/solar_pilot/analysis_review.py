@@ -70,7 +70,7 @@ def heatpump_record(row):
             "power": _pick(p, ("power_w", "power_complete", "power_kind", "power_scope", "power_observed_at", "source_stale_s")),
             "power_activity": _pick(p.get("power_activity"), ("state", "active", "function", "function_source", "function_kind",
                 "activity_kind", "evidence", "threshold_w", "observed_at", "context_observed_at", "complete", "total_w", "stale_s")),
-            "native_task": _pick(p.get("native_task"), ("function", "source", "observed_at", "stale_s", "conflict", "inactive")),
+            "native_task": _pick(p.get("native_task"), ("function", "source", "observed_at", "stale_s", "conflict", "inactive", "inactive_action")),
             "task_context": _pick(p.get("task_context"), ("function", "kind", "source", "observed_at", "stale_s")),
             "defrost": _pick(p.get("defrost"), ("state", "source", "observed_at", "stale_s")),
             "tank": _pick(p.get("display_tank"), ("temperature_c", "target_c", "temperature_stamp", "target_stamp", "mode", "action", "available", "observed_at")),
@@ -86,7 +86,7 @@ def heatpump_record(row):
 def discrete_heatpump_state(p, sg):
     """Meaningful changes only: receipt clocks and continuous watts are samples."""
     activity = p.get("power_activity") if isinstance(p.get("power_activity"), dict) else {}
-    return {"native_task": _pick(p.get("native_task"), ("function", "source", "conflict", "inactive")),
+    return {"native_task": _pick(p.get("native_task"), ("function", "source", "conflict", "inactive", "inactive_action")),
             "task_context": _pick(p.get("task_context"), ("function", "kind", "source")),
             "defrost": _pick(p.get("defrost"), ("state", "source")),
             "meter_activity": _pick(p.get("power_activity"), ("state", "active", "function", "function_kind", "activity_kind", "threshold_w")),
@@ -105,11 +105,15 @@ def _regime(row):
     if (defrost.get("state") == "active" and defrost.get("source") in ("aquarea_entity", "aquarea_poll")
             and _fresh(defrost.get("observed_at"), wall, defrost.get("stale_s", 120))):
         return "defrost_reported"
-    if ((task.get("conflict") is True or task.get("inactive") is True)
-            and _fresh(task.get("observed_at"), wall, task.get("stale_s", 120))):
+    task_fresh = _fresh(task.get("observed_at"), wall, task.get("stale_s", 120))
+    inactive = (task_fresh and task.get("inactive") is True
+                and task.get("source") in ("aquarea_poll", "native_hvac_action"))
+    if (task_fresh and (task.get("conflict") is True
+                       and task.get("source") in ("aquarea_entity", "aquarea_poll", "native_hvac_action", "none")
+                       or inactive and task.get("function") in FUNCTIONS)):
         return "unknown"
-    if (task.get("function") in FUNCTIONS and task.get("source") in ("aquarea_poll", "native_hvac_action")
-            and _fresh(task.get("observed_at"), wall, task.get("stale_s", 120))):
+    if (not inactive and task.get("function") in FUNCTIONS
+            and task.get("source") in ("aquarea_poll", "native_hvac_action") and task_fresh):
         return task["function"] + "_reported"
     summary = row["power"]
     metered = (summary.get("power_complete") is True and summary.get("power_kind") == "measured"
@@ -119,7 +123,32 @@ def _regime(row):
         metered = metered and all(item.get("valid") is True and _number(item.get("watts")) is not None and item["watts"] >= 0
                                  and _fresh(item.get("observed_at"), wall, summary.get("source_stale_s", 120))
                                  for item in row["supplies"])
-    if (metered and power.get("evidence") == "metered_power_and_context"
+    context = row["task_context"]
+    # A cloud IDLE report can coexist with measured activity. Preserve that
+    # report, and count a supported display interpretation as inferred only.
+    # OFF, untyped legacy idle and conflicting actions never acquire a mode.
+    routing = power.get("function_kind") in ("selected_program", "tank_route")
+    context_source_valid = (
+        power.get("function_kind") == "tank_route" and power.get("function") == "tapwater_heating"
+        and context.get("source") == "aquarea_entity"
+        or power.get("function_kind") == "selected_program"
+        and power.get("function") in ("space_heating", "space_cooling")
+        and context.get("source") in ("native_program", "native_mode"))
+    bound_context = (context_source_valid and context.get("kind") == power.get("function_kind")
+        and context.get("function") == power.get("function")
+        and context.get("source") == power.get("function_source")
+        and _fresh(context.get("observed_at"), wall, context.get("stale_s", 120))
+        and power.get("activity_kind") in ("main", "mixed")
+        and (_number(power.get("threshold_w")) or 0) > 0
+        and any(item.get("role") == "main" and item.get("valid") is True
+                and _number(item.get("watts")) is not None
+                and item["watts"] >= power["threshold_w"]
+                and _fresh(item.get("observed_at"), wall, summary.get("source_stale_s", 120))
+                for item in row["supplies"]))
+    inference_supported = (not inactive or task.get("inactive_action") == "idle"
+                           and task.get("source") == "aquarea_poll" and routing)
+    inference_supported = inference_supported and (not routing or bound_context)
+    if (metered and inference_supported and power.get("evidence") == "metered_power_and_context"
             and power.get("function") in FUNCTIONS and power.get("complete") is True and power.get("active") is True
             and _fresh(power.get("observed_at"), wall, power.get("stale_s", 120))
             and _fresh(power.get("context_observed_at"), wall, power.get("stale_s", 120))):

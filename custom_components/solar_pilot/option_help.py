@@ -938,7 +938,11 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                                           'grafische weergave; hij schakelt niets en verandert de SG-startdrempel '
                                           'niet. Kies een waarde boven het gemeten rustverbruik. Vermogen toont '
                                           'elektrische activiteit; alleen aanvullende actuele Panasonic-informatie '
-                                          'kan tapwater, ruimteverwarming of koeling onderscheiden.',
+                                          'kan tapwater, ruimteverwarming of koeling onderscheiden. Complete verse '
+                                          'actieve hoofdmeting met passende actuele gekozen verwarmings-/koelcontext '
+                                          'kan een taak afleiden ondanks een cloud-rustmelding; bronuitleg en ruwe '
+                                          'melding blijven in Details/export. Een expliciete actuele UIT-melding '
+                                          'geeft deze idle-afleiding niet. Dit verandert geen SG-vrijgave.',
  'sg_sources:power_supply1_role': 'Het bestaande meterpaar gebruikt automatisch het Panasonic-profiel: '
                                  'voeding 1 is de warmtepompvoeding inclusief regeling en pompen. Hiervoor '
                                  'hoef je niets opnieuw in te vullen. Dit is een herkenbare weergave-aanname, '

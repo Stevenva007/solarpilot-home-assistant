@@ -52,7 +52,7 @@ MACHINE_VALUE_FIELDS = {
     "state", "mode", "action", "hvac_action", "hvac_modes", "operation_mode",
     "operation_list", "preset_mode", "preset_modes", "stage", "cycle_phase",
     "command_mode", "last_command_mode", "requested_mode", "expected_mode", "device_modes",
-    "source", "source_kind", "function", "function_source", "function_kind", "role",
+    "source", "source_kind", "function", "function_source", "function_kind", "inactive_action", "role",
     "activity_kind", "supply_profile", "power_supply_profile", "module", "distribution", "integration_domain",
     "revision", "export_id", "export_sha256", "hash_scope", "record_quality", "regime",
     "integration_version", "library_version", "library_distribution", "question_id", "proposal_id",

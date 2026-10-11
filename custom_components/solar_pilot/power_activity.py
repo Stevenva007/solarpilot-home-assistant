@@ -108,7 +108,8 @@ def task_observations(config, *, tank=None, tank_entity="", tank_stamp=None, tan
         if action in _TASK_LABELS:
             tasks.append((action, used_stamp, "aquarea_poll"))
         else:
-            inactive.append(used_stamp)
+            inactive.append((action, used_stamp))
+    inactive_stamps = [row[1] for row in inactive]
     defrost = defrost or {}
     defrost_stamp = _stamp(defrost.get("observed_at"), now, stale)
     if defrost.get("state") == "active" and defrost_stamp is not None:
@@ -116,7 +117,7 @@ def task_observations(config, *, tank=None, tank_entity="", tank_stamp=None, tan
                       source="aquarea_entity", observed_at=defrost_stamp, conflict=True)
     elif len({task for task, _stamp_, _source in tasks}) > 1 or tasks and inactive:
         actual.update(label="Panasonic-taak niet eenduidig", note="Panasonic meldt meerdere of tegenstrijdige taken; de functie is niet eenduidig.",
-                      observed_at=min([row[1] for row in tasks] + inactive), conflict=True)
+                      observed_at=min([row[1] for row in tasks] + inactive_stamps), conflict=True)
     elif tasks:
         function = tasks[0][0]
         source = "aquarea_poll" if any(row[2] == "aquarea_poll" for row in tasks) else "native_hvac_action"
@@ -124,7 +125,8 @@ def task_observations(config, *, tank=None, tank_entity="", tank_stamp=None, tan
                       note="Gemelde bedrijfsactie; compressorbedrijf en warmteproductie niet afzonderlijk gemeten.",
                       source=source, observed_at=min(row[1] for row in tasks))
     elif inactive:
-        actual.update(label="Panasonic meldt rust", source="aquarea_poll", observed_at=min(inactive), inactive=True)
+        actual.update(label="Panasonic meldt rust", source="aquarea_poll", observed_at=min(inactive_stamps), inactive=True,
+                      inactive_action=inactive[0][0] if len({row[0] for row in inactive}) == 1 else "mixed")
 
     route = route_context or {}
     route_stamp = _stamp(route.get("observed_at"), now, stale)
@@ -185,21 +187,22 @@ def _task(*, tank, tank_entity, tank_stamp, tank_action, zones, native_programs,
     actual_stamp = _stamp(native_actual.get("observed_at"), now, stale)
     if actual_stamp is not None and native_actual.get("conflict"):
         return None, native_actual.get("note", "Panasonic-taak niet eenduidig."), actual_stamp
-    if actual_stamp is not None and native_actual.get("inactive"):
+    native_idle = actual_stamp is not None and native_actual.get("inactive") is True
+    if native_idle and native_actual.get("inactive_action") != "idle":
         return None, "Panasonic meldt rust; gemeten verbruik bevestigt geen afzonderlijke warmte- of koelactie.", actual_stamp
     actual_function = native_actual.get("function") if actual_stamp is not None else None
     programmes = {row.get("program") for row in native_programs if row.get("fresh") is True
                   and _stamp(row.get("observed_at"), now, stale) is not None}
     if actual_function in _TASK_LABELS:
-        if conflict:
-            return None, "Panasonic meldt meerdere of tegenstrijdige taken; de functie is niet eenduidig.", actual_stamp
+        # Actual task conflicts were resolved above. An opposite selected
+        # programme can describe the next desired task, not another action.
         note = ("Afgeleid uit gemeten verbruik en Panasonic-tankmelding." if actual_function == "tapwater_heating" else
                 "Afgeleid uit gemeten verbruik en Panasonic-bedrijfsactie." if native_actual.get("source") == "aquarea_poll" else
                 "Afgeleid uit gemeten verbruik en Panasonic-ruimteactie.")
         return actual_function, note, min(actual_stamp, tank_stamp) if tank_idle else actual_stamp
 
     route_stamp = _stamp(display_context.get("observed_at"), now, stale)
-    if (not conflict and display_context.get("kind") == "tank_route"
+    if (display_context.get("kind") == "tank_route" and display_context.get("function") == "tapwater_heating"
             and display_context.get("source") == "aquarea_entity" and route_stamp is not None
             and any(row["valid"] and row["role"] == "main" and row["state"] == "active" for row in supplies)):
         main_stamps = [row["observed_at"] for row in supplies
@@ -232,7 +235,7 @@ def _task(*, tank, tank_entity, tank_stamp, tank_action, zones, native_programs,
     # Concurrent DHW and space actions are not two independently established
     # physical tasks on the shared heat pump. Preserve the measured uptake and
     # explicitly leave its function unresolved.
-    if (conflict or heat and (cool or programme_cool or cooling_context)
+    if (heat and (cool or programme_cool or cooling_context)
             or cool and programme_heat
             or tank_heating and (heat or cool or programme_cool or cooling_context)):
         stamps = heat + cool + programme_cool + programme_heat
@@ -249,13 +252,26 @@ def _task(*, tank, tank_entity, tank_stamp, tank_action, zones, native_programs,
     if cool:
         note = "Afgeleid uit gemeten verbruik en Panasonic-bedrijfsactie." if provider_task == "space_cooling" else "Afgeleid uit gemeten verbruik en Panasonic-ruimteactie."
         return "space_cooling", note, min(cool + ([tank_stamp] if tank_idle else []))
-    # A selected native programme is useful task context only alongside a
-    # current explicit idle/off tank report and the caller's reliable context.
+    # A cloud IDLE report can lag the already active electrical uptake. A
+    # fresh, unambiguous selected space programme gives a display inference;
+    # it never replaces that raw report or supplies controller/native proof.
     selected_stamp = _stamp(display_context.get("observed_at"), now, stale)
-    selected_valid = (not zones or display_context.get("kind") == "selected_program"
-                      and display_context.get("function") == context and selected_stamp is not None)
-    if tank_idle and selected_valid and context_stamp is not None and context in ("space_heating", "space_cooling"):
-        return context, "Afgeleid uit gemeten verbruik en Panasonic-programmacontext; tank meldt rust.", min(tank_stamp, context_stamp)
+    selected_function = display_context.get("function")
+    selected_programmes = programmes & {"heating", "cooling"}
+    selected_compatible = (not selected_programmes or selected_programmes == {
+        "heating" if selected_function == "space_heating" else "cooling"})
+    main_stamps = [row["observed_at"] for row in supplies
+                   if row["valid"] and row["role"] == "main" and row["state"] == "active"]
+    if (main_stamps and display_context.get("kind") == "selected_program"
+            and display_context.get("source") in ("native_program", "native_mode")
+            and selected_function in ("space_heating", "space_cooling")
+            and selected_stamp is not None and selected_compatible):
+        note = "Afgeleid uit gemeten verbruik op het hoofdcircuit en de gekozen Panasonic-stand."
+        if native_idle:
+            note += " De native terugmelding meldt nog rust."
+        return selected_function, note, min(selected_stamp, *main_stamps)
+    if native_idle:
+        return None, "Panasonic meldt rust; gemeten verbruik bevestigt geen afzonderlijke warmte- of koelactie.", actual_stamp
     if selected_tank_heating:
         return None, "Tank staat op verwarmen; actuele tapwateropwarming niet afzonderlijk bevestigd.", tank_stamp
     return None, "", None
@@ -279,7 +295,7 @@ def power_activity(power, config, *, tank=None, tank_entity="", tank_stamp=None,
     power_stamp = _stamp(power.get("measured_wall"), now, stale)
     watts = finite(power.get("watts"))
     known = power.get("valid") is True and watts is not None and watts >= 0 and power_stamp is not None
-    complete = known and power.get("complete") is True
+    complete = known and power.get("complete") is True and all(row["valid"] for row in supplies)
     result = {"state": "unknown", "active": False, "label": "Elektrisch verbruik onbekend",
               "note": power.get("reason") or "Wacht op actuele betrouwbare vermogensmetingen.",
               "evidence": "metered_power", "threshold_w": threshold,
@@ -314,7 +330,10 @@ def power_activity(power, config, *, tank=None, tank_entity="", tank_stamp=None,
     actual, selected = task_observations(config, tank=tank, tank_entity=tank_entity, tank_stamp=tank_stamp,
         tank_action=tank_action, device_actions=device_actions, zones=zones, native_programs=native_programs,
         route_context=route_context, defrost=defrost, now_wall=now)
-    actual = native_actual if native_actual is not None else actual
+    defrost_fresh = (defrost and defrost.get("state") == "active"
+        and defrost.get("source") in ("aquarea_entity", "aquarea_poll")
+        and _stamp(defrost.get("observed_at"), now, stale) is not None)
+    actual = native_actual if native_actual is not None and not defrost_fresh else actual
     selected = display_context if display_context is not None else selected
     main_active = any(row["valid"] and row["role"] == "main" and row["state"] == "active" for row in supplies)
     heater_active = any(row["valid"] and row["role"] == "heater" and row["state"] == "active" for row in supplies)
@@ -334,8 +353,9 @@ def power_activity(power, config, *, tank=None, tank_entity="", tank_stamp=None,
         if stamp is not None:
             result["observed_at"] = min(power_stamp, stamp)
     if function:
-        source = actual.get("source") if actual.get("function") == function else selected.get("source")
-        kind = "native_action" if actual.get("function") == function else selected.get("kind")
+        actual_match = actual.get("function") == function and _stamp(actual.get("observed_at"), now, stale) is not None
+        source = actual.get("source") if actual_match else selected.get("source")
+        kind = "native_action" if actual_match else selected.get("kind")
         result.update(function=function, label=_TASK_LABELS[function],
                       function_source=source or "native_hvac_action", function_kind=kind or "selected_program")
     return result
