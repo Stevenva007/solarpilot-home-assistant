@@ -18,6 +18,7 @@ from .heatpump_learning import (
     ACTIVE_CONTEXTS, CONTEXT_NORMAL, CONTEXT_UNKNOWN, classify_heatpump_evidence,
 )
 from .const import VERSION
+from .investigation import LocalInvestigation
 
 
 def number(value):
@@ -185,16 +186,19 @@ class LearningHub:
         self.active_candidates = set()
         self.current_findings = []
         self.error = ""
+        self.investigation = LocalInvestigation(runtime)
 
     def snapshot(self):
         return {"schema": 1, "policy": dict(self.policy), "answers": deepcopy(self.answers),
                 "audit": list(self.audit), "days": deepcopy(self.days), "last_attempt": self.last_attempt,
                 "last_notification": self.last_notification, "notification_signature": self.notification_signature,
-                "active_candidates": sorted(self.active_candidates)}
+                "active_candidates": sorted(self.active_candidates),
+                "investigation": self.investigation.snapshot()}
 
     def restore(self, data):
         if not isinstance(data, dict):
             return
+        self.investigation.restore(data.get("investigation"))
         for k, allowed in (("sampling", ("metered", "quiet")), ("adaptation", ("assisted", "automatic")), ("notifications", (False, True))):
             value = data.get("policy", {}).get(k)
             if type(value) is type(allowed[0]) and value in allowed:
@@ -276,6 +280,7 @@ class LearningHub:
     def refresh(self, force=False):
         stamp = time.time()
         if not force and stamp-self.last_refresh < 60:
+            self.cached["investigation"] = self.investigation.overview(stamp)
             return self.cached
         self.last_refresh = stamp
         r = self.r
@@ -284,6 +289,10 @@ class LearningHub:
         quality = r.unified_planner.quality.overview()
         pv = r.local_pv.overview()
         native = r.panasonic.overview()
+        previous_investigation = self.investigation.snapshot()
+        investigation = self.investigation.refresh(stamp, native=native, pv=pv, quality=quality)
+        if previous_investigation != self.investigation.snapshot() and r.data_loaded:
+            r.store.async_delay_save(r._snapshot, 60)
         # Old thermal models remain private diagnosis evidence. This page has
         # no current Panasonic control model or delayed comfort command.
         archive = getattr(r, "panasonic_archive", {})
@@ -433,6 +442,7 @@ class LearningHub:
                        "reviewed_findings": reviewed, "analysis_needed": bool(findings), "analysis_action": "export_7d", "quality": quality,
                        "sampling": {"last": deepcopy(self.latest_sample), "attempts_7d": totals, "days": deepcopy(self.days)},
                        "audit": list(self.audit), "error": self.error,
+                       "investigation": investigation,
                        "contract": "Geen perfecte voorkennis van jouw huis. Modelzekerheid is geen kans op een juiste fysieke actie. Alleen expliciet gekoppelde bronnen, geen automatische camerabeelden/aanwezigheidsprofielen of cloud-AI. Bediening blijft door bestaande vrijgaven, actuele meters, prioriteiten en grenzen bepaald."}
         return self.cached
 
@@ -518,4 +528,5 @@ class LearningHub:
                 "pending_findings": self.cached.get("open_questions", 0), "analysis_needed": bool(self.cached.get("open_questions", 0)),
                 "analysis_action": "export_7d", "findings": [{key: row[key] for key in ("id", "revision", "title", "message", "answer_note") if key in row}
                     for row in self.cached.get("questions", [])[:100]],
-                "updated_at": self.cached.get("updated_at"), "adaptation": self.policy["adaptation"], "error": self.error}
+                "updated_at": self.cached.get("updated_at"), "adaptation": self.policy["adaptation"], "error": self.error,
+                "investigation": self.investigation.overview(time.time())}

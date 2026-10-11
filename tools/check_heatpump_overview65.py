@@ -858,8 +858,21 @@ with sync_playwright() as playwright:
         analyzed_at:'2026-10-10T13:00:00Z',summary:'Fictief antwoord',question_answers:[],recommendations:[],limitations:[]};
       window.qaFeedback={report:null,association:{state:'unverified',reason:'Fictief voorbeeld'},
         current_release:'1.0.0-beta.67',source_release_matches_current:true,logic_updates:[],question_review:[]};
+      const attack='<img src=x onerror="qaUnsafeExecuted=true"><script>qaUnsafeExecuted=true</script>';
+      window.qaInvestigation={schema:1,read_only:true,updated_at:Date.now()/1000,
+        notice:'Lokale analyse met gekoppelde bronnen; voorstellen blijven advies.',items:[
+          {id:'heatpump-meter',title:'Warmtepompmeting',status:'check_needed',summary:'De totaalmeting blijft onbekend.',
+            next_action:'Controleer de bestaande bron bij een bekende belasting.',evidence:['Een negatieve deelmeting.'],
+            hypotheses:['Richting of nulpunt kan afwijken; niet bewezen.'],metrics:{complete_samples:0},
+            proposals:[{id:'fictional-check',kind:'measurement_check',text:'Vergelijk de gekoppelde bron.'}]},
+          {id:'wallbox',title:'Wallbox',status:'observed_ok',summary:'Geen afwijking in deze meetpunten.'},
+          {id:'pv',title:'Zonnevoorspelling',status:'collecting',summary:'Meer vergelijkbare daglichtmetingen nodig.'},
+          {id:'dishwasher',title:'Afwasmachine',status:'not_configured',summary:'Geen eigen vermogensbron gekoppeld.'},
+          {id:'sg',title:'SG-sessies '+attack,status:'collecting',summary:attack,next_action:attack,
+            evidence:[attack],hypotheses:[attack],metrics:{fictional_note:attack},
+            proposals:[{id:'fictional-software',kind:'software_proposal',text:attack}]}]};
       const attributes=c._last.attributes;
-      attributes.learning_insights={open_questions:1,findings:[{id:'fictional-finding',revision:'fixture',
+      attributes.learning_insights={open_questions:1,investigation:qaInvestigation,findings:[{id:'fictional-finding',revision:'fixture',
         title:'Fictieve bevinding voor analyse',message:'Controleer de beschikbare meetpunten.'}]};
       c.hass={...c._hass,user:{id:'fictional-admin',is_admin:true},callWS:async message=>{
         qaWS.push(structuredClone(message));
@@ -873,8 +886,11 @@ with sync_playwright() as playwright:
           if(message.action==='remove')qaFeedback={...qaFeedback,report:null};
           return structuredClone(qaFeedback);
         }
-        if(message.type==='solar_pilot/learning'&&message.operation==='read')return {
-          questions:[{title:'Oude interactieve vraag',choices:[{id:'apply',label:'Niet tonen'}]}],models:[]};
+        if(message.type==='solar_pilot/learning'&&message.operation==='read'){
+          qaInvestigation.updated_at=Date.now()/1000;
+          return {ready:true,investigation:structuredClone(qaInvestigation),
+            questions:[{title:'Oude interactieve vraag',choices:[{id:'apply',label:'Niet tonen'}]}],models:[]};
+        }
         throw new Error('Geen andere bewerkingen in deze test');
       },fetchWithAuth:async(path,options)=>{
         qaWS.push({path,method:options.method});
@@ -898,6 +914,11 @@ with sync_playwright() as playwright:
         analysis.locator('.template').click()
     assert json.loads(Path(template_info.value.path()).read_text()) == page.evaluate('qaTemplate')
     analysis.locator('.close').click()
+    # Closing a tracked modal also settles the asynchronous browser-history
+    # transition. Wait for that transition before opening another surface.
+    page.wait_for_function('''() => {const bus=c._uiHistory.constructor.bus;
+      return !c._analysisDialog._dialog.open && !bus.pending && !bus.moving && !bus.applying;}''')
+    assert not analysis.locator('dialog').is_visible()
 
     page.locator('solar-pilot-card >> .footer [data-action=learning_hub]').click()
     quality = page.locator('solar-pilot-card >> ' + page.evaluate('c._learningDialog.localName'))
@@ -907,13 +928,64 @@ with sync_playwright() as playwright:
     assert quality.locator('[data-question],[data-policy],[data-action=answer],[data-action=policy]').count() == 0
     assert page.evaluate("qaWS.filter(x=>x.type==='solar_pilot/learning')") == [
         {'type': 'solar_pilot/learning', 'config_entry_id': 'offline-example', 'operation': 'read'}]
+    investigation = quality.locator('.automatic-investigation')
+    assert investigation.count() == 1
+    assert investigation.get_attribute('data-investigation-current') == 'current'
+    assert investigation.locator('[data-investigation-id]').count() == 5
+    assert investigation.locator('[data-investigation-status]').all_text_contents() == [
+        'Controle nodig', 'Geen afwijking in deze metingen', 'Meer meetgegevens nodig',
+        'Bron of functie niet ingesteld', 'Meer meetgegevens nodig']
+    assert investigation.locator('img,script,a,input,button,select').count() == 0
+    assert not page.evaluate('qaUnsafeExecuted')
+    investigation.locator('details').first.evaluate('element=>element.open=true')
+    page.evaluate('qaClockMs+=181000;c._learningDialog._refreshInvestigationDisplay()')
+    assert investigation.get_attribute('data-investigation-current') == 'stale'
+    assert investigation.locator('[data-investigation-status=observed_ok]').count() == 0
+    assert investigation.locator('details').first.evaluate('element=>element.open')
+    quality.locator('.refresh').click()
+    page.wait_for_function("!c._learningDialog._busy && c._learningDialog._body.querySelector('.automatic-investigation').dataset.investigationCurrent==='current'")
+    assert page.evaluate("qaWS.filter(x=>x.type==='solar_pilot/learning').length") == 2
+    for width in (320, 390, 768, 1100):
+        page.set_viewport_size({'width': width, 'height': 1000})
+        assert quality.locator('dialog').evaluate('element=>element.scrollWidth<=element.clientWidth'), ('local research dialog', width)
     quality.locator('.close').click()
+    page.wait_for_function('''() => {const bus=c._uiHistory.constructor.bus;
+      return !c._learningDialog._dialog.open && !c._learningDialog._isOpen &&
+        !bus.pending && !bus.moving && !bus.applying;}''')
+    assert not quality.locator('dialog').is_visible()
+    # The retained popup DOM is expected. Scope subsequent checks to Export,
+    # instead of treating every research section under the card as one node.
+    assert quality.locator('.automatic-investigation').count() == 1
 
     page.locator('solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value=export]').click()
     page.wait_for_function("!c._analysisFeedbackBusy && c._analysisFeedbackEntry==='offline-example' && c._analysisFeedbackReport?.current_release==='1.0.0-beta.67'")
     assert page.evaluate("qaWS.filter(x=>x.type==='solar_pilot/analysis_feedback')") == [
         {'type': 'solar_pilot/analysis_feedback', 'config_entry_id': 'offline-example', 'action': 'status'}]
-    assert 'Fictieve bevinding voor analyse' in page.locator('solar-pilot-card >> .analysis-export').inner_text()
+    export_view = page.locator('solar-pilot-card >> .analysis-export')
+    assert export_view.count() == 1
+    assert 'Fictieve bevinding voor analyse' in export_view.inner_text()
+    investigation = export_view.locator('.automatic-investigation')
+    assert investigation.count() == 1
+    assert investigation.get_attribute('data-investigation-current') == 'current'
+    assert investigation.locator('[data-investigation-id]').count() == 5
+    assert investigation.locator('img,script,a,input,button,select').count() == 0
+    investigation.locator('details').first.evaluate('element=>element.open=true')
+    page.evaluate('qaClockMs+=181000;c._refreshObservationDisplay()')
+    assert investigation.get_attribute('data-investigation-current') == 'stale'
+    assert investigation.locator('[data-investigation-status=observed_ok]').count() == 0
+    assert investigation.locator('details').first.evaluate('element=>element.open')
+    page.evaluate('''() => {qaInvestigation.updated_at=Date.now()/1000;
+      c._last.attributes.restored=true;c._render();}''')
+    assert investigation.get_attribute('data-investigation-current') == 'stale'
+    page.evaluate('c._last.attributes.restored=false;c._render()')
+    assert investigation.get_attribute('data-investigation-current') == 'current'
+    assert 'staat los van een eerder geüpload adviesrapport' in investigation.inner_text()
+    for width in (320, 390, 768, 1100):
+        page.set_viewport_size({'width': width, 'height': 1000})
+        assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), ('local research export', width)
+        page.screenshot(path=str(OUT / f'SolarPilot-onderzoek75-{width}.png'), full_page=True)
+    assert not quality.locator('dialog').is_visible()
+    assert page.evaluate("qaWS.filter(x=>x.type==='solar_pilot/learning').length") == 2
     assert page.locator('solar-pilot-card >> [data-question],[data-policy],[data-action=answer],[data-action=policy]').count() == 0
     page.evaluate('''async() => {await c._importAnalysisFeedback({size:1048577,text:async()=>{
       qaFileReads++;return '{}';}});}''')
@@ -931,7 +1003,11 @@ with sync_playwright() as playwright:
                                        'answer': unsafe_text, 'outcome': 'needs_more_data'}],
                     recommendations=[{'category': 'logic_update', 'proposal_id': 'fictitious-proposal',
                                       'text': unsafe_text, 'confidence': 'low', 'evidence': [unsafe_text],
-                                      'limitations': [unsafe_text]}])
+                                      'limitations': [unsafe_text]},
+                                     {'category': 'solarpilot_setting', 'text': unsafe_text,
+                                      'confidence': 'low', 'evidence': [], 'limitations': []},
+                                     {'category': 'observation', 'text': unsafe_text,
+                                      'confidence': 'low', 'evidence': [], 'limitations': []}])
     upload.set_input_files({'name': 'Fictief-advies.json', 'mimeType': 'application/json',
                            'buffer': json.dumps(feedback).encode()})
     page.wait_for_function('!c._analysisFeedbackReading && !c._analysisFeedbackBusy && !!c._analysisFeedbackReport?.report')
@@ -942,6 +1018,8 @@ with sync_playwright() as playwright:
     assert report.locator('[data-analysis-association]').get_attribute('data-analysis-association') == 'unverified'
     assert 'andere SolarPilot-versie' in report.inner_text()
     assert report.locator('[data-logic-update-status]').get_attribute('data-logic-update-status') == 'untracked'
+    assert report.locator('[data-recommendation-kind] > b').all_text_contents() == [
+        'Advies over instellingen', 'Waarneming · geen softwarewijziging']
     page.locator('solar-pilot-card >> [data-action=analysis_feedback_reload]').click()
     page.wait_for_function('!c._analysisFeedbackBusy')
     assert unsafe_text in report.inner_text()
@@ -963,4 +1041,4 @@ with sync_playwright() as playwright:
     assert page.evaluate('qaCalls.length') == 0
     assert not errors, errors
     browser.close()
-print('OK: independent native/compact SG evidence, typed main OFF versus tank ON/WATER, global/unknown OFF vetoes, circuit inactivity versus verified global OFF, zero-Hz compressor scope, once-confirmed reset without repeated timer, 3 views and 4 widths, separate theoretical/electrical/HP-solar/residual budgets, source expiry without HA events, SG minimum and cloud-buffer clocks with original source/lease expiry and no revived authority, reduced motion, draft/details preservation, partial/zero readings; one-click analysis/template, bounded escaped feedback, reload/removal/admin checks; zero device calls. Fiction only.')
+print('OK: independent native/compact SG evidence, typed main OFF versus tank ON/WATER, global/unknown OFF vetoes, circuit inactivity versus verified global OFF, zero-Hz compressor scope, once-confirmed reset without repeated timer, 3 views and 4 widths, separate theoretical/electrical/HP-solar/residual budgets, source expiry without HA events, SG minimum and cloud-buffer clocks with original source/lease expiry and no revived authority, reduced motion, draft/details preservation, partial/zero readings; one-click analysis/template, bounded escaped feedback, reload/removal/admin checks; 5 local research items with explicit statuses, escaped evidence/hypotheses/proposals, 4 widths, read-only refresh and expiry without HA events, restored-source veto and details preservation; zero device calls. Fiction only.')

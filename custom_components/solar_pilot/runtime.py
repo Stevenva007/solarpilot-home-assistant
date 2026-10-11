@@ -2288,9 +2288,13 @@ class SolarRuntime:
         recorder = self.heatpump_history
         if not recorder.loaded or recorder._closed:
             return
+        captured = False
         try:
             panasonic, sg = self.panasonic.overview(), self.sg_boost.overview()
-            recorder.observe(panasonic, sg, recorder.now(), binding=history_binding(self, panasonic, sg),
+            stamp = recorder.now()
+            binding = history_binding(self, panasonic, sg)
+            captured = True
+            recorder.observe(panasonic, sg, stamp, binding=binding,
                              sources=configured_history_sources(self))
         except Exception:
             # A presentation/source/history failure cannot pause the controller.
@@ -2301,6 +2305,25 @@ class SolarRuntime:
                 recorder.model.pause_recording()
             except Exception:
                 pass
+            if not captured:
+                return
+        # Research receives the same native/contact sample as history. A
+        # research failure cannot invalidate history or change any controller.
+        investigation = getattr(getattr(self, "learning_hub", None), "investigation", None)
+        research = getattr(investigation, "sg_research", None)
+        if research is not None:
+            try:
+                pv_entity = self.settings.get("pv_entity")
+                pv_state = self.hass.states.get(pv_entity) if pv_entity else None
+                attrs = getattr(pv_state, "attributes", {}) or {}
+                pv_w, pv_stamp = self._power(pv_entity, self.sg_boost.settings.get("stale_s"))
+                pv = {"watts": pv_w, "stamp": pv_stamp, "source": pv_entity,
+                      "restored": any(attrs.get(key) for key in ("restored", "estimated", "is_estimated"))}
+                research.observe(stamp, sg, panasonic, grid=self._sg_import_observation(),
+                    context={"release": VERSION, "binding": binding, "policy": self.sg_boost.settings,
+                             "fixed_import_limit_w": self.settings.get("max_import_w"), "pv": pv})
+            except Exception:
+                _LOGGER.debug("SolarPilot SG-sessieonderzoek overgeslagen", exc_info=True)
 
     async def _tick(self):
         now = time.monotonic()

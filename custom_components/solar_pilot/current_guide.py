@@ -3,20 +3,22 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.74'
+GUIDE_VERSION = '1.0.0-beta.75'
 GUIDE_UPDATED = '2026-10-11'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.74',
+ 'version': '1.0.0-beta.75',
  'updated': '2026-10-11',
- 'intro': ('Beta.74 maakt drie diagnosemeldingen duidelijker: een al bevestigde lage zonnefase '
-           'of rustige native resetfase krijgt geen herhaalde resetcountdown, een oude of onbekende gekoppelde Wallboxsessiebron '
-           'benoemt haar oorzaak, en een native zone-UIT wordt geen hele-warmtepomp-UIT. Bij '
-           'onvolledige elektrische meting en onvoldoende native bewijs blijft de bedrijfsstatus '
-           'onbekend. De regeling blijft gelijk: standaard 600 W actueel gemeten netafname gedurende '
-           'vijf continue minuten, tegelijk met de minimale SG-aanvraagduur van twintig minuten. '
-           'Zonne-resetbewijs, korte veilige leases, harde guards, instellingen en geschiedenis '
-           'blijven behouden. Panasonic bepaalt zijn compressorbedrijf.'),
+ 'intro': ('Beta.75 voegt Automatisch onderzoek toe: SolarPilot beoordeelt lokaal de bestaande '
+           'warmtepompmeters, Wallboxsessiebron, PV-voorspelling en toestelmetingen. Het toont '
+           'verzameld bewijs, mogelijke oorzaken, concrete voorstellen en wat daarna nodig is. '
+           'Een herhaalde uitlezing wordt geen nieuw bronrapport; ontbrekende of oude metingen '
+           'blijven onbekend. Een afzonderlijke SG-beoordeling gebruikt het werkelijk beschikbare '
+           'bewijs zonder de regeling te veranderen. De regeling blijft standaard 600 W actueel '
+           'gemeten netafname gedurende vijf continue minuten, tegelijk met de minimale '
+           'SG-aanvraagduur van twintig minuten. Instellingen, geschiedenis, zonne-resetbewijs, '
+           'korte veilige leases en harde guards blijven behouden. Panasonic bepaalt zijn '
+           'compressorbedrijf.'),
  'sections': [{'title': '1. Basisprincipe en modi',
                'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele '
                               'net- en PV-metingen, echte toestelvoorwaarden en elektrische grenzen gaan '
@@ -714,6 +716,57 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'recente basislastaanpassing wordt eerst vergeleken en alleen binnen de '
                               'bestaande begrensde toestemming toegepast. Optionele HA-analysemeldingen '
                               'verwijzen naar Export en blijven afzonderlijk van echte controlefouten.',
+                              ('Automatisch onderzoek controleert de bestaande gekoppelde bronnen lokaal, '
+                               'zonder upload of nieuwe apparaatbediening. Vier onderwerpen krijgen een '
+                               'eigen status: warmtepompmeting, Wallboxsessiebron, PV-voorspelling en '
+                               'toestelmetingen. Meer meetgegevens nodig betekent dat bruikbaar '
+                               'vervolgbewijs ontbreekt; Controle nodig benoemt een bronprobleem; '
+                               'Bron of functie niet ingesteld benoemt ontbrekende configuratie; '
+                               'Geen afwijking in deze metingen beschrijft alleen het beschikbare bewijs. '
+                               'Geen van deze statussen certificeert de '
+                               'fysieke installatie. Dezelfde sectie staat onder Meetkwaliteit en '
+                               'Export → Analyse en advies. De beoordeling vermeldt bewijs, mogelijke oorzaken, '
+                               'voorstellen en de volgende actie. Mogelijke oorzaken zijn hypotheses, '
+                               'geen vastgestelde fysieke defecten.'),
+                              ('De vier brononderwerpen worden maximaal eenmaal per minuut opnieuw '
+                               'beoordeeld. Verlopen bewijs of een gewijzigde relevante binding wordt '
+                               'ook tussen beoordelingen ongeldig. Alleen nieuwe '
+                               'werkelijke bruikbare bronrapporten leveren nieuwe meterwaarnemingen; '
+                               'dezelfde waarde opnieuw renderen, een regelronde of herstart telt niet '
+                               'als nieuw bewijs. Begrensde lokale tellingen bewaren voortgang zonder '
+                               'oude onbekende geschiedenis in te vullen. Vier onderwerprecords bewaren '
+                               'elk maximaal 32 rapportcursors; tellers verzadigen bij 1.000.000. De '
+                               'warmtepomp bewaart maximaal 64 negatieve diagnostische rapporten. Zulke '
+                               'verse afgekeurde rapporten tellen alleen diagnostisch, nooit als geldige '
+                               'regelwatts. Herstart bewaart tellingen en cursors, maar geen actuele '
+                               'status of bronzekerheid. Een gewijzigde relevante '
+                               'bronbinding vraagt eigen nieuw bewijs. Het onderzoek verandert geen '
+                               'meterteken, sensorbinding, stale-grens, instelling, modeltoestemming of '
+                               'regelrecht. Een verkeerde aansluiting of ontbrekende meter kan lokale '
+                               'controle nodig houden. Een mogelijke lage-vermogensoffset wordt alleen '
+                               'als hypothese genoemd bij voldoende recente negatieve rapporten; de '
+                               'waarde wordt niet gecorrigeerd. Aantallen oorspronkelijke rapporten '
+                               'zijn geen bewezen statistisch onafhankelijke meetproeven. Een verlopen '
+                               'of herstelde beoordeling blijft eerdere informatie, geen bewijs van de '
+                               'actuele toestand. Dit lokale onderzoek en de aparte warmtepompgeschiedenis '
+                               'blijven werken bij uitgeschakelde gedetailleerde analyseregistratie en '
+                               'bij Pauze; bestaande leer-/aanpassingskeuzes houden hun eigen werking.'),
+                              ('De afzonderlijke SG-beoordeling benoemt de bestaande minimum- en '
+                               'wolkenbufferinstellingen en de grenzen van het beschikbare sessie- en '
+                               'reactiebewijs. Historische sessies uit een oudere release valideren geen '
+                               'nieuwere timers. Elektrische activiteit of een gesloten contact bewijst '
+                               'geen causale extra SG-opname. Voorstellen voor betere broninformatie '
+                               'of latere vergelijking zijn geen automatische wijziging van drempels, '
+                               'leases, Panasonic-profielen of harde elektrische grenzen. De bestaande '
+                               'regelronde observeert hiervoor SG, contact, P1 en PV met één passend '
+                               'tijdstip. Maximaal twaalf afgeronde sessierecords bewaren release, '
+                               'effectieve policy, vastgelegde aanvraagduur, dekking en stopinformatie. '
+                               'Een al actieve aanvraag bij begin van registratie krijgt geen bewezen '
+                               'start. Herstart, een meetgat boven dertig seconden, verlopen bronbewijs '
+                               'of gewijzigde policy kan geen complete vergelijkbare sessie opleveren. '
+                               'Opgeslagen records herstellen geen actieve aanvraag of bronzekerheid. '
+                               'Een passende complete sessie is beperkt timingbewijs, geen algemene '
+                               'praktijkacceptatie of compressorlooptijd.'),
                               ('Gekozen programma, verse native taak, afgeleide taak en de bestaande '
                                'SG-veiligheidscontext blijven afzonderlijk. Afgeleide warmte-/koeltaken '
                                'krijgen begrensde diagnostische voorbeelden en tellingen, zonder '
@@ -881,7 +934,11 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Exact gekoppelde actuele antwoorden verwerken alleen de reviewstatus van '
                               'bevindingen. Meer data nodig blijft open. Gewenste instellingenwijzigingen '
                               'blijven een afzonderlijke bewuste configuratieactie met hun bestaande '
-                              'voorwaarden. Een codeverbetering vereist een afzonderlijke geteste release.',
+                              'voorwaarden. Een codeverbetering vereist een afzonderlijke geteste release. '
+                              'De export neemt ook de beschikbare lokale onderzoeksstatus, '
+                              'bewijsgrenzen, hypotheses, voorstellen en vervolgstappen mee. '
+                              'Dit maakt ontbrekende bronnen zichtbaar; het verzint geen onafhankelijke '
+                              'meting of hardwarediagnose.',
                               'Alleen een HA-beheerder kan een adviesrapport uploaden, bekijken of '
                               'verwijderen. Upload ondersteunt UTF-8 JSON van maximaal 1 MiB met maximaal '
                               'honderd adviezen en honderd bevindingantwoorden; dubbele of onbekende velden en ongeschikte schema-inhoud '
@@ -915,7 +972,12 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'pseudoniemen de betekenis van het voorstel niet veranderen. Het uploaden van een '
                               'antwoord werkt de integratie niet bij: een codeverbetering komt alleen via '
                               'een afzonderlijk geverifieerde release en de normale HACS-/herstartprocedure. '
-                              'Dit maakt geen automatische codeactie buiten een actieve werksessie.',
+                              'Dit maakt geen automatische codeactie buiten een actieve werksessie. '
+                              'Andere adviescategorieën tonen hun eigen categorie, zoals '
+                              'Advies over instellingen of Waarneming · geen softwarewijziging. Die aanduiding '
+                              'bewijst geen uitgevoerde instelling en maakt een advies niet automatisch '
+                              'een opgeloste taak. Het lokale onderzoek heeft afzonderlijke actuele '
+                              'brongebonden statussen.',
                               'Warmtepompgeschiedenis wordt maximaal dertig lokale kalenderdagen bewaard. Die bewaartermijn staat apart van het gekozen rollende exportvenster van 1, 24 of 168 uur en het aantal werkelijk opgenomen datums. Het warmtepompdeel neemt elke lokale kalenderdag op die met dat venster overlapt; 168 uur kan daardoor acht datums omvatten, en rond een tijdwissel soms negen. Dagtotalen, taakperioden en SG-lagen blijven de volledige werkelijk geregistreerde lokale kalenderdag beschrijven. Gedeeltelijke grensdatums worden expliciet gemarkeerd, naast de afzonderlijke meetdekking. Gegevens op zo een grensdag kunnen buiten het rollende venster liggen; energie wordt niet naar rato geschat of kunstmatig afgeknipt. Alle onderdelen gebruiken hetzelfde exporteindtijdstip. Dit verandert geen opslagretentie, registratie, apparaatinstelling of ontbrekende historie.'],
                'bullets': []},
               {'title': '18. Live configuratie en één eigenaar',
@@ -980,7 +1042,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'geen dubbele writers, contactmapping en lokale aflooptimer werkelijk zijn '
                               'bevestigd. De noodzakelijke lokale Panasonic/Shelly-controle is geen '
                               'softwaretest.',
-                              ('Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische metingen in geopende apparatuur. Gebruik de korte controle in BETA74_INSTELLEN.md.')],
+                              ('Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische metingen in geopende apparatuur. Gebruik de korte controle in BETA75_INSTELLEN.md.')],
                'bullets': []},
               {'title': '20. Installatie, verwijderen en rollback',
                'paragraphs': ['Installeer of update de Integration via HACS en herstart Home Assistant. De '
@@ -1004,16 +1066,16 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van '
                               'SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, '
                               'AEG- of Shelly-integratie.',
-                              ('Rollback naar de gecontroleerde beta.73-basis behoudt dezelfde '
+                              ('Rollback naar de gecontroleerde beta.74-basis behoudt dezelfde '
                                'SG-wolkenbuffer, minimumregeling, geschiedenis en opgeslagen opties. '
-                               'De eerdere diagnoseweergave keert terug; rollback corrigeert geen '
+                               'Automatisch onderzoek vervalt; rollback corrigeert geen '
                                'meter of fysieke installatie. Geef vóór codevervanging de eigen '
                                'SG-aanvraag vrij en controleer lokale terugval. Exact herstel van '
                                'de pre-upgradetoestand vereist code én de passende volledige '
                                'privéback-up; bewaar gewenste nieuwe historie eerst. Geen twee '
                                'runtimes tegelijk of entryverwijdering. Voor de oude directe '
                                'beta.61-regeling blijft de volledige back-up van vóór beta.62 nodig. '
-                               'Zie BETA74_INSTELLEN.md.')],
+                               'Zie BETA75_INSTELLEN.md.')],
                'bullets': []},
               {'title': '21. Release- en documentatieregel',
                'paragraphs': ['Dit is de enige volledige actuele regelbeschrijving. current_guide.py genereert '

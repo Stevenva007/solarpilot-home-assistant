@@ -48,7 +48,16 @@ IMPLEMENTED_PROPOSALS = {'sp.hp.task-presentation.v1': {'proposal_sha256': '4c47
                                                        'beoordelen'},
  'sp.hp.inactive-scope-display.v1': {'proposal_sha256': 'cae613e96f6fa7e6001486a0f95f04de98b9d6a4cc436a7d42a47b7c45877b3a',
                                      'introduced_release': '1.0.0-beta.74',
-                                     'title': 'Totale warmtepomprust vraagt passend bewijs'}}
+                                     'title': 'Totale warmtepomprust vraagt passend bewijs'},
+ 'sp.learning.local-investigation.v1': {'proposal_sha256': '04ca112f432c402dccafe8a83e5894ac029c7da67f6608b546cea1e78b68267b',
+                                        'introduced_release': '1.0.0-beta.75',
+                                        'title': 'Lokaal automatisch brononderzoek en voorstellen'},
+ 'sp.sg.session-evidence.v1': {'proposal_sha256': 'eac331e8adc3447579aec47c035634bded8f9404f9b020ce330f4103f6195f13',
+                              'introduced_release': '1.0.0-beta.75',
+                              'title': 'Versie, policy en meetdekking van nieuwe SG-sessies'},
+ 'sp.analysis.recommendation-kind.v1': {'proposal_sha256': 'e798b2a3d5818381fc424f023d0bf8151c4c1f8d0c57cbd28522e15a164df834',
+                                      'introduced_release': '1.0.0-beta.75',
+                                      'title': 'Instellingsadvies en waarnemingen herkenbaar'}}
 _PART = r"(?:0|[1-9][0-9]*)"
 _RELEASE = re.compile(rf"({_PART})\.({_PART})\.({_PART})(?:-beta\.({_PART}))?\Z")
 _PROPOSAL_ID = re.compile(r"[a-z0-9][a-z0-9._:-]{0,119}\Z")

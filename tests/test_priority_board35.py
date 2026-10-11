@@ -297,6 +297,34 @@ def test_export_includes_board_and_preserves_private_alias_joins():
     assert 'second_consumer' not in text and 'Tweede verbruiker' not in text
     board=report['components']['priority_board']
     assert set(board['order'])=={row['id'] for row in board['rows']}
+    # Research source cursors are persisted and therefore also exported. Their
+    # arbitrary dictionary keys must never contain private consumer identities.
+    research=r.learning_hub.investigation
+    cursors=research.snapshot()['records']['consumer_meters']['cursors']
+    assert len(cursors)==2
+    assert 'second_consumer' not in cursors and 'sensor.second' not in cursors
+    assert all(key.startswith('consumer_') and len(key)==41 for key in cursors)
+    reports=research.records['consumer_meters']['counts']['reports']
+    research.restore(research.snapshot())
+    research.refresh(time.time())
+    assert research.records['consumer_meters']['counts']['reports']==reports
+    assert not report['coverage']['section_errors'] and not h.services.calls
+
+
+def test_restored_research_cursors_cannot_reintroduce_private_dictionary_keys():
+    r,h=multiple();activate(r)
+    r.learning_hub.refresh(force=True)
+    saved=r.learning_hub.investigation.snapshot()
+    saved['records']['consumer_meters']['cursors']['second_consumer']=time.time()
+    saved['records']['heatpump_meter']['cursors']['sensor.private_hp']=time.time()
+    r.learning_hub.investigation.restore(saved)
+    records=r.learning_hub.investigation.snapshot()['records']
+    assert 'second_consumer' not in records['consumer_meters']['cursors']
+    assert 'sensor.private_hp' not in records['heatpump_meter']['cursors']
+    report=r.analysis.build(include_names=False)
+    serialized=json.dumps(report)
+    assert 'second_consumer' not in serialized and 'Tweede verbruiker' not in serialized
+    assert 'sensor.private_hp' not in serialized
     assert not report['coverage']['section_errors'] and not h.services.calls
 
 
