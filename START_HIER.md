@@ -1,23 +1,23 @@
-# SolarPilot beta.67 — installatie en upgrade
+# SolarPilot beta.68 — installatie en upgrade
 
-Panasonic blijft zelfstandig regelen. SolarPilot geeft één rustige, begrensde SG-zonneboost volgens het expliciet lokaal bevestigde toepassingsbereik. Beta.67 toont de actuele taak, elektrische hoofdactiviteit en bijverwarming apart. Verse native taakmeldingen, afleidingen en gekozen standen houden hun eigen betekenis. Het bestaande meterpaar krijgt automatisch het herkenbare Panasonic-profiel: voeding 1 warmtepomp inclusief regeling/pompen, voeding 2 elektrische bijverwarming. Dit is een weergave-aanname; eerdere bewuste afwijkingen blijven staan. Voor deze update hoef je niets nieuws te configureren of in te vullen. De ventilatoranimatie geeft verse elektrische hoofdactiviteit aan, geen bewezen compressorrotatie; bij alleen bijverwarming blijft zij stil en beweegt het verwarmingssymbool. Verminderde beweging onderdrukt animaties. SG-regels, meter-/koelbevestigingen en geldige bestaande instellingen uit beta.66 blijven behouden. Een werkelijk gewijzigde koppeling of profielkeuze houdt haar eigen voorwaarden.
+Panasonic blijft zelfstandig regelen. SolarPilot geeft één rustige, begrensde SG-zonneboost volgens het expliciet lokaal bevestigde toepassingsbereik. Beta.68 toont de actuele taak, elektrische hoofdactiviteit en bijverwarming apart. Complete verse actieve hoofdmeting met passende verse gekozen verwarmings-/koelcontext kan Verwarmen of Koelen tonen ondanks een cloud-rustmelding. Werkelijke tapwater-/ontdooitaak houdt voorrang; expliciete actuele UIT geeft geen idle-afleiding. Watts of gekozen stand alleen, deelmeting en oude/conflicterende context geven geen functie. Taak en meetwaarden blijven compact, met afzonderlijke native meldingen, afleidingen en profielaannamen in Details/export. Het bestaande meterpaar krijgt automatisch het herkenbare Panasonic-profiel: voeding 1 warmtepomp inclusief regeling/pompen, voeding 2 elektrische bijverwarming. Dit is een weergave-aanname; eerdere bewuste afwijkingen blijven staan. Voor deze update hoef je niets nieuws te configureren of in te vullen. De ventilatoranimatie geeft verse elektrische hoofdactiviteit aan, geen bewezen compressorrotatie; bij alleen bijverwarming blijft zij stil en beweegt het verwarmingssymbool. Verminderde beweging onderdrukt animaties. SG-regels, meter-/koelbevestigingen en geldige bestaande instellingen uit beta.67 blijven behouden. Een werkelijk gewijzigde koppeling of profielkeuze houdt haar eigen voorwaarden.
 
-**Begin met [BETA67_INSTELLEN.md](docs/BETA67_INSTELLEN.md).** Daar staan back-up, lokale profiel-/meter-/koelbeveiligingscontrole, korte acceptatie en rollback. De volledige actuele werking staat in [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en **SolarPilot → Uitleg**. Nieuwe software-/publicatiestatus: [TESTRESULTATEN_BETA67.md](docs/TESTRESULTATEN_BETA67.md).
+**Begin met [BETA68_INSTELLEN.md](docs/BETA68_INSTELLEN.md).** Daar staan back-up, lokale profiel-/meter-/koelbeveiligingscontrole, korte acceptatie en rollback. De volledige actuele werking staat in [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en **SolarPilot → Uitleg**. Nieuwe software-/publicatiestatus: [TESTRESULTATEN_BETA68.md](docs/TESTRESULTATEN_BETA68.md).
 
 ## Installeren en behouden
 
-1. Maak vóór upgrade een volledige privé HA-back-up, inclusief configuratie, SolarPilot-opslag, modellen en userfiles. Bewaar beta.66-code samen met de passende back-up.
+1. Maak vóór upgrade een volledige privé HA-back-up, inclusief configuratie, SolarPilot-opslag, modellen en userfiles. Bewaar beta.67-code samen met de passende back-up.
 2. Controleer de eigen SG-aanvraag/contactstand en geef de aanvraag vrij vóór programmavervanging. Behoud een draaiende beschermde afwascyclus; maak geen nieuw APP-ticket als updateproef.
-3. Installeer via HACS exact `1.0.0-beta.67` zodra gepubliceerd, herstart HA volledig en herlaad de pagina volledig of sluit de app volledig af en open haar opnieuw. Controleer backend- en kaartversie afzonderlijk; beide moeten beta.67 tonen.
+3. Installeer via HACS exact `1.0.0-beta.68` zodra gepubliceerd, herstart HA volledig en herlaad de pagina volledig of sluit de app volledig af en open haar opnieuw. Controleer backend- en kaartversie afzonderlijk; beide moeten beta.68 tonen.
 4. Bij lokale installatie vervang je uitsluitend `custom_components/solar_pilot`; bewaar userfiles en HA-opslag. Verwijder/herschep de bestaande entry niet.
 
 Eerste installatie: voeg de GitHub-repository toe aan HACS als **Integration**, voeg SolarPilot toe onder **Instellingen → Apparaten & diensten** en controleer P1/PV eerst in **Alleen bekijken**. De frontend wordt automatisch geregistreerd. Er is geen aparte Lovelace-resource, dashboard-YAML of www-kopie nodig.
 
-Beta.67 behoudt de beta.63-fix voor onveranderbare en geneste HA-opties. Een update herstelt geen toestemming door gegevens te wissen. Bestaande geldige single-meterconfig, prioriteiten, APP-tickets, geschiedenis, modellen, bewaartermijnen en de globale hervatvoorkeur blijven behouden.
+Beta.68 behoudt de beta.63-fix voor onveranderbare en geneste HA-opties. Een update herstelt geen toestemming door gegevens te wissen. Bestaande geldige single-meterconfig, prioriteiten, APP-tickets, geschiedenis, modellen, bewaartermijnen en de globale hervatvoorkeur blijven behouden.
 
 ## Instellingen en uitlezing controleren
 
-Bij een ongewijzigde beta.66-installatie hoef je de SG-ingebruikname, het gekozen profiel, de meterdekking of de bestaande koelbeveiliging niet opnieuw te bevestigen wegens deze upgrade. Controleer de behouden waarden. Voor een nieuwe installatie of werkelijk gewijzigde koppeling/profielkeuze gelden de volgende voorwaarden.
+Bij een ongewijzigde beta.67-installatie hoef je de SG-ingebruikname, het gekozen profiel, de meterdekking of de bestaande koelbeveiliging niet opnieuw te bevestigen wegens deze upgrade. Controleer de behouden waarden. Voor een nieuwe installatie of werkelijk gewijzigde koppeling/profielkeuze gelden de volgende voorwaarden.
 
 Kies **Uitsluitend tapwater** of **Algemene SG-boost volgens Panasonic-bedrijf**. Bevestig het gekozen bereik bewust; SolarPilot wijzigt Panasonic-percentages/temperaturen niet. Voor extra koeling is geschikte bestaande condens-/dauwpuntbeveiliging een afzonderlijke controle. AUTO of onbekende context bewijst geen veilige extra koeling.
 
@@ -35,6 +35,6 @@ Bij Analyse nodig maakt één klik een export van de beschikbare zeven dagen. Me
 
 ## Rollback
 
-Geef eerst de eigen SG-aanvraag vrij en controleer contactstand/lokale afloop. Stop de nieuwe runtime voordat beta.66 terugkomt. Herstel beta.66-code én de volledige passende privéback-up van vóór deze upgrade; een oude ZIP alleen herstelt nieuwe schema-/bewijsvelden niet exact. Laat nooit twee versies tegelijk het contact beheren.
+Geef eerst de eigen SG-aanvraag vrij en controleer contactstand/lokale afloop. Stop de nieuwe runtime voordat beta.67 terugkomt. Herstel beta.67-code én de volledige passende privéback-up van vóór deze upgrade; een oude ZIP alleen herstelt nieuwe schema-/bewijsvelden niet exact. Laat nooit twee versies tegelijk het contact beheren.
 
 Voor terugkeer naar de oude directe beta.61-regeling blijft de volledige passende back-up van vóór beta.62-migratie noodzakelijk. Privé herkomstarchief is geen complete HA-restore en doet geen fysieke replay. Zie de releasehandleiding voor de volledige procedure.

@@ -329,8 +329,21 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                     "power_activity_threshold_w", "power_supply1_role", "power_supply2_role"))
                 control_before = deepcopy(runtime.sg_boost.snapshot())
                 display = observed["power_activity"]
-                assert display["label"] == "Warmtepomp werkt" and display["active"] is True
-                assert display["threshold_w"] == 200 and display["function"] is None
+                assert display["label"] == "Ruimte verwarmen" and display["active"] is True
+                assert display["threshold_w"] == 200 and display["function"] == "space_heating"
+                assert display["function_kind"] == "selected_program"
+                assert display["function_source"] == "native_mode"
+                # Reproduce the overview's 1.36 kW main / 0 W heater case.
+                # The selected heat context changes display only, never SG or
+                # the original native/compressor observations.
+                hass.states.async_set("sensor.synthetic_supply1", "1360", {"unit_of_measurement": "W"})
+                active = runtime.panasonic.overview()
+                assert active["power_activity"]["total_w"] == 1360
+                assert active["power_activity"]["function"] == "space_heating"
+                assert active["native_task"] == observed["native_task"]
+                assert active["operation"] == observed["operation"]
+                for key in ("context", "context_reliable", "context_signature", "cooling_possible", "sg_status", "sg_effect_confirmed"):
+                    assert active[key] == observed[key]
                 hass.states.async_set("sensor.synthetic_supply1", "58", {"unit_of_measurement": "W"})
                 low = runtime.panasonic.overview()["power_activity"]
                 assert low["label"] == "Basisverbruik" and low["active"] is False

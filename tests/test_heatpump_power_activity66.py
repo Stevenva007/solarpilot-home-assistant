@@ -239,18 +239,17 @@ def test_unreliable_space_action_falls_back_to_fresh_generic_power(action, case)
 
 
 @pytest.mark.parametrize("context", ["space_heating", "space_cooling"])
-def test_native_programme_interpretation_requires_fresh_explicit_tank_idle_and_reliable_context(context):
+def test_controller_context_alone_cannot_infer_a_selected_programme_task(context):
     valid = dict(context=context, context_reliable=True, context_stamp=970)
     view = task_display(tank_state="off", **valid)
-    assert view["function"] == context and view["observed_at"] == 970
-    assert "programmacontext" in view["note"]
+    assert view["function"] is None and view["observed_at"] == 999
     assert task_display(tank_state="on", **valid)["function"] is None
     assert task_display(tank_stamp=879, **valid)["function"] is None
     assert task_display(**{**valid, "context_stamp": 879})["function"] is None
     assert task_display(**{**valid, "context_reliable": False})["function"] is None
 
 
-@pytest.mark.parametrize("case", ["space_heating", "space_cooling", "conflict"])
+@pytest.mark.parametrize("case", ["space_heating", "space_cooling"])
 def test_concurrent_or_conflicting_native_tasks_leave_function_generic(case):
     context = {}
     if case.startswith("space_"):

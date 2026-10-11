@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.67",
+  "version": "1.0.0-beta.68",
   "language": "nl",
   "steps": {
     "init": {
@@ -3953,7 +3953,7 @@
       "title": "Actief verbruik vanaf (W) — alleen weergave",
       "short": "Actief verbruik wordt vanaf deze waarde per geldige voeding weergegeven, standaard 200 W.",
       "paragraphs": [
-        "Actief verbruik wordt vanaf deze waarde per geldige voeding weergegeven, standaard 200 W. Deze drempel verandert uitsluitend de uitleg en grafische weergave; hij schakelt niets en verandert de SG-startdrempel niet. Kies een waarde boven het gemeten rustverbruik. Vermogen toont elektrische activiteit; alleen aanvullende actuele Panasonic-informatie kan tapwater, ruimteverwarming of koeling onderscheiden.",
+        "Actief verbruik wordt vanaf deze waarde per geldige voeding weergegeven, standaard 200 W. Deze drempel verandert uitsluitend de uitleg en grafische weergave; hij schakelt niets en verandert de SG-startdrempel niet. Kies een waarde boven het gemeten rustverbruik. Vermogen toont elektrische activiteit; alleen aanvullende actuele Panasonic-informatie kan tapwater, ruimteverwarming of koeling onderscheiden. Complete verse actieve hoofdmeting met passende actuele gekozen verwarmings-/koelcontext kan een taak afleiden ondanks een cloud-rustmelding; bronuitleg en ruwe melding blijven in Details/export. Een expliciete actuele UIT-melding geeft deze idle-afleiding niet. Dit verandert geen SG-vrijgave.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]

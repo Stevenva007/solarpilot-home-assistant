@@ -15,6 +15,17 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = Path(os.environ.get('SOLARPILOT_SCREENSHOT_DIR', '/tmp/solarpilot-browser-tests'))
 OUT.mkdir(parents=True, exist_ok=True)
 errors = []
+
+
+def prominent_text(panel):
+    """Read the compact content independently of expanded technical details."""
+    return panel.evaluate("""element => {
+        const copy=element.cloneNode(true);
+        copy.querySelectorAll('details').forEach(details=>details.remove());
+        return copy.textContent;
+    }""")
+
+
 with sync_playwright() as playwright:
     executable = os.environ.get('SOLARPILOT_CHROMIUM_PATH') or shutil.which('chromium')
     browser = playwright.chromium.launch(**({'executable_path': executable} if executable else {}),
@@ -66,16 +77,17 @@ with sync_playwright() as playwright:
           label:'Fictieve vermogensafleiding',note:'Afgeleid uit gemeten verbruik',threshold_w:o.threshold,
           activity_kind,evidence:functionName?'metered_power_and_context':'metered_power',observed_at:functionName?Math.min(stamp,contextStamp):stamp,
           stale_s:120,total_w:total,complete,function:functionName,context_observed_at:functionName?contextStamp:null,
-          function_kind:functionName?(o.functionKind??'native_action'):null,function_source:functionName?'aquarea_poll':null,
+          function_kind:functionName?(o.functionKind??'native_action'):null,
+          function_source:functionName?(o.functionSource??(o.functionKind==='tank_route'?'aquarea_entity':o.functionKind==='selected_program'?'native_program':'aquarea_poll')):null,
           supplies:readings.map((watts,index)=>({number:index+1,role:o['role'+(index+1)],role_assumed:true,
             label:'Fictieve voeding '+(index+1),watts,valid:typeof watts==='number',
             state:typeof watts!=='number'?'unknown':watts===0?'off':watts>=o.threshold?'active':'basis',
             observed_at:o['stamp'+(index+1)]??(typeof watts==='number'?stamp:null)}))};
-        const labels={tapwater_heating:'Sanitair water opwarmen',space_heating:'Ruimte verwarmen',space_cooling:'Ruimte koelen'};
+        const labels={tapwater_heating:'Boiler opwarmen',space_heating:'Verwarmen',space_cooling:'Koelen'};
         const native_task=typeof o.nativeTask==='object'?o.nativeTask:o.nativeTask?{function:o.nativeTask,label:labels[o.nativeTask],
           note:'Panasonic meldt de actuele taak; dit bewijst geen compressor- of SG-effect.',source:'aquarea_poll',observed_at:o.taskStamp??stamp,stale_s:120}:null;
         const task_context=o.contextFunction?{function:o.contextFunction,label:o.contextLabel??(o.contextKind==='tank_route'?'Tankroute sanitair water':labels[o.contextFunction]),
-          note:'Gekozen stand of route; een actuele actie is hiermee niet afzonderlijk bevestigd.',source:o.contextKind==='tank_route'?'aquarea_entity':'native_program',
+          note:'Gekozen stand of route; een actuele actie is hiermee niet afzonderlijk bevestigd.',source:o.contextSource??(o.contextKind==='tank_route'?'aquarea_entity':'native_program'),
           kind:o.contextKind??'selected_program',observed_at:o.contextStamp??stamp,stale_s:120}:null;
         qaApply(o.native,o.sg,{power_activity,native_task,task_context,defrost:o.defrost??null,power_w:total,power_kind:complete?'measured':'unknown',
           power_complete:complete,power_supply1_w:o.power1,power_supply2_w:o.power2,
@@ -95,7 +107,7 @@ with sync_playwright() as playwright:
     assert 'SolarPilot-aanvraag' in row.text_content() and 'Niet aangevraagd' in row.text_content()
     assert row.locator('[data-sg-stage=relay]').inner_text().endswith('Open')
     assert row.locator('[data-sg-stage=received]').inner_text().endswith('Niet actief · afzonderlijk bevestigd')
-    assert '33 Hz' in row.inner_text() and '0 W' in row.inner_text()
+    assert '33 Hz' in row.locator('[data-heatpump-provenance]').text_content() and '0 W' in row.inner_text()
     assert row.locator('.heatpump-fan').evaluate('element=>getComputedStyle(element).animationName') == 'sp-heatpump-turn'
     page.screenshot(path=str(OUT / 'SolarPilot-warmtepomp-overview65-active.png'), full_page=True)
     page.emulate_media(reduced_motion='reduce')
@@ -180,39 +192,43 @@ with sync_playwright() as playwright:
         page.evaluate('qaMeter()')
         assert panel.get_attribute('data-activity') == 'active'
         assert 'Warmtepomp werkt' in panel.inner_text()
-        assert 'Afgeleid uit gemeten elektrisch verbruik' in panel.inner_text()
-        assert 'Actief verbruik vanaf 200 W' in panel.inner_text()
+        assert 'Afgeleid' in panel.locator('.heatpump-operation').inner_text()
+        assert 'Afgeleid uit gemeten elektrisch verbruik' in panel.locator('[data-heatpump-provenance]').text_content()
+        assert 'Actief verbruik vanaf' in panel.locator('[data-heatpump-provenance]').text_content()
+        assert '200 W' in panel.locator('[data-heatpump-provenance]').text_content()
         assert panel.locator('.heatpump-operation').get_attribute('data-evidence') == 'metered_power'
         assert panel.locator('.heatpump-fan').evaluate('element=>getComputedStyle(element).animationName') == 'sp-heatpump-turn'
         assert panel.locator('.heatpump-operation').get_attribute('data-compressor-running') == 'false'
         assert panel.locator('[data-supply-number="2"]').inner_text().endswith('0 W\nGeen verbruik')
-        assert 'Elektrische ondersteuning' in panel.locator('[data-supply-number="2"]').inner_text()
+        assert 'elektrische bijverwarming' in panel.locator('[data-supply-number="2"]').inner_text().lower()
         assert panel.locator('[data-sg-stage]').count() == 2
-        for function,label in [('tapwater_heating','Sanitair water opwarmen'),('space_heating','Ruimte verwarmen'),('space_cooling','Ruimte koelen')]:
+        for function,label in [('tapwater_heating','Boiler opwarmen'),('space_heating','Verwarmen'),('space_cooling','Koelen')]:
             page.evaluate('functionName=>qaMeter({function:functionName})', function)
             assert label in panel.inner_text()
-            assert 'Afgeleid uit gemeten verbruik' in panel.inner_text()
+            assert 'Afgeleid' in panel.locator('.heatpump-operation').inner_text()
+            assert 'Afgeleid uit gemeten verbruik' in panel.locator('[data-heatpump-provenance]').text_content()
             assert panel.locator('.heatpump-operation').get_attribute('data-evidence') == 'metered_power_and_context'
         # An expired context removes only the inferred function, retaining fresh
         # generic electrical activity from the independently current meters.
         page.evaluate("qaMeter({function:'tapwater_heating',contextStamp:Date.now()/1000-121})")
-        assert 'Sanitair water opwarmen' not in panel.inner_text()
+        assert 'Boiler opwarmen' not in panel.inner_text()
         assert 'Warmtepomp werkt' in panel.inner_text()
         assert panel.get_attribute('data-activity') == 'active'
         # Idle compressor plus high electrical support is reported honestly;
         # a static fan and explicit 0 Hz prevent a false compressor claim.
         page.evaluate("qaMeter({native:'idle',power1:0,power2:3700,role1:'main',role2:'heater'})")
-        assert 'Compressor staat stil' in panel.inner_text()
-        assert '0 Hz' in panel.inner_text()
+        assert 'Compressor staat stil' in panel.locator('[data-heatpump-provenance]').text_content()
+        assert '0 Hz' in panel.locator('[data-heatpump-provenance]').text_content()
         assert panel.locator('.heatpump-operation strong').inner_text().startswith('Elektrische bijverwarming actief')
         assert panel.locator('.heatpump-operation').get_attribute('data-compressor-running') == 'false'
         assert panel.locator('.heatpump-fan').evaluate('element=>getComputedStyle(element).animationName') == 'none'
-        assert 'regeling en pompen' in panel.locator('[data-supply-number="1"]').inner_text()
-        assert 'Elektrische ondersteuning' in panel.locator('[data-supply-number="2"]').inner_text()
-        for function,label in [('tapwater_heating','Sanitair water opwarmen'),('space_heating','Ruimte verwarmen'),('space_cooling','Ruimte koelen')]:
+        assert 'regeling en pompen' in panel.locator('[data-heatpump-provenance]').text_content()
+        assert 'elektrische bijverwarming' in panel.locator('[data-supply-number="2"]').inner_text().lower()
+        for function,label in [('tapwater_heating','Boiler opwarmen'),('space_heating','Verwarmen'),('space_cooling','Koelen')]:
             page.evaluate('functionName=>qaMeter({native:"idle",power1:3700,power2:0,function:functionName})', function)
             assert panel.locator('.heatpump-operation strong').inner_text().startswith(label)
-            assert 'Compressor staat stil' in panel.inner_text() and '0 Hz' in panel.inner_text()
+            assert 'Compressor staat stil' in panel.locator('[data-heatpump-provenance]').text_content()
+            assert '0 Hz' in panel.locator('[data-heatpump-provenance]').text_content()
             assert panel.locator('.heatpump-operation').get_attribute('data-compressor-running') == 'false'
             assert panel.locator('.heatpump-fan').evaluate('element=>getComputedStyle(element).animationName') == 'sp-heatpump-turn'
         for watts,label in [(0,'Geen elektrisch verbruik'),(99,'Basisverbruik')]:
@@ -236,15 +252,15 @@ with sync_playwright() as playwright:
         assert panel.locator('.reason-power>b').inner_text() == 'Vermogen nog niet bekend'
         assert panel.locator('[data-supply-number="1"]').inner_text().endswith('Geen actuele meting')
         assert '700 W' in panel.locator('[data-supply-number="2"]').inner_text()
-        assert 'Sanitair water opwarmen' not in panel.inner_text()
+        assert 'Boiler opwarmen' not in panel.inner_text()
         assert 'Werking onbekend' not in panel.inner_text()
 
-        # Task evidence and selected context are visible independently of power
-        # coverage. A task report creates no electrical/compressor activity.
-        for function,label in [('tapwater_heating','Sanitair water opwarmen'),('space_heating','Ruimte verwarmen'),('space_cooling','Ruimte koelen')]:
+        # Actual task evidence stays visible independently of power coverage;
+        # selected context belongs in Details and supplies no activity proof.
+        for function,label in [('tapwater_heating','Boiler opwarmen'),('space_heating','Verwarmen'),('space_cooling','Koelen')]:
             page.evaluate('functionName=>qaMeter({power1:null,power2:null,complete:false,nativeTask:functionName})', function)
             assert panel.locator('[data-heatpump-task=native] strong').inner_text() == label
-            assert 'Panasonic meldt' in panel.locator('[data-heatpump-task]').inner_text()
+            assert 'Panasonic meldt' in panel.locator('[data-heatpump-provenance]').text_content()
             assert panel.get_attribute('data-activity') == 'unknown'
             assert panel.locator('.heatpump-operation').count() == 0
             assert panel.locator('[data-heatpump-heater]').inner_text().find('Geen actuele meting') >= 0
@@ -257,43 +273,45 @@ with sync_playwright() as playwright:
         # context automatically, without presenting a selected route as action.
         page.evaluate("qaMeter({power1:2170,contextFunction:'tapwater_heating',contextKind:'tank_route'})")
         assert panel.locator('.heatpump-operation strong').inner_text().startswith('Warmtepomp werkt')
-        assert panel.locator('[data-heatpump-task=context] strong').inner_text() == 'Tankroute sanitair water'
-        assert 'geen afzonderlijke actiebevestiging' in panel.locator('[data-heatpump-task]').inner_text()
+        assert panel.locator('[data-heatpump-task=activity] strong').inner_text() == 'Warmtepomp werkt'
+        assert 'Tankroute sanitair water' in panel.locator('[data-heatpump-provenance]').text_content()
+        assert 'actuele actie is hiermee niet afzonderlijk bevestigd' in panel.locator('[data-heatpump-provenance]').text_content()
         assert panel.locator('[data-heatpump-heater]').get_attribute('data-heatpump-heater') == 'off'
         assert 'Geen verbruik' in panel.locator('[data-heatpump-heater]').inner_text()
         assert '0 W' in panel.locator('[data-heatpump-heater]').inner_text()
-        assert 'aanname' in panel.locator('[data-heatpump-heater]').inner_text()
+        assert 'aanname' in panel.locator('[data-heatpump-provenance]').text_content()
         page.evaluate("qaMeter({function:'tapwater_heating',functionKind:'tank_route',contextFunction:'tapwater_heating',contextKind:'tank_route'})")
-        assert panel.locator('[data-heatpump-task=inferred] strong').inner_text() == 'Sanitair water opwarmen'
-        assert 'tankroute' in panel.locator('[data-heatpump-task]').inner_text().lower()
-        assert 'Afgeleid' in panel.locator('[data-heatpump-task]').inner_text()
+        assert panel.locator('[data-heatpump-task=inferred] strong').inner_text() == 'Boiler opwarmen'
+        assert 'tankroute' in panel.locator('[data-heatpump-provenance]').text_content().lower()
+        assert panel.locator('.heatpump-operation small').inner_text() == 'Afgeleid'
         page.evaluate("qaMeter({contextFunction:'space_cooling',contextLabel:'Koelen gekozen'})")
-        assert panel.locator('[data-heatpump-task=context] strong').inner_text() == 'Koelen gekozen'
-        assert 'Gekozen stand' in panel.locator('[data-heatpump-task]').inner_text()
-        assert 'Ruimte koelen' not in panel.locator('.heatpump-operation strong').inner_text()
+        assert panel.locator('[data-heatpump-task=activity] strong').inner_text() == 'Warmtepomp werkt'
+        assert 'Koelen gekozen' in panel.locator('[data-heatpump-provenance]').text_content()
+        assert 'Koelen' not in panel.locator('.heatpump-operation strong').inner_text()
         page.evaluate("qaMeter({nativeTask:'tapwater_heating',taskStamp:Date.now()/1000-121})")
-        assert panel.locator('[data-heatpump-task=none]').count() == 1
-        assert 'Sanitair water opwarmen' not in panel.locator('[data-heatpump-task]').inner_text()
+        assert panel.locator('[data-heatpump-task=activity] strong').inner_text() == 'Warmtepomp werkt'
+        assert 'Boiler opwarmen' not in panel.locator('[data-heatpump-task]').inner_text()
 
         # On defrost, the separate native flag wins over heat-direction samples.
         page.evaluate("qaMeter({function:'space_heating',nativeTask:'space_heating',defrost:{state:'active',source:'aquarea_entity',observed_at:Date.now()/1000,stale_s:120}})")
         assert panel.locator('[data-heatpump-task=native] strong').inner_text() == 'Ontdooien'
         assert panel.locator('.heatpump-operation strong').inner_text().startswith('Ontdooien')
-        assert 'Ruimte verwarmen' not in panel.locator('[data-heatpump-task]').inner_text()
+        assert 'Verwarmen' not in panel.locator('[data-heatpump-task]').inner_text()
         for special,label in [('inactive','Panasonic meldt rust'),('conflict','Panasonic-taak niet eenduidig')]:
             page.evaluate('''args=>qaMeter({function:'space_heating',nativeTask:{function:null,label:args[1],
               source:args[0]==='inactive'?'aquarea_poll':'none',[args[0]]:true,observed_at:Date.now()/1000,stale_s:120}})''', [special,label])
-            assert panel.locator('[data-heatpump-task=native] strong').inner_text() == label
+            assert panel.locator('[data-heatpump-task=activity] strong').inner_text() == 'Warmtepomp werkt'
+            assert label in panel.locator('[data-heatpump-provenance]').text_content()
             assert panel.locator('.heatpump-operation strong').inner_text().startswith('Warmtepomp werkt')
 
         # Each heater meter ages independently and remains available in partial
         # coverage; watts alone cannot identify tank versus space support.
-        for watts,state,label in [(0,'off','Geen verbruik'),(99,'basis','Basisverbruik'),(3700,'active','Bijverwarming aan · afgeleid')]:
+        for watts,state,label in [(0,'off','Geen verbruik'),(99,'basis','Basisverbruik'),(3700,'active','Aan')]:
             page.evaluate('watts=>qaMeter({power1:null,power2:watts,complete:false})', watts)
             heater = panel.locator('[data-heatpump-heater]')
             assert heater.get_attribute('data-heatpump-heater') == state
             assert label in heater.inner_text()
-            assert 'geen aparte heater-terugmelding' in heater.inner_text()
+            assert 'Panasonic stuurt haar zelfstandig' in panel.locator('[data-heatpump-provenance]').text_content()
             if watts >= 200:
                 assert heater.locator('.heatpump-task-icon').evaluate('element=>getComputedStyle(element).animationName') == 'sp-device-activity'
                 assert panel.locator('.heatpump-fan').evaluate('element=>getComputedStyle(element).animationName') == 'none'
@@ -316,14 +334,82 @@ with sync_playwright() as playwright:
         # Explicit 0 Hz remains a stopped-compressor report. Animation of fresh
         # main-feed activity is clearly electrical inference, by user request.
         page.evaluate("qaMeter({native:'idle',power1:2170,power2:900})")
-        assert 'Compressor staat stil' in panel.inner_text() and '0 Hz' in panel.inner_text()
+        assert 'Compressor staat stil' in panel.locator('[data-heatpump-provenance]').text_content()
+        assert '0 Hz' in panel.locator('[data-heatpump-provenance]').text_content()
         assert panel.locator('.heatpump-operation').get_attribute('data-compressor-running') == 'false'
         assert panel.locator('.heatpump-operation').get_attribute('data-fan-active') == 'true'
-        assert 'dit bevestigt geen draaiende compressor' in panel.inner_text()
+        assert 'bevestigen geen draaiende compressor' in panel.locator('[data-heatpump-provenance]').text_content()
         page.emulate_media(reduced_motion='reduce')
         assert panel.locator('.heatpump-fan').evaluate('element=>getComputedStyle(element).animationName') == 'none'
         assert panel.locator('[data-heatpump-heater] .heatpump-task-icon').evaluate('element=>getComputedStyle(element).animationName') == 'none'
         page.emulate_media(reduced_motion='no-preference')
+    page.locator('solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value=overview]').click()
+
+    # Reproduce the user's 1.36 kW main feed / 0 W heater screenshot. A fresh
+    # typed IDLE report is retained in Details while the current main meter and
+    # matching selected context supply a qualified, consistent dynamic task.
+    tasks = [('space_heating', 'Verwarmen', 'selected_program', 'native_program'),
+             ('space_cooling', 'Koelen', 'selected_program', 'native_program'),
+             ('tapwater_heating', 'Boiler opwarmen', 'tank_route', 'aquarea_entity')]
+    for view in ('overview', 'comfort', 'loads'):
+        page.locator(f'solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value={view}]').click()
+        panel = row if view == 'overview' else page.locator('solar-pilot-card >> .heatpump-sg')
+        for function, label, kind, source in tasks:
+            page.evaluate('''args => qaMeter({power1:1360,power2:0,native:'idle',
+              function:args[0],functionKind:args[2],functionSource:args[3],
+              contextFunction:args[0],contextKind:args[2],contextSource:args[3],contextLabel:args[1]+' gekozen',
+              nativeTask:{function:null,label:'Panasonic meldt rust',source:'aquarea_poll',
+                inactive:true,inactive_action:'idle',observed_at:Date.now()/1000,stale_s:120}})''',
+                          [function, label, kind, source])
+            assert panel.locator('.heatpump-operation strong').inner_text() == label
+            assert panel.locator('[data-heatpump-task=inferred] strong').inner_text() == label
+            assert panel.locator('.heatpump-operation small').inner_text() == 'Afgeleid'
+            assert panel.get_attribute('data-activity') == 'active'
+            assert panel.locator('.heatpump-operation').get_attribute('data-compressor-running') == 'false'
+            assert panel.locator('.heatpump-operation').get_attribute('data-fan-active') == 'true'
+            assert panel.locator('.heatpump-fan').evaluate('element=>getComputedStyle(element).animationName') == 'sp-heatpump-turn'
+            assert '1,36 kW' in panel.locator('[data-supply-number="1"]').inner_text()
+            assert '0 W' in panel.locator('[data-supply-number="2"]').inner_text()
+            if view == 'overview':
+                assert panel.locator('.row > .badge').inner_text() == label
+            assert page.evaluate('c._ctx().panasonic.native_task.inactive_action') == 'idle'
+            technical = panel.locator('[data-heatpump-provenance]').text_content()
+            assert 'Panasonic meldt rust' in technical and label + ' gekozen' in technical
+            assert '0 Hz' in technical and 'Actief verbruik vanaf' in technical
+            compact = prominent_text(panel)
+            for excluded in ('Panasonic meldt rust', ' gekozen', 'Actief verbruik vanaf',
+                             'compressorbedrijf en SG-reactie', 'Panasonic-voedingsprofiel',
+                             'bevestigen geen draaiende compressor', '0 Hz'):
+                assert excluded not in compact, (view, function, excluded)
+        for width in (320, 390, 768, 1280):
+            page.set_viewport_size({'width': width, 'height': 1000})
+            assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), ('dynamic-task', view, width)
+            assert panel.evaluate('element=>element.scrollWidth<=element.clientWidth+1'), ('dynamic-task', view, width)
+            assert panel.locator('.heatpump-supply>span:last-child').evaluate_all('''values=>values.every(value=>{
+              const style=getComputedStyle(value);
+              return style.wordBreak==='normal'&&style.overflowWrap==='normal'&&value.scrollWidth<=value.clientWidth+1;
+            })'''), ('supply-value-wrapping', view, width)
+            page.screenshot(path=str(OUT / f'SolarPilot-warmtepomp-taak68-{view}-{width}.png'), full_page=True)
+        # A new stale or incompatible context cannot retain the cached inferred
+        # function; current meter activity and animation remain independent.
+        page.evaluate('c._last.attributes.panasonic.task_context.observed_at=Date.now()/1000-121;c._render()')
+        assert panel.locator('.heatpump-operation strong').inner_text() == 'Warmtepomp werkt'
+        assert panel.locator('[data-heatpump-task=inferred]').count() == 0
+        assert panel.locator('.heatpump-operation').get_attribute('data-fan-active') == 'true'
+        page.emulate_media(reduced_motion='reduce')
+        assert panel.locator('.heatpump-fan').evaluate('element=>getComputedStyle(element).animationName') == 'none'
+        page.emulate_media(reduced_motion='no-preference')
+        # Unknown meter copy may wrap at spaces but must not overflow, and a
+        # known 0 W / Geen verbruik must retain normal complete-word wrapping.
+        page.set_viewport_size({'width': 320, 'height': 1000})
+        page.evaluate('qaMeter({power1:1360,power2:null,complete:false})')
+        assert panel.locator('[data-supply-number="2"]>span:last-child').inner_text() == 'Geen actuele meting'
+        assert panel.locator('.heatpump-supply>span:last-child').evaluate_all('''values=>values.every(value=>{
+          const style=getComputedStyle(value);
+          return style.wordBreak==='normal'&&style.overflowWrap==='normal'&&value.scrollWidth<=value.clientWidth+1;
+        })'''), ('missing-supply-wrapping', view)
+        assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), ('missing-supply', view)
+        assert panel.evaluate('element=>element.scrollWidth<=element.clientWidth+1'), ('missing-supply', view)
     page.locator('solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value=overview]').click()
 
     # Missing supply 2 preserves the known part but never fabricates a total.
@@ -458,7 +544,7 @@ with sync_playwright() as playwright:
     assert page.evaluate("qaWS.filter(x=>x.type==='solar_pilot/analysis_export')") == [
         {'type': 'solar_pilot/analysis_export', 'config_entry_id': 'offline-example',
          'hours': 168, 'include_names': False, 'download': True}]
-    analysis = page.locator('solar-pilot-card >> solar-pilot-analysis-dialog-1-0-0-beta-67')
+    analysis = page.locator('solar-pilot-card >> ' + page.evaluate('c._analysisDialog.localName'))
     assert not analysis.locator('.hours').is_visible() and not analysis.locator('.names').is_visible()
     assert analysis.locator('.template').is_visible()
     with page.expect_download() as template_info:
@@ -467,7 +553,7 @@ with sync_playwright() as playwright:
     analysis.locator('.close').click()
 
     page.locator('solar-pilot-card >> .footer [data-action=learning_hub]').click()
-    quality = page.locator('solar-pilot-card >> solar-pilot-learning-dialog-1-0-0-beta-67')
+    quality = page.locator('solar-pilot-card >> ' + page.evaluate('c._learningDialog.localName'))
     page.wait_for_function('!c._learningDialog._busy && !!c._learningDialog._data')
     assert quality.locator('h2').inner_text() == 'Meetkwaliteit'
     assert 'Oude interactieve vraag' not in quality.locator('.body').inner_text()

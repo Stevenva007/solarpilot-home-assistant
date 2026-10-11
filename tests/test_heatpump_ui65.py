@@ -58,8 +58,8 @@ def metered_sample(watts=3700, *, complete=True, function=None, roles=("unconfir
     state = "off" if watts == 0 else "basis" if watts < 200 else "active"
     label = {"off": "Geen elektrisch verbruik", "basis": "Basisverbruik", "active": "Warmtepomp werkt"}[state]
     if function:
-        label = {"tapwater_heating": "Sanitair water opwarmen", "space_heating": "Ruimte verwarmen",
-                 "space_cooling": "Ruimte koelen"}[function]
+        label = {"tapwater_heating": "Boiler opwarmen", "space_heating": "Verwarmen",
+                 "space_cooling": "Koelen"}[function]
     p.update(power_scope="split", power_w=watts if complete else None, power_complete=complete,
              power_supply1_w=watts, power_supply2_w=0, power_supply2_valid=complete)
     supplies = [
@@ -155,12 +155,22 @@ def business_tile(root, attribute):
     return rows[0]
 
 
+def provenance(root):
+    return business_tile(root, "data-heatpump-provenance")
+
+
+def assert_no_specific_task(root):
+    """A generic activity tile is permitted; a native/inferred task is not."""
+    tiles = [node for node in heatpump_panel(root).walk() if "data-heatpump-task" in node.attributes]
+    assert all(node.attributes["data-heatpump-task"] == "activity" for node in tiles)
+
+
 def native_task(data, function="tapwater_heating", source="aquarea_poll"):
     """Provider task status has its own clock and no electrical proof."""
     data["panasonic"]["native_task"] = {
         "function": function,
-        "label": {"tapwater_heating": "Sanitair water opwarmen", "space_heating": "Ruimte verwarmen",
-                  "space_cooling": "Ruimte koelen"}[function],
+        "label": {"tapwater_heating": "Boiler opwarmen", "space_heating": "Verwarmen",
+                  "space_cooling": "Koelen"}[function],
         "note": "Panasonic meldt deze taak; compressorbedrijf en SG-effect zijn niet afzonderlijk bevestigd.",
         "source": source, "observed_at": time.time(), "stale_s": 120,
     }
@@ -168,9 +178,9 @@ def native_task(data, function="tapwater_heating", source="aquarea_poll"):
 
 
 @pytest.mark.parametrize("view", ["board", "comfort"])
-@pytest.mark.parametrize("function,label", [("tapwater_heating", "Sanitair water opwarmen"),
-                                           ("space_heating", "Ruimte verwarmen"),
-                                           ("space_cooling", "Ruimte koelen")])
+@pytest.mark.parametrize("function,label", [("tapwater_heating", "Boiler opwarmen"),
+                                           ("space_heating", "Verwarmen"),
+                                           ("space_cooling", "Koelen")])
 def test_fresh_native_task_is_visible_without_meters_or_compressor_proof(view, function, label):
     data = sample()
     data["panasonic"].pop("operation")
@@ -179,8 +189,9 @@ def test_fresh_native_task_is_visible_without_meters_or_compressor_proof(view, f
     assert_unknown_operation_is_hidden(root)
     tile = business_tile(root, "data-heatpump-task")
     assert tile.attributes["data-heatpump-task"] == "native"
-    assert label in tile.text() and "Panasonic meldt" in tile.text()
-    assert "niet afzonderlijk bevestigd" in tile.text()
+    assert label in tile.text()
+    assert "Panasonic meldt" in provenance(root).text()
+    assert "niet afzonderlijk bevestigd" in provenance(root).text()
     assert "is-active" not in class_names(tile)
     assert "Compressor draait" not in tile.text()
     assert business_tile(root, "data-heatpump-heater").attributes["data-heatpump-heater"] == "unknown"
@@ -201,10 +212,11 @@ def test_selected_program_and_tank_routing_remain_context_without_activity(kind,
     }
     _, root = parsed(data)
     tile = business_tile(root, "data-heatpump-task")
-    assert tile.attributes["data-heatpump-task"] == "context"
-    assert label in tile.text()
-    assert ("Tankroute" if kind == "tank_route" else "Gekozen stand") in tile.text()
-    assert "geen afzonderlijke actiebevestiging" in tile.text()
+    assert tile.attributes["data-heatpump-task"] == "activity"
+    assert tile.text().endswith("Geen elektrisch verbruik")
+    assert label in provenance(root).text()
+    assert ("Panasonic-route" if kind == "tank_route" else "Gekozen Panasonic-stand") in provenance(root).text()
+    assert "niet afzonderlijk bevestigd" in provenance(root).text()
     graphic = operation_graphic(root)
     assert "Geen elektrisch verbruik" in graphic.text()
     assert graphic.attributes["data-fan-active"] == "false"
@@ -225,9 +237,9 @@ def test_fresh_power_and_sg_do_not_refresh_expired_native_task_or_selected_conte
     data["panasonic"]["sg_status"] = "active"
     _, root = parsed(data)
     tile = business_tile(root, "data-heatpump-task")
-    assert tile.attributes["data-heatpump-task"] == "none"
-    assert "Geen actuele taakmelding" in tile.text()
-    assert "Sanitair water opwarmen" not in tile.text() and "Koelen" not in tile.text()
+    assert tile.attributes["data-heatpump-task"] == "activity"
+    assert "Warmtepomp werkt" in tile.text()
+    assert "Boiler opwarmen" not in tile.text() and "Koelen" not in tile.text()
     assert "Warmtepomp werkt" in operation_graphic(root).text()
     assert operation_graphic(root).attributes["data-evidence"] == "metered_power"
     assert "is-active" in class_names(stage(root, "relay"))
@@ -235,8 +247,8 @@ def test_fresh_power_and_sg_do_not_refresh_expired_native_task_or_selected_conte
 
 @pytest.mark.parametrize("watts,state,label", [(0, "off", "Geen verbruik"),
                                               (199, "basis", "Basisverbruik"),
-                                              (200, "active", "Bijverwarming aan"),
-                                              (3700, "active", "Bijverwarming aan")])
+                                              (200, "active", "Aan"),
+                                              (3700, "active", "Aan")])
 def test_heater_uses_its_own_fresh_feed_when_the_main_feed_or_total_is_missing(watts, state, label):
     data = metered_sample(0, complete=False, roles=("main", "heater"))
     p = data["panasonic"]
@@ -250,11 +262,12 @@ def test_heater_uses_its_own_fresh_feed_when_the_main_feed_or_total_is_missing(w
     _, root = parsed(data)
     tile = business_tile(root, "data-heatpump-heater")
     assert tile.attributes["data-heatpump-heater"] == state
-    assert label in tile.text() and "voeding 2" in tile.text()
-    assert "geen aparte heater-terugmelding" in tile.text()
+    assert label in tile.text()
+    assert "voeding 2" in provenance(root).text()
+    assert "Panasonic stuurt haar zelfstandig" in provenance(root).text()
     assert ("is-active" in class_names(tile)) is (state == "active")
     assert "Totaal voeding 1 + voeding 2" not in heatpump_panel(root).text()
-    assert business_tile(root, "data-heatpump-task").attributes["data-heatpump-task"] == "none"
+    assert_no_specific_task(root)
     if state == "active":
         graphic = operation_graphic(root)
         assert "Actief verbruik op voeding 2" in graphic.text()
@@ -278,9 +291,9 @@ def test_fresh_main_total_and_native_task_do_not_refresh_a_stale_heater_feed():
     graphic = operation_graphic(root)
     assert graphic.attributes["data-fan-active"] == "true"
     assert graphic.attributes["data-compressor-running"] == "false"
-    assert "Sanitair water opwarmen" in graphic.text(), "The independent native task remains visible"
+    assert "Boiler opwarmen" in graphic.text(), "The independent native task remains visible"
     assert "Actief verbruik" in supply_row(root, 1).text()
-    assert "totaal en de functie zijn niet vastgesteld" in graphic.text()
+    assert "totaal en de functie zijn niet vastgesteld" in provenance(root).text()
     assert "Totaal voeding 1 + voeding 2" not in heatpump_panel(root).text()
 
 
@@ -289,9 +302,9 @@ def test_assumed_feed_two_heater_profile_is_explicit_and_keeps_zero_as_a_measure
     data["panasonic"]["power_activity"]["supplies"][1]["role_assumed"] = True
     _, root = parsed(data)
     tile = business_tile(root, "data-heatpump-heater")
-    assert "(aanname)" in tile.text()
+    assert "(aanname)" in provenance(root).text()
     assert "0 W" in tile.text() and "Geen verbruik" in tile.text()
-    assert "geen aparte heater-terugmelding" in tile.text()
+    assert "Panasonic stuurt haar zelfstandig" in provenance(root).text()
 
 
 @pytest.mark.parametrize("complete", [False, True])
@@ -307,12 +320,13 @@ def test_main_meter_activity_may_animate_without_claiming_a_running_compressor(c
     graphic = operation_graphic(root)
     assert graphic.attributes["data-fan-active"] == "true"
     assert graphic.attributes["data-compressor-running"] == "false"
-    assert "compressor" in graphic.text().lower() and "bevestig" in graphic.text().lower()
+    assert "compressor" in provenance(root).text().lower() and "bevestig" in provenance(root).text().lower()
     assert "Compressor draait" not in graphic.text()
     if frequency_fresh:
-        assert "0 Hz" in graphic.text()
+        assert "0 Hz" in provenance(root).text()
     else:
-        assert "0 Hz" not in graphic.text()
+        assert "0 Hz" not in provenance(root).text()
+    assert "Hz" not in graphic.text()
     if not complete:
         assert "Actief verbruik op voeding 1" in graphic.text()
         assert "Totaal voeding 1 + voeding 2" not in heatpump_panel(root).text()
@@ -344,12 +358,12 @@ def test_fresh_defrost_overrides_a_cached_heat_function_without_inventing_electr
     heading = next(node for node in tile.walk() if node.tag == "strong")
     assert tile.attributes["data-heatpump-task"] == "native"
     assert heading.text() == "Ontdooien"
-    assert "Panasonic meldt" in tile.text()
-    assert "SG-effect blijven afzonderlijke waarnemingen" in tile.text()
+    assert "Panasonic meldt" in provenance(root).text()
+    assert "SG-effect blijven afzonderlijke waarnemingen" in provenance(root).text()
     graphic = operation_graphic(root)
     heading = next(node for node in graphic.walk() if node.tag == "strong")
-    assert ("Ontdooien" if watts else "Geen elektrisch verbruik") in heading.text()
-    assert "Ruimte verwarmen" not in graphic.text()
+    assert "Ontdooien" in heading.text()
+    assert "Verwarmen" not in graphic.text()
     assert graphic.attributes["data-evidence"] == "metered_power"
     assert graphic.attributes["data-compressor-running"] == "false"
     assert graphic.attributes["data-fan-active"] == ("true" if watts else "false")
@@ -362,8 +376,8 @@ def test_expired_defrost_cannot_override_a_fresh_independent_native_task():
                                      "observed_at": time.time() - 121, "stale_s": 120}
     _, root = parsed(data)
     tile = business_tile(root, "data-heatpump-task")
-    assert "Ruimte koelen" in tile.text() and "Ontdooien" not in tile.text()
-    assert "Ruimte koelen" in operation_graphic(root).text()
+    assert "Koelen" in tile.text() and "Ontdooien" not in tile.text()
+    assert "Koelen" in operation_graphic(root).text()
 
 
 @pytest.mark.parametrize("special,label", [("inactive", "Panasonic meldt rust"),
@@ -377,8 +391,9 @@ def test_native_idle_and_conflicting_task_reports_are_visible_without_becoming_a
     }
     _, root = parsed(data)
     tile = business_tile(root, "data-heatpump-task")
-    assert tile.attributes["data-heatpump-task"] == "native"
-    assert label in tile.text()
+    assert tile.attributes["data-heatpump-task"] == "activity"
+    assert label in provenance(root).text()
+    assert label not in tile.text()
     graphic = operation_graphic(root)
     assert "Geen elektrisch verbruik" in graphic.text()
     assert label not in next(node for node in graphic.walk() if node.tag == "strong").text()
@@ -396,13 +411,13 @@ def test_heater_only_activity_has_no_derived_space_or_tank_function_and_does_not
     _, root = parsed(data)
     graphic = operation_graphic(root)
     assert "Elektrische bijverwarming actief" in graphic.text()
-    assert "Sanitair water opwarmen" not in graphic.text()
-    assert "ruimte- of tankfunctie" in graphic.text()
+    assert "Boiler opwarmen" not in graphic.text()
+    assert "ruimte- of tankfunctie" in provenance(root).text()
     assert graphic.attributes["data-fan-active"] == "false"
     assert graphic.attributes["data-compressor-running"] == "false"
     assert graphic.attributes["data-evidence"] == "metered_power"
     assert business_tile(root, "data-heatpump-heater").attributes["data-heatpump-heater"] == "active"
-    assert business_tile(root, "data-heatpump-task").attributes["data-heatpump-task"] == "none"
+    assert_no_specific_task(root)
 
 
 @pytest.mark.parametrize("frequency", [None, 0, 42])
@@ -425,7 +440,8 @@ def test_generic_native_action_cannot_spin_heater_only_fan_without_actual_freque
     heater = business_tile(root, "data-heatpump-heater")
     assert heater.attributes["data-heatpump-heater"] == "active"
     assert "is-active" in class_names(heater) and "3 kW" in heater.text()
-    assert ("Compressor draait" in graphic.text()) is frequency_proof
+    assert ("Compressor draait" in provenance(root).text()) is frequency_proof
+    assert "Compressor draait" not in graphic.text()
 
 
 @pytest.mark.parametrize("view", ["board", "comfort"])
@@ -447,9 +463,9 @@ def test_confirmed_complete_power_can_describe_electrical_activity_without_nativ
         assert "is-inactive" in class_names(stage(panel, which))
 
 
-@pytest.mark.parametrize("function,label", [("tapwater_heating", "Sanitair water opwarmen"),
-                                           ("space_heating", "Ruimte verwarmen"),
-                                           ("space_cooling", "Ruimte koelen")])
+@pytest.mark.parametrize("function,label", [("tapwater_heating", "Boiler opwarmen"),
+                                           ("space_heating", "Verwarmen"),
+                                           ("space_cooling", "Koelen")])
 def test_power_and_fresh_separate_context_show_an_explicit_function_inference(function, label):
     _, root = parsed(metered_sample(function=function))
     graphic = operation_graphic(root)
@@ -468,7 +484,7 @@ def test_expired_function_context_falls_back_to_still_fresh_generic_power(stamp)
     _, root = parsed(data)
     graphic = operation_graphic(root)
     assert "Warmtepomp werkt" in graphic.text()
-    assert "Sanitair water opwarmen" not in graphic.text()
+    assert "Boiler opwarmen" not in graphic.text()
     assert graphic.attributes["data-evidence"] == "metered_power"
     assert "is-active" in class_names(heatpump_panel(root))
 
@@ -484,7 +500,7 @@ def test_single_complete_meter_and_function_context_expire_independently(power_e
         p["power_observed_at"] = p["power_stamp"] = stale
     _, root = parsed(data)
     panel = heatpump_panel(root)
-    assert "Sanitair water opwarmen" not in panel.text()
+    assert "Boiler opwarmen" not in panel.text()
     if power_expired:
         assert_unknown_operation_is_hidden(root)
         assert "Vermogen nog niet bekend" in panel.text()
@@ -502,7 +518,7 @@ def test_one_fresh_high_supply_reports_only_its_partial_activity():
     graphic = operation_graphic(root)
     assert "Actief verbruik op voeding 1" in graphic.text()
     assert "Warmtepomp werkt" not in graphic.text()
-    assert "Sanitair water opwarmen" not in graphic.text()
+    assert "Boiler opwarmen" not in graphic.text()
     assert graphic.attributes["data-evidence"] == "metered_power"
     power = next(node for node in panel.walk() if "reason-power" in class_names(node))
     assert "Vermogen nog niet bekend" in power.text()
@@ -535,7 +551,7 @@ def test_new_power_snapshot_cannot_refresh_an_expired_underlying_supply(which):
     _, root = parsed(data)
     panel = heatpump_panel(root)
     assert "Warmtepomp werkt" not in panel.text()
-    assert "Sanitair water opwarmen" not in panel.text()
+    assert "Boiler opwarmen" not in panel.text()
     assert "Totaal voeding 1 + voeding 2" not in panel.text()
     assert "3,7 kW" not in next(node for node in panel.walk() if "reason-power" in class_names(node)).children[0].text()
     if which == 2:
@@ -543,7 +559,7 @@ def test_new_power_snapshot_cannot_refresh_an_expired_underlying_supply(which):
         assert "3,7 kW" in first.text() and "Actief verbruik" in first.text()
         graphic = operation_graphic(root)
         assert "Actief verbruik op voeding 1" in graphic.text()
-        assert "totaal en de functie zijn niet vastgesteld" in graphic.text()
+        assert "totaal en de functie zijn niet vastgesteld" in provenance(root).text()
         assert graphic.attributes["data-evidence"] == "metered_power"
         assert graphic.attributes["data-fan-active"] == "false", "An unconfirmed supply role does not identify the main fan"
     else:
@@ -569,8 +585,9 @@ def test_feed_functions_are_shown_only_when_explicitly_configured_and_zero_remai
     assert "0 W" in second.text() and "Geen verbruik" in second.text()
     assert second.attributes["data-supply-state"] == "off"
     if roles[0] == "main":
-        assert "regeling" in first.text() and "pompen" in first.text()
-        assert "Elektrische ondersteuning" in second.text()
+        assert "regeling" in provenance(root).text() and "pompen" in provenance(root).text()
+        assert "elektrische bijverwarming" in second.text()
+        assert "Elektrische ondersteuning" in provenance(root).text()
     else:
         assert "compressor" not in first.text().lower() and "pompen" not in first.text().lower()
         assert "Elektrische ondersteuning" not in second.text()
@@ -582,8 +599,9 @@ def test_native_compressor_operation_remains_visible_with_zero_electrical_classi
         "evidence": "compressor_frequency", "observed_at": time.time(), "stale_s": 120}
     _, root = parsed(data)
     graphic = operation_graphic(root)
-    assert "Compressor draait" in graphic.text()
-    assert "Geen elektrisch verbruik" in graphic.text()
+    assert "Warmtepomp werkt" in graphic.text()
+    assert "Compressor draait" in provenance(root).text()
+    assert "Geen elektrisch verbruik" not in graphic.text()
     assert graphic.attributes["data-compressor-running"] == "true"
     assert "is-active" in class_names(heatpump_panel(root))
 
@@ -594,8 +612,8 @@ def test_native_active_operation_and_power_task_inference_remain_distinguishable
         "evidence": "compressor_frequency", "observed_at": time.time(), "stale_s": 120}
     _, root = parsed(data)
     graphic = operation_graphic(root)
-    assert "Sanitair water opwarmen" in graphic.text()
-    assert "Compressor draait" in graphic.text()
+    assert "Boiler opwarmen" in graphic.text()
+    assert "Compressor draait" in provenance(root).text()
     assert "afgeleid" in graphic.text().lower()
     assert graphic.attributes["data-evidence"] == "nativelyconfirmed"
     assert graphic.attributes["data-compressor-running"] == "true"
@@ -609,13 +627,13 @@ def test_legacy_single_partial_meter_has_no_whole_heatpump_total_or_function():
     _, root = parsed(data)
     graphic = operation_graphic(root)
     assert "Actief verbruik op deelmeter" in graphic.text()
-    assert "Warmtepomp werkt" not in graphic.text() and "Sanitair water opwarmen" not in graphic.text()
+    assert "Warmtepomp werkt" not in graphic.text() and "Boiler opwarmen" not in graphic.text()
     assert "Alleen voeding 1 · gedeeltelijke meting" in heatpump_panel(root).text()
     assert "Totaal warmtepomp" not in heatpump_panel(root).text()
 
 
 @pytest.mark.parametrize("function,label", [(None, "Warmtepomp werkt"),
-                                           ("tapwater_heating", "Sanitair water opwarmen")])
+                                           ("tapwater_heating", "Boiler opwarmen")])
 def test_native_idle_and_high_auxiliary_power_show_electrical_activity_while_preserving_compressor_zero(function, label):
     data = metered_sample(3700, function=function, roles=("main", "heater"))
     p = data["panasonic"]
@@ -627,10 +645,10 @@ def test_native_idle_and_high_auxiliary_power_show_electrical_activity_while_pre
     _, root = parsed(data)
     graphic = operation_graphic(root)
     heading = next(node for node in graphic.walk() if node.tag == "strong")
-    note = next(node for node in graphic.walk() if node.tag == "small")
-    assert label in heading.text() and "0 Hz" in heading.text()
+    assert label in heading.text() and "Hz" not in heading.text()
     assert "Compressor staat stil" not in heading.text()
-    assert "Compressor staat stil" in note.text()
+    assert "Compressor staat stil" in provenance(root).text()
+    assert "0 Hz" in provenance(root).text()
     assert "afgeleid" in graphic.text().lower()
     assert graphic.attributes["data-compressor-running"] == "false"
     assert graphic.attributes["data-evidence"] == ("metered_power_and_context" if function else "metered_power")
@@ -663,7 +681,7 @@ def test_native_operation_gets_active_article_while_sg_is_open():
     assert "Warmtepomp in werking" in row.text()
     graphic = [node for node in row.walk() if node.attributes.get("data-heatpump-operation") == "active"]
     assert len(graphic) == 1
-    assert "Warmtepomp in werking" in graphic[0].text()
+    assert "Warmtepomp werkt" in graphic[0].text()
 
 
 @pytest.mark.parametrize("operation,expected", [("idle", "inactive"), ("unknown", "unknown")])

@@ -167,7 +167,9 @@ def test_fresh_native_operation_controls_blue_edge_independently_of_open_sg(stat
         "state": state, "label": label, "evidence": "compressor_frequency",
         "observed_at": time.time(), "stale_s": 120}}, sgBoost=sg_fixture())
     row = heatpump_row(rows)
-    assert row["activity"] == activity and row["state"] == label
+    assert row["activity"] == activity
+    assert row["state"] == ("Warmtepomp werkt" if state == "active" else "Niet actief")
+    assert label in row["text"]  # raw native message remains available in Details
     assert ("is-active" in row["classes"]) is (state == "active")
     assert 'class="sg-stage is-inactive" data-sg-stage="relay"' in markup
     assert "SG-contact open" in row["text"]
