@@ -9,6 +9,7 @@ from custom_components.solar_pilot.heatpump_learning import (
     CONTEXT_DHW,
     CONTEXT_HEATING,
     CONTEXT_NORMAL,
+    CONTEXT_UNKNOWN,
     HeatPumpActivityModel,
     classify_heatpump,
 )
@@ -50,12 +51,12 @@ def test_explicit_space_cooling_remains_visible_beside_tapwater_action(action):
     runtime.panasonic.settings["tank_target_entity"] = "water_heater.tank"
     states.set("water_heater.tank", "heat", {"hvac_action": action})
     states.set("climate.zone_1", "auto", {"hvac_action": "cooling"})
-    # Current SG safety must not hide reported cooling behind a tank action.
-    # Both can be reported while tank heat uses an electrical auxiliary heater;
-    # this does not prove which compressor task is physically active.
-    assert classify_heatpump(runtime, NS(weekday=lambda: 1, time=lambda: None))[0] == CONTEXT_COOLING
+    # SG keeps its conservative cooling guard. Concurrent actual tank/space
+    # actions do not establish one physical task for learning.
+    expected = CONTEXT_COOLING if action == "heat" else CONTEXT_UNKNOWN
+    assert classify_heatpump(runtime, NS(weekday=lambda: 1, time=lambda: None))[0] == expected
     observed = runtime.panasonic.overview()
-    assert observed["context_reliable"] and observed["cooling_possible"]
+    assert observed["context"] == CONTEXT_COOLING and observed["context_reliable"] and observed["cooling_possible"]
     assert observed["compressor_running"] is None
 
 
@@ -65,7 +66,8 @@ def test_tapwater_action_still_classifies_when_no_space_action_is_reported(actio
     runtime.panasonic.settings["tank_target_entity"] = "water_heater.tank"
     states.set("water_heater.tank", "heat", {"hvac_action": action})
     states.set("climate.zone_1", "auto", {"hvac_action": "idle"})
-    assert classify_heatpump(runtime, NS())[0] == CONTEXT_DHW
+    # 'heat' names a selected HA mode, unlike an explicit 'heating' action.
+    assert classify_heatpump(runtime, NS())[0] == (CONTEXT_UNKNOWN if action == "heat" else CONTEXT_DHW)
     observed = runtime.panasonic.overview()
     assert observed["context_reliable"] and observed["compressor_running"] is None
     # A tank action alone does not rule out an AUTO cooling programme.
@@ -121,6 +123,8 @@ def test_learned_heatpump_power_never_changes_realtime_site_measurement():
     h.states.set('sensor.pv',3000,{'unit_of_measurement':'W'})
     r.heatpump_learning.samples[CONTEXT_HEATING]=[5000,5100,4950,5050]
     r.heatpump_learning.days[CONTEXT_HEATING]={'2026-09-29','2026-09-30'}
+    r.heatpump_learning.confirmed_samples[CONTEXT_HEATING]=[5000,5100,4950,5050]
+    r.heatpump_learning.confirmed_days[CONTEXT_HEATING]={'2026-09-29','2026-09-30'}
     assert r.heatpump_learning.estimate(CONTEXT_HEATING).watts is not None
     grid,valid,discharge,ready,_stamp=r._site_data()
     assert valid and ready

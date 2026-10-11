@@ -412,6 +412,101 @@ with sync_playwright() as playwright:
         assert panel.evaluate('element=>element.scrollWidth<=element.clientWidth+1'), ('missing-supply', view)
     page.locator('solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value=overview]').click()
 
+    # beta.69 keeps main-operation OFF separate from the tank's independent
+    # ON/WATER report from the same provider poll. Fictional complete meters
+    # support only a read-only tank-route inference, never SG/control proof.
+    page.evaluate('''() => {
+      window.qaIndependentTank=()=>{
+        const stamp=Date.now()/1000;
+        qaMeter({native:'unknown',sg:false,power1:1840,power2:0,
+          function:'tapwater_heating',functionKind:'tank_route',functionSource:'aquarea_entity',
+          contextFunction:'tapwater_heating',contextKind:'tank_route',contextSource:'aquarea_entity',
+          contextLabel:'Panasonic meldt tankroute',nativeTask:{function:null,
+            label:'Panasonic meldt ruimtebedrijf uit',source:'aquarea_poll',observed_at:stamp,stale_s:120,
+            inactive:true,inactive_action:'off',inactive_scope:'space_circuit',
+            independent_tank_on:true,verified_global_off:false,
+            raw_evidence:[{entity_id:'climate.fictional_room',source:'aquarea_poll',raw_action:'OFF',
+              action:'off',operation_status:'OFF',has_tank:true,tank_operation_status:'ON',direction:'WATER',
+              observed_at:stamp,inactive_scope:'space_circuit'}],
+            inactive_zones:[{entity_id:'climate.fictional_room',action:'off',observed_at:stamp,scope:'zone'}]}});
+      };
+    }''')
+    for view in ('overview', 'comfort', 'loads'):
+        page.locator(f'solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value={view}]').click()
+        panel = row if view == 'overview' else page.locator('solar-pilot-card >> .heatpump-sg')
+        for width in (320, 390, 768, 1280):
+            page.set_viewport_size({'width': width, 'height': 1000})
+            page.evaluate('qaIndependentTank()')
+            assert panel.locator('[data-heatpump-task=inferred] strong').inner_text() == 'Boiler opwarmen'
+            assert panel.locator('.heatpump-operation strong').inner_text() == 'Boiler opwarmen'
+            assert panel.locator('.heatpump-operation small').inner_text() == 'Afgeleid'
+            assert panel.locator('.heatpump-operation').get_attribute('data-compressor-running') == 'false'
+            assert panel.locator('[data-sg-stage=relay]').inner_text().endswith('Open')
+            technical = panel.locator('[data-heatpump-provenance]').text_content()
+            assert 'OFF' in technical and 'tank afzonderlijk actief' in technical
+            assert 'OFF' not in prominent_text(panel)
+            assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), ('independent-tank69', view, width)
+            assert panel.evaluate('element=>element.scrollWidth<=element.clientWidth+1'), ('independent-tank69', view, width)
+            page.screenshot(path=str(OUT / f'SolarPilot-warmtepomp-tank69-{view}-{width}.png'), full_page=True)
+        # Even a cached inference cannot override global OFF, unknown scope,
+        # or a missing independent ON report. Keep its fresh measured uptake.
+        for change in ({'inactive_scope': 'global', 'verified_global_off': True,
+                        'independent_tank_on': False},
+                       {'inactive_scope': 'unknown'}, {'independent_tank_on': False},
+                       {'verified_global_off': True}):
+            page.evaluate('change=>{qaIndependentTank();Object.assign(c._last.attributes.panasonic.native_task,change);c._render();}', change)
+            assert panel.locator('[data-heatpump-task=inferred]').count() == 0
+            assert panel.locator('.heatpump-operation strong').inner_text() == 'Warmtepomp werkt'
+            assert 'OFF' in panel.locator('[data-heatpump-provenance]').text_content()
+        page.evaluate('''() => {qaIndependentTank();
+          c._last.attributes.panasonic.task_context.observed_at=Date.now()/1000-121;c._render();}''')
+        assert panel.locator('[data-heatpump-task=inferred]').count() == 0
+        assert panel.locator('.heatpump-operation strong').inner_text() == 'Warmtepomp werkt'
+
+    # A theoretical remaining quarter budget is not physical room. Already
+    # measured HP solar, real residual export and hard electrical room stay
+    # distinct in Details, and all three views show the exact same values.
+    page.evaluate('''() => {window.qaElectrical=()=>{
+      qaApply('unknown',false);const a=c._last.attributes,stamp=Date.now()/1000;
+      a.ems={...(a.ems||{}),electrical_limits:{observed_at:stamp,source_valid:true,
+        source_observed_at:stamp,source_stale_s:2,fixed_import_limit_w:3500,
+        instantaneous_headroom_w:500,quarter_enabled:true,quarter_valid:true,
+        quarter_theoretical_headroom_w:100000,sg_solar_valid:true,sg_solar_observed_at:stamp,
+        sg_eligible_solar_w:4000,sg_hp_solar_w:3500,sg_residual_solar_w:500}};
+      // Make every other observation already expired so only electrical
+      // freshness changes during the later no-HA-event clock regression.
+      for(const key of ['power_observed_at','power_supply1_observed_at','power_supply2_observed_at',
+        'temperature_stamp','target_stamp','compressor_frequency_observed_at','sg_status_observed_at','context_stamp'])a.panasonic[key]=stamp-121;
+      a.panasonic.operation.observed_at=stamp-121;
+      for(const zone of a.panasonic.zones)zone.observed_at=stamp-121;
+      a.sg_boost.observed_at=a.sg_boost.relay_observed_at=stamp-121;
+      c._render();
+    };}''')
+    for view in ('overview', 'comfort', 'loads'):
+        page.locator(f'solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value={view}]').click()
+        panel = row if view == 'overview' else page.locator('solar-pilot-card >> .heatpump-sg')
+        page.evaluate('qaElectrical()')
+        facts = panel.locator('.start-facts>span')
+        assert facts.filter(has_text='Elektrische ruimte nu').locator('b').inner_text() == '500 W'
+        assert facts.filter(has_text='Theoretisch kwartierbudget').locator('b').inner_text() == '100 kW'
+        assert facts.filter(has_text='Zonnevermogen voor SG-drempel').locator('b').inner_text() == '4 kW'
+        assert facts.filter(has_text='Daarvan al bij warmtepomp').locator('b').inner_text() == '3,5 kW'
+        assert facts.filter(has_text='Resterende vrije zonnestroom').locator('b').inner_text() == '500 W'
+        assert 'verruimt de vaste net- en fasegrenzen nooit' in panel.text_content()
+        assert '100 kW' not in prominent_text(panel)
+        page.evaluate('''() => {
+          window.qaStateBeforeBudgetExpiry=c._last;
+          window.qaElectricalBeforeExpiry=structuredClone(c._last.attributes.ems.electrical_limits);
+          qaClockMs+=3000;c._refreshObservationDisplay();
+        }''')
+        assert page.evaluate('c._last===qaStateBeforeBudgetExpiry')
+        assert page.evaluate('JSON.stringify(c._last.attributes.ems.electrical_limits)===JSON.stringify(qaElectricalBeforeExpiry)')
+        assert facts.filter(has_text='Elektrische ruimte nu').locator('b').inner_text() == '—'
+        for label in ('Zonnevermogen voor SG-drempel', 'Daarvan al bij warmtepomp', 'Resterende vrije zonnestroom'):
+            assert facts.filter(has_text=label).locator('b').inner_text() == '—', (view, label)
+        assert panel.locator('[data-heatpump-task=inferred]').count() == 0
+    page.locator('solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value=overview]').click()
+
     # Missing supply 2 preserves the known part but never fabricates a total.
     page.evaluate("qaApply('active',false,{power_w:null,power_kind:'unknown',power_complete:false,power_supply2_w:null,power_supply2_valid:false})")
     assert 'Voeding 1: 1,72 kW · Voeding 2: onbekend' in row.inner_text()
@@ -616,4 +711,4 @@ with sync_playwright() as playwright:
     assert page.evaluate('qaCalls.length') == 0
     assert not errors, errors
     browser.close()
-print('OK: independent native/compact SG evidence, 3 views, responsive layout, reduced motion, clock expiry, draft/details preservation, partial/zero readings; one-click analysis/template, bounded escaped feedback, reload/removal/admin checks; zero device calls. Fiction only.')
+print('OK: independent native/compact SG evidence, typed main OFF versus tank ON/WATER, global/unknown OFF vetoes, 3 views and 4 widths, separate theoretical/electrical/HP-solar/residual budgets, electrical expiry without HA events, reduced motion, draft/details preservation, partial/zero readings; one-click analysis/template, bounded escaped feedback, reload/removal/admin checks; zero device calls. Fiction only.')

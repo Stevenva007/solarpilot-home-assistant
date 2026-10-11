@@ -257,7 +257,11 @@ class PanasonicMonitor:
         sg_status = "active" if sg_value in active_states else "inactive" if sg_value in inactive_states else "unknown"
         from .heatpump_budget import heatpump_power
         power = heatpump_power(self.runtime)
-        from .power_activity import power_activity
+        from .power_activity import SOURCE_EVIDENCE_FIELDS, power_activity
+        quality_sources = power.get("supplies") or {"total": power}
+        power_source_quality = {name: {key: reading.get(key) for key in (
+            *SOURCE_EVIDENCE_FIELDS, "valid", "watts")}
+            for name, reading in quality_sources.items()}
         read_tank_action = getattr(self.native_program, "read_tank_action", None)
         native_tank_action = read_tank_action(c["tank_target_entity"]) if callable(read_tank_action) else {}
         # Automatic siblings belong only to presentation. They never amend
@@ -339,6 +343,7 @@ class PanasonicMonitor:
             "power_kind": "measured" if power["valid"] else "unknown",
             "power_scope": power["meter_scope"], "power_entity": c["power_entity"],
             "power_complete": power["complete"], "power_reason": power["reason"],
+            "power_source_quality": power_source_quality,
             "power_supply1_w": power["supplies"].get("supply1", {}).get("watts"),
             "power_supply2_w": power["supplies"].get("supply2", {}).get("watts"),
             "power_supply1_valid": power["supplies"].get("supply1", {}).get("valid", False),

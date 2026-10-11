@@ -456,6 +456,7 @@ class LiveOptions:
                     r.priorities.pop(i, None)
         if any(changed_keys(old.get(i,{}),new.get(i,{})) & {"kind","wallbox_precedence","dishwasher_priority_enabled","wallbox_power_policy"} for i in old.keys()|new.keys()):
             r.wallbox_guard=r._make_wallbox_guard()
+            r.sg_wallbox_guard=r._make_sg_wallbox_guard()
         r.consumer_history.configs = {**keyed(options.get(ARCHIVED)), **r.configs}
         for group in (set(previous) | set(options)) - {"devices", ARCHIVED, PENDING}:
             if group.startswith("_live_") or previous.get(group) == options.get(group):

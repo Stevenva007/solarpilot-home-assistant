@@ -510,6 +510,8 @@ class AnalysisRecorder:
                 data["prepared"] = bool(r.dishwasher.tickets.get(device_id, {}).get("armed"))
         fast["panasonic"] = safe(r.panasonic.overview())
         fast["sg_boost"] = safe(r.sg_boost.overview())
+        from .heatpump_learning import classify_heatpump_observation
+        fast["heatpump_classification"] = safe(classify_heatpump_observation(fast["panasonic"], now_wall=wall))
         fast["monotonic_s"] = time.monotonic()
         self.fast.append(safe(fast))
         from .analysis_review import discrete_heatpump_state, heatpump_record

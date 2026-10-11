@@ -14,7 +14,18 @@ import re
 from .const import VERSION
 
 
-IMPLEMENTED_PROPOSALS = {}
+IMPLEMENTED_PROPOSALS = {'sp.hp.task-presentation.v1': {'proposal_sha256': '4c476362c5748d15799df46b23c3bb043184ad629f01ecb554b76740428fb48f',
+                                'introduced_release': '1.0.0-beta.69',
+                                'title': 'Taakbereik en tankroute bij native OFF'},
+ 'sp.hp.context-and-learning.v1': {'proposal_sha256': '2c58cbcdf31739d02d295490d40a489a13bd6b23ffcac2c6cae7dcdafaaa98aa',
+                                   'introduced_release': '1.0.0-beta.69',
+                                   'title': 'Native en afgeleide leercontext scheiden'},
+ 'sp.meters.source-quality-evidence.v1': {'proposal_sha256': 'da7fc941830028211d8449d27aa18577c847006186b1f1af794388082f191ae3',
+                                          'introduced_release': '1.0.0-beta.69',
+                                          'title': 'Bewijs en afkeurreden per vermogensbron'},
+ 'sp.electrical.budget-versus-limits.v1': {'proposal_sha256': '8f26454092497698718bd732cd1727916886e3ce0c061e97684d450e5c3d0828',
+                                           'introduced_release': '1.0.0-beta.69',
+                                           'title': 'Kwartierbudget en fysieke grenzen onderscheiden'}}
 _PART = r"(?:0|[1-9][0-9]*)"
 _RELEASE = re.compile(rf"({_PART})\.({_PART})\.({_PART})(?:-beta\.({_PART}))?\Z")
 _PROPOSAL_ID = re.compile(r"[a-z0-9][a-z0-9._:-]{0,119}\Z")

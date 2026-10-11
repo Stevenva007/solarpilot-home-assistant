@@ -223,7 +223,7 @@ De beta.61-baseline bevat 140 testbestanden met 2035 testfunctiedefinities. Er z
 |---|---:|---|
 | `test_sg_archive62.py` | 7 | Begrensde live samenvatting; volledige lokale/private oude gegevens blijven behouden en herstelbaar. |
 | `test_sg_authority62.py` | 19 | Geen native writes via runtime, oude journals, generieke adapters, batterij of scripts; exact doel en één SG-eigenaar. |
-| `test_sg_budget_priority62.py` | 26 | Uitsluitend werkelijk restoverschot; beschermde programma’s, capaciteit, fasen en één warmtepompmeting. |
+| `test_sg_budget_priority62.py` | 26 | Werkelijk restoverschot blijft fysieke ruimte; complete actuele HP-bijdrage telt alleen voor SG-startdrempel; beschermde programma’s, capaciteit, fasen en één warmtepompmeting. |
 | `test_sg_config62.py` | 20 | Volledige SG-instellingen, exclusieve koppeling, veilige ongecommissioneerde standaard en begrijpelijke uitleg. |
 | `test_sg_controller62.py` | 63 | Toestandsmachine, lease, herstart zonder ON-herhaling, minimumtijd, bronverlies, uitschakelen, verse herbeoordeling en atomaire beslissingen bij tussentijdse wijzigingen. |
 | `test_sg_diagnostics62.py` | 1 | Bevoegdheid en stroomscope zichtbaar zonder private bindings, historie of waarden te publiceren. |
@@ -243,3 +243,5 @@ De volledige softwarecontrole gebruikt expliciete HA-doubles, fabrikantbronproev
 ## Definitieve software-uitvoering
 
 Op de bevroren beta.62-werkbron is de volledige toepasselijke suite uitgevoerd met `PYTHONDONTWRITEBYTECODE=1 python -m pytest -q -p no:cacheprovider`: **2809 geslaagd in 31,45 s**, zonder overgeslagen of mislukte tests. Deze definitieve run bevat alle 13 releasepakketgevallen en de vier aanvullende controllergevallen voor atomaire beslissingen. Dit zijn uitgevoerde, parametriseerde gevallen; de brondefinitietellingen hierboven beschrijven een andere grootheid. Privacy-, SG-grens-, overdrachts-, actuele-uitleg- en diffcontroles slagen. Echte publicatie-/downloadbewijzen komen uit de releasecontrole op de exacte gecommitteerde bron.
+
+Beta.69: `test_sg_solar_credit69.py`, `test_electrical_limits69.py`, `test_heatpump_inactivity_scope69.py`, `test_heatpump_meter_evidence69.py`, `test_heatpump_learning69.py` en `test_heatpump_export_ui69.py` toetsen de gescheiden zonne-, taak-, bron- en bewijsgrenzen.

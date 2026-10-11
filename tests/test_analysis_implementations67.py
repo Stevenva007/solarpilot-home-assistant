@@ -10,8 +10,14 @@ def proposal(identifier="synthetic-source-clock"):
     return {"category": "logic_update", "proposal_id": identifier, "text": "Controleer de eigen bronklok."}
 
 
-def test_shipped_catalog_starts_empty_without_claiming_any_uploaded_implementation():
-    assert implementations.IMPLEMENTED_PROPOSALS == {}
+def test_shipped_catalog_only_contains_release_bound_generic_proposals():
+    assert set(implementations.IMPLEMENTED_PROPOSALS) == {
+        "sp.hp.task-presentation.v1", "sp.hp.context-and-learning.v1",
+        "sp.meters.source-quality-evidence.v1", "sp.electrical.budget-versus-limits.v1"}
+    for row in implementations.IMPLEMENTED_PROPOSALS.values():
+        assert set(row) == {"introduced_release", "title", "proposal_sha256"}
+        assert row["introduced_release"] == "1.0.0-beta.69"
+        assert len(row["proposal_sha256"]) == 64
     report = proposal()
     report.update(status="implemented", introduced_release="1.0.0-beta.1", code="switch.turn_on")
     before = deepcopy(report)

@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.68",
+  "version": "1.0.0-beta.69",
   "language": "nl",
   "steps": {
     "init": {
@@ -984,7 +984,7 @@
         "enabled": "Automatische zonneboost aan",
         "commissioning_confirmed": "Juiste SG-trap, gekozen toepassingsbereik en externe schrijvers gecontroleerd",
         "watchdog_confirmed": "Lokale aflooptimer en verlengen zonder schakelen getest",
-        "threshold_w": "Benodigd bruikbaar zonneoverschot voor starten (W)",
+        "threshold_w": "SG-startdrempel: restzon + reeds gebruikte warmtepompzon (W)",
         "expected_power_w": "Voorlopige raming van de extra vraag (W)",
         "profile": "Toepassingsbereik SG-zonneboost",
         "profile_confirmed": "Toepassingsbereik lokaal bevestigd",
@@ -995,7 +995,7 @@
         "enabled": "Staat standaard uit.",
         "commissioning_confirmed": "Bevestig pas na lokale controle van de juiste SG-trap, gewenste native basisinstellingen, gekozen toepassingsbereik en afwezigheid van dubbele automatiseringen.",
         "watchdog_confirmed": "Bevestig pas na een echte lokale proef: de Shelly opent het contact wanneer vernieuwing uitblijft, en tijdige vernieuwing verlengt de timer zonder UIT/AAN-geklapper.",
-        "threshold_w": "Benodigd werkelijk bruikbaar zonneoverschot voor een nieuwe SG-aanvraag, standaard 3000 W.",
+        "threshold_w": "Benodigde zonnebijdrage voor een nieuwe SG-aanvraag, standaard 3000 W: werkelijk restoverschot plus het actuele bevestigde warmtepompverbruik dat al door zon wordt gedekt.",
         "expected_power_w": "Voorlopige raming van de extra SG-vraag, standaard 3200 W.",
         "profile": "Kies het lokaal gecontroleerde toepassingsbereik: uitsluitend tapwater of algemene SG-boost volgens de actieve Panasonic-bedrijfsmodus.",
         "profile_confirmed": "Bevestig dat het geselecteerde toepassingsbereik overeenkomt met de lokaal ingestelde SG-capaciteit.",
@@ -3806,10 +3806,10 @@
       ]
     },
     "sg_boost.threshold_w": {
-      "title": "Benodigd bruikbaar zonneoverschot voor starten (W)",
-      "short": "Benodigd werkelijk bruikbaar zonneoverschot voor een nieuwe SG-aanvraag, standaard 3000 W.",
+      "title": "SG-startdrempel: restzon + reeds gebruikte warmtepompzon (W)",
+      "short": "Benodigde zonnebijdrage voor een nieuwe SG-aanvraag, standaard 3000 W: werkelijk restoverschot plus het actuele bevestigde warmtepompverbruik dat al door zon wordt gedekt.",
       "paragraphs": [
-        "Benodigd werkelijk bruikbaar zonneoverschot voor een nieuwe SG-aanvraag, standaard 3000 W. Dit is een startdrempel, geen meting of gegarandeerd totaalvermogen. Prognoses kunnen een tekort niet vervangen.",
+        "Benodigde zonnebijdrage voor een nieuwe SG-aanvraag, standaard 3000 W: werkelijk restoverschot plus het actuele bevestigde warmtepompverbruik dat al door zon wordt gedekt. Onvolledige/oude meters, netafname en batterijontlading leveren geen zonnecredit. Dit verruimt geen elektrische net-/fasegrens. Prognoses vervangen geen tekort.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]

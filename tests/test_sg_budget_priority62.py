@@ -227,6 +227,8 @@ def test_due_dishwasher_keeps_priority_even_when_it_needs_other_energy():
 
 def test_sg_off_proposal_is_not_available_watts_before_fresh_actual_p1():
     r, h = configured(export=2200)
+    # This reclaim test has no existing HP solar to satisfy the new threshold.
+    h.states.set("sensor.public_hp", 0, {"unit_of_measurement": "W"})
     now = 100.0
     before = sg_solar_budget(r)["available_w"]
     assert before == 2050
@@ -246,7 +248,8 @@ def test_sg_off_proposal_is_not_available_watts_before_fresh_actual_p1():
 
 
 def mature_reclaim(runtime, hass):
-    """Supply the two independent reports required for a stable proposal."""
+    """Idle HP plus the two independent reports for a stable OFF proposal."""
+    hass.states.set("sensor.public_hp", 0, {"unit_of_measurement": "W"})
     runtime.priority_board.extra_reclaim_action(100, datetime.now(timezone.utc))
     for eid in ("sensor.grid", "sensor.public_pv"):
         obj = hass.states.get(eid)

@@ -1,10 +1,10 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.68
+**Versie:** 1.0.0-beta.69
 **Bijgewerkt:** 2026-10-11
-**Regel-hash:** `ea76974dfc2ba682`
+**Regel-hash:** `7f82db61e5b8d185`
 
-De warmtepomp staat naast de andere toestellen met een afzonderlijke taakmelding, gemeten elektrische activiteit en elektrische bijverwarming. Verse native taakmeldingen blijven herkenbaar als Panasonic meldt; verse actieve hoofdmeting met passende actuele gekozen verwarmings-/koelcontext kan de taak afleiden ondanks een cloud-rustmelding. Details bewaren de afzonderlijke bronmelding en afleiding. Het bestaande meterpaar gebruikt automatisch een Panasonic-voedingsprofiel met uitleg in Details, zonder nieuwe invoer. Een geanimeerd symbool toont actuele elektrische activiteit, geen afzonderlijk gemeten compressorbeweging of warmteproductie. SolarPilot geeft één rustige, begrensde SG-zonneboost warmtepomp. Het lokaal bevestigde toepassingsbereik bepaalt of uitsluitend tapwater of het algemene Panasonic-bedrijf wordt ondersteund. Panasonic blijft volledig eigenaar van comfort en beveiligingen. Alleen complete bevestigde niet-overlappende metingen vormen het totaal. Aanvraag, contactstand, bedrijfsbewijs en ontvangen SG-status blijven afzonderlijk. Andere SolarPilot-apparaten, instellingen en privédata behouden hun bestaande regels.
+SolarPilot telt voor de SG-startdrempel het werkelijk resterende zonneoverschot en de bruikbare gemeten warmtepompbijdrage samen. Zo vraagt een al draaiende warmtepomp niet opnieuw de volledige drempel als extra injectie. Net-/fasegrenzen voor mogelijke extra vraag blijven afzonderlijk. De actuele taak, native melding en afleiding blijven herkenbaar; Details tonen concrete meet- en blokkeerredenen. Panasonic regelt zelfstandig comfort en beveiligingen. Instellingen, overige apparaten en privédata blijven behouden.
 
 ## 1. Basisprincipe en modi
 
@@ -30,6 +30,8 @@ Een dagdoel in kWh gebruikt werkelijk gemeten toestelenergie waar een exclusieve
 
 Plannerkwaliteit toont meetdekking, voorspellingsfout en uitvoering afzonderlijk. Een historische replay is richtinggevend en reconstrueert niet iedere vroegere startvoorwaarde. Een volledige lokale dag heeft normaal 96 kwartieren, bij de zomer-/wintertijdwissel 92 of 100; gaten worden geen volledige prestatie.
 
+Resterend kwartierbudget is een theoretische energiegrens voor de resterende seconden. Details/Energie tonen daarnaast de daadwerkelijk begrensde instantane ruimte na vaste import-, fase- en kwartiergrenzen. Een zeer hoog theoretisch kwartiergetal verruimt nooit de vaste elektrische grenzen, broncontrole, prioriteiten of zonnevoorwaarden. Een geblokkeerde SG-aanvraag benoemt de beperkende grens en benodigde extra raming.
+
 ## 3. Warmtepomp — Panasonic-regeling / SG-zonneboost voor warm water, verwarmen en koelen
 
 Panasonic regelt zelfstandig normaal warm water, tankhysterese, kamerthermostaten en zones, stooklijnen, verwarmen/koelen, omschakeling, compressor, pompen, kleppen, ontdooien, elektrische ondersteuning en sterilisatie. Dit blijft zo wanneer SolarPilot of Home Assistant uitvalt.
@@ -54,13 +56,15 @@ De echte actuele compressorfrequentie blijft afzonderlijk compressorbewijs. Alle
 
 De gemelde SG-contactstand staat prominent op de kaart. SolarPilot-aanvraag, eigenaar en reden staan in Details en blijven afzonderlijk van wat Shelly terugmeldt. Een bekende afwijking tussen aanvraag en contact krijgt een duidelijke waarschuwing; zij wordt niet uit vermogen of taakmelding opgelost verklaard. Ontvangen SG wordt alleen zichtbaar als een echte passende actuele bron de ontvangen stand bevestigt. Zonder zo een bron verschijnt geen permanent onbekende ontvangen-SG-indicator; de onderliggende onzekerheid en broninformatie blijven beschikbaar in Details/export. SG-contact AAN is de gemelde uitgang, geen bewijs van werkelijk ontvangen SG. Ook een draaiende compressor, native taak, stijgende tanktemperatuur of animatie bewijst geen door SG veroorzaakte extra opname. De bevestigde lokale resterende toestemming houdt haar eigen betekenis. Oude bronwaarden geven geen actueel AAN/UIT- of ontvangenbewijs. Een gelijkblijvend app-tankdoel is geen relaisfout en geen bewijs over het effectieve SG-doel.
 
+Een Aquarea DeviceAction OFF kan het uitgeschakelde ruimtebedrijf weergeven terwijl de afzonderlijke tank aan staat. Alleen wanneer dezelfde verse getypeerde providerpoll ruimtebedrijf OFF, aanwezige tank ON en richting WATER bevestigt, kan een passende verse tankroute met complete actieve hoofdmeting Boiler opwarmen afleiden. De oorspronkelijke OFF-melding en het bereik blijven in Details/export. Bevestigd globaal UIT, onbekend bereik, conflicten, ontdooien, onvolledige/oude meting en alleen heaterverbruik houden hun eigen grenzen. Deze uitleesinterpretatie verandert geen koel- of native SG-vrijgave.
+
 ## 4. SG-zonneboost warmtepomp: lokaal toepassingsbereik en rustige herbeoordeling
 
 Automatische zonneboost staat standaard Uit. Activeren vereist de juiste bestaande uitgang, bevestigde contactmapping, gecontroleerde Panasonic-reactie, uitsluiting van dubbele sturing en bewezen lokale terugval bij communicatieverlies. Een geopende instellingenpagina, geselecteerde entiteit of opgeslagen globale Auto-modus is geen ingebruiknamebewijs.
 
 Kies Uitsluitend tapwater of Algemene SG-boost volgens Panasonic-bedrijf en bevestig het toepassingsbereik lokaal. De algemene keuze staat extra tapwater, ruimteverwarming of koeling toe volgens de actuele native bedrijfsmodus en het lokaal gekozen SG-profiel. Eén contact vraagt geen gelijktijdige productie van tapwater en ruimtewarmte. SolarPilot schrijft geen Panasonic-percentages of temperaturen en maakt daar geen universele vermogens- of temperatuurformule van. Een gewenste klimaatverhoging is geen configuratiefout. Een wijziging van toepassingsbereik vereist opnieuw bewuste lokale bevestiging; een upgrade bevestigt of activeert het algemene profiel niet.
 
-De regeling onderscheidt normaal, wachten op voldoende overschot, boost aangevraagd, rusttijd en geblokkeerd. Voldoende bruikbaar werkelijk zonneoverschot moet stabiel beschikbaar zijn. Standaardwaarden blijven 3000 W startdrempel en een afzonderlijke conservatieve vermogensraming van 3200 W. Die raming is geen meting of gegarandeerd SG-verbruik. Oude drempels en vermogensramingen blijven als kandidaten in het private migratiearchief; beoordeel en bevestig de SG-instellingen afzonderlijk.
+De regeling onderscheidt normaal, wachten op voldoende zonnebijdrage, boost aangevraagd, rusttijd en geblokkeerd. De SG-startdrempel gebruikt werkelijk restoverschot plus de extra meegetelde bijdrage uit een complete actuele bevestigde exclusieve warmtepompmeting. De gezamenlijke zonnebijdrage is begrensd door gemeten PV; actuele conservatieve netafname, batterijontlading en beschermde reserves worden afgetrokken. Dit is een afgeleide energiebegroting, geen afzonderlijk gemeten PV-aandeel van de warmtepomp. Bij oude/onvolledige/overlappende warmtepompmeting ontstaat geen extra credit. Standaard blijven 3000 W startdrempel en 3200 W aparte conservatieve raming van mogelijke extra SG-vraag; je bestaande waarden blijven staan.
 
 Standaardvertraging voor starten is 120 seconden, voor een aanhoudend tekort 60 seconden, met 900 seconden rust tussen sessies en maximaal 3600 seconden per sessie. Geldige recente metingen, toewijzing, fasegrenzen, eigen bediening en de lokale timer gaan vóór een gewenste minimale boostduur. Een harde limiet of onbetrouwbare noodzakelijke bron geeft de eigen aanvraag vrij.
 
@@ -75,6 +79,10 @@ Voor het lokaal bevestigde algemene profiel is een warme, onveranderde of niet g
 Extra koeling heeft een afzonderlijke vrijgavevoorwaarde. De bewuste algemene profielkeuze bewijst geen condensveiligheid. Bevestig lokaal bestaande geschikte condens-/dauwpuntbeveiliging vóór extra SG in koelbedrijf. Zonder die bevestiging laat het algemene profiel alleen extra SG toe als verse native context betrouwbaar uitsluit dat koeling mogelijk is. Werkelijke koeling, AUTO of onbekende context geeft geen stilzwijgende vrijgave. Normale Panasonic-koeling en de ingestelde SG-koelwaarde worden niet gewijzigd. Een vaste minimumtemperatuur of alleen een luchtvochtigheidssensor is geen volledige beveiligingsbevestiging.
 
 Extra SG volgt de opgeslagen flexibele rangorde, zonder EV-vermogenskrediet. Een lager geplaatst eigen onderbreekbaar toestel mag alleen veilig wijken als minimumlooptijd, gebruikerskeuze en overige bescherming dat toelaten. Een afwascyclus, Wallbox en native noodzakelijk klimaat-/warmwaterverbruik worden daarvoor niet uitgezet.
+
+Bij bijvoorbeeld 2000 W volledig gemeten warmtepompverbruik en 1000 W bruikbaar restoverschot zonder netafname of batterijontlading kan 3000 W voor de startdrempel meetellen. De vaste importgrens, kwartiergrens, fasemarge en hogere apparaatprioriteiten moeten de volledige mogelijke extra SG-vraag nog toelaten. Bestaand warmtepompverbruik blijft in P1 en vergroot geen vrije elektrische ruimte. Een reeds actieve of gevraagde Full solar-laadsessie houdt zijn actuele extra-vermogensgrens; SG mag die ruimte niet afnemen. Gewone verbruikers blijven uitsluitend werkelijk restoverschot gebruiken.
+
+De startvertraging controleert de gezamenlijke zonnebijdrage. Na starten blijven werkelijke netafname en de bestaande tekortvertraging bepalend voor vrijgave/vernieuwing. Nieuwe zonneperiode na een beëindigde algemene sessie blijft gebaseerd op echte restinjectie, niet op warmtepompcredit; dezelfde opname geeft dus geen herstartlus. Details tonen restoverschot, meegetelde warmtepompbijdrage, gezamenlijke startbijdrage en concrete elektrische beperkingen afzonderlijk.
 
 ## 5. Lokale SG-terugval en handmatige bediening
 
@@ -109,6 +117,8 @@ Het SG-contact is een afzonderlijk signaal, geen vermogensvoeding. Compressorbed
 Het hele warmtepompvermogen is niet terugwinbaar door SG uit te zetten: native warmwater- of ruimtebedrijf kan blijven doorgaan. De netmeter bevat die stroom al. Vrijgekomen ruimte wordt pas toegewezen wanneer nieuwe metingen dat ondersteunen. Betrouwbaar werkelijk verbruik is geen onbeperkte nieuwe startcapaciteit of bewijs dat al dat vermogen door SG wordt veroorzaakt.
 
 Elektrische bijverwarming blijft volledig onder Panasonic-regie. Afgeleid opgenomen vermogen via de aangenomen of expliciete voedingsrol is geen afzonderlijk bevestigde native heaterstatus en maakt geen onderscheid tussen backup-/boosterelementen. Compressor en ondersteuning kunnen tegelijk actief zijn. Een afzonderlijk werkpunt is geen gegarandeerd totaal, heatermaximum of startdrempel. Er is geen belofte van nul netafname of uitsluitend compressorbedrijf. Bij aanhoudende ongewenste import wordt uitsluitend de optionele eigen SG-aanvraag vrijgegeven.
+
+Per vermogensbron blijven laatste echte rapportagetijd, W/kW-eenheid, gerapporteerde waarde en concrete afkeurreden beschikbaar, ook als de actuele bruikbare waarde onbekend is. Ontbrekend, oud, negatief, hersteld, geschat en verkeerde eenheid blijven afzonderlijk van gemeten nul. Een gelijkblijvende waarde met een nieuw werkelijk bronrapport is vers; een regelronde of wijziging van een ander attribuut maakt de oude waarde niet vers. Nieuwe historie/export bewaren dit bewijs zonder oude ontbrekende historie aan te vullen.
 
 ## 7. Wallbox: uitsluitend uitlezen en voorrang
 
@@ -200,6 +210,8 @@ Grote model- en leerattributen blijven live en in eigen SolarPilot-opslag/export
 
 Meetkwaliteit toont meetdekking, modelbasis en afwijkingen als waarnemingen, zonder leervragen of knoppen die je tussendoor bron-/aanpassingsbeleid laten kiezen. Als analyse nodig is, verzamelt één exportactie de beschikbare zeven dagen en de open bevindingen. Download het bestand, laat het hier analyseren en upload desgewenst het JSON-antwoordrapport terug. Alleen antwoorden die exact bij de geëxporteerde én nog actuele bevindingidentiteit/revisie passen kunnen haar reviewstatus verwerken. Beoordeelde bevindingen worden afgehandeld; meer data nodig blijft open. Een antwoord wijzigt geen sampling-/aanpassingsbeleid, modeltoestemming, instelling, code of apparaatbediening. De bestaande leer-/aanpassingsregels blijven gelden. Gemeten verbruik kan volgens de ingestelde bronkeuze worden gebruikt; geschatte, dubbele of ongeschikte bronnen zijn geen echte meting. Een recente basislastaanpassing wordt eerst vergeleken en alleen binnen de bestaande begrensde toestemming toegepast. Optionele HA-analysemeldingen verwijzen naar Export en blijven afzonderlijk van echte controlefouten.
 
+Gekozen programma, verse native taak, afgeleide taak en de bestaande SG-veiligheidscontext blijven afzonderlijk. Afgeleide warmte-/koeltaken krijgen begrensde diagnostische voorbeelden en tellingen, zonder planningsgewicht in het bevestigde warmtepompmodel. Alleen nieuwe voldoende stabiele overgangen met verse bevestigde native taak-/rustbewijzen kunnen gevalideerde modellen opbouwen. Oude voorbeelden en dagen blijven exact bewaard; voorbeelden zonder bewijsherkomst tellen niet stil als bevestigd. Leren verandert nooit realtime netruimte. Er worden geen ontbrekende historische taken aangevuld.
+
 ## 15. Overzicht, uitleg en meldingen
 
 Overzicht toont Wat gebeurt er en waarom? met per toestel de actuele toestand, één leidende reden, bekende W en uitklapbare voorwaarden. Gemeten, geschat, native gemeld en afgeleid blijven herkenbaar. De warmtepomp toont dezelfde backendtaak, metingen en SG-beslisreden, geen tweede frontendregelaar. Taak van de warmtepomp en Elektrische bijverwarming blijven afzonderlijk leesbaar. Een verse native taakmelding is iets anders dan elektrische activiteit of een gekozen stand. De compacte taakweergave kan actief verbruik en passende verse gekozen verwarmings-/koelcontext combineren bij complete meting, ook als de cloud rust meldt. De ruwe melding en gebruikte bronnen blijven in Details/export staan; uitgebreide bewijsuitleg en profielaannamen worden daar gelezen. Zonder bruikbaar taakbewijs blijft het taakvak weg; brononzekerheid blijft in Details en export beschikbaar. Open details, formulieren, popup en scroll blijven bij verversen op vaste ids bewaard.
@@ -258,7 +270,7 @@ Oude pending, doel-eigendom, hercontrole, foutwachttijden, manual hold en eigen 
 
 De globale hervatvoorkeur, geldige andere toestellen, entity-identiteiten, opgeslagen prioriteiten, APP-tickets, historie en leerdata blijven behouden. Nieuwe SG-sturing blijft uit totdat juiste uitgang, native basisinstellingen, geen dubbele writers, contactmapping en lokale aflooptimer werkelijk zijn bevestigd. De noodzakelijke lokale Panasonic/Shelly-controle is geen softwaretest.
 
-Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische metingen in geopende apparatuur. Gebruik de korte controle in BETA68_INSTELLEN.md.
+Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische metingen in geopende apparatuur. Gebruik de korte controle in BETA69_INSTELLEN.md.
 
 ## 20. Installatie, verwijderen en rollback
 
@@ -268,7 +280,7 @@ Een privéprofiel blijft optioneel en uitsluitend lokaal. Importeren kan lege ge
 
 Voor verwijderen kies je Verwijderen voorbereiden en wacht je op de gerichte veilige vrijgave. Een onzekere SG-uitgang blijft eerlijk onbekend; de gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, AEG- of Shelly-integratie.
 
-Rollback naar de gecontroleerde beta.67-basis vereist de bij de upgrade behorende privé HA-back-up naast de code, zodat instellingen, opgeslagen bewijslagen en modellen samen passend terugkeren. Geef eerst de SG-aanvraag vrij en controleer lokale terugval; laat nooit twee runtimes tegelijk werken. Voor terugkeer naar de oude directe beta.61-regeling blijft de volledige back-up van vóór de beta.62-migratie nodig. Alleen een oudere ZIP herstelt gewijzigde opslag niet. Zie BETA68_INSTELLEN.md.
+Rollback naar de gecontroleerde beta.68-basis vereist de bij de upgrade behorende privé HA-back-up naast de code, zodat instellingen, opgeslagen bewijslagen en modellen samen passend terugkeren. Geef eerst de SG-aanvraag vrij en controleer lokale terugval; laat nooit twee runtimes tegelijk werken. Voor terugkeer naar de oude directe beta.61-regeling blijft de volledige back-up van vóór de beta.62-migratie nodig. Alleen een oudere ZIP herstelt gewijzigde opslag niet. Zie BETA69_INSTELLEN.md.
 
 ## 21. Release- en documentatieregel
 
