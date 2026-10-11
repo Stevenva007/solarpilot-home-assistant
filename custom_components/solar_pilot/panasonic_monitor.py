@@ -76,7 +76,7 @@ class PanasonicMonitor:
             return None
         return round(number, 2) if (0 if tank else -50) <= number <= (100 if tank else 80) else None
 
-    def _operation(self, frequency, frequency_obj, zones, target, activity):
+    def _operation(self, frequency, frequency_obj, zones, target, activity, native_task=None):
         """Presentation evidence only; a selected programme is not operation.
 
         A configured compressor source is the specific source of truth for its
@@ -131,11 +131,22 @@ class PanasonicMonitor:
                      "Panasonic meldt actief bedrijf")
             return {**result, "state": "active", "label": label,
                     "evidence": "native_action", "observed_at": max(stamp for _action, stamp in current)}
-        # Inactivity needs all configured action sources, not merely one idle
-        # zone while another source is unavailable or only reports a programme.
-        if readings and len(valid) == len(readings):
-            return {**result, "state": "idle", "label": "Panasonic meldt rust",
-                    "evidence": "native_action", "observed_at": min(stamp for _action, stamp in valid)}
+        # Zone OFF/idle and selected tank routes describe only their circuits.
+        # Only the typed provider proof can establish whole-device native OFF.
+        native_task = native_task or {}
+        stamp = native_task.get("observed_at")
+        stale = native_task.get("stale_s", self.settings["stale_s"])
+        global_off = (native_task.get("verified_global_off") is True
+            and native_task.get("inactive") is True and native_task.get("inactive_action") == "off"
+            and native_task.get("inactive_scope") == "global" and native_task.get("source") == "aquarea_poll"
+            and native_task.get("independent_tank_on", False) is False
+            and native_task.get("conflict", False) is False and native_task.get("function") is None
+            and not isinstance(stamp, bool) and isinstance(stamp, (int, float)) and math.isfinite(stamp) and stamp > 0
+            and not isinstance(stale, bool) and isinstance(stale, (int, float)) and math.isfinite(stale) and stale > 0
+            and -5 <= time.time() - stamp <= min(stale, self.settings["stale_s"]))
+        if global_off:
+            return {**result, "state": "idle", "label": "Panasonic meldt uit",
+                    "evidence": "native_action", "observed_at": stamp}
         return result
 
     def overview(self):
@@ -370,7 +381,7 @@ class PanasonicMonitor:
             "sg_status_entity": c["sg_status_entity"], "sg_effect_confirmed": False,
             "zones": zones, "program": next(iter(programs)) if len(programs) == 1 else None,
             "activity": activity.state if activity else None,
-            "operation": self._operation(frequency, frequency_obj, zones, target, activity),
+            "operation": self._operation(frequency, frequency_obj, zones, target, activity, native_task),
             "power_activity": power_display,
             "native_task": native_task, "task_context": task_context, "defrost": defrost,
             "display_tank": display_tank, "display_zones": display_zones, "display_sources": display_sources,

@@ -802,7 +802,7 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                         'instelling standaard onvoldoende om EV-vermogen over te nemen. Gebruik een actueel, '
                         'gecontroleerd statusveld. Een dashboardhelper die alleen netimport naar manueel '
                         'vertaalt is onvoldoende. Bij een ontbrekende, te oude of strijdige bron geen '
-                        'EV-overname; werkelijk restoverschot blijft bruikbaar.',
+                        'EV-overname; werkelijk restoverschot blijft bruikbaar. Een al gekoppelde maar oude of ongeldige bron blijft onbekend; de leervraag benoemt deze oorzaak zonder de actualiteitsgrens te verlengen.',
  'trust_solar_setting': 'Deze terugvalkeuze staat standaard UIT. Alleen AAN na bewust bevestigen dat de '
                         'configuratie de effectieve sessie betrouwbaar weergeeft of dat er geen '
                         'manuele/plannings-overrides zijn. Anders kan netstroom ten onrechte als vrijmaakbare '
@@ -915,7 +915,7 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                                        'Shelly-temperatuur is niet de watertemperatuur. Een stijgende '
                                        'tanktemperatuur alleen bewijst geen SG-eigendom.',
  'sg_sources:zone_entities': 'Alleen uitlezen van kamertemperaturen en native standen. Panasonic blijft '
-                             'eigenaar; SolarPilot schakelt deze thermostaten niet tussen AUTO en UIT.',
+                             'eigenaar; SolarPilot schakelt deze thermostaten niet tussen AUTO en UIT. Zone- of ruimte-UIT bewijst geen gehele warmtepomp-UIT; bronbereik, elektrische activiteit en native bedrijfsbewijs blijven apart.',
  'sg_sources:activity_entity': 'Alleen-lezen fysieke bedrijfsinformatie van Panasonic. Een boostaanvraag, '
                                'bevestigde relaisstand en werkelijke Panasonic-reactie zijn afzonderlijke '
                                'statussen.',

@@ -296,3 +296,16 @@ Dit is contractmapping. De beta.72-uitvoeringen, aantallen, CI en pakketbewijs s
 | Echte Core en behouden regressies | Immutable oude opties, setup/reload/unload zonder writes; SG-only authority, overige apparaten, geschiedenis/API/ACL en exportvensters behouden. |
 
 Dit is contractmapping. Actuele beta.73-uitvoeringen, aantallen, CI en pakketbewijs staan uitsluitend in `TESTRESULTATEN_BETA73.md`. Eerdere tellingen blijven historische evidence.
+
+## Beta.74 — gerichte diagnose zonder regelwijziging
+
+| Module / proef | Hoofdafspraak |
+| --- | --- |
+| `sg_boost.py`, `test_sg_reset74.py`, `test_sg_reset_adversarial74.py` | Na bevestigd laag-zonbewijs geen herhaalde laagfasecountdown. Rolling controllerreset, actuele echte bronrapporten, hoge/native bevestiging, startgates en commandogedrag blijven behouden. |
+| `learning_hub.py`, `test_wallbox_question74.py` | Al gekoppelde oude/ontbrekende/ongeldige/strijdige sessiebron krijgt een concrete oorzaak. Geen grotere stale-grens, gegokte effectieve sessie, EV-krediet of settings-/Wallboxwrite. |
+| `panasonic_monitor.py`, `test_heatpump_scope74.py` | Native zone-/ruimte-UIT heeft beperkt bereik; onvolledige/ongeldige meters en onbewezen globaal UIT blijven onbekend. Geldige deelwaarde nul, verse werkelijke taak en expliciet bewezen globale UIT houden hun eigen betekenis. |
+| `test_sg_reset_ui74.py` en behouden browser-/UI-proeven | Geen herhaalde resetklok of gefingeerde globale rust; taak-/effectuitleg blijft beperkt tot waargenomen bewijs zonder causaliteit, compressor- of fysieke storingsclaim. |
+| `analysis_implementations.py`, `test_analysis_proposals74.py` | Drie generieke diagnosevoorstellen herkenbaar uitsluitend via exacte vertrouwde release/digest, zonder private export- of bronidentiteit. |
+| Behouden SG-/config-/history-/API-/consumerproeven | Zelfde 600 W/300 s continue tekorttimer, minimum 20 minuten, zonne-resetgrens 300 W, korte veilige leases en harde guards; alle instellingen, Panasonic-native waarden, overige apparaten, modellen, tickets en aparte histories/opslag/READ-rechten behouden. |
+
+Dit is contractmapping. Actuele beta.74-uitvoeringen, aantallen, CI en pakketbewijs staan uitsluitend in `TESTRESULTATEN_BETA74.md`. Eerdere tellingen blijven historische evidence. Nieuwe fixtures zijn fictief; private exports of bronidentiteiten worden niet naar de testbron gekopieerd.

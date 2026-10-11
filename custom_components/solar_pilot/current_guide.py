@@ -3,20 +3,20 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.73'
+GUIDE_VERSION = '1.0.0-beta.74'
 GUIDE_UPDATED = '2026-10-11'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.73',
+ 'version': '1.0.0-beta.74',
  'updated': '2026-10-11',
- 'intro': ('Beta.73 maakt de SG-aanvraag rustiger bij wolken: gewone actueel gemeten netafname moet '
-           'standaard continu boven 600 W blijven gedurende vijf minuten. De timer loopt tegelijk met '
-           'de bestaande minimale aanvraagduur van twintig minuten; bij 600 W of lager vervalt die '
-           'lopende tekorttimer. Tijdens de geldige wolkenwachttijd worden korte lokale leases veilig '
-           'vernieuwd, ook na het minimum. Harde guards, geverifieerde native beëindiging, handmatige '
-           'overname en het behouden maximum blijven leidend. Panasonic bepaalt zijn compressorbedrijf. '
-           'De afzonderlijke wachtfasen, kalenderdag-export, overige instellingen en geschiedenis '
-           'blijven behouden.'),
+ 'intro': ('Beta.74 maakt drie diagnosemeldingen duidelijker: een al bevestigde lage zonnefase '
+           'of rustige native resetfase krijgt geen herhaalde resetcountdown, een oude of onbekende gekoppelde Wallboxsessiebron '
+           'benoemt haar oorzaak, en een native zone-UIT wordt geen hele-warmtepomp-UIT. Bij '
+           'onvolledige elektrische meting en onvoldoende native bewijs blijft de bedrijfsstatus '
+           'onbekend. De regeling blijft gelijk: standaard 600 W actueel gemeten netafname gedurende '
+           'vijf continue minuten, tegelijk met de minimale SG-aanvraagduur van twintig minuten. '
+           'Zonne-resetbewijs, korte veilige leases, harde guards, instellingen en geschiedenis '
+           'blijven behouden. Panasonic bepaalt zijn compressorbedrijf.'),
  'sections': [{'title': '1. Basisprincipe en modi',
                'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele '
                               'net- en PV-metingen, echte toestelvoorwaarden en elektrische grenzen gaan '
@@ -175,7 +175,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'animaties; tekst en activiteit blijven leesbaar.',
                               'De echte actuele compressorfrequentie blijft afzonderlijk compressorbewijs. '
                               'Alleen wanneer geen compressorbron is gekoppeld kan een verse passende '
-                              'native activiteitsmelding bedrijf of rust bevestigen. Een gekoppelde maar '
+                              'native activiteitsmelding actief bedrijf bevestigen; rust/UIT vereist passend globaal bewijs. Een gekoppelde maar '
                               'oude, onbeschikbare of ongeldige compressorbron blijft technisch onbekend; '
                               'een verse meter of andere bron verbergt dit niet. Programma, '
                               'WATER-/klepstand, alleen gemeten watts en een bewegend symbool bewijzen geen '
@@ -203,7 +203,14 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                                'OFF-melding en het bereik blijven in Details/export. Bevestigd globaal '
                                'UIT, onbekend bereik, conflicten, ontdooien, onvolledige/oude meting en '
                                'alleen heaterverbruik houden hun eigen grenzen. Deze uitleesinterpretatie '
-                               'verandert geen koel- of native SG-vrijgave.')],
+                               'verandert geen koel- of native SG-vrijgave.'),
+                              ('Beta.74 houdt de bedrijfsweergave bij het bewezen bereik. Native '
+                               'ruimte- of zone-UIT bewijst geen gehele warmtepomp-UIT. Bij een '
+                               'onvolledig totaal en een UIT-melding zonder bewezen globaal bereik '
+                               'blijft bedrijf onbekend; een geldige nul van één voeding maakt het '
+                               'onbekende totaal niet nul. Verse taakmelding, elektrische activiteit '
+                               'en expliciet bewezen globale UIT houden hun afzonderlijke betekenis. '
+                               'Deze correctie wijzigt geen SG-vrijgave of fysieke regeling.')],
                'bullets': []},
               {'title': '4. SG-zonneboost warmtepomp: lokaal toepassingsbereik en rustige herbeoordeling',
                'paragraphs': ['Automatische zonneboost staat standaard Uit. Activeren vereist de juiste '
@@ -340,6 +347,11 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                                'opname geeft dus geen herstartlus. Details tonen restoverschot, '
                                'meegetelde warmtepompbijdrage, gezamenlijke startbijdrage, minimumduur '
                                'en concrete elektrische beperkingen afzonderlijk.'),
+                              ('Na een al bevestigde lage zonnefase of rustige native resetfase toont beta.74 geen herhaalde '
+                               'resetcountdown. De uitleg benoemt dan wachten op nieuwe relevante context, teruggekeerd '
+                               'zonoverschot of de werkelijk lopende hoge bevestiging. De controller '
+                               'behoudt zijn bestaande rolling resetbewijs, echte bronrapporten en '
+                               'alle startvoorwaarden; de diagnose schrijft of reset niets.'),
                               'De kaart en Details tonen de lopende herbeoordeling afzonderlijk van de gewone startvertraging. Nieuwe zonneperiode bevestigen duurt binnen de bestaande policy 300 seconden met echte nieuwe bronrapporten; eventuele reset- of native bewijsfasen houden hun eigen betekenis. Daarna kan de ingestelde startvertraging beginnen, standaard 120 seconden, terwijl alle actuele voorwaarden blijven gelden. Nul resterende bevestigingsseconden is geen starttoestemming: een passend actueel eindrapport en de bestaande beoordelingen zijn nog nodig. Oude brondata verbergt de lopende teller. De uitleesweergave start geen sessie en verandert geen timer, guard, minimumtijd, rangorde of herstartbeleid.'],
                'bullets': []},
               {'title': '5. Lokale SG-terugval en handmatige bediening',
@@ -439,7 +451,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Compressorbedrijf met 0 W op de ondersteuningsmeter is mogelijk en bewijst '
                               'geen SG-effect. Optionele actuele compressorfrequentie gebruikt een echte '
                               'Hz-bron. Zonder gekoppelde compressorbron kan passende verse native '
-                              'activiteit bedrijf of rust bevestigen; alleen programma, klepstand of watts '
+                              'activiteit actief bedrijf melden; native UIT vereist expliciet globaal bewijs. Alleen programma, klepstand of watts '
                               'niet. Een geschikte actuele ontvangen-SG-bron kan een expliciete '
                               'actieve/inactieve SG-stand bevestigen; numerieke standen worden niet gegokt. '
                               'Ontvangen SG en een draaiende compressor bewijzen geen causaal extra '
@@ -496,7 +508,11 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'onderscheidt sessie, ingestelde zonnemodus, werkelijk laden en wachtreden. '
                               'Lokaal bewaarde laadperiode-eindes krijgen alleen een native stopreden bij '
                               'aantoonbaar passende nieuwe rapportage; een meetgat of herstart is geen bewezen '
-                              'stopoorzaak.'],
+                              'stopoorzaak.', ('Een gekoppelde Wallboxsessiebron die oud, onbeschikbaar of ongeldig '
+                               'is blijft onbekend. Beta.74 benoemt die bronkwaliteit als oorzaak '
+                               'bij de leervraag in plaats van onbekend te laten klinken als een '
+                               'bevestigde sessiestand. De ingestelde stale-grens, bestaande '
+                               'bewijsregels en read-only Wallboxbevoegdheid blijven gelijk.')],
                'bullets': []},
               {'title': '8. Gewone flexibele toestellen en ontvochtiger',
                'paragraphs': ['Bestaande toestellen behouden hun adapter, deelname, centrale positie, meter, '
@@ -964,7 +980,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'geen dubbele writers, contactmapping en lokale aflooptimer werkelijk zijn '
                               'bevestigd. De noodzakelijke lokale Panasonic/Shelly-controle is geen '
                               'softwaretest.',
-                              ('Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische metingen in geopende apparatuur. Gebruik de korte controle in BETA73_INSTELLEN.md.')],
+                              ('Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische metingen in geopende apparatuur. Gebruik de korte controle in BETA74_INSTELLEN.md.')],
                'bullets': []},
               {'title': '20. Installatie, verwijderen en rollback',
                'paragraphs': ['Installeer of update de Integration via HACS en herstart Home Assistant. De '
@@ -988,16 +1004,16 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van '
                               'SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, '
                               'AEG- of Shelly-integratie.',
-                              ('Rollback naar de gecontroleerde beta.72-basis bewaart dezelfde '
-                               'geschiedenis en bestaande minimumregeling. Beta.72 kent de vernieuwing '
-                               'tijdens wolkenwachttijd na het minimum niet: lokaal aflopende '
-                               'toestemming kan daar eerder vrijgeven dan een behouden langere '
-                               'tekortvertraging. Geef vóór codevervanging de eigen SG-aanvraag vrij en '
-                               'controleer lokale terugval. Exact herstel van de pre-upgradetoestand '
-                               'vereist code én de passende volledige privéback-up; bewaar gewenste '
-                               'nieuwe historie eerst. Geen twee runtimes tegelijk of '
-                               'entryverwijdering. Voor de oude directe beta.61-regeling blijft de '
-                               'volledige back-up van vóór beta.62 nodig. Zie BETA73_INSTELLEN.md.')],
+                              ('Rollback naar de gecontroleerde beta.73-basis behoudt dezelfde '
+                               'SG-wolkenbuffer, minimumregeling, geschiedenis en opgeslagen opties. '
+                               'De eerdere diagnoseweergave keert terug; rollback corrigeert geen '
+                               'meter of fysieke installatie. Geef vóór codevervanging de eigen '
+                               'SG-aanvraag vrij en controleer lokale terugval. Exact herstel van '
+                               'de pre-upgradetoestand vereist code én de passende volledige '
+                               'privéback-up; bewaar gewenste nieuwe historie eerst. Geen twee '
+                               'runtimes tegelijk of entryverwijdering. Voor de oude directe '
+                               'beta.61-regeling blijft de volledige back-up van vóór beta.62 nodig. '
+                               'Zie BETA74_INSTELLEN.md.')],
                'bullets': []},
               {'title': '21. Release- en documentatieregel',
                'paragraphs': ['Dit is de enige volledige actuele regelbeschrijving. current_guide.py genereert '

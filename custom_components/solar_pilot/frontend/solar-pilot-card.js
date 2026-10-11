@@ -1,5 +1,5 @@
-/* SolarPilot 1.0.0-beta.73. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
-const SP_CARD_VERSION = '1.0.0-beta.73';
+/* SolarPilot 1.0.0-beta.74. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+const SP_CARD_VERSION = '1.0.0-beta.74';
 const SP_DIALOG_RELEASE = SP_CARD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g,'-');
 const SP_ANALYSIS_DIALOG_TAG = `solar-pilot-analysis-dialog-${SP_DIALOG_RELEASE}`;
 const SP_QUALITY_DIALOG_TAG = `solar-pilot-learning-dialog-${SP_DIALOG_RELEASE}`;
@@ -956,9 +956,14 @@ class SolarPilotCard extends HTMLElement {
     const stamps={power:p.power_observed_at??p.power_stamp,compressor:p.compressor_frequency_observed_at??p.compressor_stamp,received:p.sg_status_observed_at??p.sg_status_stamp,supply1:p.power_supply1_observed_at,supply2:p.power_supply2_observed_at,context:p.context_stamp,temperature:p.temperature_observed_at??p.temperature_stamp,target:p.target_observed_at??p.target_stamp};
     return this._freshObservation(stamps[role],p.source_stale_s??120);
   }
+  _heatpumpGlobalOff(p){
+    const task=p.native_task||{},limit=p.source_stale_s===undefined?120:p.source_stale_s,stale=task.stale_s===undefined?limit:task.stale_s,valid=value=>typeof value==='number'&&Number.isFinite(value)&&value>0;
+    return task.verified_global_off===true&&task.inactive===true&&task.inactive_action==='off'&&task.inactive_scope==='global'&&task.source==='aquarea_poll'&&(task.independent_tank_on===undefined||task.independent_tank_on===false)&&(task.conflict===undefined||task.conflict===false)&&task.function==null&&valid(limit)&&valid(stale)&&this._freshObservation(task.observed_at,Math.min(stale,limit));
+  }
   _heatpumpActivity(c){
     const p=c.panasonic||{},s=c.sgBoost||{},operation=p.operation||{};
-    const known=['active','idle'].includes(operation.state)&&this._freshObservation(operation.observed_at,operation.stale_s);
+    const idleProof=operation.evidence==='compressor_frequency'||operation.evidence==='native_action'&&this._heatpumpGlobalOff(p);
+    const known=(operation.state==='active'||operation.state==='idle'&&idleProof)&&this._freshObservation(operation.observed_at,operation.stale_s);
     const linked=p.configured===true||s.configured===true;
     return {known,active:known&&operation.state==='active',state:known?operation.state:'unknown',evidence:known?operation.evidence:'none',
       label:known?(operation.label||(operation.state==='active'?'Warmtepomp in werking':'Geen actieve warmte- of koelactie')):linked?'Werking onbekend':'Nog niet gekoppeld',
@@ -1011,8 +1016,8 @@ class SolarPilotCard extends HTMLElement {
     if(meter.active&&meter.function)return {known:true,kind:'inferred',function:meter.function,symbol:meter.function,label:meter.label};
     if(active)return {known:true,kind:'activity',function:null,symbol:'info',label:meter.active?meter.label:'Warmtepomp werkt'};
     if(meter.known)return {known:true,kind:'activity',function:null,symbol:'info',label:meter.label};
-    if(native.known)return {known:true,kind:'activity',function:null,symbol:'info',label:'Niet actief'};
-    if(task.known&&task.kind==='idle')return {known:true,kind:'native',function:null,symbol:'info',label:'Niet actief'};
+    if(native.known)return {known:true,kind:'activity',function:null,symbol:'info',label:native.evidence==='compressor_frequency'?'Compressor staat stil':'Niet actief'};
+    if(task.known&&task.kind==='idle'&&this._heatpumpGlobalOff(c.panasonic||{}))return {known:true,kind:'native',function:null,symbol:'info',label:'Niet actief'};
     return {known:false,kind:'none',function:null,symbol:'info',label:''};
   }
   _heatpumpPresentation(c){

@@ -527,6 +527,57 @@ with sync_playwright() as playwright:
         assert details.get_attribute('open') is None, (view, 'electrical Details should close on request')
     page.locator('solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value=overview]').click()
 
+    # beta74: fresh OFF on space circuits cannot certify the entire heat pump
+    # is inactive when the main meter is invalid and the tank is separately ON.
+    page.evaluate('''()=>{window.qaScope=(global=false,age=0)=>{
+      const stamp=Date.now()/1000,native_task={function:null,inactive:true,inactive_action:'off',
+        inactive_scope:global?'global':'unknown',verified_global_off:global,independent_tank_on:false,
+        source:'aquarea_poll',conflict:false,observed_at:stamp-age,stale_s:120,
+        label:global?'Panasonic meldt uit':'Panasonic meldt rust'};
+      qaMeter({power1:null,power2:0,complete:false,native:'unknown',sg:true,nativeTask:native_task});
+      Object.assign(c._last.attributes.panasonic,{operation:{state:'idle',label:'Panasonic meldt rust',
+        evidence:'native_action',observed_at:stamp,stale_s:120},
+        zones:[{name:'Fictieve ruimte',mode:'heat',action:'off',available:true,observed_at:stamp}],
+        display_tank:{available:true,mode:'on',action:null,temperature_c:49,target_c:50,
+          observed_at:stamp,temperature_stamp:stamp,target_stamp:stamp}});c._render();
+    };}''')
+    for view in ('overview', 'comfort', 'loads'):
+        page.locator(f'solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value={view}]').click()
+        panel = row if view == 'overview' else page.locator('solar-pilot-card >> .heatpump-sg')
+        page.evaluate('qaScope()')
+        assert panel.get_attribute('data-activity') == 'unknown', (view, 'zone OFF and invalid main do not prove whole heat pump inactivity', panel.inner_text())
+        assert panel.locator('[data-heatpump-task],[data-heatpump-operation]').count() == 0, (view, 'unknown scope hides the incorrect Niet actief task/animation')
+        details_key = 'overview:sg:why' if view == 'overview' else f'sg:{view}:details'
+        details = panel.locator(f'details[data-ui-key="{details_key}"]')
+        if details.get_attribute('open') is None:
+            details.locator(':scope > summary').click()
+        actual = panel.locator('[data-heatpump-provenance]').inner_text()
+        assert 'OFF · bereik niet vastgesteld' in actual, (view, 'raw action and unknown circuit scope remain inspectable', actual)
+        for width in (320, 390, 768, 1280):
+            page.set_viewport_size({'width': width, 'height': 844 if width < 540 else 1000})
+            assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), (view, width, 'scope-aware history/SG panel overflows viewport')
+            assert panel.evaluate('element=>element.scrollWidth<=element.clientWidth+1'), (view, width, 'scope diagnostics overflow the heat pump panel')
+        page.evaluate('qaScope(true)')
+        actual = panel.locator('[data-heatpump-task]').inner_text()
+        assert panel.get_attribute('data-activity') == 'inactive' and 'Niet actief' in actual, (view, 'fresh typed verified global OFF remains visible', actual)
+        page.evaluate('''()=>{c._last.attributes.panasonic.native_task.independent_tank_on=true;c._render();}''')
+        assert panel.get_attribute('data-activity') == 'unknown', (view, 'contradictory independently ON tank cannot certify whole-device OFF')
+        page.evaluate('qaScope(true,119)')
+        page.evaluate('''()=>{qaClockMs+=2000;c._refreshObservationDisplay();}''')
+        assert panel.get_attribute('data-activity') == 'unknown', (view, 'own global-OFF proof expires before current operation overview')
+        assert panel.locator('[data-heatpump-task],[data-heatpump-operation]').count() == 0, (view, 'clock expiry cannot keep a false whole heat pump idle claim')
+        page.evaluate('''()=>{c._last.attributes.panasonic.operation.observed_at=Date.now()/1000;c._render();}''')
+        assert panel.get_attribute('data-activity') == 'unknown', (view, 'new overview cannot revive expired global-OFF source')
+        page.evaluate('''()=>{qaScope(true);c._last.attributes.restored=true;c._render();}''')
+        assert panel.get_attribute('data-activity') == 'unknown', (view, 'reload/restored display grants no current whole heat pump proof')
+        page.evaluate("qaMeter({power1:null,power2:0,complete:false,native:'idle',sg:true})")
+        actual = panel.locator('[data-heatpump-task]').inner_text()
+        assert 'Compressor staat stil' in actual and 'Niet actief' not in actual, (view, 'zero Hz is a specific compressor status', actual)
+        assert details.get_attribute('open') is not None, (view, 'scope/source refresh preserves Details')
+        details.locator(':scope > summary').click()
+        assert page.evaluate('qaCalls.length===0'), (view, 'scope presentation must send no device writes')
+    page.locator('solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value=overview]').click()
+
     # beta71: the independent five-minute session rearm is visible even when
     # ordinary rest is ready. Zero time awaits backend confirmation, and the
     # actual candidate's source deadline expires before a still-fresh overview.
@@ -542,6 +593,14 @@ with sync_playwright() as playwright:
     for view in ('overview', 'comfort', 'loads'):
         page.locator(f'solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value={view}]').click()
         panel = row if view == 'overview' else page.locator('solar-pilot-card >> .heatpump-sg')
+        for _later_report in range(3):
+            page.evaluate("qaWait({reassessment_state:'waiting_new_evidence',reassessment_kind:null,reassessment_remaining_s:null,reassessment_valid_until:null,reassessment_reports:0,reassessment_final_report_required:false})")
+            actual = panel.locator('[data-sg-wait]').inner_text()
+            assert 'Wacht op nieuwe zonneperiode of gewijzigde Panasonic-context' in actual, (view, 'already-confirmed reset waits for a new episode', actual)
+            assert 'resetten' not in actual and 'nog ' not in actual and 'gereed' not in actual, (view, 'later low/normal reports cannot display another reset timer', actual)
+        page.evaluate("qaWait({reassessment_state:'waiting_new_evidence',reassessment_kind:null,reassessment_remaining_s:null,reassessment_valid_until:null,reassessment_source_current:false})")
+        actual = panel.locator('[data-sg-wait]').inner_text()
+        assert 'Herbevestiging onbekend' in actual, (view, 'unknown/stale evidence after a confirmed reset grants no timer', actual)
         page.evaluate('qaWait()')
         wait = panel.locator('[data-sg-wait]')
         actual = wait.inner_text()
@@ -904,4 +963,4 @@ with sync_playwright() as playwright:
     assert page.evaluate('qaCalls.length') == 0
     assert not errors, errors
     browser.close()
-print('OK: independent native/compact SG evidence, typed main OFF versus tank ON/WATER, global/unknown OFF vetoes, 3 views and 4 widths, separate theoretical/electrical/HP-solar/residual budgets, electrical expiry without HA events, SG minimum and cloud-buffer clocks with original source/lease expiry and no revived authority, reduced motion, draft/details preservation, partial/zero readings; one-click analysis/template, bounded escaped feedback, reload/removal/admin checks; zero device calls. Fiction only.')
+print('OK: independent native/compact SG evidence, typed main OFF versus tank ON/WATER, global/unknown OFF vetoes, circuit inactivity versus verified global OFF, zero-Hz compressor scope, once-confirmed reset without repeated timer, 3 views and 4 widths, separate theoretical/electrical/HP-solar/residual budgets, source expiry without HA events, SG minimum and cloud-buffer clocks with original source/lease expiry and no revived authority, reduced motion, draft/details preservation, partial/zero readings; one-click analysis/template, bounded escaped feedback, reload/removal/admin checks; zero device calls. Fiction only.')
