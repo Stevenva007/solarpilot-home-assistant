@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta.75 — automatisch lokaal onderzoek met onderbouwde voorstellen
+
+- Beoordeelt lokaal de bestaande warmtepompmeters, Wallboxsessiebron, PV-voorspelling en toestelmetingen. Per onderwerp: status, beschikbaar bewijs, mogelijke oorzaken als hypotheses, concrete voorstellen en een volgende actie.
+- Herbeoordeelt de vier brononderwerpen maximaal eenmaal per minuut en bewaart begrensde voortgang. Alleen nieuwe werkelijke bruikbare bronrapporten leveren nieuwe meterwaarnemingen; herhaalde uitlezing, reload en oude/restored rapporten vormen geen nieuw bewijs.
+- Voegt een afzonderlijke read-only SG-beoordeling toe met de bestaande minimum-/wolkenbufferinstellingen en grenzen van het beschikbare sessie-/reactiebewijs. Oude sessies valideren geen nieuwe timers; watts of contactstand bewijzen geen causale extra SG-opname.
+- Toont onderzoeksstatus en voorstellen onder Meetkwaliteit en neemt ze mee in een bewuste lokale export. Niet-logische geïmporteerde adviezen tonen hun categorie zonder een toegepaste instelling of opgelost onderzoek te claimen.
+- Behoudt importbuffer 600 W/5 min, minimum twintig minuten, zonne-resetgrens 300 W, korte leases, alle harde guards en SG-only actuatoreigendom. Geen automatische meterreparatie, tekenomkering, sensorkoppeling, instellingenwrite, softwareontwikkeling of upload.
+- Behoudt Panasonic-native instellingen, overige apparaten, configuratie, modellen, tickets en geschiedenis. Bouwbasis: gepubliceerde beta.74 `0f7e35e1f894a8706ccb5aa744a20db61a5b61ed`, alle vijf gates plus Publish en vier teruggedownloade assets gecontroleerd. Nieuwe brongebonden bewijzen: `docs/TESTRESULTATEN_BETA75.md`; installatie/behoud/rollback naar beta.74: `docs/BETA75_INSTELLEN.md`.
+
 ## 1.0.0-beta.74 — gerichte diagnose van wachten, bronkwaliteit en bedrijf
 
 - Verbergt een herhaalde laag-zon-resetcountdown nadat de lage zonne- of rustige native resetfase al bevestigd is. Werkelijk lopende teruggekeerde-zon/native bevestiging en startvertraging blijven apart. Controllerrolling bewijs, timers, guards en starttoestemming blijven gelijk.

@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.74",
+  "version": "1.0.0-beta.75",
   "language": "nl",
   "steps": {
     "init": {
@@ -3508,7 +3508,7 @@
       "title": "Lokale analyseregistratie inschakelen",
       "short": "Bewaart lokaal begrensde meetgegevens, beslisredenen en SolarPilot-waarschuwingen voor analyse.",
       "paragraphs": [
-        "Bewaart lokaal begrensde meetgegevens, beslisredenen en SolarPilot-waarschuwingen voor analyse. AAN verstuurt niets naar ChatGPT of een andere dienst en bedient geen apparaat. UIT stopt nieuwe registratie; reeds bewaarde data verloopt volgens de bewaartermijn. Een handmatige actuele export blijft mogelijk.",
+        "Bewaart lokaal begrensde meetgegevens, beslisredenen en SolarPilot-waarschuwingen voor analyse. AAN verstuurt niets naar ChatGPT of een andere dienst en bedient geen apparaat. UIT stopt nieuwe gedetailleerde analyseregistratie; reeds bewaarde data verloopt volgens de bewaartermijn. Lokaal brononderzoek en de aparte warmtepompgeschiedenis blijven werken; leer-/aanpassingsbeleid houdt zijn eigen werking. Een handmatige actuele export blijft mogelijk.",
         "Dit is een lokale diagnosefunctie, geen automatische upload of bewijs van een volledige foutvrije installatie. Perioden zonder metingen blijven onbekend.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -4097,9 +4097,9 @@
     },
     "dashboard.learning_hub": {
       "title": "Leren & vragen",
-      "short": "Toont Meetkwaliteit met de meetbasis per model en open analysebevindingen.",
+      "short": "Toont Meetkwaliteit met de meetbasis per model, open analysebevindingen en Automatisch onderzoek.",
       "paragraphs": [
-        "Toont Meetkwaliteit met de meetbasis per model en open analysebevindingen. Bij Analyse nodig download je onder Export met één klik de analyse van 7 dagen. Laat het bestand hier analyseren en upload desgewenst het JSON-adviesrapport. Alleen een beheerder beheert die rapporten. Een antwoord handelt een bevinding alleen af bij dezelfde uitgegeven export en de nog actuele bevindingversie. Meer gegevens nodig houdt de bevinding open. Adviezen voor Panasonic, SolarPilot-instellingen en logica blijven voorstellen; een upload wijzigt geen leerbeleid, instellingen, code of apparaten. Logica met een proposal_id wordt alleen als uitgevoerd getoond als het vertrouwde register van de geïnstalleerde release dat bevestigt. Modelzekerheid is een technische maat; meer planberekeningen zijn geen extra onafhankelijke leerdagen.",
+        "Toont Meetkwaliteit met de meetbasis per model, open analysebevindingen en Automatisch onderzoek. Het lokale onderzoek beoordeelt maximaal eenmaal per minuut de bestaande warmtepompmeters, Wallboxsessiebron, PV-voorspelling en toestelmetingen. Alleen nieuwe werkelijke bruikbare bronrapporten leveren nieuwe meterwaarnemingen. Status, bewijs, mogelijke oorzaken, voorstellen en vervolgstappen zijn uitleesgegevens; het onderzoek wijzigt geen koppelingen, metertekens, instellingen of apparaatbediening. Bij Analyse nodig download je onder Export met één klik de analyse van 7 dagen. Laat het bestand hier analyseren en upload desgewenst het JSON-adviesrapport. Alleen een beheerder beheert die rapporten. Een antwoord handelt een bevinding alleen af bij dezelfde uitgegeven export en de nog actuele bevindingversie. Meer gegevens nodig houdt de bevinding open. Adviezen voor Panasonic, SolarPilot-instellingen en logica blijven voorstellen; een upload wijzigt geen leerbeleid, instellingen, code of apparaten. Logica met een proposal_id wordt alleen als uitgevoerd getoond als het vertrouwde register van de geïnstalleerde release dat bevestigt. Andere categorieaanduidingen bevestigen geen toegepaste instelling. Modelzekerheid is een technische maat; meer planberekeningen zijn geen extra onafhankelijke leerdagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },

@@ -17,10 +17,13 @@ def test_shipped_catalog_only_contains_release_bound_generic_proposals():
         "sp.sg.reassessment-progress.v1", "sp.hp.history-export-window.v1",
         "sp.sg.minimum-request-duration.v1", "sp.sg.cloud-import-buffer.v1",
         "sp.sg.confirmed-reset-display.v1", "sp.wallbox.session-source-diagnostics.v1",
-        "sp.hp.inactive-scope-display.v1"}
+        "sp.hp.inactive-scope-display.v1", "sp.learning.local-investigation.v1",
+        "sp.sg.session-evidence.v1", "sp.analysis.recommendation-kind.v1"}
     for identifier, row in implementations.IMPLEMENTED_PROPOSALS.items():
         assert set(row) == {"introduced_release", "title", "proposal_sha256"}
-        assert row["introduced_release"] == ("1.0.0-beta.74" if identifier in {
+        assert row["introduced_release"] == ("1.0.0-beta.75" if identifier in {
+            "sp.learning.local-investigation.v1", "sp.sg.session-evidence.v1",
+            "sp.analysis.recommendation-kind.v1"} else "1.0.0-beta.74" if identifier in {
             "sp.sg.confirmed-reset-display.v1", "sp.wallbox.session-source-diagnostics.v1",
             "sp.hp.inactive-scope-display.v1"} else "1.0.0-beta.73" if identifier ==
             "sp.sg.cloud-import-buffer.v1" else "1.0.0-beta.72" if identifier ==

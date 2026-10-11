@@ -553,8 +553,10 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                                  'toestemming om een leeg of niet voorbereid apparaat te starten.',
  'analysis:enabled': 'Bewaart lokaal begrensde meetgegevens, beslisredenen en SolarPilot-waarschuwingen voor '
                      'analyse. AAN verstuurt niets naar ChatGPT of een andere dienst en bedient geen apparaat. '
-                     'UIT stopt nieuwe registratie; reeds bewaarde data verloopt volgens de bewaartermijn. Een '
-                     'handmatige actuele export blijft mogelijk.',
+                     'UIT stopt nieuwe gedetailleerde analyseregistratie; reeds bewaarde data verloopt volgens '
+                     'de bewaartermijn. Lokaal brononderzoek en de aparte warmtepompgeschiedenis blijven '
+                     'werken; leer-/aanpassingsbeleid houdt zijn eigen werking. Een handmatige actuele export '
+                     'blijft mogelijk.',
  'include_related_entities': 'Neemt ondersteunde, niet-uitgeschakelde bronentiteiten van dezelfde gekoppelde '
                              'apparaten mee, zodat bijvoorbeeld andere warmtepomptemperaturen kunnen worden '
                              'onderzocht. Camera, persoon-, tracker-, slot- en media-entiteiten worden niet '
@@ -589,7 +591,12 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
  'dishwasher_cancel': 'Trekt uitsluitend een nog niet gebruikte klaarzettoestemming in. Een lopende of al '
                       'verstuurde onzekere cyclus wordt niet gestopt, gepauzeerd, gereset of stroomloos '
                       'gemaakt. Het afwasprogramma stopt of annuleer je met de fabrikantbediening.',
- 'learning_hub': 'Toont Meetkwaliteit met de meetbasis per model en open analysebevindingen. Bij Analyse nodig '
+ 'learning_hub': 'Toont Meetkwaliteit met de meetbasis per model, open analysebevindingen en Automatisch '
+                 'onderzoek. Het lokale onderzoek beoordeelt maximaal eenmaal per minuut de bestaande '
+                 'warmtepompmeters, Wallboxsessiebron, PV-voorspelling en toestelmetingen. Alleen nieuwe '
+                 'werkelijke bruikbare bronrapporten leveren nieuwe meterwaarnemingen. Status, bewijs, '
+                 'mogelijke oorzaken, voorstellen en vervolgstappen zijn uitleesgegevens; het onderzoek '
+                 'wijzigt geen koppelingen, metertekens, instellingen of apparaatbediening. Bij Analyse nodig '
                  'download je onder Export met één klik de analyse van 7 dagen. Laat het bestand hier '
                  'analyseren en upload desgewenst het JSON-adviesrapport. Alleen een beheerder beheert die '
                  'rapporten. Een antwoord handelt een bevinding alleen af bij dezelfde uitgegeven export '
@@ -597,7 +604,8 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                  'voor Panasonic, SolarPilot-instellingen en logica blijven voorstellen; een upload wijzigt '
                  'geen leerbeleid, instellingen, code of apparaten. Logica met een proposal_id wordt alleen '
                  'als uitgevoerd getoond als het vertrouwde register van de geïnstalleerde release dat '
-                 'bevestigt. Modelzekerheid is een technische maat; meer planberekeningen zijn geen extra '
+                 'bevestigt. Andere categorieaanduidingen bevestigen geen toegepaste instelling. '
+                 'Modelzekerheid is een technische maat; meer planberekeningen zijn geen extra '
                  'onafhankelijke leerdagen.',
  'learning_hub:sampling': 'Gemeten restlast: leer ook wanneer de Wallbox of beheerde apparaten draaien, maar '
                           'trek alleen hun actuele, aparte W/kW-meting af. Ontbrekende, geschatte, dubbele, '
