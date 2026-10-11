@@ -1091,7 +1091,7 @@
           "stale_s": "Maximale ouderdom metingen (s)"
         },
         "data_description": {
-          "start_delay_s": "Voldoende overschot moet standaard 120 seconden stabiel aanwezig zijn vóór een nieuwe aanvraag.",
+          "start_delay_s": "De gezamenlijke zonnebijdrage en alle startvoorwaarden moeten gedurende de ingestelde vertraging geldig blijven vóór een nieuwe SG-aanvraag, standaard 120 seconden.",
           "stop_delay_s": "Netafname boven de afzonderlijke kleine-importbuffer moet standaard 60 seconden aanhouden vóór de extra SG-aanvraag wordt vrijgegeven.",
           "hysteresis_w": "Toegestane kleine tijdelijke netafname vóór de gewone stopvertraging op de SG-aanvraag begint, standaard 300 W.",
           "rest_s": "Na een boost volgt standaard 900 seconden rust.",

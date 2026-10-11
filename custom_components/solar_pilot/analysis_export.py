@@ -686,7 +686,8 @@ class AnalysisRecorder:
         feedback = getattr(r, "analysis_feedback", None)
         heatpump_history = getattr(r, "heatpump_history", None)
         if callable(getattr(heatpump_history, "export", None)):
-            calls["heatpump_history"] = heatpump_history.export
+            calls["heatpump_history"] = lambda: heatpump_history.export(
+                hours=hours, when=datetime.fromtimestamp(wall, timezone.utc))
         if callable(getattr(feedback, "status", None)):
             calls["analysis_feedback"] = feedback.status
         failures = {}

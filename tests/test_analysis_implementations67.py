@@ -13,10 +13,12 @@ def proposal(identifier="synthetic-source-clock"):
 def test_shipped_catalog_only_contains_release_bound_generic_proposals():
     assert set(implementations.IMPLEMENTED_PROPOSALS) == {
         "sp.hp.task-presentation.v1", "sp.hp.context-and-learning.v1",
-        "sp.meters.source-quality-evidence.v1", "sp.electrical.budget-versus-limits.v1"}
-    for row in implementations.IMPLEMENTED_PROPOSALS.values():
+        "sp.meters.source-quality-evidence.v1", "sp.electrical.budget-versus-limits.v1",
+        "sp.sg.reassessment-progress.v1", "sp.hp.history-export-window.v1"}
+    for identifier, row in implementations.IMPLEMENTED_PROPOSALS.items():
         assert set(row) == {"introduced_release", "title", "proposal_sha256"}
-        assert row["introduced_release"] == "1.0.0-beta.69"
+        assert row["introduced_release"] == ("1.0.0-beta.71" if identifier in {
+            "sp.sg.reassessment-progress.v1", "sp.hp.history-export-window.v1"} else "1.0.0-beta.69")
         assert len(row["proposal_sha256"]) == 64
     report = proposal()
     report.update(status="implemented", introduced_release="1.0.0-beta.1", code="switch.turn_on")
@@ -25,6 +27,24 @@ def test_shipped_catalog_only_contains_release_bound_generic_proposals():
         "proposal_id": "synthetic-source-clock", "status": "untracked", "introduced_release": None,
         "summary": report["text"], "installed_release": "1.0.0-beta.67", "reason": "not_in_catalog", "recommendation_index": 0}]
     assert report == before
+
+
+@pytest.mark.parametrize("identifier,text", [
+    ("sp.sg.reassessment-progress.v1", "Toon de bevestiging van een nieuwe zonneperiode of gewijzigde toestelcontext en de ingestelde SG-startvertraging afzonderlijk van sessie- en rusttijd. Toon alleen voortgang bij actuele geldige brongegevens; een verlopen teller wacht op de bestaande beoordeling en vereiste verse bronrapportage. De weergave verandert geen drempel, wachttijd, vermogensruimte, voorrang, guard, lease of relaisbediening."),
+    ("sp.hp.history-export-window.v1", "Scheid de werkelijke bewaartermijn van de warmtepompgeschiedenis van de gevraagde analyseperiode. Exporteer alle lokale kalenderdagen die de gevraagde UTC-periode overlappen, met hetzelfde eindtijdstip als de hoofdexport. Benoem volledige kalenderdagtotalen en gedeeltelijke grensdagen expliciet; schat of vul ontbrekende draaitijd, energie en SG-tijd niet aan en wijzig geen geschiedenisopslag, bronbinding of toegangsrechten."),
+])
+def test_beta71_proposals_bind_exact_meaning_and_installed_release(identifier, text):
+    row = {"category": "logic_update", "proposal_id": identifier, "text": text}
+    before = deepcopy(row)
+    old = implementations.logic_update_status([row], "1.0.0-beta.70")[0]
+    current = implementations.logic_update_status([row], "1.0.0-beta.71")[0]
+    assert old["status"] == "pending" and old["reason"] == "release_not_reached"
+    assert current["status"] == "implemented" and current["reason"] == "trusted_catalog_match"
+    assert current["introduced_release"] == "1.0.0-beta.71"
+    assert row == before
+    changed = {**row, "text": text + " Wijzig daarnaast de regeling."}
+    result = implementations.logic_update_status([changed], "1.0.0-beta.71")[0]
+    assert result["status"] == "pending" and result["reason"] == "proposal_content_changed"
 
 
 @pytest.mark.parametrize("introduced,installed,status", [

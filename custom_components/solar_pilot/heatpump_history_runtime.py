@@ -211,20 +211,52 @@ class HeatpumpHistoryRecorder:
         result["time_resolution_s"] = self.interval_s
         return result
 
-    def export(self):
-        """Seven local days on explicit private export, without ACL/bindings."""
-        when = self.now()
-        today = datetime.fromtimestamp(when.timestamp(), self.model.lanes.zone).date()
+    def export(self, hours=168, *, when=None):
+        """Full local-day evidence overlapping the requested UTC interval."""
+        if type(hours) is not int or hours not in (1, 24, 168):
+            raise ValueError("History export hours must be 1, 24 or 168")
+        when = self.now() if when is None else when
+        if not isinstance(when, datetime) or when.tzinfo is None:
+            raise ValueError("History export timestamps must be timezone-aware")
+        wall = when.timestamp()
+        cutoff = wall-hours*3600
+        zone = self.model.lanes.zone
+        day = datetime.fromtimestamp(cutoff, zone).date()
+        last_day = datetime.fromtimestamp(wall, zone).date()
         days = []
-        for offset in range(6, -1, -1):
-            row = deepcopy(self.model.detail((today-timedelta(days=offset)).isoformat(), when=when))
+        partial_boundary_dates = []
+        while day <= last_day:
+            key = day.isoformat()
+            start, end = self.model.lanes._bounds(key)
+            day += timedelta(days=1)
+            # Half-open UTC overlap excludes an empty day at an exact midnight
+            # endpoint. Local midnight boundaries preserve 23/25-hour DST days.
+            if end <= start or start >= wall or end <= cutoff:
+                continue
+            boundary_partial = cutoff > start or wall < end
+            if boundary_partial:
+                partial_boundary_dates.append(key)
+            row = deepcopy(self.model.detail(key, when=when))
+            row.update(aggregate_scope="full_local_calendar_day",
+                       window_boundary_partial=boundary_partial,
+                       window_overlap_s=min(end, wall)-max(start, cutoff))
             # Each selected day already has totals and clipped sessions; avoid
-            # seven repetitions of the full 30-day overview and other lanes.
+            # repetitions of the full 30-day overview and other lanes. Retained
+            # day aggregates cannot be exactly clipped to a partial boundary;
+            # export their real totals without proportional energy estimates.
             row.pop("days", None)
             for lane in row.get("sg", {}).values():
                 lane.pop("days", None)
             days.append(row)
-        return {"days": days, "retention_days": 7, "recording_error": self.error,
+        return {"days": days, "retention_days": self.model.lanes.retention_days,
+                "requested_hours": hours, "exported_days": len(days),
+                "window_start": datetime.fromtimestamp(cutoff, timezone.utc).isoformat(),
+                "window_end": datetime.fromtimestamp(wall, timezone.utc).isoformat(),
+                "timezone": self.model.timezone_name,
+                "aggregate_scope": "full_local_calendar_day",
+                "partial_boundary_dates": partial_boundary_dates,
+                "note": "Dagtotalen, taken en SG-lagen omvatten de volledige lokale kalenderdag voor zover werkelijk geregistreerd. Grensdagen kunnen waarnemingen buiten het gevraagde tijdvenster bevatten; energie wordt niet naar rato geknipt.",
+                "recording_error": self.error,
                 "storage_available": self._writable, "time_resolution_s": self.interval_s}
 
     def _cancel_pending_writes(self):

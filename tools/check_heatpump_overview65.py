@@ -527,6 +527,64 @@ with sync_playwright() as playwright:
         assert details.get_attribute('open') is None, (view, 'electrical Details should close on request')
     page.locator('solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value=overview]').click()
 
+    # beta71: the independent five-minute session rearm is visible even when
+    # ordinary rest is ready. Zero time awaits backend confirmation, and the
+    # actual candidate's source deadline expires before a still-fresh overview.
+    page.evaluate('''() => {window.qaWait=(extra={})=>{
+      qaApply('unknown',false);const stamp=Date.now()/1000,s=c._last.attributes.sg_boost;
+      Object.assign(s,{profile:'general',completion_hold:true,state:'completion_hold',
+        rest_remaining_s:0,start_required_s:120,reassessment_required_s:300,
+        reassessment_state:'confirming_new_solar_period',reassessment_kind:'new_solar_period',
+        reassessment_remaining_s:250,reassessment_reports:2,reassessment_source_current:true,
+        reassessment_valid_until:stamp+120,reassessment_final_report_required:false,
+        start_remaining_s:null,start_valid_until:null},extra);c._render();
+    };}''')
+    for view in ('overview', 'comfort', 'loads'):
+        page.locator(f'solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value={view}]').click()
+        panel = row if view == 'overview' else page.locator('solar-pilot-card >> .heatpump-sg')
+        page.evaluate('qaWait()')
+        wait = panel.locator('[data-sg-wait]')
+        actual = wait.inner_text()
+        assert 'Nieuw zonneoverschot: nog 4 min 10 s van 5 min' in actual, (view, 'actual rearm countdown', actual)
+        assert 'gereed' not in actual, (view, 'rearm cannot inherit rest-ready label', actual)
+        details_key = 'overview:sg:why' if view == 'overview' else f'sg:{view}:details'
+        details = panel.locator(f'details[data-ui-key="{details_key}"]')
+        if details.get_attribute('open') is None:
+            details.locator(':scope > summary').click()
+        facts = panel.locator('.start-facts>span')
+        for label, expected in (('Rusttijd', 'gereed'), ('Ingestelde startvertraging', '2 min'), ('Vereiste herbevestiging', '5 min')):
+            actual = facts.filter(has_text=label).locator('b').inner_text()
+            assert actual == expected, (view, label, f'expected {expected!r}, got {actual!r}')
+
+        page.evaluate('qaWait({reassessment_remaining_s:1})')
+        page.evaluate('''()=>{window.qaWaitState=c._last;qaClockMs+=2000;c._refreshObservationDisplay();}''')
+        actual = wait.inner_text()
+        assert 'wacht op verse bevestiging' in actual and 'gereed' not in actual, (view, 'zero rearm awaits new final report', actual)
+        assert page.evaluate('c._last===qaWaitState && c._last.attributes.sg_boost.reassessment_remaining_s===1'), (view, 'clock-only progress cannot mutate backend state')
+        assert details.get_attribute('open') is not None, (view, 'wait refresh keeps open Details')
+        assert panel.locator('[data-sg-stage=relay] strong').inner_text() == 'Open', (view, 'time expiry cannot close SG contact')
+
+        page.evaluate('qaWait({reassessment_valid_until:Date.now()/1000+2})')
+        page.evaluate('''()=>{qaClockMs+=3000;c._refreshObservationDisplay();}''')
+        actual = wait.inner_text()
+        assert 'Herbevestiging onbekend' in actual and 'nog 4 min' not in actual, (view, 'real source expires before overview', actual)
+
+        page.evaluate("qaWait({completion_hold:false,state:'waiting_surplus',start_remaining_s:77,start_valid_until:Date.now()/1000+120})")
+        actual = wait.inner_text()
+        assert 'SG-startvertraging' in actual and 'nog 1 min 17 s van 2 min' in actual, (view, 'ordinary start delay is separate', actual)
+        page.evaluate("qaWait({completion_hold:false,state:'waiting_surplus',start_remaining_s:1,start_valid_until:Date.now()/1000+120})")
+        page.evaluate('''()=>{qaClockMs+=2000;c._refreshObservationDisplay();}''')
+        actual = wait.inner_text()
+        assert 'wacht op actuele beoordeling' in actual and 'verse bevestiging' not in actual and 'gereed' not in actual, (view, 'ordinary zero waits for existing assessment', actual)
+        page.evaluate("qaWait({completion_hold:false,state:'waiting_surplus',start_remaining_s:77,start_valid_until:Date.now()/1000+2})")
+        page.evaluate('''()=>{qaClockMs+=3000;c._refreshObservationDisplay();}''')
+        actual = wait.inner_text()
+        assert 'startvertraging onbekend' in actual, (view, 'ordinary source expiry', actual)
+        if details.get_attribute('open') is not None:
+            details.locator(':scope > summary').click()
+        assert page.evaluate('qaCalls.length===0'), (view, 'wait presentation never writes to devices')
+    page.locator('solar-pilot-card >> .nav > button[role=tab][data-action=view][data-value=overview]').click()
+
     # Missing supply 2 preserves the known part but never fabricates a total.
     page.evaluate("qaApply('active',false,{power_w:null,power_kind:'unknown',power_complete:false,power_supply2_w:null,power_supply2_valid:false})")
     assert 'Voeding 1: 1,72 kW · Voeding 2: onbekend' in row.inner_text()

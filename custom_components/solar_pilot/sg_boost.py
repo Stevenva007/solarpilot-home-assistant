@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 from copy import deepcopy
 import inspect
+import math
 import time
 
 from homeassistant.exceptions import HomeAssistantError
@@ -1195,6 +1196,86 @@ class SGBoostManager:
         self._closed = True
         await self.prepare_for_removal()
 
+    def _wait_progress(self, now):
+        """Describe current evidence waits without granting or changing authority.
+
+        Zero is only elapsed confirmation time. Reassessment still requires a
+        genuinely new final source report through the existing control path.
+        Stale observations cannot keep a visible confirmation countdown alive.
+        """
+        progress = {"reassessment_state": None, "reassessment_kind": None,
+                    "reassessment_remaining_s": None, "reassessment_required_s": None,
+                    "reassessment_valid_until": None,
+                    "reassessment_reports": 0, "reassessment_source_current": False,
+                    "reassessment_final_report_required": False, "start_remaining_s": None,
+                    "start_valid_until": None, "start_required_s": math.ceil(float(self.settings["start_delay_s"]))}
+        solar = self._solar_observation
+        solar_stamp = finite(solar.get("stamp")) if isinstance(solar, dict) else None
+        solar_watts = finite(solar.get("watts")) if isinstance(solar, dict) else None
+        solar_current = (solar_stamp is not None and solar_watts is not None
+                         and -5 <= self._wall_clock() - solar_stamp <= float(self.settings["stale_s"]))
+        native = self._valid_native_observation(self._native_observation)
+        reference = self._general_reference
+        general_hold = (self.settings.get("profile") == "general" and self.completion_hold
+                        and self.settings.get("profile_confirmed") is True)
+        if general_hold:
+            progress.update(reassessment_state="waiting_new_evidence",
+                            reassessment_required_s=math.ceil(NEW_CONTEXT_CONFIRM_S),
+                            reassessment_source_current=bool(solar_current or native is not None))
+            if isinstance(reference, dict):
+                ended = reference["ended_at"]
+                solar_new = solar_current and solar_stamp > max(
+                    ended, finite(reference.get("solar_stamp")) or ended)
+                native_new = (native is not None and reference.get("native_rebase") is not True
+                              and native["stamp"] > max(ended, finite(reference.get("native_stamp")) or ended,
+                                                         finite(reference.get("native_after")) or ended))
+                solar_reset = finite(reference.get("solar_reset_stamp"))
+                native_reset = finite(reference.get("native_reset_stamp"))
+                low_solar = solar_new and solar_watts <= float(self.settings["hysteresis_w"])
+                checks = {
+                    "new_solar_period": (solar_new and solar_watts >= float(self.settings["threshold_w"])
+                                         and solar_reset is not None and solar_stamp > solar_reset),
+                    "fresh_native_context": (native_new and native["context"] in RELEVANT_NATIVE_CONTEXTS
+                                             and (reference.get("profile_transition") is True
+                                                  or reference.get("signature") is not None
+                                                  and native["signature"] != reference["signature"]
+                                                  or native_reset is not None and native["stamp"] > native_reset)),
+                    "solar": low_solar,
+                    "native": (not low_solar and native_new and native["context"] == "normal"),
+                }
+                for candidate, reset in ((self._general_candidate, False), (self._general_reset_candidate, True)):
+                    if not isinstance(candidate, dict):
+                        continue
+                    kind = candidate.get("kind")
+                    if not checks.get(kind) or not reset and now < self._rest_until:
+                        continue
+                    observation = solar if kind in {"new_solar_period", "solar"} else native
+                    signature = ("qualified_surplus" if kind == "new_solar_period" else "near_zero"
+                                 if kind == "solar" else native["signature"])
+                    if (candidate.get("signature") != signature
+                            or observation["stamp"] < candidate["last_stamp"]):
+                        continue
+                    remaining = math.ceil(max(0.0, NEW_CONTEXT_CONFIRM_S - (now - candidate["first_seen"])))
+                    display_kind = kind + "_reset" if reset else kind
+                    progress.update(reassessment_state="confirming_" + display_kind,
+                                    reassessment_kind=display_kind, reassessment_remaining_s=remaining,
+                                    reassessment_reports=candidate["reports"], reassessment_source_current=True,
+                                    reassessment_valid_until=observation["stamp"] + float(self.settings["stale_s"]),
+                                    reassessment_final_report_required=remaining == 0)
+                    break
+        if (self.state == "waiting_surplus" and self._stable_since is not None and solar_current
+                and not self._blocked_reasons and not self.completion_hold and not self.manual_hold
+                and not self.fault and not self._closed and self.auto_enabled
+                and getattr(self.runtime, "mode", "observe") == "solar" and not self.cooling_block_reason()):
+            progress["start_remaining_s"] = math.ceil(max(
+                0.0, float(self.settings["start_delay_s"]) - (now - self._stable_since)))
+            progress["start_valid_until"] = solar_stamp + float(self.settings["stale_s"])
+            if (self.settings.get("profile") == "general"
+                    and self.settings.get("cooling_protection_confirmed") is not True and native is not None):
+                progress["start_valid_until"] = min(progress["start_valid_until"],
+                                                     native["stamp"] + float(self.settings["stale_s"]))
+        return progress
+
     def overview(self):
         now = self._clock()
         monitor = getattr(self.runtime, "panasonic", None)
@@ -1205,7 +1286,7 @@ class SGBoostManager:
         resume_entity = entity_id("button", "sg_boost_resume") if callable(entity_id) else ""
         session_remaining = (max(0.0, float(self.settings["max_session_s"]) - (now - self._session_started))
                              if self._session_started is not None else 0.0)
-        return {"configured": self.configured, "enabled": self.auto_enabled,
+        return {**self._wait_progress(now), "configured": self.configured, "enabled": self.auto_enabled,
                 "observed_at": self._wall_clock(),
                 "commissioning_confirmed": self.settings.get("commissioning_confirmed") is True,
                 "watchdog_confirmed": self.settings.get("watchdog_confirmed") is True,

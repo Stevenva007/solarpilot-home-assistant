@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.71 — afzonderlijke SG-wachtfasen en juist historiekvenster
+
+- Toont de bestaande 300 seconden bevestiging van een nieuwe SG-zonneperiode of native aanleiding apart van de ingestelde startvertraging. Details benoemen bewijsfase, rapporten en actualiteit. Een verlopen bevestigingsteller blijft wachten op het passende nieuwe eindrapport; nul startvertraging wacht op de bestaande actuele beoordeling. Renderen geeft geen starttoestemming.
+- Corrigeert het warmtepompdeel van de privé-analyse-export: de echte bewaartermijn blijft dertig lokale kalenderdagen, los van de gevraagde 1, 24 of 168 uur. Alle overlappende lokale datums worden opgenomen, ook bij lokale middernacht en 23/25-uursdagen.
+- Benoemt volledige geregistreerde kalenderdagtotalen en gedeeltelijke grensdatums expliciet. Geen evenredige energieknip, ingevulde meetgaten of gewijzigde opslagretentie; alle exportonderdelen gebruiken hetzelfde eindtijdstip.
+- Behoudt SG-timings, bron-/koel-/fase-/net-/voorrangsgrenzen, de ene toegewezen SG-uitgang en Panasonic-only native regeling. Instellingen, bevestigingen, overige apparaten, APP-tickets, modellen, geschiedenis en userfiles blijven staan.
+- Bouwbasis: gepubliceerde beta.70 `630b0f3d260b0af91fbbcb81392eb903485f82e9`, alle vijf CI-gates plus publicatie geslaagd. Nieuwe uitvoeringsbewijzen horen in `docs/TESTRESULTATEN_BETA71.md`; installatie en rollback naar beta.70 in `docs/BETA71_INSTELLEN.md`.
+
 ## 1.0.0-beta.70 — lokale warmtepompgeschiedenis
 
 - Voegt een afzonderlijke lokale warmtepompgeschiedenis over maximaal dertig HA-kalenderdagen toe. De Geschiedenis-popup toont gekozen dag, geregistreerde activiteit/starts/stops, taakperioden, meetdekking en 7/30-dagenbalken. Native, afgeleide en onbekende taken blijven herkenbaar; de popup blijft tijdens verversen open en bedient niets.

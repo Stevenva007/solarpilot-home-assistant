@@ -257,4 +257,16 @@ Beta.69: `test_sg_solar_credit69.py`, `test_electrical_limits69.py`, `test_heatp
 | Bestaande `test_consumer_history*` en `check_consumer_history_ui.py` | Gewone verbruikerhistorie, sessies, kalenderdagen en alleen-lezen popup blijven behouden. |
 | Bestaande SG-/authority-/meter-/learning-/commandoregressies | Beta.69-startcredit en bronbewijs behouden; geschiedenis kan geen regeling of toestemming veranderen. |
 
-Dit is module-/contractmapping, geen nieuwe testuitslag. De actuele beta.70-uitvoeringen, aantallen, CI en pakketbewijzen staan uitsluitend in `TESTRESULTATEN_BETA70.md`. Historische definitietellingen en beta.62/beta.69-uitslagen hierboven blijven historische evidence.
+Dit is module-/contractmapping, geen nieuwe testuitslag. De historische beta.70-uitvoeringen, aantallen, CI en pakketbewijzen staan uitsluitend in `TESTRESULTATEN_BETA70.md`. Historische definitietellingen en beta.62/beta.69-uitslagen hierboven blijven historische evidence.
+
+## Beta.71 — wachtweergave en kalenderdag-export
+
+| Module / proef | Hoofdafspraak |
+| --- | --- |
+| `sg_boost.py` en `test_sg_wait_progress71.py` | Read-only bewijsfase, echte rapporten, actualiteit en nul-met-eindrapport; bestaande 300 seconden bevestiging los van ingestelde startvertraging; geen timer-/guard-/writewijziging. |
+| `test_sg_wait_ui71.py` en bestaande warmtepompbrowserproef | Afzonderlijke fasen in kaart/Details, geen verouderde lopende teller of extra bediening; mobiel en desktop. |
+| `heatpump_history_runtime.py` en `test_heatpump_history_export71.py` | Echte dertig dagen retentie apart van 1/24/168 uur; alle overlappende lokale datums, middernacht/DST, volledige kalenderdagtotalen en expliciete grensdatums. |
+| `analysis_export.py` en bestaande exportregressies | Eén eindtijdstip voor exportonderdelen, geen backfill/prorating of private ACL-/bindingidentiteiten; bestaande pseudonimisering behouden. |
+| Bestaande SG-/authority-/history-/API-/consumerregressies | Zelfde controllerbeslissingen, rechten, aparte Store en geschiedenis; alle overige apparaten en gebruikersgegevens behouden. |
+
+Dit is contractmapping. Actuele uitvoeringen, aantallen, CI en pakketbewijs staan uitsluitend in `TESTRESULTATEN_BETA71.md`. Alle eerdere testtellingen blijven historische evidence.

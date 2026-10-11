@@ -1,10 +1,10 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.70
+**Versie:** 1.0.0-beta.71
 **Bijgewerkt:** 2026-10-11
-**Regel-hash:** `839bc3ba3619b35a`
+**Regel-hash:** `9ebc3824b1eeee4d`
 
-SolarPilot bewaart vanaf deze update een eigen lokale warmtepompgeschiedenis over maximaal dertig kalenderdagen. De dagtijdlijn, activiteit, taakperioden en afzonderlijke SG-aanvraag/contact/ontvangen-status maken het verloop zichtbaar. Alleen complete actuele bevestigde metingen leveren geregistreerde elektrische energie; meetgaten blijven onbekend. Panasonic regelt zelfstandig comfort en beveiligingen. De bestaande SG-zonnestartbijdrage, echte elektrische grenzen, instellingen, overige apparaten en privédata blijven behouden.
+Beta.71 maakt de afzonderlijke SG-wachtfasen zichtbaar: eerst bevestiging van een nieuwe aanleiding, daarna de ingestelde startvertraging. Het analysebestand onderscheidt daarnaast de bestaande dertig dagen warmtepompgeschiedenis van het gevraagde venster van 1, 24 of 168 uur. Alle overlappende lokale kalenderdagen blijven beschikbaar, met expliciete grensdagen en ongewijzigde geregistreerde dagtotalen. Panasonic regelt zelfstandig. Regelgrenzen, wachttijden, instellingen, apparaten, modellen en privédata blijven behouden.
 
 ## 1. Basisprincipe en modi
 
@@ -83,6 +83,8 @@ Extra SG volgt de opgeslagen flexibele rangorde, zonder EV-vermogenskrediet. Een
 Bij bijvoorbeeld 2000 W volledig gemeten warmtepompverbruik en 1000 W bruikbaar restoverschot zonder netafname of batterijontlading kan 3000 W voor de startdrempel meetellen. De vaste importgrens, kwartiergrens, fasemarge en hogere apparaatprioriteiten moeten de volledige mogelijke extra SG-vraag nog toelaten. Bestaand warmtepompverbruik blijft in P1 en vergroot geen vrije elektrische ruimte. Een reeds actieve of gevraagde Full solar-laadsessie houdt zijn actuele extra-vermogensgrens; SG mag die ruimte niet afnemen. Gewone verbruikers blijven uitsluitend werkelijk restoverschot gebruiken.
 
 De startvertraging controleert de gezamenlijke zonnebijdrage. Na starten blijven werkelijke netafname en de bestaande tekortvertraging bepalend voor vrijgave/vernieuwing. Nieuwe zonneperiode na een beëindigde algemene sessie blijft gebaseerd op echte restinjectie, niet op warmtepompcredit; dezelfde opname geeft dus geen herstartlus. Details tonen restoverschot, meegetelde warmtepompbijdrage, gezamenlijke startbijdrage en concrete elektrische beperkingen afzonderlijk.
+
+De kaart en Details tonen de lopende herbeoordeling afzonderlijk van de gewone startvertraging. Nieuwe zonneperiode bevestigen duurt binnen de bestaande policy 300 seconden met echte nieuwe bronrapporten; eventuele reset- of native bewijsfasen houden hun eigen betekenis. Daarna kan de ingestelde startvertraging beginnen, standaard 120 seconden, terwijl alle actuele voorwaarden blijven gelden. Nul resterende bevestigingsseconden is geen starttoestemming: een passend actueel eindrapport en de bestaande beoordelingen zijn nog nodig. Oude brondata verbergt de lopende teller. De uitleesweergave start geen sessie en verandert geen timer, guard, minimumtijd, rangorde of herstartbeleid.
 
 ## 5. Lokale SG-terugval en handmatige bediening
 
@@ -230,7 +232,7 @@ Herstart, reload, onbereikbaarheid en meetgaten begrenzen de waarneming en telle
 
 De bestaande eigen historie blijft bij updates staan: maximaal dertig kalenderdagen per gewone verbruiker, 2000 sessies en 300 extra gebeurtenissen. Bij volle detailgrens blijven dagtotalen met onvolledigheidslabel bestaan. Opslag is gebundeld; het laatste nog niet opgeslagen stukje kan bij een abrupte uitval ontbreken. Details worden alleen op aanvraag gelezen en bedienen niets.
 
-De warmtepomp krijgt een afzonderlijke lokale geschiedenis over maximaal dertig HA-kalenderdagen. Kies een dag of vergelijk zeven/dertig dagen. Grafiek, activiteitperioden, taaksegmenten en SG-lagen gebruiken de daadwerkelijk beschikbare waarnemingen. De registratie begint na installatie van deze functie; oude verbruikerhistorie, modellen en analysegegevens blijven bewaard en worden niet als nieuwe warmtepompgeschiedenis teruggevuld.
+De warmtepomp bewaart een afzonderlijke lokale geschiedenis over maximaal dertig HA-kalenderdagen. Kies een dag of vergelijk zeven/dertig dagen. Grafiek, activiteitperioden, taaksegmenten en SG-lagen gebruiken de daadwerkelijk beschikbare waarnemingen. De registratie begint na installatie van deze functie; oude verbruikerhistorie, modellen en analysegegevens blijven bewaard en worden niet als nieuwe warmtepompgeschiedenis teruggevuld.
 
 Start en stop betekenen een waargenomen overgang van warmtepompactiviteit uit passend vers native taakbewijs of complete actuele elektrische meting, geen compressorstart of gegarandeerd thermisch bedrijf. Verse native taakmeldingen en afgeleide taken blijven herkenbaar gescheiden. Het bestaande weergavecriterium voor elektrische activiteit wordt uitsluitend voor observatie gebruikt. Verwarmen, koelen, boiler, ondersteuning en ontdooien worden alleen met hun passende bronbewijs benoemd; onbekende perioden krijgen geen verzonnen taak of stopoorzaak.
 
@@ -262,6 +264,8 @@ Alleen een HA-beheerder kan een adviesrapport uploaden, bekijken of verwijderen.
 
 Een logische verbetersuggestie kan een stabiele proposal_id bevatten. De status van die suggestie wordt uitsluitend berekend uit het vertrouwde meegeleverde implementatieregister en de werkelijk geïnstalleerde SolarPilot-versie. Uitgevoerd vereist exact dezelfde voorstelidentiteit én inhoud in het register, plus een geïnstalleerde versie vanaf de geteste introductierelease. Een gewijzigde tekst of oudere/onherkende versie blijft open; een onbekende identiteit blijft ongekoppeld. Een upload kan zichzelf niet als uitgevoerd verklaren. Het rapport en zijn oorspronkelijke bronversie blijven bij een gewone update bewaard; de huidige versie wordt apart getoond. Een volgende analyse neemt beschikbare nog open logische voorstellen mee met dezelfde proposal_id en ongewijzigde abstracte voorsteltekst. Privébronnen, tijdstippen en ondersteunende details horen afzonderlijk in evidence, zodat nieuwe pseudoniemen de betekenis van het voorstel niet veranderen. Het uploaden van een antwoord werkt de integratie niet bij: een codeverbetering komt alleen via een afzonderlijk geverifieerde release en de normale HACS-/herstartprocedure. Dit maakt geen automatische codeactie buiten een actieve werksessie.
 
+Warmtepompgeschiedenis wordt maximaal dertig lokale kalenderdagen bewaard. Die bewaartermijn staat apart van het gekozen rollende exportvenster van 1, 24 of 168 uur en het aantal werkelijk opgenomen datums. Het warmtepompdeel neemt elke lokale kalenderdag op die met dat venster overlapt; 168 uur kan daardoor acht datums omvatten, en rond een tijdwissel soms negen. Dagtotalen, taakperioden en SG-lagen blijven de volledige werkelijk geregistreerde lokale kalenderdag beschrijven. Gedeeltelijke grensdatums worden expliciet gemarkeerd, naast de afzonderlijke meetdekking. Gegevens op zo een grensdag kunnen buiten het rollende venster liggen; energie wordt niet naar rato geschat of kunstmatig afgeknipt. Alle onderdelen gebruiken hetzelfde exporteindtijdstip. Dit verandert geen opslagretentie, registratie, apparaatinstelling of ontbrekende historie.
+
 ## 18. Live configuratie en één eigenaar
 
 Configureren opent de bestaande HA-optiesflow met uitleg bij de velden. Alleen expliciet opslaan kan een instelling veranderen; openen/renderen bedient niets. Gewone ongewijzigde toestellen behouden timers, listeners, leerdata en modus. Een HACS-codeupdate vereist nog wel een HA-herstart.
@@ -284,7 +288,7 @@ Oude pending, doel-eigendom, hercontrole, foutwachttijden, manual hold en eigen 
 
 De globale hervatvoorkeur, geldige andere toestellen, entity-identiteiten, opgeslagen prioriteiten, APP-tickets, historie en leerdata blijven behouden. Nieuwe SG-sturing blijft uit totdat juiste uitgang, native basisinstellingen, geen dubbele writers, contactmapping en lokale aflooptimer werkelijk zijn bevestigd. De noodzakelijke lokale Panasonic/Shelly-controle is geen softwaretest.
 
-Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische metingen in geopende apparatuur. Gebruik de korte controle in BETA70_INSTELLEN.md.
+Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische metingen in geopende apparatuur. Gebruik de korte controle in BETA71_INSTELLEN.md.
 
 ## 20. Installatie, verwijderen en rollback
 
@@ -294,7 +298,7 @@ Een privéprofiel blijft optioneel en uitsluitend lokaal. Importeren kan lege ge
 
 Voor verwijderen kies je Verwijderen voorbereiden en wacht je op de gerichte veilige vrijgave. Een onzekere SG-uitgang blijft eerlijk onbekend; de gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, AEG- of Shelly-integratie.
 
-Rollback naar de gecontroleerde beta.69-basis gebruikt de passende privé HA-back-up naast de code. De nieuwe warmtepompgeschiedenis staat apart; beta.69 leest haar niet. Bewaar die opslag voor een latere upgrade of herstel de volledige pre-upgradeback-up voor exact dezelfde toestand. Geef eerst de SG-aanvraag vrij en controleer lokale terugval; laat nooit twee runtimes tegelijk werken. Voor terugkeer naar de oude directe beta.61-regeling blijft de volledige back-up van vóór de beta.62-migratie nodig. Verwijder de bestaande entry niet. Zie BETA70_INSTELLEN.md.
+Rollback naar de gecontroleerde beta.70-basis bewaart dezelfde afzonderlijke warmtepompgeschiedenis en bestaande instellingen. Alleen de verbeterde wachtweergave en exportvensteruitleg vallen dan terug. Voor exact herstel van de pre-upgradetoestand gebruik je code én de volledige passende privéback-up; bewaar gewenste nieuwe historie eerst. Geef vóór codevervanging de SG-aanvraag vrij en controleer lokale terugval. Laat nooit twee runtimes tegelijk werken en verwijder de bestaande entry niet. Voor terugkeer naar de oude directe beta.61-regeling blijft de volledige back-up van vóór de beta.62-migratie nodig. Zie BETA71_INSTELLEN.md.
 
 ## 21. Release- en documentatieregel
 
