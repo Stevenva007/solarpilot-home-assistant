@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta.70 — lokale warmtepompgeschiedenis
+
+- Voegt een afzonderlijke lokale warmtepompgeschiedenis over maximaal dertig HA-kalenderdagen toe. De Geschiedenis-popup toont gekozen dag, geregistreerde activiteit/starts/stops, taakperioden, meetdekking en 7/30-dagenbalken. Native, afgeleide en onbekende taken blijven herkenbaar; de popup blijft tijdens verversen open en bedient niets.
+- Integreert uitsluitend de gehele warmtepompenergie tussen complete actuele bevestigde exclusieve metingen van dezelfde binding, met maximaal dertig seconden waarnemingsafstand. Nul blijft nul; oude/onvolledige/negatieve/geschatte of overlappende meting, gaten, herstart en bronwijziging leveren geen verzonnen energie of doorlopende sessie.
+- Bewaart SG-aanvraag, gemelde contactstand en echte ontvangen SG-status afzonderlijk. Activiteit is geen compressorlooptijd; samenloop bewijst geen extra SG-kWh, energie per taak, COP of causale besparing.
+- Gebruikt nieuwe aparte HA-opslag en on-demand alleen-lezen details met bestaande bronleesrechten. Registratie begint na installatie; bestaande verbruikerhistorie, modellen, analyse, tickets, instellingen en userfiles blijven behouden. Onleesbare of onbekende opslagschema's worden niet stil overschreven.
+- Behoudt autonome Panasonic-regie, uitsluitend één bestaande SG-uitgang en de beta.69-startbijdrage, fysieke grenzen, Wallboxvoorrang, lease-/commandobescherming en alle andere apparaatfuncties. Geen nieuwe verplichte sensor of configuratiemigratie.
+- Bouwbasis: gepubliceerde beta.69 `99249a68863432bec3e0a86081a5c218ed7ad400`. Actuele validatie staat in `docs/TESTRESULTATEN_BETA70.md`; installatie/behoud/rollback naar beta.69 in `docs/BETA70_INSTELLEN.md`.
+
 ## 1.0.0-beta.69 — warmtepompzon voor SG, taak- en bronbewijs
 
 - Telt voor de SG-startdrempel de actuele complete bevestigde warmtepompbijdrage mee in de PV-begrensde zonnebalans. Een draaiende warmtepomp hoeft de volledige drempel niet opnieuw als extra injectie te hebben. Werkelijk restoverschot blijft afzonderlijk; actuele import, batterijontlading en beschermde reserves worden verwerkt. Oude/onvolledige/overlappende meters krijgen geen credit. Bestaande SG-drempel en aparte conservatieve extra-vraagraming blijven staan.

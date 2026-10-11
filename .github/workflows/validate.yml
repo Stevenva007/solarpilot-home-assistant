@@ -83,6 +83,12 @@ jobs:
         env:
           SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests
         run: python tools/check_heatpump_overview65.py
+      - name: Preserve the existing consumer history popup
+        run: python tools/check_consumer_history_ui.py "${{ runner.temp }}/solarpilot-browser-tests"
+      - name: Validate heat pump history, task and SG separation with fictitious data
+        env:
+          SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests
+        run: python tools/check_heatpump_history70.py
       - name: Retain fictitious browser validation screenshots
         if: always()
         uses: actions/upload-artifact@v4

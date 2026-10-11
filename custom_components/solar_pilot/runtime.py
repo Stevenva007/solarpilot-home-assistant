@@ -28,6 +28,7 @@ from .electricity_cost import DailyElectricityCost
 from .savings import SavingsHistory
 from .wallbox_activity import WallboxActivityHistory, classify_native_status
 from .consumer_history_runtime import ConsumerHistoryRecorder
+from .heatpump_history_runtime import HeatpumpHistoryRecorder, configured_history_sources, history_binding
 from .dishwasher_app import DishwasherApp
 from .dishwasher_priority import DishwasherPriority, enabled as dishwasher_has_priority
 from .dishwasher import DishwasherControl, read as read_dishwasher, normalize_config as normalize_dishwasher
@@ -116,6 +117,7 @@ class SolarRuntime:
         self.dishwasher_app = DishwasherApp(self)
         self.states = {key: State(last_off=time.monotonic(), cycle_armed=cfg.get("kind") != "dishwasher") for key, cfg in self.configs.items()}
         self.consumer_history = ConsumerHistoryRecorder(hass, entry, {**keyed(entry.options.get(ARCHIVED)), **self.configs}, self.settings["interval_s"])
+        self.heatpump_history = HeatpumpHistoryRecorder(hass, entry, self.settings["interval_s"])
         self.mode = "observe"
         self.auto_resume_after_restart = True
         self.pause_cause = ""
@@ -478,6 +480,7 @@ class SolarRuntime:
         self._restart_resume_from_pause = data.get("restart_resume_from_pause") is True
         self.live_options.restore(data.get("live_options", {}))
         await self.consumer_history.start()
+        await self.heatpump_history.start()
         await self.analysis.start()
         await self.analysis_feedback.start()
         self.dishwasher.restore(data.get("dishwasher", {}))
@@ -868,6 +871,9 @@ class SolarRuntime:
 
     async def close(self, *, persist=True):
         self._closed = True
+        # Independent optional telemetry cleanup must survive actuator/core
+        # cleanup failures, and never flush a partly restored failed setup.
+        await self.heatpump_history.close(persist=persist)
         self.dishwasher_app.close()
         self.panasonic.native_program.close()
         await self.sg_boost.close(persist=persist)
@@ -2246,8 +2252,28 @@ class SolarRuntime:
                 self.analysis.capture((perf_counter()-started)*1000)
             except Exception as err:
                 self.analysis.error = "Analysemeting onvolledig: " + type(err).__name__
+            self._capture_heatpump_history()
             await self.action_notifications.sync()
             self.publish()
+
+    def _capture_heatpump_history(self):
+        """One coherent read-only sample, independent of analysis or Auto mode."""
+        recorder = self.heatpump_history
+        if not recorder.loaded or recorder._closed:
+            return
+        try:
+            panasonic, sg = self.panasonic.overview(), self.sg_boost.overview()
+            recorder.observe(panasonic, sg, recorder.now(), binding=history_binding(self, panasonic, sg),
+                             sources=configured_history_sources(self))
+        except Exception:
+            # A presentation/source/history failure cannot pause the controller.
+            if not recorder.error:
+                _LOGGER.exception("SolarPilot warmtepomphistoriekmeting overgeslagen")
+            recorder.error = "Warmtepomphistoriekmeting onvolledig; regeling blijft ongewijzigd"
+            try:
+                recorder.model.pause_recording()
+            except Exception:
+                pass
 
     async def _tick(self):
         now = time.monotonic()

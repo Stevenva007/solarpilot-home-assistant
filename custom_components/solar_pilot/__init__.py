@@ -11,6 +11,7 @@ from homeassistant.helpers.storage import Store
 
 from .frontend import async_register_frontend, async_unregister_frontend
 from .consumer_history_api import async_register_history_api
+from .heatpump_history_api import async_register_heatpump_history_api
 from .analysis_api import async_register_analysis_api
 from .learning_api import async_register_learning_api
 from .pv_forecast_api import async_register_pv_api
@@ -19,6 +20,7 @@ from .pv_forecast import PV_SENSOR_DEFINITIONS
 from .analysis_export import storage_key as analysis_storage_key
 from .feedback_store import storage_key as feedback_storage_key
 from .consumer_history_runtime import history_storage_key
+from .heatpump_history_runtime import heatpump_history_storage_key
 from .private_bundle import build_private_import, delete_private_files_if_requested, load_private_bundle
 from .historical import load_bundled_seed
 from .dishwasher_recovery import LegacyDishwasherRecoveryRetry, recover_legacy_dishwasher
@@ -114,6 +116,7 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     runtime.dishwasher_recovery_retry = LegacyDishwasherRecoveryRetry(runtime)
     await runtime.dishwasher_recovery_retry.start()
     async_register_history_api(hass)
+    async_register_heatpump_history_api(hass)
     async_register_analysis_api(hass)
     async_register_learning_api(hass)
     async_register_pv_api(hass)
@@ -180,6 +183,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Remove SolarPilot-owned persistent data after the config entry is deleted."""
     await Store(hass, 1, f"{DOMAIN}.{entry.entry_id}").async_remove()
     await Store(hass, 1, history_storage_key(entry.entry_id)).async_remove()
+    await Store(hass, 1, heatpump_history_storage_key(entry.entry_id)).async_remove()
     await Store(hass, 1, analysis_storage_key(entry.entry_id)).async_remove()
     await Store(hass, 1, feedback_storage_key(entry.entry_id)).async_remove()
     # Remove SolarPilot-owned optional private profile/bootstrap when the private

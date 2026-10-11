@@ -290,6 +290,7 @@ async def test_entry_removal_clears_both_software_notifications_without_equipmen
         config_entries=SimpleNamespace(async_entries=lambda _: []))
     namespace = {"DOMAIN": "solar_pilot", "Store": Store,
         "history_storage_key": lambda entry: f"history.{entry}",
+        "heatpump_history_storage_key": lambda entry: f"solar_pilot.{entry}.heatpump_history",
         "analysis_storage_key": lambda entry: f"analysis.{entry}",
         "feedback_storage_key": lambda entry: f"feedback.{entry}",
         "delete_private_files_if_requested": lambda: None,
@@ -301,5 +302,6 @@ async def test_entry_removal_clears_both_software_notifications_without_equipmen
     await namespace["async_remove_entry"](hass, SimpleNamespace(entry_id="entry"))
     assert calls == [("persistent_notification", "dismiss", {"notification_id": "solar_pilot_entry"}),
                      ("persistent_notification", "dismiss", {"notification_id": "solar_pilot_entry_action_required"})]
-    assert set(removed) == {"solar_pilot.entry", "history.entry", "analysis.entry", "feedback.entry"}
+    assert set(removed) == {"solar_pilot.entry", "history.entry", "solar_pilot.entry.heatpump_history",
+                            "analysis.entry", "feedback.entry"}
     assert frontend == [{"final": True}]
