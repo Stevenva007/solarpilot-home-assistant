@@ -245,3 +245,16 @@ De volledige softwarecontrole gebruikt expliciete HA-doubles, fabrikantbronproev
 Op de bevroren beta.62-werkbron is de volledige toepasselijke suite uitgevoerd met `PYTHONDONTWRITEBYTECODE=1 python -m pytest -q -p no:cacheprovider`: **2809 geslaagd in 31,45 s**, zonder overgeslagen of mislukte tests. Deze definitieve run bevat alle 13 releasepakketgevallen en de vier aanvullende controllergevallen voor atomaire beslissingen. Dit zijn uitgevoerde, parametriseerde gevallen; de brondefinitietellingen hierboven beschrijven een andere grootheid. Privacy-, SG-grens-, overdrachts-, actuele-uitleg- en diffcontroles slagen. Echte publicatie-/downloadbewijzen komen uit de releasecontrole op de exacte gecommitteerde bron.
 
 Beta.69: `test_sg_solar_credit69.py`, `test_electrical_limits69.py`, `test_heatpump_inactivity_scope69.py`, `test_heatpump_meter_evidence69.py`, `test_heatpump_learning69.py` en `test_heatpump_export_ui69.py` toetsen de gescheiden zonne-, taak-, bron- en bewijsgrenzen.
+
+## Beta.70 — warmtepompgeschiedenis en behouden modules
+
+| Module / proef | Hoofdafspraak |
+| --- | --- |
+| `heatpump_history.py` en modelregressies | Maximaal dertig lokale dagen; activity/task/SG-lanes; totale elektrische energie en dekking; gaps/restart/binding/DST/detailcaps; geen causaal SG-verbruik. |
+| `heatpump_history_runtime.py` en runtime/opslagregressies | Eigen HA Store; normale checkpoint-/unloadcyclus; geen overschrijven bij onleesbaar/onbekend schema; registratie onafhankelijk van analysedetails. |
+| `heatpump_history_api.py` en API-regressies | Alleen lezen, juiste geladen entry, actuele en bewaarde bron-READ-rechten; geen writes, replay of private ACL-identiteit. |
+| `test_heatpump_history_ui70.py` en de nieuwe browserproef | Dagtijdlijn, tasktiers, 7/30-dagenbalken, energie/dekking, afzonderlijke SG-lagen, ontbrekende dagen, stabiele popup en mobiele layout. |
+| Bestaande `test_consumer_history*` en `check_consumer_history_ui.py` | Gewone verbruikerhistorie, sessies, kalenderdagen en alleen-lezen popup blijven behouden. |
+| Bestaande SG-/authority-/meter-/learning-/commandoregressies | Beta.69-startcredit en bronbewijs behouden; geschiedenis kan geen regeling of toestemming veranderen. |
+
+Dit is module-/contractmapping, geen nieuwe testuitslag. De actuele beta.70-uitvoeringen, aantallen, CI en pakketbewijzen staan uitsluitend in `TESTRESULTATEN_BETA70.md`. Historische definitietellingen en beta.62/beta.69-uitslagen hierboven blijven historische evidence.

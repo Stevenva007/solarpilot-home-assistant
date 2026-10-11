@@ -1,42 +1,26 @@
-# SolarPilot beta.69 — installatie en upgrade
+# SolarPilot beta.70 — installatie en upgrade
 
-Panasonic blijft zelfstandig regelen. Beta.69 telt de actuele complete warmtepompbijdrage mee voor de SG-zonnestartdrempel, met apart behoud van echte net-/fasegrenzen en Wallboxvoorrang. Taakweergave onderscheidt ruimtebedrijf OFF van een onafhankelijke actieve tankroute. Native taak, afleiding en meetafkeur blijven apart in Details/export en leren. Geldige instellingen, bevestigingen, overige apparaten, tickets, modellen, historie en userfiles blijven behouden. Nieuwe verplichte sensoren of leervragen zijn niet nodig.
+Beta.70 voegt lokale warmtepompgeschiedenis toe: gekozen dag, geregistreerde activiteit/starts/stops, taken, gemeten totale elektrische energie, meetdekking en afzonderlijke SG-lagen. De popup geeft geen bediening. Panasonic blijft zelfstandig regelen; de bestaande SG-startbijdrage, elektrische grenzen, instellingen en overige apparaten blijven behouden.
 
-**Begin met [BETA69_INSTELLEN.md](docs/BETA69_INSTELLEN.md).** Daar staan back-up, lokale profiel-/meter-/koelbeveiligingscontrole, korte acceptatie en rollback. De volledige actuele werking staat in [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en **SolarPilot → Uitleg**. Nieuwe software-/publicatiestatus: [TESTRESULTATEN_BETA69.md](docs/TESTRESULTATEN_BETA69.md).
+**Begin met [BETA70_INSTELLEN.md](docs/BETA70_INSTELLEN.md).** Daar staan behoud, back-up, controle, geschiedenis en rollback naar beta.69. De volledige actuele werking staat in [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en **SolarPilot → Uitleg**. Actuele software-/publicatiestatus: [TESTRESULTATEN_BETA70.md](docs/TESTRESULTATEN_BETA70.md).
 
-## Installeren en behouden
+## Update
 
-1. Maak vóór upgrade een volledige privé HA-back-up, inclusief configuratie, SolarPilot-opslag, modellen en userfiles. Bewaar beta.68-code samen met de passende back-up.
-2. Controleer de eigen SG-aanvraag/contactstand en geef de aanvraag vrij vóór programmavervanging. Behoud een draaiende beschermde afwascyclus; maak geen nieuw APP-ticket als updateproef.
-3. Installeer via HACS exact `1.0.0-beta.69` zodra gepubliceerd, herstart HA volledig en herlaad de pagina volledig of sluit de app volledig af en open haar opnieuw. Controleer backend- en kaartversie afzonderlijk; beide moeten beta.69 tonen.
-4. Bij lokale installatie vervang je uitsluitend `custom_components/solar_pilot`; bewaar userfiles en HA-opslag. Verwijder/herschep de bestaande entry niet.
+1. Maak vooraf een volledige privé HA-back-up, inclusief instellingen, SolarPilot-opslag, modellen, tickets, geschiedenis en userfiles. Bewaar beta.69-code.
+2. Geef een eigen SG-aanvraag vrij en controleer contactstand/lokale afloop vóór codevervanging. Behoud beschermde cycli.
+3. Update via HACS naar exact `1.0.0-beta.70` na publicatie, herstart HA volledig en herlaad de pagina volledig of sluit de app volledig af en open haar opnieuw.
+4. Controleer backend- en geladen kaartversie apart. Bewaar de bestaande entry, instellingen, userfiles en opslag; geen reset of herbevestiging van ongewijzigde geldige koppelingen.
 
-Eerste installatie: voeg de GitHub-repository toe aan HACS als **Integration**, voeg SolarPilot toe onder **Instellingen → Apparaten & diensten** en controleer P1/PV eerst in **Alleen bekijken**. De frontend wordt automatisch geregistreerd. Er is geen aparte Lovelace-resource, dashboard-YAML of www-kopie nodig.
+Lokaal vervangen: uitsluitend `custom_components/solar_pilot` uit het local-ZIP. Eerste installatie: GitHub-repository in HACS als **Integration**, volledige HA-herstart en toevoegen onder **Instellingen → Apparaten & diensten**. Controleer P1/PV eerst in **Alleen bekijken**. De frontend wordt automatisch geregistreerd; een aparte Lovelace-resource is niet nodig.
 
-Beta.69 behoudt de beta.63-fix voor onveranderbare en geneste HA-opties. Een update herstelt geen toestemming door gegevens te wissen. Bestaande geldige single-meterconfig, prioriteiten, APP-tickets, geschiedenis, modellen, bewaartermijnen en de globale hervatvoorkeur blijven behouden.
+## Geschiedenis gebruiken
 
-## Instellingen en uitlezing controleren
+Open **Geschiedenis** bij de warmtepomp in Overzicht, Toestellen of Warmtepomp. Kies een dag, Vandaag of zeven/dertig dagen. Ontbrekende data blijft zichtbaar als geen registratie. De registratie begint na deze installatie en bewaart maximaal dertig lokale kalenderdagen in aparte HA-opslag. Bestaande verbruikerhistorie, modellen en analyse worden niet teruggevuld of vervangen.
 
-Bij een ongewijzigde beta.68-installatie hoef je de SG-ingebruikname, het gekozen profiel, de meterdekking of de bestaande koelbeveiliging niet opnieuw te bevestigen wegens deze upgrade. Controleer de behouden waarden. Voor een nieuwe installatie of werkelijk gewijzigde koppeling/profielkeuze gelden de volgende voorwaarden.
+Starts/stops en geregistreerde draaitijd zijn waargenomen activiteit, geen bewezen compressorlooptijd. Elektrische kWh gelden alleen voor bruikbare complete actuele bevestigde totale meting en hebben een eigen meetdekking. SG-aanvraag, gemeld contact en ontvangen SG blijven apart. Gelijktijdig verbruik bewijst geen extra SG-kWh of causale besparing.
 
-Kies **Uitsluitend tapwater** of **Algemene SG-boost volgens Panasonic-bedrijf**. Bevestig het gekozen bereik bewust; SolarPilot wijzigt Panasonic-percentages/temperaturen niet. Voor extra koeling is geschikte bestaande condens-/dauwpuntbeveiliging een afzonderlijke controle. AUTO of onbekende context bewijst geen veilige extra koeling.
-
-Koppel één echte bevestigde meter of twee volledige niet-overlappende voedingen. Split totaal bestaat alleen bij twee actuele geldige deelwaarden; bekende nul blijft nul en een ontbrekend deel geeft geen verzonnen totaal. Optionele echte compressorfrequentie en ontvangen SG-status helpen observatie. Compressorbedrijf bewijst geen SG-veroorzaakt extra verbruik.
-
-De warmtepomp verschijnt in Overzicht en Toestellen tussen de andere blokken en in Warmtepomp. De twee vaste onderdelen tonen Taak van de warmtepomp en Elektrische bijverwarming, met afzonderlijk meter-/bronbewijs. Een verse werkelijke native taakmelding kan apart leesbaar blijven bij lage/nul/partiële of ontbrekende meting; een uit verbruik en context afgeleide functie benoemt haar gebruikte bronnen. Alleen een gekozen verwarmingsstand of WATER-route is geen afzonderlijk gemelde productie. Oude of tegenstrijdige taakcontext geeft geen eenduidige functieclaim. Het totaal blijft onvolledig als één voeding ontbreekt; nul op één voeding is geen totale rust. Compressorfrequentie blijft afzonderlijk bewijs. De animatie duidt actuele elektrische activiteit aan en creëert geen bedieningsrecht. De gemelde SG-contactstand staat prominent; de aanvraag staat in Details. Een bekende aanvraag/contactafwijking krijgt een waarschuwing. Ontvangen SG verschijnt uitsluitend met een passende actuele bevestigde bron; ontbrekend bewijs blijft technisch onbekend zonder een permanent onbekend-label op de kaart. Details tonen eigenaar, reden, lokale timer, metingen en bronnen. De lokale timer blijft standaard 300 s, vernieuwd iedere 60 s zonder fysieke UIT/AAN-cyclus. Herstart, rust of langdurig laag vermogen geeft geen pulstruc, Force-opdracht of automatische nieuwe toestemming.
-
-Een sessie duurt standaard maximaal één uur. Tapwater-only behoudt de tankafkoelregel. Algemeen gebruikt na iedere beëindigde/onderbroken sessie rust en aantoonbaar nieuw zon-/native bewijs; een warme of ontbrekende tank is niet zelfstandig een permanente blokkering. Constante zon of dezelfde samples geeft geen eindeloze herstartlus. De volledige startvertraging en actuele guards blijven gelden.
-
-De korte lokale controle opent geen elektrische apparatuur. Fysieke SG-/timerproef en natuurlijke automatische sessie worden uitsluitend na expliciete toestemming uitgevoerd. Zonder echte mapping-/timer-/profielbevestiging blijft automatische SG geblokkeerd; gezonde andere apparaten houden hun eigen voorwaarden. De historische stilstandoorzaak blijft onbeslist.
-
-## Analyse en adviezen
-
-Bij Analyse nodig maakt één klik een export van de beschikbare zeven dagen. Meetkwaliteit toont dekking/bevindingen zonder leervragen of beleidkeuzeknoppen. Onder Export download je lokaal JSON.GZ met meetgegevens en een gerichte analysevraag. Voeg het hier bewust toe; de meegeleverde analysevraag betreft warmtepompinsteltips, SolarPilot-instellingen en logische verbetervoorstellen. Je kunt een teruggegeven JSON-adviezenrapport optioneel onder Export uploaden. Het rapport toont bronbinding, bewijs en beperkingen en past niets automatisch toe. Antwoorden verwerken alleen een exact geëxporteerde én nog actuele bevindingrevisie: beoordeeld afgehandeld, meer data nodig blijft open. Sampling-/aanpassingsbeleid verandert niet. Een instellingenwijziging blijft een afzonderlijke bewuste actie; codeverbeteringen vragen een afzonderlijke geteste HACS-release. Het rapport blijft bij gewone updates bewaard; een geïnstalleerd vertrouwd implementatieregister bepaalt of een logische voorstelidentiteit uitgevoerd is. Een uploadtekst kan die status niet zelf claimen. De automatische registratie met standaard zeven dagen/vijfminutenmeetpunten vraagt geen nieuwe koppelingen of configuratie en bewijst niet iedere korte verbruikspiek. Zie de releasehandleiding.
+De bestaande SG-only bevoegdheid blijft: één toegewezen bestaande uitgang, Panasonic verder read-only. De gewone start-/stop-/leasevoorwaarden en fysieke grenzen blijven behouden. Controleer werkelijke hardware of gewijzigde koppelingen alleen volgens de bestaande lokale ingebruiknamevoorwaarden.
 
 ## Rollback
 
-Geef eerst de eigen SG-aanvraag vrij en controleer contactstand/lokale afloop. Stop de nieuwe runtime voordat beta.68 terugkomt. Herstel beta.68-code én de volledige passende privéback-up van vóór deze upgrade; een oude ZIP alleen herstelt nieuwe schema-/bewijsvelden niet exact. Laat nooit twee versies tegelijk het contact beheren.
-
-Voor terugkeer naar de oude directe beta.61-regeling blijft de volledige passende back-up van vóór beta.62-migratie noodzakelijk. Privé herkomstarchief is geen complete HA-restore en doet geen fysieke replay. Zie de releasehandleiding voor de volledige procedure.
-
-De SG-startdrempel gebruikt vanaf beta.69 de gemeten gezamenlijke zonnebijdrage inclusief de complete actuele warmtepompmeting. Restinjectie en mogelijke extra SG-vraag blijven apart; net-/fasegrenzen en Wallboxvoorrang gelden volledig. Details tonen de gebruikte bijdrage, bronkwaliteit en concrete blokkering. Native en afgeleide taakvoorbeelden blijven afzonderlijk in leren/export.
+Geef de eigen SG-aanvraag vrij, controleer contact/lokale afloop, stop beta.70 en herstel gecontroleerde beta.69-code. Behoud de afzonderlijke nieuwe geschiedenis als je later weer wilt upgraden; beta.69 gebruikt haar niet. Voor exact herstel van de pre-upgradetoestand gebruik je de volledige passende privéback-up naast de code. Verwijder de entry niet en laat nooit twee runtimes tegelijk werken. De volledige procedure staat in [BETA70_INSTELLEN.md](docs/BETA70_INSTELLEN.md).

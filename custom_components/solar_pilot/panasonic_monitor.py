@@ -333,7 +333,16 @@ class PanasonicMonitor:
             "action": display_attrs.get("hvac_action"), "available": display_tank_obj is not None,
             "observed_at": self._reported_stamp(display_tank_obj), "read_only": True,
             "automatic": display_tank_entity != c["tank_target_entity"]}
+        history = {}
+        recorder = getattr(self.runtime, "heatpump_history", None)
+        if callable(getattr(recorder, "brief", None)):
+            try:
+                history = recorder.brief()
+            except Exception:
+                # Optional display history grants no activity/control evidence.
+                pass
         return {"configured": self.configured, "read_only": True, "temperature_c": temp,
+            "history": history,
             "temperature_entity": c["tank_temperature_entity"],
             "temperature_stamp": self._reported_stamp(tank) if temp is not None else None,
             "target_c": target_c, "power_w": power["watts"], "power_stamp": power["measured_wall"],

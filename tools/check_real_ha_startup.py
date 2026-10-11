@@ -54,6 +54,9 @@ async def verify_analysis_feedback(hass, runtime, entry):
     await export_handler(hass, admin, message)
     assert not admin.errors and len(admin.results) == 1, admin.errors
     exported = json.loads(admin.results[0]["content"])
+    heatpump = exported["components"]["heatpump_history"]
+    assert len(heatpump["days"]) == 7
+    assert "access_sources" not in heatpump and "binding" not in heatpump
     assert exported["analysis_request"]["schema"] == "solarpilot.analysis_request"
     assert exported["export_provenance"]["export_sha256"] == export_digest(exported)
     source = {key: exported["export_provenance"][key] for key in SOURCE_FIELDS}
@@ -95,6 +98,94 @@ async def verify_analysis_feedback(hass, runtime, entry):
     assert (dict(entry.options), runtime.sg_boost.snapshot(), runtime.learning_hub.policy,
             runtime.learning_hub.answers) == baseline
     return report
+
+
+def verify_heatpump_history(hass, runtime, entry, commands, *, metered):
+    """Real monitor samples and registered read-only handler, without timers."""
+    from custom_components.solar_pilot import heatpump_history_api
+
+    recorder = runtime.heatpump_history
+    assert recorder.loaded and recorder.error == "" and recorder._writable
+    assert len(commands) == 1
+    handler = inspect.unwrap(commands[0])
+    assert handler is inspect.unwrap(heatpump_history_api.websocket_heatpump_history)
+    baseline = (deepcopy(dict(entry.options)), deepcopy(runtime.sg_boost.snapshot()))
+    # Both captures run sequentially without yielding: background polling cannot
+    # produce the interval under test. Real elapsed wall time is used, rather
+    # than assuming that a timer fired or fabricating five seconds of runtime.
+    runtime._capture_heatpump_history()
+    before = deepcopy(recorder.model.energy_days)
+    runtime._capture_heatpump_history()
+    after = deepcopy(recorder.model.energy_days)
+    if metered:
+        known = sum(row["energy_known_s"] for row in after.values())-sum(
+            row["energy_known_s"] for row in before.values())
+        energy = sum(row["energy_kwh"] for row in after.values())-sum(
+            row["energy_kwh"] for row in before.values())
+        assert known > 0
+        assert abs(energy-known*1650/3600000) < 1e-9
+        assert {"sensor.synthetic_supply1", "sensor.synthetic_supply2"} <= recorder.access_sources
+    assert (dict(entry.options), runtime.sg_boost.snapshot()) == baseline
+    assert "heatpump_history" not in runtime._snapshot()
+    live = runtime.panasonic.overview()["history"]
+    assert set(live) <= {"date", "recording", "ongoing", "revision", "recording_error", "storage_available"}
+
+    class Connection:
+        def __init__(self, allowed):
+            self.user = type("SyntheticHistoryUser", (), {"is_admin": False,
+                "permissions": type("ReadPolicy", (), {
+                    "check_entity": staticmethod(lambda _entity, _policy: allowed)})()})()
+            self.results, self.errors = [], []
+
+        def send_result(self, message_id, result):
+            self.results.append(result)
+
+        def send_error(self, message_id, code, message):
+            self.errors.append(code)
+
+    message = {"id": 70, "type": heatpump_history_api.COMMAND, "config_entry_id": entry.entry_id}
+    denied = Connection(False)
+    handler(hass, denied, message)
+    assert denied.errors == ["unauthorized"] and not denied.results
+    reader = Connection(True)
+    handler(hass, reader, message)
+    assert not reader.errors and len(reader.results) == 1
+    detail = reader.results[0]
+    assert detail["device_id"] == "heatpump" and set(detail["sg"]) == {"request", "contact", "received"}
+    assert "task_sessions" in detail and "task_totals" in detail
+    if metered:
+        assert detail["energy_kwh"] is not None
+    assert "sensor.synthetic_supply1" not in json.dumps(detail)
+    assert (dict(entry.options), runtime.sg_boost.snapshot()) == baseline
+    return {"history": deepcopy(recorder.model.snapshot()), "access_sources": set(recorder.access_sources)}
+
+
+def assert_heatpump_checkpoint(data, baseline, *, restored=None):
+    """A reload/unload retains earlier evidence and closes its unknown boundary."""
+    assert data["version"] == 1 and data["access_sources_complete"] is True
+    assert baseline["access_sources"] <= set(data["access_sources"])
+    expected, saved = baseline["history"], data["history"]
+    assert saved["timezone"] == expected["timezone"]
+    for day, row in expected["energy_days"].items():
+        assert saved["energy_days"][day]["energy_known_s"] >= row["energy_known_s"]
+        assert saved["energy_days"][day]["energy_kwh"] >= row["energy_kwh"]
+    for lane, row in expected["lanes"]["devices"].items():
+        retained = saved["lanes"]["devices"][lane]
+        for old in row["sessions"]:
+            session = next(s for s in retained["sessions"] if s["id"] == old["id"] and s["start"] == old["start"])
+            assert session["observed_until"] >= old["observed_until"]
+            if old["end"] is None:
+                assert session["end"] is not None and session["stop_confirmed"] is False
+    if restored is not None:
+        assert restored.loaded and restored.error == "" and restored._writable
+        assert baseline["access_sources"] <= restored.access_sources
+        live = restored.model.snapshot()
+        for day, row in saved["energy_days"].items():
+            assert live["energy_days"][day]["energy_known_s"] >= row["energy_known_s"]
+            assert live["energy_days"][day]["energy_kwh"] >= row["energy_kwh"]
+        for lane, row in saved["lanes"]["devices"].items():
+            assert {(s["id"], s["start"]) for s in row["sessions"]} <= {
+                (s["id"], s["start"]) for s in live["lanes"]["devices"][lane]["sessions"]}
 
 
 def fixture():
@@ -207,6 +298,7 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
     # check. In particular ConfigEntry itself provides immutable mappings.
     from homeassistant import auth, bootstrap, loader
     from homeassistant.components.http import server as http_server
+    from homeassistant.components import websocket_api
     from homeassistant.config_entries import ConfigEntries, ConfigEntry, ConfigEntryState
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers import entity_registry as er
@@ -264,6 +356,14 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                 physical_calls.append(dict(event.data))
 
         remove_watch = hass.bus.async_listen("call_service", watch)
+        history_commands = []
+        register_command = websocket_api.async_register_command
+
+        def observe_registration(hass, handler, *args, **kwargs):
+            result = register_command(hass, handler, *args, **kwargs)
+            if getattr(handler, "__name__", "") == "websocket_heatpump_history":
+                history_commands.append(handler)
+            return result
         evidence = FailureEvidence()
         logging.getLogger().addHandler(evidence)
         # Core 2026.10 binds the HTTP socket during dependency setup. Keep its
@@ -276,7 +376,8 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
         async def loopback_source(*_args, **_kwargs):
             return "127.0.0.1"
 
-        patches = [patch.object(http_server.HomeAssistantHTTP, "async_bind", no_http_io),
+        patches = [patch.object(websocket_api, "async_register_command", observe_registration),
+                   patch.object(http_server.HomeAssistantHTTP, "async_bind", no_http_io),
                    patch.object(http_server.HomeAssistantHTTP, "start", no_http_io),
                    patch("homeassistant.components.http.async_get_source_ip", loopback_source)]
         for replacement in patches:
@@ -483,6 +584,7 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                 assert archive["backup_store"] == expected_journal
             persisted = await store.async_load()
             assert persisted["panasonic_archive"] == archive
+            heatpump_baseline = verify_heatpump_history(hass, runtime, entry, history_commands, metered=current_sg)
             feedback_report = await verify_analysis_feedback(hass, runtime, entry)
             registry = er.async_get(hass)
             rows = er.async_entries_for_config_entry(registry, entry.entry_id)
@@ -495,6 +597,12 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
             assert entry.state is ConfigEntryState.LOADED
             assert entry.runtime_data is not runtime
             assert runtime._closed
+            assert runtime.heatpump_history._closed
+            heatpump_store = Store(hass, 1, f"solar_pilot.{entry.entry_id}.heatpump_history")
+            assert_heatpump_checkpoint(await heatpump_store.async_load(), heatpump_baseline,
+                                      restored=entry.runtime_data.heatpump_history)
+            assert entry.runtime_data.heatpump_history is not runtime.heatpump_history
+            assert len(history_commands) == 1
             assert entry.runtime_data.panasonic_archive == archive
             assert entry.options["devices"] == expected_options["devices"]
             feedback_status = entry.runtime_data.analysis_feedback.status()
@@ -511,8 +619,11 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
             if current_sg:
                 assert_current_sg(entry.runtime_data, entry, expected_options, expected_journal)
             assert not physical_calls, physical_calls
+            before_unload = {"history": deepcopy(entry.runtime_data.heatpump_history.model.snapshot()),
+                             "access_sources": set(entry.runtime_data.heatpump_history.access_sources)}
             assert await hass.config_entries.async_unload(entry.entry_id)
             await hass.async_block_till_done()
+            assert_heatpump_checkpoint(await heatpump_store.async_load(), before_unload)
             assert not evidence.failures, evidence.failures
             assert not physical_calls, physical_calls
             if current_sg:
@@ -527,6 +638,7 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                     "immutable_entry_mappings": True, "private_archive_exact": True,
                     "configuration_preserved": True, "physical_service_calls": 0,
                     "analysis_export_feedback_admin_storage_reload_read_only": True,
+                    "heatpump_history_registered_read_only_acl_store_reload_unload": True,
                     **({"fixture": "current general SG with split read-only sources",
                         "immutable_nested_options_exact": True, "manual_and_completion_holds_preserved": True,
                         "split_units_zero_missing_and_sum": True, "compressor_and_sg_proof_separate": True,

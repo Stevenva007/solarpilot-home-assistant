@@ -1,10 +1,10 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.69
+**Versie:** 1.0.0-beta.70
 **Bijgewerkt:** 2026-10-11
-**Regel-hash:** `7f82db61e5b8d185`
+**Regel-hash:** `839bc3ba3619b35a`
 
-SolarPilot telt voor de SG-startdrempel het werkelijk resterende zonneoverschot en de bruikbare gemeten warmtepompbijdrage samen. Zo vraagt een al draaiende warmtepomp niet opnieuw de volledige drempel als extra injectie. Net-/fasegrenzen voor mogelijke extra vraag blijven afzonderlijk. De actuele taak, native melding en afleiding blijven herkenbaar; Details tonen concrete meet- en blokkeerredenen. Panasonic regelt zelfstandig comfort en beveiligingen. Instellingen, overige apparaten en privédata blijven behouden.
+SolarPilot bewaart vanaf deze update een eigen lokale warmtepompgeschiedenis over maximaal dertig kalenderdagen. De dagtijdlijn, activiteit, taakperioden en afzonderlijke SG-aanvraag/contact/ontvangen-status maken het verloop zichtbaar. Alleen complete actuele bevestigde metingen leveren geregistreerde elektrische energie; meetgaten blijven onbekend. Panasonic regelt zelfstandig comfort en beveiligingen. De bestaande SG-zonnestartbijdrage, echte elektrische grenzen, instellingen, overige apparaten en privédata blijven behouden.
 
 ## 1. Basisprincipe en modi
 
@@ -222,13 +222,27 @@ Resterende fouten waarvoor jouw controle nodig is verschijnen in Home Assistant 
 
 Een SG-koppelings- of terugvalprobleem blokkeert de betrokken SG-functie en noemt de ingebruiknamecontrole. Een oude gearchiveerde tank-/klimaatopdrachtfout wordt niet als actuele fysieke storing opgelost verklaard. Echte onbekende fouten, toestel-/batterijfouten, expliciete gebruikerskeuzes en verwijderverzoeken blijven beschermd. Controle afronden repareert geen verkeerde bronconfiguratie of onbereikbaar apparaat.
 
-## 16. Apparaatgeschiedenis
+## 16. Apparaat- en warmtepompgeschiedenis
 
 Geschiedenis toont per toestel gekozen lokale dag, draaitijd, sessies en afzonderlijke start-/stopredenen. Een verzonden opdracht alleen is geen bevestigde start. Externe wijzigingen krijgen geen verzonnen gebruiker of automatisering als oorzaak. Een slimme stekker toont haar aan-tijd, niet noodzakelijk continu compressorbedrijf.
 
 Herstart, reload, onbereikbaarheid en meetgaten begrenzen de waarneming en tellen onbekende tijd niet mee. Sessies over middernacht worden per lokale kalenderdag verdeeld; die dag kan 23 of 25 uur duren. Oude niet-geregistreerde redenen worden niet achteraf gereconstrueerd.
 
 De bestaande eigen historie blijft bij updates staan: maximaal dertig kalenderdagen per gewone verbruiker, 2000 sessies en 300 extra gebeurtenissen. Bij volle detailgrens blijven dagtotalen met onvolledigheidslabel bestaan. Opslag is gebundeld; het laatste nog niet opgeslagen stukje kan bij een abrupte uitval ontbreken. Details worden alleen op aanvraag gelezen en bedienen niets.
+
+De warmtepomp krijgt een afzonderlijke lokale geschiedenis over maximaal dertig HA-kalenderdagen. Kies een dag of vergelijk zeven/dertig dagen. Grafiek, activiteitperioden, taaksegmenten en SG-lagen gebruiken de daadwerkelijk beschikbare waarnemingen. De registratie begint na installatie van deze functie; oude verbruikerhistorie, modellen en analysegegevens blijven bewaard en worden niet als nieuwe warmtepompgeschiedenis teruggevuld.
+
+Start en stop betekenen een waargenomen overgang van warmtepompactiviteit uit passend vers native taakbewijs of complete actuele elektrische meting, geen compressorstart of gegarandeerd thermisch bedrijf. Verse native taakmeldingen en afgeleide taken blijven herkenbaar gescheiden. Het bestaande weergavecriterium voor elektrische activiteit wordt uitsluitend voor observatie gebruikt. Verwarmen, koelen, boiler, ondersteuning en ontdooien worden alleen met hun passende bronbewijs benoemd; onbekende perioden krijgen geen verzonnen taak of stopoorzaak.
+
+Open Geschiedenis bij de warmtepomp in Overzicht, Toestellen of Warmtepomp. De popup Warmtepompgeschiedenis heeft een datumkiezer, Vorige/Volgende dag, Vandaag en Vernieuwen. Geregistreerde draaitijd, Starts, Stops, Gemeten verbruik en meetdekking beschrijven alleen de geregistreerde periode. De taaklijn onderscheidt Bevestigd, Afgeleid en Taak onbekend. Zeven/dertig-dagenbalken tonen geregistreerde activiteit en elektrische dagenergie. Ontbrekende dagen krijgen geen nul. De popup blijft bij gewone dashboardupdates open en geeft geen apparaatopdracht.
+
+Geregistreerde elektrische energie betreft de gehele gemeten warmtepomp. Alleen twee bruikbare complete actuele bevestigde niet-overlappende meetpunten van dezelfde bronbinding leveren een trapeziumintegraal. Waarnemingen moeten hoogstens dertig seconden uit elkaar liggen. Een gelijkblijvende waarde blijft slechts bruikbaar zolang haar echte brontijd actueel is; een regelcyclus vernieuwt die tijd niet. Onvolledige of oude metingen, een meetgat, herstart of gewijzigde bronbinding onderbreken de integraal. Nul blijft gemeten nul. Dekking staat naast energie, zodat een gedeeltelijke dag niet volledig lijkt.
+
+SG-aanvraag, gemeld contact en werkelijk ontvangen SG-status hebben afzonderlijke tijdlijnen. Ontvangen SG vereist zijn eigen passende verse bron; contact AAN of warmtepompverbruik bewijst ontvangst niet. Gelijktijdig warmtepompverbruik en SG is een waarneming, geen bewezen extra SG-kWh. Er wordt geen energie per taak, compressorlooptijd, COP of causale SG-besparing uit deze historie berekend.
+
+Herstart, unload, ontbrekende bronnen en wijziging van meterbinding worden als registratiegrens behandeld, zonder oude actieve perioden over het gat door te trekken. Sessies worden over lokale middernacht verdeeld; dagen van 23/25 uur blijven correct. Activiteits-/SG-details en taaksegmenten hebben vaste aantallimieten; dagtotalen blijven met een onvolledigheidslabel bestaan als detail wordt afgekapt.
+
+Deze geschiedenis staat in afzonderlijke lokale Home Assistant-opslag en blijft bij gewone updates/herstart behouden. Ze werkt in de bestaande modi onafhankelijk van de analysedetailregistratie. Lezen gebruikt Home Assistant-leesrechten op de betrokken bronnen; bediening of instellingswijziging is niet beschikbaar. Een onleesbaar of niet ondersteund opslagformaat wordt niet stil overschreven. De laatste nog niet opgeslagen waarnemingen kunnen bij abrupte uitval ontbreken.
 
 ## 17. Privé-analyse-export
 
@@ -270,7 +284,7 @@ Oude pending, doel-eigendom, hercontrole, foutwachttijden, manual hold en eigen 
 
 De globale hervatvoorkeur, geldige andere toestellen, entity-identiteiten, opgeslagen prioriteiten, APP-tickets, historie en leerdata blijven behouden. Nieuwe SG-sturing blijft uit totdat juiste uitgang, native basisinstellingen, geen dubbele writers, contactmapping en lokale aflooptimer werkelijk zijn bevestigd. De noodzakelijke lokale Panasonic/Shelly-controle is geen softwaretest.
 
-Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische metingen in geopende apparatuur. Gebruik de korte controle in BETA69_INSTELLEN.md.
+Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische metingen in geopende apparatuur. Gebruik de korte controle in BETA70_INSTELLEN.md.
 
 ## 20. Installatie, verwijderen en rollback
 
@@ -280,7 +294,7 @@ Een privéprofiel blijft optioneel en uitsluitend lokaal. Importeren kan lege ge
 
 Voor verwijderen kies je Verwijderen voorbereiden en wacht je op de gerichte veilige vrijgave. Een onzekere SG-uitgang blijft eerlijk onbekend; de gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, AEG- of Shelly-integratie.
 
-Rollback naar de gecontroleerde beta.68-basis vereist de bij de upgrade behorende privé HA-back-up naast de code, zodat instellingen, opgeslagen bewijslagen en modellen samen passend terugkeren. Geef eerst de SG-aanvraag vrij en controleer lokale terugval; laat nooit twee runtimes tegelijk werken. Voor terugkeer naar de oude directe beta.61-regeling blijft de volledige back-up van vóór de beta.62-migratie nodig. Alleen een oudere ZIP herstelt gewijzigde opslag niet. Zie BETA69_INSTELLEN.md.
+Rollback naar de gecontroleerde beta.69-basis gebruikt de passende privé HA-back-up naast de code. De nieuwe warmtepompgeschiedenis staat apart; beta.69 leest haar niet. Bewaar die opslag voor een latere upgrade of herstel de volledige pre-upgradeback-up voor exact dezelfde toestand. Geef eerst de SG-aanvraag vrij en controleer lokale terugval; laat nooit twee runtimes tegelijk werken. Voor terugkeer naar de oude directe beta.61-regeling blijft de volledige back-up van vóór de beta.62-migratie nodig. Verwijder de bestaande entry niet. Zie BETA70_INSTELLEN.md.
 
 ## 21. Release- en documentatieregel
 
