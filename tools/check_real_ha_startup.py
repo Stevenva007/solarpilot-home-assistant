@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from importlib.metadata import version
 import inspect
 import json
@@ -55,7 +55,29 @@ async def verify_analysis_feedback(hass, runtime, entry):
     assert not admin.errors and len(admin.results) == 1, admin.errors
     exported = json.loads(admin.results[0]["content"])
     heatpump = exported["components"]["heatpump_history"]
-    assert len(heatpump["days"]) == 7
+    assert heatpump["requested_hours"] == 168 and heatpump["retention_days"] == 30
+    assert heatpump["window_end"] == exported["created_at"]
+    wall = datetime.fromisoformat(exported["created_at"]).timestamp()
+    cutoff = datetime.fromisoformat(heatpump["window_start"]).timestamp()
+    assert wall-cutoff == 168*3600
+    lanes = runtime.heatpump_history.model.lanes
+    assert heatpump["timezone"] == lanes.timezone_name
+    day = datetime.fromtimestamp(cutoff, lanes.zone).date()
+    last_day = datetime.fromtimestamp(wall, lanes.zone).date()
+    expected_dates, partial_dates = [], []
+    while day <= last_day:
+        key = day.isoformat()
+        start, end = lanes._bounds(key)
+        day += timedelta(days=1)
+        if end > start and start < wall and end > cutoff:
+            expected_dates.append(key)
+            if cutoff > start or wall < end:
+                partial_dates.append(key)
+    assert [row["date"] for row in heatpump["days"]] == expected_dates
+    assert heatpump["exported_days"] == len(expected_dates)
+    assert heatpump["partial_boundary_dates"] == partial_dates
+    assert abs(sum(row["window_overlap_s"] for row in heatpump["days"])-168*3600) < 1e-5
+    assert heatpump["aggregate_scope"] == "full_local_calendar_day"
     assert "access_sources" not in heatpump and "binding" not in heatpump
     assert exported["analysis_request"]["schema"] == "solarpilot.analysis_request"
     assert exported["export_provenance"]["export_sha256"] == export_digest(exported)

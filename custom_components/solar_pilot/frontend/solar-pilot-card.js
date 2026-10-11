@@ -1,5 +1,5 @@
-/* SolarPilot 1.0.0-beta.70. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
-const SP_CARD_VERSION = '1.0.0-beta.70';
+/* SolarPilot 1.0.0-beta.71. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+const SP_CARD_VERSION = '1.0.0-beta.71';
 const SP_DIALOG_RELEASE = SP_CARD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g,'-');
 const SP_ANALYSIS_DIALOG_TAG = `solar-pilot-analysis-dialog-${SP_DIALOG_RELEASE}`;
 const SP_QUALITY_DIALOG_TAG = `solar-pilot-learning-dialog-${SP_DIALOG_RELEASE}`;
@@ -1128,16 +1128,41 @@ class SolarPilotCard extends HTMLElement {
     if(states.received.state!=='unknown')items.push(['received','Ontvangen door Panasonic','Afzonderlijk bevestigd met een actuele ontvangen-SG-bron.']);
     const mismatch=states.request.state!=='unknown'&&states.relay.state!=='unknown'&&states.request.state!==states.relay.state;
     const warning=mismatch?states.request.state==='active'?'Zonneboost aangevraagd; het SG-contact staat nog open.':'Geen zonneboost aangevraagd; het SG-contact is nog actief.':'';
-    return `<div class="sg-status-strip" aria-label="SG-contact en beschikbare ontvangstmelding">${items.map(([key,label,title])=>`<div class="sg-stage is-${states[key].state}" data-sg-stage="${key}" title="${spEscape(title)}"><span>${spEscape(label)}</span><strong>${spEscape(states[key].label)}</strong></div>`).join('')}</div>${warning?`<p class="note sg-signal-warning"><b>${spEscape(warning)}</b></p>`:''}<p class="note sg-policy">Zonneboost: <b>${s.enabled===true?'toegelaten':s.enabled===false?'uitgeschakeld':'onbekend'}</b></p>`;
+    return `<div class="sg-status-strip" aria-label="SG-contact en beschikbare ontvangstmelding">${items.map(([key,label,title])=>`<div class="sg-stage is-${states[key].state}" data-sg-stage="${key}" title="${spEscape(title)}"><span>${spEscape(label)}</span><strong>${spEscape(states[key].label)}</strong></div>`).join('')}</div>${warning?`<p class="note sg-signal-warning"><b>${spEscape(warning)}</b></p>`:''}<p class="note sg-policy">Zonneboost: <b>${s.enabled===true?'toegelaten':s.enabled===false?'uitgeschakeld':'onbekend'}</b></p>${this._sgWaitBanner(c)}`;
   }
   _sgCountdown(s,key){
     const value=s[key];
     if(typeof value!=='number'||!Number.isFinite(value)||!this._freshObservation(s.observed_at,s.relay_stale_s??120))return null;
     return Math.max(0,value-Math.max(0,Date.now()/1000-s.observed_at));
   }
+  _sgWaitTime(value){const seconds=Math.max(0,Math.ceil(value)),minutes=Math.floor(seconds/60);return minutes?`${minutes} min${seconds%60?' '+seconds%60+' s':''}`:`${seconds} s`;}
+  _sgWaitCountdown(s,key){
+    const value=s[key],until=s[key==='start_remaining_s'?'start_valid_until':'reassessment_valid_until'];
+    if(typeof value!=='number'||!Number.isFinite(value)||value<0||typeof until!=='number'||!Number.isFinite(until)||Date.now()/1000>until||!this._freshObservation(s.observed_at,s.relay_stale_s??120))return null;
+    return Math.ceil(Math.max(0,value-Math.max(0,Date.now()/1000-s.observed_at)));
+  }
+  _sgWaitProgress(c){
+    const s=c.sgBoost||{},fresh=this._freshObservation(s.observed_at,s.relay_stale_s??120);
+    const kinds={new_solar_period:'Nieuw zonneoverschot',fresh_native_context:'Gewijzigde Panasonic-context',solar_reset:'Zonneperiode resetten',native_reset:'Panasonic-context resetten'};
+    if(s.completion_hold===true&&s.profile==='general'){
+      const kind=kinds[s.reassessment_kind],required=s.reassessment_required_s;
+      const valid=fresh&&s.reassessment_source_current===true&&kind&&s.reassessment_state==='confirming_'+s.reassessment_kind&&typeof required==='number'&&Number.isFinite(required)&&required>0&&typeof s.reassessment_remaining_s==='number'&&s.reassessment_remaining_s<=required;
+      const remaining=valid?this._sgWaitCountdown(s,'reassessment_remaining_s'):null;
+      const waitingNew=fresh&&s.reassessment_state==='waiting_new_evidence'&&s.reassessment_source_current===true;
+      return{phase:'reassessment',title:'Nieuwe SG-sessie · herbevestiging',remaining,required:typeof required==='number'&&Number.isFinite(required)&&required>0?required:null,
+        label:remaining!=null?(remaining===0||s.reassessment_final_report_required===true?`${kind}: tijd verstreken · wacht op verse bevestiging.`:`${kind}: nog ${this._sgWaitTime(remaining)} van ${this._sgWaitTime(required)}.`):waitingNew?'Wacht op nieuwe zonneperiode of gewijzigde Panasonic-context.':'Herbevestiging onbekend · wacht op actuele brongegevens.'};
+    }
+    if(s.state==='waiting_surplus'&&s.completion_hold!==true){
+      const required=s.start_required_s,valid=typeof required==='number'&&Number.isFinite(required)&&required>=0&&typeof s.start_remaining_s==='number'&&s.start_remaining_s<=required;
+      const remaining=valid?this._sgWaitCountdown(s,'start_remaining_s'):null;
+      return{phase:'start',title:'SG-startvertraging',remaining,required:valid?required:null,label:remaining==null?'Resterende startvertraging onbekend · wacht op actuele brongegevens.':remaining===0?'Tijd verstreken · wacht op actuele beoordeling.':`Voldoende overschot bevestigen · nog ${this._sgWaitTime(remaining)} van ${this._sgWaitTime(required)}.`};
+    }
+    return null;
+  }
+  _sgWaitBanner(c){const wait=this._sgWaitProgress(c);return wait?`<p class="note sg-wait" data-sg-wait="${wait.phase}"><b>${spEscape(wait.title)}</b><br>${spEscape(wait.label)}</p>`:'';}
   _heatpumpDisplaySignature(c){
     const p=c.panasonic||{};
-    return JSON.stringify([this._heatpumpActivity(c),this._heatpumpPresentation(c),this._heatpumpTaskEvidence(c),this._heatpumpSupplies(c).map(row=>[row.number,row.fresh,row.state]),(c.panasonic?.power_activity?.supplies||[]).map(row=>this._freshObservation(row.observed_at,c.panasonic?.power_activity?.stale_s??120)),this._sgDisplayStates(c),this._electricalLimits(c),[p.history?.recording,p.history?.storage_available,p.history?.revision,p.history?.recording_error],['power','supply1','supply2','compressor','context','temperature','target'].map(role=>this._panasonicSourceFresh(p,role)),(p.display_zones||p.zones||[]).map(zone=>this._freshObservation(zone.observed_at,p.source_stale_s??120)),['temperature_stamp','target_stamp','observed_at'].map(key=>this._freshObservation(p.display_tank?.[key],p.source_stale_s??120)),['lease_remaining_s','remaining_s','rest_remaining_s'].map(key=>Math.ceil((this._sgCountdown(c.sgBoost||{},key)??-1)/10))]);
+    return JSON.stringify([this._heatpumpActivity(c),this._heatpumpPresentation(c),this._heatpumpTaskEvidence(c),this._heatpumpSupplies(c).map(row=>[row.number,row.fresh,row.state]),(c.panasonic?.power_activity?.supplies||[]).map(row=>this._freshObservation(row.observed_at,c.panasonic?.power_activity?.stale_s??120)),this._sgDisplayStates(c),this._sgWaitProgress(c),this._electricalLimits(c),[p.history?.recording,p.history?.storage_available,p.history?.revision,p.history?.recording_error],['power','supply1','supply2','compressor','context','temperature','target'].map(role=>this._panasonicSourceFresh(p,role)),(p.display_zones||p.zones||[]).map(zone=>this._freshObservation(zone.observed_at,p.source_stale_s??120)),['temperature_stamp','target_stamp','observed_at'].map(key=>this._freshObservation(p.display_tank?.[key],p.source_stale_s??120)),['lease_remaining_s','remaining_s','rest_remaining_s'].map(key=>Math.ceil((this._sgCountdown(c.sgBoost||{},key)??-1)/10))]);
   }
   _sgConfirmation(s,p={}){
     const states=this._sgDisplayStates({sgBoost:s,panasonic:p});
@@ -1191,6 +1216,10 @@ class SolarPilotCard extends HTMLElement {
     const context=p.context_reliable===true&&this._panasonicSourceFresh(p,'context')?p.status||'Betrouwbare bedrijfscontext beschikbaar':'Bedrijfscontext onbekend of verouderd';
     const cooling=s.profile!=='general'?'Niet vereist voor tapwater-only':s.cooling_protection_confirmed===true?'Lokaal bevestigd':'Niet bevestigd · geen extra SG in koelbedrijf of onzekere koelcontext';
     const facts=[['Toepassingsbereik',profile],['Profiel lokaal bevestigd',s.profile_confirmed===true?'Ja':'Nee'],['Extra-koelbeveiliging',cooling],['Tanktemperatuur',spTemp(this._heatpumpTankValue(c,'temperature_c'))],['Gemeld tankdoel',spTemp(this._heatpumpTankValue(c,'target_c'))],['Startdrempel',spPower(s.start_threshold_w)],['Voorlopige vermogensraming',spPower(s.estimated_power_w)],['Resterende sessie',this._remainingTime(this._sgCountdown(s,'remaining_s'))],['Rusttijd',this._remainingTime(this._sgCountdown(s,'rest_remaining_s'))]];
+    const wait=this._sgWaitProgress(c);
+    facts.push(['Ingestelde startvertraging',typeof s.start_required_s==='number'&&Number.isFinite(s.start_required_s)&&s.start_required_s>=0?this._sgWaitTime(s.start_required_s):'nog niet bekend']);
+    if(wait)facts.push([wait.phase==='reassessment'?'Herbevestiging nieuwe SG-sessie':'Resterende startvertraging',wait.label]);
+    if(wait?.phase==='reassessment')facts.push(['Vereiste herbevestiging',wait.required==null?'nog niet bekend':this._sgWaitTime(wait.required)],['Verse bronmeldingen',wait.remaining!=null&&Number.isInteger(s.reassessment_reports)&&s.reassessment_reports>0?String(s.reassessment_reports):'nog niet bekend']);
     const electrical=this._electricalLimits(c);
     if(electrical){
       facts.push(['Zonnevermogen voor SG-drempel',spPower(electrical.sg_eligible_solar_w)],['Warmtepompbijdrage aan startdrempel (afgeleid)',spPower(electrical.sg_hp_solar_w)],['Resterende vrije zonnestroom',spPower(electrical.sg_residual_solar_w)],['Elektrische ruimte nu',spPower(electrical.instantaneous_headroom_w)]);

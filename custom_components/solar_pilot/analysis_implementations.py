@@ -25,7 +25,13 @@ IMPLEMENTED_PROPOSALS = {'sp.hp.task-presentation.v1': {'proposal_sha256': '4c47
                                           'title': 'Bewijs en afkeurreden per vermogensbron'},
  'sp.electrical.budget-versus-limits.v1': {'proposal_sha256': '8f26454092497698718bd732cd1727916886e3ce0c061e97684d450e5c3d0828',
                                            'introduced_release': '1.0.0-beta.69',
-                                           'title': 'Kwartierbudget en fysieke grenzen onderscheiden'}}
+                                           'title': 'Kwartierbudget en fysieke grenzen onderscheiden'},
+ 'sp.sg.reassessment-progress.v1': {'proposal_sha256': 'd564b03bcc3c9916629fc94e65566476fa9c0eb9dc7d6500999772e2d345f0b5',
+                                    'introduced_release': '1.0.0-beta.71',
+                                    'title': 'Actuele SG-bevestiging en startvertraging zichtbaar'},
+ 'sp.hp.history-export-window.v1': {'proposal_sha256': '05a6a9c7ce72df91e83244a2a8c63881cc3d596d3a7fc142ec30e15b4c35587c',
+                                    'introduced_release': '1.0.0-beta.71',
+                                    'title': 'Bewaartermijn en overlappende exportdagen scheiden'}}
 _PART = r"(?:0|[1-9][0-9]*)"
 _RELEASE = re.compile(rf"({_PART})\.({_PART})\.({_PART})(?:-beta\.({_PART}))?\Z")
 _PROPOSAL_ID = re.compile(r"[a-z0-9][a-z0-9._:-]{0,119}\Z")

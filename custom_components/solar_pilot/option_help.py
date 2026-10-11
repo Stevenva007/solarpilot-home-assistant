@@ -974,8 +974,7 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
  'sg_advanced:renew_s': 'Vernieuw de lokale toestemming standaard iedere 60 seconden zolang SG toegestaan '
                         'blijft. Verlengen moet de lokale timer vernieuwen zonder de fysieke uitgang UIT/AAN '
                         'te schakelen.',
- 'sg_advanced:start_delay_s': 'Voldoende overschot moet standaard 120 seconden stabiel aanwezig zijn vóór een '
-                              'nieuwe aanvraag. Harde grenzen en onbetrouwbare bronnen blijven leidend.',
+ 'sg_advanced:start_delay_s': 'De gezamenlijke zonnebijdrage en alle startvoorwaarden moeten gedurende de ingestelde vertraging geldig blijven vóór een nieuwe SG-aanvraag, standaard 120 seconden. De kaart toont deze teller apart van de bestaande 300 seconden bevestiging van een nieuwe zonneperiode of native aanleiding na een beëindigde algemene sessie. Bevestiging op nul geeft geen starttoestemming zonder passend actueel eindrapport; daarna gelden deze vertraging en alle guards opnieuw. De nieuwe uitleesweergave verandert geen instelling of timer.',
  'sg_advanced:stop_delay_s': 'Netafname boven de afzonderlijke kleine-importbuffer moet standaard 60 seconden '
                              'aanhouden vóór de extra SG-aanvraag wordt vrijgegeven. Dit voorkomt '
                              'relaisgeklapper bij wolken. Harde limieten en onbetrouwbare invoer wachten niet '
@@ -1009,12 +1008,7 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
  'sg_advanced:stale_s': 'Maximale ouderdom van benodigde metingen, standaard 120 seconden. Een nieuwe '
                         'ontvangst of betrouwbare heartbeat houdt een onveranderde waarde actueel; '
                         'last_changed alleen is onvoldoende.',
- 'dashboard:analysis_export': 'Maakt uitsluitend voor een ingelogde Home Assistant-beheerder één lokaal '
-                              'gecomprimeerd JSON.GZ-onderzoeksbestand met actuele bronnen, instellingen, '
-                              'modellen, beslisredenen en werkelijk beschikbare historie. Geen automatische '
-                              'upload of toestelopdracht. Bestaande perioden/aantallimieten blijven gelden. '
-                              'Pseudonimisering en privacyfilters vervangen niet het zelf controleren vóór '
-                              'delen; nooit publiek op GitHub zetten.'}
+ 'dashboard:analysis_export': 'Maakt uitsluitend voor een ingelogde Home Assistant-beheerder één lokaal gecomprimeerd JSON.GZ-onderzoeksbestand met actuele bronnen, instellingen, modellen, beslisredenen en werkelijk beschikbare historie. Het gekozen rollende venster is 1, 24 of 168 uur. Warmtepompgeschiedenis bewaart apart maximaal dertig lokale kalenderdagen en exporteert alle overlappende datums. Geregistreerde dagtotalen blijven volledige kalenderdagtotalen; gedeeltelijke grensdatums en meetdekking worden afzonderlijk vermeld. Geen energie naar rato, backfill, automatische upload of toestelopdracht. Pseudonimisering en privacyfilters vervangen niet het controleren vóór delen; nooit publiek op GitHub zetten.'}
 
 GROUP_NOTES = {'wallbox': 'Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. '
             'SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.',

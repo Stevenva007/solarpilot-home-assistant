@@ -38,6 +38,24 @@ async def test_export_admin_download_only_no_writes(api):
     assert h.services.calls==before and not r.analysis.exporting
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('hours',[1,24,168])
+async def test_heatpump_history_uses_the_requested_outer_export_window(api,hours):
+    from datetime import datetime
+    r,h,c,out,err=context();before=list(h.services.calls)
+    await api.websocket_analysis_export(h,c,{'id':1,'config_entry_id':'test','hours':hours})
+    assert not err
+    report=json.loads(out[0]['content']);history=report['components']['heatpump_history']
+    assert history['requested_hours']==report['requested_hours']==hours
+    assert history['window_end']==report['created_at']
+    start=datetime.fromisoformat(history['window_start']).timestamp()
+    end=datetime.fromisoformat(history['window_end']).timestamp()
+    assert end-start==hours*3600
+    assert history['retention_days']==30 and history['exported_days']==len(history['days'])
+    assert sum(row['window_overlap_s'] for row in history['days'])==pytest.approx(hours*3600)
+    assert history['aggregate_scope']=='full_local_calendar_day'
+    assert h.services.calls==before and not r.analysis.exporting
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('admin',[False,None])
 async def test_admin_required_not_just_read_access(api,admin):
     r,h,c,out,err=context(admin=False)

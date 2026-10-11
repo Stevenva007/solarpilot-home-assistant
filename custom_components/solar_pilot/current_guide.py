@@ -3,18 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.70'
+GUIDE_VERSION = '1.0.0-beta.71'
 GUIDE_UPDATED = '2026-10-11'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.70',
+ 'version': '1.0.0-beta.71',
  'updated': '2026-10-11',
- 'intro': ('SolarPilot bewaart vanaf deze update een eigen lokale warmtepompgeschiedenis over maximaal '
-           'dertig kalenderdagen. De dagtijdlijn, activiteit, taakperioden en afzonderlijke '
-           'SG-aanvraag/contact/ontvangen-status maken het verloop zichtbaar. Alleen complete actuele '
-           'bevestigde metingen leveren geregistreerde elektrische energie; meetgaten blijven onbekend. '
-           'Panasonic regelt zelfstandig comfort en beveiligingen. De bestaande SG-zonnestartbijdrage, '
-           'echte elektrische grenzen, instellingen, overige apparaten en privédata blijven behouden.'),
+ 'intro': ('Beta.71 maakt de afzonderlijke SG-wachtfasen zichtbaar: eerst bevestiging van een nieuwe aanleiding, daarna de ingestelde startvertraging. Het analysebestand onderscheidt daarnaast de bestaande dertig dagen warmtepompgeschiedenis van het gevraagde venster van 1, 24 of 168 uur. Alle overlappende lokale kalenderdagen blijven beschikbaar, met expliciete grensdagen en ongewijzigde geregistreerde dagtotalen. Panasonic regelt zelfstandig. Regelgrenzen, wachttijden, instellingen, apparaten, modellen en privédata blijven behouden.'),
  'sections': [{'title': '1. Basisprincipe en modi',
                'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele '
                               'net- en PV-metingen, echte toestelvoorwaarden en elektrische grenzen gaan '
@@ -300,7 +295,8 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                                'sessie blijft gebaseerd op echte restinjectie, niet op warmtepompcredit; '
                                'dezelfde opname geeft dus geen herstartlus. Details tonen restoverschot, '
                                'meegetelde warmtepompbijdrage, gezamenlijke startbijdrage en concrete '
-                               'elektrische beperkingen afzonderlijk.')],
+                               'elektrische beperkingen afzonderlijk.'),
+                              'De kaart en Details tonen de lopende herbeoordeling afzonderlijk van de gewone startvertraging. Nieuwe zonneperiode bevestigen duurt binnen de bestaande policy 300 seconden met echte nieuwe bronrapporten; eventuele reset- of native bewijsfasen houden hun eigen betekenis. Daarna kan de ingestelde startvertraging beginnen, standaard 120 seconden, terwijl alle actuele voorwaarden blijven gelden. Nul resterende bevestigingsseconden is geen starttoestemming: een passend actueel eindrapport en de bestaande beoordelingen zijn nog nodig. Oude brondata verbergt de lopende teller. De uitleesweergave start geen sessie en verandert geen timer, guard, minimumtijd, rangorde of herstartbeleid.'],
                'bullets': []},
               {'title': '5. Lokale SG-terugval en handmatige bediening',
                'paragraphs': ['Opstartstand UIT is geen uitschakeling bij wifi- of Home Assistant-uitval. '
@@ -722,13 +718,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Bij volle detailgrens blijven dagtotalen met onvolledigheidslabel bestaan. '
                               'Opslag is gebundeld; het laatste nog niet opgeslagen stukje kan bij een abrupte '
                               'uitval ontbreken. Details worden alleen op aanvraag gelezen en bedienen niets.',
-                              ('De warmtepomp krijgt een afzonderlijke lokale geschiedenis over maximaal '
-                               'dertig HA-kalenderdagen. Kies een dag of vergelijk zeven/dertig dagen. '
-                               'Grafiek, activiteitperioden, taaksegmenten en SG-lagen gebruiken de '
-                               'daadwerkelijk beschikbare waarnemingen. De registratie begint na '
-                               'installatie van deze functie; oude verbruikerhistorie, modellen en '
-                               'analysegegevens blijven bewaard en worden niet als nieuwe '
-                               'warmtepompgeschiedenis teruggevuld.'),
+                              ('De warmtepomp bewaart een afzonderlijke lokale geschiedenis over maximaal dertig HA-kalenderdagen. Kies een dag of vergelijk zeven/dertig dagen. Grafiek, activiteitperioden, taaksegmenten en SG-lagen gebruiken de daadwerkelijk beschikbare waarnemingen. De registratie begint na installatie van deze functie; oude verbruikerhistorie, modellen en analysegegevens blijven bewaard en worden niet als nieuwe warmtepompgeschiedenis teruggevuld.'),
                               ('Start en stop betekenen een waargenomen overgang van warmtepompactiviteit '
                                'uit passend vers native taakbewijs of complete actuele elektrische meting, '
                                'geen compressorstart of gegarandeerd thermisch bedrijf. Verse native '
@@ -865,7 +855,8 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'pseudoniemen de betekenis van het voorstel niet veranderen. Het uploaden van een '
                               'antwoord werkt de integratie niet bij: een codeverbetering komt alleen via '
                               'een afzonderlijk geverifieerde release en de normale HACS-/herstartprocedure. '
-                              'Dit maakt geen automatische codeactie buiten een actieve werksessie.'],
+                              'Dit maakt geen automatische codeactie buiten een actieve werksessie.',
+                              'Warmtepompgeschiedenis wordt maximaal dertig lokale kalenderdagen bewaard. Die bewaartermijn staat apart van het gekozen rollende exportvenster van 1, 24 of 168 uur en het aantal werkelijk opgenomen datums. Het warmtepompdeel neemt elke lokale kalenderdag op die met dat venster overlapt; 168 uur kan daardoor acht datums omvatten, en rond een tijdwissel soms negen. Dagtotalen, taakperioden en SG-lagen blijven de volledige werkelijk geregistreerde lokale kalenderdag beschrijven. Gedeeltelijke grensdatums worden expliciet gemarkeerd, naast de afzonderlijke meetdekking. Gegevens op zo een grensdag kunnen buiten het rollende venster liggen; energie wordt niet naar rato geschat of kunstmatig afgeknipt. Alle onderdelen gebruiken hetzelfde exporteindtijdstip. Dit verandert geen opslagretentie, registratie, apparaatinstelling of ontbrekende historie.'],
                'bullets': []},
               {'title': '18. Live configuratie en één eigenaar',
                'paragraphs': ['Configureren opent de bestaande HA-optiesflow met uitleg bij de velden. Alleen '
@@ -929,12 +920,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'geen dubbele writers, contactmapping en lokale aflooptimer werkelijk zijn '
                               'bevestigd. De noodzakelijke lokale Panasonic/Shelly-controle is geen '
                               'softwaretest.',
-                              ('Controleer eenmalig op Panasonic de gewenste normale '
-                               'tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en '
-                               'sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze '
-                               'nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef '
-                               'gebeurt alleen met expliciete toestemming en zonder elektrische metingen '
-                               'in geopende apparatuur. Gebruik de korte controle in BETA70_INSTELLEN.md.')],
+                              ('Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische metingen in geopende apparatuur. Gebruik de korte controle in BETA71_INSTELLEN.md.')],
                'bullets': []},
               {'title': '20. Installatie, verwijderen en rollback',
                'paragraphs': ['Installeer of update de Integration via HACS en herstart Home Assistant. De '
@@ -958,15 +944,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van '
                               'SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, '
                               'AEG- of Shelly-integratie.',
-                              ('Rollback naar de gecontroleerde beta.69-basis gebruikt de passende '
-                               'privé HA-back-up naast de code. De nieuwe warmtepompgeschiedenis staat '
-                               'apart; beta.69 leest haar niet. Bewaar die opslag voor een latere '
-                               'upgrade of herstel de volledige pre-upgradeback-up voor exact dezelfde '
-                               'toestand. Geef eerst de SG-aanvraag vrij en controleer lokale terugval; '
-                               'laat nooit twee runtimes tegelijk werken. Voor terugkeer naar de oude '
-                               'directe beta.61-regeling blijft de volledige back-up van vóór de '
-                               'beta.62-migratie nodig. Verwijder de bestaande entry niet. Zie '
-                               'BETA70_INSTELLEN.md.')],
+                              ('Rollback naar de gecontroleerde beta.70-basis bewaart dezelfde afzonderlijke warmtepompgeschiedenis en bestaande instellingen. Alleen de verbeterde wachtweergave en exportvensteruitleg vallen dan terug. Voor exact herstel van de pre-upgradetoestand gebruik je code én de volledige passende privéback-up; bewaar gewenste nieuwe historie eerst. Geef vóór codevervanging de SG-aanvraag vrij en controleer lokale terugval. Laat nooit twee runtimes tegelijk werken en verwijder de bestaande entry niet. Voor terugkeer naar de oude directe beta.61-regeling blijft de volledige back-up van vóór de beta.62-migratie nodig. Zie BETA71_INSTELLEN.md.')],
                'bullets': []},
               {'title': '21. Release- en documentatieregel',
                'paragraphs': ['Dit is de enige volledige actuele regelbeschrijving. current_guide.py genereert '

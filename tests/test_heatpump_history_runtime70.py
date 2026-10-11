@@ -317,7 +317,7 @@ async def test_history_read_failure_does_not_break_read_only_monitor(monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_explicit_private_export_is_bounded_without_store_acl_or_binding():
+async def test_explicit_private_export_is_bounded_without_store_acl_or_binding(monkeypatch):
     r, _, rec = await recorder()
     observe(rec, BASE-timedelta(days=8))
     observe(rec, BASE-timedelta(days=8)+timedelta(seconds=5))
@@ -325,12 +325,16 @@ async def test_explicit_private_export_is_bounded_without_store_acl_or_binding()
     observe(rec, BASE+timedelta(seconds=5))
     rec.now = lambda: BASE+timedelta(seconds=5)
     data = rec.export()
-    assert len(data["days"]) == 7 and data["days"][0]["date"] == "2026-10-05"
+    assert len(data["days"]) == 8 and data["days"][0]["date"] == "2026-10-04"
+    assert data["retention_days"] == 30 and data["requested_hours"] == 168
+    assert data["exported_days"] == 8
     assert data["days"][-1]["energy_known_s"] == 5
     assert all("days" not in day for day in data["days"])
     assert all("days" not in lane for day in data["days"] for lane in day["sg"].values())
     text = json.dumps(data)
     assert "sensor.hp_total" not in text and "synthetic-a" not in text and "access_sources" not in text
+    from custom_components.solar_pilot import analysis_export
+    monkeypatch.setattr(analysis_export.time, "time", lambda: (BASE+timedelta(seconds=5)).timestamp())
     components = r.analysis.prepare(hours=168)["components"]
     assert components["heatpump_history"] == data
     assert "heatpump_history" not in r._snapshot()
