@@ -812,10 +812,14 @@ with sync_playwright() as playwright:
     page.evaluate('''() => {qaApply('active',true);const a=c._last.attributes;
       a.devices.push({id:'example_external_dishwasher',name:'Fictieve externe afwasmachine',kind:'dishwasher',
         available:true,on:true,owned:false,power_w:700,mode:'auto',dishwasher:{phase:'Running'}});
-      Object.assign(a.wallbox,{enabled:true,activity_known:true,power_w:3000});c._render();}''')
+      Object.assign(a.wallbox,{enabled:true,activity_known:true,power_w:3000,last_report_age_s:0,
+        activity_details:{current:{known:true,active:true,report_timestamp:Date.now()/1000}}});
+      c._render();}''')
     ordinary = page.locator('solar-pilot-card >> .device.on:not(.dishwasher) .icon').first
     external = page.locator('solar-pilot-card >> .device.dishwasher.on .icon').first
-    wallbox = page.locator('solar-pilot-card >> .wallbox-device.on .icon')
+    wallbox_row = page.locator('solar-pilot-card >> .wallbox-device')
+    wallbox = wallbox_row.locator('.icon')
+    assert 'on' in wallbox_row.get_attribute('class').split()
     for icon in (ordinary,external,wallbox):
         assert icon.evaluate('element=>getComputedStyle(element).animationName') == 'sp-device-activity'
     page.emulate_media(reduced_motion='reduce')
@@ -823,6 +827,8 @@ with sync_playwright() as playwright:
         assert icon.evaluate('element=>getComputedStyle(element).animationName') == 'none'
     page.emulate_media(reduced_motion='no-preference')
     page.evaluate("c._last.state='unavailable';c._refreshObservationDisplay()")
+    assert 'on' not in wallbox_row.get_attribute('class').split()
+    assert 'LAADSTATUS ONBEKEND' in wallbox_row.inner_text()
     for icon in (ordinary,external,wallbox):
         assert icon.evaluate('element=>getComputedStyle(element).animationName') == 'none'
     page.evaluate("qaApply('active',true)")

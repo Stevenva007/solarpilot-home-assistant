@@ -11,6 +11,9 @@ from types import SimpleNamespace
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+# Core 2026.10 installs its supported schema implementation before selectors
+# import it. Match production import order instead of retaining an old alias.
+import homeassistant
 import voluptuous as vol
 from custom_components.solar_pilot.config_flow import SolarPilotOptions
 from custom_components.solar_pilot.ems import PHASE_DEFAULTS

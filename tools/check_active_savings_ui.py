@@ -32,7 +32,8 @@ with sync_playwright() as playwright:
          owned:true,available:false,power_w:9999}];
       Object.assign(demo.wallbox,{enabled:true,name:'Wallbox · fictief voorbeeld',power_w:2200,
         last_report_age_s:12,stale_s:120,demand:true,connected:true,activity_known:true,
-        charging_threshold_w:50,effective_mode:'full_solar',session_confirmed:true});
+        charging_threshold_w:50,effective_mode:'full_solar',session_confirmed:true,
+        activity_details:{current:{known:true,active:true,report_timestamp:Date.now()/1000-12}}});
       demo.ems.economy={enabled:true,import_eur_kwh:.30,export_eur_kwh:.03};
       demo.ems.savings={
         today:{estimated_benefit_eur:.27,solar_kwh:1,coverage_s:3600,power_estimated:true},
@@ -79,7 +80,8 @@ with sync_playwright() as playwright:
         observed_stop_at:1790938800,stop_confirmed:true,cause_reported:true,
         native_status:'Waiting in queue by Eco-Smart',
         stop_reason:'Wallbox wacht op zonnestroom'};
-      demo.wallbox.activity_details={current:{known:true,active:false,label:'Wacht op zonnestroom',native_status:event.native_status,
+      demo.wallbox.activity_details={current:{known:true,active:false,report_timestamp:Date.now()/1000,
+        label:'Wacht op zonnestroom',native_status:event.native_status,
         reason:'Wallbox wacht op zonnestroom',waiting_for:'solar'},last_stop:event,history:[event]};
       refreshDemo();
     }''')

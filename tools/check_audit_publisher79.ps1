@@ -2,11 +2,13 @@
 # No GitHub account, network, real checkout, credentials or HA service is used.
 $ErrorActionPreference = "Stop"
 $RealPython = (Get-Command "python" -CommandType Application -ErrorAction Stop).Source
+$RealPowerShell = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
 $scratch = Join-Path ([System.IO.Path]::GetTempPath()) ("solarpilot-publisher79-" + [guid]::NewGuid().ToString("N"))
 $originalPath = $env:PATH
 $originalLocation = (Get-Location).Path
 $keys = @("SP_PUBLISH_REAL_PYTHON", "SP_PUBLISH_DRIVER", "SP_PUBLISH_TRACE", "SP_PUBLISH_FAIL",
-          "SP_PUBLISH_ORIGIN", "SP_PUBLISH_PUSH_URLS", "SP_PUBLISH_ORIGIN_STATE", "SP_PUBLISH_REPO_EXISTS")
+          "SP_PUBLISH_ORIGIN", "SP_PUBLISH_PUSH_URLS", "SP_PUBLISH_ORIGIN_STATE", "SP_PUBLISH_REPO_EXISTS",
+          "SP_PUBLISH_TARGET", "SP_PUBLISH_LOCATION", "SP_PUBLISH_BIN")
 $previous = @{}
 foreach ($key in $keys) { $previous[$key] = [Environment]::GetEnvironmentVariable($key, "Process") }
 $utf8 = [System.Text.UTF8Encoding]::new($false)
@@ -91,6 +93,30 @@ exec "$SP_PUBLISH_REAL_PYTHON" "$SP_PUBLISH_DRIVER" "__COMMAND__" "$@"
     $env:PATH = $bin + [System.IO.Path]::PathSeparator + $originalPath
     $env:SP_PUBLISH_TRACE = Join-Path $scratch "native_trace.jsonl"
     $env:SP_PUBLISH_ORIGIN_STATE = Join-Path $scratch "origin_state.txt"
+    $env:SP_PUBLISH_TARGET = $publisher
+    $env:SP_PUBLISH_LOCATION = Join-Path $scratch "publisher_location.txt"
+    $env:SP_PUBLISH_BIN = $bin
+    $harness = Join-Path $scratch "publisher_harness.ps1"
+    Write-ProbeFile $harness @'
+$ErrorActionPreference = "Stop"
+$probeExitCode = 0
+try {
+    foreach ($probeCommand in @("git", "gh", "python", "py")) {
+        $probeResolved = (Get-Command $probeCommand -CommandType Application -ErrorAction Stop).Source
+        $probeExpected = Join-Path $env:SP_PUBLISH_BIN $(if ($IsWindows) { "$probeCommand.cmd" } else { $probeCommand })
+        if ($probeResolved -ne $probeExpected) {
+            throw "Fictional executable resolution failed for $probeCommand"
+        }
+    }
+    & $env:SP_PUBLISH_TARGET -GitHubOwner "fictional-owner" -Repository "fictional-repository" -License "mit"
+} catch {
+    Write-Output $_.ToString()
+    $probeExitCode = 1
+} finally {
+    [System.IO.File]::WriteAllText($env:SP_PUBLISH_LOCATION, (Get-Location).Path)
+}
+exit $probeExitCode
+'@
     $good = "https://github.com/fictional-owner/fictional-repository.git"
     $checks = 0
 
@@ -98,7 +124,8 @@ exec "$SP_PUBLISH_REAL_PYTHON" "$SP_PUBLISH_DRIVER" "__COMMAND__" "$@"
         param([string]$Name, [string]$Failure = "", [string]$Origin = $good,
               [string]$PushUrls = "", [bool]$Exists = $true, [bool]$NoGit = $false,
               [bool]$NeedsLicense = $false, [bool]$Success = $false)
-        Remove-Item $env:SP_PUBLISH_TRACE, $env:SP_PUBLISH_ORIGIN_STATE -ErrorAction SilentlyContinue
+        Write-Host "Publisher probe: $Name"
+        Remove-Item $env:SP_PUBLISH_TRACE, $env:SP_PUBLISH_ORIGIN_STATE, $env:SP_PUBLISH_LOCATION -ErrorAction SilentlyContinue
         if (Test-Path (Join-Path $repo ".git")) { Remove-Item (Join-Path $repo ".git") -Recurse -Force }
         if (-not $NoGit) { New-Item -ItemType Directory (Join-Path $repo ".git") | Out-Null }
         if ($NeedsLicense) {
@@ -113,18 +140,28 @@ exec "$SP_PUBLISH_REAL_PYTHON" "$SP_PUBLISH_DRIVER" "__COMMAND__" "$@"
         Set-Location $caller
         $messages = [System.Collections.Generic.List[string]]::new()
         $failed = $false
+        # Run the publisher as users do: in a fresh PowerShell process. Sharing
+        # this probe's scope would also share cached command resolution and
+        # $script/$global variables, hiding which executable actually ran.
+        $PSNativeCommandUseErrorActionPreference = $false
+        $global:LASTEXITCODE = $null
         try {
-            & $publisher -GitHubOwner "fictional-owner" -Repository "fictional-repository" -License "mit" *>&1 |
+            & $RealPowerShell -NoLogo -NoProfile -NonInteractive -File $harness *>&1 |
                 ForEach-Object { $messages.Add($_.ToString()) }
+            $failed = $global:LASTEXITCODE -ne 0
         } catch {
             $failed = $true
             $messages.Add($_.Exception.Message)
         }
-        Assert-Probe ($failed -ne $Success) "$Name returned the wrong success/failure"
+        $diagnostic = $messages -join "`n"
+        Assert-Probe ($failed -ne $Success) "$Name returned the wrong success/failure. Publisher output: $diagnostic"
         Assert-Probe ((Get-Location).Path -eq $caller) "$Name did not restore the caller directory"
+        Assert-Probe (Test-Path $env:SP_PUBLISH_LOCATION) "$Name did not finish the isolated publisher harness. Publisher output: $diagnostic"
+        Assert-Probe ((Get-Content $env:SP_PUBLISH_LOCATION -Raw) -eq $caller) "$Name did not restore the publisher's caller directory"
         $ready = @($messages | Where-Object { $_ -like '*Upload klaar:*' }).Count -gt 0
         Assert-Probe ($ready -eq $Success) "$Name claimed publication after a failed native command"
         Assert-Probe (-not ($messages -join "`n").Contains("fictional_secret")) "$Name exposed an existing credential-like URL"
+        Assert-Probe (Test-Path $env:SP_PUBLISH_TRACE) "$Name did not create a native-process trace. Publisher output: $diagnostic"
         $rows = @(Get-Content $env:SP_PUBLISH_TRACE | ForEach-Object { $_ | ConvertFrom-Json })
         Assert-Probe ($rows.Count -gt 0) "$Name did not execute actual fictional native processes"
         foreach ($row in $rows) {
