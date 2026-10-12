@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0-beta.77 — terugkerende PV-overgangen en inzicht per kwartier
+
+- Behoudt zonnestand-/tweemaandsseizoenvakken en kwartierfallback; voegt geen vaste 16:00-regel toe. Alleen volledig verse, geldige en complete kwartieren zonder clipping kunnen een snelle overgang als kandidaat bewaren.
+- Vraagt herhaling op de bestaande minimumhoeveelheid verschillende vergelijkbare dagen, normaal minstens vijf, met consistente richting, overgangsfase en stabiele niveaus ervoor/erna. Een kandidaat is geen bewijs van een boom of uitgesloten bewolking.
+- Behoudt bestaande kalibratietoestemming, presets en factorgrenzen; normaal maximaal ±0,05 wijziging per leerdag met factorondergrens 0,35. Uitgeschakelde functies en bewuste keuzes blijven gerespecteerd.
+- Voegt het optionele begrensde en gevalideerde `edge_evidence`-veld binnen bestaande versie-1-opslag toe zonder bestaande bins/factoren te resetten of oude historie achteraf tot overgangsbewijs te maken.
+- Toont `factor_details` en de lokale periode 15:00–18:00 per kwartier in PV-diagnose, met factor, ruwe/gecorrigeerde voorspelling, relevante vergelijkbare dagen en de reden voor toepassing of behoud. Globale leerdagen zijn geen bewijs voor elk afzonderlijk kwartier.
+- De bestaande planner blijft de volledige gecorrigeerde curve binnen zijn horizon gebruiken. Gezamenlijke planning, batterijadvies, onderzoek, adviesupload, histories, SG600/5 min/minimum20, alle harde guards, Panasonic SG-only en read-only Wallbox blijven behouden. Geen extra installatie, actuator- of beleidswijziging.
+- Bouwbasis: gepubliceerde beta.76 `da26ee3c5b4920b3d6526a2138dca1e839484264`, tree `f552cc3a9ea63cd758d96a34fe7eace52613e5e4`. Nieuw brongebonden bewijs: `docs/TESTRESULTATEN_BETA77.md`; installatie/behoud/rollback naar beta.76: `docs/BETA77_INSTELLEN.md`. Oudere resultaten gelden niet als beta.77-validatie.
+
 ## 1.0.0-beta.76 — ingebouwde gezamenlijke toestelplanning
 
 - Voegt een dependencyvrije gezamenlijke verbeterstap toe na de bestaande prioriteitsplanning. Begrensde verschuivingen en uitwisselingen vergelijken de volledige voorspelde huishoudelijke import-/exportkost plus zachte piekpenalty; alleen een gevalideerde verbetering wordt overgenomen.
