@@ -3,13 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.75'
-GUIDE_UPDATED = '2026-10-11'
+GUIDE_VERSION = '1.0.0-beta.76'
+GUIDE_UPDATED = '2026-10-12'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.75',
- 'updated': '2026-10-11',
- 'intro': ('Beta.75 voegt Automatisch onderzoek toe: SolarPilot beoordeelt lokaal de bestaande '
+ 'version': '1.0.0-beta.76',
+ 'updated': '2026-10-12',
+ 'intro': ('Beta.76 voegt ingebouwde gezamenlijke toestelplanning en chronologisch batterijadvies toe, zonder extra installatie. De realtime regelaar blijft de enige uitvoerder. SolarPilot beoordeelt lokaal de bestaande '
            'warmtepompmeters, Wallboxsessiebron, PV-voorspelling en toestelmetingen. Het toont '
            'verzameld bewijs, mogelijke oorzaken, concrete voorstellen en wat daarna nodig is. '
            'Een herhaalde uitlezing wordt geen nieuw bronrapport; ontbrekende of oude metingen '
@@ -64,7 +64,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'eigen en veilig onderbreekbare lasten kunnen alleen volgens de bestaande '
                               'overdrachtvoorwaarden wijken. Eerst bevestigde UIT en nieuwe net-/PV-metingen; '
                               'een stopverzoek is nog geen vrij vermogen.',
-                              'De planner herberekent de ingestelde horizon in kwartierblokken met beschikbare '
+                              'De ingebouwde gezamenlijke toestelplanner vergelijkt ook combinaties en ruilt planblokken tussen toestellen. Hij behoudt de geplande energie per toestel, bestaande toestemmingen en lopende beschermde cycli. Alleen een opnieuw gevalideerde betere voorspelde combinatie vervangt de basisplanning. De zoektijd is begrensd; beste gevonden is geen bewezen wereldwijd optimum. Geen EMHASS-add-on, tweede regelaar of extra installatie is nodig. '
                               'PV, basislast, tarieven, kwartierpiek en batterijruimte. Hij kan alleen '
                               'expliciet vrijgegeven flexibele lasten plannen. Het huidige blok kan de gewone '
                               'realtime regeling ondersteunen, maar nooit te weinig werkelijk overschot '
@@ -76,6 +76,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'wordt geen optimistische duur uit piekvermogen gegokt. Een lopende beschermde '
                               'cyclus wordt niet gestopt wegens een nieuw plan. Goedkope netfallback blijft '
                               'afzonderlijke dubbele toestemming en standaard uit.',
+                              'Batterijadvies volgt de tijdvolgorde: alleen de echte beginlading en reeds voorspeld geladen energie kunnen een later blok voeden. Laden en ontladen respecteren aparte grenzen en het bestaande ingestelde round-trip rendement, standaard 80%. Het blijft adviserend en wordt na de toestelplanning berekend; batterij en toestellen worden niet samen wiskundig geoptimaliseerd. Ontbrekende voorspelling geeft geen batterijactie. De piekvermijdingsstraf in de planner is geen berekening van de werkelijke capaciteitstarieffactuur. '
                               'Plannerkwaliteit toont meetdekking, voorspellingsfout en uitvoering '
                               'afzonderlijk. Een historische replay is richtinggevend en reconstrueert niet '
                               'iedere vroegere startvoorwaarde. Een volledige lokale dag heeft normaal 96 '

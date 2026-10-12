@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.75",
+  "version": "1.0.0-beta.76",
   "language": "nl",
   "steps": {
     "init": {
@@ -295,7 +295,7 @@
         "price_optimisation": "Laat prijsverschillen meewegen als een bruikbare dynamische prijsreeks beschikbaar is.",
         "capacity_penalty_enabled": "Maakt voorspelde blokken boven het ingestelde piekdoel minder aantrekkelijk.",
         "capacity_penalty_eur_kwh": "Interne planningsstraf; dit is geen echte energieprijs.",
-        "battery_advisory": "Tekent toekomstige batterijlaad/ontlaadruimte mee in het plan zonder daarmee batterijbediening vrij te geven.",
+        "battery_advisory": "Tekent chronologisch haalbare batterijlaad/ontlaadruimte na de toestelplanning, zonder batterijbediening vrij te geven.",
         "quality_tracking": "Vergelijkt voorspelde PV, basislast, netresultaat en geplande starts achteraf met de werkelijkheid.",
         "quality_retention_days": "Hoeveel dagen geaggregeerde plannerfouten worden bijgehouden.",
         "replay_enabled": "Bewaar een begrensde 15-minutenreplay om instellingen op recente gemeten PV en basislast te vergelijken.",
@@ -1868,7 +1868,7 @@
       "short": "Hoe ver SolarPilot vooruit kijkt.",
       "paragraphs": [
         "Hoe ver SolarPilot vooruit kijkt.",
-        "Uitgangspunt: 36 uur is voor jouw PV-schaduw, boiler en toekomstige batterij een goede balans.",
+        "Uitgangspunt: 36 uur geeft zicht op vandaag en morgen; warmtepompcomfort blijft bij Panasonic.",
         "Lagere waarde: Sneller en eenvoudiger, maar minder zicht op morgen.",
         "Hogere waarde: Meer vooruitzicht, maar verder weg gelegen forecasts zijn onzekerder.",
         "Eenheid: uur.",
@@ -1970,11 +1970,11 @@
     },
     "planner.battery_advisory": {
       "title": "Toekomstige batterij adviserend meeplannen",
-      "short": "Tekent toekomstige batterijlaad/ontlaadruimte mee in het plan zonder daarmee batterijbediening vrij te geven.",
+      "short": "Tekent chronologisch haalbare batterijlaad/ontlaadruimte na de toestelplanning, zonder batterijbediening vrij te geven.",
       "paragraphs": [
-        "Tekent toekomstige batterijlaad/ontlaadruimte mee in het plan zonder daarmee batterijbediening vrij te geven.",
+        "Tekent chronologisch haalbare batterijlaad/ontlaadruimte na de toestelplanning, zonder batterijbediening vrij te geven.",
         "Uitgangspunt: Aan laten; fysieke batterijbediening blijft apart vergrendeld.",
-        "AAN: Plan kan batterijscenario en flexlasten samen bekijken.",
+        "AAN: Plan toont een batterijscenario bij de geplande flexlasten; geen gezamenlijke batterijoptimalisatie.",
         "UIT: Batterijruimte wordt niet meegenomen in de planning.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -4076,6 +4076,17 @@
       "paragraphs": [
         "Maximale ouderdom van benodigde metingen, standaard 120 seconden. Een nieuwe ontvangst of betrouwbare heartbeat houdt een onveranderde waarde actueel; last_changed alleen is onvoldoende.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "planner.joint_optimisation": {
+      "title": "Gezamenlijke toestelplanning",
+      "short": "Zoekt binnen bestaande toestelvoorwaarden naar betere combinaties van planblokken.",
+      "paragraphs": [
+        "Zoekt binnen bestaande toestelvoorwaarden naar betere combinaties van planblokken. Behoudt dagdoelen en lopende beschermde cycli; geen globale optimaliteitsgarantie.",
+        "Uitgangspunt: Aan laten. Geen extra installatie nodig; de realtime regelaar blijft eigenaar.",
+        "AAN: De planner vergelijkt gezamenlijke combinaties met de bestaande basisplanning.",
+        "UIT: De bestaande planning op prioriteitsvolgorde blijft actief.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },

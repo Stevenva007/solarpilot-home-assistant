@@ -333,7 +333,7 @@
           "price_optimisation": "Laat prijsverschillen meewegen als een bruikbare dynamische prijsreeks beschikbaar is.",
           "capacity_penalty_enabled": "Maakt voorspelde blokken boven het ingestelde piekdoel minder aantrekkelijk.",
           "capacity_penalty_eur_kwh": "Interne planningsstraf; dit is geen echte energieprijs.",
-          "battery_advisory": "Tekent toekomstige batterijlaad/ontlaadruimte mee in het plan zonder daarmee batterijbediening vrij te geven.",
+          "battery_advisory": "Tekent chronologisch haalbare batterijlaad/ontlaadruimte na de toestelplanning, zonder batterijbediening vrij te geven.",
           "quality_tracking": "Vergelijkt voorspelde PV, basislast, netresultaat en geplande starts achteraf met de werkelijkheid.",
           "quality_retention_days": "Hoeveel dagen geaggregeerde plannerfouten worden bijgehouden.",
           "replay_enabled": "Bewaar een begrensde 15-minutenreplay om instellingen op recente gemeten PV en basislast te vergelijken.",

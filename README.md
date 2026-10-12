@@ -2,9 +2,9 @@
 
 SolarPilot is een lokale Home Assistant-integratie voor zonnestroomverdeling, flexibele verbruikers, een beschermde AEG-afwasmachine, read-only Wallbox-informatie, voorspellingen, kosten, lokaal leren en batterijfuncties.
 
-**Actuele versie: 1.0.0-beta.75.** Panasonic regelt de warmtepomp zelfstandig. SolarPilot kan voor die warmtepomp alleen een extra SG-zonneboost aanvragen via één bewust gekoppelde bestaande Shelly-uitgang, met bewezen lokale aflooptimer. Het schrijft geen tank-/kamertemperatuur, AUTO/UIT, heaterkeuze of fabrikantprogramma. Nieuwe SG-sturing staat standaard uit tot gecontroleerde ingebruikname.
+**Actuele bronversie: 1.0.0-beta.76.** Panasonic regelt de warmtepomp zelfstandig. SolarPilot kan voor die warmtepomp alleen een extra SG-zonneboost aanvragen via één bewust gekoppelde bestaande Shelly-uitgang, met bewezen lokale aflooptimer. Het schrijft geen tank-/kamertemperatuur, AUTO/UIT, heaterkeuze of fabrikantprogramma. Nieuwe SG-sturing staat standaard uit tot gecontroleerde ingebruikname.
 
-[Installatie en veilige upgrade](START_HIER.md) · [Volledige actuele werking](docs/ACTUELE_WERKING.md) · [Beta.75 instellen](docs/BETA75_INSTELLEN.md) · [Testresultaten](docs/TESTRESULTATEN_BETA75.md) · [Technische overdracht](OVERDRACHT.md)
+[Installatie en veilige upgrade](START_HIER.md) · [Volledige actuele werking](docs/ACTUELE_WERKING.md) · [Beta.76 instellen](docs/BETA76_INSTELLEN.md) · [Testresultaten en publicatiestatus](docs/TESTRESULTATEN_BETA76.md) · [Technische overdracht](OVERDRACHT.md)
 
 Vanaf beta.70 opent **Geschiedenis** bij de warmtepomp een lokale dagtijdlijn met geregistreerde activiteit, starts/stops, bevestigde of afgeleide taken, meetdekking en gemeten totale elektrische energie. Zeven/dertig-dagenbalken en afzonderlijke SG-aanvraag/contact/ontvangen-status maken het verloop zichtbaar. Registratie begint na installatie; oude gegevens blijven behouden en onbekende perioden worden niet ingevuld. De popup is uitsluitend uitlezen.
 
@@ -17,6 +17,10 @@ Beta.73 voegt de gekozen **600 W-wolkenbuffer met vijf continue minuten** toe. D
 Beta.74 verduidelijkt drie diagnoses: geen herhaalde laag-zon-resetcountdown nadat die fase al bevestigd is, ook bij een rustige native resetfase, een concrete oorzaak bij een oude/onbekende gekoppelde Wallboxsessiebron, en een scopebewuste warmtepompstatus. Native ruimte-/zone-UIT is geen bewijs van hele-warmtepomp-UIT; met onvolledige meters en onbewezen globaal bereik blijft bedrijf onbekend. De bestaande timers, bronactualiteit, SG-regeling, elektrische grenzen, instellingen en geschiedenis blijven gelijk.
 
 Beta.75 voegt **Automatisch onderzoek** toe onder Meetkwaliteit: bestaande warmtepompmeters, Wallboxsessiebron, PV-voorspelling en toestelmetingen worden lokaal opnieuw beoordeeld. Per onderwerp staan status, werkelijk beschikbaar bewijs, expliciete mogelijke oorzaken, concrete voorstellen en een volgende actie. Nieuwe meterwaarnemingen vragen nieuwe werkelijke bruikbare rapporten; een herhaalde uitlezing of herstart telt niet als nieuw bewijs. Begrensde voortgang blijft lokaal bewaard. De afzonderlijke SG-beoordeling maakt ontbrekend sessie-/reactiebewijs zichtbaar zonder de regeling te veranderen. Geen automatische meterreparatie, sensorkoppeling, instellingenwrite, softwareontwikkeling of upload. Adviescategorieën bevestigen geen uitgevoerde instelling.
+
+Beta.76 bouwt **gezamenlijke toestelplanning** rechtstreeks in SolarPilot in. Na de bestaande prioriteitsplanning onderzoekt een begrensde lokale zoekroute verschuivingen en uitwisselingen tussen toestellen. Alleen een geldig voorstel met een lagere geraamde huishoudelijke import-/exportkost plus de ingestelde zachte piekpenalty wordt overgenomen. De al ingeplande energie per toestel blijft minstens behouden; lopende beschermde cycli blijven vast. Vensters, deadlines, voorrang en bestaande nettoestemming blijven gelden. Dit zoekt het beste gevonden voorstel binnen de zoekgrenzen; het bewijst geen wereldwijd optimale oplossing of werkelijke besparing.
+
+**Geen extra integratie, add-on, dienst of handmatige installatie is nodig.** SolarPilot gebruikt geen EMHASS-pakket of externe solver en houdt één bestaande uitvoeringsroute. De planner rekent op een geïsoleerde momentopname buiten de HA-eventloop; gewijzigde configuratie of afgesloten runtime maakt een resultaat ongeldig. Bij fout of ontbrekende verbetering blijft het bestaande bruikbare plan beschikbaar. De optie `joint_optimisation` staat standaard aan; uitschakelen verwijdert alleen deze gezamenlijke verbeterstap. Batterijadvies volgt daarna chronologisch met laad-/ontlaadgrenzen, SoC en verliezen, zonder toekomstige energie te lenen of netladen te plannen. Het advies bestuurt geen batterij en is geen gezamenlijke toestel-plus-batterijoptimalisatie. De aparte batterij-what-if behoudt haar bestaande instellingen. Software-/publicatiebewijs staat in het gekoppelde actuele testverslag.
 
 Dezelfde actuele uitleg staat binnen Home Assistant onder **SolarPilot → Uitleg**. Historische veranderingen staan in [CHANGELOG.md](CHANGELOG.md); oudere instelbestanden beschrijven hun eigen release.
 
@@ -33,7 +37,7 @@ Bij **Analyse nodig** maakt één klik een export van de beschikbare zeven dagen
 
 ## Herstel van de beta.62-opstartfout
 
-Update via HACS naar de actuele beta.75 en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.75 vraagt geen herbevestiging alleen door de codeupdate.
+Update via HACS naar beta.76 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.76 vraagt geen herbevestiging alleen door de codeupdate.
 
 ## Upgrade vanaf beta.61
 
@@ -43,7 +47,7 @@ Geldige andere toestellen, prioriteiten, APP-tickets, geschiedenis, leerdata en 
 
 ## Ontwerpgrenzen
 
-- P1/PV, fysieke grenzen en fabrikantbeveiligingen gaan vóór forecasts en plannen.
+- P1/PV, fysieke grenzen en fabrikantbeveiligingen gaan vóór forecasts en plannen. De gezamenlijke planner is geen nieuwe actuator of thermische Panasonic-regelaar.
 - Panasonic bezit comfort, verwarmen/koelen, warm water, elektrische ondersteuning en sterilisatie.
 - SG is een optionele extra flexibele vraag en neemt geen Wallbox-, afwas- of noodzakelijk comfortvermogen af.
 - Aanvraag/eigenaar, gemelde contactstand/lokale timer, compressor/native context en ontvangen SG-status zijn afzonderlijke bewijslagen. Compressorbedrijf bewijst geen extra SG-effect.

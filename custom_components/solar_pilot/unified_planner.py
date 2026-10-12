@@ -14,6 +14,8 @@ import statistics
 import time
 
 from .planner_quality import PlanQualityTracker, ReplayBuffer
+from .joint_optimizer import optimize_joint_plan
+from .battery_plan import plan_battery
 
 UNIFIED_PLANNER_DEFAULTS = {
     "enabled": True,
@@ -24,6 +26,7 @@ UNIFIED_PLANNER_DEFAULTS = {
     "base_load_learning": True,
     "base_load_min_days": 4,
     "price_optimisation": True,
+    "joint_optimisation": True,
     "capacity_penalty_enabled": True,
     "capacity_penalty_eur_kwh": 0.50,
     "battery_advisory": True,
@@ -300,6 +303,8 @@ class UnifiedPlan:
     predicted_export_kwh: float
     predicted_cost_eur: float
     predicted_self_use_kwh: float
+    optimisation: dict = field(default_factory=dict)
+    battery_advice: dict = field(default_factory=dict)
 
     def current_device_state(self, device_id, local_now):
         dp = self.devices.get(device_id)
@@ -340,6 +345,8 @@ class UnifiedPlan:
             "predicted_export_kwh": round(self.predicted_export_kwh, 3), "predicted_cost_eur": round(self.predicted_cost_eur, 3),
             "predicted_self_use_kwh": round(self.predicted_self_use_kwh, 3), "warnings": list(self.warnings),
             "findings": list(self.findings),
+            "optimisation": dict(self.optimisation),
+            "battery_advice": dict(self.battery_advice),
             "devices": {k: {"name": v.name, "required_kwh": round(v.required_kwh, 3), "planned_kwh": round(v.planned_kwh, 3),
                               "selected_slots": list(v.selected_slots), "cheap_grid_slots": list(v.cheap_grid_slots), "reason": v.reason,
                               "contiguous_cycle": v.contiguous_cycle, "cycle_program": v.cycle_program,
@@ -550,25 +557,25 @@ class UnifiedPlanner:
             if planned+1e-6 < required: warnings.append(f"{d.get('name',d['id'])}: dagdoel/cyclus niet volledig planbaar")
             plans[d["id"]]=DevicePlan(d["id"],d.get("name",d["id"]),required,planned,chosen,reason,cheap,contiguous,cycle_program,cycle_conf,cycle_duration)
 
-        # Battery remains advisory: absorb predicted surplus, then shave expensive deficits.
-        if c.get("battery_advisory") and battery and battery.get("available_kwh",0)>0:
-            cap=max(0.0,float(battery.get("available_kwh",0))); p=max(0.0,float(battery.get("power_w",0)))
-            if p>0 and cap>0:
-                soc_energy=cap*max(0,min(1,float(battery.get("soc_pct",50))/100))
-                max_e=cap*max(0,min(1,float(battery.get("max_soc_pct",95))/100))
-                min_e=cap*max(0,min(1,float(battery.get("min_soc_pct",20))/100))
-                for s in slots:
-                    surplus=max(0.0,-s.net_after_plan_w-float(c.get("pv_reserve_w",150)))
-                    charge=min(p,surplus,max(0,(max_e-soc_energy)/slot_h*1000))
-                    if charge>0: s.battery_w=charge; soc_energy += charge*slot_h/1000
-                # expensive deficits first among future slots, but preserve chronological SOC feasibility approximately
-                threshold=statistics.median([x.import_price for x in slots]) if slots else .3
-                for s in slots:
-                    deficit=max(0.0,s.net_after_plan_w)
-                    if deficit>0 and s.import_price>=threshold and soc_energy>min_e:
-                        discharge=min(p,deficit,max(0,(soc_energy-min_e)/slot_h*1000))
-                        s.battery_w=-discharge; soc_energy -= discharge*slot_h/1000
-                findings.append("Batterijadvies is alleen what-if; realtime batterijguard blijft eigenaar van fysieke setpoints")
+        # Improve combinations inside the existing permissions. The realtime
+        # engine still owns every command; this bounded search has no actuators.
+        optimisation = {"enabled": False, "status": "disabled", "advisory_only": True}
+        if c.get("joint_optimisation", True):
+            try:
+                optimisation = {"enabled": True, "advisory_only": True,
+                    **optimize_joint_plan(slots, plans, devices, c, slot_h, capacity_target_w)}
+            except Exception as err:
+                optimisation = {"enabled": True, "status": "fallback", "advisory_only": True,
+                                "error_type": type(err).__name__}
+            if optimisation.get("status") == "fallback":
+                warnings.append("Gezamenlijke optimalisatie gebruikt de bestaande basisplanning")
+            if optimisation.get("improvement_eur", 0) > 0:
+                findings.append("Gezamenlijke planning vond een betere voorspelde combinatie; geen gemeten besparing")
+
+        battery_advice = plan_battery(slots, c, slot_h, battery)
+        warnings.extend(battery_advice.get("warnings", []))
+        if battery_advice.get("status") == "planned":
+            findings.append("Batterijadvies is alleen what-if, met chronologische SOC en rendement; realtime batterijguard blijft eigenaar van fysieke setpoints")
 
         imp_kwh=exp_kwh=cost=selfuse=0.0
         for s in slots:
@@ -580,7 +587,7 @@ class UnifiedPlanner:
             selfuse += max(0.0,min(s.pv_w,s.base_w+s.planned_load_w+max(0,s.battery_w)))*slot_h/1000
         confidence=min(.95,max(.1,statistics.mean(base_conf) if base_conf else .1)) * coverage
         self.plan_runs += 1; self.last_plan_wall=datetime.now().timestamp()
-        self.plan=UnifiedPlan(start,horizon_h,slot_min,slots,plans,warnings,findings,confidence,imp_kwh,exp_kwh,cost,selfuse)
+        self.plan=UnifiedPlan(start,horizon_h,slot_min,slots,plans,warnings,findings,confidence,imp_kwh,exp_kwh,cost,selfuse,optimisation,battery_advice)
         return self.plan
 
     def current_slot(self, local_now):
@@ -735,12 +742,17 @@ class UnifiedPlanner:
         return base
 
 PLANNER_SETTING_SPECS = {
+    "joint_optimisation": {"label":"Gezamenlijke toestelplanning", "type":"boolean", "default":True,
+                          "description":"Zoekt binnen bestaande toestelvoorwaarden naar betere combinaties van planblokken. Behoudt dagdoelen en lopende beschermde cycli; geen globale optimaliteitsgarantie.",
+                          "recommendation":"Aan laten. Geen extra installatie nodig; de realtime regelaar blijft eigenaar.",
+                          "on_effect":"De planner vergelijkt gezamenlijke combinaties met de bestaande basisplanning.",
+                          "off_effect":"De bestaande planning op prioriteitsvolgorde blijft actief."},
     "enabled": {"label":"Unified Planner", "type":"boolean", "default":True,
                 "description":"Berekent één gezamenlijk rolling-horizonplan voor flexibele lasten.",
                 "recommendation":"Aan laten. Zet alleen uit voor foutzoeken of pure realtime overschotregeling.",
                 "on_effect":"Flexibele dagdoelen worden vooruit gepland.", "off_effect":"Toestellen reageren alleen op realtime regels en deadlines."},
     "horizon_h": {"label":"Planningshorizon", "type":"number", "unit":"uur", "min":12, "max":72, "step":1, "default":36,
-                  "description":"Hoe ver SolarPilot vooruit kijkt.", "recommendation":"36 uur is voor jouw PV-schaduw, boiler en toekomstige batterij een goede balans.",
+                  "description":"Hoe ver SolarPilot vooruit kijkt.", "recommendation":"36 uur geeft zicht op vandaag en morgen; warmtepompcomfort blijft bij Panasonic.",
                   "lower_effect":"Sneller en eenvoudiger, maar minder zicht op morgen.", "higher_effect":"Meer vooruitzicht, maar verder weg gelegen forecasts zijn onzekerder."},
     "slot_min": {"label":"Planblokgrootte", "type":"number", "unit":"min", "min":15, "max":60, "step":15, "default":15,
                  "description":"Tijdresolutie waarmee het energieplan wordt opgebouwd.", "recommendation":"15 minuten sluit aan op je HomeWizard-data en capaciteitstarief.",
@@ -767,8 +779,8 @@ PLANNER_SETTING_SPECS = {
                                  "description":"Interne planningsstraf; dit is geen echte energieprijs.", "recommendation":"0,50 als startpunt. Pas pas aan na backtesting.",
                                  "lower_effect":"Planner accepteert makkelijker een hogere kwartierpiek.", "higher_effect":"Planner spreidt lasten sterker, mogelijk ten koste van zonnebenutting."},
     "battery_advisory": {"label":"Batterij adviserend meeplannen", "type":"boolean", "default":True,
-                         "description":"Tekent toekomstige batterijlaad/ontlaadruimte mee in het plan zonder daarmee batterijbediening vrij te geven.", "recommendation":"Aan laten; fysieke batterijbediening blijft apart vergrendeld.",
-                         "on_effect":"Plan kan batterijscenario en flexlasten samen bekijken.", "off_effect":"Batterijruimte wordt niet meegenomen in de planning."},
+                         "description":"Tekent chronologisch haalbare batterijlaad/ontlaadruimte na de toestelplanning, zonder batterijbediening vrij te geven.", "recommendation":"Aan laten; fysieke batterijbediening blijft apart vergrendeld.",
+                         "on_effect":"Plan toont een batterijscenario bij de geplande flexlasten; geen gezamenlijke batterijoptimalisatie.", "off_effect":"Batterijruimte wordt niet meegenomen in de planning."},
     "quality_tracking": {"label":"Plannerkwaliteit meten", "type":"boolean", "default":True,
                          "description":"Vergelijkt voorspelde PV, basislast, netresultaat en geplande starts achteraf met de werkelijkheid.",
                          "recommendation":"Aan laten. Er worden alleen compacte dagaggregaten bewaard.",
