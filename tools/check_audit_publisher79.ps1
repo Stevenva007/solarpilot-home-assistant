@@ -1,7 +1,7 @@
 # Execute the actual publisher with fictional native git/gh/Python processes.
 # No GitHub account, network, real checkout, credentials or HA service is used.
 $ErrorActionPreference = "Stop"
-$RealPython = (Get-Command "python" -CommandType Application -ErrorAction Stop).Source
+$RealPython = (Get-Command "python" -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 $RealPowerShell = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
 $scratch = Join-Path ([System.IO.Path]::GetTempPath()) ("solarpilot-publisher79-" + [guid]::NewGuid().ToString("N"))
 $originalPath = $env:PATH
@@ -101,11 +101,16 @@ exec "$SP_PUBLISH_REAL_PYTHON" "$SP_PUBLISH_DRIVER" "__COMMAND__" "$@"
 $ErrorActionPreference = "Stop"
 $probeExitCode = 0
 try {
+    # Make native command discovery hermetic in the child process too. The
+    # launchers use absolute interpreter paths, so they need no system PATH.
+    # A runner-installed git/gh must never participate in these fixtures.
+    $env:PATH = $env:SP_PUBLISH_BIN
     foreach ($probeCommand in @("git", "gh", "python", "py")) {
-        $probeResolved = (Get-Command $probeCommand -CommandType Application -ErrorAction Stop).Source
+        $probeApplications = @(Get-Command $probeCommand -CommandType Application -ErrorAction Stop)
+        $probeResolved = $probeApplications[0].Source
         $probeExpected = Join-Path $env:SP_PUBLISH_BIN $(if ($IsWindows) { "$probeCommand.cmd" } else { $probeCommand })
-        if ($probeResolved -ne $probeExpected) {
-            throw "Fictional executable resolution failed for $probeCommand"
+        if ($probeApplications.Count -ne 1 -or $probeResolved -ne $probeExpected) {
+            throw "Fictional executable resolution failed for ${probeCommand}: $($probeApplications.Count) matches, actual '$probeResolved', expected '$probeExpected'"
         }
     }
     & $env:SP_PUBLISH_TARGET -GitHubOwner "fictional-owner" -Repository "fictional-repository" -License "mit"

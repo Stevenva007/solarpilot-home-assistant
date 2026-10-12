@@ -116,15 +116,26 @@ with sync_playwright() as p:
       window.probe=document.createElement('solar-pilot-options-dialog');document.body.append(probe);
       window.cleanupCalls=[];
       const user={id:'fixture-admin',is_admin:true};
-      window.oldHass={user,callApi:async(method,path)=>method==='delete'?cleanupCalls.push(path):
-        new Promise(resolve=>window.releaseOldFlow=resolve)};
-      window.currentHass={user,callApi:async(method,path)=>method==='delete'?{}:
-        new Promise(resolve=>window.releaseCurrentFlow=resolve)};
+      const oldStarted=new Promise(resolve=>window.oldRequestStarted=resolve);
+      const currentStarted=new Promise(resolve=>window.currentRequestStarted=resolve);
+      window.oldHass={user,callApi:async(method,path)=>{
+        if(method==='delete')return cleanupCalls.push(path);
+        oldRequestStarted();return new Promise(resolve=>window.releaseOldFlow=resolve);
+      }};
+      window.currentHass={user,callApi:async(method,path)=>{
+        if(method==='delete')return {};
+        currentRequestStarted();return new Promise(resolve=>window.releaseCurrentFlow=resolve);
+      }};
       window.oldOpen=probe.open(oldHass,'entry-old');
-      await Promise.resolve();await Promise.resolve();
+      await oldStarted;
       probe.remove();document.body.append(probe);
       window.currentOpen=probe.open(currentHass,'entry-current');
-      await Promise.resolve();await Promise.resolve();
+      // Wait for the actual request boundary, rather than guessing the number
+      // of catalog microtasks. An open() rejection must fail this probe itself.
+      await Promise.race([currentStarted,currentOpen]);
+      if(!probe._busy||!probe._open||probe.flow!==null)
+        throw Error('Reopened request not pending: '+JSON.stringify({busy:probe._busy,open:probe._open,
+          flow:probe.flow,nativeOpen:probe.dialog.open,entry:probe.entryId}));
       releaseOldFlow({type:'menu',step_id:'init',flow_id:'flow-old',menu_options:[]});await oldOpen;
     }""")
     assert page.evaluate("probe._busy && probe._open && probe.flow===null")
