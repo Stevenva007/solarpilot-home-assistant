@@ -112,39 +112,44 @@ with sync_playwright() as p:
     page.evaluate("probe.close(true);probe.remove()")
 
     # An old API result after detach cannot unlock or overwrite the current flow.
-    page.evaluate("""async() => {
-      window.probe=document.createElement('solar-pilot-options-dialog');document.body.append(probe);
-      window.cleanupCalls=[];
-      const user={id:'fixture-admin',is_admin:true};
-      const oldStarted=new Promise(resolve=>window.oldRequestStarted=resolve);
-      const currentStarted=new Promise(resolve=>window.currentRequestStarted=resolve);
-      window.oldHass={user,callApi:async(method,path)=>{
-        if(method==='delete')return cleanupCalls.push(path);
-        oldRequestStarted();return new Promise(resolve=>window.releaseOldFlow=resolve);
-      }};
-      window.currentHass={user,callApi:async(method,path)=>{
-        if(method==='delete')return {};
-        currentRequestStarted();return new Promise(resolve=>window.releaseCurrentFlow=resolve);
-      }};
-      window.oldOpen=probe.open(oldHass,'entry-old');
-      await oldStarted;
-      probe.remove();document.body.append(probe);
-      window.currentOpen=probe.open(currentHass,'entry-current');
-      // Wait for the actual request boundary, rather than guessing the number
-      // of catalog microtasks. An open() rejection must fail this probe itself.
-      await Promise.race([currentStarted,currentOpen]);
-      if(!probe._busy||!probe._open||probe.flow!==null)
-        throw Error('Reopened request not pending: '+JSON.stringify({busy:probe._busy,open:probe._open,
-          flow:probe.flow,nativeOpen:probe.dialog.open,entry:probe.entryId}));
-      releaseOldFlow({type:'menu',step_id:'init',flow_id:'flow-old',menu_options:[]});await oldOpen;
-    }""")
-    assert page.evaluate("probe._busy && probe._open && probe.flow===null")
-    assert page.evaluate("JSON.stringify(cleanupCalls)") == '["config/config_entries/options/flow/flow-old"]'
-    page.evaluate("""async() => {
-      releaseCurrentFlow({type:'form',step_id:'settings',flow_id:'flow-current',errors:{},data_schema:[]});
-      await currentOpen;
-    }""")
-    assert page.evaluate("!probe._busy && probe.flow.flow_id==='flow-current'")
+    # Exercise both the stable alias and the constructor bound to this release.
+    for tag in ("solar-pilot-options-dialog", page.evaluate("SP_OPTIONS_DIALOG_TAG")):
+        page.evaluate("""async tag => {
+          window.probe=document.createElement(tag);document.body.append(probe);
+          window.cleanupCalls=[];
+          const user={id:'fixture-admin',is_admin:true};
+          const oldStarted=new Promise(resolve=>window.oldRequestStarted=resolve);
+          const currentStarted=new Promise(resolve=>window.currentRequestStarted=resolve);
+          window.oldHass={user,callApi:async(method,path)=>{
+            if(method==='delete')return cleanupCalls.push(path);
+            oldRequestStarted();return new Promise(resolve=>window.releaseOldFlow=resolve);
+          }};
+          window.currentHass={user,callApi:async(method,path)=>{
+            if(method==='delete')return {};
+            currentRequestStarted();return new Promise(resolve=>window.releaseCurrentFlow=resolve);
+          }};
+          window.oldOpen=probe.open(oldHass,'entry-old');
+          await oldStarted;
+          probe.remove();
+          if(probe.dialog.open)throw Error('Detached pending options dialog retained native open state');
+          document.body.append(probe);
+          window.currentOpen=probe.open(currentHass,'entry-current');
+          // Wait for the actual request boundary, rather than guessing the number
+          // of catalog microtasks. An open() rejection must fail this probe itself.
+          await Promise.race([currentStarted,currentOpen]);
+          if(!probe._busy||!probe._open||probe.flow!==null)
+            throw Error('Reopened request not pending: '+JSON.stringify({busy:probe._busy,open:probe._open,
+              flow:probe.flow,nativeOpen:probe.dialog.open,entry:probe.entryId}));
+          releaseOldFlow({type:'menu',step_id:'init',flow_id:'flow-old',menu_options:[]});await oldOpen;
+        }""", tag)
+        assert page.evaluate("probe._busy && probe._open && probe.flow===null && probe.dialog.matches(':modal')")
+        assert page.evaluate("JSON.stringify(cleanupCalls)") == '["config/config_entries/options/flow/flow-old"]'
+        page.evaluate("""async() => {
+          releaseCurrentFlow({type:'form',step_id:'settings',flow_id:'flow-current',errors:{},data_schema:[]});
+          await currentOpen;
+        }""")
+        assert page.evaluate("!probe._busy && probe.flow.flow_id==='flow-current'")
+        page.evaluate("async()=>{await probe.close(true);probe.remove();}")
     assert page.evaluate("actuatorCalls.length") == 0
     assert not errors, errors
 

@@ -58,7 +58,13 @@ class SolarPilotOptionsDialog extends HTMLElement{
     for(const next_step_id of path){if(!current()||this.flow?.type!=='menu'||!this.flow.menu_options?.includes(next_step_id))break;await this._request(`config/config_entries/options/flow/${encodeURIComponent(this.flow.flow_id)}`,{next_step_id});}
   }
   _controls(disabled){this.shadowRoot.querySelectorAll('.close,.back').forEach(e=>e.disabled=disabled);this.content.querySelectorAll('button,input,select').forEach(e=>{if(!e.dataset.permanentDisabled)e.disabled=disabled;});}
-  disconnectedCallback(){if(!this._busy)this.close();else{this._open=false;this._seq++;this.helpDialog?.close();}}
+  disconnectedCallback(){
+    if(!this._busy)this.close();
+    else{this._open=false;this._seq++;this.helpDialog?.close();
+      // Detach removes the native modal state but retains its open attribute.
+      // Close that surface now so this instance can open after reattachment.
+      if(this.dialog.open)this.dialog.close();}
+  }
   async _request(path,data){
     if(this._busy||!this._open||this.hass?.user?.is_admin!==true)return;
     const hass=this.hass,entryId=this.entryId,userId=hass.user?.id;

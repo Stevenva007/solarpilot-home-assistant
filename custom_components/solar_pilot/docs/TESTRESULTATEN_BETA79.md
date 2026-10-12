@@ -2,14 +2,14 @@
 
 Versie: **1.0.0-beta.79** · 12 oktober 2026
 
-Alle **79 productie-Pythonmodules** en beide frontendmodules zijn nagekeken. De definitieve lokale volledige suite is geslaagd: **5125 tests in 102.04 seconden**, waaronder **329 nieuwe auditregressies**. Concrete bevindingen en de volledige moduledekking staan in [AUDIT_BETA79.md](AUDIT_BETA79.md).
+Alle **79 productie-Pythonmodules** en beide frontendmodules zijn nagekeken. De definitieve lokale volledige suite is geslaagd: **5125 tests in 102.98 seconden**, waaronder **329 nieuwe auditregressies**. Concrete bevindingen en de volledige moduledekking staan in [AUDIT_BETA79.md](AUDIT_BETA79.md).
 
 ## Definitieve lokale controles
 
 | Controle | Resultaat |
 |---|---|
 | Volledige pytest-suite | 5125 geslaagd; 0 mislukt; Python 3.12.14 |
-| Uitvoerbare frontendproeven | Node v24.19.0; meegenomen in de volledige suite, inclusief oude popupaliassen, verouderde waarnemingen, async races en werkelijk toegewezen startbudget |
+| Uitvoerbare frontendproeven | Node v24.19.0; meegenomen in de volledige suite, inclusief oude popupaliassen, verouderde waarnemingen, async races, native detach/heropenen van beide popupconstructors en werkelijk toegewezen startbudget |
 | Python-/JSON-syntax | Alle productie-Pythonmodules, Python-tools en component-JSON parsebaar |
 | Beide frontend-JavaScriptmodules | `node --check` geslaagd |
 | Repositorystructuur en publieke privacy-preflight | Geslaagd; geen eigen exports, runtimegegevens, huislabels of caches opgenomen |

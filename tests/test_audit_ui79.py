@@ -104,26 +104,36 @@ assert.match(nodes['.body'].innerHTML,/Current evidence/);
 def test_old_options_request_after_disconnect_cannot_unlock_current_request(late_error):
     execute("""
 globalThis.SOLAR_PILOT_HELP_DATA={entries:{},steps:{}};
+for(const Dialog of [customElements.get('solar-pilot-options-dialog'),customElements.get(SP_BOUND_OPTIONS_TAG)]){
 let resolveOld,rejectOld,resolveCurrent;const cleanups=[];
 const oldHass={user:{id:'fixture',is_admin:true},callApi:async(method,path)=>
   method==='delete'?cleanups.push(['old',path]):new Promise((resolve,reject)=>{resolveOld=resolve;rejectOld=reject;})};
 const newHass={user:{id:'fixture',is_admin:true},callApi:async(method,path)=>
   method==='delete'?cleanups.push(['current',path]):new Promise(resolve=>resolveCurrent=resolve)};
-const dialog=Object.create(SolarPilotOptionsDialog.prototype);
+const dialog=Object.create(Dialog.prototype);
 Object.assign(dialog,{_open:false,_busy:false,_seq:0,_controls:()=>{},_render:()=>{},
   content:{innerHTML:''},error:{textContent:''},
-  dialog:{open:false,showModal(){this.open=true;},close(){this.open=false;}}});
+  dialog:{open:false,isModal:false,showModal(){
+    if(this.open&&!this.isModal)throw new DOMException('Already open as non-modal','InvalidStateError');
+    this.open=true;this.isModal=true;
+  },close(){this.open=false;this.isModal=false;}}});
 const old=dialog.open(oldHass,'entry-old');
 await Promise.resolve();await Promise.resolve();assert.equal(dialog._busy,true);
+// Native removal clears is-modal without removing the open attribute.
+dialog.dialog.isModal=false;
 dialog.disconnectedCallback();
+assert.equal(dialog.dialog.open,false);assert.equal(dialog._busy,true);
 const current=dialog.open(newHass,'entry-current');
 await Promise.resolve();await Promise.resolve();assert.equal(dialog._busy,true);
+assert.equal(dialog.dialog.open,true);assert.equal(dialog.dialog.isModal,true);
 if(%s)rejectOld(new Error('Old request failed'));else resolveOld({flow_id:'old-flow',type:'menu'});
 await old;assert.equal(dialog._busy,true);assert.notEqual(dialog.error.textContent,'Old request failed');
 assert.equal(dialog.flow,null);
+assert.equal(dialog.dialog.open,true);assert.equal(dialog.dialog.isModal,true);
 resolveCurrent({flow_id:'current-flow',type:'menu'});await current;
 assert.equal(dialog.flow.flow_id,'current-flow');assert.equal(dialog._busy,false);
 assert.deepEqual(cleanups,%s?[]:[['old','config/config_entries/options/flow/old-flow']]);
+}
 """ % (str(late_error).lower(), str(late_error).lower()), options=True)
 
 
