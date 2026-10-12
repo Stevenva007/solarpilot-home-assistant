@@ -664,15 +664,13 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                               'netstroom. Een maandagafwijking wordt ook gebruikt als je zondag klaarzet. Het '
                               'gaat om de volgende kalenderdag, niet onbeperkt wachten tot er ooit een zonnige '
                               'dag is. Zelfde dag is een bewuste alternatieve keuze: bij een late belading '
-                              'vervalt de zonnevoorwaarde direct indien nettoestemming aanstaat. Een geplande '
+                              'vervalt de zonnevoorwaarde direct en mag netstroom aanvullen. Een geplande '
                               'dag wordt vastgelegd en schuift niet iedere ochtend opnieuw op.',
- 'dishwasher_deadline_grid_allowed': 'AAN: op de vastgelegde startdeadline mag netstroom de ontbrekende zon '
-                                     'aanvullen. Dit is nodig voor uiterlijk beginnen op een bewolkte dag. '
-                                     'UIT: ook na de deadline is voldoende werkelijk overschot nodig; een '
-                                     'gemiste deadline wordt gemeld. De toestemming geeft geen hogere '
-                                     'elektrische limieten en omzeilt geen deur-, fout-, bron- of '
-                                     'remote-controle. Een actieve wasbeurt wordt in beide standen niet '
-                                     'onderbroken wanneer later de zon wegvalt.',
+ 'dishwasher_deadline_grid_allowed': 'Op de APP-startdeadline vult netstroom altijd ontbrekende zon aan '
+                                     'binnen de elektrische grenzen; de oude keuze is vervallen. Een '
+                                     'opgeslagen UIT-waarde kan de deadline niet langer uitstellen. De '
+                                     'deur-, fout-, bron- en remote-controles blijven gelden. Een lopende '
+                                     'wasbeurt wordt niet onderbroken wanneer later de zon wegvalt.',
  'dishwasher_deadline_grace_min': 'Begrensd herstelvenster na de startdeadline, standaard 120 minuten. Als een '
                                   'tijdelijke blokkering verdwijnt, mag de nog niet verstuurde start binnen '
                                   'dit venster alsnog doorgaan. Na 30 seconden overschrijding verschijnt '

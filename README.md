@@ -2,9 +2,9 @@
 
 SolarPilot is een lokale Home Assistant-integratie voor zonnestroomverdeling, flexibele verbruikers, een beschermde AEG-afwasmachine, read-only Wallbox-informatie, voorspellingen, kosten, lokaal leren en batterijfuncties.
 
-**Actuele bronversie: 1.0.0-beta.77.** Panasonic regelt de warmtepomp zelfstandig. SolarPilot kan voor die warmtepomp alleen een extra SG-zonneboost aanvragen via één bewust gekoppelde bestaande Shelly-uitgang, met bewezen lokale aflooptimer. Het schrijft geen tank-/kamertemperatuur, AUTO/UIT, heaterkeuze of fabrikantprogramma. Nieuwe SG-sturing staat standaard uit tot gecontroleerde ingebruikname.
+**Actuele bronversie: 1.0.0-beta.78.** Panasonic regelt de warmtepomp zelfstandig. SolarPilot kan voor die warmtepomp alleen een extra SG-zonneboost aanvragen via één bewust gekoppelde bestaande Shelly-uitgang, met bewezen lokale aflooptimer. Het schrijft geen tank-/kamertemperatuur, AUTO/UIT, heaterkeuze of fabrikantprogramma. Nieuwe SG-sturing staat standaard uit tot gecontroleerde ingebruikname.
 
-[Installatie en veilige upgrade](START_HIER.md) · [Volledige actuele werking](docs/ACTUELE_WERKING.md) · [Beta.77 instellen](docs/BETA77_INSTELLEN.md) · [Testresultaten en publicatiestatus](docs/TESTRESULTATEN_BETA77.md) · [Technische overdracht](OVERDRACHT.md)
+[Installatie en veilige upgrade](START_HIER.md) · [Volledige actuele werking](docs/ACTUELE_WERKING.md) · [Beta.78 instellen](docs/BETA78_INSTELLEN.md) · [Testresultaten en publicatiestatus](docs/TESTRESULTATEN_BETA78.md) · [Technische overdracht](OVERDRACHT.md)
 
 Vanaf beta.70 opent **Geschiedenis** bij de warmtepomp een lokale dagtijdlijn met geregistreerde activiteit, starts/stops, bevestigde of afgeleide taken, meetdekking en gemeten totale elektrische energie. Zeven/dertig-dagenbalken en afzonderlijke SG-aanvraag/contact/ontvangen-status maken het verloop zichtbaar. Registratie begint na installatie; oude gegevens blijven behouden en onbekende perioden worden niet ingevuld. De popup is uitsluitend uitlezen.
 
@@ -26,6 +26,10 @@ Beta.77 maakt **PV-correcties per zonnestand, seizoen en kwartier** beter uitleg
 
 **PV-diagnose** toont voor 15:00–18:00 per kwartier de relevante factor, toegepaste of behouden voorspelling, lokale vergelijkbare dagen en de reden. Een totaal van bijvoorbeeld tien leerdagen garandeert geen bruikbaar bewijs voor ieder namiddagkwartier. De volledige gecorrigeerde vermogenscurve blijft invoer voor de bestaande plannerhorizon. Alleen reeds ingeschakelde automatische kalibratie kan leren; uitgeschakelde PV-functies en bewuste gebruikerskeuzes blijven behouden. Bestaande factoren, historische meetgegevens en alle functies uit beta.76 blijven bewaard. Nieuwe overgangskandidaten vragen nieuw vergelijkbaar dagbewijs; oude historie wordt niet achteraf tot dergelijk bewijs gemaakt.
 
+Beta.78 herstelt de **AEG-startdeadline**: zodra de vastgelegde deadline van een geldige APP-aanvraag is bereikt, mag SolarPilot netstroom gebruiken, ook zonder zonneoverschot en ongeacht oude zonne-/netvoorkeursvlaggen. Zon, prijsplanning en zonne-stabiliteit mogen de deadline niet uitstellen. Werkelijke net-/fase-/vermogensruimte, betrouwbare bronnen, deur-/apparaatvoorwaarden, Pauze en de regelmodus blijven vereist. Bij zo'n blokkering noemt de kaart de concrete reden; een nog niet verzonden START wordt binnen de bestaande begrensde termijn opnieuw beoordeeld. Een al verzonden onzekere START wordt nooit blind herhaald. De oorspronkelijke geplande dag en deadline blijven bij een gewone update behouden.
+
+Een passende nieuwe native Running-bevestiging voor dezelfde aanvraag wist de achterhaalde deadlinewaarschuwing. De kaart bewaart de verbruikte aanvraag en startcontext bij de lopende beurt; zij noemt die niet opnieuw een ontbrekende klaarzettoestemming. De deadline garandeert daarmee nettoestemming, geen fysieke start bij een open deur, ontbrekende verbinding of onvoldoende elektrische ruimte. Alle PV-verbeteringen, instellingen, modellen en geschiedenis blijven behouden; er is geen extra installatie nodig.
+
 Dezelfde actuele uitleg staat binnen Home Assistant onder **SolarPilot → Uitleg**. Historische veranderingen staan in [CHANGELOG.md](CHANGELOG.md); oudere instelbestanden beschrijven hun eigen release.
 
 ## Installatie via HACS
@@ -41,7 +45,7 @@ Bij **Analyse nodig** maakt één klik een export van de beschikbare zeven dagen
 
 ## Herstel van de beta.62-opstartfout
 
-Update via HACS naar beta.77 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.77 vraagt geen herbevestiging alleen door de codeupdate.
+Update via HACS naar beta.78 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.78 vraagt geen herbevestiging alleen door de codeupdate.
 
 ## Upgrade vanaf beta.61
 
@@ -57,7 +61,7 @@ Geldige andere toestellen, prioriteiten, APP-tickets, geschiedenis, leerdata en 
 - Aanvraag/eigenaar, gemelde contactstand/lokale timer, compressor/native context en ontvangen SG-status zijn afzonderlijke bewijslagen. Compressorbedrijf bewijst geen extra SG-effect.
 - Eén totaalmeter of twee complete bevestigde niet-overlappende voedingen; ontbrekend totaal blijft onbekend en inbegrepen heater wordt niet nogmaals opgeteld.
 - Een SG-sessie is standaard begrensd tot één uur. Tapwater-only behoudt tankafkoeling; het lokaal bevestigde algemene profiel vraagt na rust betekenisvol nieuw zon-/native bewijs. Tijd, reload of dezelfde samples geeft geen eindeloze herstarts. Extra koeling heeft afzonderlijke bestaande condensbeveiliging nodig tenzij betrouwbare native context koeling uitsluit.
-- De Wallbox blijft read-only; een afwasbeurt krijgt maximaal één native START en wordt nooit onderbroken.
+- De Wallbox blijft read-only; een afwasbeurt krijgt maximaal één native START en wordt nooit onderbroken. De vastgelegde APP-startdeadline staat netstroom toe zonder zonnevoorwaarde, binnen de bestaande fysieke en apparaatgrenzen.
 - Batterijbediening houdt haar eigen expliciete toestemming/eigenaarschap en commandobevestiging.
 - Een EMS en lokale timer vervangen geen elektrische beveiliging.
 

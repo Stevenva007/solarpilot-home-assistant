@@ -3,22 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.77'
+GUIDE_VERSION = '1.0.0-beta.78'
 GUIDE_UPDATED = '2026-10-12'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.77',
+ 'version': '1.0.0-beta.78',
  'updated': '2026-10-12',
- 'intro': ('Beta.77 verbetert lokale PV-kalibratie: terugkerende stabiele overgangen worden pas na meerdere volledig gemeten vergelijkbare dagen geleerd. Factor en meetbasis worden per tijdvak zichtbaar. Alle bestaande regeling, gezamenlijke planner en batterijadvies blijven behouden. SolarPilot beoordeelt lokaal de bestaande '
-           'warmtepompmeters, Wallboxsessiebron, PV-voorspelling en toestelmetingen. Het toont '
-           'verzameld bewijs, mogelijke oorzaken, concrete voorstellen en wat daarna nodig is. '
-           'Een herhaalde uitlezing wordt geen nieuw bronrapport; ontbrekende of oude metingen '
-           'blijven onbekend. Een afzonderlijke SG-beoordeling gebruikt het werkelijk beschikbare '
-           'bewijs zonder de regeling te veranderen. De regeling blijft standaard 600 W actueel '
-           'gemeten netafname gedurende vijf continue minuten, tegelijk met de minimale '
-           'SG-aanvraagduur van twintig minuten. Instellingen, geschiedenis, zonne-resetbewijs, '
-           'korte veilige leases en harde guards blijven behouden. Panasonic bepaalt zijn '
-           'compressorbedrijf.'),
+ 'intro': ('Beta.78 maakt de vaste APP-startdeadline onafhankelijk van zonneoverschot en oude nettoestemmingsvlaggen. De afwasmachine mag dan netstroom gebruiken binnen de bestaande elektrische en toestelgrenzen. Startaanvraag, native bevestiging en de verbruikte vaste aanvraag blijven afzonderlijk zichtbaar. Een geselecteerde START geeft geen tegenstrijdige deadlinefout; bevestigde werking ruimt de eerdere melding op. De lokale PV-kalibratie uit beta.77, gezamenlijke planner, batterijadvies, SG-regeling, instellingen en historische gegevens blijven behouden.'),
  'sections': [{'title': '1. Basisprincipe en modi',
                'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele '
                               'net- en PV-metingen, echte toestelvoorwaarden en elektrische grenzen gaan '
@@ -560,13 +551,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'gebruikt dan ook maandag de gewone tijd. Alleen een bewust ingestelde '
                               'maandagwaarde wijzigt die dag. Tijdzone, geplande dag en toestemming worden in '
                               'het aanvraagticket bevroren en over herstart bewaard.',
-                              'Een zonnestart vereist de ingestelde stabiele injectietijd, standaard 300 '
-                              'seconden voor nieuwe profielen. Op de deadline kan alleen de zonnevoorwaarde '
-                              'vervallen wanneer netaanvulling bewust is toegestaan. Actuele '
-                              'net-/fase-/kwartierpiekruimte, globale modus en toestelvrijgave blijven nodig. '
-                              'Een gemiste deadline geeft volgens de bestaande regels eenmaal een melding; de '
-                              'standaard hersteltermijn van een nog niet verzonden start is 120 minuten, '
-                              'daarna is een nieuwe APP-aanvraag nodig.',
+                              'Een zonnestart vereist de ingestelde stabiele injectietijd, standaard 300 seconden voor nieuwe profielen. Op de vastgelegde APP-startdeadline vervalt de zonnevoorwaarde altijd en mag netstroom aanvullen. Een oude uitgeschakelde nettoestemmingsvlag kan deze vaste deadline niet meer in zonwachten veranderen. Een lage batterij-SoC of Wallbox-zonnevoorkeur houdt deze netstart niet tegen; er volgt geen batterij- of Wallbox-opdracht. Actuele net-/fase-/kwartierpiekruimte, globale modus en toestelvrijgave blijven nodig. Een na dertig seconden nog geblokkeerde deadline geeft eenmaal een melding met de actuele blokkering. Een in dezelfde ronde geselecteerde START geeft geen tegenstrijdige deadlinefout; een passende native Running-bevestiging ruimt de eerdere melding op. De verbruikte aanvraag blijft met haar vaste deadline en afzonderlijke startaanvraag/native bevestiging zichtbaar, zonder toestemming voor een tweede start; de standaard hersteltermijn van een nog niet verzonden start is 120 minuten, daarna is een nieuwe APP-aanvraag nodig.',
                               'Het ticket wordt vóór START duurzaam als geprobeerd bewaard. Alleen een nieuwe '
                               'passende Running-rapportage bevestigt start. Een onzekere of mislukte START '
                               'wordt niet blind herhaald, ook niet na herstart. Handmatig starten verbruikt '
@@ -1005,12 +990,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'referentie, waarna echt veranderde context of een nieuwe zonneperiode nodig '
                               'blijft. Wijzigen van relevante native bronnen vraagt ook opnieuw de passende '
                               'koelbeveiligingsbevestiging.',
-                              'Bij een wachtend APP-ticket kiest wijzigen van deadline/nettoestemming tussen '
-                              'volgende beladingen of expliciet hetzelfde huidige ticket. De bestaande '
-                              'kalenderdag blijft gelijk; er ontstaat geen START door opslaan. Wachtende '
-                              'voorstellen en archieven blijven inspecteerbaar. Alleen eigen virtuele '
-                              'SolarPilot-entiteiten mogen bij wijzigingen verdwijnen, nooit de '
-                              'oorspronkelijke apparaatentiteiten.'],
+                              'Bij een wachtend APP-ticket kiest wijzigen van deadline/herstelvenster tussen volgende beladingen of expliciet hetzelfde huidige ticket. De bestaande kalenderdag blijft gelijk; er ontstaat geen START door opslaan. Wachtende voorstellen en archieven blijven inspecteerbaar. Alleen eigen virtuele SolarPilot-entiteiten mogen bij wijzigingen verdwijnen, nooit de oorspronkelijke apparaatentiteiten.'],
                'bullets': []},
               {'title': '19. Migratie en veilige ingebruikname',
                'paragraphs': ['Beta.68 behoudt de beta.63-fix voor onveranderbare en geneste Home '

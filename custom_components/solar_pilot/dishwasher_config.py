@@ -87,7 +87,6 @@ class DishwasherOptionsMixin:
         schema[vol.Required("dishwasher_after_deadline", default=d["dishwasher_after_deadline"])] = selector.SelectSelector({"options": [
             {"value": "next_day", "label": "Volgende dag, eerst zon (standaard)"},
             {"value": "same_day", "label": "Nog dezelfde dag, zo nodig direct netstroom"}]})
-        schema[vol.Required("dishwasher_deadline_grid_allowed", default=d["dishwasher_deadline_grid_allowed"])] = selector.BooleanSelector()
         schema[vol.Required("dishwasher_deadline_grace_min", default=d["dishwasher_deadline_grace_min"])] = _number(1, 240)
         schema[vol.Required("dishwasher_alert_mode", default=d["dishwasher_alert_mode"])] = selector.SelectSelector({"options": [
             {"value": "state", "label": "Expliciete veilige alarmtoestanden"},

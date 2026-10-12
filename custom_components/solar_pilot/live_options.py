@@ -344,11 +344,11 @@ class LiveOptions:
             deadline = datetime.combine(day, deadline_time(cfg, day), zone)
             # Explicit choice updates this fixed planned day, never re-arms/re-dates it.
             q.update(deadline=deadline.timestamp(), expires=deadline.timestamp()+max(1,int(cfg.get("dishwasher_deadline_grace_min",120)))*60,
-                     grid_allowed=bool(cfg.get("dishwasher_deadline_grid_allowed",True)), policy_locked=True)
+                     grid_allowed=True, policy_locked=True)
             ticket = self.r.dishwasher.tickets.get(i)
             if ticket and not ticket.get("attempted"):
                 ticket.update(q)
-            self.r.note(f'{cfg["name"]}: aangepaste deadline/nettoestemming geldt ook voor de huidige aanvraag; plandag behouden.')
+            self.r.note(f'{cfg["name"]}: aangepaste deadline geldt ook voor de huidige aanvraag; plandag behouden, op de deadline zo nodig netstroom.')
 
     async def submit(self, base, desired, request_scope="future"):
         if request_scope not in ("future", "current"):

@@ -144,8 +144,8 @@ async def test_tomorrow_no_sun_waits_then_grid_deadline(monkeypatch):
     assert not [x for x in h.services.calls if x[0] in ('number','switch')]
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(('grid_allowed', 'starts'), [(True, True), (False, False)])
-async def test_monday_ten_deadline_uses_existing_grid_permission(monkeypatch, grid_allowed, starts):
+@pytest.mark.parametrize(('grid_allowed', 'starts'), [(True, True), (False, True)])
+async def test_monday_ten_deadline_uses_grid_even_with_legacy_solar_only_flag(monkeypatch, grid_allowed, starts):
     r,h,c,w=configured(monkeypatch,'2026-09-27T14:00',
         dishwasher_monday_start_deadline='10:00:00',
         dishwasher_deadline_grid_allowed=grid_allowed)
@@ -182,10 +182,10 @@ async def test_deadline_respects_interlocks_and_global_guards(monkeypatch,case):
     assert not [x for x in h.services.calls if x[0]=='button']
 
 @pytest.mark.asyncio
-async def test_explicit_grid_permission_off_still_waits(monkeypatch):
+async def test_legacy_grid_permission_off_cannot_postpone_fixed_deadline(monkeypatch):
     r,h,c,w=configured(monkeypatch,dishwasher_deadline_grid_allowed=False);ready(r,h,c,w)
     h.states.set('sensor.grid',700,{'unit_of_measurement':'W'});move(h,w,'2026-09-29T13:01')
-    await r.tick();assert not [x for x in h.services.calls if x[0]=='button']
+    await r.tick();assert len([x for x in h.services.calls if x[0]=='button']) == 1
 
 @pytest.mark.asyncio
 async def test_five_minute_solar_stability_and_reset(monkeypatch):

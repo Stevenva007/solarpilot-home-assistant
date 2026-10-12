@@ -93,6 +93,10 @@ jobs:
         env:
           SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests
         run: python tools/check_pv_ui33.py
+      - name: Validate dishwasher deadline and consumed request with fictitious data
+        env:
+          SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests
+        run: python tools/check_dishwasher_deadline78.py
       - name: Retain fictitious browser validation screenshots
         if: always()
         uses: actions/upload-artifact@v4
