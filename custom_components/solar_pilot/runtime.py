@@ -2693,13 +2693,14 @@ class SolarRuntime:
         # watts or exceed phase/quarter-hour/import limits. EV solar preference
         # alone may not postpone this explicitly authorised deadline indefinitely.
         due_devices = [d for d in operational_devices if self.dishwasher_app.due(self.configs[d.id], time.time()) and not self.states[d.id].on]
-        if due_devices and (self.result.action is None or self.result.action.watts > 0):
+        if due_devices:
             from copy import deepcopy
             due_ids = {d.id for d in due_devices}
             other_commitment = sum(max(0.0, st.target_w-st.measured_w)
                 for i, st in self.states.items() if i not in due_ids and i not in isolated_ids and st.owned and st.on)
             deadline_site = replace(site, external_hold=self.phase.release_flexible,
                 external_reason=self.phase.reason, device_holds=priority.holds, device_start_blocks=priority.blocks,
+                battery_ready=True,
                 protected_ev_credit={},
                 max_import_w=max(0.0, site.max_import_w-other_commitment),
                 max_increase_w=(max(0.0, phase_max_increase-other_commitment) if phase_max_increase is not None else None),
@@ -2708,7 +2709,42 @@ class SolarRuntime:
                 can_increase=(non_ev_can_increase and not phase_global_block and not self.handover
                               and not sg_sent))
             candidate = plan(deadline_site, due_devices, deepcopy(self.states))
-            if candidate.action and candidate.action.watts > 0:
+            deadline_context = {
+                **self._start_context, "wallbox_start_blocks": {}, "wallbox_global_block": False,
+                "wallbox_reason": "", "device_start_blocks": dict(priority.blocks),
+                "can_increase": deadline_site.can_increase,
+                "increase_reason": self.phase.reason if phase_global_block else "",
+                "effective_import_limit_w": deadline_site.max_import_w,
+                "max_increase_w": deadline_site.max_increase_w,
+                "device_increase_limits": dict(deadline_site.device_increase_limits),
+            }
+            self._start_context["deadline_devices"] = {d.id: dict(deadline_context) for d in due_devices}
+            for d in due_devices:
+                allocation = candidate.start_power.get(d.id)
+                reason = candidate.reasons.get(d.id, "Startdeadline: wacht op vrijgave")
+                if allocation is not None:
+                    allocation = dict(allocation)
+                    limits = [("netafnamegrens", allocation["available_w"])]
+                    if deadline_site.max_increase_w is not None:
+                        limits.append(("fasegrens", max(0.0, deadline_site.max_increase_w)))
+                    if d.id in deadline_site.device_increase_limits:
+                        limits.append(("fasegrens van dit toestel", max(0.0, deadline_site.device_increase_limits[d.id])))
+                    boundary, available = min(limits, key=lambda item: item[1])
+                    allocation.update(available_w=round(available, 2), sufficient=available >= allocation["required_w"])
+                    self.result.start_power[d.id] = allocation
+                    if not allocation["sufficient"] and reason in (
+                            "Wacht op vermogen / hogere prioriteit", "Wacht op werkelijk vrijgekomen vermogen"):
+                        reason = ("Startdeadline: " + (self.capacity.reason or "wacht op betrouwbare kwartierpiekmeting")
+                                  if self.capacity_settings.get("enabled") and not self.capacity.valid else
+                                  f"Startdeadline: {boundary} laat {available:.0f} W extra toe; "
+                                  f"{allocation['required_w']:.0f} W nodig. Netstroom toegestaan")
+                    elif not deadline_site.can_increase and reason.startswith("Dagminimum:"):
+                        reason = ("Startdeadline: " + (deadline_site.increase_reason or
+                            "wacht op bevestiging van de vorige opdracht en een nieuwe energiemeting"))
+                self.result.reasons[d.id] = reason
+                self.result.targets[d.id] = candidate.targets.get(d.id, 0.0)
+            if (candidate.action and candidate.action.watts > 0
+                    and (self.result.action is None or self.result.action.watts > 0)):
                 self.result.action = replace(candidate.action, reason="AEG-startdeadline bereikt; zo nodig netstroom toegestaan")
                 self.result.reasons[candidate.action.id] = self.result.action.reason
                 self.result.targets[candidate.action.id] = candidate.action.watts
@@ -2719,20 +2755,6 @@ class SolarRuntime:
                 permit, why = self.dishwasher.permitted(cfg, read_dishwasher(self.hass, cfg), time.time())
                 if not permit:
                     self.result.reasons[device_id] = why
-        for i, cfg in self.configs.items():
-            if not self.dishwasher_app.enabled(cfg):
-                continue
-            info = self.dishwasher_app.data.get(i, {})
-            req = info.get("request", {})
-            if (req and time.time() > req["deadline"] + 30 and not self.states[i].on
-                    and not (self.pending and self.pending["id"] == i)
-                    and info.get("notified_deadline") != req["created"]):
-                info["notified_deadline"] = req["created"]
-                await self.hass.services.async_call("persistent_notification", "create", {
-                    "notification_id": f"{DOMAIN}_{self.entry.entry_id}_{i}_deadline",
-                    "title": "Afwasmachine: startdeadline niet gehaald",
-                    "message": self.result.reasons.get(i, "Controleer vrijgave, deur, verbinding en energielimieten")}, blocking=False)
-                self.dishwasher_app._dirty()
         if transfer:
             self.result.reasons[transfer.device_id] = (self.result.reasons.get(transfer.device_id, "")
                                                        if rollback else transfer.reason)
@@ -2823,6 +2845,12 @@ class SolarRuntime:
             # still trigger a safe release without waiting for a new grid sample.
             if now - self.last_issued >= self.settings["settle_s"]:
                 await self._send(self.result.action, now)
+        selected = self.result.action
+        if (selected and selected.watts > 0 and self.configs[selected.id].get("kind") == "dishwasher"
+                and not self.pending and not self.states[selected.id].on):
+            self.result.action = None
+            self.result.targets[selected.id] = self.states[selected.id].target_w if self.states[selected.id].owned else 0.0
+        await self._update_dishwasher_deadline_notifications()
         if self.removal_requested:
             removal = self.removal_overview()
             if removal["ready"] and not self._removal_ready_noted:
@@ -2941,6 +2969,83 @@ class SolarRuntime:
                 return False
         return True
 
+    def _dishwasher_deadline_dispatch_block(self, cfg, watts, *, expected_cfg=None, expected_request=None):
+        """Re-read deadline sources; grid permission never creates headroom."""
+        i = cfg["id"]
+        current_cfg = self.configs.get(i)
+        if current_cfg is None or current_cfg != (expected_cfg if expected_cfg is not None else cfg):
+            return "Startdeadline: toestelkoppeling of instellingen gewijzigd vóór START"
+        cfg = current_cfg
+        if self.mode != "solar" or self.device_modes.get(i) != "auto":
+            return "Startdeadline: automatische deelname ingetrokken"
+        if (self.restart_blocking or self.removal_requested or self.handover
+                or self.battery_fleet.busy or self.faults):
+            return "Startdeadline: wacht op herstel of afronding van een eerdere opdracht"
+        if not self.dishwasher_app.due(cfg, time.time()):
+            return "Startdeadline: APP-aanvraag ingetrokken, gewijzigd of verlopen"
+        request = self.dishwasher_app.data.get(i, {}).get("request", {})
+        if expected_request is not None and any(request.get(key) != expected_request.get(key) for key in (
+                "created", "source_signature", "program", "not_before", "deadline", "expires", "planned_day")):
+            return "Startdeadline: de vastgelegde APP-aanvraag is gewijzigd vóór START"
+        reading = read_dishwasher(self.hass, cfg, time.time())
+        self.dishwasher.readings[i] = reading
+        if not reading.ready:
+            return "Startdeadline: " + reading.reason
+        if request.get("program") != reading.program:
+            return "Startdeadline: programma gewijzigd; APP opnieuw vrijgeven"
+        grid, valid, _discharge, _ready, _reported = self._site_data()
+        context = self._start_context.get("deadline_devices", {}).get(i, {})
+        context["measurement_valid"] = bool(valid)
+        if not valid:
+            return "Startdeadline: geen betrouwbare energiemeting vóór START"
+        cap = self.settings["max_import_w"]
+        if self.capacity_settings.get("enabled"):
+            avg = self._power(self.capacity_settings.get("average_demand_entity"), self.capacity_settings["stale_s"])[0]
+            peak = self._power(self.capacity_settings.get("monthly_peak_entity"), max(3600, self.capacity_settings["stale_s"]))[0]
+            capacity = capacity_decision(self._local_now(), avg, peak, grid, self.capacity_settings)
+            if not capacity.valid:
+                return "Startdeadline: " + capacity.reason
+            cap = min(cap, capacity.allowed_grid_w if capacity.allowed_grid_w is not None
+                      else max(0.0, capacity.effective_target_w - self.capacity_settings["margin_w"]))
+        isolated = self.source_isolated_devices
+        reserve = (sum(info["reserve_w"] for info in isolated.values())
+                   + getattr(self, "_dishwasher_comfort_reserve", 0) + self.sg_unconfirmed_reserve_w)
+        for key, st in self.states.items():
+            if key == i or key in isolated or not st.owned or not st.on:
+                continue
+            other_cfg = self.configs[key]
+            measured = self._power(other_cfg.get("power_entity"))[0] if self._reclaim_meter(key) else None
+            # A thermostat can stop drawing during the journal await. Its next
+            # heating peak remains promised power. Estimates/unknowns cannot
+            # discharge that reservation at the last command boundary.
+            reserve += max(0.0, st.target_w-(measured if measured is not None and measured >= 0 else 0.0))
+        available = max(0.0, cap-grid-reserve)
+        context["effective_import_limit_w"] = cap
+        allocation = self.result.start_power.setdefault(i, {})
+        allocation.update(available_w=round(available, 2), required_w=float(watts),
+                          sufficient=available >= watts, grid_allowed=True)
+        if grid + watts + reserve > cap:
+            return (f"Startdeadline: netafnamegrens laat {max(0.0, cap-grid-reserve):.0f} W extra toe; "
+                    f"{watts:.0f} W nodig")
+        if self.phase_settings.get("enabled") and self.phase_settings.get("control_starts"):
+            phase = phase_decision(tuple(self._power(self.phase_settings.get(key), self.phase_settings["stale_s"])[0]
+                for key in ("phase_1_entity", "phase_2_entity", "phase_3_entity")), self.phase_settings)
+            use_map = bool(self.phase_settings.get("use_learned_device_map"))
+            if not phase.valid or (phase.block_increase and not use_map) or phase.release_flexible:
+                return "Startdeadline: " + phase.reason
+            if use_map:
+                trial = copy(self)
+                trial.phase = phase
+                limit = trial._phase_device_limits().get(i, 0.0)
+            else:
+                limit = phase.headroom_w
+            available = min(available, max(0.0, (limit or 0)-reserve))
+            allocation.update(available_w=round(available, 2), sufficient=available >= watts)
+            if limit is None or limit-reserve < watts:
+                return (f"Startdeadline: fasegrens laat {max(0.0, (limit or 0)-reserve):.0f} W extra toe; "
+                        f"{watts:.0f} W nodig")
+        return ""
+
     async def _send(self, action, now):
         i = action.id
         cfg, s = self.configs[i], self.states[i]
@@ -3001,6 +3106,15 @@ class SolarRuntime:
             if self.mode != "solar" or action.watts <= 0 or s.on or not permit:
                 self.result.reasons[i] = why if action.watts > 0 else "Beschermd afwasprogramma: geen stopopdracht toegestaan"
                 return
+        deadline_start = cfg.get("kind") == "dishwasher" and self.dishwasher_app.due(cfg, time.time())
+        deadline_config = deepcopy(cfg) if deadline_start else None
+        deadline_request = deepcopy(self.dishwasher_app.data.get(i, {}).get("request", {})) if deadline_start else None
+        if deadline_start:
+            block = self._dishwasher_deadline_dispatch_block(cfg, action.watts,
+                expected_cfg=deadline_config, expected_request=deadline_request)
+            if block:
+                self.result.reasons[i] = block
+                return
         if action.protected_ev_w > 0:
             wb_now = self._wallbox_reading()
             grid_now, valid_now, discharge_now, ready_now, grid_stamp = self._site_data()
@@ -3042,9 +3156,12 @@ class SolarRuntime:
         old_on = s.on
         old_owned = s.owned
         old_target = s.target_w if s.owned else 0.0
+        old_last_on, old_cycle_armed = s.last_on, s.cycle_armed
+        old_ticket = deepcopy(self.dishwasher.tickets.get(i, {})) if deadline_start else None
+        old_sg_guard = deepcopy(self.sg_wallbox_guard) if deadline_start else None
         previous_issued, previous_issued_wall = self.last_issued, self.last_issued_wall
         previous_guards = (deepcopy(self.wallbox_guard), deepcopy(self.consumer_wallbox),
-                           deepcopy(self.phase_learning)) if extra_stop else None
+                           deepcopy(self.phase_learning)) if extra_stop or deadline_start else None
         # A binary switch has no physical watt setpoint. If it is already ON and
         # confirmed as SolarPilot-owned, a changed learned/planning watt estimate
         # only updates accounting; it must never cause a duplicate turn_on call.
@@ -3088,6 +3205,28 @@ class SolarRuntime:
         self.consumer_history.command(i, action.watts, action.reason)
         # Durable intent BEFORE any physical command, including an uncertain result.
         await self.store.async_save(self._snapshot())
+        if deadline_start:
+            block = self._dishwasher_deadline_dispatch_block(cfg, action.watts,
+                expected_cfg=deadline_config, expected_request=deadline_request)
+            if block:
+                # This intent is known NOT to have reached the appliance. Undo
+                # only our unsent accounting; never resurrect a cancelled APP.
+                self.pending = None
+                s.owned, s.target_w, s.last_on, s.cycle_armed = old_owned, old_target, old_last_on, old_cycle_armed
+                self.last_issued, self.last_issued_wall = previous_issued, previous_issued_wall
+                self.wallbox_guard, self.consumer_wallbox, self.phase_learning = previous_guards
+                self.sg_wallbox_guard = old_sg_guard
+                self.dishwasher.tickets[i] = old_ticket
+                remaining_request = self.dishwasher_app.data.get(i, {}).get("request", {})
+                if not remaining_request or remaining_request.get("created") != deadline_request.get("created"):
+                    self.dishwasher.cancel(i)
+                self.result.action = None
+                self.result.targets[i] = old_target
+                self.result.reasons[i] = block
+                self.consumer_history.failure(i, block)
+                await self.store.async_save(self._snapshot())
+                self.note(block + "; START niet verstuurd")
+                return
         if extra_stop:
             # The storage await can deliver a manual choice or a source change.
             # Evaluate current inputs while excluding this known-unsent journal;
@@ -3455,6 +3594,40 @@ class SolarRuntime:
             power_estimated=any(self._power_is_estimated(i) for i in active),
             timestamp=local_now.timestamp(), max_gap_s=max(30, self.settings["interval_s"]*2))
 
+    async def _update_dishwasher_deadline_notifications(self):
+        """Warn only while unresolved; a selected START awaits its real outcome."""
+        for i, cfg in self.configs.items():
+            if not self.dishwasher_app.enabled(cfg):
+                continue
+            info = self.dishwasher_app.data.get(i, {})
+            req = info.get("request", {})
+            cycle = info.get("cycle", {})
+            notified = info.get("notified_deadline")
+            confirmation = cycle.get("start_confirmed_at")
+            confirmed = (not isinstance(confirmation, bool) and isinstance(confirmation, (int, float))
+                         and math.isfinite(confirmation) and not isinstance(notified, bool)
+                         and isinstance(notified, (int, float)) and math.isfinite(notified)
+                         and notified <= confirmation <= time.time())
+            notification_id = f"{DOMAIN}_{self.entry.entry_id}_{i}_deadline"
+            if (notified is not None and cycle.get("request_created") == notified
+                    and confirmed):
+                await self.hass.services.async_call("persistent_notification", "dismiss", {
+                    "notification_id": notification_id}, blocking=False)
+                info.pop("notified_deadline", None)
+                self.dishwasher_app._dirty()
+                continue
+            selected = bool(self.result.action and self.result.action.id == i and self.result.action.watts > 0)
+            if (req and time.time() > req["deadline"] + 30 and not self.states[i].on
+                    and not selected and not (self.pending and self.pending["id"] == i)
+                    and not self.dishwasher.tickets.get(i, {}).get("attempted")
+                    and notified != req["created"]):
+                await self.hass.services.async_call("persistent_notification", "create", {
+                    "notification_id": notification_id,
+                    "title": "Afwasmachine: startdeadline geblokkeerd",
+                    "message": self.result.reasons.get(i, "Controleer vrijgave, deur, verbinding en energielimieten")}, blocking=False)
+                info["notified_deadline"] = req["created"]
+                self.dishwasher_app._dirty()
+
     def _device_start_diagnostics(self, d, s, cfg, now):
         """Explain current start inputs without replacing the engine verdict."""
         mode = self.device_modes.get(d.id, "disabled")
@@ -3469,6 +3642,7 @@ class SolarRuntime:
         daily_remaining = max(0.0, daily_limit - daily_used) if daily_limit else None
         planner_blocked = bool(s.planner_hold and not s.on)
         context = self._start_context if isinstance(self._start_context, dict) else {}
+        context = context.get("deadline_devices", {}).get(d.id, context)
         device_blocks = context.get("device_start_blocks", {})
         wallbox_blocks = context.get("wallbox_start_blocks", {})
         runtime_block_reason = str(device_blocks.get(d.id, ""))
@@ -3574,7 +3748,7 @@ class SolarRuntime:
             "power": {
                 "minimum_w": round(d.minimum, 1),
                 "start_margin_w": round(d.start_margin_w, 1),
-                "required_start_w": round(d.minimum + d.start_margin_w, 1),
+                "required_start_w": round(allocation["required_w"] if allocation is not None else d.minimum + d.start_margin_w, 1),
                 "measured_free_w": (round(self.result.free_w, 1) if measurement_valid else None),
                 "measurement_valid": measurement_valid,
                 "effective_import_limit_w": (round(float(context["effective_import_limit_w"]), 1)
@@ -3584,7 +3758,10 @@ class SolarRuntime:
                 "device_increase_limit_w": (round(float(context.get("device_increase_limits", {}).get(d.id)), 1)
                                              if context.get("device_increase_limits", {}).get(d.id) is not None else None),
                 "allocation": dict(allocation) if measurement_valid and allocation is not None else None,
-                "note": ("Actuele vrije netinjectie na batterijontlading en huisreserve; "
+                "note": ("Startdeadline: netstroom mag de ontbrekende zon aanvullen binnen de net- en fasegrenzen; "
+                         "reeds toegezegd vermogen en beschermde cycli houden hun ruimte."
+                         if allocation is not None and allocation.get("grid_allowed") and self.dishwasher_app.due(cfg, time.time())
+                         else "Actuele vrije netinjectie na batterijontlading en huisreserve; "
                          "hogere prioriteiten, reeds toegezegd vermogen en andere reserves kunnen minder vrijlaten."),
             },
             "stable_start": {

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0-beta.78 — afwasdeadline zonder zonnevoorwaarde
+
+- Staat voor een geldige vastgelegde APP-startdeadline netstroom toe, ook zonder zonneoverschot en bij oudere `solar_only`-/`allow_grid=False`-vlaggen. Zonne-stabiliteit, zonne-Wallboxvoorkeur, prijsplanning of lage batterij-SoC mogen deze deadline niet uitstellen. De realtime APP-deadline gaat vóór uitstellend planneradvies; geen automatische configuratiewrite.
+- Behoudt de oorspronkelijke geplande dag, deadline en bronbindings van bestaande aanvragen. Een codeupdate of reload maakt geen nieuwe belading, verschoven deadline of tweede START.
+- Bewaart alle harde net-/fase-/kwartier-/vermogensgrenzen, bronbetrouwbaarheid, deur-/apparaatvoorwaarden, Pauze/regelmodus en pending/settling. Een nog niet verzonden start wordt binnen de bestaande grace opnieuw beoordeeld, standaard 120 minuten met behoud van expliciete waarden. Een al verzonden onzekere START wordt nooit blind herhaald.
+- Benoemt de concrete net-/vermogensblokkering bij onvoldoende actuele ruimte, met benodigde en bruikbare watts. Andere concrete bron-/apparaat-/handmatige-/foutredenen blijven intact. Een in dezelfde regelronde geldige geselecteerde START veroorzaakt geen nieuw vals gemiste-deadlinealarm.
+- Verwijdert de achterhaalde deadlinewaarschuwing bij een passende nieuwe native Running-bevestiging voor dezelfde aanvraag en bewaart de verbruikte aanvraag met oorspronkelijke deadline en beschikbare startcontext bij de lopende beurt. Een verzend-/waarnemingstijd wordt geen bewezen fysieke starttijd; de beurt wordt niet opnieuw gestart of onderbroken.
+- Behoudt PV-kalibratie/namiddagdiagnose uit beta.77, gezamenlijke planner, batterijadvies, executorbeveiliging, onderzoek, adviesupload, modellen, tickets en historie. Panasonic blijft SG-only, Wallbox read-only; SG600/5 min/minimum20 en alle harde guards blijven staan. Geen extra installatie, tweede controller of gegevensreset.
+- Bouwbasis: gepubliceerde beta.77 `1e40d95632c6c301ac9fb88cf44cd08a4df73ed4`, tree `22a945a9a26595b9734e40f351916aec19cdcb96`. Nieuw brongebonden bewijs: `docs/TESTRESULTATEN_BETA78.md`; installatie/behoud/rollback naar beta.77: `docs/BETA78_INSTELLEN.md`. Oudere resultaten of screenshots bewijzen geen beta.78-validatie of oorzaak van een historische startvertraging.
+
 ## 1.0.0-beta.77 — terugkerende PV-overgangen en inzicht per kwartier
 
 - Behoudt zonnestand-/tweemaandsseizoenvakken en kwartierfallback; voegt geen vaste 16:00-regel toe. Alleen volledig verse, geldige en complete kwartieren zonder clipping kunnen een snelle overgang als kandidaat bewaren.

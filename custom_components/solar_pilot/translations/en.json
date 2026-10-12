@@ -566,7 +566,7 @@
           "dishwasher_start_deadline": "Ordinary latest start time",
           "dishwasher_monday_start_deadline": "Monday: separate latest start time (optional)",
           "dishwasher_after_deadline": "Na deze starttijd klaargezet",
-          "dishwasher_deadline_grid_allowed": "Netstroom toestaan bij de startdeadline",
+          "dishwasher_deadline_grid_allowed": "Vaste netfallback bij de startdeadline",
           "dishwasher_deadline_grace_min": "Nog proberen na geblokkeerde deadline (minuten)",
           "dishwasher_alert_mode": "Herkenning van storingen en verbruiksmateriaal",
           "dishwasher_priority_enabled": "Keep dishwasher preference ahead of Wallbox and lower solar requests",

@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.77",
+  "version": "1.0.0-beta.78",
   "language": "nl",
   "steps": {
     "init": {
@@ -826,7 +826,7 @@
         "dishwasher_start_deadline": "Gewone uiterste starttijd",
         "dishwasher_monday_start_deadline": "Maandag: afwijkende uiterste starttijd (optioneel)",
         "dishwasher_after_deadline": "Na deze starttijd klaargezet",
-        "dishwasher_deadline_grid_allowed": "Netstroom toestaan bij de startdeadline",
+        "dishwasher_deadline_grid_allowed": "Vaste netfallback bij de startdeadline",
         "dishwasher_deadline_grace_min": "Nog proberen na geblokkeerde deadline (minuten)",
         "dishwasher_alert_mode": "Herkenning van storingen en verbruiksmateriaal",
         "dishwasher_priority_enabled": "Afwasvoorkeur behouden vóór Wallbox en lagere zonnevragen",
@@ -847,7 +847,7 @@
         "dishwasher_start_deadline": "Gewone uiterste starttijd op de geplande dag, standaard 13:00 volgens de Home Assistant-tijdzone.",
         "dishwasher_monday_start_deadline": "Optionele afwijkende START-deadline voor maandag; leeg gebruikt ook op maandag de gewone uiterste starttijd.",
         "dishwasher_after_deadline": "Wat gebeurt er als je een nieuwe APP-belading op of na de uiterste starttijd klaarzet? Standaard Volgende dag: vandaag niet meer automatisch starten, morgen eerst zon en uiterlijk de deadline die voor die dag geldt, met eventuele netstroom.",
-        "dishwasher_deadline_grid_allowed": "AAN: op de vastgelegde startdeadline mag netstroom de ontbrekende zon aanvullen.",
+        "dishwasher_deadline_grid_allowed": "Op de APP-startdeadline vult netstroom altijd ontbrekende zon aan binnen de elektrische grenzen; de oude keuze is vervallen.",
         "dishwasher_deadline_grace_min": "Begrensd herstelvenster na de startdeadline, standaard 120 minuten.",
         "dishwasher_alert_mode": "Toestand gebruikt de bestaande expliciete lijst veilige alarmwaarden.",
         "dishwasher_priority_enabled": "Het bestaande AEG-voorkeursprofiel blijft behouden.",
@@ -3454,16 +3454,16 @@
       "title": "Na deze starttijd klaargezet",
       "short": "Wat gebeurt er als je een nieuwe APP-belading op of na de uiterste starttijd klaarzet? Standaard Volgende dag: vandaag niet meer automatisch starten, morgen eerst zon en uiterlijk de deadline die voor die dag geldt, met eventuele netstroom.",
       "paragraphs": [
-        "Wat gebeurt er als je een nieuwe APP-belading op of na de uiterste starttijd klaarzet? Standaard Volgende dag: vandaag niet meer automatisch starten, morgen eerst zon en uiterlijk de deadline die voor die dag geldt, met eventuele netstroom. Een maandagafwijking wordt ook gebruikt als je zondag klaarzet. Het gaat om de volgende kalenderdag, niet onbeperkt wachten tot er ooit een zonnige dag is. Zelfde dag is een bewuste alternatieve keuze: bij een late belading vervalt de zonnevoorwaarde direct indien nettoestemming aanstaat. Een geplande dag wordt vastgelegd en schuift niet iedere ochtend opnieuw op.",
+        "Wat gebeurt er als je een nieuwe APP-belading op of na de uiterste starttijd klaarzet? Standaard Volgende dag: vandaag niet meer automatisch starten, morgen eerst zon en uiterlijk de deadline die voor die dag geldt, met eventuele netstroom. Een maandagafwijking wordt ook gebruikt als je zondag klaarzet. Het gaat om de volgende kalenderdag, niet onbeperkt wachten tot er ooit een zonnige dag is. Zelfde dag is een bewuste alternatieve keuze: bij een late belading vervalt de zonnevoorwaarde direct en mag netstroom aanvullen. Een geplande dag wordt vastgelegd en schuift niet iedere ochtend opnieuw op.",
         "Een gestart afwasprogramma blijft beschermd: geen stop/pauze/reset of stroomonderbreking voor energiesturing. Begin met gecontroleerde bronwaarden en één geschikte geladen afwasbeurt.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
     "dishwasher_states.dishwasher_deadline_grid_allowed": {
-      "title": "Netstroom toestaan bij de startdeadline",
-      "short": "AAN: op de vastgelegde startdeadline mag netstroom de ontbrekende zon aanvullen.",
+      "title": "Vaste netfallback bij de startdeadline",
+      "short": "Op de APP-startdeadline vult netstroom altijd ontbrekende zon aan binnen de elektrische grenzen; de oude keuze is vervallen.",
       "paragraphs": [
-        "AAN: op de vastgelegde startdeadline mag netstroom de ontbrekende zon aanvullen. Dit is nodig voor uiterlijk beginnen op een bewolkte dag. UIT: ook na de deadline is voldoende werkelijk overschot nodig; een gemiste deadline wordt gemeld. De toestemming geeft geen hogere elektrische limieten en omzeilt geen deur-, fout-, bron- of remote-controle. Een actieve wasbeurt wordt in beide standen niet onderbroken wanneer later de zon wegvalt.",
+        "Op de APP-startdeadline vult netstroom altijd ontbrekende zon aan binnen de elektrische grenzen; de oude keuze is vervallen. Een opgeslagen UIT-waarde kan de deadline niet langer uitstellen. De deur-, fout-, bron- en remote-controles blijven gelden. Een lopende wasbeurt wordt niet onderbroken wanneer later de zon wegvalt.",
         "Een gestart afwasprogramma blijft beschermd: geen stop/pauze/reset of stroomonderbreking voor energiesturing. Begin met gecontroleerde bronwaarden en één geschikte geladen afwasbeurt.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]

@@ -179,10 +179,10 @@ async def test_deadline_scope_fixed_day_and_permission(monkeypatch,scope,grid):
     actual=r.dishwasher_app.data['a']['request']
     assert actual['planned_day']=='2026-09-30' and actual['policy_locked']
     assert actual['deadline']==(stamp('2026-09-30T11:00') if scope=='current' else q['deadline'])
-    assert actual['grid_allowed']==(grid if scope=='current' else q['grid_allowed'])
+    assert actual['grid_allowed'] is True
     assert not h.services.calls
     w[0]=actual['deadline']+60
-    assert r.dishwasher_app.due(r.configs['a'],w[0]) == (grid if scope=='current' else q['grid_allowed'])
+    assert r.dishwasher_app.due(r.configs['a'],w[0]) is True
 
 
 @pytest.mark.parametrize('scope',['future','current'])
