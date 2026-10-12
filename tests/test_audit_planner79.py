@@ -294,4 +294,3 @@ def test_absent_first_install_snapshots_allow_normal_new_model_persistence():
     for model in (DailyElectricityCost(), PVCalibration(dict(PV_FORECAST_DEFAULTS)), SavingsHistory()):
         model.restore({})
         assert model.snapshot()["version"] == 1
-

@@ -210,4 +210,3 @@ async def test_running_unmetered_aeg_future_peak_is_reserved_once_for_battery_ch
     assert await runtime.battery_fleet._send("bat1", -1800) is expected
     assert bool(hass.services.calls) is expected
     assert hass.states.get("sensor.dw_phase").state == "Running"
-

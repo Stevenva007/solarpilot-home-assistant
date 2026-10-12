@@ -697,4 +697,3 @@ def test_invalid_manual_profile_is_visible_bounded_fallback_without_controller_c
     assert view["warning"] and 0 < view["minimum_power_w"] < float("inf")
     assert 0 < view["maximum_power_w"] < float("inf")
     assert not hass.services.calls
-
