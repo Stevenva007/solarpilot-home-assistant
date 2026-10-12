@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0-beta.76 — ingebouwde gezamenlijke toestelplanning
+
+- Voegt een dependencyvrije gezamenlijke verbeterstap toe na de bestaande prioriteitsplanning. Begrensde verschuivingen en uitwisselingen vergelijken de volledige voorspelde huishoudelijke import-/exportkost plus zachte piekpenalty; alleen een gevalideerde verbetering wordt overgenomen.
+- Behoudt minstens de al ingeplande energie per toestel, centrale voorrang, vensters, deadlines, bestaande nettoestemming en lopende beschermde cycli. Geen globale MILP-optimaliteitsclaim of gegarandeerde werkelijke besparing.
+- Rekent buiten de HA-eventloop met een geïsoleerde momentopname en maximaal één lopende berekening. Gewijzigde configuratie en afgesloten runtime maken resultaten ongeldig; fout of ontbrekende verbetering valt terug op het bestaande bruikbare plan.
+- Voegt `joint_optimisation` toe, standaard aan. Uitschakelen slaat alleen de gezamenlijke verbeterstap over. Geen EMHASS-pakket, externe solver, add-on, aparte dienst of handmatige dependency-installatie.
+- Rekent het afzonderlijke batterijadvies chronologisch door met SoC, capaciteit, aparte laad-/ontlaadgrenzen en de bestaande ingestelde roundtrip-efficiëntie, standaard 80% zonder passende ingestelde waarde. Geen toekomstlenen, netladen, batterijopdracht of gezamenlijke toestel-plus-batterijoptimaliteitsclaim; de aparte batterij-what-if behoudt haar instellingen.
+- Behoudt Panasonic SG-only, autonome read-only Wallbox, AEG-startbescherming, SG600/5 min/minimum20, alle harde guards, configuratie, modellen, tickets, onderzoek, geschiedenis en adviesupload. Geen actieve thermische Panasonic-planning.
+- Bouwbasis: beta.75-commit `289bfc27ff486028bc69037b3d97ef4e771b12ff`. Actueel brongebonden software-/publicatiebewijs: `docs/TESTRESULTATEN_BETA76.md`; installatie/behoud/rollback naar beta.75: `docs/BETA76_INSTELLEN.md`. Eerdere tests of publicatie bewijzen geen beta.76-validatie.
+
 ## 1.0.0-beta.75 — automatisch lokaal onderzoek met onderbouwde voorstellen
 
 - Beoordeelt lokaal de bestaande warmtepompmeters, Wallboxsessiebron, PV-voorspelling en toestelmetingen. Per onderwerp: status, beschikbaar bewijs, mogelijke oorzaken als hypotheses, concrete voorstellen en een volgende actie.

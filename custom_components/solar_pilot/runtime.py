@@ -2,6 +2,7 @@
 from __future__ import annotations
 import asyncio
 from copy import copy, deepcopy
+from functools import partial
 from collections import deque
 from dataclasses import fields, replace
 from datetime import datetime, timedelta, timezone
@@ -97,6 +98,11 @@ class SolarRuntime:
         self.unified_planner = UnifiedPlanner(self.planner_settings, self.historical_seed)
         self.cycle_learning = CycleEnergyModel()
         self.unified_plan = None
+        self._planner_generation = 0
+        self._planner_busy = False
+        self._planner_future = None
+        self._planner_retry_wall = 0.0
+        self.planner_job_status = {"status": "idle"}
         self.wallbox_settings = {**WALLBOX_DEFAULTS, **HOUSE_DEFAULTS, **PRIORITY_DEFAULTS, **PROFILE_DEFAULTS, **SESSION_DEFAULTS, **entry.options.get("wallbox", {})}
         self.others_first = True
         self.consumer_wallbox = ConsumerWallboxPriority(self.wallbox_settings)
@@ -1250,6 +1256,7 @@ class SolarRuntime:
             "cycle_learning": self.cycle_learning.overview(self.configs),
             "planner": {**self.unified_planner.overview(self._planner_device_configs_for_overview()),
                         "settings": dict(self.planner_settings),
+                        "calculation": dict(self.planner_job_status),
                         "settings_catalog": planner_settings_catalog(self.planner_settings),
                         "held_devices": holds, "early_grid_devices": early,
                         "price_sources": dict(getattr(self, "planner_price_sources", {"import":"vaste prijs","export":"vaste prijs"})),
@@ -1936,7 +1943,8 @@ class SolarRuntime:
         self.planner_price_sources = {"import": import_source, "export": export_source}
         return imports, exports
 
-    def _update_planner(self, local_now, now):
+    async def _update_planner(self, local_now, now):
+        waited = False
         if not self.planner_settings.get("enabled",True):
             for state in self.states.values(): state.planner_hold=False; state.planner_grid_force=False
             return
@@ -1950,7 +1958,8 @@ class SolarRuntime:
             # Failing an advisory observation is not a reason to interrupt a
             # protected cycle or change the runtime mode. Real meter guards stay.
             _LOGGER.warning("SolarPilot basislastanalyse overgeslagen: %s", type(err).__name__)
-        if self.unified_planner.due(time.time()):
+        if (self.unified_planner.due(time.time()) and not self._planner_busy
+                and time.time() >= self._planner_retry_wall):
             slot_min=max(5,int(self.planner_settings.get("slot_min",15))); horizon=max(6,int(self.planner_settings.get("horizon_h",36))); n=max(1,int(horizon*60/slot_min))
             pv_hourly=self._planner_pv_hourly(local_now); prices_in,prices_out=self._planner_prices(n, local_now)
             effective={d.id:d for d in self.devices()}; devs=[]
@@ -1989,24 +1998,81 @@ class SolarRuntime:
                     "fixed_active_cycle":active_cycle,"active_cycle_remaining_min":remaining_min,
                     "active_cycle_average_w":active_avg})
             capacity_target=self.capacity.effective_target_w if self.capacity_settings.get("enabled") and self.capacity.valid else None
-            batt=None
-            agg=self.battery_fleet.overview().get("aggregate",{}) if self.battery_fleet.settings.get("enabled") else {}
-            if agg.get("capacity_kwh") and agg.get("soc_pct") is not None:
-                batt={"available_kwh":agg.get("capacity_kwh"),"soc_pct":agg.get("soc_pct"),"power_w":min(float(agg.get("charge_headroom_w") or 0),5000) or 3000,"min_soc_pct":20,"max_soc_pct":95}
-            self.unified_plan=self.unified_planner.build(local_now=local_now,pv_hourly_w=pv_hourly,import_prices=prices_in,export_prices=prices_out,devices=devs,capacity_target_w=capacity_target,battery=batt)
-        plan=self.unified_plan
-        for i,cfg in self.configs.items():
-            st=self.states[i]
-            has_goal = (float(cfg.get("min_daily_runtime_s", 0) or 0) > 0
-                        or float(cfg.get("daily_energy_goal_kwh", 0) or 0) > 0
-                        or cfg.get("non_interruptible", False))
-            if not cfg.get("forecast_deferrable",False) or plan is None or not has_goal:
-                st.planner_hold=False; st.planner_grid_force=False; st.planner_reason="Niet door rolling planner uitgesteld"; continue
-            run,grid,reason=plan.current_device_state(i,local_now)
-            # Planning can only hold a new optional start. It never stops a running load or overrides urgent/manual behaviour.
-            st.planner_hold=bool(not run and not st.on and not st.deadline_urgent and st.boost_until<=now)
-            st.planner_grid_force=bool(run and grid and cfg.get("cheap_grid_allowed") and cfg.get("deadline_grid_allowed"))
-            st.planner_reason=reason
+            batt = None
+            try:
+                fleet = self.battery_fleet
+                agg = fleet.overview().get("aggregate", {}) if fleet.settings.get("enabled") else {}
+                readings = (fleet.last or fleet.read()) if agg.get("valid") else []
+                valid_readings = [r for r in readings if r.valid and r.capacity_kwh > 0]
+                capacity = sum(r.capacity_kwh for r in valid_readings)
+                # Unknown/missing members cannot become available stored energy.
+                complete = (capacity > 0 and len(valid_readings) == len(readings)
+                    and abs(capacity - float(agg.get("capacity_kwh") or 0)) <= 0.01)
+                if complete and agg.get("soc_pct") is not None:
+                    minimum = sum(r.capacity_kwh * max(r.min_soc_pct, r.reserve_soc_pct)
+                                  for r in valid_readings) / capacity
+                    maximum = sum(r.capacity_kwh * r.max_soc_pct for r in valid_readings) / capacity
+                    batt = {"available_kwh": capacity, "soc_pct": agg["soc_pct"],
+                        "charge_power_w": min(max(0.0, float(agg.get("charge_available_w") or 0)), 5000),
+                        "discharge_power_w": min(max(0.0, float(agg.get("discharge_available_w") or 0)), 5000),
+                        "min_soc_pct": minimum, "max_soc_pct": maximum,
+                        "round_trip_efficiency": self.battery_analysis_settings.get("roundtrip_efficiency", 0.8),
+                        "aggregate_count": len(valid_readings)}
+            except (AttributeError, TypeError, ValueError, OverflowError):
+                batt = None  # No invented advisory limits from malformed battery data.
+            # Copy pure planning inputs on the loop; workers never touch HA,
+            # live models, source objects, permissions, or storage. Tick's lock
+            # serializes jobs; the explicit busy flag also protects direct calls.
+            generation = self._planner_generation
+            identity = deepcopy((self.planner_settings, self.configs, self.device_modes,
+                self.battery_fleet.configs, self.battery_fleet.settings, self.battery_analysis_settings))
+            worker = UnifiedPlanner(deepcopy(self.planner_settings))
+            worker.base_load = deepcopy(self.unified_planner.base_load)
+            inputs = deepcopy(dict(local_now=local_now, pv_hourly_w=pv_hourly,
+                import_prices=prices_in, export_prices=prices_out, devices=devs,
+                capacity_target_w=capacity_target, battery=batt))
+            waited = True
+            self._planner_busy = True
+            self.planner_job_status = {"status": "calculating"}
+            try:
+                job = partial(worker.build, **inputs)
+                executor = getattr(self.hass, "async_add_executor_job", None)
+                future = asyncio.ensure_future(executor(job) if callable(executor) else asyncio.to_thread(job))
+                self._planner_future = future
+                # Cancelling a tick does not terminate its executor thread.
+                # Shield it and retain busy until the actual worker completes.
+                result = await asyncio.shield(future)
+                current = (self.planner_settings, self.configs, self.device_modes,
+                    self.battery_fleet.configs, self.battery_fleet.settings, self.battery_analysis_settings)
+                if self._closed or generation != self._planner_generation or identity != current:
+                    self.planner_job_status = {"status": "discarded", "reason": "Planninginvoer gewijzigd"}
+                else:
+                    self.unified_plan = self.unified_planner.plan = result
+                    self.unified_planner.last_plan_wall = time.time()
+                    self.unified_planner.plan_runs += 1
+                    self._planner_retry_wall = 0.0
+                    self.planner_job_status = {"status": "ready"}
+            except Exception as err:
+                # An advisory failure never pauses the physical controller or
+                # resets user data. Keep the last plan, subject to its horizon.
+                self._planner_retry_wall = time.time() + 60
+                self.planner_job_status = {"status": "fallback", "error_type": type(err).__name__}
+                _LOGGER.warning("SolarPilot planning overgeslagen: %s", type(err).__name__)
+            finally:
+                future = self._planner_future
+                if future is not None and not future.done():
+                    def completed(task):
+                        self._planner_busy = False
+                        self._planner_future = None
+                        if not task.cancelled():
+                            task.exception()  # Consume any abandoned advisory error.
+                    future.add_done_callback(completed)
+                else:
+                    self._planner_busy = False
+                    self._planner_future = None
+        if self._closed:
+            return
+        self._apply_planner_plan(local_now, now)
 
         # Score the plan against reality and feed a bounded 15-minute what-if replay.
         if self.grid_w is not None and self.pv_w is not None:
@@ -2022,6 +2088,34 @@ class SolarRuntime:
                 actual_grid_w=self.grid_w,import_price=imp_price if imp_price is not None else self.economy_settings.get("fixed_import_eur_kwh",.30),
                 export_price=exp_price if exp_price is not None else self.economy_settings.get("fixed_export_eur_kwh",.03),
                 capacity_target_w=cap_target,execution_total=len(considered),execution_matches=matches,context=learning_sample.get("context", "normal"))
+
+        return waited
+
+    def _apply_planner_plan(self, local_now, now):
+        if not self.planner_settings.get("enabled", True):
+            for state in self.states.values():
+                state.planner_hold = state.planner_grid_force = False
+                state.planner_reason = "Planner uitgeschakeld"
+            return
+        plan=self.unified_plan
+        for i,cfg in self.configs.items():
+            st=self.states[i]
+            has_goal = (float(cfg.get("min_daily_runtime_s", 0) or 0) > 0
+                        or float(cfg.get("daily_energy_goal_kwh", 0) or 0) > 0
+                        or cfg.get("non_interruptible", False))
+            if not cfg.get("forecast_deferrable",False) or not has_goal:
+                st.planner_hold=False; st.planner_grid_force=False; st.planner_reason="Niet door rolling planner uitgesteld"; continue
+            if plan is None:
+                failed = self.planner_job_status.get("status") in ("fallback", "discarded")
+                st.planner_hold=bool(failed and not st.on and not st.deadline_urgent and st.boost_until<=now)
+                st.planner_grid_force=False
+                st.planner_reason="Wacht op geldige basisplanning" if failed else "Nog geen planning"
+                continue
+            run,grid,reason=plan.current_device_state(i,local_now)
+            # Planning can only hold a new optional start. It never stops a running load or overrides urgent/manual behaviour.
+            st.planner_hold=bool(not run and not st.on and not st.deadline_urgent and st.boost_until<=now)
+            st.planner_grid_force=bool(run and grid and cfg.get("cheap_grid_allowed") and cfg.get("deadline_grid_allowed"))
+            st.planner_reason=reason
 
     async def async_set_planner_setting(self, key, value):
         if key not in PLANNER_SETTING_SPECS:
@@ -2044,6 +2138,7 @@ class SolarRuntime:
             if value<float(spec.get("min",value)) or value>float(spec.get("max",value)):
                 raise HomeAssistantError("Waarde buiten toegestane grens")
             if key in ("horizon_h","slot_min","replan_min","base_load_min_days","quality_retention_days","replay_retention_days"): value=int(round(value))
+        self._planner_generation += 1
         self.planner_settings={**self.planner_settings,key:value}
         self.unified_planner.settings={**self.unified_planner.settings,key:value}
         if key=="quality_retention_days": self.unified_planner.quality.retention_days=int(value)
@@ -2352,7 +2447,19 @@ class SolarRuntime:
         self.grid_w = grid
         self._local_pv_update(local_now)
         self._update_daily_runtime(local_now, dt)
-        self._update_planner(local_now, now)
+        waited_for_plan = await self._update_planner(local_now, now)
+        if self._closed:
+            return
+        if waited_for_plan:
+            # A worker can outlast a source report or a user operation. Never
+            # dispatch with the old site snapshot captured before the await.
+            now = time.monotonic()
+            local_now = datetime.now(local_now.tzinfo)
+            self._observe(now, local_now)
+            grid, valid, discharge, ready, reported = self._site_data()
+            self.grid_w = grid
+            self._local_pv_update(local_now)
+            self._apply_planner_plan(local_now, now)
         for i, cfg in self.configs.items():
             if self.dishwasher_app.enabled(cfg):
                 st = self.states[i]

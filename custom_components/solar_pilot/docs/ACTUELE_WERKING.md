@@ -1,10 +1,10 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.75
-**Bijgewerkt:** 2026-10-11
-**Regel-hash:** `4c69536f8d0071d7`
+**Versie:** 1.0.0-beta.76
+**Bijgewerkt:** 2026-10-12
+**Regel-hash:** `8be962f4c2674595`
 
-Beta.75 voegt Automatisch onderzoek toe: SolarPilot beoordeelt lokaal de bestaande warmtepompmeters, Wallboxsessiebron, PV-voorspelling en toestelmetingen. Het toont verzameld bewijs, mogelijke oorzaken, concrete voorstellen en wat daarna nodig is. Een herhaalde uitlezing wordt geen nieuw bronrapport; ontbrekende of oude metingen blijven onbekend. Een afzonderlijke SG-beoordeling gebruikt het werkelijk beschikbare bewijs zonder de regeling te veranderen. De regeling blijft standaard 600 W actueel gemeten netafname gedurende vijf continue minuten, tegelijk met de minimale SG-aanvraagduur van twintig minuten. Instellingen, geschiedenis, zonne-resetbewijs, korte veilige leases en harde guards blijven behouden. Panasonic bepaalt zijn compressorbedrijf.
+Beta.76 voegt ingebouwde gezamenlijke toestelplanning en chronologisch batterijadvies toe, zonder extra installatie. De realtime regelaar blijft de enige uitvoerder. SolarPilot beoordeelt lokaal de bestaande warmtepompmeters, Wallboxsessiebron, PV-voorspelling en toestelmetingen. Het toont verzameld bewijs, mogelijke oorzaken, concrete voorstellen en wat daarna nodig is. Een herhaalde uitlezing wordt geen nieuw bronrapport; ontbrekende of oude metingen blijven onbekend. Een afzonderlijke SG-beoordeling gebruikt het werkelijk beschikbare bewijs zonder de regeling te veranderen. De regeling blijft standaard 600 W actueel gemeten netafname gedurende vijf continue minuten, tegelijk met de minimale SG-aanvraagduur van twintig minuten. Instellingen, geschiedenis, zonne-resetbewijs, korte veilige leases en harde guards blijven behouden. Panasonic bepaalt zijn compressorbedrijf.
 
 ## 1. Basisprincipe en modi
 
@@ -24,11 +24,11 @@ Voorrang is de enige flexibele rangorde. De opgeslagen gebruikersvolgorde blijft
 
 Start- en stopvertragingen, minimum aan/uit-tijden, dagdoelen, tijdvensters en beschermde programma’s blijven gelden. Een hoger toestel dat niet past hoeft een kleiner passend toestel niet te blokkeren. Lager geplaatste, werkelijk eigen en veilig onderbreekbare lasten kunnen alleen volgens de bestaande overdrachtvoorwaarden wijken. Eerst bevestigde UIT en nieuwe net-/PV-metingen; een stopverzoek is nog geen vrij vermogen.
 
-De planner herberekent de ingestelde horizon in kwartierblokken met beschikbare PV, basislast, tarieven, kwartierpiek en batterijruimte. Hij kan alleen expliciet vrijgegeven flexibele lasten plannen. Het huidige blok kan de gewone realtime regeling ondersteunen, maar nooit te weinig werkelijk overschot overstemmen. Er is geen actieve warmtepomp-, tanktemperatuur- of klimaatplanning meer.
+De ingebouwde gezamenlijke toestelplanner vergelijkt ook combinaties en ruilt planblokken tussen toestellen. Hij behoudt de geplande energie per toestel, bestaande toestemmingen en lopende beschermde cycli. Alleen een opnieuw gevalideerde betere voorspelde combinatie vervangt de basisplanning. De zoektijd is begrensd; beste gevonden is geen bewezen wereldwijd optimum. Geen EMHASS-add-on, tweede regelaar of extra installatie is nodig. PV, basislast, tarieven, kwartierpiek en batterijruimte. Hij kan alleen expliciet vrijgegeven flexibele lasten plannen. Het huidige blok kan de gewone realtime regeling ondersteunen, maar nooit te weinig werkelijk overschot overstemmen. Er is geen actieve warmtepomp-, tanktemperatuur- of klimaatplanning meer.
 
 Een dagdoel in kWh gebruikt werkelijk gemeten toestelenergie waar een exclusieve meter bestaat, anders een herkenbare schatting. Een beschermde cyclus wordt als aaneengesloten taak gepland. Zonder betrouwbaar duurprofiel wordt geen optimistische duur uit piekvermogen gegokt. Een lopende beschermde cyclus wordt niet gestopt wegens een nieuw plan. Goedkope netfallback blijft afzonderlijke dubbele toestemming en standaard uit.
 
-Plannerkwaliteit toont meetdekking, voorspellingsfout en uitvoering afzonderlijk. Een historische replay is richtinggevend en reconstrueert niet iedere vroegere startvoorwaarde. Een volledige lokale dag heeft normaal 96 kwartieren, bij de zomer-/wintertijdwissel 92 of 100; gaten worden geen volledige prestatie.
+Batterijadvies volgt de tijdvolgorde: alleen de echte beginlading en reeds voorspeld geladen energie kunnen een later blok voeden. Laden en ontladen respecteren aparte grenzen en het bestaande ingestelde round-trip rendement, standaard 80%. Het blijft adviserend en wordt na de toestelplanning berekend; batterij en toestellen worden niet samen wiskundig geoptimaliseerd. Ontbrekende voorspelling geeft geen batterijactie. De piekvermijdingsstraf in de planner is geen berekening van de werkelijke capaciteitstarieffactuur. Plannerkwaliteit toont meetdekking, voorspellingsfout en uitvoering afzonderlijk. Een historische replay is richtinggevend en reconstrueert niet iedere vroegere startvoorwaarde. Een volledige lokale dag heeft normaal 96 kwartieren, bij de zomer-/wintertijdwissel 92 of 100; gaten worden geen volledige prestatie.
 
 Resterend kwartierbudget is een theoretische energiegrens voor de resterende seconden. Details/Energie tonen daarnaast de daadwerkelijk begrensde instantane ruimte na vaste import-, fase- en kwartiergrenzen. Een zeer hoog theoretisch kwartiergetal verruimt nooit de vaste elektrische grenzen, broncontrole, prioriteiten of zonnevoorwaarden. Een geblokkeerde SG-aanvraag benoemt de beperkende grens en benodigde extra raming.
 

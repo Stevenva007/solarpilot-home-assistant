@@ -1,33 +1,29 @@
-# SolarPilot beta.75 — installatie en upgrade
+# SolarPilot beta.76 — installatie en upgrade
 
-Beta.75 voegt lokaal automatisch onderzoek toe voor bestaande warmtepompmeters, Wallboxsessiebron, PV-voorspelling en toestelmetingen. Per onderwerp staan bewijs, mogelijke oorzaken, voorstellen en een volgende actie. De afzonderlijke SG-beoordeling benoemt wat nog ontbreekt om de regeling te beoordelen. De SG-regeling van 600 W gedurende vijf continue minuten met minimum twintig minuten, alle guards, instellingen en geschiedenis blijven behouden.
+Beta.76 voegt gezamenlijke toestelplanning toe binnen dezelfde SolarPilot-integratie. De planner vergelijkt verschuivingen en uitwisselingen op de geraamde huishoudelijke energiekost plus een zachte piekpenalty. Alleen een geldige verbetering wordt overgenomen; de bestaande ingeplande energie, prioriteiten en lopende beschermde cycli blijven behouden. Batterijadvies wordt daarna chronologisch doorgerekend met SoC, verliezen en aparte laad-/ontlaadgrenzen. Het is adviserend, zonder netladen of energie uit de toekomst.
 
-**Begin met [BETA75_INSTELLEN.md](docs/BETA75_INSTELLEN.md).** Daar staan de onderzoeksgrenzen, upgrade, behoud van de SG-regeling en rollback. Volledige werking: [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en **SolarPilot → Uitleg**. Software-/publicatiebewijs: [TESTRESULTATEN_BETA75.md](docs/TESTRESULTATEN_BETA75.md).
+**Begin met [BETA76_INSTELLEN.md](docs/BETA76_INSTELLEN.md).** Geen aparte EMHASS-installatie, solver, add-on of dienst. Volledige werking: [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en **SolarPilot → Uitleg**. Actueel software-/publicatiebewijs: [TESTRESULTATEN_BETA76.md](docs/TESTRESULTATEN_BETA76.md). Oudere tests bewijzen geen geslaagde beta.76-release.
 
 ## Bestaande installatie bijwerken
 
-1. Maak een volledige privé HA-back-up met instellingen, eigen opslag, modellen, tickets, geschiedenis en userfiles. Bewaar gecontroleerde beta.74-code.
+1. Maak een volledige privé HA-back-up met instellingen, eigen opslag, modellen, tickets, geschiedenis en userfiles. Bewaar gecontroleerde beta.75-code.
 2. Geef vóór codevervanging een eigen SG-aanvraag vrij en controleer contact/lokale afloop. Onderbreek geen beschermde apparaatcyclus.
-3. Update via HACS naar exact `1.0.0-beta.75` na publicatie. Herstart HA volledig en herlaad browser/app volledig.
+3. Update via HACS naar exact `1.0.0-beta.76` nadat de releasegates en publicatie zijn geslaagd. Herstart HA volledig en herlaad browser/app volledig.
 4. Controleer backend- en kaartversie apart. Behoud dezelfde entry, bindings, volgorde en geldige SG-/profiel-/split-/koelbevestigingen.
-5. Bekijk **Meetkwaliteit → Automatisch onderzoek** of dezelfde sectie onder **Export → Analyse en advies**, bestaande dekking, SG-lagen en geschiedenis. Bestaande import-/zonne-resetgrenzen, minimum/maximum en korte leases blijven staan.
+5. Bekijk Planning, bestaande meetdekking, Automatisch onderzoek, SG-lagen en geschiedenis. Gezamenlijke toestelplanning (`joint_optimisation`) staat standaard aan. Uitschakelen laat de bestaande planner en actuele guards werken.
 
-Onderzoek blijft lokaal en read-only. Alleen nieuwe werkelijke bruikbare bronrapporten leveren nieuwe meterwaarnemingen. Meer meetgegevens nodig, Controle nodig, Bron of functie niet ingesteld en Geen afwijking in deze metingen beschrijven het beschikbare bewijs; zij bewijzen geen fysieke installatie of toegepaste instelling. De export neemt de beschikbare onderzoeksstatus en voorstellen mee. Delen blijft een bewuste beheerderactie.
+Lokaal vervang je uitsluitend `custom_components/solar_pilot`, met behoud van userfiles en HA-opslag. Verwijder of hermaak de entry niet. Er is geen nieuwe verplichte bron, algemene herbevestiging of handmatige dependency-installatie.
 
-Lokaal vervang je uitsluitend `custom_components/solar_pilot`, met behoud van userfiles en HA-opslag. Verwijder of hermaak de entry niet. Geen algemene herbevestiging of nieuwe verplichte bron. Het onderzoek repareert geen meter, koppelt geen sensor en wijzigt geen instelling of Panasonic-programma.
+## Bestaande regeling blijft gelden
 
-## Vijf continue minuten en minimum twintig minuten
+Panasonic blijft eigenaar van comfort, warm water, compressor, pompen, kleppen, ondersteuning en sterilisatie. SolarPilot gebruikt voor de warmtepomp uitsluitend het bestaande toegewezen SG-contact. De Wallbox blijft autonoom en read-only. De planner omzeilt geen actuele P1/PV-, fase-, net-, bron-, apparaat- of commandobescherming.
 
-Alleen netafname strikt boven de ingestelde buffer begint de tekorttimer. Bij 600 W of lager wordt de standaardtimer gewist. Beginnend tekort in minuut 18 kan pas in minuut 23 gewone vrijgave geven. Zijn vijf minuten al vóór minuut 20 voltooid en blijft het tekort aanhouden, dan kan de actuele beoordeling bij het minimum meteen vrijgeven. Zonder tekort hoeft de aanvraag na twintig minuten niet te stoppen.
+De SG-netafnamebuffer blijft standaard **strikt boven 600 W gedurende vijf continue minuten**, tegelijk met de **minimale SG-aanvraagduur van twintig minuten**. Bij 600 W of lager vervalt de tekorttimer. Een tekort vanaf minuut 18 kan bij aanhouden pas in minuut 23 gewone vrijgave geven. Zonder tekort is twintig minuten geen verplichte stop. De zonne-resetgrens blijft apart, standaard 300 W. Afwijkende behouden instellingen blijven gelden.
 
-De minimumduur betreft de SG-aanvraag. Harde bron-/elektrische-/batterij-/koel-/voorrangsgrenzen, handmatige overname, geverifieerde native beëindiging, fouten en het behouden maximum kunnen eerder beëindigen. Panasonic bepaalt zelf compressorbedrijf; geen gegarandeerde compressorlooptijd of levensduur.
+Korte lokale toestemming blijft standaard 300 s, veilig vernieuwd iedere 60 s tijdens geldige minimum- en wolkenwachttijd. Harde guards, handmatige overname, geverifieerde native beëindiging, fouten en hardmaximum mogen eerder vrijgeven. Renewal/reload creëren geen nieuw aanvraagrecht. Het minimum betreft de SG-aanvraag, geen gegarandeerde compressorlooptijd.
 
-Korte lokale toestemming blijft standaard 300 s, veilig vernieuwd iedere 60 s tijdens geldige minimum- en wolkenwachttijd. Geen UIT/AAN-cyclus of lokale twintigminutentimer. Bij uitval kan zij eerder vervallen. Renewal/reload maken geen nieuw minimum of AAN-recht. Korter hardmax en bevestigingsreserve blijven leidend.
-
-Ontbreekt de nieuwe importoptie bij de oude standaardcombinatie 300 W/60 s, dan gebruikt de runtime effectief 600 W/300 s zonder automatische opslagwrite. Andere oude expliciete beleidscombinaties en aanwezige nieuwe importwaarden blijven behouden. De zonne-resetgrens blijft afzonderlijk, standaard 300 W.
+Onderzoek, historische gegevens en antwoordrapporten blijven behouden. Een adviesupload past geen instelling of code toe. Gezamenlijke planning bewijst geen werkelijke besparing en bevat geen actieve thermische regeling of gezamenlijke batterijoptimalisatie.
 
 ## Gegevens en rollback
 
-Alle apparaten, gebruikerswaarden, modellen, tickets en geschiedenis blijven behouden. Panasonic-percentages, koelwaarden en programma's blijven ongewijzigd. Warmtepompgeschiedenis behoudt dertig lokale kalenderdagen apart van 1/24/168 rollende analyse-uren, met volledige geregistreerde kalenderdagtotalen en expliciete grensdagen, zonder backfill.
-
-Voor rollback: geef de eigen SG-aanvraag vrij, controleer lokale afloop, stop beta.75 en herstel gecontroleerde beta.74-code. Behoud entry, opslag en userfiles. Dezelfde SG-regeling blijft gelden; Automatisch onderzoek vervalt. Code terugzetten corrigeert geen meter of fysieke toestand. Exact herstel vraagt code én passende volledige privéback-up; bewaar gewenste nieuwe historie eerst. Geen twee runtimes tegelijk. Volledige stappen: [BETA75_INSTELLEN.md](docs/BETA75_INSTELLEN.md).
+Voor rollback: geef de eigen SG-aanvraag vrij, controleer lokale afloop, stop beta.76 en herstel gecontroleerde beta.75-code. Behoud entry, opslag en userfiles; planner en batterijadvies gebruiken opnieuw de beta.75-werking. Exact herstel vraagt code én de passende volledige privéback-up; bewaar gewenste nieuwe historie eerst. Geen twee runtimes tegelijk. Volledige stappen: [BETA76_INSTELLEN.md](docs/BETA76_INSTELLEN.md).
