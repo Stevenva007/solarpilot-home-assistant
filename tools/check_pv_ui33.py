@@ -18,12 +18,18 @@ for d in range(9):
   dt=(NOW+timedelta(days=d)).replace(hour=9,minute=0)+timedelta(minutes=q*15)
   quarter(m,dt,actual=2800 if q<22 else 2100,raw=3500)
 r.pv_forecast.model=m
+view_now=NOW+timedelta(days=9)
+r.pv_forecast._last_local_now=view_now
+r.pv_forecast.position=lambda dt:(190,35)
 r.pv_forecast.cached={"available":True,"enabled":True,"status":"FICTIEVE VOORBEELDGEGEVENS · Forecast.Solar tijdreeks",
  "note":"Softwareproef, geen meting van jouw installatie.","updated":NOW.isoformat(),"model":m.summary(),"factor":.8,"confidence":.75,"comparable_days":9,
  "inverter_limit_w":10000,"panel_peak_wp":13800,"native_raw_now_w":3500,"curve_method":"Lineair geïnterpoleerde broncurve",
  "horizon":[{"hours":h,"raw_w":3500-h*400,"corrected_w":(3500-h*400)*.8,"factor":.8} for h in range(4)],
  "raw_remaining_today_kwh":9.5,"corrected_remaining_today_kwh":7.6,"corrected_tomorrow_kwh":15.4,
  "energy_methods":{"remaining_today":"Geïntegreerde vermogenscurve"}}
+for row in r.pv_forecast.cached["horizon"]:
+ row["calibration"]=r.pv_forecast.factor_details(view_now+timedelta(hours=row["hours"]),190,35)
+r.pv_forecast.cached["calibration"]=r.pv_forecast.factor_details(view_now,190,35)
 print(json.dumps(r.pv_forecast.diagnostics()))
 '''
 fixture=json.loads(subprocess.check_output([sys.executable,'-B','-c',fixture_script],cwd=ROOT,text=True))
@@ -49,6 +55,10 @@ with sync_playwright() as p:
  host=page.locator('solar-pilot-pv-dialog');page.wait_for_selector('solar-pilot-pv-dialog >> .metrics')
  assert 'FICTIEVE' in host.locator('dialog').inner_text()
  assert host.locator('table.history tbody tr').count()>20
+ assert host.locator('.pv-quarter-profile tbody tr').count()==12
+ assert '16:00' in host.locator('.pv-quarter-profile').inner_text()
+ assert 'Waarom deze factor?' in host.locator('.pv-quarter-profile').inner_text()
+ assert 'Leerdagen totaal' in host.locator('dialog').inner_text()
  assert host.locator('svg').count()==1
  assert '10 kW' in host.locator('dialog').inner_text() and '13,8 kWp' in host.locator('dialog').inner_text()
  assert page.evaluate('deviceCalls.length')==0

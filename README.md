@@ -2,9 +2,9 @@
 
 SolarPilot is een lokale Home Assistant-integratie voor zonnestroomverdeling, flexibele verbruikers, een beschermde AEG-afwasmachine, read-only Wallbox-informatie, voorspellingen, kosten, lokaal leren en batterijfuncties.
 
-**Actuele bronversie: 1.0.0-beta.76.** Panasonic regelt de warmtepomp zelfstandig. SolarPilot kan voor die warmtepomp alleen een extra SG-zonneboost aanvragen via één bewust gekoppelde bestaande Shelly-uitgang, met bewezen lokale aflooptimer. Het schrijft geen tank-/kamertemperatuur, AUTO/UIT, heaterkeuze of fabrikantprogramma. Nieuwe SG-sturing staat standaard uit tot gecontroleerde ingebruikname.
+**Actuele bronversie: 1.0.0-beta.77.** Panasonic regelt de warmtepomp zelfstandig. SolarPilot kan voor die warmtepomp alleen een extra SG-zonneboost aanvragen via één bewust gekoppelde bestaande Shelly-uitgang, met bewezen lokale aflooptimer. Het schrijft geen tank-/kamertemperatuur, AUTO/UIT, heaterkeuze of fabrikantprogramma. Nieuwe SG-sturing staat standaard uit tot gecontroleerde ingebruikname.
 
-[Installatie en veilige upgrade](START_HIER.md) · [Volledige actuele werking](docs/ACTUELE_WERKING.md) · [Beta.76 instellen](docs/BETA76_INSTELLEN.md) · [Testresultaten en publicatiestatus](docs/TESTRESULTATEN_BETA76.md) · [Technische overdracht](OVERDRACHT.md)
+[Installatie en veilige upgrade](START_HIER.md) · [Volledige actuele werking](docs/ACTUELE_WERKING.md) · [Beta.77 instellen](docs/BETA77_INSTELLEN.md) · [Testresultaten en publicatiestatus](docs/TESTRESULTATEN_BETA77.md) · [Technische overdracht](OVERDRACHT.md)
 
 Vanaf beta.70 opent **Geschiedenis** bij de warmtepomp een lokale dagtijdlijn met geregistreerde activiteit, starts/stops, bevestigde of afgeleide taken, meetdekking en gemeten totale elektrische energie. Zeven/dertig-dagenbalken en afzonderlijke SG-aanvraag/contact/ontvangen-status maken het verloop zichtbaar. Registratie begint na installatie; oude gegevens blijven behouden en onbekende perioden worden niet ingevuld. De popup is uitsluitend uitlezen.
 
@@ -22,6 +22,10 @@ Beta.76 bouwt **gezamenlijke toestelplanning** rechtstreeks in SolarPilot in. Na
 
 **Geen extra integratie, add-on, dienst of handmatige installatie is nodig.** SolarPilot gebruikt geen EMHASS-pakket of externe solver en houdt één bestaande uitvoeringsroute. De planner rekent op een geïsoleerde momentopname buiten de HA-eventloop; gewijzigde configuratie of afgesloten runtime maakt een resultaat ongeldig. Bij fout of ontbrekende verbetering blijft het bestaande bruikbare plan beschikbaar. De optie `joint_optimisation` staat standaard aan; uitschakelen verwijdert alleen deze gezamenlijke verbeterstap. Batterijadvies volgt daarna chronologisch met laad-/ontlaadgrenzen, SoC en verliezen, zonder toekomstige energie te lenen of netladen te plannen. Het advies bestuurt geen batterij en is geen gezamenlijke toestel-plus-batterijoptimalisatie. De aparte batterij-what-if behoudt haar bestaande instellingen. Software-/publicatiebewijs staat in het gekoppelde actuele testverslag.
 
+Beta.77 maakt **PV-correcties per zonnestand, seizoen en kwartier** beter uitlegbaar. De bestaande tweemaandse seizoensvakken en kwartierfallback blijven gelden; er komt geen vaste regel voor 16:00. Een volledig vers, geldig kwartier zonder omvormerbegrenzing kan een snelle overgang als kandidaat bewaren. Pas herhaling op voldoende verschillende vergelijkbare dagen, met dezelfde richting, overgangsfase en stabiele niveaus ervoor/erna, kan een empirische correctie ondersteunen. Dat herkent geen boom en bewijst niet dat bewolking is uitgesloten. Normaal blijft minimaal vijf dagen nodig en maximaal ±0,05 factorwijziging per leerdag; expliciete presets en bestaande grenzen blijven leidend.
+
+**PV-diagnose** toont voor 15:00–18:00 per kwartier de relevante factor, toegepaste of behouden voorspelling, lokale vergelijkbare dagen en de reden. Een totaal van bijvoorbeeld tien leerdagen garandeert geen bruikbaar bewijs voor ieder namiddagkwartier. De volledige gecorrigeerde vermogenscurve blijft invoer voor de bestaande plannerhorizon. Alleen reeds ingeschakelde automatische kalibratie kan leren; uitgeschakelde PV-functies en bewuste gebruikerskeuzes blijven behouden. Bestaande factoren, historische meetgegevens en alle functies uit beta.76 blijven bewaard. Nieuwe overgangskandidaten vragen nieuw vergelijkbaar dagbewijs; oude historie wordt niet achteraf tot dergelijk bewijs gemaakt.
+
 Dezelfde actuele uitleg staat binnen Home Assistant onder **SolarPilot → Uitleg**. Historische veranderingen staan in [CHANGELOG.md](CHANGELOG.md); oudere instelbestanden beschrijven hun eigen release.
 
 ## Installatie via HACS
@@ -37,7 +41,7 @@ Bij **Analyse nodig** maakt één klik een export van de beschikbare zeven dagen
 
 ## Herstel van de beta.62-opstartfout
 
-Update via HACS naar beta.76 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.76 vraagt geen herbevestiging alleen door de codeupdate.
+Update via HACS naar beta.77 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.77 vraagt geen herbevestiging alleen door de codeupdate.
 
 ## Upgrade vanaf beta.61
 

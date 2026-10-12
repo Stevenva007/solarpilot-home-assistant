@@ -30,6 +30,7 @@ class PVForecast:
         self.model=PVCalibration(self.settings);self.cached={"enabled":self.settings["enabled"],"available":False,"status":"Nog geen forecast"}
         self.last_update=None;self.error="";self._last_saved_revision=-1
         self.hourly_cache={}
+        self._last_local_now=None
 
     def position(self, dt):
         c=getattr(self.runtime.hass,"config",None)
@@ -79,7 +80,7 @@ class PVForecast:
                 # Reread native values with their new reports; an old scalar may
                 # not acquire the next day's/hour's role from a fresh timestamp.
                 self.source.last_refresh=None
-        self.last_update=ts;self.hourly_cache={}
+        self.last_update=ts;self.hourly_cache={};self._last_local_now=now
         try:
             self.source.refresh(ts)
             az,el=self.runtime._sun_position()
@@ -100,9 +101,11 @@ class PVForecast:
                 t=ts+h*3600;dt=datetime.fromtimestamp(t,now.tzinfo);val=self.source.raw_at(t,ts)
                 pa,pe=(az,el) if not h else self.position(dt)
                 factor,conf,ndays,origin=self.model.factor(dt,pa,pe)
+                detail=self.factor_details(dt,pa,pe)
                 horizon.append({"hours":h,"time":dt.isoformat(),"raw_w":None if val is None else round(val,1),
                     "corrected_w":None if val is None else round(min(self.settings["inverter_limit_w"],val*factor),1),
-                    "factor":round(factor,3),"confidence":round(conf,3),"days":ndays,"source":origin})
+                    "factor":round(factor,3),"confidence":round(conf,3),"days":ndays,"source":origin,
+                    "calibration":detail})
             midnight=(now+timedelta(days=1)).replace(hour=0,minute=0,second=0,microsecond=0)
             after=(midnight+timedelta(days=1))
             hour_start=now.replace(minute=0,second=0,microsecond=0).timestamp()
@@ -132,7 +135,8 @@ class PVForecast:
                 "native_raw_now_w":self.source.scalars.get("now_entity"),
                 "curve_method":"Lineaire interpolatie tussen ruwe Forecast.Solar-vermogenspunten; kan afwijken van de native trapsgewijze nu-sensor",
                 "factor":round(currentfactor,3),"confidence":round(confidence,3),"comparable_days":days,
-                "model_source":why,"mae_w":summary.get("mae_w"),"bias_w":summary.get("bias_w"),
+                "model_source":why,"calibration":self.factor_details(now,az,el),
+                "mae_w":summary.get("mae_w"),"bias_w":summary.get("bias_w"),
                 "dayparts":summary.get("periods",{}),"last_learning_reason":summary.get("last_reason"),
                 "minimum_days_required":summary.get("minimum_days_required"),
                 "model":summary,"source_age_s":round(ts-self.source.source_stamp) if self.source.source_stamp else None,
@@ -172,10 +176,40 @@ class PVForecast:
         except (ValueError,TypeError,AttributeError,OverflowError):
             self.error="Opgeslagen PV-model onleesbaar; overige leerdata blijven behouden"
 
+    def factor_details(self, dt, az=None, el=None):
+        """User-facing evidence for one forecast time, with no internal bin IDs."""
+        details=dict(self.model.factor_details(dt,az,el))
+        details.pop("key",None)
+        return details
+
+    def quarter_profile(self):
+        """Current snapshot's afternoon model profile; never historical backfill.
+
+        Twelve local quarter points expose the 15–18h period even before it is
+        visible in the four-hour summary. Forecast values remain unknown when
+        their native series lacks coverage. This route only reads the model.
+        """
+        now=self._last_local_now
+        if now is None:
+            return {"day":None,"start_hour":15,"end_hour":18,"quarters":[],
+                    "reason":"Nog geen actuele forecastmomentopname"}
+        rows=[]
+        for index in range(12):
+            dt=now.replace(hour=15+index//4,minute=(index%4)*15,second=0,microsecond=0)
+            az,el=self.position(dt)
+            detail=self.factor_details(dt,az,el)
+            raw=self.source.raw_at(dt.timestamp(),now.timestamp()) if self.source.valid else None
+            corrected=None if raw is None else min(float(self.settings["inverter_limit_w"]),max(0.,raw*detail["factor"]))
+            rows.append({"time":dt.isoformat(),"raw_w":raw,"corrected_w":corrected,
+                         "factor":detail["factor"],"calibration":detail})
+        return {"day":now.date().isoformat(),"start_hour":15,"end_hour":18,"quarters":rows,
+                "reason":"Profiel per kwartier van deze forecastmomentopname; geen bewijs van een fysieke schaduwoorzaak"}
+
     def diagnostics(self):
-        return {"summary":self.cached,"history":list(self.model.history),"settings":{k:v for k,v in self.settings.items() if not k.endswith("entity")},
+        return {"summary":self.cached,"history":list(self.model.history),"quarter_profile":self.quarter_profile(),"settings":{k:v for k,v in self.settings.items() if not k.endswith("entity")},
                 "sources":self.source.refs,"source_metadata":self.source.metadata,"candidate_sources":self.source.candidates,
                 "limitations":["Geen nieuwe cloudoproepen", "Een lokale afwijking bewijst niet op zichzelf structurele schaduw",
+                "Leerdagen totaal zijn geen vergelijkbare dagen voor elk tijdvak; terugkerende overgangsprofielen vragen nieuw volledig bewijs",
                 "Zonder tijdreeks blijven +2/+3 en ontbrekende correcties onbekend", "Voorbije 15-minutenmetingen zonder gelijktijdige ruwe forecast worden niet als bewezen kalibratie geïmporteerd"]}
 
     def reset(self):

@@ -3,13 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.76'
+GUIDE_VERSION = '1.0.0-beta.77'
 GUIDE_UPDATED = '2026-10-12'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.76',
+ 'version': '1.0.0-beta.77',
  'updated': '2026-10-12',
- 'intro': ('Beta.76 voegt ingebouwde gezamenlijke toestelplanning en chronologisch batterijadvies toe, zonder extra installatie. De realtime regelaar blijft de enige uitvoerder. SolarPilot beoordeelt lokaal de bestaande '
+ 'intro': ('Beta.77 verbetert lokale PV-kalibratie: terugkerende stabiele overgangen worden pas na meerdere volledig gemeten vergelijkbare dagen geleerd. Factor en meetbasis worden per tijdvak zichtbaar. Alle bestaande regeling, gezamenlijke planner en batterijadvies blijven behouden. SolarPilot beoordeelt lokaal de bestaande '
            'warmtepompmeters, Wallboxsessiebron, PV-voorspelling en toestelmetingen. Het toont '
            'verzameld bewijs, mogelijke oorzaken, concrete voorstellen en wat daarna nodig is. '
            'Een herhaalde uitlezing wordt geen nieuw bronrapport; ontbrekende of oude metingen '
@@ -609,15 +609,16 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'kwartier vereist minstens twaalf geldige waarnemingen, elf minuten spreiding en '
                               'voldoende dekking. De eerste tien minuten na start/reload, clipping, ongeldige '
                               'geschatte bronnen en sterk wisselende verhoudingen worden niet als structurele '
-                              'schaduw geleerd. Geweigerde kwartieren blijven met reden inspecteerbaar.',
+                              'schaduw geleerd. Geweigerde kwartieren blijven met reden inspecteerbaar. '
+                              'Een enkele sterke maar stabiele overgang kan wel als kandidaat worden bewaard, alleen uit een volledig geldig kwartier met rustige delen voor en na de overgang. Pas na het ingestelde minimum aan verschillende vergelijkbare dagen met dezelfde richting, timing en verhoudingen wordt een empirische overgangscorrectie geleerd. Eén wolk, herhaalde uitlezing, clipping of een meetgat is hiervoor geen bewijs. De factor van zo een kwartier volgt de geïntegreerde energieverhouding; vroegere geweigerde kwartieren worden niet achteraf goedgekeurd.',
                               'Het lokale model gebruikt vergelijkbare dagen, zonnegeometrie waar bruikbaar en '
                               'seizoensgroepen, zonder vaste schaduwklok. Een empirische afwijking bewijst '
                               'niet welke fysieke oorzaak haar gaf. Bron-/profielwijzigingen maken alleen '
                               'onverenigbare PV-factoren opnieuw te leren; andere modellen worden niet gewist. '
                               'Oude historische kwartieren zonder gelijktijdige forecast zijn geen bewezen '
-                              'live kalibratie.',
+                              'live kalibratie. Terugkerende overgangsgegevens blijven begrensd lokaal bewaard in de bestaande PV-opslag. Bestaande factoren, instellingen en uitschakelkeuzes blijven behouden. De leerstap blijft per dag begrensd volgens de gekozen preset; een oorzaak zoals een boom wordt niet automatisch vastgesteld.',
                               'PV-diagnose toont ruwe/gecorrigeerde/werkelijke W, dekking, fouten, geweigerde '
-                              'kwartieren en leerdagen. Zij wordt afzonderlijk opgevraagd en gebruikt '
+                              'kwartieren en leerdagen. Leerdagen totaal staan apart van passende dagen voor ieder voorspeld tijdvak. De reden voor de toegepaste factor en een namiddagprofiel tussen 15 en 18 uur per kwartier zijn zichtbaar. De factor voor nu is geen vaste dagfactor. Zij wordt afzonderlijk opgevraagd en gebruikt '
                               'bestaande lokale informatie. De bestaande grenzen van dertig dagen en 2880 '
                               'diagnosekwartieren blijven gelden. Voorspellingssensoren zijn geen '
                               'gecertificeerde energietellers; dagen bij zomer-/wintertijd worden op echte '
