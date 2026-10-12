@@ -217,11 +217,15 @@ class AnalysisFeedbackStore:
         self.loaded = False
         self._lock = asyncio.Lock()
         self._closed = False
+        self._load_failed = False
 
     async def start(self):
         try:
-            data = await self.store.async_load() or {}
-            if type(data) is not dict:
+            data = await self.store.async_load()
+            if data is None:
+                data = {}
+            if (type(data) is not dict or type(data.get("schema_version", 1)) is not int
+                    or data.get("schema_version", 1) != 1):
                 raise FeedbackValidationError("Ongeldige adviesopslag")
             rows = data.get("known_exports", [])
             if type(rows) is not list:
@@ -232,14 +236,18 @@ class AnalysisFeedbackStore:
                 _timestamp(data.get("imported_at"), "imported_at")
                 self.imported_at = data["imported_at"]
             self.loaded = True
+            self._load_failed = False
         except (ValueError, TypeError, OSError) as err:
             self.error = "Adviesopslag niet geladen: " + type(err).__name__
             self.report = None
             self.imported_at = None
+            self._load_failed = True
 
     def _available(self):
         if self._closed or self.r._closed:
             raise FeedbackValidationError("SolarPilot is herladen; upload het advies opnieuw")
+        if self._load_failed:
+            raise FeedbackValidationError("Bestaande adviesopslag niet geladen; deze wordt niet overschreven")
 
     async def _save(self, rows, report, imported_at):
         self._available()

@@ -22,6 +22,16 @@ def fingerprint(config):
     return hashlib.sha256(json.dumps({k: config.get(k) for k in keys}, sort_keys=True).encode()).hexdigest()[:20]
 
 
+def _finite(value):
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+        return number if math.isfinite(number) else None
+    except (ValueError, TypeError, OverflowError):
+        return None
+
+
 class LocalLearning:
     def __init__(self):
         self.enabled = True
@@ -48,18 +58,25 @@ class LocalLearning:
         if not isinstance(data, dict):
             return
         self.enabled = data.get("enabled", True) is True
-        self.responses.extend(v for v in data.get("responses_s", [])[-40:]
-                              if isinstance(v, (int, float)) and math.isfinite(v) and 0 < v <= 1800)
-        self.report_intervals.extend(v for v in data.get("report_intervals_s", [])[-40:]
-                                    if isinstance(v, (int, float)) and math.isfinite(v) and 1 <= v <= 1800)
+        responses, intervals = data.get("responses_s"), data.get("report_intervals_s")
+        self.responses = deque((v for raw in (responses[-40:] if isinstance(responses, list) else [])
+                                if (v := _finite(raw)) is not None and 0 < v <= 1800), maxlen=40)
+        self.report_intervals = deque((v for raw in (intervals[-40:] if isinstance(intervals, list) else [])
+                                      if (v := _finite(raw)) is not None and 1 <= v <= 1800), maxlen=40)
+        profiles = data.get("profiles")
+        profiles = profiles if isinstance(profiles, dict) else {}
+        self.profiles = {}
         for i, c in configs.items():
-            p = data.get("profiles", {}).get(i, {})
+            p = profiles.get(i)
+            if not isinstance(p, dict):
+                continue
             if p.get("fingerprint") == fingerprint(c):
-                values = [v for v in p.get("watts", [])[-120:]
-                          if isinstance(v, (int, float)) and math.isfinite(v) and 0 < v <= 100000]
+                watts = p.get("watts")
+                values = [v for raw in (watts[-120:] if isinstance(watts, list) else [])
+                          if (v := _finite(raw)) is not None and 0 < v <= 100000]
                 self.profiles[i] = {"fingerprint": p["fingerprint"], "watts": values}
-        self.successes = max(0, int(data.get("successes", 0)))
-        self.failures = max(0, int(data.get("failures", 0)))
+        self.successes = max(0, min(10**12, int(_finite(data.get("successes")) or 0)))
+        self.failures = max(0, min(10**12, int(_finite(data.get("failures")) or 0)))
 
     def observe_report(self, stamp):
         if not self.enabled or not math.isfinite(stamp) or stamp <= 0:
@@ -112,6 +129,8 @@ class LocalLearning:
         if not self.enabled or configured <= 0:
             return configured
         p = self.profiles.get(i, {})
+        if p.get("fingerprint") != fingerprint(cfg):
+            return configured
         values = p.get("watts", [])
         if len(values) < int(min_samples):
             return configured

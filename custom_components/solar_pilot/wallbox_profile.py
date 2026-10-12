@@ -17,10 +17,12 @@ PROFILE_READ_KEYS = ("max_current_entity", "phases_entity")
 
 
 def numeric(value):
+    if isinstance(value, bool):
+        return None
     try:
         value = float(value)
         return value if math.isfinite(value) else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
@@ -63,7 +65,7 @@ class WallboxProfile:
         obj = self.hass.states.get(entity_id) if entity_id else None
         if obj is None or obj.state in ("unknown", "unavailable", ""):
             return None, "bron ontbreekt"
-        if obj.attributes.get("restored"):
+        if any(obj.attributes.get(key) for key in ("restored", "estimated", "is_estimated")):
             return None, "bron nog niet opnieuw bevestigd"
         stamp = getattr(obj, "last_reported", None) or getattr(obj, "last_updated", None)
         try:
@@ -81,9 +83,19 @@ class WallboxProfile:
         if c["profile_auto"]:
             self.discover(monotonic)
         sources = {k: c.get(k) or (self.sources.get(k) if c["profile_auto"] else "") for k in PROFILE_READ_KEYS}
-        phases, amps = int(c["charging_phases"]), float(c["max_current_a"])
-        current_source, phase_source = "handmatig bevestigd profiel", "handmatig bevestigd profiel"
+        # Match the validator's accepted numeric-string contract ("3.0" is
+        # three phases). A corrupt saved value must not stop the control tick.
+        phase_value = numeric(c["charging_phases"])
+        phases = int(phase_value) if phase_value in (1, 3) else PROFILE_DEFAULTS["charging_phases"]
+        amp_value = numeric(c["max_current_a"])
+        amps = amp_value if amp_value is not None and 6 <= amp_value <= 80 else PROFILE_DEFAULTS["max_current_a"]
         warning = []
+        current_source = ("handmatig bevestigd profiel" if amp_value is not None and 6 <= amp_value <= 80
+                          else "standaard terugval (niet bevestigd)")
+        phase_source = ("handmatig bevestigd profiel" if phase_value in (1, 3)
+                        else "standaard terugval (niet bevestigd)")
+        if phase_value not in (1, 3) or amp_value is None or not 6 <= amp_value <= 80:
+            warning.append("Laadprofiel ongeldig; begrensde standaardterugval gebruikt, niet live bevestigd")
         if c["profile_auto"] and sources["max_current_entity"]:
             entity = sources["max_current_entity"]
             obj, issue = self._read(entity, wall)
@@ -109,7 +121,13 @@ class WallboxProfile:
                 phases, phase_source = int(value), "expliciete Wallbox-bron"
             else:
                 warning.append("Fasebron ontbreekt/ongeldig; handmatig bevestigd faseprofiel gebruikt")
-        volts, minimum = float(c["voltage_v"]), float(c["minimum_current_a"])
+        volts, minimum = numeric(c["voltage_v"]), numeric(c["minimum_current_a"])
+        valid_volts = volts is not None and 207 <= volts <= 253
+        valid_minimum = minimum is not None and 6 <= minimum <= 16
+        if not valid_volts or not valid_minimum:
+            warning.append("Spanning/minimumstroom ongeldig; begrensde standaardterugval gebruikt")
+        volts = volts if valid_volts else PROFILE_DEFAULTS["voltage_v"]
+        minimum = minimum if valid_minimum else PROFILE_DEFAULTS["minimum_current_a"]
         self.cached = {
             "phases": phases, "max_current_a": round(amps, 2), "voltage_v": volts,
             "maximum_power_w": round(phases*volts*amps, 1),

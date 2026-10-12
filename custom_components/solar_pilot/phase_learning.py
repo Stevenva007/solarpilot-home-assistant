@@ -11,10 +11,12 @@ import statistics
 
 
 def _finite(value):
+    if isinstance(value, bool):
+        return None
     try:
         value = float(value)
         return value if math.isfinite(value) else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
@@ -123,7 +125,9 @@ class PhaseLearning:
                 self._record(device_id,device_delta,phase_delta,day,"controlled",2.0); finalized.add(device_id); self.pending.pop(device_id,None)
         if self.last_phase is not None and self.last_stamp is not None:
             dt=now-self.last_stamp
-            if 1<=dt<=max_window:
+            # A disappeared or newly appearing meter makes the supposedly
+            # isolated event unprovable, just as in the controlled route.
+            if 1<=dt<=max_window and set(cleaned)==set(self.last_device_w):
                 changes=[]
                 for device_id,value in cleaned.items():
                     if device_id in self.last_device_w:
@@ -131,7 +135,8 @@ class PhaseLearning:
                         if abs(delta)>=float(self.settings.get("learning_min_delta_w",250)): changes.append((device_id,delta))
                 if len(changes)==1:
                     device_id,device_delta=changes[0]
-                    if device_id not in finalized:
+                    others=sum(abs(cleaned[i]-self.last_device_w[i]) for i in cleaned if i!=device_id)
+                    if device_id not in finalized and others<float(self.settings.get("learning_min_delta_w",250)):
                         phase_delta=tuple(vals[n]-self.last_phase[n] for n in range(3)); self._record(device_id,device_delta,phase_delta,day,"passive",1.0)
         self.last_phase=vals; self.last_stamp=float(now); self.last_device_w=cleaned
 

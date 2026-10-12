@@ -1,11 +1,17 @@
-/* SolarPilot 1.0.0-beta.78. Local option explanations + HA's native options-flow API.
+/* SolarPilot 1.0.0-beta.79. Local option explanations + HA's native options-flow API.
  * No actuator service is called here. HA retains authentication, schema validation,
  * per-device live/deferred guards and final config-entry save. No internal HA DOM is patched.
  */
+const SP_HELP_VERSION='1.0.0-beta.79';
+const SP_HELP_RELEASE=SP_HELP_VERSION.toLowerCase().replace(/[^a-z0-9]+/g,'-');
+const SP_BOUND_HELP_TAG=`solar-pilot-option-help-dialog-${SP_HELP_RELEASE}`;
+const SP_BOUND_OPTIONS_TAG=`solar-pilot-options-dialog-${SP_HELP_RELEASE}`;
+const SP_BOUND_MANAGER_TAG=`solar-pilot-device-manager-dialog-${SP_HELP_RELEASE}`;
+const spHelpDialogTag=()=>customElements.get('solar-pilot-option-help-dialog')?.solarPilotRelease===SP_HELP_VERSION?'solar-pilot-option-help-dialog':SP_BOUND_HELP_TAG;
 let spOptionHelpPromise;
 async function spOptionHelp(){
   if(globalThis.SOLAR_PILOT_HELP_DATA)return globalThis.SOLAR_PILOT_HELP_DATA;
-  if(!spOptionHelpPromise)spOptionHelpPromise=fetch('/solar_pilot_static/option-help.json?v=1.0.0-beta.78',{credentials:'same-origin'})
+  if(!spOptionHelpPromise)spOptionHelpPromise=fetch('/solar_pilot_static/option-help.json?v=1.0.0-beta.79',{credentials:'same-origin'})
     .then(r=>{if(!r.ok)throw new Error('De lokale optie-uitleg kon niet worden geladen.');return r.json();})
     .catch(e=>{spOptionHelpPromise=null;throw e;});
   return spOptionHelpPromise;
@@ -13,31 +19,69 @@ async function spOptionHelp(){
 const spHelpEscape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const spHelpStyle=`:host{font:14px/1.55 system-ui,sans-serif;color:var(--primary-text-color,#e8edf2)}*{box-sizing:border-box}dialog{color:inherit;background:var(--card-background-color,#20242a);border:1px solid var(--divider-color,#606874);border-radius:18px;padding:0;width:min(760px,calc(100vw - 24px));max-width:none;max-height:calc(100dvh - 24px);box-shadow:0 18px 70px #0008}dialog::backdrop{background:#0008}header{position:sticky;top:0;background:inherit;display:flex;align-items:center;gap:16px;padding:16px 20px;border-bottom:1px solid var(--divider-color,#606874);z-index:1}h2{margin:0;font-size:19px;line-height:1.4;flex:1;overflow-wrap:anywhere}.body{padding:16px 20px;overflow-wrap:anywhere}p{margin:0 0 14px}.muted{font-size:12px;color:var(--secondary-text-color,#a9b3bf)}button{font:inherit;cursor:pointer;color:inherit;background:transparent;border:1px solid var(--divider-color,#606874);padding:9px 13px;border-radius:10px;min-height:40px}button:hover{background:var(--secondary-background-color,#313842)}button:disabled{opacity:.45;cursor:default}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--primary-color,#03a9f4);outline-offset:2px}.close{font-size:23px;width:42px;padding:2px}.help{border-radius:50%;width:30px;min-height:30px;padding:0;flex:none;font-weight:700}.error{color:var(--error-color,#ff8b8b);white-space:pre-wrap}.description{white-space:pre-wrap}.field{margin:0 0 18px}.label{display:flex;gap:10px;align-items:center;margin-bottom:7px}.label label{flex:1}input:not([type=checkbox]),select{font:inherit;color:inherit;background:var(--secondary-background-color,#2b323b);border:1px solid var(--divider-color,#606874);border-radius:8px;width:100%;min-height:42px;padding:8px;max-width:100%}input[type=checkbox]{width:23px;height:23px;accent-color:var(--primary-color,#03a9f4)}.check{display:flex;align-items:center;gap:10px}select[multiple]{min-height:105px}.menu{display:grid;gap:9px}.menu button{text-align:left}.actions{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap}.primary{background:var(--primary-color,#0284c7);color:var(--text-primary-color,#fff)}a{color:var(--primary-color,#58b6fa)}.wait{padding:18px 0}.inline-error{font-size:12px;min-height:18px}@media(max-width:500px){header,.body{padding:14px}dialog{border-radius:13px;width:calc(100vw - 12px);max-height:calc(100dvh - 12px)}h2{font-size:17px}}`;
 class SolarPilotOptionHelpDialog extends HTMLElement{
+  static solarPilotRelease=SP_HELP_VERSION;
   static catalog(){return spOptionHelp();}
   constructor(){super();this.attachShadow({mode:'open'});this.shadowRoot.innerHTML=`<style>${spHelpStyle}</style><dialog aria-labelledby="help-title"><header><h2 id="help-title">Uitleg</h2><button class="close" type="button" aria-label="Uitleg sluiten">×</button></header><div class="body"></div></dialog>`;this.dialog=this.shadowRoot.querySelector('dialog');this.shadowRoot.querySelector('button').onclick=()=>this.close();this.dialog.addEventListener('click',e=>{if(e.target===this.dialog){const r=this.dialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)this.close();}});}
-  async open(step,key,title){this._token=(this._token||0)+1;const token=this._token;this.shadowRoot.querySelector('h2').textContent=title||'Uitleg';this.shadowRoot.querySelector('.body').textContent='Uitleg laden…';if(!this.dialog.open)this.dialog.showModal();try{const data=await spOptionHelp();if(token!==this._token||!this.dialog.open)return;const item=data.entries[`${step}.${key}`]||Object.entries(data.entries).find(([id])=>id.endsWith(`.${key}`))?.[1];this.shadowRoot.querySelector('h2').textContent=item?.title||title||key;this.shadowRoot.querySelector('.body').innerHTML=(item?.paragraphs||['Voor dit veld ontbreekt de release-uitleg. Laat de huidige waarde staan en raadpleeg de actuele werking.']).map(t=>`<p>${spHelpEscape(t)}</p>`).join('')+`<p class="muted">Uitleg bij SolarPilot ${spHelpEscape(data.version)} · geen bedieningsopdracht</p>`;}catch(e){this.shadowRoot.querySelector('.body').textContent=e.message||String(e);}}
+  async open(step,key,title){this._token=(this._token||0)+1;const token=this._token;this.shadowRoot.querySelector('h2').textContent=title||'Uitleg';this.shadowRoot.querySelector('.body').textContent='Uitleg laden…';if(!this.dialog.open)this.dialog.showModal();try{const data=await spOptionHelp();if(token!==this._token||!this.dialog.open)return;const item=data.entries[`${step}.${key}`]||Object.entries(data.entries).find(([id])=>id.endsWith(`.${key}`))?.[1];this.shadowRoot.querySelector('h2').textContent=item?.title||title||key;this.shadowRoot.querySelector('.body').innerHTML=(item?.paragraphs||['Voor dit veld ontbreekt de release-uitleg. Laat de huidige waarde staan en raadpleeg de actuele werking.']).map(t=>`<p>${spHelpEscape(t)}</p>`).join('')+`<p class="muted">Uitleg bij SolarPilot ${spHelpEscape(data.version)} · geen bedieningsopdracht</p>`;}catch(e){if(token===this._token&&this.dialog.open)this.shadowRoot.querySelector('.body').textContent=e.message||String(e);}}
   close(){this._token=(this._token||0)+1;if(this.dialog.open)this.dialog.close();}
   disconnectedCallback(){this.close();}
 }
 if(!customElements.get('solar-pilot-option-help-dialog'))customElements.define('solar-pilot-option-help-dialog',SolarPilotOptionHelpDialog);
+if(!customElements.get(SP_BOUND_HELP_TAG))customElements.define(SP_BOUND_HELP_TAG,class extends SolarPilotOptionHelpDialog {});
 
 class SolarPilotOptionsDialog extends HTMLElement{
+  static solarPilotRelease=SP_HELP_VERSION;
   constructor(){super();this.attachShadow({mode:'open'});this._busy=false;this._open=false;this._seq=0;this._dirty=false;this._draftStarted=false;this._menuPath=[];this._formParent=[];this.shadowRoot.innerHTML=`<style>${spHelpStyle}header .back{white-space:nowrap;flex:none}@media(max-width:500px){header{gap:8px}header .back{padding:8px;font-size:12px}}</style><dialog aria-labelledby="options-title"><header><button class="back" type="button" aria-label="Terug naar SolarPilot">‹ Terug</button><h2 id="options-title">SolarPilot · configureren</h2><button class="close" type="button" aria-label="Configuratie sluiten">×</button></header><div class="body"><div class="content"></div><p class="error" role="alert"></p><p class="muted">Alleen opslaan kan instellingen wijzigen. De server bewaakt toestemming en grenzen; gevoelige wijzigingen wachten op een veilige toesteltoestand. <a href="/config/integrations/integration/solar_pilot">Standaard Home Assistant-configuratie</a></p></div></dialog>`;this.dialog=this.shadowRoot.querySelector('dialog');this.content=this.shadowRoot.querySelector('.content');this.error=this.shadowRoot.querySelector('.error');this.shadowRoot.querySelector('.close').onclick=()=>this.close();this.shadowRoot.querySelector('.back').onclick=()=>this._back();this.shadowRoot.addEventListener('click',e=>this._click(e));for(const type of ['input','change'])this.shadowRoot.addEventListener(type,e=>{if(e.target.closest('form')&&e.target.name)this._dirty=true;});this.shadowRoot.addEventListener('submit',e=>{e.preventDefault();this._submit(e.target);});this.dialog.addEventListener('cancel',e=>{e.preventDefault();this.close();});}
-  async open(hass,entryId,route=[]){if(this._open)return;this.hass=hass;this.entryId=entryId;this._open=true;this._dirty=false;this._draftStarted=false;this._menuPath=[];this._formParent=[];this.flow=null;this.error.textContent='';this.content.innerHTML='<p class="wait">Configuratie laden…</p>';this.dialog.showModal();if(!hass.user?.is_admin){this.content.innerHTML='<p>Alleen een Home Assistant-beheerder kan configuratie wijzigen.</p>';return;}try{this.help=await spOptionHelp();if(!this._open)return;await this._request('config/config_entries/options/flow',{handler:entryId});for(const payload of route){if(!this._open||!this.flow?.flow_id)break;if(payload.next_step_id&&!this.flow.menu_options?.includes(payload.next_step_id))break;await this._request(`config/config_entries/options/flow/${encodeURIComponent(this.flow.flow_id)}`,payload);}}catch(e){this.error.textContent=e.message||String(e);}}
+  async open(hass,entryId,route=[]){
+    if(this._open)return;const epoch=(this._openEpoch||0)+1;this._openEpoch=epoch;this._seq++;this._busy=false;
+    this.hass=hass;this.entryId=entryId;this._open=true;this._dirty=false;this._draftStarted=false;this._menuPath=[];this._formParent=[];this.flow=null;this.error.textContent='';this.content.innerHTML='<p class="wait">Configuratie laden…</p>';this.dialog.showModal();
+    const userId=hass.user?.id,current=()=>this._open&&this._openEpoch===epoch&&this.entryId===entryId&&this.hass?.user?.is_admin===true&&this.hass?.user?.id===userId;
+    if(hass.user?.is_admin!==true){this.content.innerHTML='<p>Alleen een Home Assistant-beheerder kan configuratie wijzigen.</p>';return;}
+    try{
+      const help=await spOptionHelp();if(!current())return;this.help=help;
+      await this._request('config/config_entries/options/flow',{handler:entryId});
+      for(const payload of route){if(!current()||!this.flow?.flow_id)break;if(payload.next_step_id&&!this.flow.menu_options?.includes(payload.next_step_id))break;await this._request(`config/config_entries/options/flow/${encodeURIComponent(this.flow.flow_id)}`,payload);}
+    }catch(e){if(current())this.error.textContent=e.message||String(e);}
+  }
   _discard(){return!(this._dirty||this._draftStarted)||window.confirm('Niet-opgeslagen wijzigingen weggooien?');}
   async close(force=false){if(this._busy||!force&&!this._discard())return false;this._open=false;this._seq++;this._dirty=false;this._draftStarted=false;this.helpDialog?.close();if(this.dialog.open)this.dialog.close();const id=this.flow?.flow_id;this.flow=null;if(id)try{await this.hass.callApi('delete',`config/config_entries/options/flow/${encodeURIComponent(id)}`);}catch(_){/* already completed / disconnected */}return true;}
   async _back(){
     if(this._busy||!this._open)return;if(this.uiHistory?.back(this))return;const path=this.flow?.type==='menu'?this._menuPath.slice(0,-1):[...this._formParent];
     if(this.flow?.step_id==='init'||!this.flow||this.flow.type==='create_entry'||this.flow.type==='abort')return this.close();
-    if(!this._discard())return;const id=this.flow?.flow_id;this._busy=true;this._controls(true);this.error.textContent='';
-    try{if(id)await this.hass.callApi('delete',`config/config_entries/options/flow/${encodeURIComponent(id)}`);}catch(e){this.error.textContent='Teruggaan niet bevestigd. Je invoer blijft staan: '+(e.message||String(e));this._busy=false;this._controls(false);return;}
+    if(!this._discard())return;const id=this.flow?.flow_id,hass=this.hass,entryId=this.entryId,epoch=this._openEpoch,userId=hass.user?.id;
+    const current=()=>this._open&&this._openEpoch===epoch&&this.entryId===entryId&&this.hass?.user?.id===userId&&this.hass?.user?.is_admin===true;
+    this._busy=true;this._controls(true);this.error.textContent='';
+    try{if(id)await hass.callApi('delete',`config/config_entries/options/flow/${encodeURIComponent(id)}`);}catch(e){if(current()){this.error.textContent='Teruggaan niet bevestigd. Je invoer blijft staan: '+(e.message||String(e));this._busy=false;this._controls(false);}return;}
+    if(!current())return;
     this._busy=false;this._dirty=false;this._draftStarted=false;this._menuPath=[];this._formParent=[];this.flow=null;this.content.innerHTML='<p class="wait">Instellingenoverzicht laden…</p>';
     await this._request('config/config_entries/options/flow',{handler:this.entryId});
-    for(const next_step_id of path){if(!this._open||this.flow?.type!=='menu'||!this.flow.menu_options?.includes(next_step_id))break;await this._request(`config/config_entries/options/flow/${encodeURIComponent(this.flow.flow_id)}`,{next_step_id});}
+    for(const next_step_id of path){if(!current()||this.flow?.type!=='menu'||!this.flow.menu_options?.includes(next_step_id))break;await this._request(`config/config_entries/options/flow/${encodeURIComponent(this.flow.flow_id)}`,{next_step_id});}
   }
   _controls(disabled){this.shadowRoot.querySelectorAll('.close,.back').forEach(e=>e.disabled=disabled);this.content.querySelectorAll('button,input,select').forEach(e=>{if(!e.dataset.permanentDisabled)e.disabled=disabled;});}
-  disconnectedCallback(){if(!this._busy)this.close();else{this._open=false;this._seq++;this.helpDialog?.close();}}
-  async _request(path,data){if(this._busy||!this._open)return;this._busy=true;this.error.textContent='';const seq=++this._seq;this._controls(true);try{const result=await this.hass.callApi('post',path,data);if(seq!==this._seq||!this._open){if(result?.flow_id)try{await this.hass.callApi('delete',`config/config_entries/options/flow/${encodeURIComponent(result.flow_id)}`);}catch(_){}return;}if(data?.next_step_id){const parent=[...this._menuPath];if(result.type==='menu')this._menuPath=[...parent,data.next_step_id];else this._formParent=parent;}this.flow=result;this._render();if(data?.next_step_id){const route=(result.type==='menu'?this._menuPath:this._formParent).map(next_step_id=>({next_step_id})),wasForm=result.type==='form';this.uiHistory?.step(this,async()=>{await this.open(this.hass,this.entryId,route);if(wasForm&&this._open)this.content.insertAdjacentHTML('afterbegin','<p class="muted">Je eerdere invoer is niet teruggezet. Kies de instelling opnieuw; teruggaan of vooruitgaan slaat niets op.</p>');});}}catch(e){this.error.textContent=`Opslaan/volgende stap niet bevestigd: ${e.message||String(e)}. Controleer de werkelijke HA-instellingen vóór je opnieuw probeert.`;}finally{this._busy=false;this._controls(false);}}
+  disconnectedCallback(){
+    if(!this._busy)this.close();
+    else{this._open=false;this._seq++;this.helpDialog?.close();
+      // Detach removes the native modal state but retains its open attribute.
+      // Close that surface now so this instance can open after reattachment.
+      if(this.dialog.open)this.dialog.close();}
+  }
+  async _request(path,data){
+    if(this._busy||!this._open||this.hass?.user?.is_admin!==true)return;
+    const hass=this.hass,entryId=this.entryId,userId=hass.user?.id;
+    this._busy=true;this.error.textContent='';const seq=++this._seq;this._controls(true);
+    const current=()=>seq===this._seq&&this._open&&this.entryId===entryId&&this.hass?.user?.id===userId&&this.hass?.user?.is_admin===true;
+    try{
+      const result=await hass.callApi('post',path,data);
+      if(!current()){
+        if(result?.flow_id)try{await hass.callApi('delete',`config/config_entries/options/flow/${encodeURIComponent(result.flow_id)}`);}catch(_){}
+        return;
+      }
+      if(data?.next_step_id){const parent=[...this._menuPath];if(result.type==='menu')this._menuPath=[...parent,data.next_step_id];else this._formParent=parent;}
+      this.flow=result;this._render();
+      if(data?.next_step_id){const route=(result.type==='menu'?this._menuPath:this._formParent).map(next_step_id=>({next_step_id})),wasForm=result.type==='form';this.uiHistory?.step(this,async()=>{await this.open(this.hass,this.entryId,route);if(wasForm&&this._open)this.content.insertAdjacentHTML('afterbegin','<p class="muted">Je eerdere invoer is niet teruggezet. Kies de instelling opnieuw; teruggaan of vooruitgaan slaat niets op.</p>');});}
+    }catch(e){if(current())this.error.textContent=`Opslaan/volgende stap niet bevestigd: ${e.message||String(e)}. Controleer de werkelijke HA-instellingen vóór je opnieuw probeert.`;}
+    finally{if(seq===this._seq){this._busy=false;this._controls(false);}}
+  }
   _text(text){const vars=this.flow?.description_placeholders||{};return String(text||'').replace(/\{([^}]+)\}/g,(m,k)=>String(vars[k]??m));}
   _render(){const f=this.flow||{},s=this.help.steps[f.step_id]||{};this.shadowRoot.querySelector('h2').textContent=s.title||'SolarPilot · configureren';const parent=f.type==='menu'?this._menuPath.slice(0,-1):this._formParent,back=this.shadowRoot.querySelector('.back');back.setAttribute('aria-label',f.step_id==='init'?'Terug naar SolarPilot':'Terug naar '+(this.help.steps[parent.at(-1)||'init']?.title||'instellingenoverzicht'));back.title=back.getAttribute('aria-label');if(f.type==='create_entry'||f.type==='abort'){this.flow=null;this._dirty=false;this._draftStarted=false;this.content.innerHTML=`<p>${spHelpEscape(f.type==='create_entry'?'Instellingen opgeslagen zonder volledige herlading. Wachtende voorstellen staan bij Toestellen beheren.':this.help.abort[f.reason]||f.reason||'Configuratie beëindigd.')}</p><button type="button" data-close>Sluiten</button>`;return;}
     const intro=`<p class="description">${spHelpEscape(this._text(s.description||''))}</p>`;
@@ -54,13 +98,15 @@ class SolarPilotOptionsDialog extends HTMLElement{
     else{this._unsupported=true;control='<p class="error">Gebruik de standaard Home Assistant-configuratie voor dit veldtype.</p>';}
     const explanation=this.help.entries[`${this.flow.step_id}.${key}`];const code=this.flow.errors?.[key];return `<div class="field"><div class="label"><label for="${id}">${spHelpEscape(label)}${schema.required?' *':''}</label><button class="help" type="button" data-help="${spHelpEscape(key)}" title="${spHelpEscape(explanation?.short||'Uitleg openen')}" aria-label="Uitleg bij ${spHelpEscape(label)}">?</button></div>${control}${code?`<p class="error inline-error">${spHelpEscape(this.help.errors[code]||code)}</p>`:''}</div>`;}
   _submit(form){if(this._busy||this._unsupported)return;try{if(!form.reportValidity())return;const values={};for(const el of form.querySelectorAll('input[name],select[name],textarea[name]')){const type=el.dataset.kind;let value=type==='boolean'?el.checked:type==='multiple'?Array.from(el.querySelectorAll('option:checked')).map(o=>o.value):el.value;if(value===''&&!el.required)continue;if(type==='number'){value=Number(value);if(!Number.isFinite(value)){this.error.textContent='Vul een geldig getal in.';return;}}if(type==='time'&&value.length===5)value+=':00';values[el.name]=value;}this._draftStarted=true;this._request(`config/config_entries/options/flow/${encodeURIComponent(this.flow.flow_id)}`,values);}catch(e){this.error.textContent='De invoer kon niet worden gelezen; niets opgeslagen. '+(e.message||String(e));}}
-  _click(e){const button=e.target.closest('button');if(!button||button.disabled)return;if(button.hasAttribute('data-help')){e.preventDefault();this.uiHistory?.prepare();if(!this.helpDialog){this.helpDialog=document.createElement('solar-pilot-option-help-dialog');this.shadowRoot.append(this.helpDialog);}const step=this.flow.step_id,key=button.dataset.help;this.helpDialog.open(step,key);this.uiHistory?.track(this.helpDialog,()=>this.helpDialog.open(step,key));return;}if(button.hasAttribute('data-close'))this.close();if(button.hasAttribute('data-menu'))this._request(`config/config_entries/options/flow/${encodeURIComponent(this.flow.flow_id)}`,{next_step_id:button.dataset.menu});}
+  _click(e){const button=e.target.closest('button');if(!button||button.disabled)return;if(button.hasAttribute('data-help')){e.preventDefault();this.uiHistory?.prepare();if(!this.helpDialog){this.helpDialog=document.createElement(spHelpDialogTag());this.shadowRoot.append(this.helpDialog);}const step=this.flow.step_id,key=button.dataset.help;this.helpDialog.open(step,key);this.uiHistory?.track(this.helpDialog,()=>this.helpDialog.open(step,key));return;}if(button.hasAttribute('data-close'))this.close();if(button.hasAttribute('data-menu'))this._request(`config/config_entries/options/flow/${encodeURIComponent(this.flow.flow_id)}`,{next_step_id:button.dataset.menu});}
 }
 if(!customElements.get('solar-pilot-options-dialog'))customElements.define('solar-pilot-options-dialog',SolarPilotOptionsDialog);
+if(!customElements.get(SP_BOUND_OPTIONS_TAG))customElements.define(SP_BOUND_OPTIONS_TAG,class extends SolarPilotOptionsDialog {});
 
 
 /* This management view is read-only until a native validated options flow saves. */
 class SolarPilotDeviceManagerDialog extends HTMLElement{
+  static solarPilotRelease=SP_HELP_VERSION;
   constructor(){super();this.attachShadow({mode:'open'});this._open=false;this.shadowRoot.innerHTML=`<style>${spHelpStyle}.device{padding:15px 0;border-bottom:1px solid var(--divider-color,#606874)}.device h3{margin:0}.actions{margin-top:9px}.archive{opacity:.8}</style><dialog aria-label="Toestellen beheren"><header><h2>Toestellen beheren</h2><button class="close" aria-label="Toestelbeheer sluiten">×</button></header><div class="body"></div></dialog>`;this.dialog=this.shadowRoot.querySelector('dialog');this.shadowRoot.querySelector('.close').onclick=()=>this.close();this.shadowRoot.addEventListener('click',e=>this._click(e));this.dialog.addEventListener('cancel',e=>{e.preventDefault();this.close();});}
   open(hass,data){this.hass=hass;this._open=true;this._sig=null;this.update(data);this.dialog.showModal();}
   close(){this._open=false;this.dialog.close();}
@@ -74,3 +120,4 @@ class SolarPilotDeviceManagerDialog extends HTMLElement{
   _click(e){const b=e.target.closest('button');if(!b)return;if(b.dataset.go){if(!this.hass?.user?.is_admin)return;const detail={step:b.dataset.go,id:b.dataset.id,section:b.dataset.section};this.close();this.dispatchEvent(new CustomEvent('device-options',{detail}));}else if(b.dataset.history){const d=[...(this.data.devices||[]),...(this.data.archives||[])].find(d=>d.id===b.dataset.history);this.close();if(d)this.dispatchEvent(new CustomEvent('device-history',{detail:d}));}}
 }
 if(!customElements.get('solar-pilot-device-manager-dialog'))customElements.define('solar-pilot-device-manager-dialog',SolarPilotDeviceManagerDialog);
+if(!customElements.get(SP_BOUND_MANAGER_TAG))customElements.define(SP_BOUND_MANAGER_TAG,class extends SolarPilotDeviceManagerDialog {});

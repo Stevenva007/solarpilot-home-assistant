@@ -334,17 +334,36 @@ class LiveOptions:
 
     def _change_current_requests(self, before, after, ids):
         devices = keyed(after.get("devices"))
+        changes = []
         for i in ids:
             q = self.r.dishwasher_app.data.get(i, {}).get("request")
             if not q or i not in devices:
                 continue  # The same belading may already have started while editing.
             cfg = devices[i]
-            day = datetime.fromisoformat(q["planned_day"]).date()
-            zone = ZoneInfo(q.get("zone", self.r.dishwasher_app.zone))
+            wall = time.time()
+            if not self.r.dishwasher_app._valid_request(cfg, q) or wall >= q["expires"]:
+                raise HomeAssistantError("Huidige APP-aanvraag ongeldig of verlopen; wijzig alleen volgende beurten of geef een nieuwe belading vrij.")
+            try:
+                day = datetime.fromisoformat(q["planned_day"]).date()
+                zone = ZoneInfo(q.get("zone", self.r.dishwasher_app.zone))
+            except (KeyError, TypeError, ValueError):
+                raise HomeAssistantError("Huidige APP-plandag of tijdzone ongeldig; geef een nieuwe belading vrij.") from None
             deadline = datetime.combine(day, deadline_time(cfg, day), zone)
+            if deadline.timestamp() < q["not_before"]:
+                # An explicit current-choice may move the clock before this
+                # belading's original preparation. It is due now on this same
+                # day; never store an impossible window or move the planned day.
+                if datetime.fromtimestamp(wall, zone).date() != day:
+                    raise HomeAssistantError("Deze eerdere deadline past niet meer op de vastgelegde plandag; wijzig alleen volgende beurten.")
+                deadline = datetime.fromtimestamp(max(wall, q["not_before"]), zone)
             # Explicit choice updates this fixed planned day, never re-arms/re-dates it.
-            q.update(deadline=deadline.timestamp(), expires=deadline.timestamp()+max(1,int(cfg.get("dishwasher_deadline_grace_min",120)))*60,
-                     grid_allowed=True, policy_locked=True)
+            changes.append((i, cfg, q, {"deadline": deadline.timestamp(),
+                "expires": deadline.timestamp()+max(1,int(cfg.get("dishwasher_deadline_grace_min",120)))*60,
+                "grid_allowed": True, "policy_locked": True}))
+        # Validate every current belading before mutating any of them. A damaged
+        # second request cannot partially change the first transaction in memory.
+        for i, cfg, q, update in changes:
+            q.update(update)
             ticket = self.r.dishwasher.tickets.get(i)
             if ticket and not ticket.get("attempted"):
                 ticket.update(q)

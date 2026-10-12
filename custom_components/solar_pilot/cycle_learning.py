@@ -7,15 +7,18 @@ still owns start permission and never interrupts a protected cycle.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 import math
 import statistics
 
 
 def _finite(value):
+    if isinstance(value, bool):
+        return None
     try:
         out = float(value)
         return out if math.isfinite(out) else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
@@ -84,10 +87,37 @@ class CycleEnergyModel:
         if not isinstance(data, dict):
             return
         raw = data.get("profiles", {})
-        self.profiles = raw if isinstance(raw, dict) else {}
+        self.profiles = {}
+        for device_id, profiles in (list(raw.items())[-1600:] if isinstance(raw, dict) else []):
+            if not isinstance(device_id, str) or not isinstance(profiles, dict):
+                continue
+            clean = {}
+            for program, rows in list(profiles.items())[-12:]:
+                if not isinstance(program, str) or not isinstance(rows, list):
+                    continue
+                samples = []
+                for row in rows[-24:]:
+                    if not isinstance(row, dict):
+                        continue
+                    try:
+                        day = date.fromisoformat(row.get("day"))
+                    except (ValueError, TypeError):
+                        continue
+                    values = {key: _finite(row.get(key)) for key in ("energy_kwh", "duration_min", "peak_w")}
+                    if (values["energy_kwh"] is None or not .02 <= values["energy_kwh"] <= 2400
+                            or values["duration_min"] is None or not 3 <= values["duration_min"] <= 1440
+                            or values["peak_w"] is None or not 0 <= values["peak_w"] <= 100000):
+                        continue
+                    # Old valid summaries have no recoverable coverage field;
+                    # preserve them without inventing coverage retrospectively.
+                    samples.append({"day": day.isoformat(), **values})
+                if samples:
+                    clean[self._program(program)] = samples
+            if clean:
+                self.profiles[device_id] = clean
         self.active = {}
-        self.accepted = max(0, int(data.get("accepted", 0) or 0))
-        self.rejected = max(0, int(data.get("rejected", 0) or 0))
+        self.accepted = max(0, min(10**12, int(_finite(data.get("accepted")) or 0)))
+        self.rejected = max(0, min(10**12, int(_finite(data.get("rejected")) or 0)))
 
     def begin(self, device_id, program, wall_ts, day):
         self.active[str(device_id)] = {
@@ -97,6 +127,7 @@ class CycleEnergyModel:
             "energy_kwh": 0.0,
             "peak_w": 0.0,
             "samples": 0,
+            "observed_s": 0.0,
         }
 
     def observe(self, device_id, watts, dt_s):
@@ -107,6 +138,7 @@ class CycleEnergyModel:
         row["energy_kwh"] += w * dt / 3_600_000.0
         row["peak_w"] = max(row["peak_w"], w)
         row["samples"] += 1
+        row["observed_s"] += dt
         return True
 
     def finish(self, device_id, wall_ts, *, min_duration_s=180, min_energy_kwh=0.02, max_duration_s=86400):
@@ -115,7 +147,12 @@ class CycleEnergyModel:
             return None
         duration = max(0.0, float(wall_ts) - float(row["start"]))
         energy = max(0.0, float(row["energy_kwh"]))
-        if duration < min_duration_s or duration > max_duration_s or energy < min_energy_kwh or row["samples"] < 2:
+        # A long gap must not turn a short measured fragment into a complete
+        # appliance profile. At most one bounded endpoint interval may be absent;
+        # neither missing time nor restart time is filled with estimated energy.
+        coverage = row.get("observed_s", 0.0)
+        if (duration < min_duration_s or duration > max_duration_s or energy < min_energy_kwh
+                or row["samples"] < 2 or abs(duration - coverage) > 120):
             self.rejected += 1
             return None
         sample = {

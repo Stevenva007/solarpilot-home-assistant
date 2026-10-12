@@ -25,6 +25,11 @@ async def websocket_priority_board(hass, connection, msg):
         connection.send_error(msg['id'], 'not_loaded', 'SolarPilot is niet geladen.')
         return
     async with r._lock:
+        entry = hass.config_entries.async_get_entry(msg['config_entry_id'])
+        if (r._closed or entry is None or entry.domain != DOMAIN
+                or getattr(entry, 'runtime_data', None) is not r):
+            connection.send_error(msg['id'], 'not_loaded', 'SolarPilot is herladen; open de voorrangslijst opnieuw.')
+            return
         try:
             if 'save' in msg:
                 data = msg['save']

@@ -273,15 +273,16 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
 
     async def async_step_settings(self, user_input=None):
         current = self._site()
-        candidate = {**current, **(user_input or {})}
+        # The submitted form is complete. Omitted optional selectors represent
+        # a cleared source, and validation must inspect the values we save.
+        cleared = {k: "" for k in ("export_entity", "pv_entity", "battery_power_entity", "battery_soc_entity")}
+        candidate = {**current, **(cleared if user_input is not None else {}), **(user_input or {})}
         errors = site_errors(self.hass, candidate) if user_input is not None else {}
         if user_input is not None and not errors:
             opts = deepcopy(dict(self._base_options()))
-            previous = {**current, **opts.get("settings", {})}
-            cleared = {k: "" for k in ("export_entity", "pv_entity", "battery_power_entity", "battery_soc_entity")}
-            opts["settings"] = {**previous, **cleared, **user_input}
+            opts["settings"] = candidate
             return await self._save(opts)
-        return self.async_show_form(step_id="settings", data_schema=sources_schema(user_input or current), errors=errors)
+        return self.async_show_form(step_id="settings", data_schema=sources_schema(candidate), errors=errors)
 
     async def async_step_power_policy(self, user_input=None):
         current = self._site()
@@ -366,7 +367,9 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
         return self.async_show_form(step_id="economy", data_schema=schema, errors=errors)
 
     async def async_step_pv_forecast(self, user_input=None):
-        c = {**PV_FORECAST_DEFAULTS, **self._base_options().get("pv_forecast", {}), **(user_input or {})}
+        cleared = {role: "" for role in (*ENTITY_ROLES, "forecast_entry_id")}
+        c = {**PV_FORECAST_DEFAULTS, **self._base_options().get("pv_forecast", {}),
+             **(cleared if user_input is not None else {}), **(user_input or {})}
         errors = {}
         if user_input is not None:
             for key in ("enabled","auto_discover","calibration_enabled","shadow_enabled","show_raw"):
@@ -466,7 +469,9 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
         c = {**UNIFIED_PLANNER_DEFAULTS, **self._base_options().get("planner", {})}
         errors = {}
         if user_input is not None:
-            c = {**UNIFIED_PLANNER_DEFAULTS, **user_input}
+            # Settings not rendered by this form still belong to the user.
+            # In particular an explicitly disabled joint optimiser stays off.
+            c = {**c, **user_input}
             if c["adaptive_power_max_multiplier"] < 1:
                 errors["adaptive_power_max_multiplier"] = "range"
             if not errors:
@@ -503,7 +508,8 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
         current = {**PHASE_DEFAULTS, **self._base_options().get("phase", {})}
         if not self._base_options().get("phase"):
             current = apply_first_install_suggestions(self.hass, current, "phase")
-        c = {**current, **(user_input or {})}
+        cleared = {key: "" for key in ("phase_1_entity", "phase_2_entity", "phase_3_entity")}
+        c = {**current, **(cleared if user_input is not None else {}), **(user_input or {})}
         if user_input is None and not c.get("session_mode_entity"):
             candidate = discover_session_candidate(self.hass, c)
             if candidate:
@@ -522,7 +528,7 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
                 errors["margin_w"] = "range"
             if not errors:
                 opts = deepcopy(dict(self._base_options()))
-                opts["phase"] = {**current, **user_input}
+                opts["phase"] = c
                 return await self._save(opts)
         schema = vol.Schema({
             vol.Required("enabled", default=c["enabled"]): selector.BooleanSelector(),
@@ -539,7 +545,7 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
 
     async def async_step_phase_learning(self, user_input=None):
         current = {**PHASE_DEFAULTS, **self._base_options().get("phase", {})}
-        c = {**current, **(user_input or {})}
+        c = {**current, **({"monitor_power_entities": []} if user_input is not None else {}), **(user_input or {})}
         errors = {}
         if user_input is not None:
             for entity_id in c.get("monitor_power_entities", []) or []:
@@ -551,11 +557,11 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
                 errors["learning_max_window_s"] = "timing"
             if not errors:
                 opts = deepcopy(dict(self._base_options()))
-                opts["phase"] = {**current, **user_input}
+                opts["phase"] = c
                 return await self._save(opts)
         schema = vol.Schema({
             vol.Required("learning_enabled", default=c["learning_enabled"]): selector.BooleanSelector(),
-            vol.Optional("monitor_power_entities", default=c.get("monitor_power_entities", [])): selector.EntitySelector({"domain": ["sensor", "input_number"], "multiple": True}),
+            vol.Optional("monitor_power_entities", description={"suggested_value": c.get("monitor_power_entities", [])}): selector.EntitySelector({"domain": ["sensor", "input_number"], "multiple": True}),
             vol.Required("learning_min_delta_w", default=c["learning_min_delta_w"]): num(50, 5000, 50),
             vol.Required("learning_settle_s", default=c["learning_settle_s"]): num(2, 120, 1),
             vol.Required("learning_max_window_s", default=c["learning_max_window_s"]): num(10, 300, 5),
@@ -737,7 +743,7 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
                 optional("activity_entity", c): entity(["sensor", "binary_sensor"]),
                 optional("compressor_frequency_entity", c): entity(["sensor"]),
                 optional("sg_status_entity", c): entity(["sensor", "binary_sensor"]),
-                vol.Optional("zone_entities", default=c["zone_entities"]): selector.EntitySelector({"domain": ["climate"], "multiple": True}),
+                vol.Optional("zone_entities", description={"suggested_value": c["zone_entities"]}): selector.EntitySelector({"domain": ["climate"], "multiple": True}),
             }
         return await self._sg_save_form("sg_sources", user_input, schema,
             cleared=("tank_temperature_entity", "tank_target_entity", "power_entity", "power_supply1_entity",
@@ -915,13 +921,15 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
         current = {**WALLBOX_DEFAULTS, **HOUSE_DEFAULTS, **PRIORITY_DEFAULTS, **PROFILE_DEFAULTS, **SESSION_DEFAULTS, **self._base_options().get("wallbox", {})}
         if not self._base_options().get("wallbox"):
             current = apply_first_install_suggestions(self.hass, current, "wallbox")
-        c = {**current, **(user_input or {})}
+        cleared = {key: "" for key in ("power_entity", "status_entity", "demand_entity", "connected_entity",
+                                         "mode_entity", "session_mode_entity", "max_current_entity", "phases_entity")}
+        c = {**current, **(cleared if user_input is not None else {}), **(user_input or {})}
         errors = {}
         if user_input is not None:
             errors = {**wallbox_errors_for(self.hass, c, self._site(), self._base_options().get("devices", [])), **validate_profile(c)}
             if not errors:
                 opts = deepcopy(dict(self._base_options()))
-                opts["wallbox"] = {**current, **user_input}
+                opts["wallbox"] = c
                 return await self._save(opts)
         schema = vol.Schema({
             vol.Required("enabled", default=c["enabled"]): selector.BooleanSelector(),

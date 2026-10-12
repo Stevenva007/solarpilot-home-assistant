@@ -34,6 +34,7 @@ class RelayStatus(TypedDict):
     lease_remaining_s: float | None
     device_unixtime: float | None
     lease_proven: bool
+    timer_cancelled: bool
     setup_valid: bool
     configuration_error: str | None
     source: str
@@ -68,7 +69,10 @@ class _Binding:
 def _number(value: Any) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    value = float(value)
+    try:
+        value = float(value)
+    except (ValueError, OverflowError):
+        return None
     return value if math.isfinite(value) else None
 
 
@@ -120,6 +124,11 @@ class ShellyLeaseAdapter:
         self.hass = hass
         self.entity_id = entity_id
         self.before_on = before_on
+        # Separate ownership proof from the existing electrical policy hook.
+        # The manager may reject a manual timer/contact change observed during
+        # asynchronous preflight without making an OFF write or a blind retry.
+        self.before_on_status = None
+        self.before_off_status = None
         self._lock = asyncio.Lock()
         self._binding_key: tuple[str, str, str] | None = None
         self._identity: tuple[str, str] | None = None
@@ -238,9 +247,10 @@ class ShellyLeaseAdapter:
         if clock is not None and clock <= 0:
             clock = None
         started, duration = _number(raw.get("timer_started_at")), _number(raw.get("timer_duration"))
+        timer_cancelled = duration == 0
         if started is None or duration is None or started < 0 or duration <= 0:
             started = duration = None
-        expires = started + duration if started is not None and duration is not None else None
+        expires = _number(started + duration) if started is not None and duration is not None else None
         remaining = expires - clock if expires is not None and clock is not None else None
         proven = (raw["output"] is True and remaining is not None and 0 < remaining <= duration + 1)
         if raw.get("errors"):
@@ -248,6 +258,7 @@ class ShellyLeaseAdapter:
         return {"output": raw["output"], "timer_started_at": started, "timer_duration": duration,
                 "timer_expires_at": expires, "lease_remaining_s": remaining,
                 "device_unixtime": clock, "lease_proven": proven,
+                "timer_cancelled": timer_cancelled,
                 "setup_valid": configuration_error is None, "configuration_error": configuration_error,
                 "source": SOURCE, "firmware": firmware, "firmware_id": firmware_id,
                 "fingerprint": dict(self._fingerprint), "known": True}
@@ -289,11 +300,23 @@ class ShellyLeaseAdapter:
                 raise ShellyLeaseError("configuration_invalid", before["configuration_error"] or "Shelly meldt een fout.")
             if before["device_unixtime"] is None:
                 raise ShellyLeaseError("clock_unknown", "De lokale Shelly-aflooptimer kan nog niet gecontroleerd worden.")
-            if before["output"] and not before["lease_proven"]:
-                raise ShellyLeaseError("unleased_on", "SG staat aan zonder bevestigde aflooptimer; controleer de handmatige wijziging.")
             current = self._resolve()
             if current.coordinator is not binding.coordinator:
                 raise ShellyLeaseError("binding_changed", "De Shelly-verbinding is gewijzigd tijdens de SG-controle.")
+            if self.before_on_status is not None:
+                try:
+                    allowed = self.before_on_status(before)
+                except Exception as err:
+                    raise ShellyLeaseError("dispatch_changed", "De actuele SG-vrijgave is gewijzigd; de aanvraag wordt opnieuw beoordeeld.") from err
+                if inspect.isawaitable(allowed):
+                    close = getattr(allowed, "close", None)
+                    if callable(close):
+                        close()
+                    allowed = False
+                if allowed is not True:
+                    raise ShellyLeaseError("dispatch_changed", "De actuele SG-vrijgave is gewijzigd; de aanvraag wordt opnieuw beoordeeld.")
+            if before["output"] and not before["lease_proven"]:
+                raise ShellyLeaseError("unleased_on", "SG staat aan zonder bevestigde aflooptimer; controleer de handmatige wijziging.")
             result = await self._rpc(binding, "Switch.Set", {"id": 0, "on": True, "toggle_after": lease}, writing=True)
             try:
                 # was_on is deliberately not treated as the new physical state.
@@ -320,6 +343,38 @@ class ShellyLeaseAdapter:
             current = self._resolve()
             if current.coordinator is not binding.coordinator:
                 raise ShellyLeaseError("binding_changed", "De Shelly-verbinding is gewijzigd tijdens de SG-controle.")
+            if self.before_off_status is not None:
+                # This is ownership only. Firmware/configuration/clock issues
+                # must not remove best-effort OFF for our earlier request. No
+                # Sys clock or lease capability proof is required for OFF.
+                try:
+                    observed = await self._rpc(binding, "Switch.GetStatus", {"id": 0})
+                except ShellyLeaseError:
+                    observed = None
+                status = None
+                if (isinstance(observed, dict) and type(observed.get("id")) is int
+                        and observed["id"] == 0 and type(observed.get("output")) is bool):
+                    started, duration = _number(observed.get("timer_started_at")), _number(observed.get("timer_duration"))
+                    expiry = (_number(started+duration) if started is not None and started >= 0
+                              and duration is not None and duration > 0 else None)
+                    status = {"output": observed["output"], "timer_started_at": started,
+                              "timer_duration": duration, "timer_expires_at": expiry,
+                              "timer_cancelled": duration == 0}
+                # An unknown status does not prove an intervening manual act.
+                current = self._resolve()
+                if current.coordinator is not binding.coordinator:
+                    raise ShellyLeaseError("binding_changed", "De Shelly-verbinding is gewijzigd tijdens de SG-controle.")
+                try:
+                    allowed = self.before_off_status(status)
+                except Exception as err:
+                    raise ShellyLeaseError("dispatch_changed", "De actuele SG-eigenaar is gewijzigd; vrijgave opnieuw beoordelen.") from err
+                if inspect.isawaitable(allowed):
+                    close = getattr(allowed, "close", None)
+                    if callable(close):
+                        close()
+                    allowed = False
+                if allowed is not True:
+                    raise ShellyLeaseError("dispatch_changed", "De actuele SG-eigenaar is gewijzigd; vrijgave opnieuw beoordelen.")
             await self._rpc(binding, "Switch.Set", {"id": 0, "on": False}, writing=True)
             try:
                 after = await self._read(binding, firmware, firmware_id, error)

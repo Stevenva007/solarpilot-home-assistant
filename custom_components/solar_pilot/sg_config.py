@@ -97,6 +97,15 @@ def normalize_config(raw=None):
         for key, role in (("power_supply1_role", "main"), ("power_supply2_role", "heater")):
             if config[key] == "unconfirmed":
                 config[key] = role
+    # Numeric strings are an already accepted settings contract. Normalize the
+    # detached effective view once so runtime/priority consumers never compare
+    # a validated string with watts or seconds. Invalid values remain available
+    # to validation; saved options and private archives are not rewritten.
+    for key, (low, high) in NUMBER_LIMITS.items():
+        if isinstance(config[key], str):
+            value = finite(config[key])
+            if value is not None and low <= value <= high:
+                config[key] = value
     return config
 
 

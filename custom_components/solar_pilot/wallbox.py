@@ -60,7 +60,9 @@ def protected_entity(hass, settings: dict, entity_id: str | None) -> bool:
 
     This cannot inspect the internals of arbitrary scripts or other automations.
     """
-    if not settings.get("enabled") or not entity_id:
+    # Disabling observation does not grant another owner write permission over
+    # a configured charger or a registered native Wallbox actuator.
+    if not isinstance(entity_id, str) or not entity_id:
         return False
     references = {settings.get(k) for k in READ_KEYS} - {None, ""}
     if entity_id in references:
@@ -68,6 +70,8 @@ def protected_entity(hass, settings: dict, entity_id: str | None) -> bool:
     from homeassistant.helpers import entity_registry as er
     lookup = getattr(er.async_get(hass), "async_get", lambda _: None)
     target = lookup(entity_id)
+    if str(getattr(target, "platform", "")).casefold() == "wallbox":
+        return True
     device_id = getattr(target, "device_id", None)
     if not device_id:
         return False
@@ -75,10 +79,8 @@ def protected_entity(hass, settings: dict, entity_id: str | None) -> bool:
 
 
 def conflicting_devices(hass, settings: dict, devices: list[dict]) -> list[str]:
-    if not settings.get("enabled"):
-        return []
     return [d["id"] for d in devices if (
-        d.get("power_entity") == settings.get("power_entity")
+        bool(settings.get("power_entity")) and d.get("power_entity") == settings.get("power_entity")
         or any(protected_entity(hass, settings, d.get(k)) for k in CONTROL_KEYS)
     )]
 

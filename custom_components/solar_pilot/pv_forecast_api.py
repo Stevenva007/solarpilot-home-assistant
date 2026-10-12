@@ -24,6 +24,10 @@ async def websocket_pv_diagnostics(hass, connection, msg):
     if 'reset_confirm' in msg and type(msg['reset_confirm']) is not bool:
         connection.send_error(msg['id'],'invalid_options','Reset vraagt expliciete bevestiging');return
     async with r._lock:
+        entry=hass.config_entries.async_get_entry(msg['config_entry_id'])
+        if (r._closed or entry is None or entry.domain != DOMAIN
+                or getattr(entry,'runtime_data',None) is not r):
+            connection.send_error(msg['id'],'not_loaded','SolarPilot is herladen; open de PV-diagnose opnieuw');return
         if msg.get('reset_confirm') is True:
             old_model=deepcopy(r.pv_forecast.snapshot())
             old_legacy=deepcopy(r.local_pv.snapshot())

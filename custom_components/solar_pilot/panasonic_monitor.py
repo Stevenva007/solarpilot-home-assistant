@@ -34,7 +34,8 @@ class PanasonicMonitor:
 
     def _object(self, entity_id):
         obj = self.runtime.hass.states.get(entity_id) if entity_id else None
-        if obj is None or str(obj.state).strip().casefold() in ("unknown", "unavailable", "") or obj.attributes.get("restored"):
+        if (obj is None or str(obj.state).strip().casefold() in ("unknown", "unavailable", "")
+                or any(obj.attributes.get(key) for key in ("restored", "estimated", "is_estimated"))):
             return None
         return obj if self._reported_stamp(obj) is not None else None
 

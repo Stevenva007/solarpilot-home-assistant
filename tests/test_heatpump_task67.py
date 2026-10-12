@@ -104,7 +104,9 @@ def test_estimated_zone_cannot_return_as_a_selected_controller_context():
     hass.states.set("water_heater.tank", "idle", {"operation_mode": "idle"})
     hass.states.set("climate.room", "heat", {"hvac_action": "heating", "estimated": True})
     view = runtime.panasonic.overview()
-    assert view["context"] == "space_heating"  # Controller semantics untouched.
+    assert view["context"] == "heatpump_unknown"
+    assert not view["context_reliable"] and view["context_signature"] is None
+    assert view["cooling_possible"] is True
     assert view["task_context"]["function"] is None and view["native_task"]["function"] is None
     assert view["power_activity"]["function"] is None
     assert not hass.services.calls

@@ -26,6 +26,8 @@ class ConsumerHistoryRecorder:
         self.interval_s = float(interval_s)
         self.max_gap_s = max(30, self.interval_s*2)
         self.loaded = False
+        self._writable = False
+        self._closed = False
         self.error = ""
         self._save_scheduled = False
         self._saved_revision = -1
@@ -36,13 +38,17 @@ class ConsumerHistoryRecorder:
         return datetime.now(timezone.utc)
 
     async def start(self):
+        if self.loaded or self._closed:
+            return
         try:
-            data = await self.store.async_load() or {}
-            self.model.restore(data, self.configs, self.now())
+            data = await self.store.async_load()
+            if self.model.restore(data, self.configs, self.now()) is False:
+                raise ValueError("Unsupported or incomplete consumer history")
+            self._writable = True
         except Exception:
             # History is optional telemetry and must not stop the controller.
             _LOGGER.exception("SolarPilot verbruikershistoriek kon niet geladen worden")
-            self.error = "Bestaande historiek kon niet worden geladen; eerdere perioden zijn onbekend"
+            self.error = "Bestaande historiek niet volledig geladen; opslag blijft behouden en nieuwe registratie is alleen tijdelijk"
         self.loaded = True
 
     def _checkpoint(self):
@@ -52,13 +58,15 @@ class ConsumerHistoryRecorder:
         return self.model.snapshot()
 
     def _maybe_save(self):
-        if not self.loaded or self._save_scheduled:
+        if not self.loaded or not self._writable or self._closed or self._save_scheduled:
             return
         if self.model.revision != self._saved_revision or time.monotonic()-self._last_checkpoint >= 60:
             self._save_scheduled = True
             self.store.async_delay_save(self._checkpoint, 5)
 
     def observe(self, device_id, active, when):
+        if self._closed:
+            return
         try:
             self.model.observe(device_id, self.configs[device_id], active, when, max_gap_s=self.max_gap_s)
             self._maybe_save()
@@ -84,6 +92,9 @@ class ConsumerHistoryRecorder:
     def brief(self, device_id):
         return self.model.brief(device_id, self.now())
 
+    def access_sources(self, device_id):
+        return self.model.access_sources(device_id)
+
     def detail(self, device_id, day=None):
         cfg = self.configs[device_id]
         self.model.ensure(device_id, cfg, self.now())
@@ -93,8 +104,19 @@ class ConsumerHistoryRecorder:
         return result
 
     async def close(self, *, persist=True):
+        if self._closed:
+            return
+        self._closed = True
+        for name in ("_async_cleanup_delay_listener", "_async_cleanup_final_write_listener"):
+            cleanup = getattr(self.store, name, None)
+            if callable(cleanup):
+                try:
+                    cleanup()
+                except Exception:
+                    _LOGGER.debug("SolarPilot verbruikershistoriek-listener kon niet sluiten", exc_info=True)
+        self._save_scheduled = False
         self.model.pause_recording()
-        if self.loaded and persist:
+        if self.loaded and self._writable and persist:
             try:
                 await self.store.async_save(self._checkpoint())
             except Exception:

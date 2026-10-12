@@ -188,7 +188,7 @@ def sg_solar_budget(runtime):
     if not valid or not ready or any(v is None for v in values):
         return result
     grid, pv, discharge, grid_stamp, pv_stamp = values
-    now, stale = time.time(), runtime.sg_boost.settings["stale_s"]
+    now, stale = time.time(), float(runtime.sg_boost.settings["stale_s"])
     if pv < 0 or discharge < 0 or not all(-5 <= now-stamp <= stale for stamp in (grid_stamp, pv_stamp)):
         return result
     filtered = _number(runtime.filtered)

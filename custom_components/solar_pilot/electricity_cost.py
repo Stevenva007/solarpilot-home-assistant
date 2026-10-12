@@ -5,11 +5,14 @@ separately and MUST NOT be subtracted from the net cost a second time. This is
 meter-based estimation, not an invoice or a production-LCOE calculation.
 """
 from __future__ import annotations
+from copy import deepcopy
 from datetime import datetime
 import math
 
 
 def finite(value):
+    if isinstance(value, bool):
+        return None
     try:
         v = float(value)
         return v if math.isfinite(v) else None
@@ -37,6 +40,7 @@ class DailyElectricityCost:
         self.previous = None  # Never bridge an offline/restart period with invented readings.
         self.imported = False
         self.cached = {}
+        self._unsupported_snapshot = None
 
     @classmethod
     def _new(cls, day):
@@ -44,9 +48,20 @@ class DailyElectricityCost:
                 "legacy_price_estimate": False, "first_sample": None, "last_sample": None}
 
     def snapshot(self):
+        if self._unsupported_snapshot is not None:
+            return deepcopy(self._unsupported_snapshot)
         return {"version": 1, "data": dict(self.data)}
 
     def restore(self, payload):
+        if isinstance(payload, dict) and (isinstance(payload.get("version"), bool) or payload.get("version", 1) != 1):
+            # Future/foreign schemas stay opaque and unchanged in private
+            # storage; this version cannot assign meaning to their counters.
+            self._unsupported_snapshot = deepcopy(payload)
+            self.data = self._new("")
+            self.previous = None
+            self.imported = True
+            return
+        self._unsupported_snapshot = None
         d = payload.get("data") if isinstance(payload, dict) else None
         if not isinstance(d, dict) or not isinstance(d.get("date"), str):
             return
@@ -145,9 +160,13 @@ class DailyElectricityCost:
                         points.insert(1, (t, 0.0, pa+(pb-pa)*t))
                     direct = 0.0
                     for (ta, g1, p1), (tb, g2, p2) in zip(points, points[1:]):
-                        s1 = max(0.0, p1-max(0.0, -g1))
-                        s2 = max(0.0, p2-max(0.0, -g2))
-                        direct += (s1+s2)*.5*(tb-ta)*seconds*factor
+                        # PV/export inconsistency can make this residual cross
+                        # zero inside a segment even without a grid-zero crossing.
+                        # Integrate its positive part rather than spreading the
+                        # clipped endpoint into an unproven triangle of sunlight.
+                        s1 = p1-max(0.0, -g1)
+                        s2 = p2-max(0.0, -g2)
+                        direct += positive_linear_area(s1,s2,(tb-ta)*seconds)*factor
                     d["direct_pv_kwh"] += direct
                     if ip is not None:
                         d["pv_avoided_cost_eur"] += direct*ip
@@ -179,6 +198,8 @@ class DailyElectricityCost:
         result["coverage_note"] = ("Nog geen bruikbare meetperiode" if not enough else
                                    f"Meetdekking {result['coverage_pct']:.1f}% van vandaag; ontbrekende perioden niet geschat" if partial else
                                    "Vandaag tot nu toe; geschat uit vermogensmetingen")
+        if self._unsupported_snapshot is not None:
+            result["storage_warning"] = "Opgeslagen kostenversie niet ondersteund; oorspronkelijke opslag blijft ongewijzigd bewaard"
         if d["storage_seen"]:
             result["solar_note"] = "Met thuisbatterij is rechtstreeks zonneverbruik niet apart bewezen; netkost blijft op P1 gebaseerd."
         elif result["pv_partial"]:

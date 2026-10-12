@@ -73,6 +73,7 @@ to Home Assistant, services, devices, tariffs, clocks or network resources.
     def __init__(self, retention_days=90):
         self.retention_days = max(1, min(90, int(retention_days)))
         self.records = {}
+        self._unsupported_snapshot = None
 
     def _prune(self):
         for day in sorted(self.records)[:-self.retention_days]:
@@ -140,10 +141,16 @@ to Home Assistant, services, devices, tariffs, clocks or network resources.
         return True
 
     def snapshot(self):
+        if self._unsupported_snapshot is not None:
+            return deepcopy(self._unsupported_snapshot)
         return {"version": 1, "records": deepcopy([self.records[day] for day in sorted(self.records)])}
 
     def restore(self, payload):
         self.records = {}
+        if isinstance(payload, dict) and payload and (isinstance(payload.get("version"), bool) or payload.get("version") != 1):
+            self._unsupported_snapshot = deepcopy(payload)
+            return
+        self._unsupported_snapshot = None
         rows = payload.get("records") if isinstance(payload, dict) and payload.get("version") == 1 else None
         if not isinstance(rows, list):
             return
