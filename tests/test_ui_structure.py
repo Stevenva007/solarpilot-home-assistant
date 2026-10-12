@@ -128,7 +128,7 @@ def test_device_cards_explain_start_state_and_history_always_names_both_reasons(
         "<h2>Toestellen</h2>", "De gezamenlijke rangorde beheer je via Voorrang",
         "Waarom dit toestel nog niet gestart is", "start_diagnostics", "start_requirements",
         "Benodigd voor start", "Vrije zonnestroom na huisreserve", "Stabiel nodig", "Nog nodig",
-        "Van autoladen beschikbaar", "Zonnevermogen voor dit toestel", "solar_start_pool",
+        "Van autoladen beschikbaar", "Toegelaten zonnepot vóór eindtoewijzing", "solar_start_pool",
         "APP-startvraag", "ontvangen; wacht op bevestigde toestelstatus.",
         "Een lopende afwasbeurt wordt niet opnieuw gestart",
         "Nog ongeveer", "betrouwbare actuele energiemeting", "herstartcontrole voor dit toestel is nog bezig",

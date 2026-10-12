@@ -471,7 +471,7 @@ class SGBoostManager:
         duration = finite(raw.get("timer_duration"))
         expiry = self._expiry(raw)
         if expiry is None and start is not None and duration is not None:
-            expiry = start + duration
+            expiry = finite(start + duration)
         remaining = finite(raw.get("lease_remaining_s"))
         # Production transport obtains remaining validity from the device clock.
         # A small fake/legacy adapter may supply no device clock: this cannot
@@ -524,25 +524,42 @@ class SGBoostManager:
             if raw is None:
                 return
             if self._restart_release:
-                # A different live timer can be an intervening manual request.
-                expiry = self._expiry(raw)
-                different = (self._restored_expiry is not None and expiry is not None
-                             and abs(expiry - self._restored_expiry) > 2)
-                if raw["output"] and different:
-                    self._restart_release = False
-                    self.manual_hold = True
-                    self._set_state("blocked", "SG-uitgang is handmatig gewijzigd; hervat de automatisering wanneer gewenst")
-                elif raw["output"]:
-                    self._possibly_owned = True
-                    self._restart_release = False
-                    await self._release("Eerdere SG-aanvraag na herstart vrijgegeven", rest=True)
-                else:
-                    self._restart_release = False
-                    self._begin_rest()
+                await self._reconcile_restart(raw)
             elif raw["output"]:
                 self.manual_hold = True
                 self._set_state("blocked", "SG-contact staat buiten SolarPilot aan; handmatige stand blijft behouden")
             await self._save()
+
+    async def _reconcile_restart(self, raw):
+        """Finish an unread startup journal when a real later report arrives.
+
+        Reconciliation grants only one possible OFF, never a restored ON. A
+        failed OFF is not retried here because its dispatch clears the pending
+        reconciliation before the transport await.
+        """
+        if not self._restart_release or raw is None:
+            return
+        expiry = self._expiry(raw)
+        different = (self._restored_expiry is not None
+                     and (expiry is not None and abs(expiry-self._restored_expiry) > 2
+                          or raw.get("timer_cancelled") is True
+                          or finite(raw.get("timer_duration")) == 0))
+        self._restart_release = False
+        if raw["output"] and different:
+            self.manual_hold = True
+            self._set_state("blocked", "SG-uitgang is handmatig gewijzigd; hervat de automatisering wanneer gewenst")
+        elif raw["output"]:
+            self._possibly_owned = True
+            # A failed safe OFF still has only this observed local lease. Its
+            # remaining timer bounds busy/recovery without replaying old ON.
+            remaining = finite(raw.get("lease_remaining_s"))
+            if expiry is not None and remaining is not None and 0 < remaining <= 600:
+                self._lease_expiry = expiry
+                self._lease_deadline = self._clock()+remaining
+            await self._release("Eerdere SG-aanvraag na herstart vrijgegeven", rest=True)
+        else:
+            self._begin_rest()
+        await self._save()
 
     def _on_permission_current(self, generation):
         return (generation == self._generation and not self._closed and self.auto_enabled
@@ -607,7 +624,24 @@ class SGBoostManager:
         adapter = None
         callback = None
         supports_callback = False
+        status_callback = None
+        supports_status_callback = False
         write_guard_deadline = None
+
+        def before_on_status(raw):
+            # The native transport reads the contact after awaited preflight.
+            # Changes there must not be overwritten with our earlier cached
+            # lease. The existing no-arg callback still checks live electrical
+            # permission at Switch.Set; no new ON authority comes from a read.
+            self._status(raw)
+            if not renewal and raw["output"] is True:
+                self.owned = self._possibly_owned = self.desired_on = False
+                self.manual_hold = True
+                self._set_state("blocked", "SG-contact staat buiten SolarPilot aan; handmatige stand blijft behouden")
+                return False
+            if renewal:
+                self._observe_contact(raw)
+            return self._on_authorized(generation, renewal)
 
         def before_on():
             nonlocal issued_at
@@ -655,6 +689,10 @@ class SGBoostManager:
             supports_callback = hasattr(adapter, "before_on")
             callback = before_on
             adapter.before_on = callback
+            supports_status_callback = hasattr(adapter, "before_on_status")
+            if supports_status_callback:
+                status_callback = before_on_status
+                adapter.before_on_status = status_callback
             if not supports_callback:
                 # Injected deterministic doubles can omit the callback protocol.
                 # The production adapter always invokes it after async preflight.
@@ -670,7 +708,7 @@ class SGBoostManager:
             if self.fault_code == "firmware_changed":
                 raise ValueError("commissioning_changed")
             self._timer_proof(raw, renewal=renewal, lease_s=lease_s)
-        except Exception as err:
+        except (Exception, asyncio.CancelledError) as err:
             # No replay or retry. A missing readback is not a confirmed OFF.
             attempted = write_started and getattr(err, "command_attempted", True)
             if not attempted:
@@ -690,11 +728,20 @@ class SGBoostManager:
                 if attempted:
                     self.relay_on = None
                     self.relay_confirmed = False
+                    # An unacknowledged renewal may itself have changed the
+                    # device timer. Its difference from the last confirmed
+                    # expiry is no proof of manual takeover during safe OFF.
+                    self._lease_expiry = None
+                    if write_guard_deadline is not None:
+                        self._lease_deadline = max(self._lease_deadline or 0.0,
+                                                   write_guard_deadline+lease_s)
                 if self.fault_code != "firmware_changed":
                     self._fault("on_failed", "SG-aanvraag of lokale aflooptimer niet bevestigd; controle nodig voordat opnieuw wordt gestart")
                 if self.owned or self._possibly_owned:
                     await self._release(self.fault, rest=True, preserve_fault=True)
             await self._save()
+            if isinstance(err, asyncio.CancelledError):
+                raise
             return False
         finally:
             self._in_flight = False
@@ -703,6 +750,9 @@ class SGBoostManager:
                     adapter.before_on = None
                 else:
                     del adapter.before_on
+            if (adapter is not None and supports_status_callback
+                    and getattr(adapter, "before_on_status", None) is status_callback):
+                adapter.before_on_status = None
         if not self._on_permission_current(generation):
             self.desired_on = False
             await self._release("Verouderde SG-aanvraag vrijgegeven", rest=True)
@@ -782,6 +832,7 @@ class SGBoostManager:
             self._note("SG-contact actief; extra warmteopname nog niet aangetoond")
 
     async def _release(self, reason, *, rest=True, preserve_fault=False, policy_hold=True):
+        cancelled = None
         self.desired_on = False
         self._stable_since = self._import_since = None
         self._import_observation = self._import_policy = None
@@ -794,9 +845,43 @@ class SGBoostManager:
         if had_authority and not self._off_attempted:
             self._off_attempted = True
             self._in_flight = True
-            self._command_clock()
+            adapter = None
+            off_callback = None
+            supports_off_callback = False
+
+            def before_off_status(raw):
+                # Only a provable current timer change can transfer ownership.
+                # Missing timer/clock fields are uncertainty, not manual proof,
+                # and must not block a known-owned emergency or closing OFF.
+                if raw is None:
+                    self._note("SG-status vóór vrijgave niet leesbaar; bestaande eigen aanvraag wordt veilig vrijgegeven")
+                    self._command_clock()
+                    return True
+                self._status(raw)
+                expiry = self._expiry(raw)
+                changed = (self._lease_expiry is not None and (
+                    expiry is not None and abs(expiry-self._lease_expiry) > 2
+                    or raw.get("timer_cancelled") is True))
+                if raw["output"] is False or changed:
+                    self.owned = self._possibly_owned = self.desired_on = False
+                    self._minimum_started = None
+                    self._lease_expiry = self._lease_deadline = None
+                    if changed and raw["output"] is True:
+                        self.manual_hold = True
+                        self._set_state("blocked", "SG-contact buiten SolarPilot gewijzigd; handmatige stand blijft behouden")
+                    return False
+                self._command_clock()
+                return True
+
             try:
-                raw = self._status(await asyncio.wait_for(self._transport().set_off(),
+                adapter = self._transport()
+                supports_off_callback = hasattr(adapter, "before_off_status")
+                if supports_off_callback:
+                    off_callback = before_off_status
+                    adapter.before_off_status = off_callback
+                else:
+                    self._command_clock()
+                raw = self._status(await asyncio.wait_for(adapter.set_off(),
                                                         float(self.settings["ack_timeout_s"])))
                 if raw["output"] is not False:
                     raise ValueError("off_not_confirmed")
@@ -804,13 +889,21 @@ class SGBoostManager:
                 self._lease_expiry = self._lease_deadline = None
                 if self.fault_code == "off_failed":
                     self.fault_code = self.fault = ""
-            except Exception:
-                self.relay_on = None
-                self.relay_confirmed = False
-                if not preserve_fault:
-                    self._fault("off_failed", "Vrijgave van het SG-contact nog niet bevestigd; de lokale toestemming wordt niet vernieuwd")
+            except (Exception, asyncio.CancelledError) as err:
+                cancelled = err if isinstance(err, asyncio.CancelledError) else None
+                ownership_withdrawn = (getattr(err, "code", "") == "dispatch_changed"
+                    and getattr(err, "command_attempted", False) is False
+                    and not self.owned and not self._possibly_owned)
+                if not ownership_withdrawn:
+                    self.relay_on = None
+                    self.relay_confirmed = False
+                    if not preserve_fault:
+                        self._fault("off_failed", "Vrijgave van het SG-contact nog niet bevestigd; de lokale toestemming wordt niet vernieuwd")
             finally:
                 self._in_flight = False
+                if (adapter is not None and supports_off_callback
+                        and getattr(adapter, "before_off_status", None) is off_callback):
+                    adapter.before_off_status = None
         if rest:
             self._begin_rest()
         if self._session_started is not None:
@@ -821,9 +914,11 @@ class SGBoostManager:
         self._minimum_started = None
         self._session_finishing = False
         self._last_renewed = None
-        if not self.fault:
+        if not self.fault and not self.manual_hold:
             self._set_state("rest" if rest else "normal", reason)
         await self._save()
+        if cancelled is not None:
+            raise cancelled
 
     def _observe_contact(self, raw):
         """Distinguish our expiry/late echo from an external contact change."""
@@ -858,11 +953,19 @@ class SGBoostManager:
                 self._set_state("blocked", "SG-contact handmatig uitgeschakeld; hervat de automatisering wanneer gewenst")
         elif ours and raw["output"] is True:
             expiry = self._expiry(raw)
-            if expiry is not None and self._lease_expiry is not None and expiry > self._lease_expiry + 2:
+            if (self._lease_expiry is not None
+                    and (expiry is not None and abs(expiry - self._lease_expiry) > 2
+                         or raw.get("timer_cancelled") is True
+                         or finite(raw.get("timer_duration")) == 0)):
                 self.owned = self._possibly_owned = self.desired_on = False
                 self._minimum_started = None
                 self.manual_hold = True
                 self._set_state("blocked", "SG-contact buiten SolarPilot gewijzigd; handmatige stand blijft behouden")
+            elif expiry is None:
+                # Missing/invalid timer fields cannot prove who changed it.
+                # Retain only prior OFF/recovery authority, never renew ON.
+                self.desired_on = False
+                self._fault("lease_invalid", "Lokale SG-aflooptimer niet betrouwbaar bevestigd; bestaande eigen aanvraag wordt vrijgegeven")
             elif self._lease_deadline is not None and now > self._lease_deadline + 2:
                 self.desired_on = False
                 self._fault("lease_failed", "SG-contact bleef na de lokale aflooptijd aan; controleer de Shelly-terugval")
@@ -1149,7 +1252,7 @@ class SGBoostManager:
             import_stamp = finite(grid_import_stamp)
             import_policy = self._import_policy_current()
             if (data_fresh and import_policy is not None and imported > import_policy[0]
-                    and (import_stamp is None or not -5 <= self._wall_clock() - import_stamp < self.settings["stale_s"])):
+                    and (import_stamp is None or not -5 <= self._wall_clock() - import_stamp < float(self.settings["stale_s"]))):
                 data_fresh = False
             if data_fresh:
                 data_fresh = self._observe_import(imported, import_stamp, grid_import_source, now)
@@ -1186,6 +1289,11 @@ class SGBoostManager:
             if rearmed or previous_reference != self._general_reference:
                 await self._save()
             raw = await self._read() if self.configured and not self._closed else None
+            if self._restart_release and raw is not None:
+                await self._reconcile_restart(raw)
+                # Reconciliation may have written OFF. Its fresh readback or
+                # unknown result supersedes the earlier ON snapshot.
+                raw = None
             observed = (self.owned, self._possibly_owned, self.manual_hold, self.completion_hold,
                         self._session_started, self.fault_code)
             self._observe_contact(raw)
@@ -1199,7 +1307,7 @@ class SGBoostManager:
                 self._stable_since = None
                 await self._save()
             now = self._clock()
-            if import_stamp is not None and not -5 <= self._wall_clock() - import_stamp < self.settings["stale_s"]:
+            if import_stamp is not None and not -5 <= self._wall_clock() - import_stamp < float(self.settings["stale_s"]):
                 data_fresh = False
             gates = self._gates(data_fresh=data_fresh, phase_allowed=phase_allowed,
                                  priority_allowed=priority_allowed, hard_limit=hard_limit,
@@ -1261,7 +1369,7 @@ class SGBoostManager:
                 return self.sent_this_tick
             if surplus < float(self.settings["threshold_w"]):
                 self._stable_since = None
-                self._set_state("waiting_surplus", f"Wachten op minstens {self.settings['threshold_w']:g} W bruikbaar zonnevermogen")
+                self._set_state("waiting_surplus", f"Wachten op minstens {float(self.settings['threshold_w']):g} W bruikbaar zonnevermogen")
                 return self.sent_this_tick
             if self._stable_since is None:
                 self._stable_since = now
@@ -1326,6 +1434,9 @@ class SGBoostManager:
             # Explicit resume grants authority to reconcile this contact, not
             # authority to continue an unleased/manual ON or to control Panasonic.
             if raw["output"]:
+                # The deliberate resume names the current request, while a
+                # later timer change during its OFF preflight stays protected.
+                self._lease_expiry = self._expiry(raw)
                 self._possibly_owned = True
                 await self._release("Handmatige SG-stand vrijgegeven; verse zonnebeoordeling volgt", policy_hold=False)
             self._stable_since = None

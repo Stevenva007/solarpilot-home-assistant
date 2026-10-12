@@ -255,7 +255,8 @@ class NativeClimateProgram:
             from homeassistant.helpers import entity_registry as er
             hass = self.runtime.hass
             row = er.async_get(hass).async_get(entity_id)
-            if row is None or getattr(row, "platform", None) != "aquarea":
+            if (row is None or getattr(row, "platform", None) != "aquarea"
+                    or getattr(row, "disabled_by", None) is not None):
                 return None
             entry_id = getattr(row, "config_entry_id", None)
             unique_id = getattr(row, "unique_id", None)

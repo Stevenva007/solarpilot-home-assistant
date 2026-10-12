@@ -22,9 +22,10 @@ LOCAL_PV_DEFAULTS = {
 
 
 def _finite(value):
+    if isinstance(value, bool):return None
     try:
         value=float(value); return value if math.isfinite(value) else None
-    except (TypeError,ValueError): return None
+    except (TypeError,ValueError,OverflowError): return None
 
 def _median(values):
     vals=[float(v) for v in values if _finite(v) is not None]; return statistics.median(vals) if vals else None
@@ -74,15 +75,21 @@ class LocalPVModel:
             raw=data.get(attr,{})
             if not isinstance(raw,dict):continue
             cleaned={}
-            for key,entry in raw.items():
+            for key,entry in list(raw.items())[-1600:]:
                 if not isinstance(entry,dict):continue
                 days={}
-                for day,values in entry.get("days",{}).items():
+                stored_days=entry.get("days")
+                if not isinstance(stored_days,dict):continue
+                maximum=max(1,int(self.settings["max_days_per_bin"]))
+                for day,values in list(stored_days.items())[-maximum:]:
+                    if not isinstance(values,list):continue
+                    try:parsed=datetime.fromisoformat(str(day)).date().isoformat()
+                    except (ValueError,TypeError):continue
                     vals=[round(float(v),4) for v in values[-12:] if _finite(v) is not None and .02<=float(v)<=4]
-                    if vals:days[str(day)]=vals
+                    if vals:days[parsed]=vals
                 if days:cleaned[str(key)]={"days":days}
             setattr(self,attr,cleaned)
-        self.samples=max(0,int(data.get("samples",0)))
+        self.samples=max(0,min(10**12,int(_finite(data.get("samples")) or 0)))
     def _az_key(self,azimuth):
         step=max(1.0,float(self.settings["azimuth_bin_deg"])); return str(int(round(float(azimuth)/step)*step))
     def _el_key(self,elevation):

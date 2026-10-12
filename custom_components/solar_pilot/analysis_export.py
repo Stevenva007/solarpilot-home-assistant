@@ -397,15 +397,40 @@ class AnalysisRecorder:
         self.timing = deque(maxlen=720)
         self.log_handler = None
         self.source_count = 0
+        self._closed = False
 
     async def start(self):
+        if self.loaded or self._closed:
+            return
         try:
-            data = await self.store.async_load() or {}
+            data = await self.store.async_load()
+            if data is None:
+                data = {}
+            if (not isinstance(data, dict) or type(data.get("schema_version", 1)) is not int
+                    or data.get("schema_version", 1) not in (1, SCHEMA_VERSION)):
+                raise ValueError("Unsupported analysis storage")
+            latest = time.time() + 5
             for key, cap in (("samples", MAX_SAMPLES), ("changes", MAX_CHANGES), ("events", MAX_EVENTS)):
                 rows = data.get(key, [])
-                setattr(self, key, deque((x for x in rows[-cap:] if isinstance(x, dict) and isinstance(x.get("ts"), (int, float))), maxlen=cap))
-            self.started = float(data.get("started", self.started))
-            self.dropped.update(data.get("dropped", {}))
+                if not isinstance(rows, list):
+                    raise ValueError("Invalid analysis record list")
+                if any(not isinstance(row, dict) or isinstance(row.get("ts"), bool)
+                        or not isinstance(row.get("ts"), (int, float)) or not math.isfinite(row["ts"])
+                        or not 0 <= row["ts"] <= latest
+                        for row in rows[-cap:]):
+                    raise ValueError("Invalid analysis record timestamp")
+                setattr(self, key, deque(sorted(rows[-cap:], key=lambda row: row["ts"]), maxlen=cap))
+            started = data.get("started", self.started)
+            if isinstance(started, bool):
+                raise ValueError("Invalid analysis collection timestamp")
+            self.started = float(started)
+            if not math.isfinite(self.started) or not 0 <= self.started <= latest:
+                raise ValueError("Invalid analysis collection timestamp")
+            dropped = data.get("dropped", {})
+            if (not isinstance(dropped, dict) or any(type(value) is not int or value < 0
+                    for key, value in dropped.items() if key in self.dropped)):
+                raise ValueError("Invalid analysis eviction counters")
+            self.dropped.update({key: dropped[key] for key in self.dropped if key in dropped})
             self.prune(time.time())
             self.loaded = True
             self.last_sample = 0.0  # Always capture a fresh post-start source snapshot.
@@ -423,7 +448,7 @@ class AnalysisRecorder:
         target.append(value)
 
     def event(self, kind, message, data=None):
-        if not self.settings["enabled"]:
+        if self._closed or not self.settings["enabled"]:
             return
         self._append("events", {"ts": time.time(), "release": VERSION, "kind": str(kind), "message": safe(message), "data": safe(data)})
 
@@ -474,6 +499,8 @@ class AnalysisRecorder:
         return (sorted(priority) + sorted(native) + [eid for eid in explicit if eid not in priority] + sorted(related))[:250]
 
     def capture(self, elapsed_ms):
+        if self._closed:
+            return
         wall, r = time.time(), self.r
         self.prune(wall)
         if not self.settings["enabled"]:
@@ -594,11 +621,22 @@ class AnalysisRecorder:
                 "changes": list(self.changes), "events": list(self.events), "dropped": dict(self.dropped)}
 
     async def close(self, *, persist=True):
+        if self._closed:
+            return
         if self.log_handler is not None:
             logging.getLogger("custom_components.solar_pilot").removeHandler(self.log_handler)
             self.log_handler = None
         if self.loaded and persist:
             self.event("shutdown", "SolarPilot registratie afgesloten")
+        self._closed = True
+        for name in ("_async_cleanup_delay_listener", "_async_cleanup_final_write_listener"):
+            cleanup = getattr(self.store, name, None)
+            if callable(cleanup):
+                try:
+                    cleanup()
+                except Exception:
+                    logging.getLogger(__name__).debug("SolarPilot analyseopslag-listener kon niet sluiten", exc_info=True)
+        if self.loaded and persist:
             try:
                 await self.store.async_save(self.snapshot())
             except Exception as err:
@@ -613,7 +651,7 @@ class AnalysisRecorder:
         # Older stored rows did not record their collecting release. Do not
         # relabel them with the exporting release after an integration update.
         windows = {key: [{**x, "release": x.get("release") or "unknown"}
-                        for x in getattr(self, key) if x["ts"] >= cutoff]
+                        for x in getattr(self, key) if cutoff <= x["ts"] <= wall]
                    for key in ("samples", "changes", "events", "fast")}
         sample_rows = sorted(windows["samples"], key=lambda row: row["ts"])
         first_raw_ts = sample_rows[0]["ts"] if sample_rows else None

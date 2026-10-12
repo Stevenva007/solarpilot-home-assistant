@@ -8,6 +8,7 @@ planning/diagnostics only; it is never a substitute for a physical W meter.
 from __future__ import annotations
 
 from collections import deque
+from copy import deepcopy
 from dataclasses import dataclass
 import math
 import statistics
@@ -30,7 +31,7 @@ def _finite(value):
     try:
         value = float(value)
         return value if math.isfinite(value) else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
@@ -212,8 +213,11 @@ class HeatPumpActivityModel:
         self.last_wall_ts = None
         self.unknown_observations = 0
         self.restore_note = ""
+        self._unsupported_snapshot = None
 
     def snapshot(self):
+        if self._unsupported_snapshot is not None:
+            return deepcopy(self._unsupported_snapshot)
         return {
             "schema": 1,
             "samples": {k: list(v[-40:]) for k, v in self.samples.items()},
@@ -228,9 +232,14 @@ class HeatPumpActivityModel:
     def restore(self, data):
         if not data:
             return True
-        if not isinstance(data, dict) or data.get("schema", 1) != 1:
+        if not isinstance(data, dict):
             self.restore_note = "Warmtepompleermodel incompatibel; alleen dit model leert opnieuw."
             return False
+        if type(data.get("schema", 1)) is not int or data.get("schema", 1) != 1:
+            self._unsupported_snapshot = deepcopy(data)
+            self.restore_note = "Warmtepompleermodelversie niet ondersteund; alleen dit model leert tijdelijk in geheugen, oorspronkelijke opslag blijft ongewijzigd bewaard"
+            return False
+        self._unsupported_snapshot = None
         try:
             self.unknown_observations = max(0, min(1000000, int(data.get("unknown_observations", 0) or 0)))
             for key in ACTIVE_CONTEXTS:

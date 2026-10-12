@@ -9,12 +9,15 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import date, datetime, time as dtime, timedelta, timezone
 import math
+import re
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 RETENTION_DAYS = 30
 MAX_SESSIONS = 2000
 MAX_EVENTS = 300
 SCHEMA_VERSION = 1
+MAX_ACCESS_SOURCES = 2048
+_ENTITY = re.compile(r"^[a-z_]+\.[a-z0-9_]+$")
 
 
 def _finite(value):
@@ -88,15 +91,39 @@ class ConsumerHistory:
                 "since": stamp, "last_seen": None, "active": None,
                 "days": {}, "sessions": [], "events": [], "open_id": None,
                 "next_id": 1, "trimmed_before": None, "revision": 0,
+                "access_sources": [], "access_sources_complete": True,
             }
             self._change(self.devices[device_id])
         row = self.devices[device_id]
         row["name"] = _text(cfg.get("name", device_id), 120)
+        self._remember_sources(row, cfg)
         if row["binding"] != binding:
             self._interrupt(row, "Koppeling gewijzigd; eerdere fysieke toestand niet overgenomen")
             row["binding"] = binding
             self._pending.pop(device_id, None)
         return row
+
+    def _remember_sources(self, row, cfg):
+        """Historical read permissions must survive a same-consumer rebind."""
+        sources = set(row.get("access_sources", ()))
+        for key, value in cfg.items():
+            if (key.endswith("_entity") or key in ("start_button", "start_script", "stop_script")):
+                if isinstance(value, str) and _ENTITY.fullmatch(value):
+                    sources.add(value)
+        complete = row.get("access_sources_complete", False) is True
+        if len(sources) > MAX_ACCESS_SOURCES:
+            complete = False
+        sources = sorted(sources)[:MAX_ACCESS_SOURCES]
+        if sources != row.get("access_sources") or complete != row.get("access_sources_complete"):
+            row["access_sources"], row["access_sources_complete"] = sources, complete
+            self._change(row)
+
+    def access_sources(self, device_id):
+        """Private ACL metadata; never include source identities in detail/brief."""
+        row = self.devices.get(device_id)
+        if row is None:
+            return set(), False
+        return set(row.get("access_sources", ())), row.get("access_sources_complete") is True
 
     def _change(self, row):
         self.revision += 1
@@ -316,28 +343,44 @@ class ConsumerHistory:
     def restore(self, data, configs, when):
         """Restore known intervals, but never extend an ON session through downtime."""
         self.devices = {}
-        if not isinstance(data, dict) or data.get("version") != SCHEMA_VERSION:
-            return
+        if data is None or data == {}:
+            return True
+        if (not isinstance(data, dict) or type(data.get("version")) is not int
+                or data["version"] != SCHEMA_VERSION
+                or data.get("timezone") != self.timezone_name):
+            return False
         stamp = self._stamp(when)
         raw_devices = data.get("devices", {})
         if not isinstance(raw_devices, dict):
-            return
+            return False
+        complete = True
         for device_id, cfg in configs.items():
             raw = raw_devices.get(device_id)
+            if raw is None:
+                continue
             if not isinstance(raw, dict):
+                complete = False
                 continue
             try:
                 since = _finite(raw.get("since"))
                 if since is None or since < 0 or since > stamp + 60:
+                    complete = False
                     continue
                 row = {"name": _text(raw.get("name", device_id), 120), "binding": str(raw.get("binding", "")),
                        "since": since, "last_seen": _finite(raw.get("last_seen")),
                        "active": raw.get("active") if isinstance(raw.get("active"), bool) else None,
                        "days": {}, "sessions": [], "events": [], "open_id": None,
                        "next_id": 1, "trimmed_before": _finite(raw.get("trimmed_before")), "revision": 0}
+                sources = raw.get("access_sources")
+                source_list_valid = (isinstance(sources, list)
+                    and all(isinstance(entity, str) and _ENTITY.fullmatch(entity) for entity in sources))
+                row["access_sources"] = sorted(set(sources))[:MAX_ACCESS_SOURCES] if source_list_valid else []
+                row["access_sources_complete"] = (source_list_valid and len(sources) <= MAX_ACCESS_SOURCES
+                    and raw.get("access_sources_complete") is True)
                 for d, a in raw.get("days", {}).items():
                     date.fromisoformat(d)
                     if not isinstance(a, dict):
+                        complete = False
                         continue
                     row["days"][d] = {"on_s": max(0, min(90000, _finite(a.get("on_s")) or 0)),
                                       "known_s": max(0, min(90000, _finite(a.get("known_s")) or 0)),
@@ -346,6 +389,7 @@ class ConsumerHistory:
                     s = deepcopy(raw_session)
                     left, right = _finite(s.get("start")), _finite(s.get("observed_until"))
                     if left is None or right is None or not 0 <= left <= right <= stamp + 60:
+                        complete = False
                         continue
                     s.update(id=int(s["id"]), start=left, observed_until=right)
                     stop = _finite(s.get("end"))
@@ -353,6 +397,7 @@ class ConsumerHistory:
                         s.update(end=right, stop_reason="Registratie onderbroken door herstart/herladen; geen uitschakeling bevestigd",
                                  stop_source="unknown", stop_confirmed=False)
                     elif not left <= stop <= right:
+                        complete = False
                         continue
                     else:
                         s["end"] = stop
@@ -366,6 +411,8 @@ class ConsumerHistory:
                     at = _finite(e.get("at"))
                     if at is not None and 0 <= at <= stamp + 60:
                         row["events"].append({"at": at, "reason": _text(e.get("reason"), 600), "kind": _text(e.get("kind"), 20)})
+                    else:
+                        complete = False
                 row["last_seen"], row["active"] = None, None
                 self.devices[device_id] = row
                 self._prune(row, stamp)
@@ -374,4 +421,6 @@ class ConsumerHistory:
             except (ValueError, TypeError, KeyError, OverflowError, AttributeError):
                 # Corrupt optional history must not disable the energy controller.
                 self.devices.pop(device_id, None)
+                complete = False
         self._pending.clear()
+        return complete

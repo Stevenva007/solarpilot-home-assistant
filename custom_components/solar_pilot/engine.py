@@ -107,6 +107,9 @@ class Site:
     ordered_priorities: bool = False
     protected_ev_credit: dict[str, float] = field(default_factory=dict)
     comfort_reserve_w: float = 0.0
+    protected_cycle_reserve_w: float = 0.0
+    isolated_reserve_w: float = 0.0
+    sg_unconfirmed_reserve_w: float = 0.0
     no_reclaim_ids: set[str] = field(default_factory=set)
     subordinate_ids: set[str] = field(default_factory=set)
     reclaimable_w: float = 0.0
@@ -267,12 +270,46 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
         if not s.on:
             # Report the SAME conservative allocation used below, not a second
             # optimistic calculation from the instantaneous export alone.
+            filtered_free = max(0.0, -grid-max(0.0, site.battery_discharge_w)-site.reserve_w)
+            locked_w = sum(out.targets[i] for i in locked)
+            prior_w = sum(watts for i, watts in out.targets.items() if i != d.id and i not in locked)
+            locked_commitment = max(0.0, locked_w-owned_w)
+            higher_commitment = max(0.0, locked_w+prior_w-owned_w)-locked_commitment
+            solar_available = remaining_solar
+            if (not s.owned and not eligible or d.id in site.no_reclaim_ids) and not boost:
+                solar_available -= credit-protected_credit
+            total_reserve = max(0.0, site.comfort_reserve_w)
+            components = [max(0.0, value) for value in (site.protected_cycle_reserve_w,
+                site.isolated_reserve_w, site.sg_unconfirmed_reserve_w)]
+            committed = total_reserve + sum(max(0.0, states[other.id].target_w-states[other.id].measured_w)
+                for other in devices if states[other.id].owned and states[other.id].on)
+            electrical = site.max_import_w-site.grid_w-committed
+            if site.max_increase_w is not None:
+                electrical = min(electrical, site.max_increase_w)
+            if d.id in site.device_increase_limits:
+                electrical = min(electrical, max(0.0, site.device_increase_limits[d.id]))
+            physical_solar = -site.grid_w-site.battery_discharge_w-site.reserve_w-committed
+            usable_credit = (min(max(0.0, site.reclaimable_w), max(0.0, site.max_takeover_w))
+                             if eligible and d.id not in site.no_reclaim_ids else 0.0)
+            actual_available = min(available, electrical) if boost else min(
+                available, electrical, physical_solar+max(usable_credit, protected_credit))
             out.start_power[d.id] = {
-                "available_w": round(max(0.0, available), 2),
+                "available_w": round(max(0.0, actual_available), 2),
                 "required_w": round(needed, 2),
-                "sufficient": available >= needed,
-                "comfort_and_cycle_reserve_w": round(max(0.0, site.comfort_reserve_w), 2),
-                "filtered_free_w": round(max(0.0, -grid - max(0.0, site.battery_discharge_w) - site.reserve_w), 2),
+                "sufficient": actual_available >= needed,
+                "comfort_and_cycle_reserve_w": round(total_reserve, 2),
+                "instant_free_w": out.free_w,
+                "filtered_free_w": round(filtered_free, 2),
+                "smoothing_hold_w": round(max(0.0, out.free_w-filtered_free), 2),
+                "protected_cycle_reserve_w": round(components[0], 2),
+                "isolated_reserve_w": round(components[1], 2),
+                "sg_unconfirmed_reserve_w": round(components[2], 2),
+                "other_reserved_w": round(max(0.0, total_reserve-sum(components)), 2),
+                "locked_commitment_w": round(locked_commitment, 2),
+                "higher_allocated_w": round(higher_commitment, 2),
+                "remaining_solar_w": round(solar_available, 2),
+                "remaining_cap_w": round(remaining_cap, 2),
+                "electrical_headroom_w": round(max(0.0, electrical), 2),
                 "grid_allowed": boost,
             }
         target = d.quantize(available) if available >= needed else 0.0
@@ -383,6 +420,10 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
         device_limit = site.device_increase_limits.get(d.id) if site.device_increase_limits else None
         if device_limit is not None:
             free = min(free, max(0.0, float(device_limit)))
+        if not s.on and d.id in out.start_power:
+            allocation = out.start_power[d.id]
+            allocation["available_w"] = round(max(0.0, min(allocation["available_w"], free)), 2)
+            allocation["sufficient"] = allocation["available_w"] >= allocation["required_w"]
         proposed = d.quantize(min(target, current + max(0, free)))
         if proposed <= 0 or (s.owned and proposed <= s.target_w + 0.5):
             out.reasons[d.id] = "Wacht op werkelijk vrijgekomen vermogen"

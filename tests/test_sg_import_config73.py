@@ -31,7 +31,7 @@ def test_legacy_effective_defaults_upgrade_once_and_custom_policy_remains(saved,
     before = deepcopy(saved)
     effective = normalize_config(saved)
     assert (effective["import_threshold_w"], effective["stop_delay_s"]) == expected
-    assert effective["hysteresis_w"] == saved.get("hysteresis_w", 300)
+    assert effective["hysteresis_w"] == float(saved.get("hysteresis_w", 300))
     assert normalize_config(effective) == effective
     assert saved == before
     assert not validate_config(effective)

@@ -207,10 +207,11 @@ def optimize_joint_plan(slots, plans, devices, settings, slot_h, capacity_target
                         return None
                     surplus = max(0.0, -(base[i] + allocated[i]) - reserve) if available[i] else 0.0
                     solar = min(dev.power, surplus)
-                    if not dev.contiguous and not dev.grid_allowed and surplus + EPSILON < min(dev.power, max(150.0, dev.power * 0.35)):
+                    solar_threshold = dev.power * .35 if dev.contiguous else min(dev.power, max(150.0, dev.power * .35))
+                    if not dev.contiguous and not dev.grid_allowed and surplus + EPSILON < solar_threshold:
                         return None
                     solar_energy += solar * duration / 1000
-                    if surplus + EPSILON < dev.power * 0.35:
+                    if surplus + EPSILON < solar_threshold:
                         grid.append(i)
                     allocated[i] += dev.power
                     peak_extra[i] += dev.peak - dev.power

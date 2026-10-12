@@ -37,8 +37,26 @@ block = (
     f"(https://my.home-assistant.io/redirect/hacs_repository/?owner={owner}&repository={repo}&category=integration)\n\n"
     f"Repository: `{base}`\n\n"
 )
-if marker in t:
-    t = t.split(marker, 1)[0].rstrip() + '\n\n' + block
+heading = re.search(r'^' + re.escape(marker) + r'[ \t]*$', t, re.MULTILINE)
+if heading:
+    # Own the generated badge/repository lines, not the rest of this section
+    # or every section which follows it. Reconfiguration must preserve prose.
+    next_heading = re.search(r'^## ', t[heading.end():], re.MULTILINE)
+    end = heading.end() + next_heading.start() if next_heading else len(t)
+    body = t[heading.end():end]
+    tail = t[end:]
+    body = re.sub(
+        r'^\[!\[Open your Home Assistant instance and open SolarPilot in HACS\]'
+        r'\(https://my\.home-assistant\.io/badges/hacs_repository\.svg\)\]'
+        r'\(https://my\.home-assistant\.io/redirect/hacs_repository/\?[^\n]*\)\s*$',
+        '', body, flags=re.MULTILINE,
+    )
+    body = re.sub(r'^Repository: `https://github\.com/[^`\n]+`[ \t]*$', '', body, flags=re.MULTILINE)
+    extra = body.strip('\n')
+    t = t[:heading.start()].rstrip() + '\n\n' + block
+    if extra:
+        t += extra + '\n\n'
+    t += tail.lstrip('\n')
 else:
     t = t.rstrip() + '\n\n' + block
 readme.write_text(t, encoding='utf-8')

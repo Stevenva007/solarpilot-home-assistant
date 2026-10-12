@@ -45,6 +45,7 @@ class PVCalibration:
         self.counts=Counter(); self.window=None; self.samples=[]; self.started=None
         self.last_observation=None; self.last_meter_stamp=None; self.binding=None
         self.last_reason="Wachten op meetgegevens"; self.revision=0
+        self._unsupported_snapshot=None
 
     def _keys(self, dt, az, el):
         # Two-month season bands + sun position. Clock bins are fallback, not a
@@ -374,12 +375,24 @@ class PVCalibration:
             "max_gap_s":max(right_row["ts"]-left_row["ts"] for left_row,right_row in zip(rows,rows[1:]))})
 
     def snapshot(self):
+        if self._unsupported_snapshot is not None:
+            return deepcopy(self._unsupported_snapshot)
         return {"version":self.VERSION,"binding":self.binding,"bins":deepcopy(self.bins),"edge_evidence":deepcopy(self.edge_evidence),
                 "history":deepcopy(list(self.history)),"counts":dict(self.counts),"revision":self.revision}
 
     def restore(self, data):
-        if not isinstance(data,dict) or data.get("version") != self.VERSION:
+        if not isinstance(data,dict) or not data:
             return
+        if isinstance(data.get("version"),bool) or data.get("version") != self.VERSION:
+            # Preserve an unrecognised schema byte-for-value in private
+            # snapshots rather than replacing it with empty current-version bins.
+            self._unsupported_snapshot=deepcopy(data)
+            self.bins={};self.edge_evidence={};self.history.clear();self.counts=Counter()
+            self.binding=None;self.started=None;self.window=None;self.samples=[]
+            self.last_observation=None;self.last_meter_stamp=None
+            self.last_reason="Opgeslagen PV-modelversie niet ondersteund; oorspronkelijke opslag behouden"
+            return
+        self._unsupported_snapshot=None
         self.binding=data.get("binding") if isinstance(data.get("binding"),str) and len(data["binding"])<=256 else None
         self.bins={};self.edge_evidence={};self.history.clear()
         bins=data.get("bins",{})
@@ -454,6 +467,7 @@ class PVCalibration:
                 "rejected":sum(1 for x in rows if x.get("accepted") is not True),
             }
         return {"days":len(days),"accepted":self.counts["accepted"],"rejected":self.counts["rejected"],
+                "storage_warning":"Opgeslagen PV-modelversie niet ondersteund; oorspronkelijke opslag blijft ongewijzigd bewaard" if self._unsupported_snapshot is not None else "",
                 "last_reason":self.last_reason,"revision":self.revision,
                 "mae_w":round(sum(errors)/len(errors),1) if errors else None,
                 "bias_w":round(sum(biases)/len(biases),1) if biases else None,

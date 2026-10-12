@@ -30,6 +30,20 @@ APP_DEFAULTS = {
 }
 
 
+def _finite_time(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        if not math.isfinite(value):
+            return False
+        # A finite scalar can still lie outside usable datetime/platform range.
+        # Restored completion epochs are used by the runtime before formatting.
+        datetime.fromtimestamp(value, timezone.utc)
+        return True
+    except (ValueError, OverflowError, OSError):
+        return False
+
+
 def deadline_time(cfg, day):
     """Return the configured deadline for one local calendar day."""
     value = (cfg.get("dishwasher_monday_start_deadline")
@@ -78,14 +92,20 @@ class DishwasherApp:
         self._seeded.clear()
         self._need_remote_baseline.clear()
         for d in self.data.values():
+            report = d.get("running_report")
+            if report is not None and (not _finite_time(report) or report > time.time()):
+                d["quarantined_running_report"] = deepcopy(report)
+                d.pop("running_report", None)
             q = d.get("request")
-            if q and (not isinstance(q, dict) or any(not isinstance(q.get(k), (int, float)) or
-                    not math.isfinite(q[k]) for k in ("created", "not_before", "deadline", "expires"))):
+            if q and (not isinstance(q, dict) or any(not _finite_time(q.get(k))
+                    for k in ("created", "not_before", "deadline", "expires"))):
+                d["quarantined_request"] = deepcopy(q)
                 d.pop("request", None)
                 d["message"] = "Opgeslagen aanvraag ongeldig; APP opnieuw vrijgeven"
             for key in ("completion", "end_pending"):
                 e = d.get(key)
-                if e and (not isinstance(e, dict) or not isinstance(e.get("ended_at"), (int, float)) or not math.isfinite(e["ended_at"])):
+                if e and (not isinstance(e, dict) or not _finite_time(e.get("ended_at"))):
+                    d["quarantined_"+key] = deepcopy(e)
                     d.pop(key, None)
 
     @property
@@ -188,6 +208,10 @@ class DishwasherApp:
                 return
             if self.enabled(cfg):
                 if value == "Enabled" and previous is not None and previous != "Enabled":
+                    if self.r.dishwasher.storage_blocked:
+                        d["message"] = "Opgeslagen START-toestemming onleesbaar; nieuwe APP-aanvraag is geblokkeerd"
+                        self._dirty()
+                        return
                     raw_obj = self.r.hass.states.get(cfg.get("dishwasher_state_entity", ""))
                     raw = str(getattr(raw_obj, "state", ""))
                     ticket = self.r.dishwasher.tickets.get(i, {})
@@ -288,8 +312,7 @@ class DishwasherApp:
         if not isinstance(request, dict) or request.get("source_signature") != self.signature(cfg):
             return False
         keys = ("created", "not_before", "deadline", "expires")
-        if any(isinstance(request.get(k), bool) or not isinstance(request.get(k), (int, float)) or
-               not math.isfinite(request[k]) for k in keys):
+        if any(not _finite_time(request.get(k)) for k in keys):
             return False
         return (request["created"] <= request["not_before"] <= request["deadline"]
                 < request["expires"])
@@ -311,7 +334,7 @@ class DishwasherApp:
                    (ticket.get("attempted") or ticket.get("confirmed")))
         if (pending and ticket.get("source") == "app" and self._valid_request(cfg, previous)
                 and ticket.get("created") == previous["created"]
-                and not isinstance(sent, bool) and isinstance(sent, (int, float)) and math.isfinite(sent)
+                and _finite_time(sent)
                 and sent >= previous["created"]):
             return deepcopy(previous)
         return None
@@ -334,12 +357,11 @@ class DishwasherApp:
                 or not self._valid_request(cfg, previous) or ticket.get("created") != previous["created"]
                 or previous.get("outcome") not in ("Programma loopt; APP-aanvraag verbruikt",
                     "Herstart: APP-aanvraag verbruikt door bevestigde cyclus")
-                or any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value)
-                       for value in (sent, observed))):
+                or any(not _finite_time(value) for value in (sent, observed))):
             return None
         try:
             confirmation_window = max(60.0, float(cfg.get("ack_timeout_s", 60)) + float(self.r.settings.get("interval_s", 5)))
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, OverflowError):
             return None
         if not math.isfinite(confirmation_window) or not previous["created"] <= sent <= observed <= sent + confirmation_window:
             return None
@@ -347,8 +369,7 @@ class DishwasherApp:
         if not isinstance(completion, dict):
             return None
         ended = completion.get("ended_at")
-        if (completion and completion.get("confirmed") is True and isinstance(ended, (int, float))
-                and math.isfinite(ended) and ended >= sent):
+        if (completion and completion.get("confirmed") is True and _finite_time(ended) and ended >= sent):
             return None
         if previous.get("program") and cycle.get("program") != previous["program"]:
             return None
@@ -365,6 +386,8 @@ class DishwasherApp:
     def prepare(self, cfg, reading, wall):
         """Bind delayed entity updates to an already observed physical APP edge."""
         if not self.enabled(cfg):
+            return
+        if self.r.dishwasher.storage_blocked:
             return
         self.seed(cfg)
         d = self._entry(cfg["id"])
@@ -438,7 +461,7 @@ class DishwasherApp:
                           "waiting" if q else "consumed" if context else "none")
         e = d.get("completion")
         def iso(value):
-            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+            if not _finite_time(value) or value <= 0:
                 return None
             try:
                 return datetime.fromtimestamp(value, ZoneInfo(self.zone)).isoformat()

@@ -90,10 +90,12 @@ KNOWN_LEGACY_CONFLICTS = {
 
 
 def finite(value):
+    if isinstance(value, bool):
+        return None
     try:
         value = float(value)
         return value if math.isfinite(value) else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
@@ -270,6 +272,7 @@ def fresh_daily_stats(day=""):
         "managed_solar_kwh": 0.0,
         "managed_grid_kwh": 0.0,
         "managed_battery_kwh": 0.0,
+        "managed_unattributed_kwh": 0.0,
         "estimated_value_eur": 0.0,
         "samples_s": 0.0,
     }
@@ -305,10 +308,12 @@ def accounting_step(stats, *, day, dt_s, grid_w, pv_w, managed_w,
     managed_grid_w = min(managed, imp_w)
     remaining = max(0.0, managed - managed_grid_w)
     managed_batt_w = min(remaining, batt)
-    managed_solar_w = max(0.0, remaining - managed_batt_w)
+    managed_solar_w = min(max(0.0, remaining - managed_batt_w), max(0.0, pv - exp_w))
     out["managed_grid_kwh"] += managed_grid_w * hours
     out["managed_battery_kwh"] += managed_batt_w * hours
     out["managed_solar_kwh"] += managed_solar_w * hours
+    out["managed_unattributed_kwh"] = (out.get("managed_unattributed_kwh", 0.0)
+        + max(0.0, remaining - managed_batt_w - managed_solar_w) * hours)
     spread = (finite(import_price_eur_kwh) or 0.0) - (finite(export_price_eur_kwh) or 0.0)
     out["estimated_value_eur"] += managed_solar_w * hours * spread
     out["samples_s"] += dt

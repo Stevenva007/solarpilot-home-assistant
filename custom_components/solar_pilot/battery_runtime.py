@@ -6,12 +6,15 @@ no second controller writing the same setpoint.
 """
 from __future__ import annotations
 import asyncio
+from copy import deepcopy
 import math
 import time
 from homeassistant.exceptions import HomeAssistantError
 from .battery_fleet import BATTERY_DEFAULTS, BATTERY_FLEET_DEFAULTS, BatteryReading, BatteryFleetState, aggregate, recommend, finite
 from .wallbox import protected_entity
 from .panasonic_authority import PanasonicCommandAuthority
+from .ems import capacity_decision, phase_decision
+from .phase_learning import phase_allocation_from_hint, phase_total_headroom_w
 
 
 class BatteryFleetManager:
@@ -22,6 +25,7 @@ class BatteryFleetManager:
         self.state = BatteryFleetState()
         self.last = []
         self.recommendation = None
+        self.command_block_reason = ""
 
     @property
     def configured(self):
@@ -167,20 +171,122 @@ class BatteryFleetManager:
         if changed:
             await self._save()
 
+    def _dispatch_context(self, *, sources=True):
+        """Native values and runtime authority around a yielded intent save.
+
+        A heartbeat with the same value is valid, but source expiry, changed
+        battery flow/SOC or a new P1 value requires a new allocation. This
+        snapshot does not replace the caller's control permission or turn a
+        forecast/recommendation into physical capacity.
+        """
+        runtime = self.runtime
+        context = {"mode": getattr(runtime, "mode", None), "closed": getattr(runtime, "_closed", False),
+            "removal": bool(getattr(runtime, "removal_requested", False)),
+            "restart": bool(getattr(runtime, "restart_blocking", False)),
+            "consumer_pending": bool(getattr(runtime, "pending", None)),
+            "handover": bool(getattr(runtime, "handover", None)),
+            "fleet_settings": deepcopy(self.settings),
+            "site_settings": deepcopy((runtime.settings, runtime.capacity_settings, runtime.phase_settings)),
+            "isolated_reserve_w": getattr(runtime, "isolated_reserve_w", 0)}
+        if not sources:
+            return context
+        entity = runtime.settings.get("grid_entity")
+        grid, _stamp = self._source_number(entity, {"W", "kW"})
+        obj = runtime.hass.states.get(entity) if entity else None
+        unit = obj.attributes.get("unit_of_measurement") if obj else None
+        readings = tuple((bid, cfg.get("soc_entity"), cfg.get("power_entity"),
+            reading.valid, reading.soc_pct, reading.power_w)
+            for bid, cfg in self.configs.items()
+            if cfg.get("enabled", True) is True
+            for reading in [self._read_one(bid, cfg)])
+        return {**context, "grid": (entity, grid, unit), "batteries": readings}
+
+    def _physical_dispatch_block(self, battery_id, target_w):
+        """Re-read existing electrical guards for a positive P1 increment.
+
+        Battery watts are signed discharge targets. Reducing discharge or
+        increasing charging raises P1; a zero release remains allowed even
+        when site telemetry is unavailable. Native/unknown device demand is
+        not credited as reclaimable electrical room.
+        """
+        if abs(target_w) < 1e-6:
+            return ""
+        runtime, cfg = self.runtime, self.configs[battery_id]
+        reading = self._read_one(battery_id, cfg)
+        if not reading.valid or reading.power_w is None:
+            return "Batterijmetingen niet betrouwbaar vóór opdracht"
+        increment = max(0.0, reading.power_w-target_w)
+        if increment <= 1e-6:
+            return ""  # Discharge increase cannot create additional import.
+        grid, valid, _discharge, _ready, _stamp = runtime._site_data()
+        if not valid or finite(grid) is None:
+            return "Netmeting niet betrouwbaar vóór batterijopdracht"
+        isolated = runtime.source_isolated_devices
+        reserve = sum(info["reserve_w"] for info in isolated.values())
+        reserve += getattr(runtime, "_dishwasher_comfort_reserve", 0) + runtime.sg_unconfirmed_reserve_w
+        for device_id, state in runtime.states.items():
+            if device_id in isolated or not state.owned or not state.on:
+                continue
+            actual = (runtime._power(runtime.configs[device_id].get("power_entity"))[0]
+                      if runtime._reclaim_meter(device_id) else None)
+            future = max(0.0, state.target_w-(actual if actual is not None and actual >= 0 else 0.0))
+            # The native protected-cycle reserve already contains each running
+            # unmetered AEG's full future peak. Keep only any excess commitment;
+            # other unmetered appliances still require their entire reservation.
+            covered = getattr(runtime, "_dishwasher_unmetered_reserves", {}).get(device_id, 0.0)
+            reserve += max(0.0, future-covered)
+        cap = finite(runtime.settings.get("max_import_w"))
+        if cap is None or cap < 0 or grid+increment+reserve > cap:
+            return "Netafnamegrens: onvoldoende actuele ruimte voor batterijopdracht"
+        if runtime.capacity_settings.get("enabled"):
+            settings = runtime.capacity_settings
+            capacity = capacity_decision(runtime._local_now(),
+                runtime._power(settings.get("average_demand_entity"), settings["stale_s"])[0],
+                runtime._power(settings.get("monthly_peak_entity"), max(3600, settings["stale_s"]))[0],
+                grid, settings)
+            allowed = (capacity.allowed_grid_w if capacity.allowed_grid_w is not None
+                       else max(0.0, capacity.effective_target_w-settings["margin_w"]))
+            if not capacity.valid or grid+increment+reserve > allowed:
+                return "Kwartierpiekgrens: onvoldoende actuele ruimte voor batterijopdracht"
+        if runtime.phase_settings.get("enabled") and runtime.phase_settings.get("control_starts"):
+            settings = runtime.phase_settings
+            phase = phase_decision(tuple(runtime._power(settings.get(key), settings["stale_s"])[0]
+                for key in ("phase_1_entity", "phase_2_entity", "phase_3_entity")), settings)
+            if not phase.valid or phase.release_flexible:
+                return phase.reason or "Fasemetingen niet betrouwbaar vóór batterijopdracht"
+            # Only an explicitly configured existing distribution is used.
+            # Unknown/automatic battery mappings reserve the complete increment
+            # on every phase rather than fabricating a three-phase split.
+            shares, _source = phase_allocation_from_hint(cfg.get("phase_hint", "unknown"))
+            if shares is None:
+                allowed = max(0.0, (phase.headroom_w or 0.0)-reserve)
+                if phase.block_increase:
+                    return phase.reason
+            else:
+                allowed = phase_total_headroom_w(phase.phase_w,
+                    max(0.0, phase.guarded_limit_w-reserve), shares)
+            if allowed is None or increment > allowed:
+                return "Fasegrens: onvoldoende actuele ruimte voor batterijopdracht"
+        return ""
+
     async def _send(self, battery_id, target_w):
         cfg = self.configs[battery_id]
-        if (self.state.pending or "restart" in self.state.faults or battery_id in self.state.faults
+        if (getattr(self.runtime, "_closed", False) or self.state.pending or "restart" in self.state.faults or battery_id in self.state.faults
                 or self.settings.get("control_enabled") is not True or cfg.get("enabled", True) is not True
                 or cfg.get("control_enabled") is not True or cfg.get("exclusive_control_confirmed") is not True):
             return False
         target_w = finite(target_w)
         if target_w is None:
             raise HomeAssistantError("Batterijdoel moet een eindig getal zijn")
+        guard_sources = abs(target_w) >= 1e-6
+        dispatch_context = self._dispatch_context(sources=guard_sources)
+        if guard_sources and (dispatch_context["grid"][1] is None or not self._read_one(battery_id, cfg).valid):
+            return False
         kind = cfg.get("control_kind", "read_only")
         binding_keys = ("enabled", "control_enabled", "exclusive_control_confirmed", "control_kind",
                         "number_entity", "number_sign", "charge_script", "discharge_script", "idle_script",
                         "power_sign", "soc_entity", "power_entity", "min_soc_pct", "reserve_soc_pct",
-                        "max_soc_pct", "max_charge_w", "max_discharge_w")
+                        "max_soc_pct", "max_charge_w", "max_discharge_w", "phase_hint")
         binding_snapshot = {key: cfg.get(key) for key in binding_keys}
         native_snapshot = None
         if kind == "read_only":
@@ -243,6 +349,11 @@ class BatteryFleetManager:
                 "power_kw": abs(target_w)/1000.0, "signed_power_w": target_w}}
         else:
             raise HomeAssistantError("Onbekend batterij-controltype")
+        physical_block = self._physical_dispatch_block(battery_id, target_w)
+        if physical_block:
+            self.command_block_reason = physical_block
+            return False
+        dispatch_context = self._dispatch_context(sources=guard_sources)
         authority = PanasonicCommandAuthority(self.runtime)
         try:
             data = authority.assert_allowed(domain, action, entity_id,
@@ -250,8 +361,11 @@ class BatteryFleetManager:
         except HomeAssistantError as err:
             await self._fault(battery_id, f"Batterijactuator niet toegestaan; niets verzonden: {err}")
             return False
+        previous_timing = (self.state.last_command_mono, self.state.last_command_wall,
+                           self.runtime.last_issued, self.runtime.last_issued_wall)
         self.state.pending = {"id": battery_id, "target_w": target_w, "issued_wall": time.time(),
                               "entity_id": entity_id, "kind": kind}
+        intent = self.state.pending
         self.state.last_command_mono = time.monotonic()
         self.state.last_command_wall = self.state.pending["issued_wall"]
         self.runtime.last_issued = self.state.last_command_mono
@@ -275,6 +389,20 @@ class BatteryFleetManager:
             unchanged = unchanged and current_snapshot == native_snapshot
         if not unchanged:
             await self._fault(battery_id, "Batterijbediening veranderde tijdens opdrachtvoorbereiding; bestaande toestand behouden, geen write")
+            return False
+        physical_block = self._physical_dispatch_block(battery_id, target_w)
+        if self._dispatch_context(sources=guard_sources) != dispatch_context or physical_block:
+            self.command_block_reason = physical_block or "Batterij wacht op een nieuwe beoordeling van gewijzigde bronnen of regeltoestemming"
+            # No service was called: retract only this known-unsent intent. The
+            # next normal tick may compute a new allocation from fresh evidence.
+            # Transport failures after an actual call still use the latched fault.
+            if self.state.pending is intent:
+                self.state.pending = None
+                command_mono, command_wall = self.state.last_command_mono, self.state.last_command_wall
+                self.state.last_command_mono, self.state.last_command_wall = previous_timing[:2]
+                if (self.runtime.last_issued, self.runtime.last_issued_wall) == (command_mono, command_wall):
+                    self.runtime.last_issued, self.runtime.last_issued_wall = previous_timing[2:]
+                await self._save()
             return False
         self.runtime.note(f'{cfg.get("name",battery_id)}: batterijdoel {target_w:+.0f} W aangevraagd.')
         try:
@@ -365,6 +493,7 @@ class BatteryFleetManager:
         return False
 
     async def tick(self, *, grid_w, capacity_allowed_grid_w=None, allow_command=False):
+        self.command_block_reason = ""
         if not self.state.pending:
             await self._manual_number_changes()
         readings = self.read()
@@ -451,7 +580,7 @@ class BatteryFleetManager:
             "strategy": self.settings.get("strategy", "loads_first"),
             "aggregate": agg,
             "recommendation_w": None if rec is None else round(rec.total_target_w, 1),
-            "reason": "Nog geen batterijadvies" if rec is None else rec.reason,
+            "reason": self.command_block_reason or ("Nog geen batterijadvies" if rec is None else rec.reason),
             "pending": self.state.pending,
             "faults": dict(self.state.faults),
             "batteries": [{

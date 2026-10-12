@@ -41,12 +41,23 @@ def websocket_consumer_history(hass, connection, msg):
         return
     cfg = runtime.consumer_history.configs[device_id]
     entities = {cfg.get("control_entity"), cfg.get("active_entity"), cfg.get("power_entity"),
+                cfg.get("number_entity"), cfg.get("start_button"),
                 cfg.get("dishwasher_state_entity"), cfg.get("cycle_program_entity"),
                 runtime.entity_id("sensor", "status", device_id)} - {None, ""}
     user = connection.user
-    if user is None or (not user.is_admin and (not entities or any(
-        not user.permissions.check_entity(entity_id, POLICY_READ) for entity_id in entities
-    ))):
+    permitted = user is not None and user.is_admin
+    if user is not None and not user.is_admin:
+        try:
+            # A consumer ID survives a source rebind. Its retained history may
+            # still describe old sources which the current config no longer
+            # names. Unknown legacy provenance remains private to admins.
+            historical, complete = runtime.consumer_history.access_sources(device_id)
+            entities |= historical
+            permitted = bool(entities) and complete and all(
+                user.permissions.check_entity(entity_id, POLICY_READ) for entity_id in entities)
+        except Exception:
+            permitted = False
+    if not permitted:
         connection.send_error(msg["id"], "unauthorized", "Geen leestoegang tot deze verbruiker")
         return
     try:

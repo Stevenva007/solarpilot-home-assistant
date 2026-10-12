@@ -267,20 +267,64 @@ class DishwasherControl:
         self.profiles = {}
         self.live = {}
         self.previous = {}
+        self.quarantined_profiles = {}
+        self.storage_blocked = False
+        self._blocked_snapshot = None
 
     def snapshot(self):
-        return {"tickets": deepcopy(self.tickets), "profiles": deepcopy(self.profiles)}
+        if self.storage_blocked:
+            # Unknown START intent must remain byte-for-byte JSON-equivalent;
+            # neither observations, Review nor delayed saves reconstruct rights.
+            return deepcopy(self._blocked_snapshot)
+        data = {"tickets": deepcopy(self.tickets), "profiles": deepcopy(self.profiles)}
+        if self.quarantined_profiles:
+            data["quarantined_profiles"] = deepcopy(self.quarantined_profiles)
+        return data
 
     def restore(self, data):
-        if not isinstance(data, dict):
+        tickets = data.get("tickets", {}) if isinstance(data, dict) else None
+        usable = isinstance(tickets, dict) and all(isinstance(k, str) and isinstance(v, dict)
+            for k, v in tickets.items())
+        if usable:
+            def valid_time(value):
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    return False
+                try:
+                    return math.isfinite(value)
+                except (ValueError, OverflowError):
+                    return False
+            for ticket in tickets.values():
+                flags = ("armed", "attempted", "confirmed")
+                times = ("created", "expires", "sent_at", "not_before", "deadline")
+                if (any(key in ticket and not isinstance(ticket[key], bool) for key in flags)
+                        or any(key in ticket and not valid_time(ticket[key]) for key in times)):
+                    usable = False
+                    break
+        if not usable:
+            self.storage_blocked = True
+            self._blocked_snapshot = deepcopy(data)
             return
-        self.tickets = {str(k): dict(v) for k, v in list(data.get("tickets", {}).items())[:100] if isinstance(v, dict)}
-        self.profiles = {str(k): v[-12:] for k, v in list(data.get("profiles", {}).items())[:100] if isinstance(v, list)}
+        self.storage_blocked = False
+        self._blocked_snapshot = None
+        self.tickets = {str(k): dict(v) for k, v in list(tickets.items())[:100]}
+        saved_quarantine = data.get("quarantined_profiles")
+        self.quarantined_profiles = deepcopy(saved_quarantine) if isinstance(saved_quarantine, dict) else {}
+        profiles = data.get("profiles", {})
+        if isinstance(profiles, dict):
+            self.profiles = {str(k): v[-12:] for k, v in list(profiles.items())[:100] if isinstance(v, list)}
+        else:
+            # Optional advisory profiles cannot abort START-ticket recovery.
+            # Keep the exact unreadable private field across subsequent saves;
+            # it supplies no permissions or fictional measured cycles.
+            self.profiles = {}
+            self.quarantined_profiles["unreadable_profiles"] = deepcopy(profiles)
         # No reconstructed phase consumption across an offline interval.
         self.live = {}
         self.previous = {}
 
     def arm(self, cfg, reading, wall):
+        if self.storage_blocked:
+            raise ValueError("Opgeslagen START-toestemming onleesbaar; herstel geldige opslag vóór een nieuwe afwasstart")
         if reading.active is not False or not reading.ready:
             raise ValueError(reading.reason)
         old = self.tickets.get(cfg["id"], {})
@@ -291,6 +335,8 @@ class DishwasherControl:
                                     "attempted": False, "confirmed": False}
 
     def permitted(self, cfg, r, wall):
+        if self.storage_blocked:
+            return False, "Opgeslagen START-toestemming onleesbaar; nieuwe afwasstarts zijn geblokkeerd"
         ticket = self.tickets.get(cfg["id"], {})
         if not r.ready:
             return False, r.reason
@@ -375,6 +421,7 @@ class DishwasherControl:
         ticket = self.tickets.get(i, {})
         profiles = self.profiles.get(i, [])
         return {"ready": r.ready, "prepared": allowed, "ticket_armed": bool(ticket.get("armed")),
+                "storage_blocked": self.storage_blocked,
                 "attempted": bool(ticket.get("attempted")), "gate_reason": reason, "gates": dict(r.gates),
                 "connection_report": {"state": r.connection_state, "age_s": r.connection_age_s,
                                       "maximum_age_s": r.connection_max_age_s,

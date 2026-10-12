@@ -147,6 +147,8 @@ class PVForecast:
                 self.cached["warning"]="Omvormerlimiet van Forecast.Solar wijkt af van SolarPilot; controleer broninstellingen"
             if any((self.source.metadata.get(k) or 0)>0 for k in ("damping_morning","damping_evening")):
                 self.cached["warning"]+=("; " if self.cached["warning"] else "")+"Forecast.Solar heeft damping; voorkom dubbele schaduwcorrectie"
+            if summary.get("storage_warning"):
+                self.cached["warning"]+=("; " if self.cached["warning"] else "")+summary["storage_warning"]
             if self.model.revision!=self._last_saved_revision and getattr(self.runtime,"data_loaded",False):
                 self._last_saved_revision=self.model.revision
                 self.runtime.store.async_delay_save(self.runtime._snapshot,30)

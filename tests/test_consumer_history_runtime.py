@@ -13,6 +13,7 @@ BASE=datetime(2026,9,27,8,tzinfo=timezone.utc)
 @pytest.mark.asyncio
 async def test_runtime_records_only_acknowledged_transition_and_action_reason():
     r,h=build();mono=time.monotonic();r.consumer_history.now=lambda:BASE
+    r.mode='solar';r.device_modes['a']='auto'
     r._observe(mono,BASE)
     await r._send(Action('a',1000,'Voldoende zonnestroom'),mono)
     assert not r.consumer_history.model.detail('a',None,BASE)['sessions']
@@ -32,6 +33,7 @@ async def test_runtime_records_only_acknowledged_transition_and_action_reason():
 @pytest.mark.asyncio
 async def test_failed_start_adds_history_warning_not_running_session():
     r,h=build();h.services.respond=False;r.consumer_history.now=lambda:BASE
+    r.mode='solar';r.device_modes['a']='auto'
     r._observe(time.monotonic(),BASE)
     await r._send(Action('a',1000,'Zonnestroom'),time.monotonic())
     await r._confirm_pending(time.monotonic()+100)
@@ -42,6 +44,7 @@ async def test_failed_start_adds_history_warning_not_running_session():
 @pytest.mark.asyncio
 async def test_service_error_does_not_create_physical_start_history():
     r,h=build();h.services.fail=True;r.consumer_history.now=lambda:BASE
+    r.mode='solar';r.device_modes['a']='auto'
     r._observe(time.monotonic(),BASE)
     # Notifications also fail with this test double; this does not affect the history assertion.
     async def notify(_):pass

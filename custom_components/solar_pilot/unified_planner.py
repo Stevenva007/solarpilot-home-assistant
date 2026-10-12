@@ -14,7 +14,7 @@ import statistics
 import time
 
 from .planner_quality import PlanQualityTracker, ReplayBuffer
-from .joint_optimizer import optimize_joint_plan
+from .joint_optimizer import optimize_joint_plan, _slot_legal
 from .battery_plan import plan_battery
 
 UNIFIED_PLANNER_DEFAULTS = {
@@ -477,7 +477,7 @@ class UnifiedPlanner:
             slots_needed=max(1, math.ceil(required/max(.001,energy_per_slot)))
             eligible=[]
             for idx,s in enumerate(slots):
-                if not self._within_window(s.start,d) or not self._deadline_ok(s.start,d): continue
+                if not _slot_legal(s.start, slot_min * 60, d): continue
                 net_before=s.net_after_plan_w
                 expected_surplus=max(0.0,-net_before-float(c.get("pv_reserve_w",150)))
                 grid_needed=max(0.0, power-expected_surplus)
@@ -518,7 +518,7 @@ class UnifiedPlanner:
                 cheap_allowed=bool(d.get("cheap_grid_allowed") and d.get("deadline_grid_allowed") and c.get("early_grid_enabled"))
                 for start_idx in range(0, max(0,len(slots)-duration_slots+1)):
                     run=range(start_idx,start_idx+duration_slots)
-                    if any(not self._within_window(slots[j].start,d) or not self._deadline_ok(slots[j].start,d) for j in run):
+                    if any(not _slot_legal(slots[j].start, slot_min * 60, d) for j in run):
                         continue
                     total_cost=0.0; solar_kwh=0.0; grid_slots=[]
                     for j in run:
@@ -526,10 +526,11 @@ class UnifiedPlanner:
                         surplus=max(0.0,-net_before-float(c.get("pv_reserve_w",150)))
                         solar=min(avg_power,surplus); grid=max(0.0,avg_power-solar)
                         solar_kwh += solar*slot_h/1000.0
-                        total_cost += grid*slot_h/1000.0*s.import_price + solar*slot_h/1000.0*s.export_price
+                        total_cost += (grid*slot_h/1000.0*s.import_price + solar*slot_h/1000.0*s.export_price
+                                       if c.get("price_optimisation", True) else grid*slot_h/1000.0)
                         if capacity_target_w and c.get("capacity_penalty_enabled"):
                             over=max(0.0, net_before+peak_power-float(capacity_target_w))
-                            total_cost += (over/1000.0)*float(c.get("capacity_penalty_eur_kwh",.5))
+                            total_cost += (over*slot_h/1000.0)*float(c.get("capacity_penalty_eur_kwh",.5))
                         if grid>avg_power*.65: grid_slots.append(j)
                     # Without explicit grid permission, require meaningful predicted
                     # PV contribution across the whole cycle rather than every slot.
@@ -546,11 +547,14 @@ class UnifiedPlanner:
                 else:
                     chosen=[]; planned=0.0; reason="Beschermde cyclus niet veilig/aaneengesloten planbaar binnen venster en deadline"
             else:
-                chosen=sorted(x[1] for x in eligible[:slots_needed])
+                selected_eligible=eligible[:slots_needed]
+                chosen=sorted(x[1] for x in selected_eligible)
+                # Preserve the same priority-adjusted solar basis used while
+                # selecting the slot. Recomputing from bare PV/base would give
+                # lower-priority devices already allocated watts a second time.
+                cheap=sorted(x[1] for x in selected_eligible if not x[2])
                 for idx in chosen:
                     s=slots[idx]; s.planned_load_w += power; s.devices.append(d["id"])
-                    expected_surplus=max(0.0,-(s.base_w-s.pv_w)-float(c.get("pv_reserve_w",150)))
-                    if expected_surplus < power*.35: cheap.append(idx)
                 planned=len(chosen)*energy_per_slot
                 reason=("Dagdoel volledig ingepland" if planned+1e-6>=required else
                         f"Slechts {planned:.2f} van {required:.2f} kWh planbaar binnen voorwaarden")

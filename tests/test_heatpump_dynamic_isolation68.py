@@ -60,7 +60,8 @@ def test_estimated_opposite_zone_does_not_veto_valid_display_programme_or_amend_
     known_native_program(monkeypatch, runtime, hass, "climate.native_room")
     before = runtime.panasonic.overview()
     journal, budget, permissions = deepcopy(runtime._snapshot()), sg_solar_budget(runtime), deepcopy(runtime.sg_boost.config)
-    assert before["context"] == "heatpump_unknown" and before["cooling_possible"] is True
+    assert before["context"] == "space_heating" and before["cooling_possible"] is True
+    assert not before["context_reliable"] and before["context_signature"] is None
     assert before["task_context"]["function"] == "space_heating"
     assert before["native_task"]["function"] is None
     runtime.panasonic.settings["power_activity_threshold_w"] = 200
@@ -68,6 +69,7 @@ def test_estimated_opposite_zone_does_not_veto_valid_display_programme_or_amend_
     assert after["power_activity"]["function"] == "space_heating"
     assert after["power_activity"]["function_kind"] == "selected_program"
     assert after["context"] == before["context"] and after["cooling_possible"] == before["cooling_possible"]
+    assert not after["context_reliable"] and after["context_signature"] is None
     assert after["native_task"] == before["native_task"]
     assert runtime._snapshot() == journal and sg_solar_budget(runtime) == budget
     assert runtime.sg_boost.config == permissions and hass.services.calls == []

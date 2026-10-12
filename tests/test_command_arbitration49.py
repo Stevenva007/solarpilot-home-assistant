@@ -135,7 +135,10 @@ async def test_pending_battery_defers_new_wallbox_handover_until_ack(monkeypatch
     # uptime; otherwise this scenario depends on the test machine's uptime.
     monkeypatch.setattr(battery_runtime, "time", clock)
     attach_battery(runtime, hass)
-    await runtime.battery_fleet._send("bat1", -1800)
+    # setup_house starts without a P1 report. First issue the battery charge
+    # under a real, coherent export report; later house ticks change that P1.
+    hass.states.set("sensor.grid", -1800, {"unit_of_measurement": "W"})
+    assert await runtime.battery_fleet._send("bat1", -1800)
     hass.services.calls.clear()
 
     for second in range(0, 31, 5):
@@ -161,12 +164,14 @@ async def test_pending_battery_does_not_prevent_safe_flexible_load_reduction():
     runtime.mode = "solar"
     runtime.device_modes["a"] = "auto"
     hass.states.set("switch.load", "on")
-    hass.states.set("sensor.grid", 2500, {"unit_of_measurement": "W"})
     state = runtime.states["a"]
     state.owned = state.on = True
     state.target_w = 1000
     state.last_on = time.monotonic() - 60
-    await runtime.battery_fleet._send("bat1", -1800)
+    # Establish the pending charge while the default -2500W P1 export can
+    # supply it. A subsequent import rise must still allow safe load reduction.
+    assert await runtime.battery_fleet._send("bat1", -1800)
+    hass.states.set("sensor.grid", 2500, {"unit_of_measurement": "W"})
     hass.services.calls.clear()
 
     await runtime.tick()

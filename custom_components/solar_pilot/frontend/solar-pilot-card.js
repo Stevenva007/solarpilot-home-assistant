@@ -1,16 +1,29 @@
-/* SolarPilot 1.0.0-beta.78. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
-const SP_CARD_VERSION = '1.0.0-beta.78';
+/* SolarPilot 1.0.0-beta.79. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+const SP_CARD_VERSION = '1.0.0-beta.79';
 const SP_DIALOG_RELEASE = SP_CARD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g,'-');
 const SP_ANALYSIS_DIALOG_TAG = `solar-pilot-analysis-dialog-${SP_DIALOG_RELEASE}`;
 const SP_QUALITY_DIALOG_TAG = `solar-pilot-learning-dialog-${SP_DIALOG_RELEASE}`;
 const SP_HEATPUMP_HISTORY_TAG = `solar-pilot-heatpump-history-dialog-${SP_DIALOG_RELEASE}`;
+const SP_PV_DIALOG_TAG = `solar-pilot-pv-dialog-${SP_DIALOG_RELEASE}`;
+const SP_CONSUMER_HISTORY_TAG = `solar-pilot-consumer-history-dialog-${SP_DIALOG_RELEASE}`;
+const SP_PRIORITY_DIALOG_TAG = `solar-pilot-priority-dialog-${SP_DIALOG_RELEASE}`;
+const SP_OPTION_HELP_TAG = `solar-pilot-option-help-dialog-${SP_DIALOG_RELEASE}`;
+const SP_OPTIONS_DIALOG_TAG = `solar-pilot-options-dialog-${SP_DIALOG_RELEASE}`;
+const SP_DEVICE_MANAGER_TAG = `solar-pilot-device-manager-dialog-${SP_DIALOG_RELEASE}`;
+// Retain stable aliases on a fresh page; an old constructor is never this release.
+const spDialogTag = (stable,bound) => customElements.get(stable)?.solarPilotRelease===SP_CARD_VERSION?stable:bound;
 const spEscape = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const spPower = value => value == null || !Number.isFinite(Number(value)) ? "—" : Math.abs(Number(value)) >= 1000 ? `${(Number(value)/1000).toLocaleString("nl-BE",{maximumFractionDigits:2})} kW` : `${Math.round(Number(value))} W`;
-const spTemp = value => value == null || !Number.isFinite(Number(value)) ? "—" : `${Number(value).toLocaleString("nl-BE",{maximumFractionDigits:1})} °C`;
-const spDuration = value => { const s=Math.max(0,Number(value)||0),h=Math.floor(s/3600),m=Math.floor((s%3600)/60); return h?`${h}u${m?` ${m}m`:''}`:`${m}m`; };
-const spEuro = value => value == null || !Number.isFinite(Number(value)) ? "—" : new Intl.NumberFormat("nl-BE",{style:"currency",currency:"EUR"}).format(Number(value));
-const spKwh = value => value == null || !Number.isFinite(Number(value)) ? "—" : `${Number(value).toLocaleString("nl-BE",{maximumFractionDigits:2})} kWh`;
-const spPct = value => value == null || !Number.isFinite(Number(value)) ? "—" : `${Number(value).toLocaleString("nl-BE",{maximumFractionDigits:1})}%`;
+// Booleans, empty strings and missing values are not numeric measurements.
+const spNumber = value => {
+  if(typeof value!=='number'&&(typeof value!=='string'||!value.trim()))return null;
+  const number=Number(value);return Number.isFinite(number)?number:null;
+};
+const spPower = value => {const n=spNumber(value);return n==null?"—":Math.abs(n)>=1000?`${(n/1000).toLocaleString("nl-BE",{maximumFractionDigits:2})} kW`:`${Math.round(n)} W`;};
+const spTemp = value => {const n=spNumber(value);return n==null?"—":`${n.toLocaleString("nl-BE",{maximumFractionDigits:1})} °C`;};
+const spDuration = value => { const n=spNumber(value);if(n==null)return '—';const s=Math.max(0,n),h=Math.floor(s/3600),m=Math.floor((s%3600)/60); return h?`${h}u${m?` ${m}m`:''}`:`${m}m`; };
+const spEuro = value => {const n=spNumber(value);return n==null?"—":new Intl.NumberFormat("nl-BE",{style:"currency",currency:"EUR"}).format(n);};
+const spKwh = value => {const n=spNumber(value);return n==null?"—":`${n.toLocaleString("nl-BE",{maximumFractionDigits:2})} kWh`;};
+const spPct = value => {const n=spNumber(value);return n==null?"—":`${n.toLocaleString("nl-BE",{maximumFractionDigits:1})}%`;};
 const spWallboxMode = value => {
   const raw=String(value??'').trim(),key=raw.toLocaleLowerCase('nl-BE').replace(/[\s-]+/g,'_');
   return ({stopped:'Gestopt',solar:'Zonneladen',full_solar:'Volledig zonneladen',manual:'Handmatig laden',unknown:'Onbekend'})[key]||raw||'Onbekend';
@@ -45,6 +58,7 @@ const SP_INVESTIGATION_STYLE=`.automatic-investigation{margin:18px 0;padding-top
 
 /* Read-only popup. Its DOM and polling lifecycle are independent of live card renders. */
 class SolarPilotConsumerHistoryDialog extends HTMLElement {
+  static solarPilotRelease=SP_CARD_VERSION;
   constructor(){
     super(); this.attachShadow({mode:'open'}); this._seq=0; this._range=7; this._day=null;
     this._isOpen=false; this._lastFetch=0; this._data=null; this._timer=null;
@@ -71,7 +85,7 @@ class SolarPilotConsumerHistoryDialog extends HTMLElement {
     this._dialog=this.shadowRoot.querySelector('dialog');this._body=this.shadowRoot.querySelector('.content');this._scroll=this.shadowRoot.querySelector('.scroll');this._input=this.shadowRoot.querySelector('input');
     this.shadowRoot.addEventListener('click',e=>this._click(e));
     this._input.addEventListener('change',()=>{if(this._input.value&&this._input.checkValidity())this._selectDay(this._input.value);});
-    this._dialog.addEventListener('close',()=>this._cleanup());
+    this._dialog.addEventListener('close',()=>{if(!this._dialog.open)this._cleanup();});
     this._dialog.addEventListener('cancel',()=>this._cleanup());
     this._dialog.addEventListener('click',e=>{if(e.target!==this._dialog)return;const r=this._dialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)this.close();});
     this._visibility=()=>{if(this._isOpen&&document.visibilityState!=='hidden')this._fetch(false);};
@@ -118,7 +132,7 @@ class SolarPilotConsumerHistoryDialog extends HTMLElement {
     finally{clearTimeout(timeout);if(this._inflight===seq)this._inflight=0;}
   }
   _clock(iso){if(!iso)return '—';try{return new Intl.DateTimeFormat('nl-BE',{hour:'2-digit',minute:'2-digit',timeZone:this._data?.timezone||'Europe/Brussels'}).format(new Date(iso));}catch(_){return '—';}}
-  _duration(s){if(s==null)return '—';s=Math.max(0,Math.round(Number(s)||0));if(s<60)return `${s} s`;const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h?`${h} u ${m} min`:`${m} min`;}
+  _duration(s){s=spNumber(s);if(s==null)return '—';s=Math.max(0,Math.round(s));if(s<60)return `${s} s`;const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h?`${h} u ${m} min`:`${m} min`;}
   _selectDay(day){this._day=day;this._fetch(true);}
   _shiftDay(n){if(!this._day)return;const d=new Date(this._day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);this._selectDay(d.toISOString().slice(0,10));}
   _click(e){
@@ -156,6 +170,7 @@ class SolarPilotConsumerHistoryDialog extends HTMLElement {
   }
 }
 if(!customElements.get('solar-pilot-consumer-history-dialog'))customElements.define('solar-pilot-consumer-history-dialog',SolarPilotConsumerHistoryDialog);
+if(!customElements.get(SP_CONSUMER_HISTORY_TAG))customElements.define(SP_CONSUMER_HISTORY_TAG,class extends SolarPilotConsumerHistoryDialog {});
 
 /* Native heatpump observations share the stable read-only lifecycle, not consumer start attribution. */
 class SolarPilotHeatpumpHistoryDialog extends SolarPilotConsumerHistoryDialog {
@@ -330,11 +345,11 @@ class SolarPilotLearningDialog extends HTMLElement {
     const pos=this._scroll.scrollTop,opens=new Set(Array.from(this._body.querySelectorAll('details[open]'),d=>d.dataset.key));
     const policy=data.policy||{},q=data.quality?.last_7d||{},sam=data.sampling||{},counts=sam.attempts_7d||{};
     const models=(data.models||[]).filter(x=>x.id!=='climate'),pvEvidence=models.find(x=>x.id==='pv')?.evidence||{},baseEvidence=models.find(x=>x.id==='base')?.evidence||{},deviceEvidence=models.find(x=>x.id==='devices')?.evidence||{};
-    const pvModel=pvEvidence.forecast_calibration?.model||{};
+    const pvCalibration=pvEvidence.forecast_calibration||{},pvModel=pvCalibration.model||{},pvProfile=pvCalibration.calibration||{};
     const readable={'accepted':'Aanvaarde metingen','accepted_corrected':'Ook tijdens EV/lasten bruikbaar','site_source':'Net/PV-bron onbruikbaar','wallbox_source':'Wallboxmeting onbruikbaar','consumer_source':'Toestelmeting onbruikbaar','settling':'Wacht op stabilisatie','protected_dhw':'Beschermde boilerperiode apart','quiet_policy':'Overgeslagen door rustig-meetbeleid','source_alignment':'Tijdstempels niet passend','learning_disabled':'Leren uitgeschakeld','battery_source':'Batterijbron onbruikbaar','battery_fleet':'Batterijvloot niet gevalideerd','balance':'Energiebalans niet plausibel','sample_interval':'Vorige meting te recent'};
     this._body.innerHTML=`<p class="summary">Meetkwaliteit en bronherkomst. Bevindingen en adviezen beoordeel je via het analysebestand.</p><p class="note">${spEscape(data.contract||'Geen nieuwe fysieke rechten door deze pagina.')}</p>${spInvestigationHtml(data.investigation,{current:data.ready===true,timeZone:this._hass?.config?.time_zone})}
     <section class="model"><h3>Metingen</h3><p>Dekking: <b>${q.covered_hours==null?'nog onbekend':Number(q.covered_hours).toLocaleString('nl-BE')+' uur'}</b> · ${q.coverage_pct==null?'percentage nog onbekend':Number(q.coverage_pct).toLocaleString('nl-BE')+'% van de waargenomen periode'}.</p><p>${spEscape(sam.last?.reason||'Nog geen meetcontrole.')}</p><details data-key="coverage"><summary>Ontbrekende bronnen en technische meetdetails</summary><p class="note">${spEscape(q.coverage_note||'Oude meetdekking wordt niet achteraf ingevuld.')}</p><div class="tablewrap"><table><thead><tr><th>Leerwaarnemingen, laatste 7 kalenderdagen</th><th>Aantal</th></tr></thead><tbody>${Object.entries(counts).map(([key,n])=>`<tr><td>${spEscape(readable[key]||key)}</td><td>${Number(n)}</td></tr>`).join('')}</tbody></table></div></details></section>
-    <section class="model"><h3>Zonnevoorspelling</h3><p>Gemiddelde fout bij zon: <b>${spPower(q.pv_daylight_mae_w)}</b>. Systematische richting: <b>${q.pv_daylight_bias_w==null?'onbekend':(q.pv_daylight_bias_w>=0?'forecast gemiddeld te laag '+spPower(q.pv_daylight_bias_w):'forecast gemiddeld te hoog '+spPower(Math.abs(q.pv_daylight_bias_w)))}</b>.</p><p>Lokale kalibratie: <b>${Number(pvModel.days||0)}/${Number(pvModel.minimum_days_required||5)} geldige dagen</b> · ${Math.round(Number(pvEvidence.forecast_calibration?.confidence||0)*100)}% bewijs voor het huidige tijdvak.</p><details data-key="pv-quality"><summary>Ochtend, middag en namiddag</summary><pre>${spEscape(JSON.stringify(pvModel.periods||{},null,2))}</pre></details></section>
+    <section class="model"><h3>Zonnevoorspelling</h3><p>Gemiddelde fout bij zon: <b>${spPower(q.pv_daylight_mae_w)}</b>. Systematische richting: <b>${q.pv_daylight_bias_w==null?'onbekend':(q.pv_daylight_bias_w>=0?'forecast gemiddeld te laag '+spPower(q.pv_daylight_bias_w):'forecast gemiddeld te hoog '+spPower(Math.abs(q.pv_daylight_bias_w)))}</b>.</p><p>Lokale kalibratie: <b>${spNumber(pvProfile.days??pvCalibration.comparable_days)??'—'}/${spNumber(pvProfile.minimum_days_required??pvModel.minimum_days_required)??5} passende dagen</b> · ${spPct(spNumber(pvProfile.confidence??pvCalibration.confidence)==null?null:spNumber(pvProfile.confidence??pvCalibration.confidence)*100)} bewijs voor het huidige tijdvak. ${Number(pvModel.days||0)} leerdagen totaal.</p>${pvProfile.reason?`<p class="note">${spEscape(pvProfile.reason)}</p>`:''}<details data-key="pv-quality"><summary>Ochtend, middag en namiddag</summary><pre>${spEscape(JSON.stringify(pvModel.periods||{},null,2))}</pre></details></section>
     <section class="model"><h3>Huishoudelijk verbruik</h3><p>Voorspelfout gewone basislast: <b>${spPower(q.base_mae_w)}</b> · bias ${q.base_bias_w==null?'onbekend':(q.base_bias_w>=0?'+':'')+spPower(q.base_bias_w)}.</p><p class="note">Warmtepompperioden worden vanaf beta.36 niet meer als gewone huishoudelijke basislast gescoord of aangeleerd. Onverklaarde hoge pieken blijven apart.</p></section>
     <section class="model"><h3>Toestellen</h3><p>${Object.keys(deviceEvidence.profiles||{}).length} toestelprofiel(en) met eigen metingen. Faseherkenning en Wallbox-overdracht tonen afzonderlijk of bewijs betrouwbaar én voor regeling vrijgegeven is.</p><details data-key="device-quality"><summary>Technische toestelprofielen</summary><pre>${spEscape(JSON.stringify(deviceEvidence.profiles||{},null,2))}</pre></details></section>
     <h3>Wat kent SolarPilot al?</h3>${models.map(m=>`<article class="model"><h3>${spEscape(m.name)} <span class="tag">${m.enabled?'Leren / analyseren':'Niet actief'}</span></h3><p>${spEscape(m.state)}</p><p class="note">${spEscape(m.effect)}</p><details data-key="model-${spEscape(m.id)}"><summary>Meetbasis en herkomst</summary>${m.id==='base'?`<div class="tablewrap"><table><thead><tr><th>Uur/dagtype</th><th>Dagen</th><th>Herkomst</th><th>Voorspelling</th><th>Recente variant</th></tr></thead><tbody>${(m.evidence?.buckets||[]).map(b=>`<tr><td>${spEscape(b.bucket)}</td><td>${Number(b.days)}/${Number(b.minimum_days)}</td><td>${spEscape(b.source)}</td><td>${spPower(b.prediction_w)}</td><td>${b.candidate_applied?'Toegepast':b.candidate_eligible?'Beter; toestemming nodig':'Nog niet aangetoond'}</td></tr>`).join('')}</tbody></table></div>`:this._evidence(m)}</details></article>`).join('')}
@@ -351,6 +366,7 @@ if(!customElements.get('solar-pilot-learning-dialog'))customElements.define('sol
 if(!customElements.get(SP_QUALITY_DIALOG_TAG))customElements.define(SP_QUALITY_DIALOG_TAG,class extends SolarPilotLearningDialog {});
 
 class SolarPilotPVDialog extends HTMLElement {
+  static solarPilotRelease=SP_CARD_VERSION;
   constructor(){
     super();this.attachShadow({mode:'open'});this._seq=0;this._open=false;this._data=null;
     this.shadowRoot.innerHTML=`<style>
@@ -363,7 +379,7 @@ class SolarPilotPVDialog extends HTMLElement {
     this._dialog=this.shadowRoot.querySelector('dialog');this._scroll=this.shadowRoot.querySelector('.scroll');this._body=this.shadowRoot.querySelector('.content');this._days=this.shadowRoot.querySelector('select');
     this._days.addEventListener('change',()=>this._renderData());
     this.shadowRoot.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;switch(b.dataset.action){case'close':this.close();break;case'refresh':this._fetch();break;case'export':this.dispatchEvent(new CustomEvent('pv-export'));break;case'reset':if(window.confirm('Alleen het lokale PV-correctieprofiel en de PV-diagnose wissen? Andere leerdata, instellingen en apparaatstanden blijven behouden.'))this._fetch(true);break;}});
-    this._dialog.addEventListener('close',()=>{this._open=false;this._seq++;});
+    this._dialog.addEventListener('close',()=>{if(!this._dialog.open){this._open=false;this._seq++;}});
     this._dialog.addEventListener('click',e=>{if(e.target!==this._dialog)return;const r=this._dialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)this.close();});
   }
   open(hass,id){this._hass=hass;this._id=id;this._open=true;this._data=null;this._days.replaceChildren();this._body.textContent="Gegevens laden…";this._scroll.scrollTop=0;this._dialog.showModal();this._fetch();}
@@ -396,9 +412,11 @@ class SolarPilotPVDialog extends HTMLElement {
   }
 }
 if(!customElements.get('solar-pilot-pv-dialog'))customElements.define('solar-pilot-pv-dialog',SolarPilotPVDialog);
+if(!customElements.get(SP_PV_DIALOG_TAG))customElements.define(SP_PV_DIALOG_TAG,class extends SolarPilotPVDialog {});
 
 /* Stable draft editor. Telemetry updates replace the context, never its DOM. */
 class SolarPilotPriorityDialog extends HTMLElement {
+  static solarPilotRelease=SP_CARD_VERSION;
   constructor(){
     super();this.attachShadow({mode:'open'});this._seq=0;this._busy=false;this._dirty=false;
     this.shadowRoot.innerHTML=`<style>
@@ -487,6 +505,7 @@ class SolarPilotPriorityDialog extends HTMLElement {
   }
 }
 if(!customElements.get('solar-pilot-priority-dialog'))customElements.define('solar-pilot-priority-dialog',SolarPilotPriorityDialog);
+if(!customElements.get(SP_PRIORITY_DIALOG_TAG))customElements.define(SP_PRIORITY_DIALOG_TAG,class extends SolarPilotPriorityDialog {});
 
 /* Own UI history only: same URL, no HA router patch, form data or control replay. */
 class SolarPilotUiHistory {
@@ -515,7 +534,7 @@ class SolarPilotUiHistory {
   _closed(element){const before=this.layers.length;this.layers=this.layers.filter(key=>{const e=this.modals.get(key)?.element;return e!==element&&(e?.dialog||e?._dialog)?.open;});const b=SolarPilotUiHistory.bus;if(before===this.layers.length||!this.connected||b.applying||!SolarPilotUiHistory._owned())return;b.pending=SolarPilotUiHistory._snapshot();queueMicrotask(()=>SolarPilotUiHistory._finishClose());}
   static _same(a,b){for(const [id,h] of this.bus.cards){const initial={view:h.card._config?.default_view||'overview',layers:[]};if(JSON.stringify(a[id]||initial)!==JSON.stringify(b[id]||initial))return false;}return true;}
   static _finishClose(){const b=this.bus,wanted=b.pending;if(!wanted||b.applying||!this._owned())return;b.pending=null;let target=b.cursor-1;while(target>=0&&!this._same(b.entries[target],wanted))target--;if(target>=0){b.moving=true;history.go(target-b.cursor);}else{b.entries[b.cursor]=wanted;history.replaceState(this._state(b.cursor),'',b.url);}}
-  _canClose(keys){for(const key of [...keys].reverse()){const e=this.modals.get(key)?.element;if(!(e?.dialog||e?._dialog)?.open)continue;if(e._saving||(e.localName==='solar-pilot-options-dialog'&&e._busy))return false;if((e._dirty||e._draftStarted)&&!window.confirm('Niet-opgeslagen wijzigingen weggooien?'))return false;}return true;}
+  _canClose(keys){for(const key of [...keys].reverse()){const e=this.modals.get(key)?.element;if(!(e?.dialog||e?._dialog)?.open)continue;if(e._saving||(e.localName==='solar-pilot-options-dialog'&&e._busy||e.localName?.startsWith('solar-pilot-options-dialog-')&&e._busy))return false;if((e._dirty||e._draftStarted)&&!window.confirm('Niet-opgeslagen wijzigingen weggooien?'))return false;}return true;}
   async _apply(target){
     if(!this.connected)return true;
     const desired=target||{view:this.card._config?.default_view||'overview',layers:[]};const closing=this.layers.filter(key=>!desired.layers.includes(key));
@@ -573,27 +592,41 @@ class SolarPilotCard extends HTMLElement {
       const state=this._captureUiState();current.replaceWith(next);this._restoreUiState(state);return;
     }
     if(!['overview','comfort','loads'].includes(this._view))return;
-    const c=this._ctx(),signature=this._heatpumpDisplaySignature(c);
+    const c=this._ctx();
+    if(this._view==='overview'){
+      const tiles=['pv','grid'].map(kind=>[kind,this._energyTile(kind,c.a)]),energySignature=JSON.stringify(tiles);
+      if(energySignature!==this._energyDisplaySignature){
+        for(const [kind,html] of tiles){const current=this._content.querySelector(`[data-energy="${kind}"]`);if(!current)continue;const holder=document.createElement('div');holder.innerHTML=html;current.replaceWith(holder.firstElementChild);}
+        this._energyDisplaySignature=energySignature;
+      }
+    }
+    const signature=JSON.stringify([this._heatpumpDisplaySignature(c),this._wallboxActivity(c.wb||{})]);
     if(signature===this._observationSignature)return;
     // Update only the read-only observation block, keeping other device drafts,
     // focused controls, open explanations and modal DOM intact.
     const uiState=this._captureUiState(),holder=document.createElement('div');
     if(this._view==='overview'){
-      const current=this._content.querySelector('[data-reason-key="overview:sg"]');
       holder.innerHTML=this._decisionBoard(c);
-      const next=holder.querySelector('[data-reason-key="overview:sg"]');
-      if(current&&next)current.replaceWith(next);
+      for(const key of ['overview:sg','overview:wallbox']){
+        const current=this._content.querySelector(`[data-reason-key="${key}"]`),next=holder.querySelector(`[data-reason-key="${key}"]`);
+        if(current&&next)current.replaceWith(next);
+      }
+      const active=this._content.querySelector('.active-loads');if(active){const block=document.createElement('div');block.innerHTML=this._activeLoads(c);active.replaceWith(block.firstElementChild);}
     }else{
       const current=this._content.querySelector('.heatpump-sg');
       holder.innerHTML=this._heatpump(c,this._view);
       const next=holder.firstElementChild;
       if(current&&next){current.replaceWith(next);this._installHelpButtons(next);}
+      if(this._view==='loads'){
+        const wallbox=this._content.querySelector('.wallbox-device');
+        if(wallbox){const block=document.createElement('div');block.innerHTML=this._wallbox(c);const replacement=block.querySelector('.wallbox-device');if(replacement)wallbox.replaceWith(replacement);}
+      }
     }
     this._restoreUiState(uiState);this._observationSignature=signature;
   }
   _openPV(){
     this._uiHistory.prepare();
-    if(!this._pvDialog){this._pvDialog=document.createElement('solar-pilot-pv-dialog');this.shadowRoot.appendChild(this._pvDialog);this._pvDialog.addEventListener('pv-export',()=>{this._pvDialog.close();this._goExport();});}
+    if(!this._pvDialog){this._pvDialog=document.createElement(spDialogTag('solar-pilot-pv-dialog',SP_PV_DIALOG_TAG));this.shadowRoot.appendChild(this._pvDialog);this._pvDialog.addEventListener('pv-export',()=>{this._pvDialog.close();this._goExport();});}
     this._pvDialog.open(this._hass,this._last?.attributes?.config_entry_id);this._uiHistory.track(this._pvDialog,()=>this._pvDialog.open(this._hass,this._last?.attributes?.config_entry_id));
   }
   _pvSummary(c){
@@ -613,7 +646,7 @@ class SolarPilotCard extends HTMLElement {
   _openHistory(device){
     this._uiHistory.prepare();
     if(!this._historyDialog){
-      this._historyDialog=document.createElement('solar-pilot-consumer-history-dialog');this.shadowRoot.appendChild(this._historyDialog);
+      this._historyDialog=document.createElement(spDialogTag('solar-pilot-consumer-history-dialog',SP_CONSUMER_HISTORY_TAG));this.shadowRoot.appendChild(this._historyDialog);
       this._historyDialog.addEventListener('history-closed',()=>requestAnimationFrame(()=>{
         if(this.isConnected&&!this._historyDialog._isOpen){const b=Array.from(this.shadowRoot.querySelectorAll('button[data-action=history]')).find(b=>b.dataset.id===this._historyDialog._deviceId);b?.focus({preventScroll:true});}
       }));
@@ -671,27 +704,31 @@ class SolarPilotCard extends HTMLElement {
     const available=number(watts)&&number(stamp)&&age>=-5&&age<=stale&&(!solar||watts>=0)
       &&this._last?.state!=='unavailable'&&this._last?.state!=='unknown'&&!this._last?.attributes?.restored;
     const label=solar?'Zonnepanelen':'Net';
-    if(!available)return this._tile(label,'—','Actuele meting ontbreekt','energy-tile energy-unknown');
+    if(!available)return `<div class="tile energy-tile energy-unknown" data-energy="${kind}"><span>${label}</span><strong>—</strong><small>Actuele meting ontbreekt</small></div>`;
     const limit=number(meta.inverter_limit_w)&&meta.inverter_limit_w>0?meta.inverter_limit_w:null;
     const reference=number(a.max_import_w)&&a.max_import_w>0?a.max_import_w:limit;
     const fraction=solar?(limit?clamp(watts/limit):null):(watts>0?(reference?clamp(watts/reference):null):0);
     const value=solar?spPower(watts):watts===0?'in balans':`${watts>0?'afname':'injectie'} ${spPower(Math.abs(watts))}`;
     const note=solar?(watts===0?'Geen productie':limit?`${Math.round(watts/limit*100)}% van omvormervermogen`:'actueel'):'P1 · actuele meting';
-    if(fraction==null)return this._tile(label,value,note,'energy-tile energy-unknown');
+    if(fraction==null)return `<div class="tile energy-tile energy-unknown" data-energy="${kind}"><span>${label}</span><strong>${value}</strong><small>${spEscape(note)}</small></div>`;
     const hue=solar?120*fraction:watts<0?120:95*(1-fraction);
     const position=solar?fraction:watts<=0?0:fraction;
     const title=solar?`Productiekleur van 0 tot ${spPower(limit)} omvormervermogen.`:`Groen bij injectie; oplopende afname verkleurt tot rood bij ${spPower(reference)}. Dit is een kleurschaal, geen elektrische beveiliging.`;
     return `<div class="tile energy-tile" data-energy="${kind}" style="--energy-hue:${hue.toFixed(1)}" title="${spEscape(title)}"><span>${label}</span><strong>${value}</strong><small>${spEscape(note)}</small><div class="energy-scale ${solar?'solar-scale':'grid-scale'}" aria-hidden="true"><i style="left:${(position*100).toFixed(1)}%"></i></div></div>`;
   }
   _wallboxActivity(wb){
-    const known=wb.activity_known??(wb.power_w!=null&&Number.isFinite(Number(wb.power_w))&&wb.last_report_age_s!=null&&Number(wb.last_report_age_s)<=Number(wb.stale_s??120));
-    const active=!!known&&Number(wb.power_w)>=Number(wb.charging_threshold_w??50);
-    const native=wb.activity_details?.current;
+    const power=spNumber(wb.power_w),age=spNumber(wb.last_report_age_s),native=wb.activity_details?.current;
+    const snapshotCurrent=this._last?.attributes?.restored!==true&&!['unknown','unavailable'].includes(String(this._last?.state||'').toLowerCase());
+    const reportCurrent=!Object.hasOwn(native||{},'report_timestamp')||this._freshObservation(native.report_timestamp,spNumber(wb.stale_s)??120);
+    const baseKnown=wb.activity_known===undefined?power!=null&&power>=0&&age!=null&&age>=-5&&age<=(spNumber(wb.stale_s)??120):wb.activity_known===true;
+    const known=snapshotCurrent&&reportCurrent&&baseKnown&&power!=null&&power>=0;
+    const active=known&&power>=(spNumber(wb.charging_threshold_w)??50);
     const label=!known?'LAADSTATUS ONBEKEND':active?'AUTO LAADT':native?.known&&native.active===false&&native.label?String(native.label).toLocaleUpperCase('nl-BE'):wb.activity==='waiting'||wb.demand?'WACHT OP LAADSTROOM':wb.connected===false?'GEEN AUTO AANGESLOTEN':'AUTO LAADT NIET';
     return {known,active,label};
   }
   _deviceActivity(d){
-    const known=d.available!==false,active=known&&!!d.on;
+    const snapshotCurrent=this._last?.attributes?.restored!==true&&!['unknown','unavailable'].includes(String(this._last?.state||'').toLowerCase());
+    const known=snapshotCurrent&&d.available!==false,active=known&&d.on===true;
     const phase=String(d.dishwasher?.phase||'');
     const phaseLabel=({Running:'Programma loopt',Washing:'Wassen',Prewash:'Voorspoelen','Pre Wash':'Voorspoelen','Pre wash':'Voorspoelen','Main Wash':'Hoofdwas',Rinsing:'Spoelen',Drying:'Drogen','Ado Drying':'Nadrogen',Paused:'Gepauzeerd'})[phase]||phase;
     return {known,active,label:!known?'STATUS ONBEKEND':!active?'UIT':d.kind==='dishwasher'?(d.dishwasher?.airdry?'NADROGEN ACTIEF':'PROGRAMMA ACTIEF'):d.manual_forced?'ACTIEF · HANDMATIG':d.owned?'ACTIEF · SOLARPILOT':'ACTIEF · EXTERN',phase:phaseLabel};
@@ -780,8 +817,8 @@ class SolarPilotCard extends HTMLElement {
     return String(value||'Nog geen betrouwbare reden beschikbaar.').replace(/\bcoast\b/gi,'periode zonder verwarming of koeling').replace(/\bnative\b/gi,'toestel').replace(/\bP1\b/g,'netmeter').replace(/\bACK\b/g,'bevestiging');
   }
   _knownPower(value,{known=true,estimated=false,label='Vermogen'}={}){
-    const valid=known&&value!=null&&value!==''&&Number.isFinite(Number(value));
-    return `<div class="reason-power"><b>${valid?spPower(Math.abs(Number(value))):'Vermogen nog niet bekend'}</b>${valid?`<small>${spEscape(label)} · ${estimated?'geschat':'gemeten'}</small>`:''}</div>`;
+    const number=spNumber(value),valid=known&&number!=null;
+    return `<div class="reason-power"><b>${valid?spPower(Math.abs(number)):'Vermogen nog niet bekend'}</b>${valid?`<small>${spEscape(label)} · ${estimated?'geschat':'gemeten'}</small>`:''}</div>`;
   }
   _powerReadingKnown(power){
     if(power?.valid!==true||power.value_w==null||!Number.isFinite(Number(power.value_w))||Number(power.value_w)<0)return false;
@@ -792,8 +829,8 @@ class SolarPilotCard extends HTMLElement {
     return `<div class="start-facts">${facts.map(([label,value])=>`<span>${spEscape(label)}<b>${spEscape(value)}</b></span>`).join('')}</div>`;
   }
   _remainingTime(value){
-    if(value==null||value===''||!Number.isFinite(Number(value)))return 'nog niet bekend';
-    return Number(value)<=0?'gereed':Number(value)<60?`nog ${Math.ceil(Number(value))} s`:`nog ${spDuration(value)}`;
+    const n=spNumber(value);if(n==null)return 'nog niet bekend';
+    return n<=0?'gereed':n<60?`nog ${Math.ceil(n)} s`:`nog ${spDuration(n)}`;
   }
   _overviewBatteryExplanation(fleet){
     const names=new Map((fleet.batteries||[]).map(b=>[b.id,b.name||'Batterij']));
@@ -854,7 +891,7 @@ class SolarPilotCard extends HTMLElement {
       ${this._decisionBoard(c)}
       <details class="technical-overview" data-ui-key="overview:technical"><summary>Metingen, voorspellingen en technische details</summary>
       ${this._activeLoads(c)}<div class="summarygrid">
-        ${this._tile('Wallbox',wb.enabled?`${spEscape(this._wallboxActivity(wb).label)} · ${spPower(wb.power_w)}`:'niet gemonitord',wb.enabled?'De Wallbox bepaalt zelf het laden; SolarPilot leest de status.':'',wb.enabled&&this._wallboxActivity(wb).active?'active-tile':'')}
+        ${this._tile('Wallbox',wb.enabled?`${spEscape(this._wallboxActivity(wb).label)} · ${spPower(this._wallboxActivity(wb).known?wb.power_w:null)}`:'niet gemonitord',wb.enabled?'De Wallbox bepaalt zelf het laden; SolarPilot leest de status.':'',wb.enabled&&this._wallboxActivity(wb).active?'active-tile':'')}
         ${this._tile('Batterij',batteryText,batteryFleet.reason||batteryAnalysis.note||'')}
         ${this._tile('Kwartierpiek',cap.enabled?(cap.current_average_w==null?'—':spPower(cap.current_average_w)):'uit',cap.enabled?`theoretisch kwartierbudget ${spPower(cap.optional_headroom_w)}`:'')}
         ${this._tile('Lokale PV-voorspelling',localPv.enabled?(localPv.corrected_power_w==null?'—':spPower(localPv.corrected_power_w)):'uit',localPv.enabled?`${Math.round(Number(localPv.confidence||0)*100)}% · ${localPv.reason||''}`:'')}
@@ -885,12 +922,30 @@ class SolarPilotCard extends HTMLElement {
     const {wb}=c;if(!wb.enabled)return `<div class="empty">Wallbox-monitor is niet geconfigureerd.</div>`;
     const activity=this._wallboxActivity(wb);
     return `<section class="policy"><div class="row"><div class="grow"><h2>Auto laden in de gezamenlijke volgorde</h2><p>De volledige volgorde en de gevolgen voor autoladen staan op één plek.</p></div><button type="button" data-action="view" data-value="priorities">Naar Voorrang</button></div></section>
-      <section class="external wallbox-device${activity.active?' on':''}"><div class="row"><div class="icon">EV</div><div class="grow"><h2>${spEscape(wb.name||'Wallbox')} <span class="runstate ${activity.active?'active':''}">${spEscape(activity.label)}</span> <span class="readonly">WALLBOX REGELT ZELF</span></h2><p>${spEscape((wb.per_device_priority?wb.consumer_priority?.reason:wb.reason)||'Extern geregeld')}</p></div><strong>${spPower(wb.power_w)}</strong></div><p class="note">SolarPilot leest het werkelijke laden; de Wallbox kiest zelf de laadstroom. Een ingestelde laadmodus is geen bewijs dat de auto nu laadt.</p>${this._wallboxExplanation(wb,activity)}${this._wallboxProfile(wb)}<div class="facts"><span>Ingestelde Wallbox-modus <b>${spEscape(spWallboxMode(wb.configured_mode||wb.reported_mode))}</b></span><span>Werkelijk gedetecteerde sessie <b>${spEscape(wb.session_value||(!wb.session_entity?'geen sessiesensor gekoppeld':spWallboxMode(wb.effective_mode)))}</b></span><span>Laadvermogen <b>${spPower(wb.power_w)}</b></span><span>Wallbox-vermogen terugnemen <b>${wb.reclaim_allowed_now?'ja, nu bevestigd':'nee, nu niet beschikbaar'}</b></span>${wb.last_report_age_s!=null?`<span>Rapport <b>${Math.round(Number(wb.last_report_age_s))} s oud</b></span>`:''}</div><p class="note wb-session">${spEscape(wb.reclaim_reason||wb.session_reason||'Alleen werkelijk vrij zonneoverschot wordt gebruikt.')}</p>${wb.warning?this._notice(spEscape(wb.warning),true):''}</section>`;
+      <section class="external wallbox-device${activity.active?' on':''}"><div class="row"><div class="icon">EV</div><div class="grow"><h2>${spEscape(wb.name||'Wallbox')} <span class="runstate ${activity.active?'active':''}">${spEscape(activity.label)}</span> <span class="readonly">WALLBOX REGELT ZELF</span></h2><p>${spEscape((wb.per_device_priority?wb.consumer_priority?.reason:wb.reason)||'Extern geregeld')}</p></div><strong>${spPower(activity.known?wb.power_w:null)}</strong></div><p class="note">SolarPilot leest het werkelijke laden; de Wallbox kiest zelf de laadstroom. Een ingestelde laadmodus is geen bewijs dat de auto nu laadt.</p>${this._wallboxExplanation(wb,activity)}${this._wallboxProfile(wb)}<div class="facts"><span>Ingestelde Wallbox-modus <b>${spEscape(spWallboxMode(wb.configured_mode||wb.reported_mode))}</b></span><span>Werkelijk gedetecteerde sessie <b>${spEscape(wb.session_value||(!wb.session_entity?'geen sessiesensor gekoppeld':spWallboxMode(wb.effective_mode)))}</b></span><span>Laadvermogen <b>${spPower(activity.known?wb.power_w:null)}</b></span><span>Wallbox-vermogen terugnemen <b>${wb.reclaim_allowed_now?'ja, nu bevestigd':'nee, nu niet beschikbaar'}</b></span>${wb.last_report_age_s!=null?`<span>Rapport <b>${Math.round(Number(wb.last_report_age_s))} s oud</b></span>`:''}</div><p class="note wb-session">${spEscape(wb.reclaim_reason||wb.session_reason||'Alleen werkelijk vrij zonneoverschot wordt gebruikt.')}</p>${wb.warning?this._notice(spEscape(wb.warning),true):''}</section>`;
+  }
+  _startAllocationFacts(allocation){
+    if(!allocation)return '';
+    const rows=[],add=(key,label,{positive=false}={})=>{const value=spNumber(allocation[key]);if(value==null||positive&&value<=0)return;rows.push(`<span>${label} <b>${spPower(value)}</b></span>`);};
+    add('filtered_free_w','Zonneoverschot na vermogensfilter');
+    add('smoothing_hold_w','Tijdelijk achtergehouden door vermogensfilter',{positive:true});
+    add('protected_cycle_reserve_w','Reserve voor lopende beschermde cycli · komende pieken',{positive:true});
+    add('isolated_reserve_w','Reserve voor toestellen met onzekere metingen',{positive:true});
+    add('sg_unconfirmed_reserve_w','Reserve voor nog onbevestigde SG-opname',{positive:true});
+    add('other_reserved_w','Andere bestaande vermogensreserve',{positive:true});
+    add('locked_commitment_w','Reeds toegezegd extra vermogen',{positive:true});
+    add('higher_allocated_w','Extra toegewezen aan hogere voorrangen',{positive:true});
+    add('remaining_solar_w','Zonnebudget na reserves en eerdere toewijzingen');
+    add('electrical_headroom_w','Actuele elektrische ruimte');
+    add('remaining_cap_w','Elektrisch budget na reserves en eerdere toewijzingen');
+    if(!['protected_cycle_reserve_w','isolated_reserve_w','sg_unconfirmed_reserve_w','other_reserved_w'].some(key=>spNumber(allocation[key])!=null))add('comfort_and_cycle_reserve_w','Reserve voor beschermd of onzeker verbruik',{positive:true});
+    return rows.join('');
   }
   _startExplanation(d,mode,extra=[]){
     const diagnostics=d.start_diagnostics&&typeof d.start_diagnostics==='object'?d.start_diagnostics:null;
     const requirements=d.start_requirements&&typeof d.start_requirements==='object'?d.start_requirements:null;
     const reason=diagnostics?.summary||d.reason||'Nog geen actuele beslisreden ontvangen; de oorzaak is niet vastgesteld.';
+    if(this._last?.attributes?.restored===true||['unknown','unavailable'].includes(String(this._last?.state||'').toLowerCase()))return '<div class="start-explanation"><strong>Toestelactiviteit nog niet bevestigd</strong><p>Actuele SolarPilot-status ontbreekt; eerdere toestelactiviteit is niet bevestigd.</p></div>';
     if(d.isolated)return `<div class="start-explanation"><strong>Toestel tijdelijk apart gehouden</strong><p>${spEscape(d.isolation_reason||reason)}</p><p>${d.available===false?'De actuele activiteit is onbekend.':'Het toestel meldt zijn activiteit; het vermogen of andere benodigde gegevens zijn niet betrouwbaar.'} SolarPilot bedient dit toestel tijdelijk niet en controleert de gegevens automatisch opnieuw. Zodra ze betrouwbaar zijn, kan het toestel opnieuw meedoen met behoud van minimale looptijd, rusttijd en overige voorwaarden.</p>${Number(d.isolation_reserve_w)>0?`<p>Veiligheidsreserve voor mogelijk verbruik: <b>${spPower(d.isolation_reserve_w)}</b>. Dit is geen gemeten verbruik.</p>`:''}</div>`;
     if(d.on&&d.available!==false)return `<div class="start-explanation"><strong>Waarom dit toestel nu actief is</strong><p>${spEscape(reason)}</p><p class="start-ready">${d.kind==='dishwasher'?'Een lopende afwasbeurt wordt niet opnieuw gestart en niet onderbroken om stroom vrij te maken.':'Startvoorwaarden gelden voor een volgende start, niet voor het toestel dat al draait.'}</p><small>De actuele beslisreden komt rechtstreeks uit de regelaar.</small></div>`;
     const wait=s=>s==null||s===''||!Number.isFinite(Number(s))?'nog niet bekend':Number(s)<60?`${Math.max(0,Math.ceil(Number(s)))} s`:spDuration(s);
@@ -923,16 +978,16 @@ class SolarPilotCard extends HTMLElement {
     const power=diagnostics?.power,stable=diagnostics?.stable_start;
     if(!d.on&&power&&power.measurement_valid===false&&(!requirements||!Object.prototype.hasOwnProperty.call(requirements,'reliable_energy_measurement')))missing.push('Een betrouwbare actuele energiemeting ontbreekt.');
     const gridFallback=d.kind==='dishwasher'&&d.dishwasher?.deadline_due===true;
-    const pool=gridFallback?null:power?.solar_start_pool,required=Number(power?.required_start_w);
+    const pool=gridFallback?null:power?.solar_start_pool,required=spNumber(power?.required_start_w);
     const allocation=power?.allocation;
-    const available=pool?Number(pool.available_solar_w):allocation?Number(allocation.available_w):Number(power?.measured_free_w);
-    if(!d.on&&power?.measurement_valid&&Number.isFinite(required)&&Number.isFinite(available)&&required>available&&/vermogen|prioriteit/i.test(reason)&&!(d.kind==='dishwasher'&&!pool)){
-      missing.push(`Nog ongeveer ${spPower(required-available)} ${pool?'zonnevermogen voor dit toestel':'vrije zonnestroom'} nodig.`);
+    const available=allocation?spNumber(allocation.available_w):pool?spNumber(pool.available_solar_w):spNumber(power?.measured_free_w);
+    if(!d.on&&power?.measurement_valid&&required!=null&&available!=null&&required>available&&/vermogen|prioriteit/i.test(reason)&&!(d.kind==='dishwasher'&&!pool)&&!diagnostics?.missing?.includes('allocated_start_power')){
+      missing.push(`Nog ongeveer ${spPower(required-available)} beschikbaar startvermogen nodig na reserves en toewijzingen.`);
     }
     if(pool?.import_headroom_after_release_w!=null&&Number(pool.import_headroom_after_release_w)<Number(power.minimum_w))missing.push(`De ingestelde netafnamegrens laat momenteel ${spPower(pool.import_headroom_after_release_w)} extra verbruik toe; dit toestel vraagt minstens ${spPower(power.minimum_w)}.`);
     for(const [label,value,state] of extra){if(state!=='ok')missing.push(`${label}: ${value}.`);}
     missing=[...new Set(missing)];
-    const sharing=pool?`<span>Van autoladen beschikbaar <b>${spPower(pool.wallbox_solar_w)}</b></span>${Number(pool.lower_loads_releasable_w)>0?`<span>Van lagere toestellen vrij te maken <b>${spPower(pool.lower_loads_releasable_w)}</b></span>`:''}<span>Zonnevermogen voor dit toestel <b>${spPower(pool.available_solar_w)}</b></span>`:allocation?`<span>Beschikbaar voor dit toestel <b>${spPower(allocation.available_w)}</b></span>${Number(allocation.comfort_and_cycle_reserve_w)>0?`<span>Reserve voor comfort en lopende afwas <b>${spPower(allocation.comfort_and_cycle_reserve_w)}</b></span>`:''}`:'';
+    const sharing=(pool?`<span>Van autoladen beschikbaar <b>${spPower(pool.wallbox_solar_w)}</b></span>${Number(pool.lower_loads_releasable_w)>0?`<span>Van lagere toestellen vrij te maken <b>${spPower(pool.lower_loads_releasable_w)}</b></span>`:''}<span>Toegelaten zonnepot vóór eindtoewijzing <b>${spPower(pool.available_solar_w)}</b></span>`:'')+(allocation?this._startAllocationFacts(allocation)+`<span>Beschikbaar voor dit toestel <b>${spPower(allocation.available_w)}</b></span>`:'');
     const powerFacts=power?`<div class="start-facts"><span>Benodigd voor start <b>${spPower(power.required_start_w)}</b></span>${gridFallback?'<span>Netstroom op deadline <b>toegestaan</b></span>':`<span>Vrije zonnestroom na huisreserve <b>${power.measurement_valid?spPower(power.measured_free_w):'niet betrouwbaar'}</b></span>`}${sharing}<span>Stabiel nodig <b>${stable?.remaining_s!=null?(stable.remaining_s>0?'nog '+wait(stable.remaining_s):'gereed'):stable?.configured_s!=null?(Number(stable.configured_s)>0?wait(stable.configured_s)+' vereist':'geen wachttijd'):'nog niet bekend'}</b></span></div><p class="power-note">${gridFallback?'Op de deadline is zonneoverschot niet nodig. Het beschikbare vermogen blijft begrensd door de actuele net-, fase- en cyclusruimte.':pool?'Het vermogen voor dit toestel telt toegelaten zonnestroom uit autoladen mee, na reserves en begrensd door de echte zonneopbrengst. De Wallbox regelt zelf terug; dit is geen extra netcapaciteit. Lagere toestellen moeten eerst veilig stoppen. Wachttijden en elektrische grenzen blijven gelden.':d.kind==='dishwasher'?'Vrije zonnestroom is niet het totale startvermogen. Toegelaten vermogen uit autoladen kan ook meetellen, zodra de toestelstatus en de laadgegevens betrouwbaar zijn.':''}${power.note?` ${spEscape(power.note)}`:''}</p>`:'';
     const readyLabels={global_solar_mode:'Automatisch regelen staat aan.',recovery_clear:'Herstartcontrole afgerond.',automatic_participation:'Dit toestel mag automatisch meedoen.',reliable_energy_measurement:'Actuele energiemeting betrouwbaar.',availability_and_fault:'Toestel beschikbaar zonder gemelde fout.',release:'Vrijgavevoorwaarden zijn gehaald.',demand_or_time_window:'Startvraag of toegestaan tijdvenster aanwezig.',minimum_rest:'Minimale rusttijd afgerond.',non_interruptible_cycle_release:'Eén volledige beschermde cyclus vrijgegeven.',daily_maximum:'Dagmaximum laat deze start toe.',planner_start_block:'Planning houdt deze start niet tegen.',wallbox_start_block:'Autoladen houdt deze start niet tegen.',runtime_start_block:'Andere regelingen laten deze start toe.',general_increase_permission:'Veiligheidscontrole laat nieuwe starts toe.',allocated_start_power:'Voldoende vermogen aan dit toestel toegewezen.'};
     const ready=requirements?Object.entries(requirements).filter(([key,value])=>value?.met===true&&value.required!==false&&readyLabels[key]).map(([key])=>readyLabels[key]):[];
@@ -1458,7 +1513,7 @@ class SolarPilotCard extends HTMLElement {
   }
   _openPriorities(){
     this._uiHistory.prepare();
-    if(!this._priorityDialog){this._priorityDialog=document.createElement('solar-pilot-priority-dialog');this.shadowRoot.append(this._priorityDialog);this._priorityDialog.addEventListener('priority-saved',()=>{this._error='';});this._priorityDialog.addEventListener('priority-closed',()=>requestAnimationFrame(()=>this._content.querySelector('[data-action=priority_edit]')?.focus({preventScroll:true})));}
+    if(!this._priorityDialog){this._priorityDialog=document.createElement(spDialogTag('solar-pilot-priority-dialog',SP_PRIORITY_DIALOG_TAG));this.shadowRoot.append(this._priorityDialog);this._priorityDialog.addEventListener('priority-saved',()=>{this._error='';});this._priorityDialog.addEventListener('priority-closed',()=>requestAnimationFrame(()=>this._content.querySelector('[data-action=priority_edit]')?.focus({preventScroll:true})));}
     this._priorityDialog.open(this._hass,this._last?.attributes?.config_entry_id);this._uiHistory.track(this._priorityDialog,()=>this._priorityDialog.open(this._hass,this._last?.attributes?.config_entry_id));
   }
   _priorities(c){
@@ -1467,7 +1522,7 @@ class SolarPilotCard extends HTMLElement {
     const wallboxPosition=(b.rows||[]).find(r=>r.id==='wallbox')?.position??0,powerOutcome=r=>String(r?.power_label||'Niet vastgesteld').replace(/^Wallbox-vermogen:\s*/i,'');
     const fixed=(b.protected||[]).map(r=>`<div class="priority-row fixed"><div class="priority-number">Vast<small aria-hidden="true">🔒</small></div><div><b>${spEscape(r.name)}</b><small>${spEscape(r.active?'Actief':'Niet ingesteld of niet actief')}</small><p>Mag de auto minder laden? <strong>${spEscape(powerOutcome(r))}</strong></p><small>${spEscape(r.reason||'')}</small></div></div>`).join('');
     const rows=(b.rows||[]).map(r=>{const before=!!r.device_id&&Number(r.position)<Number(wallboxPosition);const relation=!r.device_id?powerOutcome(r):!r.wallbox_power?'Nee · alleen werkelijk vrij zonneoverschot':before?'Ja · toestel staat vóór Auto laden':'Nee · Auto laden staat hoger';const savedPermission=r.device_id&&r.wallbox_power&&!before?'<small>Toestemming is bewaard; wordt gebruikt als je dit toestel boven Auto laden zet.</small>':'';return `<div class="priority-row"><div class="priority-number">${r.position}</div><div><b>${spEscape(r.name)}</b><small>${spEscape(r.status||(r.active?'Ingesteld':'Niet actief'))}</small><p>Mag de auto minder laden? <strong>${spEscape(relation)}</strong></p>${savedPermission}${r.device_id?`<small>Nu uitvoerbaar: ${spEscape(powerOutcome(r))}</small>`:''}<small>${spEscape(r.reason||'')}</small></div></div>`}).join('');
-    return `<section><div class="sectionhead"><div><h2>Voorrang en autoladen</h2><p>Van boven naar beneden staat wie als eerste energie krijgt.</p></div><button type="button" data-action="priority_edit" ${this._hass?.user?.is_admin===true?'':'disabled'}>Voorrang instellen</button></div><p class="note">${spEscape(b.note)}</p><div class="priority-stack" aria-label="Volledige voorrangslijst">${fixed}${rows}</div><p class="note">Bescherming en noodzakelijk comfort staan vast. Apparaten, Auto laden en extra warm water kun je binnen de veilige grenzen verplaatsen. Een nieuw toestel start nooit vanzelf.</p><button type="button" class="mini" data-action="manage_devices">Toestellen beheren</button></section>`;
+    return `<section><div class="sectionhead"><div><h2>Voorrang en autoladen</h2><p>Van boven naar beneden staat wie als eerste energie krijgt.</p></div><button type="button" data-action="priority_edit" ${this._hass?.user?.is_admin===true?'':'disabled'}>Voorrang instellen</button></div><p class="note">${spEscape(b.note)}</p><div class="priority-stack" aria-label="Volledige voorrangslijst">${fixed}${rows}</div><p class="note">Bescherming en noodzakelijk comfort staan vast. Apparaten, Auto laden en extra SG-zonneboost kun je binnen de veilige grenzen verplaatsen. Een nieuw toestel start nooit vanzelf.</p><button type="button" class="mini" data-action="manage_devices">Toestellen beheren</button></section>`;
   }
   _export(c){
     const findings=Array.isArray(c.a.learning_insights?.findings)?c.a.learning_insights.findings:[],admin=this._analysisAdministrator(),report=admin?this._analysisFeedbackReport:null;
@@ -1486,7 +1541,7 @@ class SolarPilotCard extends HTMLElement {
       .heatpump-business{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:8px 0 12px}.heatpump-business-item{display:flex;align-items:flex-start;gap:9px;min-width:0;padding:12px;border:1px solid var(--divider-color,#dce1e7);border-radius:12px;background:var(--secondary-background-color,#f5f7f8)}.heatpump-business-item>div{min-width:0}.heatpump-business-item span,.heatpump-business-item small{display:block;color:var(--secondary-text-color,#697485);font-size:10px;line-height:1.45;overflow-wrap:anywhere}.heatpump-business-item strong{display:block;margin:4px 0;font-size:14px;line-height:1.4;overflow-wrap:anywhere}.heatpump-business-item b{display:block;font-size:12px;margin:5px 0}.heatpump-business-item small+small{margin-top:5px}.heatpump-business-item .heatpump-task-proof{font-weight:700;color:var(--primary-text-color,#202735)}.heatpump-task-icon{flex:0 0 auto;width:28px;height:28px;fill:none;stroke:var(--secondary-text-color,#697485);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.heatpump-business-item.is-active{border-color:#03a9f4}.heatpump-business-item.is-active .heatpump-task-icon{stroke:#03a9f4;animation:sp-device-activity 1.8s ease-in-out infinite}ha-card[data-observations-current=true] .reason-row.is-active:not([data-reason-key="overview:sg"])>.row>.badge::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px;background:currentColor;animation:sp-device-activity 1.8s ease-in-out infinite}ha-card[data-observations-current=true] .device.on .icon,ha-card[data-observations-current=true] .external.on .icon,ha-card[data-observations-current=true] .batteryrow.is-active .battery-activity{animation:sp-device-activity 1.8s ease-in-out infinite}@keyframes sp-device-activity{50%{opacity:.48}}@media(prefers-reduced-motion:reduce){.heatpump-business-item.is-active .heatpump-task-icon,.reason-row.is-active>.row>.badge::before,.device.on .icon,.external.on .icon,.batteryrow.is-active .battery-activity{animation:none!important}}@media(max-width:580px){.heatpump-business{grid-template-columns:1fr}}
       .priority-row{display:grid;grid-template-columns:30px minmax(0,1fr);gap:10px;padding:13px 0;border-top:1px solid var(--divider-color,#dce1e7)}.priority-row b{font-size:14px}.priority-row p{font-size:12px;margin:5px 0;line-height:1.55}.priority-row small{display:block;font-size:11px;color:var(--secondary-text-color,#697485)}.priority-number{font-weight:750;font-size:18px}.priority-protected{padding:13px;border-radius:12px;background:var(--secondary-background-color,#f5f7f8);margin:12px 0}.priority-protected p{font-size:12px;line-height:1.5}.export-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:14px 0}.export-grid>div{padding:14px;background:var(--secondary-background-color,#f5f7f8);border-radius:12px}.export-grid strong{font-size:13px}.export-grid p{font-size:12px;line-height:1.5}.option-question{border-radius:50%;width:28px;min-width:28px;min-height:28px;padding:0;margin:3px 5px;font-weight:800;vertical-align:middle}.comfort-new{padding:16px;border:1px solid var(--divider-color);border-radius:14px;margin:14px 0}.comfort-new h3{margin:0 0 10px}.charging-profile{margin:12px 0;font-size:13px;line-height:1.6}.charging-profile small{display:block;color:var(--secondary-text-color)}:host{display:block;color:var(--primary-text-color,#202735);font-family:var(--paper-font-body1_-_font-family,system-ui,sans-serif)}*{box-sizing:border-box}ha-card{display:block;border-radius:20px;overflow:hidden;background:var(--ha-card-background,var(--card-background-color,#fff));border:1px solid var(--divider-color,#e0e4e9);box-shadow:none}.head{padding:20px 20px 10px;display:flex;align-items:center;gap:12px}.logo{width:42px;height:42px;display:grid;place-items:center;border-radius:13px;background:var(--secondary-background-color,#f1f4f6);font-size:23px}.grow{flex:1;min-width:0}.head h1{font-size:22px;margin:0;letter-spacing:-.6px}.head p,h2+p,.sub{margin:4px 0 0;color:var(--secondary-text-color,#697485);font-size:12px;line-height:1.5}.tag{font-size:10px;font-weight:750;color:var(--secondary-text-color,#697485);text-align:right}.body{padding:0 20px 18px}.modes{display:flex;gap:6px;margin:8px 0 10px}.modes button{flex:1}.restart-policy{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0;font-size:11px}.restart-policy>span{min-width:0;line-height:1.4}.restart-policy small{display:block;margin-top:2px;font-size:10px;color:var(--secondary-text-color,#697485)}.restart-policy>button{flex:0 0 auto}.nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:8px 0 13px}.nav button{white-space:normal;border-radius:999px;padding:8px 7px;min-height:38px;line-height:1.15}.nav button.active{background:var(--primary-color,#287c59);color:var(--text-primary-color,#fff);border-color:transparent}button,input{font:inherit;color:inherit}button{cursor:pointer;border:1px solid var(--divider-color,#dce1e7);background:var(--card-background-color,#fff);border-radius:10px;padding:8px 11px;font-size:12px;font-weight:650;min-height:39px}button:hover{background:var(--secondary-background-color,#f3f5f7)}button.active,.toggle.active{background:var(--primary-color,#287c59);color:var(--text-primary-color,#fff);border-color:transparent}button:disabled{opacity:.45;cursor:default}button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--primary-color,#287c59);outline-offset:2px}.view{}h2{font-size:15px;margin:16px 0 2px}.flowgrid,.summarygrid,.kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}.flowgrid.three{grid-template-columns:repeat(3,minmax(0,1fr))}.tile{border:1px solid var(--divider-color,#e0e4e9);border-radius:13px;padding:11px;min-width:0}.tile span,.tile small{display:block;color:var(--secondary-text-color,#697485);font-size:10px;line-height:1.35}.tile strong{display:block;font-size:17px;line-height:1.2;margin:5px 0 3px;overflow-wrap:anywhere}.tile small{overflow-wrap:anywhere}.energy-tile{border-color:hsl(var(--energy-hue) 65% 45%);box-shadow:inset 4px 0 0 hsl(var(--energy-hue) 65% 45%);background:linear-gradient(110deg,hsl(var(--energy-hue) 70% 50% / .14),hsl(var(--energy-hue) 70% 50% / .025))}.energy-unknown{border-color:var(--divider-color,#e0e4e9);box-shadow:none;background:none}.energy-scale{height:6px;margin:12px 5px 3px;border-radius:6px;position:relative}.solar-scale{background:linear-gradient(90deg,#dc4545,#e98525,#e4c82f,#a2c92f,#369b47)}.grid-scale{background:linear-gradient(90deg,#369b47,#a2c92f,#e4c82f,#e98525,#dc4545)}.energy-scale i{position:absolute;top:-3px;width:5px;height:12px;border-radius:3px;transform:translateX(-50%);background:var(--primary-text-color,#202735);box-shadow:0 0 0 2px var(--card-background-color,#fff)}.energy-legend{font-size:10px;line-height:1.5;color:var(--secondary-text-color,#697485);margin:5px 0 14px}.notice{padding:11px 12px;margin:10px 0;border-radius:11px;background:var(--secondary-background-color,#f3f5f7);font-size:12px;line-height:1.5;border-left:3px solid var(--primary-color,#287c59)}.notice.warn{border-left-color:var(--warning-color,#bf810e)}.error{color:var(--error-color,#b3261e);font-size:12px;margin:8px 0}.advice{padding:12px;border-radius:13px;background:var(--secondary-background-color,#f3f5f7);margin:10px 0}.advice p{font-size:11px;margin:5px 0}.inlinefacts,.facts{display:flex;gap:8px 14px;flex-wrap:wrap;font-size:11px;color:var(--secondary-text-color,#697485);margin:10px 0}.inlinefacts b,.facts b{color:var(--primary-text-color,#202735)}.row,.sectionhead{display:flex;align-items:center;gap:10px}.sectionhead{justify-content:space-between}.sectionhead h2{margin-top:0}.sectionhead p{margin:3px 0}.policy,.external,.device,.dhw,.climate,.battery{border:1px solid var(--divider-color,#e0e4e9);border-radius:14px;padding:13px;margin:10px 0}.device.on{border-color:var(--primary-color,#287c59);box-shadow:inset 4px 0 0 var(--primary-color,#287c59);background:var(--secondary-background-color,#f3f5f7)}.device.on.manual{box-shadow:inset 4px 0 0 var(--warning-color,#bf810e)}.device.on .icon{background:var(--primary-color,#287c59);color:var(--text-primary-color,#fff)}.device.on.manual .icon{background:var(--warning-color,#bf810e)}.devicepower{font-variant-numeric:tabular-nums}.runstate,.using{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.35px;padding:3px 6px;border-radius:999px;background:var(--secondary-background-color,#eef2f3);color:var(--secondary-text-color,#697485);vertical-align:middle}.runstate.active{background:var(--primary-color,#287c59);color:var(--text-primary-color,#fff)}.device.manual .runstate.active{background:var(--warning-color,#bf810e);color:#fff}.using{background:var(--primary-color,#287c59);color:#fff}.mobile-menu{display:none;align-items:center;justify-content:center;width:42px;height:42px;padding:0;font-size:22px;border-radius:12px;flex:0 0 auto}.policy{background:var(--secondary-background-color,#f7f8f9)}.toggle{border-radius:999px;white-space:nowrap}.external .icon,.device .icon{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--secondary-background-color,#eef2f3);font-size:12px;font-weight:750;flex:0 0 auto}.readonly,.badge,.phasepill{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.35px;padding:3px 6px;border-radius:999px;background:var(--secondary-background-color,#eef2f3);color:var(--secondary-text-color,#697485);vertical-align:middle}.external h2{margin:0;font-size:14px}.external p,.device p{margin:3px 0;color:var(--secondary-text-color,#697485);font-size:11px;line-height:1.4}.meta,.note{font-size:10px;line-height:1.5;color:var(--secondary-text-color,#697485);margin:8px 0}.controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:9px}.controls label{font-size:10px;color:var(--secondary-text-color,#697485);display:flex;align-items:center;gap:5px}.controls input,.formgrid input{width:58px;min-height:36px;text-align:center;border:1px solid var(--divider-color,#dce1e7);border-radius:9px;background:var(--card-background-color,#fff)}.spacer{flex:1}.mini{min-height:34px;padding:6px 9px;font-size:10px}.linkbtn{border:0;background:none;text-decoration:underline;padding:5px 0;min-height:28px;color:var(--secondary-text-color,#697485)}.empty{padding:14px;border:1px dashed var(--divider-color,#dce1e7);border-radius:13px;color:var(--secondary-text-color,#697485);font-size:12px;margin:10px 0}.formgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0}.formgrid label{font-size:10px;color:var(--secondary-text-color,#697485)}.formgrid label span{display:flex;align-items:center;gap:4px;margin-top:4px;color:var(--primary-text-color,#202735)}.settings-panel{padding:0 12px 14px}.settings-shell{border:1px solid var(--divider-color,#e0e4e9);border-radius:16px;margin-top:14px;overflow:hidden;background:var(--card-background-color,#fff)}.settings-shell>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;background:var(--secondary-background-color,#f3f5f7);cursor:pointer;border:0}.settings-shell>summary span{display:flex;flex-direction:column;gap:2px}.settings-shell>summary small{font-weight:500;color:var(--secondary-text-color,#697485)}.settings-shell>summary em{font-size:9px;font-style:normal;color:var(--secondary-text-color,#697485);text-transform:uppercase}.settinglist{display:grid;gap:8px;margin:10px 0}.settingrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,220px);gap:12px;padding:12px;border:1px solid var(--divider-color,#e0e4e9);border-radius:12px}.settingcopy p{font-size:11px;line-height:1.45;margin:4px 0;color:var(--secondary-text-color,#697485)}.settingcopy small{display:block;font-size:10px;line-height:1.5;color:var(--secondary-text-color,#697485);margin-top:6px}.settingadvice{font-size:10px;line-height:1.45;padding:7px 8px;border-radius:8px;background:var(--secondary-background-color,#f3f5f7);margin-top:7px}.settingcontrol{display:flex;flex-direction:column;gap:6px;align-items:stretch;justify-content:flex-start}.settingcontrol>small{font-size:9px;color:var(--secondary-text-color,#697485)}.settinginput{display:flex;align-items:center;gap:5px}.settinginput input{width:100%;min-width:80px;min-height:38px;border:1px solid var(--divider-color,#dce1e7);border-radius:9px;padding:5px;background:var(--card-background-color,#fff)}.settinginput span{font-size:10px;color:var(--secondary-text-color,#697485)}.setting-switch{display:flex;gap:8px;align-items:center;font-size:11px;min-height:38px}.setting-switch input{width:18px;height:18px}.entityselect{width:100%;min-height:38px;border:1px solid var(--divider-color,#dce1e7);border-radius:9px;padding:5px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#202735);font-size:10px}.entityselect.multi{min-height:76px}.resetsetting{min-height:30px;padding:4px 7px}.zone>span{min-width:0;overflow-wrap:anywhere}.zone>em{max-width:40%;text-align:right;overflow-wrap:anywhere}details{border-top:1px solid var(--divider-color,#e0e4e9);padding:11px 0;margin-top:8px}summary{cursor:pointer;font-weight:700;font-size:12px}.log{font-size:10px;line-height:1.5;padding:6px 0;border-top:1px solid var(--divider-color,#e0e4e9)}.log time{color:var(--secondary-text-color,#697485);margin-right:5px}.phaserow,.batteryrow,.scenario,.zone{padding:9px 0;border-top:1px solid var(--divider-color,#e0e4e9);font-size:11px}.phaserow>div,.batteryrow,.scenario,.zone{display:flex;align-items:center;justify-content:space-between;gap:8px}.phaserow small,.batteryrow small,.zone small{display:block;color:var(--secondary-text-color,#697485);font-size:9px;margin-top:3px}.phaserow p{margin:5px 0 0;color:var(--secondary-text-color,#697485);font-size:10px}.zone em{font-size:10px;color:var(--secondary-text-color,#697485);font-style:normal}.guidehero{padding:14px;border-radius:13px;background:var(--secondary-background-color,#f5f7f8)}.guidehero h2{margin:0}.guidehero p,.guide details p,.guide li{font-size:12px;line-height:1.55}.guidehero small{font-size:10px;color:var(--secondary-text-color,#697485)}.guide ul{padding-left:18px}.footer{display:flex;justify-content:space-between;align-items:center;gap:10px;border-top:1px solid var(--divider-color,#e0e4e9);margin-top:15px;padding-top:12px}.footer span{font-size:9px;color:var(--secondary-text-color,#697485)}a{color:var(--primary-color,#287c59);font-size:11px;text-decoration:none}@media(max-width:699px){.mobile-menu{display:flex}.head{padding-left:12px}.body{padding-inline:14px}.controls{gap:5px}.controls .spacer{display:none}.device .controls{align-items:stretch}.device .controls button{flex:1 1 auto}}@media(max-width:560px){.settingrow{grid-template-columns:1fr}.settingcontrol{align-items:stretch}}@media(max-width:370px){.body{padding-inline:14px}.head{padding-inline:14px}.nav{grid-template-columns:repeat(2,minmax(0,1fr))}.flowgrid.three{grid-template-columns:1fr}.formgrid{grid-template-columns:1fr}.tag{display:none}}@media(min-width:700px){.nav{grid-template-columns:repeat(auto-fit,minmax(90px,1fr))}.summarygrid{grid-template-columns:repeat(3,minmax(0,1fr))}.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.flowgrid{grid-template-columns:repeat(4,minmax(0,1fr))}}
     ${SP_INVESTIGATION_STYLE}</style><ha-card data-observations-current="${this._activityObservationsCurrent()}"><div class="head"><button class="mobile-menu" data-action="ha_menu" aria-label="Home Assistant-menu openen" title="Menu">☰</button><div class="logo">☀</div><div class="grow"><h1>${spEscape(this._config?.title||'SolarPilot')}</h1><p>Slim zonne-energie verdelen zonder comfort te verliezen</p></div><div class="tag">${spEscape(a.integration_version||'versie onbekend')}<br>LOKAAL EMS</div></div><div class="body">${this._modeBar(a)}${this._globalAlerts(c)}${this._analysisBanner(a)}${this._nav()}${this._view==='planning'?this._pvSummary(c):''}${this._viewHtml(c)}<div class="footer" style="flex-wrap:wrap" aria-label="Onderzoek en instellingen"><strong style="width:100%;font-size:12px">Instellingen & controle</strong><button type="button" class="linkbtn" data-action="manage_devices">Toestellen beheren</button><button type="button" class="linkbtn" data-action="pv_diagnostics">Zon · PV-diagnose</button><button type="button" class="linkbtn" data-action="learning_hub">Meetkwaliteit</button><button type="button" class="linkbtn" data-action="export_hub">Export</button><span>Geen elektrische beveiliging · actuele uitleg is release-gebonden</span><span class="version-info">Integratie: ${spEscape(a.integration_version||'onbekend')} · geladen kaart: ${SP_CARD_VERSION}</span><button type="button" class="linkbtn" data-action="configure">Instellingen & uitleg</button> <a href="/config/integrations/integration/solar_pilot">HA-instellingen ↗</a></div></div></ha-card>`;
-    this._observationSignature=this._heatpumpDisplaySignature(c);
+    this._observationSignature=JSON.stringify([this._heatpumpDisplaySignature(c),this._wallboxActivity(c.wb||{})]);
     this._restoreUiState(uiState);
     this._installHelpButtons();
     this._lastRenderedView=this._view;
@@ -1494,20 +1549,20 @@ class SolarPilotCard extends HTMLElement {
     if(this._view==='export')Promise.resolve().then(()=>this._loadAnalysisFeedback());
   }
   async _loadOptionHelpers(){
-    if(!customElements.get('solar-pilot-option-help-dialog')){
+    if(!customElements.get(SP_OPTION_HELP_TAG)){
       if(!this._optionLoad)this._optionLoad=import(`/solar_pilot_static/option-help.js?v=${SP_CARD_VERSION}`).catch(e=>{this._optionLoad=null;throw e;});
       await this._optionLoad;
     }
   }
   async _openHelp(step,key,title){
     this._uiHistory.prepare();
-    try{await this._loadOptionHelpers();if(!this.isConnected)return;if(!this._helpDialog){this._helpDialog=document.createElement('solar-pilot-option-help-dialog');this.shadowRoot.append(this._helpDialog);}const opened=this._helpDialog.open(step,key,title);this._uiHistory.track(this._helpDialog,()=>this._helpDialog.open(step,key,title));await opened;}
+    try{await this._loadOptionHelpers();if(!this.isConnected)return;if(!this._helpDialog){this._helpDialog=document.createElement(spDialogTag('solar-pilot-option-help-dialog',SP_OPTION_HELP_TAG));this.shadowRoot.append(this._helpDialog);}const opened=this._helpDialog.open(step,key,title);this._uiHistory.track(this._helpDialog,()=>this._helpDialog.open(step,key,title));await opened;}
     catch(e){this._error='Uitleg niet geladen: '+(e.message||String(e));this._render();}
   }
   async _openDevices(){
     this._uiHistory.prepare();
     try{await this._loadOptionHelpers();if(!this.isConnected)return;
-      if(!this._deviceManager){this._deviceManager=document.createElement('solar-pilot-device-manager-dialog');this.shadowRoot.append(this._deviceManager);this._deviceManager.addEventListener('device-options',e=>this._openOptions(e.detail.step,e.detail.id,e.detail.section));this._deviceManager.addEventListener('device-history',e=>this._openHistory(e.detail));}
+      if(!this._deviceManager){this._deviceManager=document.createElement(spDialogTag('solar-pilot-device-manager-dialog',SP_DEVICE_MANAGER_TAG));this.shadowRoot.append(this._deviceManager);this._deviceManager.addEventListener('device-options',e=>this._openOptions(e.detail.step,e.detail.id,e.detail.section));this._deviceManager.addEventListener('device-history',e=>this._openHistory(e.detail));}
       this._deviceManager.open(this._hass,this._last?.attributes?.device_management);this._uiHistory.track(this._deviceManager,()=>this._deviceManager.open(this._hass,this._last?.attributes?.device_management));
     }catch(e){this._error=e.message||String(e);this._render();}
   }
@@ -1517,7 +1572,7 @@ class SolarPilotCard extends HTMLElement {
       await this._loadOptionHelpers(); if(!this.isConnected)return;
       const entryId=this._last?.attributes?.config_entry_id;
       if(!entryId){this._error='Config entry ontbreekt; open de HA-instellingen.';this._render();return;}
-      if(!this._optionsDialog){this._optionsDialog=document.createElement('solar-pilot-options-dialog');this._optionsDialog.uiHistory=this._uiHistory;this.shadowRoot.append(this._optionsDialog);}
+      if(!this._optionsDialog){this._optionsDialog=document.createElement(spDialogTag('solar-pilot-options-dialog',SP_OPTIONS_DIALOG_TAG));this._optionsDialog.uiHistory=this._uiHistory;this.shadowRoot.append(this._optionsDialog);}
       const hub=['sg_boost','panasonic_monitor','comfort'].includes(step)?'comfort_hub':'loads_hub';
       const route=step?[{next_step_id:hub},{next_step_id:step}]:[];
       if(deviceId)route.push({device_id:deviceId,...(section?{section}:{})});
@@ -1534,11 +1589,11 @@ class SolarPilotCard extends HTMLElement {
     const actions={priority_edit:['dashboard','priority_board'],learning_hub:['dashboard','learning_hub'],analysis_export:['dashboard','analysis_export'],dishwasher_arm:['dashboard','dishwasher_arm'],dishwasher_cancel:['dashboard','dishwasher_cancel'],sg_boost_enabled:['sg_boost','enabled'],others_first:['dashboard','others_first'],participate:['dashboard','participation'],manual_start:['dashboard','manual_start'],manual_stop:['dashboard','manual_stop'],boost:['dashboard','boost']};
     for(const [action,[step,key]] of Object.entries(actions))for(const el of root.querySelectorAll(`[data-action="${action}"]`)){const span=document.createElement('span');span.innerHTML=this._question(step,key,el.textContent);el.after(span.firstElementChild);}
     for(const b of root.querySelectorAll('[data-action=option_help]')){
-      const explain=async()=>{try{await this._loadOptionHelpers();const data=await customElements.get('solar-pilot-option-help-dialog').catalog();const row=data.entries[`${b.dataset.helpStep}.${b.dataset.helpKey}`];if(row){b.title=row.short;b.dataset.helpTitle=row.title;}}catch(_){}};
+      const explain=async()=>{try{await this._loadOptionHelpers();const data=await customElements.get(spDialogTag('solar-pilot-option-help-dialog',SP_OPTION_HELP_TAG)).catalog();const row=data.entries[`${b.dataset.helpStep}.${b.dataset.helpKey}`];if(row){b.title=row.short;b.dataset.helpTitle=row.title;}}catch(_){}};
       b.addEventListener('pointerenter',explain,{once:true});b.addEventListener('focus',explain,{once:true});
     }
   }
-  _wallboxProfile(wb){const p=wb.charging_profile;if(!p)return '';return `<div class="charging-profile"><strong>${Number(p.phases)} fase${p.phases===1?'':'n'} · max. ${Number(p.max_current_a).toLocaleString('nl-BE')} A · ≈ ${spPower(p.maximum_power_w)}</strong>${this._question('wallbox','profile_auto','Automatisch laadprofiel')}<small>Stroom: ${spEscape(p.current_source)} · Fasen: ${spEscape(p.phase_source)}</small>${p.warning?`<small>${spEscape(p.warning)}</small>`:''}<small>Panasonic-comfort blijft beschikbaar; extra SG-zonneboost houdt voorrang voor de Wallbox.</small></div>`;}
+  _wallboxProfile(wb){const p=wb.charging_profile;if(!p)return '';return `<div class="charging-profile"><strong>${Number(p.phases)} fase${p.phases===1?'':'n'} · max. ${Number(p.max_current_a).toLocaleString('nl-BE')} A · ≈ ${spPower(p.maximum_power_w)}</strong>${this._question('wallbox','profile_auto','Automatisch laadprofiel')}<small>Stroom: ${spEscape(p.current_source)} · Fasen: ${spEscape(p.phase_source)}</small>${p.warning?`<small>${spEscape(p.warning)}</small>`:''}<small>Panasonic-comfort blijft beschikbaar; extra SG-zonneboost gebruikt alleen toegestaan restoverschot zonder beschermd autoladen weg te nemen.</small></div>`;}
   async _perform(domain,service,data,successMessage=''){if(this._busy)return false;this._busy=true;this._error="";this._feedback="";this._render();try{await this._hass.callService(domain,service,data);this._feedback=successMessage;return true;}catch(err){this._error=err?.message||String(err);return false;}finally{this._busy=false;this._render();}}
   _device(id){return this._last?.attributes?.devices?.find(d=>d.id===id);}
   async _click(ev){

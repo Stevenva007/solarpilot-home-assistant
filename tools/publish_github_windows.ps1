@@ -8,83 +8,132 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Version = (Get-Content (Join-Path $PSScriptRoot "../custom_components/solar_pilot/manifest.json") -Raw | ConvertFrom-Json).version
+$GitHubOwner = $GitHubOwner.Trim().TrimStart('@')
+$Repository = $Repository.Trim()
+if ($GitHubOwner -notmatch '^[A-Za-z0-9_.-]+$' -or $Repository -notmatch '^[A-Za-z0-9_.-]+$') {
+    throw "Ongeldige GitHub owner of repositorynaam."
+}
+$repoFull = "$GitHubOwner/$Repository"
+$root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $Description = "SolarPilot - local Home Assistant EMS for PV surplus, flexible loads, heat pumps, EV charging coexistence and batteries."
 $Topics = @("home-assistant", "hacs", "energy-management", "ems", "solar", "photovoltaics", "heat-pump", "battery")
 
 function Require-Command([string]$Name) {
-    if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
+    if (-not (Get-Command $Name -CommandType Application -ErrorAction SilentlyContinue)) {
         throw "Ontbrekend programma: $Name"
     }
 }
 
-Require-Command "git"
-Require-Command "gh"
-
-$Python = $null
-if (Get-Command "py" -ErrorAction SilentlyContinue) { $Python = "py" }
-elseif (Get-Command "python" -ErrorAction SilentlyContinue) { $Python = "python" }
-else { throw "Python ontbreekt (py of python)." }
-
-& gh auth status | Out-Host
-& $Python tools/configure_repository.py $GitHubOwner $Repository
-
-$LicenseExists = (Test-Path "LICENSE") -or (Test-Path "LICENSE.txt") -or (Test-Path "LICENSE.md")
-if (-not $LicenseExists) {
-    # The user makes the legal choice explicitly via -License; fetch the official
-    # GitHub license body rather than shipping a silently selected license.
-    $licenseLines = & gh api "licenses/$License" --jq '.body'
-    if ($LASTEXITCODE -ne 0 -or -not $licenseLines) {
-        throw "Kon licentietekst '$License' niet ophalen via GitHub CLI."
+function Invoke-NativeChecked {
+    param([string]$Program, [string[]]$Arguments, [int[]]$AllowedExitCodes = @(0))
+    # ErrorActionPreference alone does not check native process exit codes.
+    # Use one checked boundary on Windows PowerShell and current PowerShell.
+    $command = Get-Command $Program -CommandType Application -ErrorAction Stop
+    $ErrorActionPreference = "Continue"
+    $PSNativeCommandUseErrorActionPreference = $false
+    $global:LASTEXITCODE = $null
+    $output = & $command.Source @Arguments
+    $script:LastNativeExitCode = $global:LASTEXITCODE
+    if ($null -eq $script:LastNativeExitCode -or $script:LastNativeExitCode -notin $AllowedExitCodes) {
+        throw "Programma '$Program' is mislukt (exitcode $script:LastNativeExitCode); publicatie gestopt."
     }
-    $licenseText = (($licenseLines -join "`n").TrimEnd() + "`n")
-    [System.IO.File]::WriteAllText((Join-Path (Get-Location) "LICENSE"), $licenseText, [System.Text.UTF8Encoding]::new($false))
-    Write-Host "Licentie toegevoegd: $License" -ForegroundColor Cyan
+    return $output
 }
 
-$env:PYTHONDONTWRITEBYTECODE = "1"
-& $Python tools/check_public_repository.py
-& $Python tools/check_current_explanation.py
-
-if (-not (Test-Path ".git")) {
-    git init
+function Assert-Origin([string]$RemoteUrl, [string]$Expected) {
+    # Only exact GitHub identities in recognised HTTPS/SSH forms are accepted.
+    # Do not print existing URLs: they may contain credentials.
+    $path = $null
+    foreach ($prefix in @("https://github.com/", "git@github.com:", "ssh://git@github.com/")) {
+        if ($RemoteUrl.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $path = $RemoteUrl.Substring($prefix.Length).TrimEnd('/')
+            break
+        }
+    }
+    if ($null -ne $path -and $path.EndsWith('.git', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $path = $path.Substring(0, $path.Length - 4)
+    }
+    if ($null -eq $path -or -not $path.Equals($Expected, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Bestaande origin hoort niet bij '$Expected'. Controleer de lokale checkout; origin is niet gewijzigd."
+    }
 }
 
-git add .
-$status = git status --porcelain
-if ($status) {
-    git commit -m "SolarPilot $Version - public HACS release"
+function Assert-ConfiguredOrigin([string]$Expected) {
+    $fetchUrl = (Invoke-NativeChecked -Program "git" -Arguments @("remote", "get-url", "origin") | Out-String).Trim()
+    Assert-Origin $fetchUrl $Expected
+    # Push URLs can differ from the fetch URL, and git can push to all of them.
+    $pushUrls = @(Invoke-NativeChecked -Program "git" -Arguments @("remote", "get-url", "--push", "--all", "origin"))
+    if (-not $pushUrls) { throw "Origin heeft geen controleerbare push-bestemming; publicatie gestopt." }
+    foreach ($pushUrl in $pushUrls) {
+        Assert-Origin -RemoteUrl (([string]$pushUrl).Trim()) -Expected $Expected
+    }
 }
 
-git branch -M main
-
-$repoFull = "$GitHubOwner/$Repository"
-$repoExists = $false
+Push-Location $root
 try {
-    # A missing repository is a normal first-publish state. Do not let
-    # ErrorActionPreference=Stop abort before gh repo create can run.
-    gh repo view $repoFull *> $null
-    $repoExists = ($LASTEXITCODE -eq 0)
-} catch {
-    $repoExists = $false
-}
+    $Version = (Get-Content "custom_components/solar_pilot/manifest.json" -Raw | ConvertFrom-Json).version
+    Require-Command "git"
+    Require-Command "gh"
+    $Python = $null
+    if (Get-Command "py" -CommandType Application -ErrorAction SilentlyContinue) { $Python = "py" }
+    elseif (Get-Command "python" -CommandType Application -ErrorAction SilentlyContinue) { $Python = "python" }
+    else { throw "Python ontbreekt (py of python)." }
 
-if (-not $repoExists) {
-    gh repo create $repoFull --public --source . --remote origin --push --description $Description
-} else {
-    $remote = git remote get-url origin 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        git remote add origin "https://github.com/$repoFull.git"
+    $hasOrigin = $false
+    if (Test-Path ".git") {
+        $remotes = @(Invoke-NativeChecked -Program "git" -Arguments @("remote"))
+        $hasOrigin = $remotes -contains "origin"
+        if ($hasOrigin) {
+            Assert-ConfiguredOrigin $repoFull
+        }
     }
-    git push -u origin main
-}
 
-# Repository metadata used by HACS validation.
-gh repo edit $repoFull --description $Description --enable-issues
-foreach ($topic in $Topics) {
-    gh repo edit $repoFull --add-topic $topic
-}
+    Invoke-NativeChecked -Program "gh" -Arguments @("auth", "status") | Out-Host
+    Invoke-NativeChecked -Program $Python -Arguments @("tools/configure_repository.py", $GitHubOwner, $Repository) | Out-Host
 
-Write-Host ""
-Write-Host "Upload klaar: https://github.com/$repoFull" -ForegroundColor Green
-Write-Host "Controleer nu eerst GitHub -> Actions. Maak de v$Version tag pas wanneer HACS validation en Hassfest groen zijn." -ForegroundColor Yellow
+    $LicenseExists = (Test-Path "LICENSE") -or (Test-Path "LICENSE.txt") -or (Test-Path "LICENSE.md")
+    if (-not $LicenseExists) {
+        # The legal choice remains the explicitly supplied -License value.
+        $licenseLines = @(Invoke-NativeChecked -Program "gh" -Arguments @("api", "licenses/$License", "--jq", ".body"))
+        if (-not $licenseLines) { throw "Kon licentietekst '$License' niet ophalen via GitHub CLI." }
+        $licenseText = (($licenseLines -join "`n").TrimEnd() + "`n")
+        [System.IO.File]::WriteAllText((Join-Path $root "LICENSE"), $licenseText, [System.Text.UTF8Encoding]::new($false))
+        Write-Host "Licentie toegevoegd: $License" -ForegroundColor Cyan
+    }
+
+    $env:PYTHONDONTWRITEBYTECODE = "1"
+    Invoke-NativeChecked -Program $Python -Arguments @("tools/check_public_repository.py") | Out-Host
+    Invoke-NativeChecked -Program $Python -Arguments @("tools/check_current_explanation.py") | Out-Host
+
+    if (-not (Test-Path ".git")) {
+        Invoke-NativeChecked -Program "git" -Arguments @("init") | Out-Host
+    }
+    Invoke-NativeChecked -Program "git" -Arguments @("add", ".") | Out-Host
+    $status = Invoke-NativeChecked -Program "git" -Arguments @("status", "--porcelain")
+    if ($status) {
+        Invoke-NativeChecked -Program "git" -Arguments @("commit", "-m", "SolarPilot $Version - public HACS release") | Out-Host
+    }
+    Invoke-NativeChecked -Program "git" -Arguments @("branch", "-M", "main") | Out-Host
+
+    # Exit 1 from this read-only lookup is the ordinary first-publish state.
+    Invoke-NativeChecked -Program "gh" -Arguments @("repo", "view", $repoFull) -AllowedExitCodes @(0, 1) *> $null
+    $repoExists = $script:LastNativeExitCode -eq 0
+    if (-not $repoExists) {
+        Invoke-NativeChecked -Program "gh" -Arguments @("repo", "create", $repoFull, "--public", "--description", $Description) | Out-Host
+    }
+    if (-not $hasOrigin) {
+        Invoke-NativeChecked -Program "git" -Arguments @("remote", "add", "origin", "https://github.com/$repoFull.git") | Out-Host
+    }
+    Assert-ConfiguredOrigin $repoFull
+    Invoke-NativeChecked -Program "git" -Arguments @("push", "-u", "origin", "main") | Out-Host
+
+    Invoke-NativeChecked -Program "gh" -Arguments @("repo", "edit", $repoFull, "--description", $Description, "--enable-issues") | Out-Host
+    foreach ($topic in $Topics) {
+        Invoke-NativeChecked -Program "gh" -Arguments @("repo", "edit", $repoFull, "--add-topic", $topic) | Out-Host
+    }
+    Write-Host ""
+    Write-Host "Upload klaar: https://github.com/$repoFull" -ForegroundColor Green
+    Write-Host "Controleer GitHub -> Actions. Maak de v$Version tag pas nadat repositorytests, HACS, Hassfest, echte HA-startup en browsercontrole groen zijn." -ForegroundColor Yellow
+} finally {
+    Pop-Location
+}

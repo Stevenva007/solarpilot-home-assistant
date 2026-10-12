@@ -16,6 +16,15 @@ from custom_components.solar_pilot.const import VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 CARD = ROOT / "custom_components/solar_pilot/frontend/solar-pilot-card.js"
+RELEASE = re.sub(r"[^a-z0-9]+", "-", VERSION.lower()).strip("-")
+EXPECTED_CONSTRUCTOR_TAGS = [
+    "solar-pilot-card", "solar-pilot-guide-card", "solar-pilot-panel-" + RELEASE,
+    *[tag for stable in (
+        "solar-pilot-consumer-history-dialog", "solar-pilot-analysis-dialog",
+        "solar-pilot-learning-dialog", "solar-pilot-pv-dialog", "solar-pilot-priority-dialog",
+    ) for tag in (stable, stable + "-" + RELEASE)],
+    "solar-pilot-heatpump-history-dialog-" + RELEASE,
+]
 
 
 MODULE_PROBE = r"""
@@ -49,6 +58,7 @@ if (input.scenario === 'existing_old_helper_classes') {
   definitions.set('solar-pilot-analysis-dialog', LegacyAnalysisDialog);
   definitions.set('solar-pilot-learning-dialog', LegacyLearningDialog);
 }
+const preexistingDefinitions = definitions.size;
 const firstForeign = {type: 'foreign-card', name: 'Other integration', extension: {keep: true}};
 const secondForeign = {type: 'foreign-card', name: 'Other duplicate deliberately retained'};
 const catalog = input.dirtyCatalog ? [
@@ -100,8 +110,10 @@ async function run() {
     const next = await compileModule('/solar_pilot_static/solar-pilot-card.js?v=next');
     await next.evaluate();
   }
-  assert.equal(definitions.size, 11);
-  assert.equal(defineCalls, input.scenario === 'existing_old_helper_classes' ? 8 : input.scenario === 'existing_old_stable_class' ? 10 : 11);
+  assert.deepEqual([...definitions.keys()].sort(), [...input.expectedTags].sort(),
+    'Register exactly the stable compatibility aliases and current release constructors');
+  assert.equal(defineCalls, input.expectedTags.length - preexistingDefinitions,
+    'Each missing owned constructor is registered exactly once');
   assert(definitions.has(input.panelName), 'Current release has its own panel constructor');
   assert(definitions.has(input.analysisTag) && definitions.has(input.qualityTag), 'Current analysis and read-only quality dialogs have release-bound constructors');
   assert(definitions.has(input.heatpumpHistoryTag), 'Read-only heatpump history has a current release-bound constructor');
@@ -182,6 +194,7 @@ def run_module_probe(scenario, *, dirty_catalog=False):
     result = subprocess.run(
         [node, "--experimental-vm-modules", "--no-warnings", "-e", MODULE_PROBE, str(CARD)],
         input=json.dumps({"scenario": scenario, "dirtyCatalog": dirty_catalog,
+                          "expectedTags": EXPECTED_CONSTRUCTOR_TAGS,
                           "panelName": "solar-pilot-panel-" + re.sub(r"[^a-z0-9]+", "-", VERSION.lower()).strip("-"),
                           "analysisTag": "solar-pilot-analysis-dialog-" + re.sub(r"[^a-z0-9]+", "-", VERSION.lower()).strip("-"),
                           "qualityTag": "solar-pilot-learning-dialog-" + re.sub(r"[^a-z0-9]+", "-", VERSION.lower()).strip("-"),
@@ -199,10 +212,10 @@ def run_module_probe(scenario, *, dirty_catalog=False):
     "existing_old_helper_classes",
 ])
 def test_actual_module_loading_keeps_single_registration_and_constructs_ha_panel(scenario):
-    assert run_module_probe(scenario) == {"registered": 11, "catalogEntries": 4, "writes": 0}
+    assert run_module_probe(scenario) == {"registered": len(EXPECTED_CONSTRUCTOR_TAGS), "catalogEntries": 4, "writes": 0}
 
 
 def test_actual_module_repairs_only_its_own_existing_catalog_duplicates():
     assert run_module_probe("module_next_url", dirty_catalog=True) == {
-        "registered": 11, "catalogEntries": 4, "writes": 0,
+        "registered": len(EXPECTED_CONSTRUCTOR_TAGS), "catalogEntries": 4, "writes": 0,
     }

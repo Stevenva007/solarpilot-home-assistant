@@ -11,7 +11,7 @@ import re
 REQUEST_SCHEMA = "solarpilot.analysis_request"
 REQUEST_VERSION = 1
 HASH_SCOPE = "Canonical finalized JSON, excluding export_provenance.export_sha256; UTF-8, sorted object keys, compact separators."
-FUNCTIONS = {"tapwater_heating", "space_heating", "space_cooling"}
+FUNCTIONS = {"tapwater_heating", "space_heating", "space_cooling", "sterilization"}
 REQUIRED_FIELDS = (
     "power_supply1_w", "power_supply2_w", "power_supply1_valid", "power_supply2_valid",
     "power_supply1_observed_at", "power_supply2_observed_at", "native_task", "task_context", "defrost",
@@ -30,7 +30,10 @@ LIMITS = [
 
 
 def _number(value):
-    return value if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) else None
+    try:
+        return value if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) else None
+    except (OverflowError, ValueError):
+        return None
 
 
 def _fresh(stamp, wall, stale=120):
@@ -122,6 +125,7 @@ def _regime(row):
                        or inactive and task.get("function") in FUNCTIONS)):
         return "unknown"
     if (not inactive and task.get("function") in FUNCTIONS
+            and task.get("verified_global_off") is not True
             and task.get("source") in ("aquarea_poll", "native_hvac_action") and task_fresh):
         return task["function"] + "_reported"
     summary = row["power"]
@@ -161,9 +165,11 @@ def _regime(row):
                         and task.get("verified_global_off") is not True
                         and power.get("function") == "tapwater_heating" and power.get("function_kind") == "tank_route")
     inference_supported = inference_supported or independent_tank
-    inference_supported = inference_supported and (not routing or bound_context)
+    inference_supported = (inference_supported and (not routing or bound_context)
+        and not (task_fresh and task.get("verified_global_off") is True))
     if (metered and inference_supported and power.get("evidence") == "metered_power_and_context"
-            and power.get("function") in FUNCTIONS and power.get("complete") is True and power.get("active") is True
+            and power.get("function") in ("tapwater_heating", "space_heating", "space_cooling")
+            and power.get("complete") is True and power.get("active") is True
             and _fresh(power.get("observed_at"), wall, power.get("stale_s", 120))
             and _fresh(power.get("context_observed_at"), wall, power.get("stale_s", 120))):
         return power["function"] + "_inferred"

@@ -5,12 +5,24 @@ from .const import VERSION
 async def async_get_config_entry_diagnostics(hass, entry):
     r = entry.runtime_data
     sg = r.sg_boost.overview()
+    learning = r.learning_overview()
+    # Public HA diagnostics may be shared with issue reports. Whitelist the
+    # generic summary instead of copying private nested model/device mappings.
+    public_learning = {key: learning.get(key) for key in (
+        "enabled", "local_only", "samples", "successes", "failures", "response_p90_s",
+        "reported_interval_median_s", "configured_stable_s", "effective_stable_s", "status")}
+    public_learning["phase_learning"] = {key: learning.get("phase_learning", {}).get(key) for key in (
+        "enabled", "accepted_events", "rejected_events", "use_for_control", "minimum_confidence_for_control")}
+    public_learning["pv_model"] = {key: learning.get("pv_model", {}).get(key) for key in (
+        "enabled", "samples", "distinct_live_days", "seed_days")}
+    public_learning["thermal_model"] = {key: learning.get("thermal_model", {}).get(key) for key in (
+        "read_only", "archive_available")}
     return {"version": VERSION, "mode": r.mode, "device_count": len(r.configs),
             "recovery_count": len(r.recovery), "fault_count": len(r.faults),
             "pending": r.pending is not None, "meter_valid": r.grid_w is not None,
             "wallbox": {"enabled": r.wallbox_settings["enabled"],
                         "policy": "house_first" if r.others_first else "priority",
-                        "learning": {k: v for k, v in r.learning_overview().items() if k not in ("profiles", "switch_entity", "reset_entity")},
+                        "learning": public_learning,
                         "state": r.wallbox_guard.result.state,
                         "block_increase": r.wallbox_guard.result.block_increase,
                         "possible_interactions": r.wallbox_guard.conflict_count},

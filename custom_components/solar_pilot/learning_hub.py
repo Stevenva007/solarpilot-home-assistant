@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections import deque
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import hashlib
 import json
 import math
@@ -26,7 +26,7 @@ def number(value):
         return None
     try:
         out = float(value)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, OverflowError):
         return None
     return out if math.isfinite(out) else None
 
@@ -187,8 +187,11 @@ class LearningHub:
         self.current_findings = []
         self.error = ""
         self.investigation = LocalInvestigation(runtime)
+        self._unsupported_snapshot = None
 
     def snapshot(self):
+        if self._unsupported_snapshot is not None:
+            return deepcopy(self._unsupported_snapshot)
         return {"schema": 1, "policy": dict(self.policy), "answers": deepcopy(self.answers),
                 "audit": list(self.audit), "days": deepcopy(self.days), "last_attempt": self.last_attempt,
                 "last_notification": self.last_notification, "notification_signature": self.notification_signature,
@@ -198,20 +201,41 @@ class LearningHub:
     def restore(self, data):
         if not isinstance(data, dict):
             return
+        if type(data.get("schema", 1)) is not int or data.get("schema", 1) != 1:
+            self._unsupported_snapshot = deepcopy(data)
+            self.error = "Opgeslagen leerversie niet ondersteund; oorspronkelijke opslag blijft ongewijzigd bewaard"
+            return
+        self._unsupported_snapshot = None
         self.investigation.restore(data.get("investigation"))
+        policy = data.get("policy")
+        policy = policy if isinstance(policy, dict) else {}
         for k, allowed in (("sampling", ("metered", "quiet")), ("adaptation", ("assisted", "automatic")), ("notifications", (False, True))):
-            value = data.get("policy", {}).get(k)
+            value = policy.get(k)
             if type(value) is type(allowed[0]) and value in allowed:
                 self.policy[k] = value
         raw = data.get("answers", {})
-        self.answers = {str(k)[:160]: v for k, v in list(raw.items())[-100:] if isinstance(v, dict)} if isinstance(raw, dict) else {}
-        self.audit = deque([v for v in data.get("audit", [])[-150:] if isinstance(v, dict)], maxlen=150)
+        self.answers = {}
+        for key, value in list(raw.items())[-100:] if isinstance(raw, dict) else []:
+            if not isinstance(key, str) or not isinstance(value, dict):
+                continue
+            # A malformed optional expiry must not crash a future comparison.
+            until = number(value.get("until"))
+            self.answers[key[:160]] = {**value, "until": max(0, until or 0)}
+        audit = data.get("audit")
+        self.audit = deque([v for v in audit[-150:] if isinstance(v, dict)] if isinstance(audit, list) else [], maxlen=150)
         raw = data.get("days", {})
         if isinstance(raw, dict):
-            for k, v in sorted(raw.items())[-60:]:
+            for k, v in sorted((k, v) for k, v in raw.items() if isinstance(k, str))[-60:]:
+                try:
+                    if date.fromisoformat(k).isoformat() != k:
+                        continue
+                except ValueError:
+                    continue
                 if isinstance(v, dict):
-                    self.days[k] = {str(c)[:40]: max(0, min(1000000, int(n))) for c, n in v.items() if number(n) is not None}
-        self.active_candidates = set(str(x)[:32] for x in data.get("active_candidates", [])[:48])
+                    self.days[k] = {str(c)[:40]: min(1000000, int(value)) for c, n in v.items()
+                        if (value := number(n)) is not None and value >= 0 and value.is_integer()}
+        candidates = data.get("active_candidates")
+        self.active_candidates = {x[:32] for x in candidates[:48] if isinstance(x, str)} if isinstance(candidates, list) else set()
         self.last_notification = number(data.get("last_notification")) or 0
         self.notification_signature = str(data.get("notification_signature", ""))[:64]
         self.r.unified_planner.base_load.adaptive_enabled = self.policy["adaptation"] == "automatic"

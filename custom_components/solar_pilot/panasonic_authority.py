@@ -13,11 +13,14 @@ import re
 
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
+from .wallbox import protected_entity
+from .sg_config import finite
 
 ENTITY = re.compile(r"^[a-z_]+\.[a-z0-9_]+$")
 TARGET_KEYS = frozenset({"entity_id", "device_id", "area_id", "floor_id", "label_id", "target"})
 NATIVE_DOMAINS = frozenset({"climate", "water_heater"})
 NATIVE_PLATFORMS = frozenset({"aquarea", "aquarea_heat_pump", "panasonic_aquarea", "panasonic_cc"})
+APPLIANCE_PLATFORMS = frozenset({"aeg", "electrolux", "electrolux_status"})
 DIRECT_SERVICES = {
     "switch": frozenset({"turn_on", "turn_off"}),
     "input_boolean": frozenset({"turn_on", "turn_off"}),
@@ -148,6 +151,93 @@ class PanasonicCommandAuthority:
         device_id = getattr(relay_row, "device_id", None)
         return bool(device_id and getattr(target_row, "device_id", None) == device_id)
 
+    def is_wallbox(self, entity_id):
+        return protected_entity(self.runtime.hass, getattr(self.runtime, "wallbox_settings", {}), entity_id)
+
+    def is_dishwasher(self, entity_id):
+        """Generic routes never own a configured/native AEG appliance or plug."""
+        from .dishwasher import REFERENCE_KEYS
+        refs = set()
+        rows = getattr(self.runtime, "configs", {})
+        profiles = rows.values() if isinstance(rows, Mapping) else ()
+        for cfg in profiles:
+            if isinstance(cfg, Mapping) and cfg.get("kind") == "dishwasher":
+                refs.update(cfg.get(key) for key in (*REFERENCE_KEYS, "power_entity")
+                            if _entity(cfg.get(key)))
+        if entity_id in refs:
+            return True
+        registry, lookup = self._registry()
+        target = lookup(entity_id)
+        if str(getattr(target, "platform", "")).casefold() in APPLIANCE_PLATFORMS:
+            return True
+        device_id = getattr(target, "device_id", None)
+        if device_id and any(getattr(lookup(ref), "device_id", None) == device_id for ref in refs):
+            return True
+        entities = getattr(registry, "entities", {})
+        return bool(device_id and isinstance(entities, Mapping) and any(
+            getattr(row, "device_id", None) == device_id
+            and str(getattr(row, "platform", "")).casefold() in APPLIANCE_PLATFORMS
+            for row in entities.values()))
+
+    def assert_dishwasher_profile(self, device_id, entity_id):
+        """Validate a bound profile without granting execution of its START."""
+        cfg = getattr(self.runtime, "configs", {}).get(device_id)
+        if (not isinstance(cfg, Mapping) or cfg.get("kind") != "dishwasher"
+                or not _entity(entity_id) or not entity_id.startswith("button.")
+                or cfg.get("start_button") != entity_id):
+            raise HomeAssistantError("Afwasstart vereist de exact gekoppelde native START-knop")
+        if self.is_native(entity_id) or self.is_sg(entity_id) or self.is_wallbox(entity_id):
+            raise HomeAssistantError("Afwasprofiel verwijst naar een andere beschermde actuator")
+        return {"entity_id": entity_id}
+
+    def assert_dishwasher_start(self, device_id, entity_id, *, now_wall):
+        """One current, consumed native ticket; no generic script exemption.
+
+        Only the separate terminal START route calls this method. Generic
+        assert_allowed and recursive script inspection always deny this target.
+        """
+        payload = self.assert_dishwasher_profile(device_id, entity_id)
+        cfg = self.runtime.configs[device_id]
+        pending = getattr(self.runtime, "pending", None)
+        control = getattr(self.runtime, "dishwasher", None)
+        ticket = _mapping(_mapping(getattr(control, "tickets", {})).get(device_id))
+        state = getattr(self.runtime, "states", {}).get(device_id)
+        wall = finite(now_wall)
+        issued = finite(pending.get("issued_wall")) if isinstance(pending, Mapping) else None
+        watts = finite(pending.get("watts")) if isinstance(pending, Mapping) else None
+        created, expires, sent = (finite(ticket.get(key)) for key in ("created", "expires", "sent_at"))
+        if (wall is None or wall <= 0 or getattr(self.runtime, "_closed", False)
+                or getattr(self.runtime, "mode", None) != "solar"
+                or getattr(self.runtime, "removal_requested", False)
+                or getattr(self.runtime, "restart_blocking", False)
+                or getattr(self.runtime, "device_modes", {}).get(device_id) != "auto"
+                or getattr(self.runtime, "faults", {}).get(device_id)
+                or getattr(control, "storage_blocked", True)
+                or not isinstance(pending, dict) or pending.get("id") != device_id
+                or pending.get("native_start_dispatched") is True
+                or watts is None or watts <= 0 or issued is None or issued <= 0 or issued > wall+5
+                or ticket.get("attempted") is not True or ticket.get("armed") is not False
+                or ticket.get("confirmed") is not False or sent != issued
+                or created is None or expires is None or not created <= sent < expires
+                or wall >= expires or wall < (finite(ticket.get("not_before")) or 0)
+                or state is None or state.owned is not True or state.on is not False
+                or finite(state.target_w) != watts):
+            raise HomeAssistantError("Geen actuele eigen eenmalige START-opdracht voor deze afwasbeurt")
+        from .dishwasher import read
+        reading = read(self.runtime.hass, cfg, wall)
+        if not reading.ready or reading.active is not False or reading.program != ticket.get("program"):
+            raise HomeAssistantError(reading.reason or "Afwasstartvoorwaarden gewijzigd vóór START")
+        app = getattr(self.runtime, "dishwasher_app", None)
+        if ticket.get("source") == "app" or cfg.get("dishwasher_arming_mode") == "app":
+            request = getattr(app, "data", {}).get(device_id, {}).get("request", {})
+            if (ticket.get("source") != "app" or app is None
+                    or not app._valid_request(cfg, ticket) or not app._valid_request(cfg, request)
+                    or any(request.get(key) != ticket.get(key) for key in (
+                        "created", "source_signature", "program", "not_before", "deadline", "expires", "planned_day"))):
+                raise HomeAssistantError("APP-aanvraag of bronbinding gewijzigd vóór native START")
+        pending["native_start_dispatched"] = True
+        return payload
+
     def _direct_target(self, domain, service, entity_id):
         if not _entity(entity_id) or entity_id.split(".", 1)[0] != domain:
             raise HomeAssistantError("Opdrachtdoel ongeldig; geen bediening verzonden")
@@ -155,6 +245,10 @@ class PanasonicCommandAuthority:
             raise HomeAssistantError("Panasonic is alleen-lezen; alleen de aparte SG-contactadapter mag zonneboost aanvragen")
         if self.is_sg(entity_id):
             raise HomeAssistantError("SG-contact heeft één eigenaar; gewone toestel- en batterijbediening is geblokkeerd")
+        if self.is_wallbox(entity_id):
+            raise HomeAssistantError("Wallbox is alleen-lezen; gewone toestel- en batterijbediening is geblokkeerd")
+        if self.is_dishwasher(entity_id):
+            raise HomeAssistantError("AEG is beschermd; uitsluitend de eigen eenmalige native START-route mag starten")
         if domain == "script":
             if service not in {"turn_on", "turn_off"}:
                 raise HomeAssistantError("Scriptactie kan niet veilig worden gecontroleerd")
@@ -255,7 +349,8 @@ class PanasonicCommandAuthority:
         if domain == "script" and service not in {"turn_on", "turn_off"}:
             # A direct script.some_name invocation has no target payload.
             script_id = f"script.{service}"
-            if self.is_native(script_id) or self.is_sg(script_id):
+            if (self.is_native(script_id) or self.is_sg(script_id)
+                    or self.is_wallbox(script_id) or self.is_dishwasher(script_id)):
                 raise HomeAssistantError("Script verwijst naar een beschermde actuator")
             self._inspect_script(script_id, visiting, budget)
             return
@@ -276,6 +371,10 @@ class PanasonicCommandAuthority:
             routed_domain = target_domain if domain == "homeassistant" and service in {"turn_on", "turn_off"} else domain
             if routed_domain != target_domain or self.is_native(eid) or self.is_sg(eid):
                 raise HomeAssistantError("Script probeert Panasonic of het gereserveerde SG-contact te bedienen")
+            if self.is_wallbox(eid):
+                raise HomeAssistantError("Wallbox is alleen-lezen; scriptbediening van de lader is geblokkeerd")
+            if self.is_dishwasher(eid):
+                raise HomeAssistantError("AEG is beschermd; scriptbediening buiten de native START-route is geblokkeerd")
             if routed_domain == "script":
                 self._inspect_script(eid, visiting, budget)
             elif service not in DIRECT_SERVICES.get(routed_domain, frozenset()):

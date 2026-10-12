@@ -40,6 +40,11 @@ async def websocket_learning(hass, connection, msg):
         return
     try:
         async with r._lock:
+            entry = hass.config_entries.async_get_entry(msg['config_entry_id'])
+            if (r._closed or entry is None or entry.domain != DOMAIN
+                    or getattr(entry, 'runtime_data', None) is not r):
+                connection.send_error(msg['id'], 'not_loaded', 'SolarPilot is herladen; open de leerstatus opnieuw')
+                return
             if operation == 'answer':
                 result = await r.learning_hub.answer(msg.get('question'), msg.get('revision'), msg.get('choice'))
             elif operation == 'policy':

@@ -20,10 +20,12 @@ BATTERY_ANALYSIS_DEFAULTS = {
 
 
 def _finite(v):
+    if isinstance(v, bool):
+        return None
     try:
         v = float(v)
         return v if math.isfinite(v) else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
@@ -108,16 +110,17 @@ class BatteryOpportunitySimulator:
     def restore(self, data):
         if not isinstance(data, dict):
             return
-        for key, state in data.get("scenarios", {}).items():
+        scenarios = data.get("scenarios")
+        for key, state in (scenarios.items() if isinstance(scenarios, dict) else []):
             if key not in self.scenarios or not isinstance(state, dict):
                 continue
             row = self.scenarios[key]
-            row["soc_kwh"] = min(row["capacity_kwh"], max(0.0, float(state.get("soc_kwh", 0) or 0)))
-            row["live_avoided_import_kwh"] = max(0.0, float(state.get("live_avoided_import_kwh", 0) or 0))
-            row["live_used_export_kwh"] = max(0.0, float(state.get("live_used_export_kwh", 0) or 0))
-        self.live_seconds = max(0.0, float(data.get("live_seconds", 0) or 0))
-        self.live_import_kwh = max(0.0, float(data.get("live_import_kwh", 0) or 0))
-        self.live_export_kwh = max(0.0, float(data.get("live_export_kwh", 0) or 0))
+            row["soc_kwh"] = min(row["capacity_kwh"], max(0.0, _finite(state.get("soc_kwh")) or 0))
+            row["live_avoided_import_kwh"] = max(0.0, _finite(state.get("live_avoided_import_kwh")) or 0)
+            row["live_used_export_kwh"] = max(0.0, _finite(state.get("live_used_export_kwh")) or 0)
+        self.live_seconds = max(0.0, _finite(data.get("live_seconds")) or 0)
+        self.live_import_kwh = max(0.0, _finite(data.get("live_import_kwh")) or 0)
+        self.live_export_kwh = max(0.0, _finite(data.get("live_export_kwh")) or 0)
 
     def step(self, dt_s, grid_w):
         if not self.settings.get("enabled", True):

@@ -237,6 +237,9 @@ async def websocket_analysis_export(hass, connection, msg):
     artifact = None
     try:
         async with r._lock:
+            if _runtime(hass, msg['config_entry_id']) is not r:
+                connection.send_error(msg['id'], 'not_loaded', 'SolarPilot is herladen tijdens het exporteren; probeer opnieuw')
+                return
             # All HA-only reads and model copies happen on the HA thread.
             raw = recorder.prepare(hours)
         # Sanitization, pseudonyms and large JSON serialization run off the event loop.
@@ -274,10 +277,17 @@ async def websocket_analysis_export(hass, connection, msg):
                 connection.send_error(msg['id'], 'not_loaded', 'SolarPilot is herladen tijdens het exporteren; probeer opnieuw')
                 return
             await r.analysis_feedback.note_export(prepared['source_export'], requested_hours=hours, question_refs=prepared['question_refs'])
+            if _runtime(hass, msg['config_entry_id']) is not r:
+                connection.send_error(msg['id'], 'not_loaded', 'SolarPilot is herladen tijdens het exporteren; probeer opnieuw')
+                return
             connection.send_result(msg['id'], {'filename': 'SolarPilot-analyse-' + raw['release'] + '-' + str(hours) + 'h.json',
                 'content': prepared['content'], 'media_type': 'application/json', 'source_export': prepared['source_export'],
                 'feedback_template': prepared['feedback_template'], 'quality': prepared['quality']})
         recorder.last_export = time.monotonic()
+    except FeedbackValidationError as err:
+        recorder.error = 'Analyseherkomst niet opgeslagen; bestaande adviesopslag behouden'
+        connection.send_error(msg['id'], 'export_failed',
+            'De analyse kon niet aan de lokale adviesopslag worden gekoppeld. ' + str(err))
     except ValueError as err:
         if download:
             recorder.error = 'Analyse-export mislukt: ValueError'
