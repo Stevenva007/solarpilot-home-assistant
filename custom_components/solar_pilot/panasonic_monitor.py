@@ -77,6 +77,115 @@ class PanasonicMonitor:
             return None
         return round(number, 2) if (0 if tank else -50) <= number <= (100 if tank else 80) else None
 
+    def _cooling_context_diagnostic(self, zones, native, *, conflict, cooling_present,
+                                    cooling_possible, context_reliable, context_stamp):
+        """Bounded explanation of configured read sources, never control proof.
+
+        Discovery, tank activity, sterilisation and measured watts deliberately
+        cannot fill a missing programme source or change cooling permission.
+        Report timestamps retain their real source age across repeated renders.
+        """
+        now, limit = time.time(), self.settings["stale_s"]
+
+        def bounded(value, length):
+            return str(value)[:length] if value is not None else None
+
+        def report_stamp(obj):
+            stamp = getattr(obj, "last_reported", None) if obj is not None else None
+            if stamp is None and obj is not None:
+                stamp = getattr(obj, "last_updated", None)
+            try:
+                result = self._number(stamp.timestamp())
+                return result if result is not None and result > 0 else None
+            except (AttributeError, TypeError, ValueError, OverflowError, OSError):
+                return None
+
+        codes, rows, expiry = [], [], []
+        for index, (zone, programme) in enumerate(zip(zones, native)):
+            eid = zone["entity_id"]
+            obj = self.runtime.hass.states.get(eid)
+            attrs = obj.attributes if obj is not None else {}
+            stamp = report_stamp(obj)
+            state = str(obj.state).strip().casefold() if obj is not None else ""
+            if obj is None:
+                source_code = "zone_source_missing"
+            elif state in ("unknown", "unavailable", "") or any(
+                    attrs.get(key) for key in ("restored", "estimated", "is_estimated")):
+                source_code = "zone_source_unavailable"
+            elif stamp is None or not -5 <= now - stamp <= limit:
+                source_code = "zone_source_stale"
+            else:
+                source_code = "source_current"
+                expiry.append(stamp + limit)
+            programme = programme if isinstance(programme, dict) else {}
+            programme_stamp = self._number(programme.get("observed_at"))
+            programme_limit = self._number(programme.get("stale_s"))
+            programme_limit = min(limit, 300, programme_limit) if programme_limit is not None and programme_limit > 0 else min(limit, 300)
+            programme_fresh = (programme.get("fresh") is True and programme_stamp is not None
+                and programme_stamp > 0 and -5 <= now - programme_stamp <= programme_limit)
+            program = programme.get("program")
+            valid_program = program in ("heating", "cooling", "off") and programme_fresh
+            if source_code != "source_current":
+                codes.append(source_code)
+            elif state in ("auto", "heat_cool") and not valid_program:
+                codes.append("auto_program_unknown")
+            if source_code == "source_current" and state in ("auto", "heat_cool") and valid_program:
+                expiry.append(programme_stamp + programme_limit)
+            if index >= 16:
+                continue
+            rows.append({"entity_id": bounded(eid, 256),
+                "name": bounded(attrs.get("friendly_name", eid), 160),
+                "mode": bounded(obj.state if obj is not None else None, 80),
+                "action": bounded(attrs.get("hvac_action"), 80),
+                "observed_at": stamp, "fresh": source_code == "source_current",
+                "source_code": source_code, "stale_s": limit,
+                "valid_until": stamp + limit if source_code == "source_current" else None,
+                "native_program": bounded(program, 40),
+                "native_raw_mode": bounded(programme.get("raw_mode"), 80),
+                "native_source": bounded(programme.get("source"), 80),
+                "native_observed_at": programme_stamp,
+                "native_fresh": bool(valid_program), "native_stale_s": programme_limit,
+                "native_valid_until": programme_stamp + programme_limit if valid_program else None,
+                "native_reason_code": bounded(programme.get("reason_code"), 80),
+                "native_reason": bounded(programme.get("reason"), 240), "read_only": True})
+        if not zones:
+            codes.append("no_configured_zones")
+        if conflict:
+            codes.append("native_context_conflict")
+        elif cooling_present:
+            codes.append("cooling_present")
+        if cooling_possible is False:
+            codes.append("heating_only_confirmed")
+        elif not codes:
+            codes.append("native_context_unknown" if not context_reliable else "cooling_not_excluded")
+        priority = ("no_configured_zones", "zone_source_missing", "zone_source_unavailable", "zone_source_stale",
+                    "native_context_conflict", "cooling_present", "auto_program_unknown",
+                    "native_context_unknown", "cooling_not_excluded", "heating_only_confirmed")
+        codes = [code for code in priority if code in codes]
+        code = codes[0]
+        messages = {
+            "no_configured_zones": ("Geen Panasonic-ruimtes gekoppeld als SG-leesbron.", "Koppel de bestaande Panasonic-climate-entiteiten bij de SG-leesbronnen."),
+            "zone_source_missing": ("Een gekoppelde Panasonic-ruimte ontbreekt.", "Controleer de entiteitskoppeling bij de SG-leesbronnen."),
+            "zone_source_unavailable": ("Een gekoppelde Panasonic-ruimte is niet betrouwbaar beschikbaar.", "Herstel de Panasonic-verbinding of de gekoppelde entiteit."),
+            "zone_source_stale": ("De laatste melding van een gekoppelde Panasonic-ruimte is te oud of ongeldig.", "Controleer of de Panasonic-integratie nieuwe meldingen ontvangt."),
+            "native_context_conflict": ("Panasonic-bronnen melden tegenstrijdige warmte- en koelcontext.", "Controleer de gekoppelde ruimtes en hun actuele Panasonic-programma."),
+            "cooling_present": ("Panasonic meldt een koelactie of gekozen koelprogramma.", "Controleer welke condens-/dauwpuntbeveiliging de koelinstallatie werkelijk heeft."),
+            "auto_program_unknown": ("AUTO maakt het werkelijke Panasonic-warmte- of koelprogramma niet zichtbaar.", "Controleer de native Panasonic-programmabron en of een actuele provider-melding binnenkomt."),
+            "native_context_unknown": ("De actuele Panasonic-koelcontext is niet betrouwbaar bekend.", "Controleer de gekoppelde ruimtes en hun actuele Panasonic-programma."),
+            "cooling_not_excluded": ("De gekoppelde bronnen sluiten extra koeling niet uit.", "Controleer het Panasonic-programma en de fysieke condens-/dauwpuntbeveiliging."),
+            "heating_only_confirmed": ("De actuele gekoppelde ruimtes sluiten koeling uit.", "Voor deze actuele context is geen extra koelbevestiging nodig."),
+        }
+        summary, action = messages[code]
+        context_expiry = context_stamp + limit if context_reliable and context_stamp is not None else None
+        if context_expiry is not None:
+            expiry.append(context_expiry)
+        return {"schema": 1, "read_only": True, "code": code, "codes": codes,
+            "summary": summary, "action": action, "sources": rows,
+            "source_count": len(zones), "sources_truncated": len(zones) > 16,
+            "context_reliable": context_reliable, "context_observed_at": context_stamp,
+            "valid_until": min(expiry) if expiry else None, "stale_s": limit,
+            "cooling_possible": cooling_possible}
+
     def _operation(self, frequency, frequency_obj, zones, target, activity, native_task=None):
         """Presentation evidence only; a selected programme is not operation.
 
@@ -240,6 +349,10 @@ class PanasonicMonitor:
             for z, row, mode in zip(zones, native, modes))
         cooling_possible = not (context_reliable and not conflict and not cool_actions and not cool_modes
             and not native_cool and every_zone_heat_only and (native_heat or heat_modes))
+        cooling_diagnostic = self._cooling_context_diagnostic(zones, native,
+            conflict=conflict, cooling_present=cool_actions or cool_modes or native_cool,
+            cooling_possible=cooling_possible, context_reliable=context_reliable,
+            context_stamp=context_stamp)
         # The semantic signature excludes samples and optional-provider proof
         # arrival/disappearance. Those cannot create another request by themselves.
         signature_payload = [context,
@@ -388,6 +501,7 @@ class PanasonicMonitor:
             "display_tank": display_tank, "display_zones": display_zones, "display_sources": display_sources,
             "context": context, "context_reliable": context_reliable, "context_stamp": context_stamp,
             "context_signature": context_signature, "cooling_possible": cooling_possible, "status": status,
+            "cooling_context_diagnostic": cooling_diagnostic,
             "note": "SG vraagt zonneboost. Het normale Panasonic-doel kan ongewijzigd blijven; dit bewijst geen relaisfout."}
 
     def learning_overview(self):

@@ -3,13 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.79'
+GUIDE_VERSION = '1.0.0-beta.80'
 GUIDE_UPDATED = '2026-10-12'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.79',
+ 'version': '1.0.0-beta.80',
  'updated': '2026-10-12',
- 'intro': ('Beta.79 herstelt concrete fouten uit de volledige codeaudit: opdrachten worden vlak vóór verzending opnieuw gecontroleerd, omwegen via scripts naar Panasonic, Wallbox en AEG zijn afgesloten, SG-eigenaarschap blijft beschermd bij handmatige wijzigingen en onzekere opdrachten, en onbekende opslag wordt behouden zonder nieuwe toestemming te geven. Planning, leerprofielen, historische leesrechten en verouderde dashboardinformatie zijn aangescherpt. De vaste APP-startdeadline blijft onafhankelijk van zonneoverschot; elektrische grenzen en native toestelvoorwaarden blijven gelden. Bestaande instellingen, prioriteiten, geldige modellen en historie blijven behouden; er is geen extra installatie nodig.'),
+ 'intro': ('Beta.80 herstelt de uitlezing van de actuele bedrijfsstand bij de ondersteunde oudere Aquarea-provider en maakt de SG-koelvoorwaarde gericht controleerbaar. Het overzicht onderscheidt echt koelbedrijf, ontbrekende of verouderde bronnen, onbekend AUTO-programma en ontbrekende lokale condensbevestiging. Verse bevestigde verwarmingscontext kan SG toelaten zonder koelbevestiging; onbekend blijft onbekend. Bestaande instellingen, bronbindings, lokale SG-percentages, de zonne-onafhankelijke afwasdeadline, modellen en historie blijven behouden. Geen extra installatie of tweede regelaar.'),
  'sections': [{'title': '1. Basisprincipe en modi',
                'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele '
                               'net- en PV-metingen, echte toestelvoorwaarden en elektrische grenzen gaan '
@@ -304,15 +304,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'alle actuele guards gelden daarna opnieuw. Bewust Automatisering '
                               'hervatten laat een nieuwe actuele beoordeling toe, geen ongecontroleerde '
                               'AAN.',
-                              'Extra koeling heeft een afzonderlijke vrijgavevoorwaarde. De bewuste algemene '
-                              'profielkeuze bewijst geen condensveiligheid. Bevestig lokaal bestaande '
-                              'geschikte condens-/dauwpuntbeveiliging vóór extra SG in koelbedrijf. Zonder die '
-                              'bevestiging laat het algemene profiel alleen extra SG toe als verse native '
-                              'context betrouwbaar uitsluit dat koeling mogelijk is. Werkelijke koeling, AUTO '
-                              'of onbekende context geeft geen stilzwijgende vrijgave. Normale '
-                              'Panasonic-koeling en de ingestelde SG-koelwaarde worden niet gewijzigd. Een '
-                              'vaste minimumtemperatuur of alleen een luchtvochtigheidssensor is geen '
-                              'volledige beveiligingsbevestiging.',
+                              'Extra koeling heeft een afzonderlijke vrijgavevoorwaarde. De bewuste algemene profielkeuze bewijst geen condensveiligheid. Bevestig lokaal bestaande geschikte condens-/dauwpuntbeveiliging vóór extra SG in koelbedrijf. Zonder die bevestiging laat het algemene profiel alleen extra SG toe als verse native context betrouwbaar uitsluit dat koeling mogelijk is. Werkelijke koeling, AUTO of onbekende context geeft geen stilzwijgende vrijgave. Normale Panasonic-koeling en de ingestelde SG-koelwaarde worden niet gewijzigd. Een vaste minimumtemperatuur of alleen een luchtvochtigheidssensor is geen volledige beveiligingsbevestiging. De SG-diagnose toont per reeds gekoppelde ruimtebron de actuele stand, native programma, rapporttijd en ontbrekend bewijs. SolarPilot leest de ondersteunde moderne en oudere Aquarea-integratie uit; alleen een werkelijk nieuwe geslaagde providerpoll maakt haar programma actueel. Opgeslagen gegevens bij opstarten, mislukte poll of optimistische lokale wijziging geeft geen nieuwe vrijgave. Tankopwarming, sterilisatie, watts en automatische displaybronnen vervangen die koelcontext niet. Geplande of actieve sterilisatie is geen afzonderlijk SG-veto. Bij vloerkoeling moet bestaande geschikte dauwpunt-/condensbeveiliging lokaal worden vastgesteld; SolarPilot bevestigt of verandert die instelling niet automatisch.',
                               'Extra SG volgt de opgeslagen flexibele rangorde, zonder EV-vermogenskrediet. '
                               'Een lager geplaatst eigen onderbreekbaar toestel mag alleen veilig wijken als '
                               'minimumlooptijd, gebruikerskeuze en overige bescherming dat toelaten. Een '
@@ -962,7 +954,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'apparaat-/batterijfouten, gebruikers-Pauze en verwijdering blijven beschermd. '
                               'Brononzekerheid voor de nieuwe SG-functie blijft gelden.',
                               'De globale hervatvoorkeur, geldige andere toestellen, entity-identiteiten, opgeslagen prioriteiten, APP-tickets, historie en leerdata blijven behouden. Nieuwe SG-sturing blijft uit totdat juiste uitgang, native basisinstellingen, geen dubbele writers, contactmapping en lokale aflooptimer werkelijk zijn bevestigd. De noodzakelijke lokale Panasonic/Shelly-controle is geen softwaretest. Geldige opgeslagen numerieke SG-teksten worden uitsluitend in de gekopieerde runtimeweergave naar dezelfde getalswaarde omgezet; de oorspronkelijke opties en private archieven blijven behouden. Ongeldige waarden blijven herkenbaar voor validatie.',
-                              ('Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische metingen in geopende apparatuur. Gebruik de korte controle in BETA79_INSTELLEN.md.')],
+                              ('Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische metingen in geopende apparatuur. Gebruik de korte controle in BETA80_INSTELLEN.md.')],
                'bullets': []},
               {'title': '20. Installatie, verwijderen en rollback',
                'paragraphs': ['Installeer of update de Integration via HACS en herstart Home Assistant. De '
@@ -986,7 +978,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van '
                               'SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, '
                               'AEG- of Shelly-integratie.',
-                              ('Rollback naar beta.78 gebruikt dezelfde geldige instellingen, SG-regeling en historiek. Beta.79-specifieke correcties vervallen; rollback corrigeert geen meter of fysieke installatie. Geef vóór codevervanging de eigen SG-aanvraag veilig vrij en controleer lokale terugval. Exact herstel vraagt code én de passende volledige privéback-up; bewaar gewenste nieuwe historie eerst. Herstel nooit een oude onverbruikte APP-aanvraag nadat dezelfde belading al fysiek gestart is. Gebruik geen twee runtimes tegelijk en verwijder de entry niet. Voor de oude directe beta.61-regeling blijft de volledige back-up van vóór beta.62 nodig. Zie BETA79_INSTELLEN.md.')],
+                              ('Rollback naar beta.79 gebruikt dezelfde geldige instellingen, SG-regeling en historiek. De beta.80-broncorrectie en gerichte SG-diagnose vervallen; rollback corrigeert geen meter of fysieke installatie. Geef vóór codevervanging de eigen SG-aanvraag veilig vrij en controleer lokale terugval. Exact herstel vraagt code én de passende volledige privéback-up; bewaar gewenste nieuwe historie eerst. Herstel nooit een oude onverbruikte APP-aanvraag nadat dezelfde belading al fysiek gestart is. Gebruik geen twee runtimes tegelijk en verwijder de entry niet. Voor de oude directe beta.61-regeling blijft de volledige back-up van vóór beta.62 nodig. Zie BETA80_INSTELLEN.md.')],
                'bullets': []},
               {'title': '21. Release- en documentatieregel',
                'paragraphs': ['Dit is de enige volledige actuele regelbeschrijving. current_guide.py genereert '

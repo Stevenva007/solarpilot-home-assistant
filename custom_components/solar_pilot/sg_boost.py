@@ -1032,7 +1032,27 @@ class SGBoostManager:
         native = self._valid_native_observation(value)
         if native is not None and value.get("cooling_possible") is False:
             return ""
-        return "Extra SG-koeling niet vrijgegeven: condens-/dauwpuntbeveiliging niet bevestigd of actieve context onbekend"
+        value = value if isinstance(value, dict) else {}
+        diagnostic = value.get("cooling_context_diagnostic")
+        diagnostic = diagnostic if isinstance(diagnostic, dict) and diagnostic.get("schema") == 1 else {}
+        code = diagnostic.get("code")
+        stamp = finite(value.get("context_stamp"))
+        if stamp is not None and not -5 <= self._wall_clock() - stamp <= float(self.settings["stale_s"]):
+            return "SG wacht op actuele Panasonic-koelcontext: context verouderd; condensbeveiliging niet bevestigd"
+        reasons = {
+            "no_configured_zones": "SG wacht op gekoppelde Panasonic-ruimtes; condensbeveiliging niet bevestigd",
+            "zone_source_missing": "SG wacht op een ontbrekende Panasonic-ruimtebron; condensbeveiliging niet bevestigd",
+            "zone_source_unavailable": "SG wacht op een beschikbare Panasonic-ruimtebron; condensbeveiliging niet bevestigd",
+            "zone_source_stale": "SG wacht op actuele Panasonic-ruimtemeldingen; condensbeveiliging niet bevestigd",
+            "native_context_conflict": "SG wacht op eenduidige Panasonic-koelcontext: bronnen spreken elkaar tegen; condensbeveiliging niet bevestigd",
+            "auto_program_unknown": "SG wacht op het werkelijke Panasonic-programma achter AUTO; condensbeveiliging niet bevestigd",
+            "cooling_present": "Extra SG-koeling niet vrijgegeven: condens-/dauwpuntbeveiliging niet bevestigd",
+        }
+        if isinstance(code, str) and code in reasons:
+            return reasons[code]
+        if native is not None and native["context"] == "space_cooling":
+            return reasons["cooling_present"]
+        return "SG wacht op bekende Panasonic-koelcontext; condensbeveiliging niet bevestigd"
 
     def _convert_legacy_hold(self):
         """Convert only the old tank policy, keeping its rollback provenance."""
@@ -1583,6 +1603,7 @@ class SGBoostManager:
                 "profile_confirmed": self.settings.get("profile_confirmed") is True,
                 "cooling_protection_confirmed": self.settings.get("cooling_protection_confirmed") is True,
                 "cooling_block_reason": self.cooling_block_reason(),
+                "cooling_diagnostic": deepcopy(source.get("cooling_context_diagnostic", {})),
                 "policy_hold_reason": self._hold_reason,
                 "owner": ("manual" if self.manual_hold else "solarpilot" if self.owned or self._possibly_owned
                           else "unknown" if self.relay_on is None else "none"),

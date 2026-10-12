@@ -2,13 +2,15 @@
 
 The native climate entity collapses AUTO_HEAT/AUTO_COOL to AUTO and hides the
 programme while its zone is OFF. The supported Aquarea coordinator exposes the
-actual programme in ``device.mode``. It replaces that device on each successful
-cloud poll, so an observed successful listener update can prove freshness. A
-cached snapshot at setup or an optimistic entity write cannot do so.
+actual programme in ``device.mode``. The modern provider replaces the device;
+the verified legacy provider replaces its typed ``DeviceStatus`` instead.
+Only a new successful listener update of either supported snapshot proves
+freshness. Cached setup data or an optimistic entity write cannot do so.
 """
 from __future__ import annotations
 
 from enum import Enum
+from dataclasses import fields, is_dataclass
 import hashlib
 import json
 import math
@@ -86,15 +88,35 @@ def _action_inputs(device):
         return None
 
 
+def _status_inputs(status):
+    """Freeze the typed library snapshot, including mutable nested fields."""
+    def frozen(value, depth=0):
+        if depth > 6:
+            raise ValueError("Unsupported nested native status")
+        if isinstance(value, Enum):
+            return type(value).__module__, type(value).__name__, value.name, value.value
+        if is_dataclass(value) and not isinstance(value, type):
+            return tuple((field.name, frozen(getattr(value, field.name), depth + 1))
+                         for field in fields(value))
+        if isinstance(value, (list, tuple)) and len(value) <= 100:
+            return tuple(frozen(item, depth + 1) for item in value)
+        if value is None or isinstance(value, (str, int, float, bool)):
+            return value
+        raise ValueError("Unsupported native status field")
+    try:
+        return frozen(status)
+    except (AttributeError, KeyError, TypeError, ValueError, RuntimeError):
+        return None
+
+
 class NativeClimateProgram:
     """Small read-only adapter for the registered Aquarea climate provider."""
 
     def __init__(self, runtime):
         self.runtime = runtime
         self._watches = {}
-        # Legacy Aquarea stores coordinators in hass.data, unlike the programme
-        # adapter's supported runtime_data binding. Its display-only watcher
-        # must not change or revive any programme/control evidence.
+        # Display watchers are deliberately separate: observing a tank task
+        # cannot establish fresh programme/controller evidence.
         self._tank_watches = {}
 
     def close(self):
@@ -247,6 +269,93 @@ class NativeClimateProgram:
                 watches.pop(key)
                 self._unsubscribe(watch)
 
+    def _legacy_coordinators(self, entry_id):
+        """Read only the verified legacy provider's exact entry namespace."""
+        data = getattr(self.runtime.hass, "data", {})
+        provider = data.get("aquarea", {}) if isinstance(data, dict) else {}
+        native_entry = provider.get(entry_id, {}) if isinstance(provider, dict) else {}
+        return native_entry.get("devices") if isinstance(native_entry, dict) else None
+
+    def _legacy_status(self, coordinator, entry):
+        """Narrow cjaliaga coordinator/library identity, without importing it.
+
+        The pinned 0.7.2 library implements DeviceImpl in aioaquarea.core; the
+        later verified library implements it in aioaquarea.entities. Both keep
+        Device and replace DeviceStatus from refresh_data(). Unknown shapes
+        never gain programme permission through this compatibility route.
+        """
+        kind = type(coordinator)
+        if (kind.__module__ != "custom_components.aquarea.coordinator"
+                or kind.__name__ != "AquareaDataUpdateCoordinator"
+                or getattr(coordinator, "_entry", None) is not entry
+                or getattr(coordinator, "hass", None) is not self.runtime.hass):
+            return None
+        device = getattr(coordinator, "device", None)
+        kind = type(device)
+        if (kind.__module__ not in ("aioaquarea.core", "aioaquarea.entities")
+                or kind.__name__ != "DeviceImpl"):
+            return None
+        info, native_info = getattr(coordinator, "_device_info", None), getattr(device, "_info", None)
+        status = getattr(device, "_status", None)
+        if any(type(value).__module__ != "aioaquarea.data" or type(value).__name__ != name
+               for value, name in ((info, "DeviceInfo"), (native_info, "DeviceInfo"),
+                                   (status, "DeviceStatus"))):
+            return None
+        native_id, long_id = getattr(info, "device_id", None), getattr(info, "long_id", None)
+        if (not isinstance(native_id, str) or not native_id or not isinstance(long_id, str) or not long_id
+                or getattr(device, "device_id", None) != native_id
+                or getattr(native_info, "device_id", None) != native_id
+                or getattr(native_info, "long_id", None) != long_id
+                or getattr(device, "long_id", None) != long_id
+                or getattr(status, "long_id", None) != long_id
+                or not is_dataclass(status) or _status_inputs(status) is None):
+            return None
+        zones = getattr(device, "zones", None)
+        if not isinstance(zones, dict) or not zones:
+            return None
+        zone_ids = set(zones)
+        if any(isinstance(zone_id, bool) or not isinstance(zone_id, int) or zone_id <= 0
+               or type(zone).__module__ != "aioaquarea.data" or type(zone).__name__ != "DeviceZone"
+               or getattr(zone, "zone_id", None) != zone_id for zone_id, zone in zones.items()):
+            return None
+        for owner, name in ((info, "DeviceZoneInfo"), (native_info, "DeviceZoneInfo"),
+                            (status, "DeviceZoneStatus")):
+            rows = getattr(owner, "zones", None)
+            if (not isinstance(rows, list) or len(rows) != len(zone_ids)
+                    or any(type(row).__module__ != "aioaquarea.data" or type(row).__name__ != name
+                           or isinstance(getattr(row, "zone_id", None), bool)
+                           or not isinstance(getattr(row, "zone_id", None), int) for row in rows)
+                    or {row.zone_id for row in rows} != zone_ids):
+                return None
+        for zone_id, zone in zones.items():
+            own_info = next(row for row in native_info.zones if row.zone_id == zone_id)
+            own_status = next(row for row in status.zones if row.zone_id == zone_id)
+            if (getattr(zone, "_info", None) is not own_info
+                    or getattr(zone, "_status", None) is not own_status):
+                # Older library versions share a class-level zone dictionary.
+                # A neighboring device's zone must not establish this binding.
+                return None
+        has_tank = getattr(native_info, "has_tank", None)
+        if (not isinstance(has_tank, bool) or getattr(info, "has_tank", None) is not has_tank
+                or getattr(device, "has_tank", None) is not has_tank):
+            return None
+        if has_tank:
+            tank, rows = getattr(device, "tank", None), getattr(status, "tank_status", None)
+            if (type(tank).__module__ not in ("aioaquarea.core", "aioaquarea.entities")
+                    or type(tank).__name__ != "TankImpl" or not isinstance(rows, list) or not rows
+                    or type(rows[0]).__module__ != "aioaquarea.data" or type(rows[0]).__name__ != "TankStatus"
+                    or getattr(tank, "_device", None) is not device
+                    or getattr(tank, "_status", None) is not rows[0]):
+                return None
+        return status
+
+    def _current_legacy_status(self, coordinator, entry_id):
+        try:
+            entry = self.runtime.hass.config_entries.async_get_entry(entry_id)
+            return self._legacy_status(coordinator, entry) if entry is not None else None
+        except (AttributeError, KeyError, TypeError, ValueError, RuntimeError):
+            return None
+
     def _resolve(self, entity_id):
         """Match exact registry identity, entry and coordinator device/zone."""
         if not isinstance(entity_id, str) or not entity_id.startswith("climate."):
@@ -267,6 +376,9 @@ class NativeClimateProgram:
                 self._prune_entry(entry_id)
                 return None
             coordinators = getattr(entry, "runtime_data", None)
+            legacy = not isinstance(coordinators, dict)
+            if legacy:
+                coordinators = self._legacy_coordinators(entry_id)
             if not isinstance(coordinators, dict):
                 self._prune_entry(entry_id)
                 return None
@@ -275,7 +387,9 @@ class NativeClimateProgram:
             for device_id, coordinator in coordinators.items():
                 if not isinstance(device_id, str) or not device_id:
                     continue
-                info = getattr(coordinator, "device_info", None)
+                if legacy and self._legacy_status(coordinator, entry) is None:
+                    continue
+                info = getattr(coordinator, "_device_info" if legacy else "device_info", None)
                 if getattr(info, "device_id", None) != device_id:
                     continue
                 device = getattr(coordinator, "device", None)
@@ -288,6 +402,7 @@ class NativeClimateProgram:
                        for zone_id in zones):
                     matches.append(coordinator)
             if len(matches) != 1:
+                self._prune_entry(entry_id)
                 return None
             # A durable ownership journal can compare this opaque identity
             # across real polls without exporting device or entry identifiers.
@@ -331,10 +446,7 @@ class NativeClimateProgram:
             if not isinstance(coordinators, dict):
                 # Verified cjaliaga Aquarea layout; never inspect unrelated
                 # entries, discover devices by name or call a cloud endpoint.
-                data = getattr(hass, "data", {})
-                provider = data.get("aquarea", {}) if isinstance(data, dict) else {}
-                native_entry = provider.get(entry_id, {}) if isinstance(provider, dict) else {}
-                coordinators = native_entry.get("devices") if isinstance(native_entry, dict) else None
+                coordinators = self._legacy_coordinators(entry_id)
             if not isinstance(coordinators, dict):
                 self._prune_entry(entry_id, watches=self._tank_watches)
                 return None
@@ -342,6 +454,9 @@ class NativeClimateProgram:
             matches = []
             for device_id, coordinator in coordinators.items():
                 device = getattr(coordinator, "device", None)
+                info = getattr(coordinator, "device_info", None)
+                if info is None and self._legacy_status(coordinator, entry) is not None:
+                    info = getattr(coordinator, "_device_info", None)
                 tank_binding = (entity_id.startswith("water_heater.") and unique_id == f"{device_id}_tank"
                                 and getattr(device, "has_tank", None) is True
                                 and getattr(device, "tank", None) is not None)
@@ -349,10 +464,11 @@ class NativeClimateProgram:
                 zone_binding = (entity_id.startswith("climate.") and isinstance(zones, dict)
                                 and any(unique_id == f"{device_id}_climate_{zone_id}" for zone_id in zones))
                 if (isinstance(device_id, str) and device_id and (tank_binding or zone_binding)
-                        and getattr(getattr(coordinator, "device_info", None), "device_id", None) == device_id
+                        and getattr(info, "device_id", None) == device_id
                         and getattr(device, "device_id", None) == device_id):
                     matches.append(coordinator)
             if len(matches) != 1:
+                self._prune_entry(entry_id, watches=self._tank_watches)
                 return None
             binding_key = hashlib.sha256(json.dumps(
                 ["aquarea_tank", entry_id, unique_id], separators=(",", ":")
@@ -371,23 +487,34 @@ class NativeClimateProgram:
             return None
         watch = {"coordinator": coordinator, "entry_id": entry_id,
                  "baseline": getattr(coordinator, "device", None),
+                 "legacy": self._current_legacy_status(coordinator, entry_id) is not None,
+                 "status_baseline": self._current_legacy_status(coordinator, entry_id),
+                 "status_snapshot": None, "status_inputs": None,
                  "snapshot": None, "mode": None, "observed": None,
                  "observed_at": None, "unsubscribe": None,
                  "action_snapshot": None, "action": None, "action_inputs": None,
                  "action_observed": None, "action_observed_at": None}
 
         def updated():
-            # Aquarea's supported coordinator replaces Device on each successful
-            # poll. A notification of the same mutable object is not poll proof.
+            # Successful replacement is required. The legacy library replaces
+            # its typed status; modern coordinators replace the whole Device.
             device = getattr(coordinator, "device", None)
+            status = self._current_legacy_status(coordinator, entry_id) if watch["legacy"] else None
             if getattr(coordinator, "last_update_success", None) is not True:
+                watch.update(baseline=device, status_baseline=status,
+                             status_snapshot=None, status_inputs=None)
                 watch.update(snapshot=None, mode=None, observed=None, observed_at=None)
                 watch.update(action_snapshot=None, action=None, action_inputs=None,
                              action_observed=None, action_observed_at=None)
                 return
-            if device is None or device is watch["baseline"]:
+            changed = (status is not None and status is not watch["status_baseline"]
+                       if watch["legacy"] else device is not watch["baseline"])
+            if device is None or not changed:
                 return
             watch["baseline"] = device
+            watch["status_baseline"] = status
+            watch["status_snapshot"] = status
+            watch["status_inputs"] = _status_inputs(status) if status is not None else None
             mode = _native_mode(device)
             watch.update(snapshot=device if mode else None, mode=mode,
                          observed=time.monotonic() if mode else None,
@@ -431,6 +558,8 @@ class NativeClimateProgram:
         if watch is None:
             return result
         if getattr(coordinator, "last_update_success", None) is not True:
+            watch.update(baseline=getattr(coordinator, "device", None),
+                         status_baseline=self._current_legacy_status(coordinator, entry_id))
             watch.update(action_snapshot=None, action=None, action_inputs=None,
                          action_observed=None, action_observed_at=None)
             return result
@@ -438,7 +567,10 @@ class NativeClimateProgram:
             return result
         device = getattr(coordinator, "device", None)
         if (device is not watch["action_snapshot"] or _native_action(device) != watch["action"]
-                or _action_inputs(device) != watch["action_inputs"]):
+                or _action_inputs(device) != watch["action_inputs"]
+                or watch["legacy"] and (self._current_legacy_status(coordinator, entry_id) is not watch["status_snapshot"]
+                                        or _status_inputs(watch["status_snapshot"]) != watch["status_inputs"])):
+            watch.update(baseline=device, status_baseline=self._current_legacy_status(coordinator, entry_id))
             watch.update(action_snapshot=None, action=None, action_inputs=None,
                          action_observed=None, action_observed_at=None)
             return result
@@ -486,6 +618,7 @@ class NativeClimateProgram:
         result = {"program": "unknown", "raw_mode": None, "source": "",
                   "entity_id": entity_id, "fresh": False,
                   "binding_key": None,
+                  "reason_code": "unsupported_binding", "stale_s": self._stale_s(),
                   "reason": "Het gekozen warmtepompprogramma is nog niet betrouwbaar bekend"}
         resolved = self._resolve(entity_id)
         if resolved is None:
@@ -494,26 +627,36 @@ class NativeClimateProgram:
         result["source"] = "aquarea_poll"
         watch = self._watch(coordinator, entry_id)
         if watch is None:
+            result["reason_code"] = "listener_unavailable"
             result["reason"] = "De gekozen warmtepomp levert geen controleerbare programmaterugmelding"
             return result
         if getattr(coordinator, "last_update_success", None) is not True:
+            watch.update(baseline=getattr(coordinator, "device", None),
+                         status_baseline=self._current_legacy_status(coordinator, entry_id))
             watch.update(snapshot=None, mode=None, observed=None, observed_at=None)
             result["reason"] = "De programmaterugmelding van de warmtepomp is tijdelijk niet beschikbaar"
+            result["reason_code"] = "poll_unavailable"
             return result
         if watch["observed"] is None:
             result["reason"] = "Wacht op een nieuwe terugmelding van het gekozen warmtepompprogramma"
+            result["reason_code"] = "awaiting_poll"
             return result
         device = getattr(coordinator, "device", None)
         mode = _native_mode(device)
-        if device is not watch["snapshot"] or mode != watch["mode"]:
+        if (device is not watch["snapshot"] or mode != watch["mode"]
+                or watch["legacy"] and (self._current_legacy_status(coordinator, entry_id) is not watch["status_snapshot"]
+                                        or _status_inputs(watch["status_snapshot"]) != watch["status_inputs"])):
+            watch.update(baseline=device, status_baseline=self._current_legacy_status(coordinator, entry_id))
             watch.update(snapshot=None, mode=None, observed=None, observed_at=None)
             result["reason"] = "Het warmtepompprogramma is gewijzigd; wacht op bevestigde terugmelding"
+            result["reason_code"] = "unconfirmed_change"
             return result
         age = time.monotonic() - watch["observed"]
         result["age_s"] = round(age, 3)
         result["observed_at"] = watch["observed_at"]
         if not math.isfinite(age) or age < 0 or age > self._stale_s():
             result["reason"] = "De terugmelding van het gekozen warmtepompprogramma is te oud"
+            result["reason_code"] = "stale_poll"
             return result
-        result.update(program=mode[1], raw_mode=mode[0], fresh=True, reason="")
+        result.update(program=mode[1], raw_mode=mode[0], fresh=True, reason="", reason_code="confirmed")
         return result

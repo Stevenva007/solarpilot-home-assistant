@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,7 +31,7 @@ def test_current_guide_has_required_topics_and_no_previous_release_label():
     for topic in ("Wallbox", "warm water", "PV-model", "Fase", "Thuisbatterij", "verwarmen", "Kwartierpiek", "Migratie"):
         assert topic.lower() in titles.lower()
     current = guide.render_markdown()
-    assert "1.0.0-beta.8" not in current
+    assert not re.search(r"1\.0\.0-beta\.8(?!\d)", current)
     assert "1.0.0-beta.9" not in current
     assert "43 °C setpoint" not in current
 

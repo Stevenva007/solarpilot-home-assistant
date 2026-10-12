@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.80 — betrouwbare Aquarea-bedrijfsstand en gerichte SG-koeldiagnose
+
+- Herstelt de programme-uitlezing van de ondersteunde oudere Aquarea-provider naast de moderne runtime_data-route. Exacte entry/device/zone-identiteit en een nieuwe geslaagde getypeerde providerpoll blijven vereist; cached startup, foutpoll en lokale optimistische verandering geven geen nieuwe toestemming.
+- Onderscheidt in SG-details werkelijk koelbedrijf, ontbrekende/verouderde geconfigureerde bronnen, onbekend AUTO-programma, conflicten en lokale condensbevestiging. Bronverval blijft zichtbaar zonder nieuw HA-schermbericht; diagnosevelden zijn uitsluitend uitlezen.
+- Legt met afzonderlijke regressies vast dat geplande, actieve of onbekende sterilisatiemeldingen geen SG-start, verlenging of eigen contact blokkeren; echte bron-/koel-/elektrische voorwaarden blijven gelden.
+- Behoudt de bestaande koelvoorwaarde, instellingen, SG-percentages/koelwaarde, korte leases, SG600/5 min/minimum20, elektrische grenzen, afwasdeadline, APP-aanvragen, modellen en historie. Geplande of actieve sterilisatie is geen afzonderlijk SG-veto. Geen automatische condensbevestiging, nieuwe bronbinding, extra installatie of tweede regelaar.
+- Bouwbasis: gepubliceerde beta.79 `1aab2043fa7a446e3f814bf515e4e9480a1cd6a2`, tree `c3025c593ac2185d2b9c8062dcf7d0e4d3dfe169`, main-run `38256645498`. Nieuwe installatie/behoud/rollback: `docs/BETA80_INSTELLEN.md`; brongebonden controles/publicatiebewijs: `docs/TESTRESULTATEN_BETA80.md`.
+
 ## 1.0.0-beta.79 — brede code-audit en herstel van gereproduceerde fouten
 
 - Toont bij een wachtend toestel het werkelijk toegewezen startvermogen apart van actueel overschot, filter, toekomstige beschermde cycluspieken, eerdere toewijzingen en elektrische ruimte. Een reeds apart gereserveerde onbemeterde afwaspiek telt bij toestel-/deadline-/batterijdispatch één keer; de bestaande cyclusbuffer blijft gelden.

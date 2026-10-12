@@ -102,6 +102,10 @@ jobs:
         run: python tools/check_dishwasher_deadline78.py
       - name: Validate audit expiry, popup lifecycle and release constructors
         run: python tools/check_audit_ui79.py
+      - name: Validate SG cooling diagnostics, source expiry and settings routes
+        env:
+          SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests
+        run: python tools/check_cooling_ui80.py
       - name: Retain fictitious browser validation screenshots
         if: always()
         uses: actions/upload-artifact@v4
