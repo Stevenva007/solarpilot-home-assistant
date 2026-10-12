@@ -4,7 +4,9 @@ SolarPilot is een lokale Home Assistant-integratie voor zonnestroomverdeling, fl
 
 **Actuele bronversie: 1.0.0-beta.79.** Panasonic regelt de warmtepomp zelfstandig. SolarPilot kan voor die warmtepomp alleen een extra SG-zonneboost aanvragen via één bewust gekoppelde bestaande Shelly-uitgang, met bewezen lokale aflooptimer. Het schrijft geen tank-/kamertemperatuur, AUTO/UIT, heaterkeuze of fabrikantprogramma. Nieuwe SG-sturing staat standaard uit tot gecontroleerde ingebruikname.
 
-[Installatie en veilige upgrade](START_HIER.md) · [Volledige actuele werking](docs/ACTUELE_WERKING.md) · [Beta.79 instellen](docs/BETA79_INSTELLEN.md) · [Testresultaten en publicatiestatus](docs/TESTRESULTATEN_BETA79.md) · [Auditdekking en bevindingen](docs/AUDIT_BETA79.md) · [Technische overdracht](OVERDRACHT.md)
+[Installatie en veilige upgrade](START_HIER.md) · [Volledige actuele werking](docs/ACTUELE_WERKING.md) · [Beta.80 instellen](docs/BETA80_INSTELLEN.md) · [Testresultaten en publicatiestatus](docs/TESTRESULTATEN_BETA80.md) · [Auditdekking en bevindingen](docs/AUDIT_BETA79.md) · [Technische overdracht](OVERDRACHT.md)
+
+Beta.80 herstelt de native bedrijfsstanduitlezing bij de ondersteunde oudere Aquarea-integratie. De SG-diagnose toont afzonderlijk ontbrekende bronnen, verouderde rapporten, onbekend AUTO-programma, werkelijk koelbedrijf en lokale condensbevestiging. Alle bestaande SG-, apparaat- en elektrische voorwaarden blijven gelden; sterilisatie is geen afzonderlijke SG-blokkering.
 
 Vanaf beta.70 opent **Geschiedenis** bij de warmtepomp een lokale dagtijdlijn met geregistreerde activiteit, starts/stops, bevestigde of afgeleide taken, meetdekking en gemeten totale elektrische energie. Zeven/dertig-dagenbalken en afzonderlijke SG-aanvraag/contact/ontvangen-status maken het verloop zichtbaar. Registratie begint na installatie; oude gegevens blijven behouden en onbekende perioden worden niet ingevuld. De popup is uitsluitend uitlezen.
 

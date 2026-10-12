@@ -1,14 +1,14 @@
-# SolarPilot beta.79 — installatie en upgrade
+# SolarPilot beta.80 — installatie en upgrade
 
-Beta.79 herstelt gereproduceerde fouten uit een brede code-audit: actuele controle vóór opdrachten, bescherming van handmatige SG- en Wallboxkeuzes, correcte plannergrenzen en boekhouding, behoud van onbekende opslag, bronvalidatie, historische leesrechten en late browser-/API-antwoorden. De AEG-startdeadline blijft netstroom toestaan zonder zonnevoorwaarde, binnen de bestaande elektrische en apparaatgrenzen.
+Beta.80 herstelt de uitlezing van de actuele bedrijfsstand bij de ondersteunde oudere Aquarea-provider en maakt de SG-koelvoorwaarde gericht controleerbaar. Het overzicht onderscheidt echt koelbedrijf, ontbrekende of verouderde bronnen, onbekend AUTO-programma en ontbrekende lokale condensbevestiging. Verse bevestigde verwarmingscontext kan SG toelaten zonder koelbevestiging; onbekend blijft onbekend. Bestaande instellingen, bronbindings, lokale SG-percentages, de zonne-onafhankelijke afwasdeadline, modellen en historie blijven behouden. Geen extra installatie of tweede regelaar.
 
-**Begin met [BETA79_INSTELLEN.md](docs/BETA79_INSTELLEN.md).** Geen extra installatie, sensor, solver of parallelle regelaar. Volledige werking: [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en **SolarPilot → Uitleg**. Uitgevoerde checks en publicatiestatus: [TESTRESULTATEN_BETA79.md](docs/TESTRESULTATEN_BETA79.md). Auditdekking en concrete bevindingen: [AUDIT_BETA79.md](docs/AUDIT_BETA79.md). Oudere resultaten bewijzen geen geslaagde beta.79-release.
+**Begin met [BETA80_INSTELLEN.md](docs/BETA80_INSTELLEN.md).** Geen extra installatie, sensor, solver of parallelle regelaar. Volledige werking: [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en **SolarPilot → Uitleg**. Uitgevoerde checks en publicatiestatus: [TESTRESULTATEN_BETA80.md](docs/TESTRESULTATEN_BETA80.md). Auditdekking en concrete bevindingen: [AUDIT_BETA79.md](docs/AUDIT_BETA79.md). Oudere resultaten bewijzen geen geslaagde beta.80-release.
 
 ## Bestaande installatie bijwerken
 
 1. Maak een volledige privé HA-back-up met instellingen, eigen opslag, PV-factoren, modellen, tickets, geschiedenis en userfiles. Bewaar gecontroleerde beta.78-code.
 2. Geef vóór codevervanging een eigen SG-aanvraag vrij en controleer contact/lokale afloop. Onderbreek geen beschermde apparaatcyclus.
-3. Update via HACS naar exact `1.0.0-beta.79` nadat releasegates en publicatie zijn geslaagd. Herstart HA volledig en herlaad browser/app volledig.
+3. Update via HACS naar exact `1.0.0-beta.80` nadat releasegates en publicatie zijn geslaagd. Herstart HA volledig en herlaad browser/app volledig.
 4. Controleer backend- en kaartversie apart. Behoud dezelfde entry, bindings, volgorde en geldige SG-/profiel-/split-/koelbevestigingen.
 5. Controleer actuele beslisredenen, de oorspronkelijke AEG-aanvraag/deadline, Planning, PV-diagnose, Meetkwaliteit, kosten en geschiedenis. Een update maakt geen nieuwe belading en geeft geen tweede START vrij.
 6. Bij onbekende of beschadigde oude opslag blijft de oorspronkelijke opslag behouden. Een concrete laadfout kan nieuwe duurzame registratie of adviesimport tegenhouden; wis daarvoor geen gegevens. Oude verbruikershistoriek zonder betrouwbare bronherkomst blijft voor beheerders zichtbaar.
@@ -27,6 +27,6 @@ Voeg `https://github.com/Stevenva007/solarpilot-home-assistant` toe in **HACS �
 
 ## Rollback
 
-Geef de eigen SG-aanvraag vrij, controleer contact/lokale afloop, stop beta.79 en herstel gecontroleerde beta.78-code met behoud van entry, actuele opslag en userfiles. Beta.78 behoudt de eerdere AEG-deadlinecorrectie, maar mist de auditcorrecties. Code terugzetten maakt geen verbruikte of onzekere START opnieuw beschikbaar.
+Geef de eigen SG-aanvraag vrij, controleer contact/lokale afloop, stop beta.80 en herstel gecontroleerde beta.79-code met behoud van entry, actuele opslag en userfiles. Beta.79 behoudt de brede audit- en AEG-deadlinecorrecties, maar mist de nieuwe provideruitlezing en gerichte SG-koeldiagnose. Code terugzetten maakt geen verbruikte of onzekere START opnieuw beschikbaar.
 
-Exact herstel vraagt code én de passende volledige privéback-up; bewaar gewenste nieuwe historie eerst. Herstel geen oude onverbruikte ticketback-up bij een inmiddels gestart of afgerond programma. Laat nooit twee runtimes tegelijk werken. Zie [BETA79_INSTELLEN.md](docs/BETA79_INSTELLEN.md).
+Exact herstel vraagt code én de passende volledige privéback-up; bewaar gewenste nieuwe historie eerst. Herstel geen oude onverbruikte ticketback-up bij een inmiddels gestart of afgerond programma. Laat nooit twee runtimes tegelijk werken. Zie [BETA80_INSTELLEN.md](docs/BETA80_INSTELLEN.md).
