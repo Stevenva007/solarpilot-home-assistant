@@ -629,6 +629,8 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                 assert archive["backup_store"] == expected_journal
             persisted = await store.async_load()
             assert persisted["panasonic_archive"] == archive
+            from check_source_contract81 import verify_source_contract
+            source_contract81 = await verify_source_contract(hass)
             heatpump_baseline = verify_heatpump_history(hass, runtime, entry, history_commands, metered=current_sg)
             feedback_report = await verify_analysis_feedback(hass, runtime, entry)
             registry = er.async_get(hass)
@@ -684,6 +686,7 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                     "configuration_preserved": True, "physical_service_calls": 0,
                     "analysis_export_feedback_admin_storage_reload_read_only": True,
                     "heatpump_history_registered_read_only_acl_store_reload_unload": True,
+                    "template_source_contract81": source_contract81,
                     **({"fixture": "current general SG with split read-only sources",
                         "immutable_nested_options_exact": True, "manual_and_completion_holds_preserved": True,
                         "split_units_zero_missing_and_sum": True, "compressor_and_sg_proof_separate": True,

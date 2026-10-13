@@ -11,6 +11,13 @@ def proposal(identifier="synthetic-source-clock"):
 
 
 def test_shipped_catalog_only_contains_release_bound_generic_proposals():
+    beta81 = {
+        "sp.sg.research-timestamp-boundary.v1", "sp.sg.interrupted-research-checkpoint.v1",
+        "sp.sg.stop-evidence-transport-stage.v1", "sp.wallbox.template-source-proof.v1",
+        "sp.hp.native-programme-timeline.v1", "sp.pv.forecast-issue-horizon-proof.v1",
+        "sp.pv.quarter-rejection-evidence.v1", "sp.meters.solar-balance-time-coherence.v1",
+        "sp.hp.short-electric-activity-display.v1",
+    }
     assert set(implementations.IMPLEMENTED_PROPOSALS) == {
         "sp.hp.task-presentation.v1", "sp.hp.context-and-learning.v1",
         "sp.meters.source-quality-evidence.v1", "sp.electrical.budget-versus-limits.v1",
@@ -18,10 +25,10 @@ def test_shipped_catalog_only_contains_release_bound_generic_proposals():
         "sp.sg.minimum-request-duration.v1", "sp.sg.cloud-import-buffer.v1",
         "sp.sg.confirmed-reset-display.v1", "sp.wallbox.session-source-diagnostics.v1",
         "sp.hp.inactive-scope-display.v1", "sp.learning.local-investigation.v1",
-        "sp.sg.session-evidence.v1", "sp.analysis.recommendation-kind.v1"}
+        "sp.sg.session-evidence.v1", "sp.analysis.recommendation-kind.v1"} | beta81
     for identifier, row in implementations.IMPLEMENTED_PROPOSALS.items():
         assert set(row) == {"introduced_release", "title", "proposal_sha256"}
-        assert row["introduced_release"] == ("1.0.0-beta.75" if identifier in {
+        assert row["introduced_release"] == ("1.0.0-beta.81" if identifier in beta81 else "1.0.0-beta.75" if identifier in {
             "sp.learning.local-investigation.v1", "sp.sg.session-evidence.v1",
             "sp.analysis.recommendation-kind.v1"} else "1.0.0-beta.74" if identifier in {
             "sp.sg.confirmed-reset-display.v1", "sp.wallbox.session-source-diagnostics.v1",

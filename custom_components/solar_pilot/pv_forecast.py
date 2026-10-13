@@ -6,6 +6,7 @@ import json
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from .pv_forecast_source import PV_FORECAST_DEFAULTS, ForecastSolarSource, finite, stamp
 from .pv_calibration import PVCalibration, solar_position
+from .pv_forecast_evidence import ForecastEvidence
 
 
 class PVForecast:
@@ -31,6 +32,27 @@ class PVForecast:
         self.last_update=None;self.error="";self._last_saved_revision=-1
         self.hourly_cache={}
         self._last_local_now=None
+        self.forecast_evidence=ForecastEvidence()
+        self.research_error=""
+
+    def _provenance(self, target, now):
+        try:return self.source.evidence(target,now)
+        except Exception as err:
+            self.research_error=type(err).__name__
+            return {"issued_at":None,"issue_time_status":"unknown","original_issue_horizon_s":None,
+                    "issue_time_reason":"Forecastherkomst tijdelijk niet beschikbaar","error":self.research_error}
+
+    def _research_summary(self):
+        try:return self.forecast_evidence.summary()
+        except Exception as err:
+            self.research_error=type(err).__name__
+            return {"status":"unavailable","error":self.research_error,"current_error_is_ahead_accuracy":False}
+
+    def _research_diagnostics(self):
+        try:return self.forecast_evidence.diagnostics()
+        except Exception as err:
+            self.research_error=type(err).__name__
+            return {"snapshots":[],"comparisons":[],"summary":self._research_summary(),"error":self.research_error}
 
     def position(self, dt):
         c=getattr(self.runtime.hass,"config",None)
@@ -94,7 +116,20 @@ class PVForecast:
             bind=sha256(json.dumps([self.source.entry_id,self.source.refs,self.runtime.settings.get("pv_entity"),
                 self.settings["inverter_limit_w"],self.settings["azimuth_deg"],self.settings["tilt_deg"],self.source.metadata],sort_keys=True).encode()).hexdigest()
             if self.settings["enabled"]:
-                self.model.observe(now=now,actual_w=actual,raw_w=raw,meter_stamp=meter_stamp,azimuth=az,elevation=el,binding=bind)
+                provenance=self._provenance(ts,ts)
+                self.model.observe(now=now,actual_w=actual,raw_w=raw,meter_stamp=meter_stamp,azimuth=az,elevation=el,binding=bind,
+                                   forecast_context=provenance)
+                # These immutable targets are research only. Planner/hourly(),
+                # calibration guards and realtime dispatch keep their old inputs.
+                try:
+                    self.forecast_evidence.capture(now,self.source,self._correct,self.factor_details,bind)
+                    self.forecast_evidence.compare(now,actual,meter_stamp,provenance.get("source_context_id"),
+                                                   bind,float(self.settings["inverter_limit_w"]))
+                    self.research_error=""
+                except Exception as err:
+                    # Optional research failure cannot invalidate an otherwise
+                    # usable current forecast or change planner/calibration.
+                    self.research_error=type(err).__name__
             currentfactor,confidence,days,why=self.model.factor(now,az,el)
             horizon=[]
             for h in range(4):
@@ -105,7 +140,7 @@ class PVForecast:
                 horizon.append({"hours":h,"time":dt.isoformat(),"raw_w":None if val is None else round(val,1),
                     "corrected_w":None if val is None else round(min(self.settings["inverter_limit_w"],val*factor),1),
                     "factor":round(factor,3),"confidence":round(conf,3),"days":ndays,"source":origin,
-                    "calibration":detail})
+                    "calibration":detail,"forecast_provenance":self._provenance(t,ts)})
             midnight=(now+timedelta(days=1)).replace(hour=0,minute=0,second=0,microsecond=0)
             after=(midnight+timedelta(days=1))
             hour_start=now.replace(minute=0,second=0,microsecond=0).timestamp()
@@ -140,6 +175,8 @@ class PVForecast:
                 "dayparts":summary.get("periods",{}),"last_learning_reason":summary.get("last_reason"),
                 "minimum_days_required":summary.get("minimum_days_required"),
                 "model":summary,"source_age_s":round(ts-self.source.source_stamp) if self.source.source_stamp else None,
+                "forecast_provenance":self._provenance(ts,ts),
+                "forecast_evidence_summary":self._research_summary(),"forecast_evidence_error":self.research_error,
                 "source_entry_id":self.source.entry_id,"series_points":len(self.source.series.points),
                 "inverter_limit_w":self.settings["inverter_limit_w"],"panel_peak_wp":self.settings["panel_peak_wp"],
                 "actual_w":actual,"updated":now.isoformat(),"note":"Voorspelling, geen beschikbaar vermogen. Realtime meters blijven leidend."}
@@ -149,8 +186,9 @@ class PVForecast:
                 self.cached["warning"]+=("; " if self.cached["warning"] else "")+"Forecast.Solar heeft damping; voorkom dubbele schaduwcorrectie"
             if summary.get("storage_warning"):
                 self.cached["warning"]+=("; " if self.cached["warning"] else "")+summary["storage_warning"]
-            if self.model.revision!=self._last_saved_revision and getattr(self.runtime,"data_loaded",False):
-                self._last_saved_revision=self.model.revision
+            revision=(self.model.revision,self.forecast_evidence.revision)
+            if revision!=self._last_saved_revision and getattr(self.runtime,"data_loaded",False):
+                self._last_saved_revision=revision
                 self.runtime.store.async_delay_save(self.runtime._snapshot,30)
             self.error=""
         except Exception as err:
@@ -171,10 +209,15 @@ class PVForecast:
         return result
 
     def snapshot(self):
-        return self.model.snapshot()
+        result=self.model.snapshot()
+        if self.model._unsupported_snapshot is None:
+            result["forecast_evidence"]=self.forecast_evidence.snapshot()
+        return result
 
     def restore(self, data):
-        try:self.model.restore(data)
+        try:
+            self.model.restore(data)
+            self.forecast_evidence.restore(data.get("forecast_evidence") if isinstance(data,dict) and self.model._unsupported_snapshot is None else None)
         except (ValueError,TypeError,AttributeError,OverflowError):
             self.error="Opgeslagen PV-model onleesbaar; overige leerdata blijven behouden"
 
@@ -203,19 +246,21 @@ class PVForecast:
             raw=self.source.raw_at(dt.timestamp(),now.timestamp()) if self.source.valid else None
             corrected=None if raw is None else min(float(self.settings["inverter_limit_w"]),max(0.,raw*detail["factor"]))
             rows.append({"time":dt.isoformat(),"raw_w":raw,"corrected_w":corrected,
-                         "factor":detail["factor"],"calibration":detail})
+                         "factor":detail["factor"],"calibration":detail,
+                         "forecast_provenance":self._provenance(dt.timestamp(),now.timestamp())})
         return {"day":now.date().isoformat(),"start_hour":15,"end_hour":18,"quarters":rows,
                 "reason":"Profiel per kwartier van deze forecastmomentopname; geen bewijs van een fysieke schaduwoorzaak"}
 
     def diagnostics(self):
-        return {"summary":self.cached,"history":list(self.model.history),"quarter_profile":self.quarter_profile(),"settings":{k:v for k,v in self.settings.items() if not k.endswith("entity")},
+        return {"summary":self.cached,"history":list(self.model.history),"quarter_profile":self.quarter_profile(),
+                "forecast_evidence":self._research_diagnostics(),"settings":{k:v for k,v in self.settings.items() if not k.endswith("entity")},
                 "sources":self.source.refs,"source_metadata":self.source.metadata,"candidate_sources":self.source.candidates,
                 "limitations":["Geen nieuwe cloudoproepen", "Een lokale afwijking bewijst niet op zichzelf structurele schaduw",
                 "Leerdagen totaal zijn geen vergelijkbare dagen voor elk tijdvak; terugkerende overgangsprofielen vragen nieuw volledig bewijs",
                 "Zonder tijdreeks blijven +2/+3 en ontbrekende correcties onbekend", "Voorbije 15-minutenmetingen zonder gelijktijdige ruwe forecast worden niet als bewezen kalibratie geïmporteerd"]}
 
     def reset(self):
-        self.model=PVCalibration(self.settings);self.last_update=None;self.hourly_cache={}
+        self.model=PVCalibration(self.settings);self.forecast_evidence=ForecastEvidence();self.last_update=None;self.hourly_cache={}
         # Explicit PV-only reset also clears the legacy live correction to avoid
         # bringing an old live factor back through the fallback path.
         self.runtime.local_pv.reset_live()

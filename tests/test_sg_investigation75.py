@@ -1,5 +1,6 @@
 """SG research uses witnessed source evidence and never controller authority."""
 from copy import deepcopy
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -216,8 +217,9 @@ def test_clock_rollback_invalidates_active_coverage():
     observe(research, point(20, True))
     observe(research, point(40, True))
     observe(research, point(39, True))
-    assert research.active["source_complete"] is False
-    assert research.active["gaps"] == 1
+    assert research.active is None
+    assert research.sessions[-1]["source_complete"] is False
+    assert research.sessions[-1]["interruption"] == "source_gap"
 
 
 def test_repeated_polls_are_not_new_original_source_reports():
@@ -237,7 +239,9 @@ def test_repeated_polls_are_not_new_original_source_reports():
     value = point(140, True)
     value[3]["stamp"] = BASE + 20
     observe(research, value)
-    assert research.active["source_complete"] is False
+    assert research.active is None
+    assert research.sessions[-1]["source_complete"] is False
+    assert research.sessions[-1]["interruption"] == "source_loss"
 
 
 def test_different_ending_last_session_does_not_borrow_old_duration():
@@ -327,7 +331,8 @@ def test_runtime_hook_shares_exact_sample_and_has_no_physical_calls(history_fail
         history_samples.append((native, sg, stamp))
         if history_failure:
             raise ValueError("incomplete history")
-    runtime.heatpump_history = SimpleNamespace(loaded=True, _closed=False, now=lambda: BASE,
+    stamp = datetime.fromtimestamp(BASE, timezone.utc)
+    runtime.heatpump_history = SimpleNamespace(loaded=True, _closed=False, now=lambda: stamp,
         observe=capture, error="", model=SimpleNamespace(pause_recording=lambda: None))
     runtime.learning_hub.investigation = SimpleNamespace(sg_research=SimpleNamespace(
         observe=lambda *args, **kwargs: samples.append((args, kwargs))))
@@ -339,6 +344,7 @@ def test_runtime_hook_shares_exact_sample_and_has_no_physical_calls(history_fail
     args, kwargs = samples[0]
     assert args[0] == BASE and args[1] is value[1] and args[2] is value[2]
     assert history_samples[0][0] is args[2] and history_samples[0][1] is args[1]
+    assert history_samples[0][2] is stamp
     assert kwargs["grid"] is value[3]
     assert kwargs["context"]["release"] == VERSION
     assert kwargs["context"]["policy"] is runtime.sg_boost.settings

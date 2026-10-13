@@ -879,6 +879,14 @@ class SolarRuntime:
 
     async def close(self, *, persist=True):
         self._closed = True
+        # Preserve only an interrupted historical record. This cannot restore
+        # an active request, lease, cursor or a claimed physical OFF.
+        research = getattr(getattr(getattr(self, "learning_hub", None), "investigation", None), "sg_research", None)
+        if research is not None:
+            try:
+                research.interrupt("shutdown")
+            except Exception:
+                _LOGGER.debug("SolarPilot SG-onderzoekscheckpoint overgeslagen", exc_info=True)
         # Independent optional telemetry cleanup must survive actuator/core
         # cleanup failures, and never flush a partly restored failed setup.
         await self.heatpump_history.close(persist=persist)
@@ -2422,6 +2430,15 @@ class SolarRuntime:
             except Exception:
                 pass
             if not captured:
+                research = getattr(getattr(getattr(self, "learning_hub", None), "investigation", None), "sg_research", None)
+                if research is not None:
+                    try:
+                        was_active = getattr(research, "active", None) is not None
+                        research.interrupt("source_loss")
+                        if was_active and self.data_loaded:
+                            self.store.async_delay_save(self._snapshot, 5)
+                    except Exception:
+                        _LOGGER.debug("SolarPilot SG-brononderbreking niet opgeslagen", exc_info=True)
                 return
         # Research receives the same native/contact sample as history. A
         # research failure cannot invalidate history or change any controller.
@@ -2429,15 +2446,39 @@ class SolarRuntime:
         research = getattr(investigation, "sg_research", None)
         if research is not None:
             try:
+                # The real recorder returns an aware datetime. Keep it intact
+                # for history; only this read-only numeric boundary converts.
+                try:
+                    research_stamp = (stamp.timestamp() if isinstance(stamp, datetime)
+                        and stamp.tzinfo is not None and stamp.utcoffset() is not None else None)
+                    if research_stamp is not None and (not math.isfinite(research_stamp) or research_stamp <= 0):
+                        research_stamp = None
+                except (ValueError, TypeError, OverflowError):
+                    research_stamp = None
+                before_active = getattr(research, "active", None)
+                before_records = getattr(research, "sessions", [])
+                before_checkpoint = (before_active.get("started_at") if isinstance(before_active, dict) else None,
+                    deepcopy(before_records[-1]) if before_records else None)
                 pv_entity = self.settings.get("pv_entity")
                 pv_state = self.hass.states.get(pv_entity) if pv_entity else None
                 attrs = getattr(pv_state, "attributes", {}) or {}
                 pv_w, pv_stamp = self._power(pv_entity, self.sg_boost.settings.get("stale_s"))
                 pv = {"watts": pv_w, "stamp": pv_stamp, "source": pv_entity,
                       "restored": any(attrs.get(key) for key in ("restored", "estimated", "is_estimated"))}
-                research.observe(stamp, sg, panasonic, grid=self._sg_import_observation(),
+                research.observe(research_stamp, sg, panasonic, grid=self._sg_import_observation(),
                     context={"release": VERSION, "binding": binding, "policy": self.sg_boost.settings,
                              "fixed_import_limit_w": self.settings.get("max_import_w"), "pv": pv})
+                after_active = getattr(research, "active", None)
+                after_records = getattr(research, "sessions", [])
+                after_checkpoint = (after_active.get("started_at") if isinstance(after_active, dict) else None,
+                    after_records[-1] if after_records else None)
+                last_save = getattr(self, "_sg_research_save_at", None)
+                periodic = (after_active is not None and research_stamp is not None
+                    and (last_save is None or research_stamp-last_save >= 30 or research_stamp < last_save))
+                if self.data_loaded and (before_checkpoint != after_checkpoint or periodic):
+                    if research_stamp is not None:
+                        self._sg_research_save_at = research_stamp
+                    self.store.async_delay_save(self._snapshot, 5)
             except Exception:
                 _LOGGER.debug("SolarPilot SG-sessieonderzoek overgeslagen", exc_info=True)
 

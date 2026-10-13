@@ -10,11 +10,17 @@ from collections.abc import Mapping
 from copy import deepcopy
 import math
 import re
+import time
 
 from .const import VERSION
 
 MAX_SESSIONS = 12
 MAX_GAP_S = 30.0
+INTERRUPTIONS = frozenset({"restart", "source_loss", "source_gap", "invalid_time", "shutdown", "binding_changed"})
+TRANSPORT_OPERATIONS = frozenset({"read", "on", "renew", "off"})
+TRANSPORT_PHASES = frozenset({"pending", "confirmed", "failed", "not_sent", "send_uncertain", "accepted_readback_unconfirmed"})
+TRANSPORT_CATEGORIES = frozenset({"none", "timeout", "cancelled", "write_uncertain", "unavailable", "invalid_response",
+    "contact_unconfirmed", "lease_unconfirmed", "mapping_or_setup_changed", "policy_changed", "unknown"})
 POLICY_KEYS = ("import_threshold_w", "stop_delay_s", "min_session_s", "max_session_s",
                "expected_power_w", "threshold_w", "start_delay_s", "rest_s", "lease_s",
                "renew_s", "stale_s", "ack_timeout_s")
@@ -47,6 +53,42 @@ def _text(value, limit=240):
 
 def _release(value):
     return value if isinstance(value, str) and len(value) <= 40 and _RELEASE.fullmatch(value) else None
+
+
+def _transport(value):
+    """Only explicit transport telemetry, never derive a stage from UI text."""
+    value = _map(value)
+    stamp = _number(value.get("observed_at"))
+    if (not all(isinstance(value.get(key), str) for key in ("operation", "phase", "category"))
+            or value.get("operation") not in TRANSPORT_OPERATIONS or value.get("phase") not in TRANSPORT_PHASES
+            or value.get("category") not in TRANSPORT_CATEGORIES or stamp is None or stamp <= 0):
+        return None
+    return {"operation": value["operation"], "phase": value["phase"], "category": value["category"],
+            "observed_at": stamp, **{key: value.get(key) if type(value.get(key)) is bool else None
+                for key in ("command_attempted", "command_applied")}}
+
+
+def _contact(sg, now):
+    stamp = _number(sg.get("relay_observed_at"))
+    valid = (sg.get("relay_confirmed") is True and _fresh(stamp, now, sg.get("relay_stale_s"))
+             and type(sg.get("relay_on")) is bool)
+    return {"state": sg.get("relay_on") if valid else None, "reported_at": stamp if valid else None}
+
+
+def _controller_stop(record, last, now=None):
+    """A controller end is separate from contact confirmation or transport."""
+    last = _map(last)
+    ended, duration, started = (_number(value) for value in
+        (last.get("ended_at"), last.get("duration_s"), record.get("started_at")))
+    lower = _number(record.get("start_lower_at"))
+    if (record.get("known_start") is not True or lower is None or lower <= 0
+            or ended is None or duration is None or started is None or ended < started
+            or not 0 <= duration <= 86400 or ended - duration > started + 5
+            or (lower is not None and ended - duration < lower - 30)
+            or (now is not None and ended > now + 5)):
+        return None
+    return {"ended_at": ended, "duration_s": duration, "reason": _text(last.get("reason")),
+            "category": _category(last.get("reason"))}
 
 
 def _category(reason):
@@ -131,7 +173,42 @@ class SGSessionResearch:
         self.latest = {}
 
     def snapshot(self):
-        return {"schema": 1, "sessions": deepcopy(self.sessions[-MAX_SESSIONS:])}
+        # This is historical evidence, not a restorable active cursor. Even a
+        # crash during an ON can only restore an interrupted, unknown ending.
+        return {"schema": 1, "sessions": deepcopy(self.sessions[-MAX_SESSIONS:]),
+                "checkpoint": self._interrupted_record("restart") if self.active is not None else None}
+
+    def _interrupted_record(self, reason, *, now=None, sg=None):
+        if self.active is None:
+            return None
+        record = deepcopy(self.active)
+        observed = _number(record.get("last_observed_at"))
+        started = _number(record.get("started_at"))
+        record.update(interrupted=True, interruption=reason, source_complete=False, end_matched=False,
+                      comparable=False, consistency="unknown", ended_at=None,
+                      duration_s=max(0.0, observed-started) if observed is not None and started is not None else 0.0,
+                      reason="", stop_category="unknown", contact_end={"state": None, "reported_at": None})
+        if sg is not None and _number(now) is not None:
+            record["controller_stop"] = _controller_stop(record, sg.get("last_session"), now)
+            record["contact_end"] = _contact(sg, now)
+            # A later successful status read must not replace the failed OFF.
+            last_transport = (_transport(_map(sg.get("last_session")).get("transport"))
+                              if record["controller_stop"] is not None else None)
+            current_transport = _transport(sg.get("transport_evidence"))
+            record["transport"] = next((value for value in (last_transport, current_transport)
+                if value is not None and started is not None and started-5 <= value["observed_at"] <= now+5), None)
+        return record
+
+    def interrupt(self, reason, *, now=None, sg=None):
+        """End evidence continuity without claiming the physical request ended."""
+        if not isinstance(reason, str) or reason not in INTERRUPTIONS:
+            reason = "source_loss"
+        record = self._interrupted_record(reason, now=now, sg=sg)
+        if record is not None:
+            self.sessions.append(record)
+            self.sessions = self.sessions[-MAX_SESSIONS:]
+        self.active = self.previous = None
+        self.latest = {}
 
     def restore(self, value):
         self.sessions, self.active, self.previous, self.latest = [], None, None, {}
@@ -139,17 +216,27 @@ class SGSessionResearch:
         records = value.get("sessions")
         if value.get("schema") != 1 or isinstance(value.get("schema"), bool) or not isinstance(records, list):
             return
-        for record in records[-MAX_SESSIONS:]:
+        checkpoint = value.get("checkpoint")
+        restore_now = _number(time.time())
+        entries = [(record, False) for record in records[-MAX_SESSIONS:]]
+        if isinstance(checkpoint, Mapping):
+            entries.append((checkpoint, True))
+        for record, checkpoint_record in entries:
             record = _map(record)
             ended, duration = _number(record.get("ended_at")), _number(record.get("duration_s"))
-            if ended is None or ended <= 0 or duration is None or not 0 <= duration <= 86400:
+            interrupted = checkpoint_record or record.get("interrupted") is True
+            observed, started = _number(record.get("last_observed_at")), _number(record.get("started_at"))
+            if (duration is None or not 0 <= duration <= 86400
+                    or (not interrupted and (ended is None or ended <= 0))
+                    or (interrupted and (started is None or observed is None or not 0 < started <= observed
+                                         or observed-started > 86400 or restore_now is None or observed > restore_now+5))):
                 continue
             # Rebuild a bounded whitelist, never restore an active cursor/lease.
             cleaned = {key: deepcopy(record.get(key)) for key in (
                 "release", "policy", "binding", "started_at", "start_lower_at", "ended_at", "duration_s",
                 "reason", "stop_category", "known_start", "source_complete", "policy_unchanged",
                 "end_matched", "grid_reports", "pv_reports", "contact_reports", "continuous_import_s",
-                "max_grid_import_w", "native_context", "consistency", "gaps")}
+                "max_grid_import_w", "native_context", "consistency", "gaps", "last_observed_at")}
             cleaned.update(ended_at=ended, duration_s=duration, reason=_text(record.get("reason")),
                            release=_release(record.get("release")), binding=_text(record.get("binding"), 64))
             cleaned["policy"] = _current_policy(_map(record.get("policy")), _map(record.get("policy")))
@@ -162,13 +249,38 @@ class SGSessionResearch:
                 number = _number(record.get(key))
                 cleaned[key] = min(1000000, max(0, int(number))) if number is not None else 0
             cleaned["stop_category"] = _category(cleaned["reason"])
+            cleaned["last_observed_at"] = observed
+            cleaned["interrupted"] = interrupted
+            cleaned["interruption"] = ("restart" if checkpoint_record else record.get("interruption")) if interrupted else None
+            if not isinstance(cleaned["interruption"], str) or cleaned["interruption"] not in INTERRUPTIONS:
+                cleaned["interruption"] = "source_loss" if interrupted else None
+            cleaned["controller_stop"] = (_controller_stop(cleaned, record.get("controller_stop"), restore_now)
+                                           if restore_now is not None else None)
+            contact = _map(record.get("contact_end"))
+            contact_stamp = _number(contact.get("reported_at"))
+            contact_valid = (type(contact.get("state")) is bool and contact_stamp is not None
+                             and started is not None and contact_stamp >= started
+                             and restore_now is not None and contact_stamp <= restore_now+5)
+            cleaned["contact_end"] = {"state": contact.get("state") if contact_valid else None,
+                                      "reported_at": contact_stamp if contact_valid else None}
+            cleaned["transport"] = _transport(record.get("transport"))
+            if (cleaned["transport"] is not None and (restore_now is None or started is None
+                    or not started-5 <= cleaned["transport"]["observed_at"] <= restore_now+5)):
+                cleaned["transport"] = None
+            if interrupted:
+                cleaned.update(ended_at=None, reason="", stop_category="unknown", source_complete=False, end_matched=False)
+                cleaned["duration_s"] = observed-started
             cleaned["native_context"] = record.get("native_context") if record.get("native_context") in (
                 "space_heating", "space_cooling", "tapwater_heating", "sterilization") else None
             cleaned["consistency"] = self._consistency(cleaned)
+            cleaned["comparable"] = cleaned["consistency"] in ("consistent_observation", "review_timing")
             self.sessions.append(cleaned)
+        self.sessions = self.sessions[-MAX_SESSIONS:]
 
     @staticmethod
     def _consistency(record):
+        if record.get("interrupted") is True:
+            return "unknown"
         lower, started, ended, duration = (_number(record.get(key)) for key in (
             "start_lower_at", "started_at", "ended_at", "duration_s"))
         chronology = (lower is not None and started is not None and ended is not None
@@ -195,10 +307,7 @@ class SGSessionResearch:
     def observe(self, now, sg, native, *, grid=None, context=None):
         now, sg, native, context = _number(now), _map(sg), _map(native), _map(context)
         if now is None or now <= 0:
-            self.previous = None
-            if self.active is not None:
-                self.active["source_complete"] = False
-                self.active["gaps"] += 1
+            self.interrupt("invalid_time")
             return
         policy = _current_policy(sg, _map(context.get("policy")))
         policy["fixed_import_limit_w"] = _number(context.get("fixed_import_limit_w"))
@@ -213,7 +322,32 @@ class SGSessionResearch:
         previous = self.previous
         contiguous = (previous is not None and 0 < now - previous["now"] <= MAX_GAP_S
                       and previous["until"] is not None and previous["until"] >= now)
-        if state is True and self.active is None:
+        interrupted_now = False
+        if self.active is not None:
+            loss = (state is None or grid_value is None or pv_value is None)
+            gap = (previous is None or not contiguous)
+            rebound = (current["binding"] != self.active["binding"] or current["release"] != self.active["release"])
+            if loss or gap or rebound:
+                self.interrupt("binding_changed" if rebound else "source_loss" if loss else "source_gap", now=now, sg=sg)
+                interrupted_now = True
+        # Only newly witnessed OFF evidence may enrich an interrupted record.
+        # It cannot close the source gap, restore continuity or change timing.
+        for record in reversed(self.sessions):
+            if record.get("interrupted") is not True or record.get("binding") != current["binding"]:
+                continue
+            stop = _controller_stop(record, sg.get("last_session"), now)
+            if stop is None or stop["ended_at"] > now + 5:
+                continue
+            record["controller_stop"] = stop
+            contact = _contact(sg, now)
+            if (contact["state"] is False and contact["reported_at"] >= stop["ended_at"]
+                    and _map(record.get("contact_end")).get("state") is not False):
+                record["contact_end"] = contact
+            transport = _transport(_map(sg.get("last_session")).get("transport"))
+            if transport is not None:
+                record["transport"] = transport
+            break
+        if state is True and self.active is None and not interrupted_now:
             known_start = bool(contiguous and previous["state"] is False
                                and current["relay_stamp"] is not None
                                and current["relay_stamp"] > previous["relay_stamp"]
@@ -225,9 +359,13 @@ class SGSessionResearch:
                 "policy_unchanged": True, "end_matched": False, "grid_reports": 0,
                 "pv_reports": 0, "contact_reports": 0, "continuous_import_s": 0.0,
                 "max_grid_import_w": 0.0, "gaps": 0,
+                "last_observed_at": now, "interrupted": False, "interruption": None,
+                "controller_stop": None, "contact_end": {"state": None, "reported_at": None},
+                "transport": None,
                 "native_context": task.get("function") if task.get("function") in ("space_heating", "space_cooling", "tapwater_heating", "sterilization") else None}
         active = self.active
         if active is not None:
+            active["last_observed_at"] = now
             active["policy_unchanged"] = (active["policy_unchanged"] and policy == active["policy"]
                 and current["release"] == active["release"] and current["binding"] == active["binding"])
             paired = bool(contiguous and previous["state"] is True and state in (True, False)
@@ -265,7 +403,11 @@ class SGSessionResearch:
                 active.update(ended_at=ended if ended is not None else now, duration_s=duration if duration is not None else max(0.0, now-active["started_at"]),
                               reason=_text(last.get("reason")), end_matched=matched,
                               stop_category=_category(last.get("reason")))
+                stop = _controller_stop(active, last, now)
+                active.update(controller_stop=stop, contact_end=_contact(sg, now),
+                    transport=_transport(last.get("transport")) if stop is not None else None)
                 active["consistency"] = self._consistency(active)
+                active["comparable"] = active["consistency"] in ("consistent_observation", "review_timing")
                 self.sessions.append(deepcopy(active))
                 self.sessions = self.sessions[-MAX_SESSIONS:]
                 self.active = None
@@ -336,7 +478,11 @@ def assessment(runtime, now, sg=None, research=None):
                   and valid_now is not None and _number(record.get("ended_at")) is not None
                   and record["ended_at"] <= valid_now + 5]
     reviews = [record for record in comparable if record["consistency"] == "review_timing"]
-    item["metrics"].update(completed_sessions=len(records), comparable_sessions=len(comparable), timing_review_sessions=len(reviews))
+    interrupted = [record for record in records if record.get("interrupted") is True]
+    item["metrics"].update(completed_sessions=len(records)-len(interrupted), interrupted_sessions=len(interrupted),
+                           comparable_sessions=len(comparable), timing_review_sessions=len(reviews))
+    if interrupted:
+        item["evidence"].append(f"{len(interrupted)} onderzoeksperiode(n) onderbroken; einde en meetcontinuïteit blijven onbekend en valideren de timers niet.")
     if isinstance(research, SGSessionResearch):
         item["metrics"]["active_session_start_known"] = research.active.get("known_start") if research.active else None
         item["metrics"]["recent_sessions"] = deepcopy(records[-MAX_SESSIONS:])
