@@ -6,7 +6,10 @@ entity selectors remain supported and missing horizons remain None, never zero.
 from __future__ import annotations
 from bisect import bisect_right
 from collections.abc import Mapping
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
+from hashlib import sha256
+import json
 import math
 
 PV_FORECAST_DEFAULTS = {
@@ -91,6 +94,25 @@ class ForecastSolarSource:
         self.metadata = {}; self.last_scan = None; self.last_refresh = None
         self.coordinator_signature = None; self.coordinator_seen = None
         self.source_stamp = None; self.valid = False; self.warning = ""; self.discovery_warning = ""
+
+    def evidence(self, target_ts, now):
+        """Whitelisted provenance, without inventing an upstream issue time.
+
+        Forecast.Solar's HA adapter exposes reports and a cached estimate, not
+        the original weather forecast's publication time. Neither a fresh HA
+        report nor a replaced data object establishes that publication time.
+        """
+        def iso(value):
+            return datetime.fromtimestamp(value, timezone.utc).isoformat() if value is not None else None
+        context = sha256(json.dumps([self.entry_id, self.refs, self.metadata], sort_keys=True).encode()).hexdigest()
+        origin = "curve" if self.valid and self.series.at(target_ts) is not None else "scalar" if self.raw_at(target_ts, now) is not None else "unknown"
+        return {"source_context_id": context, "provider": "forecast_solar", "value_origin": origin,
+                "source_metadata":deepcopy({**self.metadata,"planes":self.metadata.get("planes",[])[:8]}),
+                "source_reported_at": iso(self.source_stamp),
+                "local_data_observed_at": iso(self.coordinator_seen) if self.series.points else None,
+                "issued_at": None, "issue_time_status": "unknown",
+                "issue_time_reason": "De HA-adapter levert geen oorspronkelijke forecastuitgiftetijd; rapport- en uitleestijden zijn daarvan geen bewijs",
+                "target_at": iso(target_ts), "original_issue_horizon_s": None}
 
     def _discover(self, now):
         if self.last_scan is not None and 0 <= now-self.last_scan < 300:

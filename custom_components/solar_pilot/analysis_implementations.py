@@ -25,8 +25,7 @@ IMPLEMENTED_PROPOSALS = {'sp.hp.task-presentation.v1': {'proposal_sha256': '4c47
                                           'title': 'Bewijs en afkeurreden per vermogensbron'},
  'sp.electrical.budget-versus-limits.v1': {'proposal_sha256': '8f26454092497698718bd732cd1727916886e3ce0c061e97684d450e5c3d0828',
                                            'introduced_release': '1.0.0-beta.69',
-                                           'title': 'Kwartierbudget en fysieke grenzen '
-                                                    'onderscheiden'},
+                                           'title': 'Kwartierbudget en fysieke grenzen onderscheiden'},
  'sp.sg.reassessment-progress.v1': {'proposal_sha256': 'd564b03bcc3c9916629fc94e65566476fa9c0eb9dc7d6500999772e2d345f0b5',
                                     'introduced_release': '1.0.0-beta.71',
                                     'title': 'Actuele SG-bevestiging en startvertraging zichtbaar'},
@@ -44,8 +43,7 @@ IMPLEMENTED_PROPOSALS = {'sp.hp.task-presentation.v1': {'proposal_sha256': '4c47
                                       'title': 'Al bevestigde SG-reset zonder herhaalde teller'},
  'sp.wallbox.session-source-diagnostics.v1': {'proposal_sha256': 'b3fd3fb152aeab63d061ff95fabc0bb9835a393c5078910944d9746130bdb455',
                                               'introduced_release': '1.0.0-beta.74',
-                                              'title': 'Gekoppelde Wallbox-sessiebron gericht '
-                                                       'beoordelen'},
+                                              'title': 'Gekoppelde Wallbox-sessiebron gericht beoordelen'},
  'sp.hp.inactive-scope-display.v1': {'proposal_sha256': 'cae613e96f6fa7e6001486a0f95f04de98b9d6a4cc436a7d42a47b7c45877b3a',
                                      'introduced_release': '1.0.0-beta.74',
                                      'title': 'Totale warmtepomprust vraagt passend bewijs'},
@@ -53,11 +51,43 @@ IMPLEMENTED_PROPOSALS = {'sp.hp.task-presentation.v1': {'proposal_sha256': '4c47
                                         'introduced_release': '1.0.0-beta.75',
                                         'title': 'Lokaal automatisch brononderzoek en voorstellen'},
  'sp.sg.session-evidence.v1': {'proposal_sha256': 'eac331e8adc3447579aec47c035634bded8f9404f9b020ce330f4103f6195f13',
-                              'introduced_release': '1.0.0-beta.75',
-                              'title': 'Versie, policy en meetdekking van nieuwe SG-sessies'},
+                               'introduced_release': '1.0.0-beta.75',
+                               'title': 'Versie, policy en meetdekking van nieuwe SG-sessies'},
  'sp.analysis.recommendation-kind.v1': {'proposal_sha256': 'e798b2a3d5818381fc424f023d0bf8151c4c1f8d0c57cbd28522e15a164df834',
-                                      'introduced_release': '1.0.0-beta.75',
-                                      'title': 'Instellingsadvies en waarnemingen herkenbaar'}}
+                                        'introduced_release': '1.0.0-beta.75',
+                                        'title': 'Instellingsadvies en waarnemingen herkenbaar'},
+ 'sp.sg.research-timestamp-boundary.v1': {'proposal_sha256': '496da366b67f676ba3404a9eafe0e1fc9864c16fb116c15985946958bf4ba3c7',
+                                          'introduced_release': '1.0.0-beta.81',
+                                          'title': 'Werkelijke SG-onderzoeksinname met coherent tijdtype'},
+ 'sp.sg.interrupted-research-checkpoint.v1': {'proposal_sha256': 'eb90a01dfc149815531ebf5612fdd83142aab3dc160bfbc76f16ec571e14a267',
+                                              'introduced_release': '1.0.0-beta.81',
+                                              'title': 'Onderbroken SG-onderzoek als begrensde historische '
+                                                       'waarneming'},
+ 'sp.sg.stop-evidence-transport-stage.v1': {'proposal_sha256': '9b1316be18de606aa779312e19b51ab407f6a9bbceb6aaa15121727665fb6f4f',
+                                            'introduced_release': '1.0.0-beta.81',
+                                            'title': 'Controllerstop, contactbewijs en transportfase '
+                                                     'gescheiden'},
+ 'sp.wallbox.template-source-proof.v1': {'proposal_sha256': '8442a8232f4e4cd909da9b2ea9d9f0caa3f67237ef8ea37e79425a8373b9511f',
+                                         'introduced_release': '1.0.0-beta.81',
+                                         'title': 'Oorspronkelijke Wallbox-templatebronnen inspecteerbaar'},
+ 'sp.hp.native-programme-timeline.v1': {'proposal_sha256': '8fa4e4b680f26474e3b1fa64dd099a3cee111cd0c2d0ec25901baff929d6797b',
+                                        'introduced_release': '1.0.0-beta.81',
+                                        'title': 'Native programma en tankbewijs op eigen tijdlijn'},
+ 'sp.pv.forecast-issue-horizon-proof.v1': {'proposal_sha256': '1f755d708becb7450d6fc49c0e2aaf5c75b46ad9501de25533d64a4288848809',
+                                           'introduced_release': '1.0.0-beta.81',
+                                           'title': 'Vooruit vastgelegde forecast en oorspronkelijke '
+                                                    'uitgiftestatus'},
+ 'sp.pv.quarter-rejection-evidence.v1': {'proposal_sha256': 'e479aec895af82a53f361ab73af47bda0c63b2982725b12f2d680bc688271ec8',
+                                         'introduced_release': '1.0.0-beta.81',
+                                         'title': 'Geldige en afgekeurde PV-kwartieronderdelen verklaard'},
+ 'sp.meters.solar-balance-time-coherence.v1': {'proposal_sha256': 'fd4d39eff53ad2c2d8081692ecbf2bcb0fc72fabc43baeebfab0b5f71fe31a49',
+                                               'introduced_release': '1.0.0-beta.81',
+                                               'title': 'Oorspronkelijke net/PV-tijden en onvolledige '
+                                                        'bronbalans'},
+ 'sp.hp.short-electric-activity-display.v1': {'proposal_sha256': '6df2b1c64d0eb203fff70dff898ca3c917931a376ec3899e61a52e8da8f47c0f',
+                                              'introduced_release': '1.0.0-beta.81',
+                                              'title': 'Korte elektrische activiteit naast ongewijzigde ruwe '
+                                                       'historie'}}
 _PART = r"(?:0|[1-9][0-9]*)"
 _RELEASE = re.compile(rf"({_PART})\.({_PART})\.({_PART})(?:-beta\.({_PART}))?\Z")
 _PROPOSAL_ID = re.compile(r"[a-z0-9][a-z0-9._:-]{0,119}\Z")

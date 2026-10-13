@@ -79,6 +79,7 @@ class SGBoostManager:
         self._tank_source_changed = False
         self._last_rearm = None
         self._last_session = None
+        self._transport_evidence = None
         self._native_observation = {}
         self._solar_observation = None
         self._general_reference = None
@@ -383,6 +384,57 @@ class SGBoostManager:
         self.state, self.status, self.reason = "blocked", "Zonneboost geblokkeerd", reason
         self._stable_since = None
 
+    def _record_transport(self, operation, *, error=None, attempted=None):
+        """Diagnostic-only phase/flags; never used by dispatch or recovery."""
+        try:
+            self._capture_transport_evidence(operation, error=error, attempted=attempted)
+        except (Exception, asyncio.CancelledError):
+            # Optional diagnostics must not affect any native command/result.
+            self._transport_evidence = None
+
+    def _capture_transport_evidence(self, operation, *, error=None, attempted=None):
+        category, phase, applied = "none", "pending", None
+        if error is not None:
+            code = getattr(error, "code", None)
+            code = code if isinstance(code, str) else None
+            category = {
+                "write_uncertain": "write_uncertain", "unavailable": "unavailable",
+                "unsupported_runtime": "unavailable", "invalid_response": "invalid_response",
+                "status_unknown": "contact_unconfirmed", "off_unconfirmed": "contact_unconfirmed",
+                "off_timer_active": "contact_unconfirmed", "lease_unconfirmed": "lease_unconfirmed",
+                "lease_not_renewed": "lease_unconfirmed", "clock_unknown": "lease_unconfirmed",
+                "binding_changed": "mapping_or_setup_changed", "configuration_invalid": "mapping_or_setup_changed",
+                "unverified_mapping": "mapping_or_setup_changed", "unsupported_device": "mapping_or_setup_changed",
+                "unsupported_source": "mapping_or_setup_changed", "entity_disabled": "mapping_or_setup_changed",
+                "wrong_channel": "mapping_or_setup_changed", "wrong_role": "mapping_or_setup_changed",
+                "firmware_unknown": "mapping_or_setup_changed", "dispatch_changed": "policy_changed",
+            }.get(code, "unknown")
+            if isinstance(error, asyncio.TimeoutError):
+                category = "timeout"
+            elif isinstance(error, asyncio.CancelledError):
+                category = "cancelled"
+            elif isinstance(error, ValueError) and error.args and isinstance(error.args[0], str):
+                # Only fixed internal markers are interpreted; raw exception
+                # strings, hosts, device identities and payloads never escape.
+                category = {"off_not_confirmed": "contact_unconfirmed", "lease_not_confirmed": "lease_unconfirmed",
+                            "commissioning_changed": "mapping_or_setup_changed"}.get(error.args[0], "unknown")
+            explicit_attempted = getattr(error, "command_attempted", None)
+            if type(explicit_attempted) is bool:
+                attempted = explicit_attempted
+            explicit_applied = getattr(error, "command_applied", None)
+            if explicit_applied is True:
+                applied = True
+            phase = ("accepted_readback_unconfirmed" if applied is True else "send_uncertain" if attempted is True
+                     else "not_sent" if attempted is False else "failed")
+        stamp = finite(self._wall_clock())
+        self._transport_evidence = {"operation": operation, "phase": phase, "category": category,
+            "observed_at": stamp, "command_attempted": attempted, "command_applied": applied}
+
+    def _transport_confirmed(self, operation):
+        self._record_transport(operation, attempted=operation != "read")
+        if self._transport_evidence is not None:
+            self._transport_evidence.update(phase="confirmed", command_applied=True if operation != "read" else None)
+
     def _set_state(self, state, reason):
         self.state = state
         self.status = {"normal": "Panasonic regelt zelfstandig", "waiting_surplus": "Wachten op zon",
@@ -491,10 +543,12 @@ class SGBoostManager:
         now = self._clock()
         if not force and now < self._next_read:
             return None
+        self._record_transport("read", attempted=False)
         try:
             raw = self._status(await asyncio.wait_for(self._transport().get_status(),
                                                     float(self.settings["ack_timeout_s"])))
-        except Exception:
+        except Exception as err:
+            self._record_transport("read", error=err, attempted=False)
             self.relay_on = None
             self.relay_confirmed = False
             self._read_failures += 1
@@ -502,6 +556,7 @@ class SGBoostManager:
             if self.fault_code not in {"on_failed", "lease_invalid", "lease_failed", "firmware_changed"}:
                 self._fault("unavailable_read", "SG-uitgang niet bereikbaar; status onbekend, de lokale toestemming wordt niet vernieuwd")
             return None
+        self._transport_confirmed("read")
         self._read_failures = 0
         self._next_read = now
         if self.fault_code == "unavailable_read":
@@ -701,6 +756,7 @@ class SGBoostManager:
                     self.desired_on = False
                     return False
             write_started = True
+            self._record_transport("renew" if renewal else "on")
             raw = await asyncio.wait_for(adapter.set_on(lease_s=lease_s),
                                          float(self.settings["ack_timeout_s"]))
             self._status(raw)
@@ -708,7 +764,10 @@ class SGBoostManager:
             if self.fault_code == "firmware_changed":
                 raise ValueError("commissioning_changed")
             self._timer_proof(raw, renewal=renewal, lease_s=lease_s)
+            self._transport_confirmed("renew" if renewal else "on")
         except (Exception, asyncio.CancelledError) as err:
+            self._record_transport("renew" if renewal else "on", error=err,
+                                   attempted=False if not write_started else None)
             # No replay or retry. A missing readback is not a confirmed OFF.
             attempted = write_started and getattr(err, "command_attempted", True)
             if not attempted:
@@ -874,6 +933,7 @@ class SGBoostManager:
                 return True
 
             try:
+                self._record_transport("off")
                 adapter = self._transport()
                 supports_off_callback = hasattr(adapter, "before_off_status")
                 if supports_off_callback:
@@ -885,11 +945,13 @@ class SGBoostManager:
                                                         float(self.settings["ack_timeout_s"])))
                 if raw["output"] is not False:
                     raise ValueError("off_not_confirmed")
+                self._transport_confirmed("off")
                 self.owned = self._possibly_owned = False
                 self._lease_expiry = self._lease_deadline = None
                 if self.fault_code == "off_failed":
                     self.fault_code = self.fault = ""
             except (Exception, asyncio.CancelledError) as err:
+                self._record_transport("off", error=err)
                 cancelled = err if isinstance(err, asyncio.CancelledError) else None
                 ownership_withdrawn = (getattr(err, "code", "") == "dispatch_changed"
                     and getattr(err, "command_attempted", False) is False
@@ -908,7 +970,10 @@ class SGBoostManager:
             self._begin_rest()
         if self._session_started is not None:
             self._last_session = {"ended_at": self._wall_clock(), "reason": reason,
-                                  "duration_s": max(0, self._clock() - self._session_started)}
+                                  "duration_s": max(0, self._clock() - self._session_started),
+                                  "transport": (deepcopy(self._transport_evidence)
+                                      if isinstance(self._transport_evidence, dict)
+                                      and self._transport_evidence.get("operation") == "off" else None)}
             self._note("SG-aanvraag beëindigd: " + reason + self._observation_summary())
         self._session_started = None
         self._minimum_started = None
@@ -1628,6 +1693,7 @@ class SGBoostManager:
                 "cloud_valid_until": cloud_valid_until,
                 "manual_hold": self.manual_hold, "completion_hold": self.completion_hold,
                 "fault": self.fault, "fault_code": self.fault_code, "action_required": self.action_required,
+                "transport_evidence": deepcopy(self._transport_evidence),
                 "blocked_reasons": list(self._blocked_reasons), "last_session": deepcopy(self._last_session),
                 "automatic_rearm_available": ((self._general_reference is not None) if self.settings.get("profile") == "general"
                     else self._need_reference is not None and not self._tank_source_changed),

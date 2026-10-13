@@ -14,11 +14,13 @@ import time
 
 from .heatpump_budget import heatpump_power
 from .sg_investigation import SGSessionResearch, assessment as sg_assessment
+from .source_diagnostics import runtime_solar_balance_proof, wallbox_source_dossier
 
 
-TOPICS = ("heatpump_meter", "wallbox_source", "pv_forecast", "consumer_meters")
+TOPICS = ("heatpump_meter", "wallbox_source", "pv_forecast", "consumer_meters", "solar_balance")
 MAX_SOURCES = 32
 MAX_NEGATIVE_REPORTS = 64
+MAX_BALANCE_OBSERVATIONS = 16
 MAX_COUNT = 1_000_000
 NOTICE = ("SolarPilot onderzoekt lokaal de al gekoppelde meetbronnen en bewaart begrensd meetbewijs. "
           "Voorstellen veranderen geen instelling of apparaat. Een oorzaak of reparatie is pas bevestigd met passend meetbewijs; "
@@ -56,7 +58,8 @@ def _cursor_role(topic, role):
         return (role.startswith("consumer_") and len(role) == 41
                 and all(char in "0123456789abcdef" for char in role[9:]))
     return role in {"heatpump_meter": ("total", "supply1", "supply2"),
-                    "wallbox_source": ("session",), "pv_forecast": ("actual_pv",)}.get(topic, ())
+                    "wallbox_source": ("session",), "pv_forecast": ("actual_pv",),
+                    "solar_balance": ("grid", "grid_export", "pv")}.get(topic, ())
 
 
 def _fresh(stamp, now, stale):
@@ -126,6 +129,27 @@ class LocalInvestigation:
                     negatives.append({"watts": value, "stamp": stamp})
             self.records[topic] = {"context": context, "cursors": cursors,
                                    "counts": counts, "negatives": negatives}
+            if topic == "solar_balance":
+                observations = []
+                rows = raw.get("balance_observations")
+                for row in (rows if isinstance(rows, list) else [])[-MAX_BALANCE_OBSERVATIONS:]:
+                    row = _dict(row)
+                    keys = ("observed_at", "grid_reported_wall", "pv_reported_wall", "grid_w", "pv_w", "export_excess_w", "source_skew_s")
+                    values = {key: _number(row.get(key)) for key in keys}
+                    if (any(value is None for value in values.values())
+                            or any(not 0 < values[key] <= time.time() + 5 for key in ("observed_at", "grid_reported_wall", "pv_reported_wall"))
+                            or abs(values["grid_w"]) > 100000 or not 0 <= values["pv_w"] <= 100000
+                            or not 250 < values["export_excess_w"] <= 100000
+                            or not 0 <= values["source_skew_s"] <= 86400
+                            or any(values[key] > values["observed_at"] + 5 for key in ("grid_reported_wall", "pv_reported_wall"))
+                            or abs(values["export_excess_w"] - (max(0.0, -values["grid_w"]) - values["pv_w"])) > 1e-6
+                            or values["source_skew_s"] + 1e-6 < abs(values["grid_reported_wall"] - values["pv_reported_wall"])
+                            or row.get("status") == "reports_not_aligned" and values["source_skew_s"] <= 5
+                            or row.get("status") in ("known_sources_can_explain", "unexplained_with_unknown_inventory") and values["source_skew_s"] > 5):
+                        continue
+                    observations.append({**values, "status": row.get("status") if row.get("status") in
+                                         ("reports_not_aligned", "known_sources_can_explain", "unexplained_with_unknown_inventory") else "historical_unknown"})
+                self.records[topic]["balance_observations"] = observations
 
     def _contexts(self):
         r = self.r
@@ -149,6 +173,10 @@ class LocalInvestigation:
                 getattr(getattr(forecast, "source", None), "entry_id", None),
                 getattr(forecast, "settings", {})]),
             "consumer_meters": _fingerprint([meters, reserved, hp, wb.get("enabled"), settings.get("stale_s")]),
+            "solar_balance": _fingerprint([{key: settings.get(key) for key in
+                ("grid_entity", "export_entity", "grid_sign", "pv_entity", "battery_power_entity", "battery_sign", "stale_s")},
+                {key: {field: value.get(field) for field in ("power_entity", "power_sign")} for key, value in
+                 _dict(getattr(getattr(r, "battery_fleet", None), "configs", None)).items() if isinstance(value, dict)}]),
         }
 
     def _record(self, topic, context):
@@ -249,11 +277,12 @@ class LocalInvestigation:
         from .learning_hub import wallbox_session_question
         topic = "wallbox_source"
         cfg = _dict(getattr(self.r, "wallbox_settings", None))
+        dossier = wallbox_source_dossier(self.r, now)
         if cfg.get("enabled") is not True or not cfg.get("session_mode_entity"):
             return _item(topic, "Wallbox-sessiebron", "not_configured", "Wallbox-onderzoek staat uit of de effectieve sessiebron ontbreekt.",
                          "Controleer de expliciete Wallbox-koppeling als de regeling gebruikt wordt.",
                          proposals=[_proposal(topic, "binding", "Koppel een gecontroleerde effectieve sessiebron; de laadstand Full Solar alleen bevestigt geen actieve zonnelaadsessie.")],
-                         metrics=dict(record["counts"]))
+                         metrics={**record["counts"], "source_dossier": dossier})
         reading = reading if reading is not None else self.r._wallbox_reading()
         entity = cfg["session_mode_entity"]
         obj = self.r.hass.states.get(entity)
@@ -273,13 +302,60 @@ class LocalInvestigation:
                 cause, summary = "estimated", "De gekoppelde sessiebron is als schatting gemarkeerd; geen bevestigde werkelijke sessiemelding."
             else:
                 cause, summary = wallbox_session_question(self.r, now)
+        source_evidence = []
+        for source in [dossier["session"], *dossier["known_sources"]]:
+            age = source["age_s"]
+            source_evidence.append(f"Bronrol {source['role']}: " +
+                                   (f"origineel rapport {age:.1f} s oud; " if age is not None else "oorspronkelijk rapporttijdstip onbekend; ") +
+                                   ("actueel bruikbaar." if source["usable"] else f"niet bruikbaar ({source['issue']})."))
+        source_evidence.append("Gekoppelde status/modus/vermogen zijn vergelijkingsbronnen; template-afhankelijkheden zijn alleen bewezen wanneer de geladen state-template dat werkelijk rapporteert.")
+        source_evidence.append("Templateformule wordt niet geëxporteerd; triggers blijven onbekend. Originele rapporten vernieuwen de sessiebron niet automatisch.")
         return _item(topic, "Wallbox-sessiebron", "observed_ok" if usable else "check_needed", summary,
                      "Blijf nieuwe bronrapporten volgen; dit bewijst alleen de huidige sessiemelding." if usable else
                      "Controleer de bestaande bron en haar statuslijsten; een oude melding krijgt geen extra geldigheid.",
                      evidence=[f'{record["counts"]["reports"]} verschillende actuele sessierapporten onderzocht; '
-                               f'{record["counts"]["valid_reports"]} herkende meldingen.', f"Actuele bronbeoordeling: {cause}."],
+                               f'{record["counts"]["valid_reports"]} herkende meldingen.', f"Actuele bronbeoordeling: {cause}.", *source_evidence],
                      proposals=[] if usable else [_proposal(topic, "source_check", "Vergelijk de reeds gekoppelde sessiesensor met werkelijk laden, stoppen en manueel laden; controleer tijdstip en herkenning van iedere melding.")],
-                     metrics={**record["counts"], "cause": cause, "current_session_confirmed": usable})
+                     metrics={**record["counts"], "cause": cause, "current_session_confirmed": usable, "source_dossier": dossier})
+
+    def _solar_balance(self, now, record):
+        topic = "solar_balance"
+        proof = runtime_solar_balance_proof(self.r, now)
+        stale = _dict(getattr(self.r, "settings", None)).get("stale_s", 120)
+        previous = dict(record["cursors"])
+        for source in proof["source_reports"]:
+            role = source.get("role")
+            if role in ("grid", "grid_export", "pv"):
+                self._observe(record, role, source.get("reported_wall"), now, stale, valid=source.get("usable") is True)
+        observations = record.setdefault("balance_observations", [])
+        if (proof["export_excess_w"] is not None and proof["export_excess_w"] > proof["tolerance_w"]
+                and previous != record["cursors"]):
+            sources = {source["role"]: source for source in proof["source_reports"]}
+            observations.append({"observed_at": now, "grid_reported_wall": sources["grid"]["reported_wall"],
+                                 "pv_reported_wall": sources["pv"]["reported_wall"], "grid_w": proof["grid_w"], "pv_w": proof["pv_w"],
+                                 "export_excess_w": proof["export_excess_w"], "source_skew_s": proof["source_skew_s"], "status": proof["status"]})
+            del observations[:-MAX_BALANCE_OBSERVATIONS]
+        status = proof["status"]
+        if status == "insufficient_sources":
+            summary = "De oorspronkelijke net-/PV-bronnen zijn niet volledig bruikbaar voor vergelijking."
+        elif status == "reports_not_aligned":
+            summary = "Opvallende injectie/PV-combinatie met ongelijk getimede bronrapporten; oorzaak onbekend."
+        elif status == "known_sources_can_explain":
+            summary = "Gekoppelde opslag of aanvullende productie kan het injectie/PV-verschil verklaren."
+        elif status == "unexplained_with_unknown_inventory":
+            summary = "Injectie is hoger dan gekoppelde PV; producent-/opslaginventaris blijft onbekend."
+        else:
+            summary = "De huidige gekoppelde net-/PV-rapporten tonen geen opvallend injectieoverschot."
+        evidence = ["De vergelijking gebruikt oorspronkelijke HA-rapporttijden; dezelfde lezing telt niet als nieuw rapport.",
+                    "Rapporttijden bewijzen geen gelijktijdige fysieke metingen. Geen ingestelde batterij bewijst geen afwezige opslag of aanvullende productie."]
+        if proof["export_excess_w"] is not None:
+            evidence.append(f"Netinjectie minus gekoppelde PV: {proof['export_excess_w']:g} W; rapporttijdverschil {proof['source_skew_s']:g} s.")
+        return _item(topic, "Net/PV-bronvergelijking", "check_needed" if status in ("reports_not_aligned", "unexplained_with_unknown_inventory", "insufficient_sources") else "collecting",
+                     summary, "Vergelijk originele tijdstippen en werkelijk gedekte producenten/opslag; geen automatische teken-, sensor- of regelwijziging.",
+                     evidence=evidence, hypotheses=["Snelle PV-verandering, ontbrekende productie/opslag en een bronverschil zijn mogelijke verklaringen; niet afzonderlijk bewezen."]
+                     if status in ("reports_not_aligned", "unexplained_with_unknown_inventory") else [],
+                     proposals=[_proposal(topic, "coherence_check", "Vergelijk op overeenkomende rapporttijden en controleer de bekende producent-/opslagdekking voordat een bronfout wordt vastgesteld.")],
+                     metrics={**record["counts"], "proof": proof, "historical_observations": deepcopy(observations)})
 
     def _pv(self, now, record, quality, pv):
         topic = "pv_forecast"
@@ -411,6 +487,18 @@ class LocalInvestigation:
                     item["metrics"].update(complete_current=False, current_w=None)
                 if topic == "wallbox_source":
                     item["metrics"]["current_session_confirmed"] = False
+            if topic == "wallbox_source" and isinstance(item.get("metrics"), dict):
+                item["metrics"]["source_dossier"] = wallbox_source_dossier(self.r, now)
+            if topic == "solar_balance" and isinstance(item.get("metrics"), dict):
+                # Presentation may age/revoke a source proof but never records a
+                # new observation or counts the same capture as a fresh report.
+                previous_proof = _dict(item["metrics"].get("proof"))
+                current_proof = runtime_solar_balance_proof(self.r, now)
+                item["metrics"]["proof"] = current_proof
+                comparison_keys = ("status", "grid_w", "pv_w", "source_skew_s", "known_discharge_w", "known_additional_production_w")
+                if (contexts.get(topic) != self.cached_context.get(topic)
+                        or any(previous_proof.get(key) != current_proof.get(key) for key in comparison_keys)):
+                    item.update(status="collecting", summary="De broncontext is gewijzigd; eerdere vergelijking is historisch bewijs.")
         if result["updated_at"] is not None:
             result["items"].append(sg_assessment(self.r, now, research=self.sg_research))
         return result
@@ -428,7 +516,7 @@ class LocalInvestigation:
         items = [self._heatpump(now, records["heatpump_meter"], _dict(native)),
                  self._wallbox(now, records["wallbox_source"], wallbox_reading),
                  self._pv(now, records["pv_forecast"], _dict(quality), _dict(pv)),
-                 self._consumers(now, records["consumer_meters"])]
+                 self._consumers(now, records["consumer_meters"]), self._solar_balance(now, records["solar_balance"])]
         self.cached_context = contexts
         self.cached = {"schema": 1, "read_only": True, "updated_at": now, "items": items, "notice": NOTICE}
         return self.overview(now)

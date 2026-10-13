@@ -124,9 +124,9 @@ class HeatpumpHistoryRecorder:
                 raise ValueError("Unsupported heat-pump history model")
             self.access_sources = set(sources[:_MAX_ACCESS_SOURCES])
             self.access_sources_complete = self.access_sources_complete and len(sources) <= _MAX_ACCESS_SOURCES
-            evidence = bool(history.get("energy_days")) or any(
+            evidence = bool(history.get("energy_days")) or bool(history.get("native_evidence", {}).get("points")) or any(
                 row.get("days") or row.get("sessions") or row.get("events")
-                for field in ("lanes", "tasks") for row in history.get(field, {}).get("devices", {}).values())
+                for field in ("lanes", "tasks", "electrical") for row in history.get(field, {}).get("devices", {}).values())
             if evidence and not self.access_sources:
                 # Existing observations without their retained source ACL
                 # cannot borrow read permission from a replacement binding.
@@ -245,6 +245,7 @@ class HeatpumpHistoryRecorder:
             # day aggregates cannot be exactly clipped to a partial boundary;
             # export their real totals without proportional energy estimates.
             row.pop("days", None)
+            row.get("electrical_activity", {}).pop("days", None)
             for lane in row.get("sg", {}).values():
                 lane.pop("days", None)
             days.append(row)

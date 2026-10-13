@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0-beta.81 — SG-onderzoek, oorspronkelijke tijden en controleerbare historie
+
+- Herstelt de bewezen tijdtypefout op de echte runtime-grens naar SG-onderzoek; de bestaande warmtepompgeschiedenis houdt haar aware datumtype. Nieuwe sessies worden werkelijk onderzocht, zonder oude ontbrekende sessies als complete registratie terug te vullen.
+- Bewaart een begrensd historisch onderzoekscheckpoint met expliciete onderbreking en onbekende vergelijkbaarheid. Controllerafsluiting, oorspronkelijk contactbewijs en concrete transportfase blijven afzonderlijk; geen actieve cursor, lease, opdracht, retry of eigendom wordt hersteld.
+- Voegt een read-only Wallbox-brondossier en net/PV-coherentiediagnose met oorspronkelijke tijden en onvolledige bron-/producentdekking toe. Onbekende afhankelijkheden blijven onbekend; geen tekenomkering, nulcorrectie, heartbeat, binding of stale-versoepeling.
+- Maakt per PV-kwartier geldige/afgekeurde onderdelen en redenen inspecteerbaar. Houdt oorspronkelijke forecastuitgifte, lokale ontvangst en vooruit vastgelegde horizonvergelijking apart. Bestaande PV-modellen, planner en leercriteria veranderen niet.
+- Toont een native tank-/programmatijdlijn en afzonderlijke korte elektrische activiteitsweergave naast ruwe historie. Gewoon doel, effectief doel en native resultaat houden hun bewijsgrenzen; geen compressor- of sterilisatiebewijs uit alleen watts of temperatuur.
+- Behoudt SG600 W/300 s/minimum1200 s, alle harde guards, beta.80-provider-/koelcorrecties, AEG-deadline, Wallbox-read-only, instellingen, modellen, tickets en historie. Geen extra installatie, dependency of apparaatwrite.
+- Bouwbasis: gepubliceerde beta.80 `cc700aa26bc26e35d310225e24b4737498230901`. Brongebonden tests/publicatiebewijs: `docs/TESTRESULTATEN_BETA81.md`; installatie/behoud/rollback: `docs/BETA81_INSTELLEN.md`. Alleen volledig geïmplementeerde geteste voorstelbetekenissen krijgen een vertrouwde releasebadge.
+
 ## 1.0.0-beta.80 — betrouwbare Aquarea-bedrijfsstand en gerichte SG-koeldiagnose
 
 - Herstelt de programme-uitlezing van de ondersteunde oudere Aquarea-provider naast de moderne runtime_data-route. Exacte entry/device/zone-identiteit en een nieuwe geslaagde getypeerde providerpoll blijven vereist; cached startup, foutpoll en lokale optimistische verandering geven geen nieuwe toestemming.

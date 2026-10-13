@@ -12,6 +12,7 @@ import math
 
 from .consumer_history import ConsumerHistory, MAX_SESSIONS
 from .heatpump_learning import ACTIVE_CONTEXTS, classify_heatpump_observation
+from .heatpump_history_evidence import NativeProgrammeEvidence
 
 SCHEMA_VERSION = 1
 MAX_GAP_S = 30
@@ -52,6 +53,8 @@ class HeatpumpHistory:
     def __init__(self, timezone_name="Europe/Brussels"):
         self.lanes = ConsumerHistory(timezone_name)
         self.tasks = ConsumerHistory(self.lanes.timezone_name)
+        self.electrical = ConsumerHistory(self.lanes.timezone_name)
+        self.native_evidence = NativeProgrammeEvidence(self.lanes.zone)
         self.timezone_name = self.lanes.timezone_name
         self.energy_days = {}
         self.binding = ""
@@ -71,6 +74,7 @@ class HeatpumpHistory:
     def _ensure(self, when):
         for lane, name in LANES.items():
             self.lanes.ensure(lane, self._config(name), when)
+        self.electrical.ensure("electrical_activity", self._config("Gemeten elektrische activiteit"), when)
         for task, tier in TASKS:
             self.tasks.ensure(self._task_id(task, tier), self._config(LABELS[task]), when)
 
@@ -249,6 +253,12 @@ class HeatpumpHistory:
         watts = self._meter(p, stamp)
         active, task, evidence = self._state(p, stamp, watts)
         self._expiries = self._current_expiries(p, sg, stamp, watts, task, evidence)
+        threshold = _number((p.get("power_activity") or {}).get("threshold_w"))
+        electrical_active = watts >= threshold if watts is not None and threshold is not None and threshold > 0 else None
+        self.electrical.observe("electrical_activity", self._config("Gemeten elektrische activiteit"), electrical_active, when, max_gap_s=MAX_GAP_S)
+        self._describe(self.electrical, "electrical_activity", "Gemeten elektrische activiteit", electrical_active, stamp)
+        self._expiries["electrical_activity"] = self._source_expiry(p.get("power_observed_at", p.get("power_stamp")), stamp, p.get("source_stale_s", 120))
+        self.native_evidence.observe(p, stamp, evidence, max_gap_s=MAX_GAP_S)
         request, contact, received = self._sg(p, sg, stamp)
         for lane, value in zip(LANES, (active, request, contact, received)):
             self.lanes.observe(lane, self._config(LANES[lane]), value, when, max_gap_s=MAX_GAP_S)
@@ -278,6 +288,7 @@ class HeatpumpHistory:
         self._prune(stamp)
 
     def _prune(self, stamp):
+        self.native_evidence.prune(stamp)
         first = (datetime.fromtimestamp(stamp, self.lanes.zone).date()-timedelta(days=29)).isoformat()
         self.energy_days = {day: value for day, value in self.energy_days.items() if first <= day <= self.lanes._day(stamp)}
         sessions = [(s["start"], lane, s["id"]) for lane, row in self.tasks.devices.items() for s in row["sessions"]]
@@ -341,6 +352,15 @@ class HeatpumpHistory:
             sessions += [{**item, "task": task, "label": LABELS[task], "tier": tier} for item in detail["sessions"]]
         result["task_sessions"] = sorted(sessions, key=lambda item: (item["segment_start"], item["task"], item["tier"]))
         result["task_totals"] = totals
+        electrical = self._nullable_detail(self.electrical.detail("electrical_activity", day, when), stamp)
+        for item in electrical["sessions"]:
+            # This is an explicit duration band for display only, not a debounce or
+            # compressor-cycle definition. No raw event or interval is merged.
+            item["short_observed_period"] = item["duration_s"] <= MAX_GAP_S
+        electrical.update(presentation_short_threshold_s=MAX_GAP_S,
+                          note="Afzonderlijke gemeten elektrische perioden; korte perioden blijven zichtbaar. Starts/stops en meetgaten zijn onveranderd en bewijzen geen compressorstarts.")
+        result["electrical_activity"] = electrical
+        result["native_evidence"] = self.native_evidence.detail(result["date"])
         result["task_sessions_truncated"] = task_truncated
         result["sg"] = {key: self._nullable_detail(self.lanes.detail("sg_"+key, day, when), stamp)
                         for key in ("request", "contact", "received")}
@@ -352,13 +372,16 @@ class HeatpumpHistory:
     def pause_recording(self, reason="Registratie onderbroken bij herladen/afsluiten; geen uitschakeling bevestigd"):
         self.lanes.pause_recording(reason)
         self.tasks.pause_recording(reason)
+        self.electrical.pause_recording(reason)
+        self.native_evidence.pause()
         self._last_energy = self._last_stamp = self._current_task = None
         self._expiries = {}
         self.revision += 1
 
     def snapshot(self):
         return {"version": SCHEMA_VERSION, "timezone": self.timezone_name, "binding": self.binding,
-                "lanes": self.lanes.snapshot(), "tasks": self.tasks.snapshot(), "energy_days": deepcopy(self.energy_days)}
+                "lanes": self.lanes.snapshot(), "tasks": self.tasks.snapshot(), "energy_days": deepcopy(self.energy_days),
+                "electrical": self.electrical.snapshot(), "native_evidence": self.native_evidence.snapshot()}
 
     def restore(self, data, when):
         """Restore finite retained evidence, never a live continuity anchor."""
@@ -400,7 +423,23 @@ class HeatpumpHistory:
                 cleaned[day] = {"energy_kwh": kwh, "energy_known_s": known}
             except (ValueError, TypeError, OverflowError):
                 raise ValueError("Warmtepomphistoriek bevat ongeldige energietotalen") from None
+        electrical = ConsumerHistory(self.timezone_name)
+        raw_electrical = data.get("electrical")
+        if raw_electrical is not None:
+            if (not isinstance(raw_electrical, dict) or type(raw_electrical.get("version")) is not int
+                    or raw_electrical["version"] != 1 or raw_electrical.get("timezone") != self.timezone_name
+                    or not isinstance(raw_electrical.get("devices"), dict)
+                    or set(raw_electrical["devices"])-{"electrical_activity"}):
+                raise ValueError("Warmtepomphistoriek bevat ongeldige elektrische activiteit")
+            for row in raw_electrical["devices"].values():
+                if not isinstance(row, dict) or not isinstance(row.get("days"), dict) or not isinstance(row.get("sessions"), list):
+                    raise ValueError("Warmtepomphistoriek bevat ongeldige elektrische activiteit")
+                self._validate_row(row, stamp)
+            electrical.restore(raw_electrical, {"electrical_activity": self._config("Gemeten elektrische activiteit", str(data.get("binding", ""))[:256])}, when)
+        native_evidence = NativeProgrammeEvidence(self.lanes.zone)
+        native_evidence.restore(data.get("native_evidence"), stamp)
         self.lanes, self.tasks = models
+        self.electrical, self.native_evidence = electrical, native_evidence
         self.energy_days = cleaned
         self.binding = str(data.get("binding", ""))[:256]
         self._last_energy = self._last_stamp = self._current_task = None

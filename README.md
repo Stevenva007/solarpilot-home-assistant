@@ -2,11 +2,13 @@
 
 SolarPilot is een lokale Home Assistant-integratie voor zonnestroomverdeling, flexibele verbruikers, een beschermde AEG-afwasmachine, read-only Wallbox-informatie, voorspellingen, kosten, lokaal leren en batterijfuncties.
 
-**Actuele bronversie: 1.0.0-beta.79.** Panasonic regelt de warmtepomp zelfstandig. SolarPilot kan voor die warmtepomp alleen een extra SG-zonneboost aanvragen via één bewust gekoppelde bestaande Shelly-uitgang, met bewezen lokale aflooptimer. Het schrijft geen tank-/kamertemperatuur, AUTO/UIT, heaterkeuze of fabrikantprogramma. Nieuwe SG-sturing staat standaard uit tot gecontroleerde ingebruikname.
+**Actuele bronversie: 1.0.0-beta.81.** Panasonic regelt de warmtepomp zelfstandig. SolarPilot kan voor die warmtepomp alleen een extra SG-zonneboost aanvragen via één bewust gekoppelde bestaande Shelly-uitgang, met bewezen lokale aflooptimer. Het schrijft geen tank-/kamertemperatuur, AUTO/UIT, heaterkeuze of fabrikantprogramma. Nieuwe SG-sturing staat standaard uit tot gecontroleerde ingebruikname.
 
-[Installatie en veilige upgrade](START_HIER.md) · [Volledige actuele werking](docs/ACTUELE_WERKING.md) · [Beta.80 instellen](docs/BETA80_INSTELLEN.md) · [Testresultaten en publicatiestatus](docs/TESTRESULTATEN_BETA80.md) · [Auditdekking en bevindingen](docs/AUDIT_BETA79.md) · [Technische overdracht](OVERDRACHT.md)
+[Installatie en veilige upgrade](START_HIER.md) · [Volledige actuele werking](docs/ACTUELE_WERKING.md) · [Beta.81 instellen](docs/BETA81_INSTELLEN.md) · [Testresultaten en publicatiestatus](docs/TESTRESULTATEN_BETA81.md) · [Auditdekking en bevindingen](docs/AUDIT_BETA79.md) · [Technische overdracht](OVERDRACHT.md)
 
-Beta.80 herstelt de native bedrijfsstanduitlezing bij de ondersteunde oudere Aquarea-integratie. De SG-diagnose toont afzonderlijk ontbrekende bronnen, verouderde rapporten, onbekend AUTO-programma, werkelijk koelbedrijf en lokale condensbevestiging. Alle bestaande SG-, apparaat- en elektrische voorwaarden blijven gelden; sterilisatie is geen afzonderlijke SG-blokkering.
+Beta.81 herstelt de SG-onderzoeksinname op de echte runtime-grens. Begrensde checkpoints en afzonderlijk stop-/contact-/transportbewijs houden onderbroken onderzoek herkenbaar. Nieuwe bron-, forecast- en tanktijdlijnen gebruiken oorspronkelijke meldtijden; ontbrekende metingen blijven onbekend. De bestaande regeling, modellen, historie en 600 W/vijf minuten/twintig minuten minimum blijven behouden. Een uploadbaar advies is geen software-update; alleen de geïnstalleerde geteste release bepaalt implementatiestatus.
+
+De behouden beta.80-correctie herstelt de native bedrijfsstanduitlezing bij de ondersteunde oudere Aquarea-integratie. De SG-diagnose toont afzonderlijk ontbrekende bronnen, verouderde rapporten, onbekend AUTO-programma, werkelijk koelbedrijf en lokale condensbevestiging. Alle bestaande SG-, apparaat- en elektrische voorwaarden blijven gelden; sterilisatie is geen afzonderlijke SG-blokkering.
 
 Vanaf beta.70 opent **Geschiedenis** bij de warmtepomp een lokale dagtijdlijn met geregistreerde activiteit, starts/stops, bevestigde of afgeleide taken, meetdekking en gemeten totale elektrische energie. Zeven/dertig-dagenbalken en afzonderlijke SG-aanvraag/contact/ontvangen-status maken het verloop zichtbaar. Registratie begint na installatie; oude gegevens blijven behouden en onbekende perioden worden niet ingevuld. De popup is uitsluitend uitlezen.
 
@@ -53,7 +55,7 @@ Bij **Analyse nodig** maakt één klik een export van de beschikbare zeven dagen
 
 ## Herstel van de beta.62-opstartfout
 
-Update via HACS naar beta.79 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.79 vraagt geen herbevestiging alleen door de codeupdate.
+Update via HACS naar beta.81 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.81 vraagt geen herbevestiging alleen door de codeupdate.
 
 ## Upgrade vanaf beta.61
 

@@ -2,7 +2,7 @@
 
 Run build_example.py first. No account, HA instance, network or actuator writes.
 """
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 import os
 from pathlib import Path
 import shutil
@@ -59,7 +59,22 @@ def fixture(day):
                 energy_kwh=1.76 if registered else None, energy_known_s=10000 if registered else 0,
                 sessions=sessions, task_sessions=tasks,
                 task_totals=[dict(task=t["task"], label=t["label"], tier=t["tier"], on_s=t["duration_s"]) for t in tasks],
-                days=days, sg=lanes, events=[dict(at=f"{day}T11:00:00+02:00", reason="Meetonderbreking · fictieve melding")],
+                days=days, sg=lanes,
+                native_evidence={"schema": 1, "read_only": True, "points": [{
+                    "captured_at": datetime.fromisoformat(f"{day}T12:40:00+02:00").timestamp(), "continuity": True,
+                    "native": {"confirmed": False, "inactive_reported": True, "inactive_scope": "space_circuit",
+                               "reported_at": datetime.fromisoformat(f"{day}T12:39:55+02:00").timestamp(), "fresh": True},
+                    "tank": {"temperature_c": 57, "temperature_reported_at": datetime.fromisoformat(f"{day}T12:39:56+02:00").timestamp(),
+                             "ordinary_target_c": 50, "ordinary_target_reported_at": datetime.fromisoformat(f"{day}T12:39:53+02:00").timestamp()},
+                    "effective_target": {"temperature_c": None, "status": "unknown"}, "completion": {"state": "unknown"},
+                    "supplies": [{"valid": False, "watts": None, "reported_at": None},
+                                 {"valid": True, "watts": 0, "reported_at": datetime.fromisoformat(f"{day}T12:39:58+02:00").timestamp()}]
+                }] if registered else []},
+                electrical_activity={"has_data": registered, "starts": 1 if registered else 0, "stops": 1 if registered else 0,
+                    "sessions": [dict(session(day, "12:30", "12:31"), duration_s=5, short_observed_period=True,
+                                      end=f"{day}T12:30:05+02:00", observed_until=f"{day}T12:30:05+02:00",
+                                      segment_end=f"{day}T12:30:05+02:00", width_pct=5/864)] if registered else []},
+                events=[dict(at=f"{day}T11:00:00+02:00", reason="Meetonderbreking · fictieve melding")],
                 note="Lokale waarnemingen; geen startopdracht naar de warmtepomp.")
 
 
@@ -122,6 +137,22 @@ with sync_playwright() as playwright:
     assert "extra verbruik door SG is niet vastgesteld" in dialog.inner_text(), "SG causal energy must remain unclaimed"
     host.locator('details[data-history-key=coverage]>summary').click()
     assert "Ontbrekende perioden blijven onbekend" in dialog.inner_text(), "gaps must remain unknown"
+    host.locator('details[data-history-key=native]>summary').click()
+    native = host.locator('details[data-history-key=native]')
+    assert "Native ruimtekring in rust" in native.inner_text(), "scoped idle cannot become whole-HP inactivity"
+    assert "57 °C" in native.inner_text() and "50 °C" in native.inner_text(), "temperature and ordinary target remain separate"
+    assert "Effectief doel" in native.inner_text() and "Native voltooiing" in native.inner_text(), "unknown programme target/result remain separate"
+    assert "12:40" in native.inner_text() and "12:39" in native.inner_text(), "capturetime must remain distinct from original reports"
+    assert "0 W" in native.inner_text() and "onbruikbaar / ontbreekt" in native.inner_text(), "true zero and unknown feed stay different"
+    host.locator('details[data-history-key=electrical]>summary').click()
+    electrical = host.locator('details[data-history-key=electrical]')
+    assert "5 s" in electrical.inner_text() and "≤ 30 s" in electrical.inner_text(), "short raw activity remains visible"
+    assert "compressorstarts" in electrical.inner_text() and "Geen perioden samengevoegd" in electrical.inner_text(), "raw interval semantics remain explicit"
+    for width in (320, 390, 768, 1280):
+        page.set_viewport_size({"width": width, "height": 1000})
+        assert dialog.evaluate("d=>d.scrollWidth<=d.clientWidth+1"), (width, "new open evidence table must scroll within the modal")
+        assert page.evaluate("c._heatpumpHistoryDialog._scroll.scrollWidth<=c._heatpumpHistoryDialog._scroll.clientWidth+1"), (width, "new proof overflow outside scroll wrapper")
+    page.set_viewport_size({"width": 390, "height": 844})
 
     # The actual dialog node, scroll and open explanations survive 80 complete
     # telemetry renders. Opaque recording metadata refreshes the live fragment
@@ -134,7 +165,7 @@ with sync_playwright() as playwright:
     assert page.evaluate("c._heatpumpHistoryDialog._dialog===hpDialogNode && hpDialogNode.open"), "80 card renders must preserve native dialog node"
     assert page.evaluate("c._heatpumpHistoryDialog._scroll.scrollTop===hpSavedScroll"), "80 renders must preserve popup scroll"
     assert page.evaluate("hpReads.length===hpReadsBefore"), "unchanged history revision must not refetch on card renders"
-    for key in ("sg", "coverage"):
+    for key in ("sg", "coverage", "native", "electrical"):
         assert host.locator(f'details[data-history-key={key}]').get_attribute("open") is not None, (key, "Details lost across card renders")
     page.evaluate("""()=>{window.hpSignatureBefore=c._observationSignature;
       c._last.attributes.panasonic.history.recording=false;c._last.attributes.panasonic.history.revision++;

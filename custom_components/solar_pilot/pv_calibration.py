@@ -11,6 +11,7 @@ from statistics import median
 import math
 import calendar
 from .pv_forecast_source import finite
+from .pv_forecast_evidence import context as forecast_context_proof, iso
 
 PRESETS = {"slow": (.025, 7), "normal": (.05, 5), "responsive": (.075, 5)}
 EDGE_MAX_BINS = 1600
@@ -44,6 +45,7 @@ class PVCalibration:
         self.settings=settings; self.bins={}; self.edge_evidence={}; self.history=deque(maxlen=2880)
         self.counts=Counter(); self.window=None; self.samples=[]; self.started=None
         self.last_observation=None; self.last_meter_stamp=None; self.binding=None
+        self.last_meter_value=None
         self.last_reason="Wachten op meetgegevens"; self.revision=0
         self._unsupported_snapshot=None
 
@@ -204,12 +206,13 @@ class PVCalibration:
             return details["factor"],0.,0,details["source"]
         return details["factor"],details["confidence"],details["days"],details["source"]
 
-    def observe(self, *, now, actual_w, raw_w, meter_stamp, azimuth=None, elevation=None, binding=""):
+    def observe(self, *, now, actual_w, raw_w, meter_stamp, azimuth=None, elevation=None, binding="", forecast_context=None):
         ts=now.timestamp()
         meter_stamp=finite(meter_stamp)
         if self.started is None or ts<self.started:
             self.started=ts; self.window=None; self.samples=[]
             self.last_observation=None; self.last_meter_stamp=None
+            self.last_meter_value=None
         if self.binding is None:
             self.binding=binding
         elif binding != self.binding:
@@ -225,6 +228,16 @@ class PVCalibration:
             return
         self.last_observation=ts
         actual,raw=finite(actual_w),finite(raw_w)
+        # Diagnostic classification does not change any learning eligibility.
+        source_status="fresh"
+        if meter_stamp is None:
+            source_status="missing"
+        elif not -5<=ts-meter_stamp<=120:
+            source_status="stale"
+        elif self.last_meter_stamp is not None and meter_stamp<self.last_meter_stamp:
+            source_status="out_of_order"
+        elif self.last_meter_stamp is not None and meter_stamp==self.last_meter_stamp:
+            source_status="conflicting" if actual!=self.last_meter_value else "duplicate"
         reason=""
         if not self.settings.get("calibration_enabled"):
             reason="Kalibratie uitgeschakeld"
@@ -246,8 +259,13 @@ class PVCalibration:
         if (meter_stamp is not None and -5<=ts-meter_stamp<=120
                 and (self.last_meter_stamp is None or meter_stamp>self.last_meter_stamp)):
             self.last_meter_stamp=meter_stamp
+            self.last_meter_value=actual
         factor,_,_,_=self.factor(now,azimuth,elevation)
-        self.samples.append({"ts":ts,"actual":actual,"raw":raw,"factor":factor,"az":finite(azimuth),"el":finite(elevation),"reason":reason})
+        try:proof=forecast_context_proof(forecast_context)
+        except Exception:proof=None
+        self.samples.append({"ts":ts,"actual":actual,"raw":raw,"factor":factor,"az":finite(azimuth),"el":finite(elevation),"reason":reason,
+                             "meter_stamp":meter_stamp,"source_status":source_status,
+                             "forecast_context":proof})
         self.samples=self.samples[-20:]
         self.last_reason=reason or "Kwartiermetingen verzamelen"
 
@@ -324,10 +342,13 @@ class PVCalibration:
             reason=("Gebruikt: herhaalde stabiele overgang met vergelijkbaar seizoenbewijs; oorzaak onbekend"
                     if edge is not None else "Gebruikt: rustig, volledig kwartier zonder clipping")
         self.counts["accepted" if accepted else "rejected"]+=1
+        try:evidence_fields={"observation_evidence":self._observation_evidence(rows)}
+        except Exception as err:evidence_fields={"observation_evidence_error":type(err).__name__}
         self.history.append({"time":dt.isoformat(),"raw_w":raw,"corrected_w":corrected,"actual_w":actual,
             "error_w":round(actual-raw,1) if actual is not None and raw is not None else None,
             "error_pct":round((actual-raw)/raw*100,1) if actual is not None and raw is not None and raw>=400 else None,
             "factor":round(applied,3),"accepted":accepted,"reason":reason,"samples":len(rows),
+            **evidence_fields,
             **({"edge_candidate":True,"edge_candidate_days":max(state["days"] for state in edge_states.values()),
                  "edge_candidate_state":"trusted" if accepted else "pending" if all(state["state"]!="inconsistent" for state in edge_states.values()) else "inconsistent",
                  "edge_direction":edge["direction"],"edge_offset_s":round(edge["offset_s"],1)} if edge is not None else {})})
@@ -338,6 +359,94 @@ class PVCalibration:
         if len(self.bins)>1600:
             for k in list(self.bins)[:len(self.bins)-1600]:del self.bins[k]
         self.last_reason=reason;self.revision+=1
+
+    @staticmethod
+    def _observation_evidence(rows):
+        """Explain rejected parts even when the remaining median is finite."""
+        reasons=Counter(row["reason"] for row in rows if row["reason"])
+        statuses=Counter(row.get("source_status","missing") for row in rows)
+        reports=sorted({value for row in rows if (value:=finite(row.get("meter_stamp"))) is not None and 0<=value<=32503680000})
+        times=[row["ts"] for row in rows]
+        quarter=int(times[0]//900)*900
+        contexts=[];seen=set()
+        for row in rows:
+            proof=forecast_context_proof(row.get("forecast_context"))
+            if proof is None:continue
+            signature=(proof["source_context_id"],proof["source_reported_at"],proof["local_data_observed_at"],proof["value_origin"])
+            if signature not in seen and len(contexts)<4:
+                seen.add(signature);contexts.append(proof)
+        return {"version":1,"observations":len(rows),
+                "valid_observations":sum(not row["reason"] for row in rows),
+                "rejected_observations":sum(bool(row["reason"]) for row in rows),
+                "rejection_reasons":[{"reason":reason,"count":count} for reason,count in reasons.most_common(12)],
+                "original_reports":{"distinct":len(reports),
+                    **{name:statuses[name] for name in ("missing","stale","duplicate","conflicting","out_of_order")},
+                    "first_at":iso(reports[0]) if reports else None,"last_at":iso(reports[-1]) if reports else None,
+                    "span_s":reports[-1]-reports[0] if len(reports)>1 else 0. if reports else None,
+                    "max_gap_s":max((b-a for a,b in zip(reports,reports[1:])),default=0.) if reports else None},
+                "coverage":{"quarter_start_at":iso(quarter),"quarter_end_at":iso(quarter+900),
+                    "first_observed_at":iso(times[0]),"last_observed_at":iso(times[-1]),
+                    "span_s":times[-1]-times[0],"max_gap_s":max((b-a for a,b in zip(times,times[1:])),default=0.)},
+                "forecast_contexts":contexts,
+                "coverage_note":"Span en brontijdgrenzen bewijzen geen continue dekking; alle bestaande kwartiercriteria blijven gelden"}
+
+    @staticmethod
+    def _clean_observation_evidence(value):
+        if not isinstance(value,dict) or type(value.get("version")) is not int or value["version"]!=1:return None
+        def count(number):
+            number=finite(number)
+            return int(number) if number is not None and number.is_integer() and 0<=number<=20 else None
+        result={key:count(value.get(key)) for key in ("observations","valid_observations","rejected_observations")}
+        if any(v is None for v in result.values()) or result["valid_observations"]+result["rejected_observations"]!=result["observations"]:return None
+        reasons=value.get("rejection_reasons")
+        if not isinstance(reasons,list) or len(reasons)>12:return None
+        clean_reasons=[]
+        for row in reasons:
+            if not isinstance(row,dict) or not isinstance(row.get("reason"),str):return None
+            n=count(row.get("count"))
+            if n is None or not n or not row["reason"] or len(row["reason"])>240:return None
+            clean_reasons.append({"reason":row["reason"],"count":n})
+        if sum(row["count"] for row in clean_reasons)!=result["rejected_observations"]:return None
+        from .pv_forecast_source import stamp
+        clean_sections={}
+        for name,timekeys,numberkeys in (("coverage",("quarter_start_at","quarter_end_at","first_observed_at","last_observed_at"),("span_s","max_gap_s")),
+                                       ("original_reports",("first_at","last_at"),("span_s","max_gap_s"))):
+            section=value.get(name)
+            if not isinstance(section,dict):return None
+            clean={}
+            for key in timekeys:
+                ts=stamp(section.get(key))
+                if ts is None:
+                    if name!="original_reports" or section.get(key) is not None:return None
+                    clean[key]=None
+                elif not 0<=ts<=32503680000:return None
+                else:clean[key]=iso(ts)
+            for key in numberkeys:
+                number=finite(section.get(key))
+                if number is None:
+                    if name!="original_reports" or section.get(key) is not None:return None
+                    clean[key]=None
+                elif not 0<=number<=32503680000:return None
+                else:clean[key]=number
+            if name=="original_reports":
+                for key in ("distinct","missing","stale","duplicate","conflicting","out_of_order"):
+                    clean[key]=count(section.get(key))
+                    if clean[key] is None:return None
+                if clean["distinct"]>result["observations"]:return None
+                if sum(clean[key] for key in ("missing","stale","duplicate","conflicting","out_of_order"))>result["observations"]:return None
+                if bool(clean["distinct"]) != (clean["first_at"] is not None and clean["last_at"] is not None):return None
+                if clean["distinct"]:
+                    first,last=stamp(clean["first_at"]),stamp(clean["last_at"])
+                    if first>last or clean["span_s"]!=last-first or clean["max_gap_s"] is None or clean["max_gap_s"]>clean["span_s"]:return None
+                elif clean["span_s"] is not None or clean["max_gap_s"] is not None:return None
+            else:
+                start,end,first,last=(stamp(clean[key]) for key in timekeys)
+                if end-start!=900 or not start<=first<=last<end or clean["span_s"]!=last-first or clean["max_gap_s"]>clean["span_s"]:return None
+            clean_sections[name]=clean
+        contexts=value.get("forecast_contexts")
+        return {"version":1,**result,"rejection_reasons":clean_reasons,**clean_sections,
+                "forecast_contexts":[proof for row in (contexts[:4] if isinstance(contexts,list) else []) if (proof:=forecast_context_proof(row)) is not None],
+                "coverage_note":"Span en brontijdgrenzen bewijzen geen continue dekking; alle bestaande kwartiercriteria blijven gelden"}
 
     @staticmethod
     def _stable_edge(rows,ratios):
@@ -390,6 +499,7 @@ class PVCalibration:
             self.bins={};self.edge_evidence={};self.history.clear();self.counts=Counter()
             self.binding=None;self.started=None;self.window=None;self.samples=[]
             self.last_observation=None;self.last_meter_stamp=None
+            self.last_meter_value=None
             self.last_reason="Opgeslagen PV-modelversie niet ondersteund; oorspronkelijke opslag behouden"
             return
         self._unsupported_snapshot=None
@@ -437,12 +547,16 @@ class PVCalibration:
                     clean.update(edge_candidate=True,edge_candidate_state=state,edge_direction=direction,
                                  edge_candidate_days=max(0,min(EDGE_MAX_DAYS,int(finite(row.get("edge_candidate_days")) or 0))),
                                  edge_offset_s=offset)
+            evidence=self._clean_observation_evidence(row.get("observation_evidence"))
+            if evidence is not None and evidence["observations"]==clean["samples"]:
+                clean["observation_evidence"]=evidence
             self.history.append(clean)
         self.history=deque(sorted(self.history,key=lambda x:datetime.fromisoformat(x["time"]).timestamp()),maxlen=2880)
         counts=data.get("counts",{})
         self.counts=Counter({str(k)[:64]:max(0,min(10**12,int(v))) for k,x in (counts.items() if isinstance(counts,dict) else []) if (v:=finite(x)) is not None})
         self.revision=max(0,int(finite(data.get("revision")) or 0));self.started=None;self.window=None;self.samples=[]
         self.last_observation=None;self.last_meter_stamp=None
+        self.last_meter_value=None
 
     def summary(self):
         days=set()
