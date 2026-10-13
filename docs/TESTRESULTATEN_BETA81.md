@@ -33,6 +33,8 @@ De lokale volledige sweep is geslaagd: **5399 tests in 166,95 seconden**, Python
 
 De oorspronkelijke Forecast.Solar-uitgiftetijd blijft onbekend omdat de actuele HA-adapter haar niet levert; lokale vastlegging vóór het doel is afzonderlijk bewijs. Ook effectief native hygiënedoel en native voltooiing blijven onbekend zonder passende bron. De template-inspectie gebruikt uitsluitend de exact gekoppelde geladen state-template en haar succesvolle getypeerde RenderInfo; dynamische/brede of niet ondersteunde afhankelijkheden blijven begrensd/onvolledig. De relevante contractbestanden zijn gelijk voor Core 2026.10.0 en .1; de echte-Core-gate toetst de werkelijke typen en verzekert dat diagnostiek geen template rendert of ververst.
 
+De aanvullende PV-browserproef gebruikt semantische detailsleutels en toetst vooraf vastgelegde waarden, afgekeurd kwartierbewijs, escape en behoud van open secties wanneer het kwartieraantal verandert. De optionele ingebouwde templatecomponent staat als after_dependency vermeld; bestaande templates worden uitsluitend geïnspecteerd, niet gerenderd of opnieuw ingesteld.
+
 Nog niet uitgevoerde proeven worden niet als geslaagd voorgesteld. De onafhankelijke diffreview is akkoord; fysieke apparaatacceptatie valt buiten deze softwareproeven.
 
 ## CI en publicatie op dezelfde exacte bron

@@ -33,6 +33,22 @@ r.pv_forecast.cached["calibration"]=r.pv_forecast.factor_details(view_now,190,35
 print(json.dumps(r.pv_forecast.diagnostics()))
 '''
 fixture=json.loads(subprocess.check_output([sys.executable,'-B','-c',fixture_script],cwd=ROOT,text=True))
+# Explicit fictional UI evidence. This does not claim provider issue times or
+# turn the model's current-error population into forward forecast accuracy.
+fixture["forecast_evidence"] = {"version": 1, "summary": {
+ "ahead_comparisons": 24, "distinct_days": 4,
+ "by_recorded_lead": [{"label": "1–3 uur", "samples": 24, "distinct_days": 4, "mae_w": 900}],
+ "planning_margin_comparison": {"status": "comparison_only", "margin_w": 500,
+   "applied": False, "reason": "Fictieve vergelijking op een apart bewaarde laatste dag"}}}
+latest_day = max(str(row["time"])[:10] for row in fixture["history"])
+proof_quarter = next(row for row in reversed(fixture["history"]) if str(row["time"])[:10] == latest_day)
+proof_quarter.update(accepted=False, reason="Fictief geweigerd: één ongeldige deelmeting",
+ actual_w=580, raw_w=1700, corrected_w=1360, error_w=-1120, error_pct=-1120/1700*100,
+ observation_evidence={"version": 1, "valid_observations": 8, "rejected_observations": 1,
+  "rejection_reasons": [{"reason": "invalid", "count": 1}],
+  "original_reports": {"distinct": 9, "max_gap_s": 30},
+  "coverage_note": 'Fictief bronbewijs <img src=x onerror="window.proofInjected=true">'})
+fixture["browser_fixture_quarter_time"] = proof_quarter["time"]
 errors=[]
 with sync_playwright() as p:
  b=p.chromium.launch(executable_path=shutil.which('chromium'),headless=True,args=['--no-sandbox'])
@@ -62,12 +78,32 @@ with sync_playwright() as p:
  assert host.locator('svg').count()==1
  assert '10 kW' in host.locator('dialog').inner_text() and '13,8 kWp' in host.locator('dialog').inner_text()
  assert page.evaluate('deviceCalls.length')==0
- host.locator('details summary').click()
+ source_details = host.locator('details[data-pv-key="sources"]')
+ assert source_details.count() == 1
+ source_details.locator(':scope > summary').click()
+ ahead_details = host.locator('details[data-pv-key="ahead"]')
+ assert ahead_details.count() == 1
+ ahead_details.locator(':scope > summary').click()
+ assert '24 vergelijkingen uit 4 dagen' in ahead_details.inner_text()
+ assert 'uitgiftetijd van de oorspronkelijke provider is onbekend' in ahead_details.inner_text()
+ assert 'Niet toegepast' in ahead_details.inner_text() and '500 W' in ahead_details.inner_text()
+ quarter_key = "quarter:" + fixture["browser_fixture_quarter_time"]
+ quarter_details = host.locator(f'details[data-quarter-proof][data-pv-key="{quarter_key}"]')
+ assert quarter_details.count() == 1
+ assert quarter_details.get_attribute('data-pv-key') == quarter_key
+ quarter_details.locator(':scope > summary').click()
+ assert '8 geldig · 1 afgewezen · 9 verschillende bronrapporten' in quarter_details.inner_text()
+ assert 'Ongeldige meting: 1' in quarter_details.inner_text()
+ assert '30 s' in quarter_details.inner_text()
+ assert '<img src=x' in quarter_details.inner_text(), 'original quarter proof must remain inert text'
+ assert host.locator('img').count() == 0 and page.evaluate('window.proofInjected||false') is False
  page.evaluate('''()=>{c._pvDialog._scroll.scrollTop=650;window.oldScroll=c._pvDialog._scroll.scrollTop;window.oldDay=c._pvDialog._days.value;
   for(let i=0;i<80;i++){let a=structuredClone(c._last.attributes);a.grid_w=-300-i;c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{state:'Zonnestroom',attributes:a}}};}}''')
  assert host.locator('dialog').is_visible()
  assert page.evaluate('Math.abs(c._pvDialog._scroll.scrollTop-oldScroll)<2 && c._pvDialog._days.value===oldDay')
- assert host.locator('details').get_attribute('open') is not None
+ assert source_details.get_attribute('open') is not None
+ assert ahead_details.get_attribute('open') is not None
+ assert quarter_details.get_attribute('open') is not None
  assert page.evaluate('pvCalls.length')==1 # no periodic history fetch from 5s updates
  for width in (320,390,768,1440):
   page.set_viewport_size({'width':width,'height':1120})
@@ -77,8 +113,14 @@ with sync_playwright() as p:
  host.locator('dialog').screenshot(path=str(OUT/'SolarPilot-beta33-PV-diagnose.png'))
  # Day changing and refresh preserve selected date/details.
  second=host.locator('select option').nth(1).get_attribute('value');host.locator('select').select_option(second)
+ before_quarters = host.locator('table.history tbody tr').count()
+ assert page.evaluate('''day=>{let removed=false;pvData.history=pvData.history.filter(row=>{
+  if(!removed&&String(row.time).slice(0,10)===day){removed=true;return false;}return true;});return removed;}''', second)
  host.locator('button[data-action=refresh]').click();page.wait_for_timeout(100)
+ assert host.locator('table.history tbody tr').count() == before_quarters-1, 'a changing quarter set must not move the source-details open state'
  assert host.locator('select').input_value()==second
+ assert source_details.get_attribute('open') is not None, 'source details keep their own open state when quarter count changes'
+ assert ahead_details.get_attribute('open') is not None, 'ahead evidence remains separate from day-specific quarters'
  # Malicious raw messages stay text.
  page.evaluate("pvData.summary.warning='<img src=x onerror=window.pwned=1>';pvData.history[0].reason='<script>window.pwned=1</script>'")
  host.locator('button[data-action=refresh]').click();page.wait_for_timeout(100)
@@ -120,4 +162,4 @@ with sync_playwright() as p:
  assert page.evaluate('deviceCalls.length')==0
  assert not errors,errors
  b.close()
-print('PV UI: modal, curve/history, day selection, 320/390/768/1440, 80 updates, no repeated history polling, escaping, errors, confirmed reset, stale responses, real option help: OK')
+print('PV UI: modal, curve/history, semantic source details, ahead issue unknown, rejected original quarter proof, day selection, 320/390/768/1440, 80 updates, no repeated history polling, escaping, errors, confirmed reset, stale responses, real option help: OK')

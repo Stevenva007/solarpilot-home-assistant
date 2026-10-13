@@ -2,7 +2,8 @@
   "domain": "solar_pilot",
   "name": "SolarPilot",
   "after_dependencies": [
-    "shelly"
+    "shelly",
+    "template"
   ],
   "codeowners": [
     "@StevenVa007"
