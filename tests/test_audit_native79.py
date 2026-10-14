@@ -141,9 +141,12 @@ async def test_timer_takeover_during_production_preflight_has_no_renewal_write(n
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("expired", [False, True])
-async def test_restart_read_failure_can_reconcile_original_lease_on_later_report(expired):
+async def test_legacy_restart_read_failure_can_reconcile_original_lease_on_later_report(expired):
     old, adapter, clock, runtime = await boosted()
     stored = old.snapshot()
+    # Pre-beta.84 journals have no confirmed session checkpoint and remain
+    # release-only. New checkpoint continuity has separate beta.84 tests.
+    stored.pop("session_checkpoint")
     manager, _, _, _ = sg_fixture()
     manager._clock = manager._wall_clock = clock
     manager._adapter = adapter
@@ -208,12 +211,14 @@ async def test_unread_restart_later_manual_timer_is_preserved_without_off(change
 
 
 @pytest.mark.asyncio
-async def test_recovery_off_disconnect_does_not_retry_or_outlive_proven_local_lease():
+async def test_legacy_recovery_off_disconnect_does_not_retry_or_outlive_proven_local_lease():
     previous, adapter, clock, _ = await boosted()
     manager, _, _, _ = sg_fixture()
     manager._clock = manager._wall_clock = clock
     manager._adapter = adapter
-    manager.restore(previous.snapshot())
+    stored = previous.snapshot()
+    stored.pop("session_checkpoint")
+    manager.restore(stored)
     adapter.online = False
     await manager.start()
     clock.advance(30)

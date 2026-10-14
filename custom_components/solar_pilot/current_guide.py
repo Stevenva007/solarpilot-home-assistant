@@ -3,13 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.83'
+GUIDE_VERSION = '1.0.0-beta.84'
 GUIDE_UPDATED = '2026-10-14'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.83',
+ 'version': '1.0.0-beta.84',
  'updated': '2026-10-14',
- 'intro': ("Beta.83 herkent de bekende Aquarea-bronsemantiek die een onterechte globale OFF kan opleveren. De uitsluitend uitlezende taakweergave gebruikt passende actuele pomp-, richting-, zone- en tankvelden. Een lokaal bevestigd tapwaterpercentage maakt een berekend SG-doel zichtbaar naast het gewone doel en echte contactbewijs. Onderzoek onderscheidt eerdere beoordeling van actuele waarneming; vooruit-PV-scores scheiden daglicht en nacht en ongeldige uitgiftetijden blijven onbekend. SG-regeling, leren, 600 W/vijf minuten/twintig minuten minimum, harde grenzen en bestaande privégegevens blijven behouden."),
+ 'intro': ('Beta.84 voegt tijdelijke SG-bediening toe: Aan of Uit voor 30 of 60 minuten, daarna automatisch terug naar Automatisch. Een herstart controleert verse voorwaarden en kan een passende nog actieve eigen SG-sessie zonder onnodige contactwissel voortzetten. De absolute eindtijd, oorspronkelijke sessiegrenzen en korte lokale timer blijven behouden. Handmatig Aan is een bewuste vraag die de zonne- en zachte wachtvoorwaarden vervangt; elektrische grenzen, bruikbare bronnen, ingebruikname, profiel, koelbeveiliging, voorrang en globale modus blijven leidend. Panasonic bepaalt haar eigen bedrijf. De bron-/doelweergave, PV-diagnose, leren, overige apparaten en oude gegevens uit beta.83 blijven behouden.'),
  'sections': [{'title': '1. Basisprincipe en modi',
                'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele '
                               'net- en PV-metingen, echte toestelvoorwaarden en elektrische grenzen gaan '
@@ -181,6 +181,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                                'warmtepompmeting ontstaat geen extra credit. Standaard blijven 3000 W '
                                'startdrempel en 3200 W aparte conservatieve raming van mogelijke extra '
                                'SG-vraag; je bestaande waarden blijven staan.'),
+                              'De bestaande inschakelklok kan tijdens een korte zachte zondip of tijdelijk ontbrekende/verouderde meting maximaal vijf minuten blijven doorlopen. Een verstreken klok geeft dan alleen wachten op herstel: AAN volgt uitsluitend nadat nieuwe actuele betrouwbare bronnen opnieuw voldoende zonnebijdrage en alle harde voorwaarden bevestigen. Een ontbrekende meting wordt geen nul en bewijst geen wolk. Keert volledige verse vrijgave binnen dit venster terug, dan hoeft de hele startvertraging niet opnieuw. Een langere onderbreking, bekende harde blokkering, Pauze of gewijzigde binding reset de opbouw. Dit verruimt geen bronactualiteit en geeft geen AAN op oude data.',
                               'Standaardvertraging voor starten blijft 120 seconden, met 900 seconden '
                               'rust tussen sessies en maximaal 3600 seconden per sessie. De standaard '
                               'wolkenbuffer is nu 600 W netafname met 300 seconden aaneengesloten '
@@ -209,7 +210,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'bevestigde lease en het harde maximum; een schermklok maakt oude '
                               'brondata niet vers.',
                               ('De minimumduur begint pas na bevestigde contact-AAN. Leasevernieuwing '
-                               'reset haar niet; reload geeft geen nieuw minimum of AAN-recht. De '
+                               'reset haar niet; herstart of reload geeft geen nieuw minimum of nieuwe sessie. De '
                                'tekorttimer loopt tijdens het minimum door. Begint netafname boven 600 '
                                'W in minuut 18, dan zijn vijf continue minuten pas in minuut 23 '
                                'voltooid en kan dan pas gewone vrijgave worden beoordeeld. Zijn vijf '
@@ -289,39 +290,81 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                                'alle startvoorwaarden; de diagnose schrijft of reset niets.'),
                               'De kaart en Details tonen de lopende herbeoordeling afzonderlijk van de gewone startvertraging. Nieuwe zonneperiode bevestigen duurt binnen de bestaande policy 300 seconden met echte nieuwe bronrapporten; eventuele reset- of native bewijsfasen houden hun eigen betekenis. Daarna kan de ingestelde startvertraging beginnen, standaard 120 seconden, terwijl alle actuele voorwaarden blijven gelden. Nul resterende bevestigingsseconden is geen starttoestemming: een passend actueel eindrapport en de bestaande beoordelingen zijn nog nodig. Oude brondata verbergt de lopende teller. De uitleesweergave start geen sessie en verandert geen timer, guard, minimumtijd, rangorde of herstartbeleid.'],
                'bullets': []},
-              {'title': '5. Lokale SG-terugval en handmatige bediening',
-               'paragraphs': ['Opstartstand UIT is geen uitschakeling bij wifi- of Home Assistant-uitval. Daarom gebruikt automatische SG-bediening een lokaal op de Shelly aflopende toestemming: standaard 300 seconden geldig, vernieuwd iedere 60 seconden zolang de actuele boost toegestaan blijft. Vernieuwing moet de timer verlengen zonder het relais uit/aan te schakelen. De korte communicatietoestemming staat los van de langere maximale boostsessie. Iedere vernieuwing is ook begrensd tot de resterende sessieduur. Tegen het sessie-einde blijft een toereikende bestaande timer lopen zonder nieuwe volle lease; de aanvraag kan de ingestelde bevestigingsmarge eerder eindigen. Afloop geeft geen recht op een nieuwe sessie of oude ON-replay. Een tijdens netwerkcontrole aantoonbaar gewijzigde handmatige timer trekt eigendom in voordat een nieuwe opdracht wordt verzonden. Een onzekere AAN of vernieuwing wordt niet herhaald; taakannulering volgt dezelfde onzekerheidsafhandeling. Als een oude opdracht na herstart eerst onleesbaar was, mag een latere passende rapportage alleen de bestaande veilige vrijgave afronden, nooit een oude AAN hervatten. Ook een geannuleerde UIT houdt haar onzekerheid en rust-/sessieafsluiting vast. Een latere echte UIT kan volgens de bestaande herstelregel de fout opheffen; de rusttijd blijft gelden en een onzekere UIT wordt niet blind herhaald.',
-                              'Zonder ondersteunde, echt gecontroleerde lokale aflooptimer geen automatische '
-                              'boost. De software registreert expliciete AAN/UIT-opdrachten, nooit een blinde '
-                              'toggle. Een geaccepteerde serviceaanroep bewijst geen relaisstand, lopende '
-                              'lokale timer of fysieke Panasonic-reactie. Bij onbereikbaarheid blijft de '
-                              'uitgang onbekend; er komt geen fictieve UIT-bevestiging en geen eindeloze '
-                              'retry.',
-                              'Pauze, uitschakelen van SG-optimalisatie, gewijzigde koppeling en unload '
-                              'annuleren oude vernieuwingen en trekken de eigen aanvraag in waar betrouwbaar '
-                              'mogelijk. Een lokale timer laat die aanvraag ook zonder Home Assistant '
-                              'verlopen. Een late AAN-terugmelding verleent geen nieuwe toestemming. Na '
-                              'herstart wordt een achtergebleven eigen aanvraag eerst verzoend/vrijgegeven en '
-                              'volgt een nieuwe beoordeling met verse gegevens, geen replay.',
-                              'Een werkelijk handmatige wijziging wordt gerespecteerd. Een buiten SolarPilot '
-                              'ingeschakeld contact heeft niet automatisch een door SolarPilot bewezen lokale '
-                              'timer. Automatisering hervatten is een afzonderlijke duidelijke keuze; zij '
-                              'start geen boost zonder actuele voorwaarden. Een eigen vertraagde terugmelding '
-                              'of lokaal verlopen toestemming wordt niet zonder bewijs als gebruikershandeling '
-                              'behandeld.',
-                              'Langdurig laag gemeten vermogen is geen opdracht om de Shelly te pulsen, de '
-                              'warmtepomp te herstarten of een Force-/heateropdracht te geven. Na twintig '
-                              'minuten nieuwe actuele lage vermogensrapporten zonder bevestigde '
-                              'compressoractiviteit verschijnt één diagnose in Details en op de bestaande '
-                              'tijdlijn: SG-contact actief; extra warmteopname nog niet aangetoond. Dit is '
-                              'geen fout of grond om gezonde andere toestellen te blokkeren. De lage grens '
-                              'dient alleen diagnose, geen start- of veiligheidsdrempel. Aanvraag, fysieke '
-                              'relaiswissel, timervernieuwing, beschikbare native context en metingen blijven '
-                              'binnen de bestaande begrensde tijdlijn.',
-                              'De lokale timer is geen vervanging voor elektrische beveiliging en geen '
-                              'absolute garantie bij bijvoorbeeld een vastgelast contact. Deze release vraagt '
-                              'geen extra heaterrelais, broker, server, cloudregelaar of wijziging aan '
-                              'bedrading of DIP-schakelaars.'],
+              {'title': '5. Lokale SG-terugval, tijdelijke bediening en herstart',
+               'paragraphs': ['Naast de SG-contactstand kies je Automatisch, Aan 30 min, Aan 1 uur, Uit 30 min of Uit 1 uur, '
+                              'in Overzicht of op het warmtepomptabblad. SolarPilot bewaart de keuze en haar absolute '
+                              'eindtijd vóór verdere bediening; herladen of herstarten begint de tijd niet opnieuw. De '
+                              'resterende tijd en eventuele blokkering blijven zichtbaar. De kaart wacht op echte '
+                              'backendstatus en verandert de gemelde contactstand niet alvast na een klik. Je kunt '
+                              'tussentijds Automatisch kiezen. Bij afloop wordt de keuze automatisch Automatisch en volgt '
+                              'een nieuwe actuele beoordeling. Tijdelijke Uit onderdrukt alleen de eigen SG-aanvraag: zij '
+                              'schakelt de warmtepomp of een Panasonic-cyclus niet uit.',
+                              'Tijdelijk Aan is een bewuste SG-vraag met mogelijke netafname. Zij vervangt '
+                              'zonne-startdrempel en startvertraging, gewone rust, de beleidswacht op een nieuwe aanleiding '
+                              'en de zachte importvrijgave. De echte ingestelde net-, fase-, kwartier- en overige '
+                              'elektrische grenzen, verse noodzakelijke bronnen, lokale timer, contactmapping, '
+                              'gecontroleerde ingebruikname, toepassingsprofiel, koelbeveiliging, voorrang, eigenaar, '
+                              'SG-enabled en globale regelmodus blijven gelden. Alleen bekijken, Pauze, echte fouten en '
+                              'handmatige overname kunnen niet door deze keuze worden omzeild. Een gekozen half uur of uur '
+                              'is de looptijd van de tijdelijke keuze, geen garantie dat het contact die hele periode '
+                              'gesloten is.',
+                              'Het bestaande harde sessiemaximum blijft ook bij tijdelijk Aan leidend. Het kiezen of '
+                              'wisselen van een tijdelijke stand verlengt een al actieve sessie niet en reset haar '
+                              'oorspronkelijke start, minimum of hardmaximum niet. Bij terugkeer naar Automatisch blijft een '
+                              'passend reeds AAN-contact aan als de actuele automatische voortzettingsvoorwaarden gelden; er '
+                              'volgt geen verplichte UIT/AAN-flank. Anders wordt de eigen aanvraag volgens de gewone '
+                              'voorwaarden veilig vrijgegeven. Na tijdelijk Uit kan Automatisch pas weer starten zodra de '
+                              'dan geldende verse voorwaarden en beleidswacht dit toelaten.',
+                              'Automatische en tijdelijke SG-aanvragen gebruiken dezelfde lokaal op de Shelly aflopende '
+                              'toestemming: standaard 300 seconden geldig, vernieuwd iedere 60 seconden zolang de aanvraag '
+                              'toegestaan blijft. Vernieuwing verlengt de timer zonder het relais uit/aan te schakelen. Zij '
+                              'blijft begrensd door de oorspronkelijke harde sessieduur en een eventueel eerder einde van de '
+                              'tijdelijke Aan-keuze. Er komt geen lokale timer van dertig of zestig minuten. Opstartstand '
+                              'UIT is geen wifi-/Home Assistant-uitvalbeveiliging; alleen gecontroleerde lokale afloop biedt '
+                              'de bestaande terugval.',
+                              'Bij een echte Home Assistant-herstart kan SolarPilot een nog AAN gemeld eigen contact '
+                              'voortzetten als de bestaande lokale timer niet verlopen is en nieuwe betrouwbare contact-, '
+                              'timer-, bron- en veiligheidsgegevens de oorspronkelijke sessie met dezelfde binding en policy '
+                              'bevestigen. Oorspronkelijke sessietijd, minimum, tekorttimer en eindgrenzen worden niet '
+                              'opnieuw gestart. Oude opgeslagen watts of een oude contactstand zijn geen nieuwe bevestiging. '
+                              'Eerst verse geldige voorwaarden controleren; geen blinde opgeslagen AAN opnieuw verzenden, '
+                              'nieuwe sessie verzinnen of de timer onbegrensd verlengen. Een externe contact- of '
+                              'timerwijziging houdt voorrang. Zijn opstartbronnen tijdelijk nog niet beschikbaar, dan kan '
+                              'uitsluitend de reeds vastgestelde korte lokale timer blijven lopen terwijl SolarPilot op '
+                              'verse gegevens wacht; zij wordt in die fase niet vernieuwd en onbekend bewijs krijgt geen '
+                              'eigendoms- of vrijgaveclaim. Een bekende harde blokkering vraagt veilige vrijgave.',
+                              'Voortzetting vereist een volledig bevestigd beta.84-sessiecheckpoint. Een oud beta.83-journal '
+                              'mist de vereiste oorspronkelijke sessie- en timerherkomst en krijgt alleen de bestaande '
+                              'veilige vrijgavesroute. Bij de eerste upgrade kan daarom één eigen aanvraag worden '
+                              'vrijgegeven. Een niet bevestigde, onzekere, verlopen of niet passende oude opdracht wordt '
+                              'niet hervat; een latere passende rapportage kan uitsluitend de veilige vrijgave ondersteunen. '
+                              'Is de lokale timer tijdens het herstarten al afgelopen, dan is dit geen behouden AAN en '
+                              'gelden opnieuw de gewone startvoorwaarden. Een nog niet verlopen bewaarde bewuste Aan-keuze '
+                              'met dezelfde binding blijft wel een gebruikersvraag. Na verlopen oude lokale toestemming mag '
+                              'die keuze een nieuwe huidige SG-beoordeling vragen wanneer volledige verse harde voorwaarden '
+                              'en veilige opdracht-/contactafhandeling dit toelaten. De oorspronkelijke maximale '
+                              'sessie-eindtijd blijft leidend. Dit herstelt geen verlopen eigendom en herhaalt geen onzekere '
+                              'oude opdracht.',
+                              'Gewoon integratie-unload, uitschakelen, gewijzigde koppeling en verwijderen trekken een eigen '
+                              'aanvraag veilig in en annuleren oude vernieuwingen. De route voor een echte HA-herstart stopt '
+                              'callbacks en bewaart uitsluitend de passende bestaande sessie tot verse herbeoordeling binnen '
+                              'haar korte lokale afloop. Pauze blijft een bewuste vrijgave, ook bij een tijdelijke '
+                              'Aan-keuze. Een geannuleerde of onzekere opdracht wordt niet blind herhaald; onbereikbaarheid '
+                              'blijft onbekend, zonder fictieve UIT-bevestiging.',
+                              'Een werkelijk buiten SolarPilot handmatig gewijzigd contact of timer wordt gerespecteerd. Zo '
+                              'een externe AAN krijgt niet automatisch bewezen SolarPilot-eigendom of een gecontroleerde '
+                              'lokale timer. Automatisering hervatten vraagt een afzonderlijke actuele beoordeling. Een '
+                              'eigen vertraagde terugmelding of lokale timerafloop wordt zonder passend bewijs niet als '
+                              'gebruikershandeling uitgelegd. De gekozen tijdelijke stand, werkelijk gemeld contact, '
+                              'aanvraag, resterende lokale toestemming en ontvangen SG blijven afzonderlijk zichtbaar.',
+                              'Langdurig laag gemeten vermogen geeft geen opdracht om de Shelly te pulsen, de warmtepomp te '
+                              'herstarten of Force-/heateropdrachten te sturen. De bestaande diagnose van nog niet '
+                              'aangetoonde extra warmteopname blijft in Details en op de tijdlijn. De regeling geeft geen '
+                              'compressorlooptijd, levensduurwinst of causale extra SG-kWh af uit alleen totale watts.',
+                              'De lokale timer vervangt geen elektrische beveiliging en biedt geen absolute garantie bij '
+                              'bijvoorbeeld een vastgelast contact. Deze release vraagt geen extra heaterrelais, broker, '
+                              'server, cloudregelaar, bedrading of DIP-wijziging. Panasonic regelt haar normale programma, '
+                              'comfort en beveiligingen zelfstandig.'],
                'bullets': []},
               {'title': '6. Warmtepompvermogen en elektrische ondersteuning',
                'paragraphs': ['Koppel één bestaande bevestigde totaalmeter, of twee lokaal bevestigde '
@@ -903,7 +946,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van '
                               'SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, '
                               'AEG- of Shelly-integratie.',
-                              ("Rollback naar beta.82 gebruikt dezelfde geldige instellingen en SG-regeling. Beta.82 behoudt de taak-/ondersteuningsweergave, contactbalk en gewone temperatuurhistorie, maar mist de specifieke providersemantiekcorrectie, berekende SG-doelvergelijking en samenhangende diagnose-/vooruit-PV-presentatie. Nieuwe aanvullende opslagvelden kunnen bij een oudere opslagwrite wegvallen; bewaar nieuwe historie met een volledige privéback-up vóór rollback. Oude taakperioden worden niet opnieuw geïnterpreteerd. Rollback corrigeert geen meter of fysieke installatie. Geef vóór codevervanging de eigen SG-aanvraag veilig vrij en controleer lokale terugval. Exact herstel vraagt code én passende volledige privéback-up. Herstel nooit een oude onverbruikte APP-aanvraag nadat dezelfde belading al fysiek gestart is. Gebruik geen twee runtimes tegelijk en verwijder de entry niet. Voor de oude directe beta.61-regeling blijft de volledige back-up van vóór beta.62 nodig. Zie BETA83_INSTELLEN.md.")],
+                              ("Rollback naar beta.83 behoudt de bronsemantiekcorrectie, berekende SG-doelvergelijking en diagnose-/PV-weergave, maar mist tijdelijke SG-bediening en veilig behoud van een bevestigde bestaande sessie bij echte HA-herstart. Geef vóór rollback tijdelijk Aan/Uit terug naar Automatisch en geef de eigen SG-aanvraag veilig vrij; oudere code kan deze tijdelijke keuze niet uitvoeren. Nieuwe aanvullende opslagvelden kunnen bij een oudere opslagwrite wegvallen; bewaar nieuwe historie met een volledige privéback-up vóór rollback. Oude taakperioden worden niet opnieuw geïnterpreteerd. Rollback corrigeert geen meter of fysieke installatie. Geef vóór codevervanging de eigen SG-aanvraag veilig vrij en controleer lokale terugval. Exact herstel vraagt code én passende volledige privéback-up. Herstel nooit een oude onverbruikte APP-aanvraag nadat dezelfde belading al fysiek gestart is. Gebruik geen twee runtimes tegelijk en verwijder de entry niet. Voor de oude directe beta.61-regeling blijft de volledige back-up van vóór beta.62 nodig. Zie BETA84_INSTELLEN.md.")],
                'bullets': []},
               {'title': '21. Release- en documentatieregel',
                'paragraphs': ["Dit is de enige volledige actuele regelbeschrijving. current_guide.py genereert dezelfde Markdown-mirrors en HA-uitleg. Optiehulp, versie, changelog, OVERDRACHT.md, installatie, rollback en testverslag horen bij dezelfde bronrelease. Historische releasebestanden beschrijven oudere versies en zijn geen actuele bediening. UPSTREAM_BRONNEN.md bewaart uitsluitend publieke gepinde contracten en actuele release-/PR-status. Een afzonderlijk geautoriseerde ChatGPT-taak controleert vanaf 21 oktober 2026 wekelijks op woensdag rond 19:00 Europe/Brussels relevante GitHub-wijzigingen en kan geteste SolarPilot-correcties volgens de normale releaseprocedure publiceren. Dit is externe ontwikkeling; de integratie bevat geen achtergrond-AI of automatische provider-/apparaatupdate. Privé-exports en sensorkoppelingen worden niet gepubliceerd.",

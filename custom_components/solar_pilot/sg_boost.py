@@ -1,14 +1,17 @@
 """One leased SG contact; Panasonic remains the sole heat-pump controller.
 
 The manager owns no temperature target, climate command, heater permission or
-cloud retry. A local Shelly deadline is required for each ON and renewal. Its
-journal permits release of an old request, never replay of that request.
+cloud retry. A local Shelly deadline is required for each ON and renewal. A
+confirmed journal may continue the same live lease after fresh current checks;
+it never replays an old ON or restores a timer without current evidence.
 """
 from __future__ import annotations
 
 import asyncio
 from copy import deepcopy
 import inspect
+import hashlib
+import json
 import math
 import time
 
@@ -40,6 +43,12 @@ class SGBoostManager:
         self._in_flight = False
         self._restart_release = False
         self._restored_expiry = None
+        self._restart_resume = None
+        self._manual_control = None
+        self._manual_deadline = None
+        self._manual_session_started = None
+        self._lease_duration = None
+        self._binding_identity = None
         self._off_attempted = False
         self._possibly_owned = False
         self.owned = False
@@ -57,6 +66,11 @@ class SGBoostManager:
         self.status = "Panasonic regelt zelfstandig"
         self.reason = "Automatische zonneboost staat uit"
         self._stable_since = None
+        self._start_soft_since = None
+        self._start_soft_kind = None
+        self._start_source_identity = None
+        self._start_source_stamp = None
+        self._start_last_evaluated = None
         self._import_since = None
         self._import_observation = None
         self._import_policy = None
@@ -117,6 +131,51 @@ class SGBoostManager:
     def auto_enabled(self):
         return self.settings.get("enabled") is True
 
+    def _control_identity(self):
+        value = {key: value for key, value in self.settings.items() if key not in DISPLAY_ONLY_KEYS}
+        try:
+            return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"),
+                                             allow_nan=False).encode()).hexdigest()
+        except (TypeError, ValueError):
+            return None
+
+    @property
+    def manual_mode(self):
+        value = self._manual_control
+        if (not isinstance(value, dict) or self._manual_deadline is None
+                or self._clock() >= self._manual_deadline
+                or self._wall_clock() >= value["expires_at"]):
+            return "auto"
+        return value["mode"]
+
+    def _manual_overview(self):
+        mode = self.manual_mode
+        value = self._manual_control if mode != "auto" else {}
+        remaining = (max(0.0, min(self._manual_deadline-self._clock(),
+                                 value["expires_at"]-self._wall_clock())) if value else 0)
+        return {"mode": mode, "duration_s": value.get("duration_s"),
+                "expires_at": value.get("expires_at"), "remaining_s": math.ceil(remaining),
+                "active": mode != "auto", "returns_to": "auto"}
+
+    def _session_checkpoint(self):
+        if self._restart_resume is not None:
+            return deepcopy(self._restart_resume)
+        if (not self.owned or not self.desired_on or self._session_started is None
+                or self._minimum_started is None or self._last_renewed is None
+                or not self._commissioned_fingerprint or self._lease_duration is None):
+            return None
+        now, wall = self._clock(), self._wall_clock()
+        return {"schema": 1, "control_identity": self._control_identity(),
+                "fingerprint": deepcopy(self._commissioned_fingerprint),
+                "binding_identity": self._binding_identity,
+                "started_at": wall-(now-self._session_started),
+                "minimum_started_at": wall-(now-self._minimum_started),
+                "renewed_at": wall-(now-self._last_renewed),
+                "lease_duration_s": self._lease_duration,
+                "import_started_at": wall-(now-self._import_since) if self._import_since is not None else None,
+                "import_observation": deepcopy(self._import_observation),
+                "import_policy": list(self._import_policy) if self._import_policy is not None else None}
+
     def update_config(self, value):
         """Apply effective options; a changed binding is never an old lease."""
         updated = normalize_config(value)
@@ -136,6 +195,8 @@ class SGBoostManager:
         if control_changed:
             self._generation += 1
             self._stable_since = None
+            self._manual_control = self._manual_deadline = None
+            self._restart_resume = None
             if updated.get("enabled") is not True:
                 self.desired_on = False
             if updated.get("entity_id") != old_entity:
@@ -183,8 +244,10 @@ class SGBoostManager:
     def snapshot(self):
         """Store evidence only; configuration remains the enable authority."""
         return {"schema": 1, "relay_entity": self.settings.get("entity_id", ""),
-                "owned": bool(self.owned or self._possibly_owned),
+                "owned": bool(self.owned or self._possibly_owned or self._restart_release),
                 "lease_expiry": self._lease_expiry,
+                "session_checkpoint": self._session_checkpoint(),
+                "manual_control": deepcopy(self._manual_control),
                 "manual_hold": self.manual_hold, "completion_hold": self.completion_hold,
                 "session_finishing": self._session_finishing,
                 "rest_until_wall": self._rest_until_wall,
@@ -200,7 +263,7 @@ class SGBoostManager:
                 "hold_provenance": deepcopy(self._hold_provenance)}
 
     def restore(self, stored):
-        """A stored ON can authorize reconciliation OFF, never a new ON."""
+        """Restore bounded evidence; no command or ownership comes from bytes."""
         if not isinstance(stored, dict) or stored.get("schema") != 1:
             return
         if stored.get("relay_entity") != self.settings.get("entity_id"):
@@ -209,6 +272,55 @@ class SGBoostManager:
         self.completion_hold = stored.get("completion_hold") is True or stored.get("session_finishing") is True
         self._restart_release = stored.get("owned") is True and not self.manual_hold
         self._restored_expiry = finite(stored.get("lease_expiry"))
+        self._lease_expiry = self._restored_expiry
+        manual = stored.get("manual_control")
+        if (isinstance(manual, dict) and manual.get("schema") == 1
+                and manual.get("mode") in ("on", "off")
+                and type(manual.get("duration_s")) is int and manual["duration_s"] in (1800, 3600)
+                and self._control_identity() is not None and manual.get("control_identity") == self._control_identity()
+                and finite(manual.get("created_at")) is not None and finite(manual.get("expires_at")) is not None
+                and 0 <= self._wall_clock()-manual["created_at"]
+                and manual["expires_at"]-manual["created_at"] == manual["duration_s"]
+                and 0 < manual["expires_at"]-self._wall_clock() <= manual["duration_s"]):
+            self._manual_control = deepcopy(manual)
+            self._manual_deadline = self._clock()+manual["expires_at"]-self._wall_clock()
+            origin = finite(manual.get("session_started_at"))
+            if origin is not None and (origin > self._wall_clock() or origin < manual["created_at"]-float(self.settings["max_session_s"])):
+                self._manual_control = self._manual_deadline = None
+            elif origin is not None:
+                self._manual_session_started = self._clock()-(self._wall_clock()-origin)
+        checkpoint = stored.get("session_checkpoint")
+        anchors = [finite(checkpoint.get(key)) for key in ("started_at", "minimum_started_at", "renewed_at")] if isinstance(checkpoint, dict) else []
+        duration = finite(checkpoint.get("lease_duration_s")) if isinstance(checkpoint, dict) else None
+        if (self._restart_release and isinstance(checkpoint, dict) and checkpoint.get("schema") == 1
+                and self._control_identity() is not None and checkpoint.get("control_identity") == self._control_identity()
+                and isinstance(checkpoint.get("fingerprint"), dict) and checkpoint["fingerprint"]
+                and all(value is not None for value in anchors)
+                and 0 <= self._wall_clock()-anchors[0] < float(self.settings["max_session_s"])
+                and anchors[0] <= anchors[1] <= anchors[2] <= self._wall_clock()
+                and duration is not None and 60 <= duration <= float(self.settings["lease_s"])
+                and self._restored_expiry is not None):
+            self._restart_resume = deepcopy(checkpoint)
+            if self._manual_control is not None and self._manual_control.get("mode") == "on":
+                origin = finite(self._manual_control.get("session_started_at"))
+                origin = min(checkpoint["started_at"], origin) if origin is not None else checkpoint["started_at"]
+                self._manual_control["session_started_at"] = origin
+                self._manual_session_started = self._clock()-(self._wall_clock()-origin)
+            if stored.get("completion_hold") is not True:
+                self.completion_hold = False
+            self._session_finishing = stored.get("session_finishing") is True
+            imported = checkpoint.get("import_observation")
+            policy = checkpoint.get("import_policy")
+            since = finite(checkpoint.get("import_started_at"))
+            if (isinstance(imported, dict) and finite(imported.get("watts")) is not None
+                    and finite(imported.get("stamp")) is not None and since is not None
+                    and checkpoint["started_at"] <= since <= self._wall_clock()
+                    and isinstance(policy, list) and len(policy) == 2
+                    and all(finite(value) is not None for value in policy)
+                    and tuple(policy) == self._import_policy_current()):
+                self._import_since = self._clock()-(self._wall_clock()-since)
+                self._import_observation = deepcopy(imported)
+                self._import_policy = tuple(policy)
         self._tank_source_changed = stored.get("tank_source_changed") is True
         reference = stored.get("need_reference")
         if (isinstance(reference, dict) and reference.get("schema") == 1
@@ -254,7 +366,7 @@ class SGBoostManager:
                 "signature": session.get("signature") if isinstance(session.get("signature"), str) else None,
                 "native_stamp": finite(session.get("native_stamp")),
                 "solar_stamp": finite(session.get("solar_stamp"))}
-        if (stored.get("owned") is True and not self.completion_hold
+        if (stored.get("owned") is True and self._restart_resume is None and not self.completion_hold
                 and self.settings.get("profile") == "general"):
             self.completion_hold = True
             self._hold_reason = "response_unknown"
@@ -278,7 +390,8 @@ class SGBoostManager:
         self._possibly_owned = False
         self._stable_since = None
         self._minimum_started = None
-        self._import_since = self._import_observation = self._import_policy = None
+        if self._restart_resume is None:
+            self._import_since = self._import_observation = self._import_policy = None
 
     def _effective_minimum_s(self):
         configured = finite(self.settings.get("min_session_s"))
@@ -360,6 +473,13 @@ class SGBoostManager:
                       and self._import_policy == self._import_policy_current())
         current = (stamp is not None
                    and -5 <= self._wall_clock() - stamp < float(self.settings["stale_s"]))
+        if self._restart_resume is not None and imported > policy[0] and not continuous:
+            # Downtime is not a new observed cloud episode. Fresh current P1
+            # may still retain an original live minimum, but buys no new grace.
+            self._import_since = None
+            self._import_observation = {"watts": imported, "stamp": stamp, "source": source} if current else None
+            self._import_policy = policy if current else None
+            return True
         if (self.owned and self.desired_on and self._import_since is not None
                 and imported > policy[0] and not continuous):
             # A backdated/rebound/expired report is not measured recovery.
@@ -538,6 +658,8 @@ class SGBoostManager:
             raise ValueError("lease_not_confirmed")
         self._lease_expiry = expiry
         self._lease_deadline = self._clock() + remaining
+        self._lease_duration = duration
+        self._binding_identity = raw.get("binding_identity")
 
     async def _read(self, *, force=False):
         now = self._clock()
@@ -562,6 +684,14 @@ class SGBoostManager:
         if self.fault_code == "unavailable_read":
             self.fault_code = self.fault = ""
         self._fingerprint_check(raw)
+        manual = self._manual_control
+        if (manual is not None and (raw.get("fingerprint") != manual.get("fingerprint")
+                or raw.get("binding_identity") != manual.get("binding_identity"))):
+            self._generation += 1
+            self._manual_control = self._manual_deadline = None
+            self._stable_since = self._start_soft_since = None
+            self._start_soft_kind = None
+            self._fault("binding_changed", "Tijdelijke SG-keuze vervallen: actuele uitgangskoppeling gewijzigd")
         if (raw.get("setup_valid") is False or raw.get("configuration_error")) and self.fault_code not in {"on_failed", "lease_invalid", "lease_failed", "firmware_changed"}:
             self._fault("setup_invalid", "Controleer de SG-koppeling en lokale Shelly-terugval; automatische boost blijft uit")
         elif self.fault_code == "setup_invalid":
@@ -578,28 +708,54 @@ class SGBoostManager:
             raw = await self._read(force=True)
             if raw is None:
                 return
-            if self._restart_release:
+            if self._restart_resume is not None:
+                # The next complete runtime round supplies current sources and
+                # hard gates. A cached journal alone cannot renew this lease.
+                self._set_state("blocked", "Herstart: bestaande SG-toestemming wacht op actuele voorwaarden")
+                checkpoint = self._restart_resume
+                expiry = self._expiry(raw)
+                if (raw["output"] and (raw.get("fingerprint") != checkpoint["fingerprint"]
+                        or raw.get("binding_identity") != checkpoint.get("binding_identity")
+                        or expiry is not None and abs(expiry-self._restored_expiry) > 2
+                        or raw.get("timer_cancelled") is True or finite(raw.get("timer_duration")) == 0)):
+                    self._restart_resume = None
+                    self._restart_release = False
+                    self.manual_hold = True
+                    self._set_state("blocked", "SG-contact tijdens herstart gewijzigd; handmatige stand blijft behouden")
+            elif self._restart_release:
                 await self._reconcile_restart(raw)
             elif raw["output"]:
                 self.manual_hold = True
                 self._set_state("blocked", "SG-contact staat buiten SolarPilot aan; handmatige stand blijft behouden")
             await self._save()
 
-    async def _reconcile_restart(self, raw):
+    async def _reconcile_restart(self, raw, *, current_gates=None, source_gap=False):
         """Finish an unread startup journal when a real later report arrives.
 
-        Reconciliation grants only one possible OFF, never a restored ON. A
-        failed OFF is not retried here because its dispatch clears the pending
-        reconciliation before the transport await.
+        A new confirmed checkpoint can continue only the exact current ON lease,
+        without any ON command. Old journals retain their one possible OFF.
         """
         if not self._restart_release or raw is None:
             return
         expiry = self._expiry(raw)
+        checkpoint = self._restart_resume
+        if checkpoint is not None and current_gates is None:
+            return
+        if (checkpoint is not None and raw["output"] is True
+                and (raw.get("fingerprint") != checkpoint["fingerprint"]
+                     or raw.get("binding_identity") != checkpoint.get("binding_identity"))):
+            self._restart_release = False
+            self._restart_resume = None
+            self.manual_hold = True
+            self._set_state("blocked", "SG-koppeling na herstart gewijzigd; huidige contactstand blijft vrij")
+            await self._save()
+            return
         different = (self._restored_expiry is not None
                      and (expiry is not None and abs(expiry-self._restored_expiry) > 2
                           or raw.get("timer_cancelled") is True
                           or finite(raw.get("timer_duration")) == 0))
         self._restart_release = False
+        self._restart_resume = None
         if raw["output"] and different:
             self.manual_hold = True
             self._set_state("blocked", "SG-uitgang is handmatig gewijzigd; hervat de automatisering wanneer gewenst")
@@ -611,13 +767,59 @@ class SGBoostManager:
             if expiry is not None and remaining is not None and 0 < remaining <= 600:
                 self._lease_expiry = expiry
                 self._lease_deadline = self._clock()+remaining
+            duration = finite(raw.get("timer_duration"))
+            start = finite(raw.get("timer_started_at"))
+            matching = (checkpoint is not None and raw.get("setup_valid") is True
+                and not raw.get("configuration_error") and not different
+                and self._lease_deadline is not None and self._clock() < self._lease_deadline
+                and duration is not None and abs(duration-checkpoint["lease_duration_s"]) <= 1
+                and start is not None and expiry is not None and abs(start+duration-expiry) <= 1
+                and expiry == self._restored_expiry
+                and self._clock()+float(self.settings["ack_timeout_s"]) < self._lease_deadline)
+            if matching:
+                if source_gap is True and not self._gates(data_fresh=True, phase_allowed=True,
+                        priority_allowed=True, hard_limit=False):
+                    # Missing new HA reports are not failed physical limits.
+                    # Keep only the proven old local deadline, without adopting
+                    # ownership or renewing it while evidence is unavailable.
+                    self._restart_release = True
+                    self._restart_resume = checkpoint
+                    self._possibly_owned = False
+                    self.owned = self.desired_on = False
+                    self._set_state("blocked", "Herstart: bestaande lokale SG-toestemming wacht op actuele metingen")
+                    await self._save()
+                    return
+                wall, now = self._wall_clock(), self._clock()
+                self._session_started = now-(wall-checkpoint["started_at"])
+                self._minimum_started = now-(wall-checkpoint["minimum_started_at"])
+                self._last_renewed = now-(wall-checkpoint["renewed_at"])
+                self._lease_duration = duration
+                self._binding_identity = raw.get("binding_identity")
+                self.owned = self.desired_on = True
+                self._possibly_owned = False
+                self._off_attempted = False
+                if (not current_gates and self.manual_mode != "off"
+                        and self._on_authorized(self._generation, True)):
+                    self._set_state("boost_requested", "Herstart gecontroleerd; bestaande SG-aanvraag blijft actief")
+                    self._note("Bestaande SG-aanvraag na herstart bevestigd zonder relaiscyclus")
+                    await self._save()
+                    return
+                self.desired_on = False
             await self._release("Eerdere SG-aanvraag na herstart vrijgegeven", rest=True)
         else:
-            self._begin_rest()
+            if (checkpoint is not None and self._restored_expiry is not None
+                    and self._restored_expiry > self._wall_clock()+1):
+                self.manual_hold = True
+                self._set_state("blocked", "SG-contact tijdens herstart handmatig uitgeschakeld; handmatige stand blijft behouden")
+            else:
+                self._begin_rest()
         await self._save()
 
     def _on_permission_current(self, generation):
         return (generation == self._generation and not self._closed and self.auto_enabled
+                and not getattr(self.runtime, "_closed", False)
+                and (not hasattr(self.runtime.entry, "runtime_data")
+                     or self.runtime.entry.runtime_data is self.runtime)
                 and getattr(self.runtime, "mode", "observe") == "solar"
                 and self.settings.get("commissioning_confirmed") is True
                 and self.settings.get("watchdog_confirmed") is True
@@ -626,7 +828,11 @@ class SGBoostManager:
                      or self.settings.get("profile_confirmed") is True)
                 and not self.cooling_block_reason(live=True)
                 and not self._profile_change_release
-                and not self.manual_hold and not self.completion_hold and not self.fault)
+                and self.manual_mode != "off" and not self.manual_hold
+                and (not self.completion_hold or self.manual_mode == "on") and not self.fault)
+
+    def _manual_session_origin(self):
+        return self._manual_session_started if self.manual_mode == "on" else None
 
     def _on_authorized(self, generation, renewal):
         """Recheck authority after async work and at the transport boundary."""
@@ -646,6 +852,23 @@ class SGBoostManager:
             approved = approved[0] if approved else False
         return approved is True
 
+    def _automatic_continuation_allowed(self, generation):
+        """Only current automatic permission may bridge a manual deadline."""
+        if (self.completion_hold or not self._on_permission_current(generation)
+                or not self._confirmed_request_current()):
+            return False
+        observation = self._import_observation or {}
+        if not self.soft_import_renewal_allowed(grid_import_w=observation.get("watts"),
+                grid_import_stamp=observation.get("stamp"), grid_import_source=observation.get("source")):
+            return False
+        gate = getattr(self.runtime, "sg_dispatch_allowed", None)
+        if not callable(gate):
+            return self._injected_adapter
+        try:
+            return gate(renewal=True, automatic=True) is True
+        except Exception:
+            return False
+
     async def _issue_on(self, *, renewal=False):
         if renewal and not self._confirmed_request_current():
             return False
@@ -654,6 +877,18 @@ class SGBoostManager:
         # so the local fallback never extends a short hard session ceiling.
         lease_s = min(float(self.settings["lease_s"]),
                       float(self.settings["max_session_s"]) - float(self.settings["ack_timeout_s"]))
+        manual_origin = self._manual_session_origin()
+        automatic_bridge = renewal and self.manual_mode == "on" and self._automatic_continuation_allowed(self._generation)
+        manual_limit = self._manual_deadline if self.manual_mode == "on" and not automatic_bridge else None
+        manual_wall_limit = self._manual_control["expires_at"] if manual_limit is not None else None
+        if not renewal and manual_origin is not None:
+            lease_s = min(lease_s, manual_origin+float(self.settings["max_session_s"])
+                          -self._clock()-float(self.settings["ack_timeout_s"]))
+        if manual_limit is not None:
+            lease_s = min(lease_s, self._manual_deadline-self._clock()-float(self.settings["ack_timeout_s"]),
+                          self._manual_control["expires_at"]-self._wall_clock()-float(self.settings["ack_timeout_s"]))
+        if lease_s < 60:
+            return False
         if renewal:
             elapsed = self._clock() - self._session_started if self._session_started is not None else float(self.settings["max_session_s"])
             remaining = float(self.settings["max_session_s"]) - elapsed - float(self.settings["ack_timeout_s"])
@@ -702,12 +937,19 @@ class SGBoostManager:
             nonlocal issued_at
             if not self._on_authorized(generation, renewal):
                 return False
+            if automatic_bridge and not self._automatic_continuation_allowed(generation):
+                return False
             final_now = self._clock()
             remaining_ack = max(0.0, write_guard_deadline - final_now)
-            hard_deadline = ((self._session_started if renewal else final_now)
+            hard_deadline = ((self._session_started if renewal else manual_origin if manual_origin is not None else final_now)
                              + float(self.settings["max_session_s"]))
             if (final_now >= write_guard_deadline
                     or final_now + lease_s + remaining_ack > hard_deadline):
+                return False
+            if manual_limit is not None and (
+                    self.manual_mode != "on" or self._manual_deadline != manual_limit
+                    or final_now+lease_s+remaining_ack > manual_limit
+                    or self._wall_clock()+lease_s+remaining_ack > manual_wall_limit):
                 return False
             issued_at = final_now
             if not renewal:
@@ -723,7 +965,7 @@ class SGBoostManager:
                 if self.owned:
                     await self._release("SG-voorwaarden gewijzigd; eigen aanvraag vrijgegeven", preserve_fault=bool(self.fault))
                 else:
-                    self._stable_since = None
+                    self._dispatch_start_wait(generation)
                     self._set_state("blocked", "SG-voorwaarden gewijzigd; verse zonnebeoordeling volgt")
                     await self._save()
                 return False
@@ -732,6 +974,13 @@ class SGBoostManager:
             # Recompute after it, then retain an absolute check in before_on
             # so neither slow storage nor transport preflight extends the cap.
             write_guard_deadline = self._clock() + float(self.settings["ack_timeout_s"])
+            if manual_limit is not None:
+                lease_s = int(min(lease_s, self._manual_deadline-write_guard_deadline,
+                                  self._manual_control["expires_at"]-self._wall_clock()-float(self.settings["ack_timeout_s"])))
+                if lease_s < 60:
+                    self._possibly_owned = False
+                    self.desired_on = self.owned
+                    return False
             if renewal:
                 lease_s = int(min(lease_s, self._session_started + float(self.settings["max_session_s"])
                                  - write_guard_deadline))
@@ -760,6 +1009,8 @@ class SGBoostManager:
             raw = await asyncio.wait_for(adapter.set_on(lease_s=lease_s),
                                          float(self.settings["ack_timeout_s"]))
             self._status(raw)
+            if issued_at is None:
+                raise ValueError("dispatch_not_observed")
             self._fingerprint_check(raw)
             if self.fault_code == "firmware_changed":
                 raise ValueError("commissioning_changed")
@@ -777,7 +1028,7 @@ class SGBoostManager:
             if policy_rejected:
                 # This was a new live policy decision before Switch.Set, rather
                 # than an actuator fault or an unconfirmed physical operation.
-                self._stable_since = None
+                self._dispatch_start_wait(generation)
                 reason = "SG-voorwaarden gewijzigd; verse zonnebeoordeling volgt"
                 if self.owned:
                     await self._release(reason, preserve_fault=bool(self.fault))
@@ -830,8 +1081,11 @@ class SGBoostManager:
                 "native_stamp": native["stamp"], "solar_stamp": (self._solar_observation or {}).get("stamp")}
                 if native is not None else None)
             self._tank_source_changed = False
-            self._session_started = issued_at
+            self._session_started = manual_origin if manual_origin is not None else issued_at
             self._minimum_started = self._clock()
+            if self.manual_mode == "on" and self._manual_control.get("session_started_at") is None:
+                self._manual_control["session_started_at"] = self._wall_clock()-(self._clock()-self._session_started)
+                self._manual_session_started = self._session_started
             self._session_finishing = (self._lease_deadline is not None and
                 self._lease_deadline >= issued_at + float(self.settings["max_session_s"]) - float(self.settings["ack_timeout_s"]))
             self._stable_since = self._import_since = None
@@ -844,6 +1098,8 @@ class SGBoostManager:
         return True
 
     def _active_reason(self):
+        if self.manual_mode == "on":
+            return f"SG-boost tijdelijk handmatig aan; automatisch over {self._manual_overview()['remaining_s']} s"
         if self._import_since is not None and self.minimum_hold_active:
             remaining = math.ceil(max(0.0, self._effective_minimum_s() - (self._clock() - self._minimum_started)))
             return f"Minimumduur SG-aanvraag nog {remaining} s; tijdelijke netafname binnen veiligheidsgrenzen"
@@ -1311,7 +1567,12 @@ class SGBoostManager:
             reasons.append("Hoger geplaatste of beschermde verbruikers krijgen voorrang")
         if self.manual_hold:
             reasons.append("Handmatige SG-stand blijft behouden; hervat de automatisering wanneer gewenst")
-        if self.completion_hold:
+        if self.manual_mode == "off":
+            reasons.append("SG-boost tijdelijk handmatig uit; daarna automatisch")
+        origin = self._manual_session_origin()
+        if origin is not None and self._clock()-origin >= float(self.settings["max_session_s"]):
+            reasons.append("Begrensde SG-sessieduur bereikt; tijdelijke keuze verlengt de sessielimiet niet")
+        if self.completion_hold and self.manual_mode != "on":
             reasons.append(self._completion_reason())
         if self.fault:
             reasons.append(self.fault)
@@ -1321,16 +1582,35 @@ class SGBoostManager:
                    grid_import_w=0, physical_evidence=None, tank_observation=None,
                    native_observation=None, solar_stamp=None, hard_limit=False,
                    real_surplus_w=None, electrical_reason=None, grid_import_stamp=None,
-                   grid_import_source=None, **_context):
+                   grid_import_source=None, start_wait_source_gap=False,
+                   start_source_identity=None, **_context):
         if not self._started:
             await self.start()
         async with self._lock:
             self.sent_this_tick = self.renewed_this_tick = False
             now = self._clock()
+            if (self._stable_since is not None and self._start_last_evaluated is not None
+                    and now-self._start_last_evaluated > 300):
+                self._reset_start_window()
+            if self._stable_since is not None:
+                self._start_last_evaluated = now
+            if self._manual_control is not None and self.manual_mode == "auto":
+                self._generation += 1
+                self._manual_control = self._manual_deadline = None
+                self._stable_since = None
+                self._note("Tijdelijke SG-keuze afgelopen; automatische regeling hervat")
+                await self._save()
             self._tank_observation = self._valid_tank_observation(tank_observation)
             self._native_observation = (dict(native_observation) if isinstance(native_observation, dict)
                                         else self._read_native())
             surplus, imported, stamp = finite(surplus_w), finite(grid_import_w), finite(solar_stamp)
+            if (self._stable_since is not None and
+                    (self._start_source_identity is not None and start_source_identity != self._start_source_identity
+                     or stamp is not None and self._start_source_stamp is not None and stamp < self._start_source_stamp)):
+                self._reset_start_window()
+            self._start_source_identity = deepcopy(start_source_identity)
+            if stamp is not None:
+                self._start_source_stamp = stamp
             residual = surplus if real_surplus_w is None else finite(real_surplus_w)
             data_fresh = (data_fresh is True and surplus is not None and imported is not None
                           and residual is not None and surplus >= 0 and imported >= 0 and residual >= 0)
@@ -1374,14 +1654,15 @@ class SGBoostManager:
             if rearmed or previous_reference != self._general_reference:
                 await self._save()
             raw = await self._read() if self.configured and not self._closed else None
-            if self._restart_release and raw is not None:
+            if self._restart_release and self._restart_resume is None and raw is not None:
                 await self._reconcile_restart(raw)
                 # Reconciliation may have written OFF. Its fresh readback or
                 # unknown result supersedes the earlier ON snapshot.
                 raw = None
             observed = (self.owned, self._possibly_owned, self.manual_hold, self.completion_hold,
                         self._session_started, self.fault_code)
-            self._observe_contact(raw)
+            if self._restart_resume is None:
+                self._observe_contact(raw)
             if observed != (self.owned, self._possibly_owned, self.manual_hold, self.completion_hold,
                             self._session_started, self.fault_code):
                 await self._save()
@@ -1398,20 +1679,32 @@ class SGBoostManager:
                                  priority_allowed=priority_allowed, hard_limit=hard_limit,
                                  electrical_reason=electrical_reason)
             self._blocked_reasons = gates
+            if self._restart_resume is not None and raw is not None:
+                await self._reconcile_restart(raw, current_gates=gates,
+                    source_gap=start_wait_source_gap is True or not data_fresh and phase_allowed is True and not hard_limit)
+                if self.sent_this_tick:
+                    return True
             if gates:
-                self._stable_since = None
+                waiting_gap = (not self.owned and self._stable_since is not None
+                    and self.manual_mode == "auto" and not self._gates(data_fresh=True,
+                        phase_allowed=True, priority_allowed=True if start_wait_source_gap is True else priority_allowed, hard_limit=False)
+                    and (start_wait_source_gap is True or not data_fresh and phase_allowed is True and not hard_limit))
+                if waiting_gap:
+                    self._keep_start_window("measurement_gap", now)
+                else:
+                    self._reset_start_window()
                 if self.owned or self._possibly_owned:
                     self._generation += 1
                     await self._release(gates[0], preserve_fault=bool(self.fault))
                 self._set_state("blocked" if self.auto_enabled or self.fault or self.manual_hold else "normal", gates[0])
                 return self.sent_this_tick
             if self._restart_release or raw is None or not self.relay_confirmed:
-                self._stable_since = None
+                self._reset_start_window()
                 self._set_state("blocked", "Wachten op betrouwbare SG-uitgangstatus")
                 return self.sent_this_tick
             if self.owned and self.desired_on:
                 elapsed = now - self._session_started if self._session_started is not None else 0
-                complete = physical.get("verified") is True and (physical.get("completed") is True or physical.get("no_uptake") is True)
+                complete = self.manual_mode != "on" and physical.get("verified") is True and (physical.get("completed") is True or physical.get("no_uptake") is True)
                 if complete or elapsed >= float(self.settings["max_session_s"]):
                     self.completion_hold = True
                     self._hold_reason = ("no_uptake" if complete and physical.get("no_uptake") is True
@@ -1426,7 +1719,9 @@ class SGBoostManager:
                 self._observe_low_uptake()
                 # Residual export need not retain the original start threshold:
                 # consuming the admitted solar energy is the intended effect.
-                if imported > float(self.settings["import_threshold_w"]):
+                if self.manual_mode == "on":
+                    self._set_state("boost_requested", self._active_reason())
+                elif imported > float(self.settings["import_threshold_w"]):
                     # Missing original P1 evidence cannot buy a cloud buffer.
                     if self._import_since is None and not self.minimum_hold_active:
                         self._generation += 1
@@ -1445,25 +1740,128 @@ class SGBoostManager:
                 if self._last_renewed is not None and now - self._last_renewed >= float(self.settings["renew_s"]):
                     # Minimum and cloud grace overlap; renewing the same short
                     # local lease never restarts either timer or the hard max.
-                    if imported <= float(self.settings["import_threshold_w"]) or self.minimum_hold_active or self.cloud_hold_active:
+                    if self.manual_mode == "on" or imported <= float(self.settings["import_threshold_w"]) or self.minimum_hold_active or self.cloud_hold_active:
                         await self._issue_on(renewal=True)
                 return self.sent_this_tick
+            if self.manual_mode == "on":
+                await self._issue_on()
+                return self.sent_this_tick
             if now < self._rest_until:
-                self._stable_since = None
+                self._reset_start_window()
                 self._set_state("rest", "SG-contact vrijgegeven; rusttijd voorkomt herhaald schakelen")
                 return self.sent_this_tick
             if surplus < float(self.settings["threshold_w"]):
-                self._stable_since = None
+                self._keep_start_window("cloud", now)
                 self._set_state("waiting_surplus", f"Wachten op minstens {float(self.settings['threshold_w']):g} W bruikbaar zonnevermogen")
                 return self.sent_this_tick
             if self._stable_since is None:
                 self._stable_since = now
+            elif self._start_soft_since is not None and now-self._start_soft_since > 300:
+                self._stable_since = now
+            self._start_soft_since = self._start_soft_kind = None
+            self._start_last_evaluated = now
             remaining = max(0.0, float(self.settings["start_delay_s"]) - (now - self._stable_since))
             if remaining > 0:
                 self._set_state("waiting_surplus", f"Voldoende zonnevermogen; stabiliteitscontrole nog {int(remaining + .999)} s")
                 return self.sent_this_tick
             await self._issue_on()
             return self.sent_this_tick
+
+    def _reset_start_window(self):
+        self._stable_since = self._start_soft_since = None
+        self._start_soft_kind = None
+        self._start_last_evaluated = None
+
+    def _dispatch_start_wait(self, generation):
+        if generation != self._generation or self.manual_mode != "auto" or self._stable_since is None:
+            self._reset_start_window()
+            return False
+        classify = getattr(self.runtime, "sg_start_wait_kind", None)
+        try:
+            kind = classify() if callable(classify) else None
+        except Exception:
+            kind = None
+        if kind not in ("cloud", "measurement_gap"):
+            self._reset_start_window()
+            return False
+        self._keep_start_window(kind, self._clock())
+        return self._stable_since is not None
+
+    def _keep_start_window(self, kind, now):
+        if self._stable_since is None:
+            self._start_soft_since = self._start_soft_kind = None
+            return
+        if self._start_soft_since is None:
+            self._start_soft_since = now
+        self._start_soft_kind = kind
+        if now-self._start_soft_since > 300:
+            self._reset_start_window()
+
+    async def set_manual_control(self, mode, duration_s=None):
+        """Persist one bounded deliberate request; never extend it on reload."""
+        if (type(mode) is not str or mode not in ("auto", "on", "off")
+                or mode == "auto" and duration_s is not None
+                or mode != "auto" and (type(duration_s) is not int or duration_s not in (1800, 3600))):
+            raise HomeAssistantError("Kies Automatisch, of tijdelijk Aan/Uit voor 30 of 60 minuten.")
+        # Withdrawal wins even when an older ON is waiting on storage/transport.
+        self._generation += 1
+        generation = self._generation
+        if mode != "on":
+            self.desired_on = False if mode == "off" else self.desired_on
+        async with self._lock:
+            if (self._closed or getattr(self.runtime, "_closed", False)
+                    or hasattr(self.runtime.entry, "runtime_data") and self.runtime.entry.runtime_data is not self.runtime):
+                raise HomeAssistantError("Deze SolarPilot-regeling is afgesloten.")
+            previous, previous_deadline = self._manual_control, self._manual_deadline
+            previous_origin = self._manual_session_started
+            raw = await self._read(force=True) if mode != "auto" and self.configured else None
+            if generation != self._generation:
+                raise HomeAssistantError("De SG-keuze is intussen vervangen.")
+            if mode == "on" and (raw is None or raw.get("setup_valid") is not True
+                    or not isinstance(raw.get("fingerprint"), dict) or not raw["fingerprint"]):
+                raise HomeAssistantError("Controleer eerst de actuele SG-uitgang en lokale terugval.")
+            wall, now = self._wall_clock(), self._clock()
+            self._manual_control = (None if mode == "auto" else {"schema": 1, "mode": mode,
+                "duration_s": duration_s, "created_at": wall, "expires_at": wall+duration_s,
+                "control_identity": self._control_identity(),
+                "fingerprint": deepcopy(raw.get("fingerprint")) if raw is not None else deepcopy(self._commissioned_fingerprint),
+                "binding_identity": raw.get("binding_identity") if raw is not None else self._binding_identity,
+                "session_started_at": wall-(now-self._session_started) if self._session_started is not None else None})
+            self._manual_deadline = None if mode == "auto" else now+duration_s
+            self._manual_session_started = self._session_started if mode == "on" else None
+            if mode == "on" and (not self._on_permission_current(generation)
+                    or self._actuator_conflicts(self.settings)):
+                self._manual_control, self._manual_deadline = previous, previous_deadline
+                self._manual_session_started = previous_origin
+                if self.manual_hold:
+                    raise HomeAssistantError("Het SG-contact is buiten SolarPilot gewijzigd; kies eerst Hervatten voordat je tijdelijk Aan kiest.")
+                raise HomeAssistantError("Handmatige SG-boost vereist actieve regeling, een bevestigde koppeling en geldige veiligheidsvoorwaarden.")
+            self._stable_since = None
+            try:
+                await self._save()
+            except BaseException:
+                if mode == "on":
+                    self._manual_control, self._manual_deadline = previous, previous_deadline
+                    self._manual_session_started = previous_origin
+                else:
+                    # Failed persistence cannot keep the old live ON choice.
+                    self._manual_control = self._manual_deadline = None
+                    self.desired_on = False
+                    await self._release("Tijdelijke SG-keuze kon niet worden opgeslagen; eigen aanvraag vrijgegeven")
+                raise
+            if mode == "off":
+                if (raw is not None and raw.get("output") is True and raw.get("setup_valid") is True
+                        and not self.fault and not validate_config(self.settings)):
+                    # This explicit user action names the current contact. A
+                    # later external timer change still vetoes its OFF callback.
+                    self._possibly_owned = True
+                    self._lease_expiry = self._expiry(raw)
+                    self._off_attempted = False
+                    self.manual_hold = False
+                await self._release("SG-boost tijdelijk handmatig uit", policy_hold=False)
+            self._note("SG-bediening: " + ("automatisch" if mode == "auto" else
+                       f"tijdelijk {mode} voor {duration_s//60} minuten"))
+            await self._save()
 
     async def set_enabled(self, enabled):
         if type(enabled) is not bool:
@@ -1509,6 +1907,7 @@ class SGBoostManager:
             if self.fault_code == "firmware_changed":
                 raise HomeAssistantError("Bevestig de gewijzigde SG-koppeling en test de lokale aflooptimer opnieuw in de instellingen.")
             self.manual_hold = False
+            self._manual_control = self._manual_deadline = None
             self.completion_hold = False
             self._need_reference = self._need_candidate = None
             self._general_reference = self._general_candidate = self._general_reset_candidate = None
@@ -1554,7 +1953,17 @@ class SGBoostManager:
                     "reassessment_valid_until": None,
                     "reassessment_reports": 0, "reassessment_source_current": False,
                     "reassessment_final_report_required": False, "start_remaining_s": None,
-                    "start_valid_until": None, "start_required_s": math.ceil(float(self.settings["start_delay_s"]))}
+                    "start_valid_until": None, "start_required_s": math.ceil(float(self.settings["start_delay_s"])),
+                    "start_cloud_active": False, "start_cloud_paused": False,
+                    "start_cloud_kind": None, "start_cloud_remaining_s": None,
+                    "start_cloud_valid_until": None, "start_accrued_s": None}
+        if self._stable_since is not None and self._start_soft_since is not None:
+            remaining = max(0.0, 300-(now-self._start_soft_since))
+            progress.update(start_cloud_active=now-self._start_soft_since <= 300,
+                start_cloud_kind=self._start_soft_kind, start_cloud_remaining_s=math.ceil(remaining),
+                start_cloud_valid_until=self._wall_clock()+remaining,
+                start_remaining_s=math.ceil(max(0.0, float(self.settings["start_delay_s"])-(now-self._stable_since))),
+                start_accrued_s=max(0.0, now-self._stable_since))
         solar = self._solar_observation
         solar_stamp = finite(solar.get("stamp")) if isinstance(solar, dict) else None
         solar_watts = finite(solar.get("watts")) if isinstance(solar, dict) else None
@@ -1661,6 +2070,7 @@ class SGBoostManager:
                                  self._relay_valid_until, wall + max(0.0, self._lease_deadline - now),
                                  wall + session_remaining) if cloud_current else None)
         return {**self._wait_progress(now), "configured": self.configured, "enabled": self.auto_enabled,
+                "manual_control": self._manual_overview(),
                 "observed_at": wall,
                 "commissioning_confirmed": self.settings.get("commissioning_confirmed") is True,
                 "watchdog_confirmed": self.settings.get("watchdog_confirmed") is True,

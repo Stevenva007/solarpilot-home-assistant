@@ -400,6 +400,8 @@ attributes["sg_boost"] = {
     "enabled_entity": "switch.example_sg_boost_enabled", "resume_entity": "button.example_sg_boost_resume",
     "switch_entity": "switch.example_sg_contact", "start_threshold_w": 3000,
     "estimated_power_w": 3200, "remaining_s": 1200, "rest_remaining_s": 0, "blocked_reasons": [],
+    "manual_control": {"mode": "auto", "duration_s": None, "expires_at": None,
+                       "remaining_s": 0, "active": False, "returns_to": "auto"},
 }
 attributes["ems"]["panasonic"] = attributes["panasonic"]
 attributes["ems"]["sg_boost"] = attributes["sg_boost"]

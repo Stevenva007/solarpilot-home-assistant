@@ -338,6 +338,151 @@ class FailureEvidence(logging.Handler):
             self.failures.append((type(error).__name__, str(error)))
 
 
+async def verify_sg_manual_control(hass, runtime, entry):
+    """Use real Core service/entity schemas and user contexts, with no actuator.
+
+    Only the final controller policy dispatcher is replaced. Core registration,
+    registry identity, entity service context propagation and both production
+    authorization layers stay real. The synthetic reader has ordinary entity
+    control permission, so its denial cannot be attributed to Core's entity ACL.
+    """
+    import voluptuous as vol
+
+    from homeassistant.auth.const import GROUP_ID_ADMIN, GROUP_ID_USER
+    from homeassistant.auth.permissions.const import POLICY_CONTROL
+    from homeassistant.components.select.const import DATA_COMPONENT
+    from homeassistant.core import Context
+    from homeassistant.exceptions import HomeAssistantError, Unauthorized
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.solar_pilot.const import DOMAIN
+    from custom_components.solar_pilot.sg_control_api import (
+        SERVICE_SG_MANUAL_CONTROL, SG_MANUAL_OPTIONS,
+    )
+
+    assert hass.services.has_service(DOMAIN, SERVICE_SG_MANUAL_CONTROL)
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(
+        "select", DOMAIN, f"{entry.entry_id}_sg_manual_control")
+    assert entity_id is not None
+    row = registry.async_get(entity_id)
+    assert row is not None and row.config_entry_id == entry.entry_id
+    entity = hass.data[DATA_COMPONENT].get_entity(entity_id)
+    assert entity is not None and entity.runtime is runtime
+    assert entity.translation_key == "sg_manual_control"
+    assert tuple(entity.options) == SG_MANUAL_OPTIONS
+    assert entity.current_option == "auto"
+    assert entity.available is runtime.sg_boost.configured
+
+    admin = await hass.auth.async_create_user(
+        "Synthetic SG administrator", group_ids=[GROUP_ID_ADMIN])
+    reader = await hass.auth.async_create_user(
+        "Synthetic SG regular user", group_ids=[GROUP_ID_USER])
+    assert admin.is_admin and not reader.is_admin
+    assert reader.permissions.check_entity(entity_id, POLICY_CONTROL)
+    admin_context, reader_context = Context(user_id=admin.id), Context(user_id=reader.id)
+    baseline = (deepcopy(dict(entry.options)), deepcopy(runtime.sg_boost.snapshot()))
+    dispatched = []
+
+    async def record_dispatch(mode, duration_s=None):
+        dispatched.append((mode, duration_s))
+
+    async def call_native(data, context=admin_context):
+        await hass.services.async_call(
+            DOMAIN, SERVICE_SG_MANUAL_CONTROL, data,
+            blocking=True, context=context,
+        )
+
+    async def expect_rejected(call, errors):
+        before = list(dispatched)
+        try:
+            await call
+        except errors:
+            pass
+        else:
+            raise AssertionError("Invalid or unauthorized SG command reached Core successfully")
+        assert dispatched == before
+
+    with patch.object(runtime.sg_boost, "set_manual_control", record_dispatch):
+        for mode, duration in (("auto", None), ("on", 1800), ("on", 3600),
+                               ("off", 1800), ("off", 3600)):
+            data = {"config_entry_id": entry.entry_id, "mode": mode}
+            if duration is not None:
+                data["duration_s"] = duration
+            await call_native(data)
+            assert dispatched[-1] == (mode, duration)
+        assert len(dispatched) == 5
+        invalid = (
+            {"mode": "auto", "duration_s": None},
+            {"mode": "auto", "duration_s": 1800},
+            {"mode": "on"}, {"mode": "on", "duration_s": True},
+            {"mode": "on", "duration_s": "1800"},
+            {"mode": "on", "duration_s": 1800.0},
+            {"mode": "off", "duration_s": 1200},
+            {"mode": "unknown"}, {"mode": "auto", "extra": "forbidden"},
+            {"mode": "auto", "config_entry_id": 1},
+        )
+        for data in invalid:
+            await expect_rejected(call_native(data), (vol.Invalid,))
+        await expect_rejected(
+            call_native({"mode": "auto", "config_entry_id": "unloaded_synthetic_entry"}),
+            (HomeAssistantError,),
+        )
+        await expect_rejected(
+            call_native({"mode": "on", "duration_s": 1800}, reader_context),
+            (Unauthorized,),
+        )
+        await expect_rejected(
+            call_native({"mode": "auto"}, Context(user_id="unknown_synthetic_user")),
+            (HomeAssistantError,),
+        )
+        # User-less trusted HA automation context follows Core's admin-service
+        # semantics. It still dispatches policy only, never a relay command.
+        await call_native({"mode": "auto"}, Context())
+        assert dispatched[-1] == ("auto", None)
+        native_dispatches = len(dispatched)
+
+        select_dispatches = 0
+        if runtime.sg_boost.configured:
+            async def call_select(service, data, context):
+                await hass.services.async_call(
+                    "select", service, {"entity_id": entity_id, **data},
+                    blocking=True, context=context,
+                )
+
+            for option, expected in (("auto", ("auto", None)), ("on_30", ("on", 1800)),
+                                     ("on_60", ("on", 3600)), ("off_30", ("off", 1800)),
+                                     ("off_60", ("off", 3600))):
+                await call_select("select_option", {"option": option}, admin_context)
+                assert dispatched[-1] == expected
+                assert entity._context.user_id == admin.id
+                select_dispatches += 1
+            # The alternate select services reach the same guarded entity path.
+            # A preceding administrator call must not leave administrator
+            # authority cached on the entity for the next ordinary user.
+            for service, data in (("select_option", {"option": "on_30"}),
+                                  ("select_first", {}), ("select_last", {})):
+                await expect_rejected(call_select(service, data, reader_context),
+                                      (HomeAssistantError,))
+                assert entity._context.user_id == reader.id
+            await expect_rejected(
+                call_select("select_option", {"option": "on_20"}, admin_context),
+                (HomeAssistantError,),
+            )
+            await call_select("select_option", {"option": "auto"}, admin_context)
+            assert dispatched[-1] == ("auto", None)
+            select_dispatches += 1
+
+    assert (dict(entry.options), runtime.sg_boost.snapshot()) == baseline
+    return {"entity": entity, "admin_context": admin_context,
+            "proof": {"native_schema_and_admin_acl": True,
+                      "native_policy_dispatches": native_dispatches,
+                      "registered_select_options": list(SG_MANUAL_OPTIONS),
+                      "select_context_admin_acl": bool(select_dispatches),
+                      "select_policy_dispatches": select_dispatches,
+                      "configuration_and_controller_unchanged": True}}
+
+
 async def check(source: Path, expected_failure: bool, current_sg: bool = False):
     # Imports must be real Core modules; importing tests/conftest.py defeats this
     # check. In particular ConfigEntry itself provides immutable mappings.
@@ -638,6 +783,7 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
             domains = {row.entity_id.split(".", 1)[0] for row in rows}
             assert domains == {"sensor", "binary_sensor", "select", "number", "button", "switch"}, domains
             assert all(hass.states.get(row.entity_id) is not None for row in rows)
+            manual_control84 = await verify_sg_manual_control(hass, runtime, entry)
             assert not physical_calls, physical_calls
             assert await hass.config_entries.async_reload(entry.entry_id)
             await hass.async_block_till_done()
@@ -645,6 +791,17 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
             assert entry.runtime_data is not runtime
             assert runtime._closed
             assert runtime.heatpump_history._closed
+            # A retained native entity from the earlier entry epoch cannot
+            # dispatch to its retired controller after a real Core reload.
+            from homeassistant.exceptions import HomeAssistantError
+            retired = manual_control84["entity"]
+            retired.async_set_context(manual_control84["admin_context"])
+            try:
+                await retired.async_select_option("auto")
+            except HomeAssistantError:
+                pass
+            else:
+                raise AssertionError("Retired SG select accepted a command after reload")
             heatpump_store = Store(hass, 1, f"solar_pilot.{entry.entry_id}.heatpump_history")
             assert_heatpump_checkpoint(await heatpump_store.async_load(), heatpump_baseline,
                                       restored=entry.runtime_data.heatpump_history)
@@ -680,6 +837,24 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                 assert persisted["sg_boost"]["manual_hold"] is True
                 assert persisted["sg_boost"]["completion_hold"] is True
                 assert persisted["sg_boost"]["general_reference"] == expected_journal["sg_boost"]["general_reference"]
+            # An unloaded entry grants no runtime authority, even if the
+            # domain-level service remains registered for another installation.
+            from custom_components.solar_pilot.const import DOMAIN
+            from custom_components.solar_pilot.sg_control_api import SERVICE_SG_MANUAL_CONTROL
+            try:
+                await hass.services.async_call(DOMAIN, SERVICE_SG_MANUAL_CONTROL,
+                    {"config_entry_id": entry.entry_id, "mode": "auto"}, blocking=True,
+                    context=manual_control84["admin_context"])
+            except HomeAssistantError:
+                pass
+            else:
+                raise AssertionError("Unloaded SolarPilot entry accepted an SG command")
+            await hass.config_entries.async_remove(entry.entry_id)
+            await hass.async_block_till_done()
+            assert hass.config_entries.async_get_entry(entry.entry_id) is None
+            assert not hass.services.has_service(DOMAIN, SERVICE_SG_MANUAL_CONTROL)
+            assert not evidence.failures, evidence.failures
+            assert not physical_calls, physical_calls
             return {"core": core_version, "result": "production setup, reload and unload passed",
                     "actual_platforms": sorted(domains), "registered_entities": len(rows),
                     "immutable_entry_mappings": True, "private_archive_exact": True,
@@ -687,6 +862,9 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                     "analysis_export_feedback_admin_storage_reload_read_only": True,
                     "heatpump_history_registered_read_only_acl_store_reload_unload": True,
                     "template_source_contract81": source_contract81,
+                    "sg_manual_control84": {**manual_control84["proof"],
+                        "retired_entity_and_unloaded_runtime_rejected": True,
+                        "last_entry_removal_unregisters_service": True},
                     **({"fixture": "current general SG with split read-only sources",
                         "immutable_nested_options_exact": True, "manual_and_completion_holds_preserved": True,
                         "split_units_zero_missing_and_sum": True, "compressor_and_sg_proof_separate": True,

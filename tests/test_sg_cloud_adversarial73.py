@@ -427,6 +427,7 @@ async def test_final_callback_rejects_cloud_evidence_changed_during_async_prefli
 async def test_restore_never_resumes_the_previous_cloud_candidate_or_renewal_right():
     previous, adapter, clock, runtime = await active_cloud(min_session_s=1200)
     saved = deepcopy(previous.snapshot())
+    saved.pop("session_checkpoint")  # Legacy journals remain release-only.
     manager = SGBoostManager(runtime, adapter=adapter, clock=clock)
     runtime.sg_boost = manager
     runtime._snapshot = lambda: {"sg_boost": manager.snapshot()}

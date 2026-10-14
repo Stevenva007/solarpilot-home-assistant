@@ -1099,7 +1099,7 @@
           "stale_s": "Maximale ouderdom metingen (s)"
         },
         "data_description": {
-          "start_delay_s": "De gezamenlijke zonnebijdrage en alle startvoorwaarden moeten gedurende de ingestelde vertraging geldig blijven vóór een nieuwe SG-aanvraag, standaard 120 seconden.",
+          "start_delay_s": "De gezamenlijke zonnebijdrage en alle startvoorwaarden moeten aanvankelijk geldig zijn om de ingestelde inschakelklok te starten, standaard 120 seconden.",
           "stop_delay_s": "Gewone actueel gemeten netafname moet continu boven de ingestelde wolkenbuffer blijven gedurende deze tijd, standaard 300 seconden of vijf minuten.",
           "import_threshold_w": "Wolkenbuffer voor gewone actueel gemeten netafname, standaard 600 W.",
           "hysteresis_w": "Grens voor het bevestigen van een nieuwe zonneperiode, standaard 300 W werkelijk restoverschot.",
@@ -1189,6 +1189,16 @@
         "state": {
           "auto": "Automatisch",
           "disabled": "Uitgesloten"
+        }
+      },
+      "sg_manual_control": {
+        "name": "SG-bediening",
+        "state": {
+          "auto": "Automatisch",
+          "on_30": "Aan · 30 minuten",
+          "on_60": "Aan · 60 minuten",
+          "off_30": "Uit · 30 minuten",
+          "off_60": "Uit · 60 minuten"
         }
       }
     }

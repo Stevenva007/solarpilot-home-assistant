@@ -17,3 +17,35 @@ set_planner_setting:
       required: true
       selector:
         object:
+sg_manual_control:
+  name: Tijdelijke SG-boost bedienen
+  description: Kies tijdelijk aan of uit voor 30 of 60 minuten. Daarna keert de regeling terug naar automatisch. Aan vereist een ingeschakelde SG-regeling en behoudt harde elektrische grenzen; dit wijzigt geen Panasonic-instellingen. Alleen voor beheerders.
+  fields:
+    config_entry_id:
+      name: Configuratie-ID
+      description: Verplicht bij meerdere SolarPilot-configuraties.
+      required: false
+      selector:
+        text:
+    mode:
+      name: Bediening
+      required: true
+      selector:
+        select:
+          options:
+            - label: Automatisch
+              value: auto
+            - label: Tijdelijk aan
+              value: "on"
+            - label: Tijdelijk uit
+              value: "off"
+    duration_s:
+      name: Tijdsduur in seconden
+      description: Gebruik 1800 (30 minuten) of 3600 (60 minuten) bij tijdelijk aan of uit. Laat dit veld weg bij automatisch.
+      required: false
+      selector:
+        number:
+          min: 1800
+          max: 3600
+          step: 1800
+          mode: box

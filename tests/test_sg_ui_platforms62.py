@@ -274,7 +274,7 @@ async def test_entry_removal_clears_both_software_notifications_without_equipmen
     source = ROOT / "custom_components/solar_pilot/__init__.py"
     function = next(n for n in ast.parse(source.read_text()).body
                     if isinstance(n, ast.AsyncFunctionDef) and n.name == "async_remove_entry")
-    calls, removed, frontend = [], [], []
+    calls, removed, frontend, removed_services = [], [], [], []
     class Store:
         def __init__(self, _hass, _version, key):
             self.key = key
@@ -285,8 +285,8 @@ async def test_entry_removal_clears_both_software_notifications_without_equipmen
     async def service(domain, action, payload, **kwargs):
         calls.append((domain, action, payload))
     hass = SimpleNamespace(async_add_executor_job=executor,
-        services=SimpleNamespace(has_service=lambda domain, action: domain == "persistent_notification",
-            async_call=service, async_remove=lambda *_: None),
+        services=SimpleNamespace(has_service=lambda domain, action: domain == "persistent_notification" or domain == "solar_pilot",
+            async_call=service, async_remove=lambda *args: removed_services.append(args)),
         config_entries=SimpleNamespace(async_entries=lambda _: []))
     namespace = {"DOMAIN": "solar_pilot", "Store": Store,
         "history_storage_key": lambda entry: f"history.{entry}",
@@ -295,7 +295,8 @@ async def test_entry_removal_clears_both_software_notifications_without_equipmen
         "feedback_storage_key": lambda entry: f"feedback.{entry}",
         "delete_private_files_if_requested": lambda: None,
         "async_unregister_frontend": lambda *_args, **kwargs: frontend.append(kwargs),
-        "SERVICE_SET_PLANNER_SETTING": "set_planner_setting"}
+        "SERVICE_SET_PLANNER_SETTING": "set_planner_setting",
+        "SERVICE_SG_MANUAL_CONTROL": "sg_manual_control"}
     future = ast.ImportFrom(module="__future__", names=[ast.alias(name="annotations")], level=0)
     exec(compile(ast.fix_missing_locations(ast.Module(body=[future, function], type_ignores=[])),
                  str(source), "exec"), namespace)
@@ -305,3 +306,5 @@ async def test_entry_removal_clears_both_software_notifications_without_equipmen
     assert set(removed) == {"solar_pilot.entry", "history.entry", "solar_pilot.entry.heatpump_history",
                             "analysis.entry", "feedback.entry"}
     assert frontend == [{"final": True}]
+    assert removed_services == [("solar_pilot", "set_planner_setting"),
+                                ("solar_pilot", "sg_manual_control")]

@@ -2620,6 +2620,10 @@ class SolarRuntime:
         hard_limit = (bool(discharge and discharge > self.settings.get("battery_discharge_tolerance_w", 50))
                       or bool(valid and grid > self.settings["max_import_w"])
                       or not actual_phase_ok)
+        start_known_hard_limit = (bool(discharge and discharge > self.settings.get("battery_discharge_tolerance_w", 50))
+            or bool(valid and grid > self.settings["max_import_w"])
+            or bool(self.phase_settings.get("enabled") and self.phase.valid
+                    and (self.phase.release_flexible or self.phase.block_increase)))
         hard_limit_reason = ""
         if discharge and discharge > self.settings.get("battery_discharge_tolerance_w", 50):
             hard_limit_reason = f"Batterij ontlaadt {discharge:.0f} W; extra SG-aanvraag wordt vrijgegeven"
@@ -2633,6 +2637,7 @@ class SolarRuntime:
             if cap_limit is None:
                 cap_limit = max(0.0, self.capacity.effective_target_w-self.capacity_settings["margin_w"])
             hard_limit = hard_limit or not self.capacity.valid or bool(valid and grid > cap_limit)
+            start_known_hard_limit = start_known_hard_limit or bool(self.capacity.valid and valid and grid > cap_limit)
             if not self.capacity.valid:
                 hard_limit_reason = hard_limit_reason or "Wacht op betrouwbare kwartierpiekmeting"
             elif valid and grid > cap_limit:
@@ -2646,11 +2651,13 @@ class SolarRuntime:
         # new watts and original report must also retain the hard ceilings.
         if current_import is not None and current_import > self.settings["max_import_w"]:
             hard_limit = True
+            start_known_hard_limit = True
             hard_limit_reason = hard_limit_reason or (f"Netgrens overschreden: {current_import:.0f} W afname "
                 f"> {self.settings['max_import_w']:.0f} W")
         if (current_import is not None and self.capacity_settings.get("enabled")
                 and current_import > cap_limit):
             hard_limit = True
+            start_known_hard_limit = True
             hard_limit_reason = hard_limit_reason or (f"Kwartierbudget overschreden: {current_import:.0f} W afname "
                 f"> {cap_limit:.0f} W resterende kwartiergrens")
         sg_sent = await self.sg_boost.tick(
@@ -2662,6 +2669,14 @@ class SolarRuntime:
             grid_import_stamp=import_observation.get("stamp"),
             grid_import_source=import_observation.get("source"),
             electrical_reason=hard_limit_reason or sg_reason, native_observation=tank,
+            start_wait_source_gap=(not start_known_hard_limit and sg_dispatch and not self._sg_start_priority_blocks_wait()
+                and (not budget["valid"] or not import_observation
+                     or self.phase_settings.get("enabled") and not self.phase.valid
+                     or self.capacity_settings.get("enabled") and not self.capacity.valid)),
+            start_source_identity=(tuple(self.settings.get(key) for key in (
+                "grid_entity", "grid_sign", "export_entity", "pv_entity", "battery_power_entity")),
+                tuple(self.phase_settings.get(key) for key in ("phase_1_entity", "phase_2_entity", "phase_3_entity")),
+                tuple(self.capacity_settings.get(key) for key in ("average_demand_entity", "monthly_peak_entity"))),
             solar_stamp=budget.get("residual_stamp", budget.get("stamp")),
             tank_observation={
                 "entity_id": tank["temperature_entity"], "temperature_c": tank["temperature_c"],
@@ -2985,7 +3000,7 @@ class SolarRuntime:
         self.panasonic.update_config(config)
         self.publish()
 
-    def sg_dispatch_allowed(self, *, renewal=False):
+    def sg_dispatch_allowed(self, *, renewal=False, automatic=False, ignore_solar=False):
         """Recheck live electrical truth after asynchronous Shelly preflight."""
         from .sg_config import actuator_conflicts
         if (actuator_conflicts(self.sg_boost.settings, list(self.configs.values()))
@@ -3009,7 +3024,8 @@ class SolarRuntime:
             if current_wallbox.block_increase or current_wallbox.release_flexible:
                 return False
             wallbox_cap = current_wallbox.max_increase_w
-        if not renewal and budget.get("eligible_w", budget["available_w"]) < self.sg_boost.settings["threshold_w"]:
+        if (not renewal and not ignore_solar and (automatic or self.sg_boost.manual_mode != "on")
+                and budget.get("eligible_w", budget["available_w"]) < self.sg_boost.settings["threshold_w"]):
             return False
         if (not renewal and (budget["stamp"] <= self.last_issued_wall or
                 time.monotonic()-self.last_issued < self.settings["settle_s"])):
@@ -3023,7 +3039,7 @@ class SolarRuntime:
         projected = budget["grid_w"]+envelope
         if projected > self.settings["max_import_w"]:
             return False
-        if renewal:
+        if renewal and (automatic or self.sg_boost.manual_mode != "on"):
             import_observation = self._sg_import_observation() or {}
             if not self.sg_boost.soft_import_renewal_allowed(
                     grid_import_w=import_observation.get("watts"),
@@ -3046,6 +3062,65 @@ class SolarRuntime:
             if not current_capacity.valid or projected > limit:
                 return False
         return True
+
+    def sg_start_wait_kind(self):
+        """Classify a changed preflight without creating command permission."""
+        if (not self.sg_boost._on_permission_current(self.sg_boost._generation)
+                or self._closed or self.removal_requested or self.restart_blocking
+                or self.faults or self.pending or self.handover or self.battery_fleet.busy
+                or self._sg_start_priority_blocks_wait()):
+            return None
+        grid, valid, discharge, ready, _stamp = self._site_data()
+        if (discharge is not None and discharge > self.settings.get("battery_discharge_tolerance_w", 50)
+                or valid and grid > self.settings["max_import_w"]):
+            return None
+        envelope = float(self.sg_boost.settings["expected_power_w"])+self.isolated_reserve_w
+        envelope += sum(max(0, st.target_w-st.measured_w) for i, st in self.states.items()
+            if st.owned and st.on and i not in self.source_isolated_devices)
+        if valid and grid+envelope > self.settings["max_import_w"]:
+            return None
+        source_gap = not valid or not ready
+        if self.phase_settings.get("enabled"):
+            phase = phase_decision(tuple(self._power(self.phase_settings.get(key), self.phase_settings["stale_s"])[0]
+                for key in ("phase_1_entity", "phase_2_entity", "phase_3_entity")), self.phase_settings)
+            if phase.valid and (phase.release_flexible or phase.block_increase
+                    or self.phase_settings.get("control_starts") and (phase.headroom_w is None or phase.headroom_w < envelope)):
+                return None
+            source_gap = source_gap or not phase.valid
+        if self.capacity_settings.get("enabled"):
+            avg = self._power(self.capacity_settings.get("average_demand_entity"), self.capacity_settings["stale_s"])[0]
+            peak = self._power(self.capacity_settings.get("monthly_peak_entity"), max(3600, self.capacity_settings["stale_s"]))[0]
+            if valid:
+                cap = capacity_decision(self._local_now(), avg, peak, grid, self.capacity_settings)
+                limit = cap.allowed_grid_w
+                if limit is None:
+                    limit = max(0.0, cap.effective_target_w-self.capacity_settings["margin_w"])
+                if cap.valid and grid+envelope > limit:
+                    return None
+                source_gap = source_gap or not cap.valid
+            else:
+                source_gap = True
+        budget = sg_solar_budget(self)
+        if source_gap or not budget["valid"] or not self._sg_import_observation():
+            return "measurement_gap"
+        if (budget.get("eligible_w", budget["available_w"]) < self.sg_boost.settings["threshold_w"]
+                and self.sg_dispatch_allowed(automatic=True, ignore_solar=True)):
+            return "cloud"
+        return None
+
+    def _sg_start_priority_blocks_wait(self):
+        """Only a demonstrated priority block resets a telemetry-gap clock."""
+        budget = sg_solar_budget(self)
+        if budget["valid"]:
+            return not self.priority_board.sg_priority_allowed(time.monotonic())
+        if any(cfg.get("kind") == "dishwasher" and self.dishwasher_app.due(cfg, time.time())
+               and not self.states[i].on for i, cfg in self.configs.items()):
+            return True
+        if self.wallbox_settings.get("enabled"):
+            for guard in (self.wallbox_guard.result, self.sg_wallbox_guard.result):
+                if guard.block_increase and guard.state != "unavailable":
+                    return True
+        return False
 
     def _dishwasher_deadline_dispatch_block(self, cfg, watts, *, expected_cfg=None, expected_request=None):
         """Re-read deadline sources; grid permission never creates headroom."""

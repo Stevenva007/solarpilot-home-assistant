@@ -799,6 +799,16 @@
           "auto": "Automatisch",
           "disabled": "Uitgesloten"
         }
+      },
+      "sg_manual_control": {
+        "name": "SG control",
+        "state": {
+          "auto": "Automatic",
+          "on_30": "On · 30 minutes",
+          "on_60": "On · 60 minutes",
+          "off_30": "Off · 30 minutes",
+          "off_60": "Off · 60 minutes"
+        }
       }
     }
   }

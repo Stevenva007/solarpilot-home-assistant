@@ -92,6 +92,10 @@ jobs:
         env:
           SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests
         run: python tools/check_heatpump_history70.py
+      - name: Validate temporary SG controls and start cloud grace with fictitious data
+        env:
+          SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests
+        run: python tools/check_sg_ui.py
       - name: Validate PV factor evidence and quarter profile with fictitious data
         env:
           SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests

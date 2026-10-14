@@ -16,6 +16,19 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                            'hervatting. SG-ingebruikname en lokale timer moeten afzonderlijk werkelijk '
                            'bevestigd zijn; deze voorkeur herhaalt geen oude boost of vervallen '
                            'Panasonic-opdracht.',
+ 'dashboard:sg_manual_control': 'Kies Automatisch, tijdelijk Aan of tijdelijk Uit, telkens voor 30 of 60 minuten. ' \
+                               'De absolute eindtijd blijft na herstart behouden; zij begint niet opnieuw. ' \
+                               'Bij afloop kiest SolarPilot Automatisch en beoordeelt de actuele voorwaarden. ' \
+                               'Tijdelijk Uit blokkeert alleen de eigen SG-aanvraag, niet de native warmtepomp. ' \
+                               'Tijdelijk Aan is een bewuste vraag die zon, startvertraging, rust, beleidswacht en zachte importstop vervangt. ' \
+                               'Zij blijft afhankelijk van bestaande ingebruikname, betrouwbare bronnen, ' \
+                               'lokale timer, elektrische ruimte, profiel, koelbeveiliging, globale modus en voorrang. ' \
+                               'Een nog gemeld AAN wordt na herstart alleen behouden bij passend eigen sessiebewijs ' \
+                               'en verse geldige voorwaarden. Onzekere opdrachten worden niet blind herhaald. ' \
+                               'Het oorspronkelijke harde sessiemaximum blijft leidend; een lopende sessie begint niet opnieuw. ' \
+                               'Alleen een bevestigd beta.84-sessiecheckpoint kan een nog lopende korte lokale timer ' \
+                               'bij echte HA-herstart voortzetten; oude journals houden de veilige vrijgave. ' \
+                               'De gemelde contactstand blijft afzonderlijk van deze gekozen bediening.',
  'others_first': 'Globale standaard voor gewone verbruikers: Andere eerst of Wallbox eerst. Een bewust '
                  'opgeslagen centrale volgorde is leidend. Panasonic regelt noodzakelijk comfort zelfstandig. '
                  'Extra SG-zonneboost is een afzonderlijke flexibele vraag en gebruikt geen EV-vermogen.',
@@ -1011,7 +1024,7 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                         'lokale timer zonder UIT/AAN-cyclus. Harde guards, volledige bevestigde '
                         'tekortafloop en het sessiemaximum blijven leidend; de timer wordt geen vijf- '
                         'of twintigminuten-garantie.',
- 'sg_advanced:start_delay_s': 'De gezamenlijke zonnebijdrage en alle startvoorwaarden moeten gedurende de ingestelde vertraging geldig blijven vóór een nieuwe SG-aanvraag, standaard 120 seconden. De kaart toont deze teller apart van de bestaande 300 seconden bevestiging van een nieuwe zonneperiode of native aanleiding na een beëindigde algemene sessie. Bevestiging op nul geeft geen starttoestemming zonder passend actueel eindrapport; daarna gelden deze vertraging en alle guards opnieuw. De nieuwe uitleesweergave verandert geen instelling of timer.',
+ 'sg_advanced:start_delay_s': 'De gezamenlijke zonnebijdrage en alle startvoorwaarden moeten aanvankelijk geldig zijn om de ingestelde inschakelklok te starten, standaard 120 seconden. Bij een korte zachte zondip of tijdelijk ontbrekende/verouderde meting kan deze klok maximaal 300 seconden doorlopen. AAN volgt pas bij opnieuw actuele betrouwbare bronnen, voldoende zonnebijdrage en geldige harde guards. Een verstreken klok tijdens een onderbreking betekent wachten op herstel, geen starttoestemming. Ontbrekend is geen nul en geen bewezen wolk. Binnen dit venster hoeft de volledige vertraging niet opnieuw; een langer interval, bekende harde blokkering, Pauze of gewijzigde binding reset. De bestaande 300 seconden bevestiging van een nieuwe zonneperiode of native aanleiding na een beëindigde algemene sessie blijft afzonderlijk.',
  'sg_advanced:min_session_s': 'Minimale SG-aanvraagduur, standaard 1200 seconden of twintig minuten. '
                               'Aanhoudende gewone netafname geeft de aanvraag pas na dit effectieve '
                               'minimum vrij. Harde guards, onbetrouwbare noodzakelijke bronnen, '

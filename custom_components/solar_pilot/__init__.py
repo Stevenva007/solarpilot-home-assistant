@@ -7,6 +7,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.helpers.storage import Store
 
 from .frontend import async_register_frontend, async_unregister_frontend
@@ -27,6 +28,9 @@ from .dishwasher_recovery import LegacyDishwasherRecoveryRetry, recover_legacy_d
 
 from .const import DOMAIN, PLATFORMS
 from .runtime import SolarRuntime
+from .sg_control_api import (
+    SERVICE_SG_MANUAL_CONTROL, SG_MANUAL_SERVICE_SCHEMA, async_handle_sg_manual_control,
+)
 
 SERVICE_SET_PLANNER_SETTING = "set_planner_setting"
 _LOGGER = logging.getLogger(__name__)
@@ -102,7 +106,7 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if runtime.wallbox_settings["enabled"]:
         hub_suffixes.update({"wallbox_status", "wallbox_power"})
     hub_suffixes.update({"dhw_status", "dhw_temperature", "dhw_target", "sg_boost_status",
-                         "sg_boost_enabled", "sg_boost_resume", "panasonic_status", "panasonic_power"})
+                         "sg_boost_enabled", "sg_boost_resume", "sg_manual_control", "panasonic_status", "panasonic_power"})
     registry = er.async_get(hass)
     for ent in er.async_entries_for_config_entry(registry, entry.entry_id):
         hub = ent.unique_id.removeprefix(f"{entry.entry_id}_") in hub_suffixes
@@ -137,6 +141,13 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 vol.Required("setting"): str,
                 vol.Required("value"): vol.Any(bool, int, float, str),
             }),
+        )
+    if not hass.services.has_service(DOMAIN, SERVICE_SG_MANUAL_CONTROL):
+        async def handle_sg_manual_control(call):
+            await async_handle_sg_manual_control(hass, call)
+        async_register_admin_service(
+            hass, DOMAIN, SERVICE_SG_MANUAL_CONTROL, handle_sg_manual_control,
+            schema=SG_MANUAL_SERVICE_SCHEMA,
         )
     entry.async_on_unload(entry.add_update_listener(_options_updated))
     return True
@@ -200,6 +211,6 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     # SolarPilot entry still exists.
     if not hass.config_entries.async_entries(DOMAIN):
         async_unregister_frontend(hass, final=True)
-        for service in (SERVICE_SET_PLANNER_SETTING,):
+        for service in (SERVICE_SET_PLANNER_SETTING, SERVICE_SG_MANUAL_CONTROL):
             if hass.services.has_service(DOMAIN, service):
                 hass.services.async_remove(DOMAIN, service)

@@ -149,7 +149,14 @@ async def test_ordinary_start_countdown_only_describes_current_valid_start_windo
         manager._closed = True
     else:
         runtime.mode = "observe"
-    assert manager.overview()["start_remaining_s"] is None
+    progress = manager.overview()
+    if condition == "low_solar":
+        assert progress["start_remaining_s"] == 120
+        assert progress["start_cloud_active"] is True
+        assert progress["start_cloud_kind"] == "cloud"
+        assert progress["start_cloud_remaining_s"] == 300
+    else:
+        assert progress["start_remaining_s"] is None
     assert not adapter.calls
 
 
