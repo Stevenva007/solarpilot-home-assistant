@@ -1,5 +1,5 @@
-/* SolarPilot 1.0.0-beta.86. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
-const SP_CARD_VERSION = '1.0.0-beta.86';
+/* SolarPilot 1.0.0-beta.87. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+const SP_CARD_VERSION = '1.0.0-beta.87';
 const SP_DIALOG_RELEASE = SP_CARD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g,'-');
 const SP_ANALYSIS_DIALOG_TAG = `solar-pilot-analysis-dialog-${SP_DIALOG_RELEASE}`;
 const SP_QUALITY_DIALOG_TAG = `solar-pilot-learning-dialog-${SP_DIALOG_RELEASE}`;
@@ -1359,6 +1359,11 @@ class SolarPilotCard extends HTMLElement {
       if(!quality||typeof quality!=='object')continue;
       const sourceLabel=key==='total'?(p.power_scope==='total'?'Totaalmeter':'Vermogensbron'):key==='supply1'?'Voeding 1':'Voeding 2';
       if(quality.reason)add(`${sourceLabel}: meetcontrole`,quality.reason);
+      const raw=quality.source_watts,normalized=quality.valid===true&&quality.normalized===true&&quality.normalization_reason==='negative_as_zero'&&quality.watts===0&&typeof raw==='number'&&Number.isFinite(raw)&&raw<0&&raw>=-100000&&typeof quality.source_value==='string'&&['W','kW'].includes(quality.source_unit);
+      if(normalized){
+        const fresh=this._freshObservation(quality.source_reported_wall,p.power_activity?.stale_s??p.source_stale_s??120);
+        add(`${sourceLabel}: normalisatie`,`Bron ${quality.source_value.slice(0,128)} ${quality.source_unit} → toegepast 0 W${fresh?'':' · bron niet actueel'}`);
+      }
       if(typeof quality.source_reported_wall==='number'&&Number.isFinite(quality.source_reported_wall)){
         const age=Math.floor(Date.now()/1000-quality.source_reported_wall);
         const ageLabel=age<0?`rapportagetijd ${-age} s in de toekomst`:`${age} s geleden`;

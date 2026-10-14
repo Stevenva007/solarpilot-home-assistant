@@ -34,15 +34,23 @@ def test_rejected_measurements_preserve_source_evidence_without_usable_watts(val
     hass.states.set("sensor.hp_total", value, {"unit_of_measurement": unit}, age=age)
     source = hass.states.get("sensor.hp_total")
     reading = heatpump_power(runtime)
-    assert not reading["valid"] and not reading["complete"]
-    assert reading["watts"] is None and reading["measured_wall"] is None
+    if reason == "negative":
+        assert reading["valid"] and reading["complete"] and reading["watts"] == 0
+        assert reading["measured_wall"] == source.last_reported.timestamp()
+        assert reading["normalized"] and reading["normalization_reason"] == "negative_as_zero"
+    else:
+        assert not reading["valid"] and not reading["complete"]
+        assert reading["watts"] is None and reading["measured_wall"] is None
     assert reading["source_value"] == str(value)
     assert reading["source_unit"] == unit
     assert reading["source_watts"] == source_watts
     assert reading["source_reported_wall"] == source.last_reported.timestamp()
     assert reading["source_age_s"] == pytest.approx(age, abs=0.2)
     assert reading["source_timestamp_kind"] == "last_reported"
-    assert reading["rejection_reason"] == reason and reading["reason"]
+    if reason == "negative":
+        assert reading["rejection_reason"] is None and reading["reason"] == ""
+    else:
+        assert reading["rejection_reason"] == reason and reading["reason"]
     assert not hass.services.calls
 
 

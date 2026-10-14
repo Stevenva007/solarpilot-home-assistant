@@ -105,10 +105,11 @@ def test_placeholder_and_energy_sources_do_not_strengthen_negative_hypothesis(cl
 
 def test_partial_real_zero_does_not_make_unknown_whole_heatpump_zero(clock):
     _runtime, hass, engine = setup(clock, split=True)
+    source(hass, "sensor.hp_main", "unavailable", clock)
     current = hp(engine, clock)
-    assert current["metrics"]["reports"] == 2
+    assert current["metrics"]["reports"] == 1
     assert current["metrics"]["valid_reports"] == 1
-    assert current["metrics"]["negative_reports"] == 1
+    assert current["metrics"]["negative_reports"] == 0
     assert current["metrics"]["complete_current"] is False
     assert current["metrics"]["current_w"] is None
     hass.states.data.pop("sensor.hp_main")
@@ -117,7 +118,7 @@ def test_partial_real_zero_does_not_make_unknown_whole_heatpump_zero(clock):
     missing = hp(engine, clock)
     assert missing["metrics"]["complete_current"] is False
     assert missing["metrics"]["current_w"] is None
-    assert missing["metrics"]["negative_reports"] == 1
+    assert missing["metrics"]["negative_reports"] == 0
 
 
 def test_new_explicit_binding_cannot_inherit_old_negative_pattern(clock):
@@ -194,7 +195,7 @@ def test_new_bad_report_revokes_health_before_next_full_minute_refresh(clock):
     source(hass, "sensor.hp_total", 0, clock)
     assert hp(engine, clock)["status"] == "observed_ok"
     clock[0] += 5
-    source(hass, "sensor.hp_total", -7, clock)
+    source(hass, "sensor.hp_total", "unavailable", clock)
     current = hp(engine, clock)
     assert current["status"] == "collecting"
     assert current["metrics"]["complete_current"] is False

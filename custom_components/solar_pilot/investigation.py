@@ -259,13 +259,16 @@ class LocalInvestigation:
             metrics.update(negative_first_reported_at=min(row["stamp"] for row in recent_negatives),
                            negative_last_reported_at=max(row["stamp"] for row in recent_negatives))
             hypotheses.append("Een kleine meetafwijking bij laag vermogen is mogelijk. Dit bewijst geen offset, stroomrichting of aansluitfout.")
-            proposals.append(_proposal(topic, "low_power_comparison", "Vergelijk de bestaande meter bij laag en bij duidelijk positief verbruik met een onafhankelijke meting; pas geen tekenomkering, absolute waarde of nulcorrectie toe."))
+            proposals.append(_proposal(topic, "low_power_comparison", "SolarPilot interpreteert bruikbare verse negatieve warmtepompwaarden als 0 W en bewaart de ruwe bronwaarde. Een vergelijking bij laag en duidelijk positief verbruik kan de meterkwaliteit toetsen; pas geen tekenomkering of fysieke kalibratie toe op basis van deze gegevens."))
         if not configured:
             return _item(topic, "Warmtepompmeting", "not_configured", "Geen warmtepompvermogensbron gekoppeld.",
                          "Koppel en bevestig de dekking van een eigen meter als die beschikbaar is.", evidence=evidence,
                          proposals=[_proposal(topic, "coverage", "Controleer welke gekoppelde meter het volledige toestel of afzonderlijke voedingen omvat; geen automatische bronkeuze.")], metrics=metrics)
         if complete:
-            return _item(topic, "Warmtepompmeting", "observed_ok", "Het huidige volledige warmtepompverbruik is actueel gemeten.",
+            summary = ("Het volledige warmtepompverbruik is actueel beschikbaar; negatieve waarden zijn als 0 W geïnterpreteerd."
+                       if any(reading.get("normalized") is True for reading in sources.values())
+                       else "Het huidige volledige warmtepompverbruik is actueel gemeten.")
+            return _item(topic, "Warmtepompmeting", "observed_ok", summary,
                          "Blijf nieuwe bronrapporten vergelijken; deze waarneming bevestigt geen fysieke reparatie of compressorwerking.",
                          evidence=evidence, hypotheses=hypotheses, proposals=proposals, metrics=metrics)
         proposals.append(_proposal(topic, "source_check", "Controleer actualiteit, W/kW-eenheid, meetrichting en dekking van de reeds gekoppelde warmtepompbronnen; ontbrekende delen blijven onbekend."))

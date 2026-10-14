@@ -14,7 +14,7 @@ from .sg_config import finite
 POWER_NOTE = "Afgeleid uit gemeten verbruik; compressorbedrijf/warmteproductie niet afzonderlijk gemeten."
 SOURCE_EVIDENCE_FIELDS = ("entity_id", "source_reported_wall", "source_timestamp_kind", "source_unit",
                           "source_value", "source_watts", "source_age_s", "rejection_reason", "reason",
-                          "measured_wall")
+                          "measured_wall", "normalized", "normalization_reason")
 _HEATING = frozenset({"heating", "preheating"})
 _TANK_HEATING = _HEATING | {"dhw", "hot_water"}
 _COOLING = frozenset({"cooling", "precooling"})

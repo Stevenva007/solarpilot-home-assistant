@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0-beta.87 — negatieve warmtepompverbruikswaarden als nul
+
+- Gebruikt uitsluitend verse eindige negatieve W/kW-waarden van toegewezen HP-verbruiksmeters binnen het bestaande plausibele bereik als 0 W, na alle gewone bron-/eenheids-/actualiteits-/dekkingscontroles. Ruwe bronwaarde/watts en normalisatiemarkering blijven in diagnose beschikbaar.
+- Ontbrekend, stale, NaN/oneindig, toekomstig, estimated/restored, overlap, verkeerde eenheid en incomplete dekking blijven onbekend; een onvolledig paar wordt geen compleet totaal. P1/net/export/PV/batterij/fasen houden hun tekenbetekenis. Geen tekenflip, bewezen kalibratie, bedrading- of causale warmteclaim; oude historie/exports worden niet herschreven.
+- Behoudt beta.86-GENERAL/response_unknown-restzonherbeoordeling en actuele getypeerde Aquarea-displayroute, andere echte holds/koelguards, beta.85-callbackfix, beta.84-tijdelijke bediening/herstart/leases/min20/600 W300 s en alle overige gegevens. Volledige HA-herstart/browserrefresh; interne foutpauze blijft beschermd.
+- Bouwbasis: gepubliceerde beta.86 `d1e64c816b5ed4ebb2ccc866ef7efa949185fc23`, tree `fd936c26b37bce51fa0ec7754a59596bfcd0177d`. Eigen bewijs: `docs/TESTRESULTATEN_BETA87.md`; upgrade/behoud/rollback: `docs/BETA87_INSTELLEN.md`. Eerdere resultaten zijn geen beta.87-validatie.
+
 ## 1.0.0-beta.86 — herbeoordelen op verse resterende zon
 
 - Voegt alleen binnen het lokaal bevestigde algemene SG-profiel voor `response_unknown` het bewijs `fresh_residual_surplus` toe: na bestaande rust (standaard 900 s) gedurende 300 s minstens twee nieuwe oorspronkelijke verse rapporten met werkelijk resterend overschot vanaf `max(threshold_w, expected_power_w)`. Daarna geldt de bestaande gewone startvertraging (standaard 120 s) en volledige actuele vrijgave. Geen warmtepompcredit, oude samples of herstart als nieuw bewijs.

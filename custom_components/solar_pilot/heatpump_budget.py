@@ -71,7 +71,8 @@ def _source_evidence(obj, now):
 def _meter_reading(runtime, config, meter, reserved, now):
     result = {"valid": False, "watts": None, "measured_wall": None,
               "entity_id": meter or None, "reason": "Geen vermogensbron ingesteld",
-              "rejection_reason": "not_configured", **_source_evidence(None, now)}
+              "rejection_reason": "not_configured", "normalized": False,
+              "normalization_reason": None, **_source_evidence(None, now)}
 
     def rejected(code, reason):
         return {**result, "rejection_reason": code, "reason": reason}
@@ -94,9 +95,7 @@ def _meter_reading(runtime, config, meter, reserved, now):
         return rejected("unsupported_unit", "Vermogenseenheid ontbreekt of is geen W/kW")
     if result["source_watts"] is None:
         return rejected("invalid_value", "Vermogenswaarde ontbreekt of is niet eindig numeriek")
-    if result["source_watts"] < 0:
-        return rejected("negative", "Negatieve vermogenswaarde is geen geldig warmtepompverbruik")
-    if result["source_watts"] > _POWER_PLAUSIBILITY_W:
+    if abs(result["source_watts"]) > _POWER_PLAUSIBILITY_W:
         return rejected("out_of_range", "Vermogenswaarde buiten plausibel meetbereik")
     if result["source_reported_wall"] is None:
         return rejected("invalid_timestamp", "Echte rapportagetijd ontbreekt of is ongeldig")
@@ -104,12 +103,30 @@ def _meter_reading(runtime, config, meter, reserved, now):
         return rejected("future_timestamp", "Rapportagetijd ligt in de toekomst")
     if result["source_age_s"] > config.get("stale_s", 120):
         return rejected("stale", "Vermogensrapport is te oud")
+    validation_flags = tuple(bool(attrs.get(key)) for key in ("restored", "estimated", "is_estimated"))
+    source_name = str(attrs.get("friendly_name", ""))
     watts, stamp = runtime._power(meter, config.get("stale_s", 120))
     watts, stamp = _number(watts), _number(stamp)
-    if (watts is None or not 0 <= watts <= _POWER_PLAUSIBILITY_W or stamp is None
+    if (watts is None or abs(watts) > _POWER_PLAUSIBILITY_W or stamp is None
             or not -5 <= now-stamp <= config.get("stale_s", 120)):
         return rejected("unusable_report", "Vermogensrapport is niet bruikbaar volgens de actuele broncontrole")
+    current = runtime.hass.states.get(meter)
+    current_attrs = getattr(current, "attributes", {}) or {}
+    if (current is not obj or _source_evidence(current, now) != {
+            key: result[key] for key in _source_evidence(None, now)}
+            or tuple(bool(current_attrs.get(key)) for key in ("restored", "estimated", "is_estimated")) != validation_flags
+            or str(current_attrs.get("friendly_name", "")) != source_name
+            or _reserved_meters(runtime) != reserved
+            or watts != result["source_watts"] or stamp != result["source_reported_wall"]):
+        return rejected("source_changed", "Vermogensbron veranderde tijdens de broncontrole; wacht op een samenhangend nieuw rapport")
+    if any(meter_sources_overlap(runtime.hass, meter, other) for other in reserved):
+        return rejected("overlap", "Vermogensbron overlapt met een andere gebruikte meter")
+    normalized = watts < 0
+    # Explicit HP-consumption policy only. Raw signed reports and timestamps
+    # stay available; site/P1/PV/battery/fase measurements are never modified.
+    watts = max(0.0, watts)
     return {**result, "valid": True, "watts": watts, "measured_wall": stamp,
+            "normalized": normalized, "normalization_reason": "negative_as_zero" if normalized else None,
             "rejection_reason": None, "reason": ""}
 
 

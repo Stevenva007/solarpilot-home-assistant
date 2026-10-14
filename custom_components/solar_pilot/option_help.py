@@ -941,10 +941,12 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
  'sg_sources:power_entity': 'Een fysieke W/kW-meter met expliciet aangegeven dekking. Het totale '
                             'toestelvermogen is geen gegarandeerd terugwinbaar SG-vermogen: normaal comfort '
                             'kan na vrijgeven doorgaan. Gebruik één bevestigde totaalmeter of de twee '
-                            'deelmeters hieronder; geen totaalmeter plus nogmaals een inbegrepen voeding.',
+                            'deelmeters hieronder; geen totaalmeter plus nogmaals een inbegrepen voeding.'
+                                      ' Beta.87 gebruikt een verse eindige negatieve HP-verbruikswaarde binnen het bestaande plausibele bereik na volledige broncontrole als 0 W. Ruwe bronwaarde, watts en normalisatiemarkering blijven bewaard. Ontbrekend, oud, geschat, hersteld, toekomstig, overlap of onvolledige dekking blijft onbekend. Net-, export-, batterij- en fasetekens veranderen niet; dit is geen kalibratiebewijs.',
  'sg_sources:power_supply1_entity': 'Optionele fysieke W/kW-meter voor voeding 1. Deze voeding kan naast de '
                                     'compressor ook andere onderdelen omvatten. Gebruik samen met voeding 2 '
-                                    'alleen na bevestiging van volledige niet-overlappende dekking.',
+                                    'alleen na bevestiging van volledige niet-overlappende dekking.'
+                                      ' Beta.87 gebruikt een verse eindige negatieve HP-verbruikswaarde binnen het bestaande plausibele bereik na volledige broncontrole als 0 W. Ruwe bronwaarde, watts en normalisatiemarkering blijven bewaard. Ontbrekend, oud, geschat, hersteld, toekomstig, overlap of onvolledige dekking blijft onbekend. Net-, export-, batterij- en fasetekens veranderen niet; dit is geen kalibratiebewijs.',
  'sg_sources:power_supply2_entity': 'Optionele fysieke W/kW-meter voor voeding 2. Het automatische '
                                     'Panasonic-profiel duidt deze voeding als elektrische bijverwarming, '
                                     'met een zichtbare profielaanname; een eerder bewust gekozen andere '
@@ -952,7 +954,8 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                                     'gemeten 0 W is nul, een ontbrekende of verouderde bron blijft onbekend '
                                     'en maakt de som onvolledig. Totale niet-overlappende dekking wordt '
                                     'afzonderlijk bevestigd; de profielrol is geen heater-terugmelding '
-                                    'of SG-toestemming.',
+                                    'of SG-toestemming.'
+                                      ' Beta.87 gebruikt een verse eindige negatieve HP-verbruikswaarde binnen het bestaande plausibele bereik na volledige broncontrole als 0 W. Ruwe bronwaarde, watts en normalisatiemarkering blijven bewaard. Ontbrekend, oud, geschat, hersteld, toekomstig, overlap of onvolledige dekking blijft onbekend. Net-, export-, batterij- en fasetekens veranderen niet; dit is geen kalibratiebewijs.',
  'sg_sources:power_activity_threshold_w': 'Actief verbruik wordt vanaf deze waarde per geldige voeding weergegeven, '
                                           'standaard 200 W. Deze drempel verandert uitsluitend de uitleg en '
                                           'grafische weergave; hij schakelt niets en verandert de SG-startdrempel '

@@ -30,7 +30,7 @@ def assert_no_whole_hp_idle_label(root):
     assert all('Niet actief' not in node.text() for node in tasks)
 
 
-def monitored_scope(monkeypatch, *, main=-6, tank=OperationStatus.ON,
+def monitored_scope(monkeypatch, *, main="unavailable", tank=OperationStatus.ON,
                     direction=DeviceDirection.IDLE):
     now = time.time()
     env, runtime, hass = automatic_monitor(monkeypatch)

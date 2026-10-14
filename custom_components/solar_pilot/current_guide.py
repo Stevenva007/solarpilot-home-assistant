@@ -3,13 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.86'
+GUIDE_VERSION = '1.0.0-beta.87'
 GUIDE_UPDATED = '2026-10-14'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.86',
+ 'version': '1.0.0-beta.87',
  'updated': '2026-10-14',
- 'intro': ('Beta.86 laat uitsluitend binnen het lokaal bevestigde algemene SG-profiel een aanvraag met onbekende eerdere reactie opnieuw beoordelen op voldoende werkelijk resterende zonnestroom. Eerst moet de bestaande rusttijd verstreken zijn; daarna bevestigen minstens twee nieuwe oorspronkelijke rapporten gedurende vijf minuten genoeg vrij overschot voor zowel de startdrempel als de conservatieve extra-vraagraming. Vervolgens geldt de gewone startvertraging. Een ontbrekende warmtepompvermogensmeting geeft geen krediet en geen fictieve nul, maar blokkeert de aanvraag niet wanneer de essentiële bronnen en volledige elektrische ruimte betrouwbaar zijn. De uitsluitend uitlezende Aquarea-weergave gebruikt daarnaast de actuele getypeerde providerpoll wanneer oudere zoneobjecten nog een eerdere momentopname vasthouden; verse passende HA-bronnen blijven vereist. Andere bewezen stop- en wachtredenen, alle harde voorwaarden, de beta.85-callbackfix en bestaande bediening/gegevens blijven behouden.'),
+ 'intro': ('Beta.87 behandelt verse geldige negatieve waarden van de toegewezen warmtepompverbruiksmeters als 0 W, volgens de gekozen gebruikersinterpretatie. De oorspronkelijke waarde, genormaliseerde ruwe watts en normalisatiemarkering blijven in diagnose beschikbaar. Alle gewone bron-, actualiteits-, eenheids-, bereik- en dekkingscontroles gelden eerst. Ontbrekend, oud of anders onbruikbaar blijft onbekend; net-, export-, batterij- en fasetekens veranderen niet. Dit is geen bewezen meterkalibratie of correcte aansluiting en herschrijft geen oude historie. Alle beta.86-SG-herbeoordeling, Aquarea-presentatie, beta.85-callbackfix en eerdere bediening/gegevens blijven behouden.'),
  'sections': [{'title': '1. Basisprincipe en modi',
                'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele '
                               'net- en PV-metingen, echte toestelvoorwaarden en elektrische grenzen gaan '
@@ -272,12 +272,12 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Voor SG zijn actuele betrouwbare net-/PV-/eventuele batterij- en ingeschakelde fasemetingen, '
                               'relevante native koelcontext, profiel, contact-/timerbewijs en alle harde voorwaarden '
                               'noodzakelijk. Warmtepompwatts zijn aanvullend voor zonnecredit, volledige '
-                              'meter-/energiedekking en diagnose. Ontbrekende, oude, onvolledige of negatieve '
+                              'meter-/energiedekking en diagnose. Ontbrekende, oude, onvolledige of anders onbruikbare '
                               'warmtepompwatts geven geen credit, energie of nulwaarde. De SG-aanvraag kan toch worden '
                               'beoordeeld uit voldoende werkelijk restoverschot, met de volledige behouden conservatieve '
                               'extra-vraagraming binnen de actuele harde ruimte. Een terugkerende bron wordt vanaf haar '
                               'nieuwe huidige geldige kwaliteit weer gebruikt; oude gaten worden niet ingevuld. Een verse '
-                              'negatieve meting blijft ongeldig en vraagt brononderzoek, geen automatische tekenomkering.',
+                              'negatieve warmtepompverbruiksmeting wordt alleen na volledige geldige broncontrole naar 0 W genormaliseerd; oorspronkelijke waarde en markering blijven beschikbaar. Dit keert geen teken om en bewijst geen correcte fysieke meting.',
                               'Voor Uitsluitend tapwater blijft de bestaande anti-herhaalregel behouden: een verse '
                               'betrouwbare tankmeting bij het sessie-einde is de referentie. Na rust kan minstens 2 °C '
                               'afkoeling van dezelfde bron, met minstens twee nieuwe echte rapporten over vijf minuten, een '
@@ -430,7 +430,8 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'comfort en beveiligingen zelfstandig.'],
                'bullets': []},
               {'title': '6. Warmtepompvermogen en elektrische ondersteuning',
-               'paragraphs': ['Koppel één bestaande bevestigde totaalmeter, of twee lokaal bevestigde '
+               'paragraphs': ['Vanaf beta.87 worden uitsluitend verse eindige negatieve W/kW-waarden van de toegewezen warmtepompverbruiksmeters binnen het bestaande plausibele bereik na alle gewone broncontroles als 0 W gebruikt. Dit geldt voor de exclusieve totaalmeter of toegewezen deelvoedingen; de oorspronkelijke gerapporteerde waarde, ruwe watts en normalisatiemarkering blijven inspecteerbaar. Ontbrekend, oud, toekomstig, geschat, hersteld, NaN/oneindig, verkeerde eenheid, overlap of onvolledige dekking wordt niet naar nul omgezet. Bij een onvolledig meterpaar blijft het totaal onbekend. P1/net, export, PV, batterij en fasen houden hun bestaande tekenbetekenis. De nul is een bewuste software-interpretatie, geen kalibratie- of aansluitbewijs en geen compressor-/warmteclaim. Oude historie en eerdere exports worden niet opnieuw geïnterpreteerd.',
+                              'Koppel één bestaande bevestigde totaalmeter, of twee lokaal bevestigde '
                               'volledige niet-overlappende deelmeters voor voeding 1 en voeding 2. Beide '
                               'routes lezen actuele W/kW, valideren eenheid, tekenrichting, plausibiliteit '
                               'en echte rapportage/heartbeat. De bestaande geldige single-meterkeuze blijft '
@@ -504,7 +505,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'optionele eigen SG-aanvraag vrijgegeven.',
                               ('Per vermogensbron blijven laatste echte rapportagetijd, W/kW-eenheid, '
                                'gerapporteerde waarde en concrete afkeurreden beschikbaar, ook als de '
-                               'actuele bruikbare waarde onbekend is. Ontbrekend, oud, negatief, hersteld, '
+                               'actuele bruikbare waarde onbekend is. Ontbrekend, oud, hersteld, '
                                'geschat en verkeerde eenheid blijven afzonderlijk van gemeten nul. Een '
                                'gelijkblijvende waarde met een nieuw werkelijk bronrapport is vers; een '
                                'regelronde of wijziging van een ander attribuut maakt de oude waarde niet '
@@ -747,7 +748,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                                'regelrecht. Een verkeerde aansluiting of ontbrekende meter kan lokale '
                                'controle nodig houden. Een mogelijke lage-vermogensoffset wordt alleen '
                                'als hypothese genoemd bij voldoende recente negatieve rapporten; de '
-                               'waarde wordt niet gecorrigeerd. Aantallen oorspronkelijke rapporten '
+                               'diagnose zelf corrigeert geen meter. De afzonderlijke beta.87-verbruiksinterpretatie mag een anders volledig geldige verse negatieve HP-waarde naar nul normaliseren met behoud van oorspronkelijke data. Aantallen oorspronkelijke rapporten '
                                'zijn geen bewezen statistisch onafhankelijke meetproeven. Een verlopen '
                                'of herstelde beoordeling blijft eerdere informatie, geen bewijs van de '
                                'actuele toestand. Dit lokale onderzoek en de aparte warmtepompgeschiedenis '
@@ -1009,7 +1010,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van '
                               'SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, '
                               'AEG- of Shelly-integratie.',
-                              ("Rollback naar beta.85 behoudt de herstelde callbackcontrole, tijdelijke bediening, startklokbuffer en bevestigde herstart, maar mist de nieuwe herbeoordeling bij onbekende reactie op voldoende verse restzon. Geef vóór rollback de eigen SG-aanvraag veilig vrij en controleer de lokale afloop; herstel geen oude ongecontroleerde opdrachten. Nieuwe aanvullende opslagvelden kunnen bij een oudere opslagwrite wegvallen; bewaar nieuwe historie met een volledige privéback-up vóór rollback. Oude taakperioden worden niet opnieuw geïnterpreteerd. Rollback corrigeert geen meter of fysieke installatie. Geef vóór codevervanging de eigen SG-aanvraag veilig vrij en controleer lokale terugval. Exact herstel vraagt code én passende volledige privéback-up. Herstel nooit een oude onverbruikte APP-aanvraag nadat dezelfde belading al fysiek gestart is. Gebruik geen twee runtimes tegelijk en verwijder de entry niet. Voor de oude directe beta.61-regeling blijft de volledige back-up van vóór beta.62 nodig. Zie BETA86_INSTELLEN.md.")],
+                              ("Rollback naar beta.86 behoudt de SG-herbeoordeling en eerdere fixes, maar behandelt negatieve warmtepompwatts weer als onbruikbaar in plaats van de nieuwe nulinterpretatie. Geef vóór rollback de eigen SG-aanvraag veilig vrij en controleer de lokale afloop; herstel geen oude ongecontroleerde opdrachten. Nieuwe aanvullende opslagvelden kunnen bij een oudere opslagwrite wegvallen; bewaar nieuwe historie met een volledige privéback-up vóór rollback. Oude taakperioden worden niet opnieuw geïnterpreteerd. Rollback corrigeert geen meter of fysieke installatie. Geef vóór codevervanging de eigen SG-aanvraag veilig vrij en controleer lokale terugval. Exact herstel vraagt code én passende volledige privéback-up. Herstel nooit een oude onverbruikte APP-aanvraag nadat dezelfde belading al fysiek gestart is. Gebruik geen twee runtimes tegelijk en verwijder de entry niet. Voor de oude directe beta.61-regeling blijft de volledige back-up van vóór beta.62 nodig. Zie BETA87_INSTELLEN.md.")],
                'bullets': []},
               {'title': '21. Release- en documentatieregel',
                'paragraphs': ["Dit is de enige volledige actuele regelbeschrijving. current_guide.py genereert dezelfde Markdown-mirrors en HA-uitleg. Optiehulp, versie, changelog, OVERDRACHT.md, installatie, rollback en testverslag horen bij dezelfde bronrelease. Historische releasebestanden beschrijven oudere versies en zijn geen actuele bediening. UPSTREAM_BRONNEN.md bewaart uitsluitend publieke gepinde contracten en actuele release-/PR-status. Een afzonderlijk geautoriseerde ChatGPT-taak controleert vanaf 21 oktober 2026 wekelijks op woensdag rond 19:00 Europe/Brussels relevante GitHub-wijzigingen en kan geteste SolarPilot-correcties volgens de normale releaseprocedure publiceren. Dit is externe ontwikkeling; de integratie bevat geen achtergrond-AI of automatische provider-/apparaatupdate. Privé-exports en sensorkoppelingen worden niet gepubliceerd.",

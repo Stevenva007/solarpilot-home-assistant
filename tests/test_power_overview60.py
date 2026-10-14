@@ -44,8 +44,13 @@ def test_untrusted_power_stays_unknown(state,attributes,age):
     runtime,hass=measured_heat_pump()
     hass.states.set("sensor.boiler_power",state,{"unit_of_measurement":"W",**attributes},age=age)
     reading=heatpump_power(runtime);view=runtime.panasonic.overview()
-    assert not reading["valid"] and reading["watts"] is None and reading["measured_wall"] is None
-    assert view["power_w"] is None and view["power_kind"]=="unknown"
+    if state == -2300 and attributes == {} and age == 0:
+        assert reading["valid"] and reading["watts"] == 0 and reading["measured_wall"] > 0
+        assert reading["source_watts"] == -2300 and reading["normalized"]
+        assert view["power_w"] == 0 and view["power_kind"] == "measured"
+    else:
+        assert not reading["valid"] and reading["watts"] is None and reading["measured_wall"] is None
+        assert view["power_w"] is None and view["power_kind"]=="unknown"
 
 
 @pytest.mark.parametrize("binding",["grid","pv","battery","wallbox","consumer"])

@@ -57,6 +57,14 @@ def test_partial_power_keeps_known_active_feed_without_total_or_task(bad):
         hass.states.set("sensor.hp_supply_two", -1 if bad == "negative" else 0,
             attrs, reported_age=121 if bad == "stale" else 0)
     view = runtime.panasonic.overview()["power_activity"]
+    if bad == "negative":
+        assert view["state"] == "active" and view["active"] and view["complete"]
+        assert view["total_w"] == 1400
+        assert view["supplies"][1]["watts"] == 0
+        assert view["supplies"][1]["source_watts"] == -1
+        assert view["supplies"][1]["normalization_reason"] == "negative_as_zero"
+        assert not hass.services.calls
+        return
     assert view["state"] == "partial" and view["active"]
     assert view["label"] == "Actief verbruik op voeding 1"
     assert view["total_w"] is None and not view["complete"]
