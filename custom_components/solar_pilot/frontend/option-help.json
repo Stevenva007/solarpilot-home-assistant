@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.82",
+  "version": "1.0.0-beta.83",
   "language": "nl",
   "steps": {
     "init": {
@@ -1019,7 +1019,10 @@
         "sg_status_entity": "Werkelijk ontvangen SG-status — alleen uitlezen",
         "power_activity_threshold_w": "Actief verbruik vanaf (W) — alleen weergave",
         "power_supply1_role": "Functie voeding 1 — automatische weergave",
-        "power_supply2_role": "Functie voeding 2 — automatische weergave"
+        "power_supply2_role": "Functie voeding 2 — automatische weergave",
+        "sg_dhw_capacity_percent": "SG capaciteit 1 — tapwaterpercentage (alleen weergave)",
+        "sg_dhw_capacity_confirmed": "Tapwaterpercentage lokaal op Panasonic bevestigd",
+        "sg_dhw_capacity_target_entity": "Tankbron voor berekend SG-doel — alleen weergave"
       },
       "data_description": {
         "tank_temperature_entity": "Werkelijke tanktemperatuur uit een geschikte bron.",
@@ -1035,7 +1038,10 @@
         "sg_status_entity": "Optionele bestaande bron die werkelijk de ontvangen SG-status op Panasonic meldt.",
         "power_activity_threshold_w": "Actief verbruik wordt vanaf deze waarde per geldige voeding weergegeven, standaard 200 W.",
         "power_supply1_role": "Het bestaande meterpaar gebruikt automatisch het Panasonic-profiel: voeding 1 is de warmtepompvoeding inclusief regeling en pompen.",
-        "power_supply2_role": "Het bestaande meterpaar gebruikt automatisch het Panasonic-profiel: voeding 2 is de elektrische bijverwarming."
+        "power_supply2_role": "Het bestaande meterpaar gebruikt automatisch het Panasonic-profiel: voeding 2 is de elektrische bijverwarming.",
+        "sg_dhw_capacity_percent": "Het door jou op Panasonic ingestelde tapwaterpercentage van SG capaciteit 1, alleen voor de doelweergave.",
+        "sg_dhw_capacity_confirmed": "Bevestig dat het ingevulde tapwaterpercentage overeenkomt met jouw Panasonic SG-capaciteit 1.",
+        "sg_dhw_capacity_target_entity": "Selecteer de native tankbron waarop het bevestigde SG tapwaterpercentage betrekking heeft."
       }
     },
     "sg_advanced": {
@@ -1121,7 +1127,8 @@
     "sg_meter_overlap": "Gebruik één totaalmeter of twee afzonderlijke niet-overlappende deelmeters; geen dubbele meting.",
     "sg_frequency_unit": "Kies een werkelijke compressorfrequentiebron in Hz.",
     "sg_status_source": "Kies een onafhankelijke bron voor werkelijk ontvangen SG, geen relaisstand of programma-/klepstand.",
-    "sg_supply_role_review": "De deelmeter is gewijzigd. Kies de functie van de nieuwe voeding opnieuw na controle; de eerdere functie geldt voor de oude meter."
+    "sg_supply_role_review": "De deelmeter is gewijzigd. Kies de functie van de nieuwe voeding opnieuw na controle; de eerdere functie geldt voor de oude meter.",
+    "sg_target_binding": "Selecteer het exacte native water_heater- of climate-tankdoel met geregistreerde apparaatidentiteit voordat je het tapwaterpercentage bevestigt."
   },
   "abort": {
     "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",
@@ -3976,6 +3983,33 @@
       "short": "Het bestaande meterpaar gebruikt automatisch het Panasonic-profiel: voeding 2 is de elektrische bijverwarming.",
       "paragraphs": [
         "Het bestaande meterpaar gebruikt automatisch het Panasonic-profiel: voeding 2 is de elektrische bijverwarming. Hiervoor hoef je niets opnieuw in te vullen. De grafiek duidt de opgenomen elektrische hulp aan op basis van het vermogen; dit is geen afzonderlijke heater-terugmelding. Een eerder bewust gekozen andere functie blijft behouden. De totale niet-overlappende meetdekking wordt apart bevestigd. Deze keuze geeft geen nieuwe SG-toestemming.",
+        "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "sg_sources.sg_dhw_capacity_percent": {
+      "title": "SG capaciteit 1 — tapwaterpercentage (alleen weergave)",
+      "short": "Het door jou op Panasonic ingestelde tapwaterpercentage van SG capaciteit 1, alleen voor de doelweergave.",
+      "paragraphs": [
+        "Het door jou op Panasonic ingestelde tapwaterpercentage van SG capaciteit 1, alleen voor de doelweergave. Bijvoorbeeld: 115% van een normaal doel van 50 °C geeft een berekend SG-doel van 57,5 °C. SolarPilot schrijft dit percentage niet naar Panasonic en gebruikt het niet voor SG-toestemming, responsebewijs of het thermische model. Het standaardveld 100% is nog geen bevestigde instelling.",
+        "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "sg_sources.sg_dhw_capacity_confirmed": {
+      "title": "Tapwaterpercentage lokaal op Panasonic bevestigd",
+      "short": "Bevestig dat het ingevulde tapwaterpercentage overeenkomt met jouw Panasonic SG-capaciteit 1.",
+      "paragraphs": [
+        "Bevestig dat het ingevulde tapwaterpercentage overeenkomt met jouw Panasonic SG-capaciteit 1. Selecteer hiervoor het exacte native water_heater- of climate-tankdoel met geregistreerde apparaatidentiteit. Een automatisch gevonden of vervangen tank erft geen eerder percentage. Vanaf dit lokale bevestigingsmoment wordt het SG-doel berekend uit een vers normaal tankdoel; er is geen aparte Panasonic-doelterugmelding nodig. Oude geschiedenis wordt niet aangevuld. De actuele contactstand blijft afzonderlijk: bij UIT toont de kaart een doel voor bij AAN. Native prioriteiten, afronding en SG-grenzen worden niet automatisch afgeleid of aangepast.",
+        "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "sg_sources.sg_dhw_capacity_target_entity": {
+      "title": "Tankbron voor berekend SG-doel — alleen weergave",
+      "short": "Selecteer de native tankbron waarop het bevestigde SG tapwaterpercentage betrekking heeft.",
+      "paragraphs": [
+        "Selecteer de native tankbron waarop het bevestigde SG tapwaterpercentage betrekking heeft. Dit is alleen een binding voor de berekende doelweergave; de gewone tankdoelbron, koelcontext en SG-regeling worden niet gewijzigd. De exacte geregistreerde apparaatidentiteit wordt lokaal vastgelegd. Een andere of vervangen tank krijgt geen oude bevestiging.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]

@@ -16,10 +16,45 @@ from .pv_forecast_source import finite, stamp
 MAX_SNAPSHOTS = 96
 MAX_TARGETS = 48
 MAX_COMPARISONS = 2880
+CONDITION_LABELS = {"daylight": "Daglicht: zon boven horizon", "night": "Nacht: zon onder horizon",
+                    "other_zero": "Nulpunten zonder oorspronkelijk zonbewijs", "unknown": "Overig / onbekend"}
 
 
 def iso(ts):
     return datetime.fromtimestamp(ts, timezone.utc).isoformat()
+
+
+def solar_proof(elevation, reported, observed, meter_reported):
+    """Keep only original near-target sun reports, never infer night from watts."""
+    height, source_time = finite(elevation), finite(reported)
+    valid = (height is not None and -90 <= height <= 90 and source_time is not None
+             and 0 < source_time <= 32503680000 and -5 <= observed-source_time <= 120
+             and abs(meter_reported-source_time) <= 120)
+    return {"elevation_deg": height if valid else None,
+            "reported_at": iso(source_time) if valid else None,
+            "origin": "original_sun_report" if valid else "unknown"}
+
+
+def condition(row):
+    proof = row.get("solar_context")
+    elevation = finite(proof.get("elevation_deg")) if isinstance(proof, dict) else None
+    if isinstance(proof, dict) and proof.get("origin") == "original_sun_report" and elevation is not None:
+        if elevation > 0:
+            return "daylight"
+        if elevation < 0:
+            return "night"
+    if row["raw_w"] == row["corrected_w"] == row["actual_w"] == 0:
+        return "other_zero"
+    return "unknown"
+
+
+def comparison_metrics(rows):
+    errors = [row["corrected_error_w"] for row in rows]
+    return {"samples": len(rows), "unique_targets": len({(row["binding"], row["target_at"]) for row in rows}),
+            "mae_w": sum(abs(error) for error in errors)/len(errors) if errors else None,
+            "bias_w": sum(errors)/len(errors) if errors else None,
+            "clipped": sum(row["clipped"] for row in rows),
+            "distinct_days": len({row["actual_reported_at"][:10] for row in rows})}
 
 
 def context(value):
@@ -124,7 +159,8 @@ class ForecastEvidence:
         self.snapshots.append({"captured_at": iso(ts), "source_context": proof, "binding": binding, "predictions": targets})
         self.last_capture = ts; self.last_context = ident; self.revision += 1
 
-    def compare(self, now, actual_w, meter_stamp, source_context_id, binding, inverter_limit_w):
+    def compare(self, now, actual_w, meter_stamp, source_context_id, binding, inverter_limit_w,
+                *, solar_elevation=None, solar_reported_at=None):
         ts = now.timestamp(); actual = finite(actual_w); reported = finite(meter_stamp)
         if (self._unsupported is not None or actual is None or not 0 <= actual <= inverter_limit_w*1.1 or reported is None
                 or not -5 <= ts - reported <= 120 or self.last_report is not None and reported <= self.last_report):
@@ -146,7 +182,8 @@ class ForecastEvidence:
         if not candidates:
             return
         # Earliest retained forecast wins; later revisions do not retrospectively
-        # improve the evidence. One independent original meter report gives one row.
+        # improve the evidence. One unique original meter report gives one row;
+        # adjacent targets are not statistically independent trials.
         _, _, snapshot, target = min(candidates, key=lambda item: (item[0], item[1]))
         target_ts = stamp(target["target_at"])
         proof = snapshot["source_context"]
@@ -159,6 +196,7 @@ class ForecastEvidence:
             "source_reported_at":proof["source_reported_at"],"local_data_observed_at":proof["local_data_observed_at"],
             "source_metadata":deepcopy(proof["source_metadata"]),
             "original_issue_horizon_s": None, "recorded_ahead_s": target["recorded_ahead_s"],
+            "solar_context": solar_proof(solar_elevation, solar_reported_at, ts, reported),
             "source_context_id": proof["source_context_id"], "binding": binding,
             "clipped": target["corrected_w"] + 1e-9 < target["raw_w"] * target["factor"],
             "actual_clipped": actual >= inverter_limit_w*.98})
@@ -169,12 +207,10 @@ class ForecastEvidence:
         buckets = []
         for label, lower, upper in (("5–60 min", 300, 3600), ("1–3 uur", 3600, 10800), ("3–12 uur", 10800, 43201)):
             selected = [r for r in rows if lower <= r["recorded_ahead_s"] < upper]
-            errors = [r["corrected_error_w"] for r in selected]
-            buckets.append({"label": label, "samples": len(selected),
-                "mae_w": sum(abs(x) for x in errors)/len(errors) if errors else None,
-                "bias_w": sum(errors)/len(errors) if errors else None,
-                "clipped": sum(r["clipped"] for r in selected),
-                "distinct_days": len({r["actual_reported_at"][:10] for r in selected})})
+            buckets.append({"label": label, **comparison_metrics(selected),
+                "conditions": [{"condition": name, "label": description,
+                                **comparison_metrics([row for row in selected if condition(row) == name])}
+                               for name, description in CONDITION_LABELS.items()]})
         # A margin can only be examined on a single source/binding and a
         # chronological train/holdout split; no tuned-in-sample benefit claim.
         margin = {"status": "insufficient", "margin_w": None, "baseline_mae_w": None,
@@ -195,6 +231,8 @@ class ForecastEvidence:
                     training_samples=len(train), holdout_samples=len(held), holdout_day=days[-1],
                     reason="P90 van overschatting op eerdere dagen, alleen vergeleken op laatste dag; geen plannerwijziging of bewezen besparing")
         return {"ahead_comparisons": len(rows), "distinct_days": len({r["actual_reported_at"][:10] for r in rows}),
+                "unique_targets":len({(row["binding"],row["target_at"]) for row in rows}),
+                "day_basis":"UTC_original_meter_report", "condition_labels":dict(CONDITION_LABELS),
                 "known_original_issue_times": 0, "by_recorded_lead": buckets,
                 "planning_margin_comparison": margin,
                 "comparison_kind": "locally_recorded_ahead_near_target",
@@ -262,6 +300,10 @@ class ForecastEvidence:
                 "calibration": profile(row.get("calibration")), "captured_at": iso(captured),
                 "source_reported_at":proof["source_reported_at"],"local_data_observed_at":proof["local_data_observed_at"],
                 "source_metadata":deepcopy(proof["source_metadata"]),
+                **({"solar_context":solar_proof(
+                    row["solar_context"].get("elevation_deg") if row["solar_context"].get("origin")=="original_sun_report" else None,
+                    stamp(row["solar_context"].get("reported_at")) if row["solar_context"].get("origin")=="original_sun_report" else None,
+                    observed,reported)} if isinstance(row.get("solar_context"),dict) else {}),
                 "issued_at": None, "issue_time_status": "unknown", "original_issue_horizon_s": None,
                 "recorded_ahead_s": target-captured, "source_context_id": proof["source_context_id"], "binding": binding,
                 "clipped": corrected + 1e-9 < raw*factor, "actual_clipped": row.get("actual_clipped") is not False})
@@ -282,5 +324,7 @@ class ForecastEvidence:
         result["limitations"] = ["Oorspronkelijke upstream forecastuitgiftetijd blijft onbekend",
             "Lokale vastlegging vóór doel is apart van oorspronkelijke uitgifte en concurrente foutmeting",
             "Vergelijkingen gebruiken oorspronkelijke meterberichten binnen 60 s van een vastgelegd doel; tijdverschil blijft zichtbaar",
+            "Dag/nacht vereist een nabij oorspronkelijk zonhoogterapport; nulvermogen alleen bewijst geen nacht. Oudere vergelijkingen krijgen geen achteraf berekende zonhoogte",
+            "Unieke doelen en oorspronkelijke meterberichten zijn geen statistisch onafhankelijke proeven; dagenaantallen gebruiken UTC-brondagen",
             "Onzekerheidsmarge is alleen een uitleesbare chronologische vergelijking; planner en elektrische grenzen blijven ongewijzigd"]
         return result

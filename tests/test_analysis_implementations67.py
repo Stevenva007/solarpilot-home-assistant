@@ -18,6 +18,12 @@ def test_shipped_catalog_only_contains_release_bound_generic_proposals():
         "sp.pv.quarter-rejection-evidence.v1", "sp.meters.solar-balance-time-coherence.v1",
         "sp.hp.short-electric-activity-display.v1",
     }
+    beta83 = {
+        "sp.investigation.coherent-diagnostic-snapshot.v1", "sp.hp.typed-actual-operation-proof.v1",
+        "sp.hp.unknown-task-reason-proof.v1", "sp.sg.calculated-dhw-target-display.v1",
+        "sp.pv.daylight-separated-ahead-error.v1", "sp.pv.original-timestamp-validity-proof.v1",
+        "sp.hp.aquarea-off-source-contract.v1",
+    }
     assert set(implementations.IMPLEMENTED_PROPOSALS) == {
         "sp.hp.task-presentation.v1", "sp.hp.context-and-learning.v1",
         "sp.meters.source-quality-evidence.v1", "sp.electrical.budget-versus-limits.v1",
@@ -25,10 +31,10 @@ def test_shipped_catalog_only_contains_release_bound_generic_proposals():
         "sp.sg.minimum-request-duration.v1", "sp.sg.cloud-import-buffer.v1",
         "sp.sg.confirmed-reset-display.v1", "sp.wallbox.session-source-diagnostics.v1",
         "sp.hp.inactive-scope-display.v1", "sp.learning.local-investigation.v1",
-        "sp.sg.session-evidence.v1", "sp.analysis.recommendation-kind.v1"} | beta81
+        "sp.sg.session-evidence.v1", "sp.analysis.recommendation-kind.v1"} | beta81 | beta83
     for identifier, row in implementations.IMPLEMENTED_PROPOSALS.items():
         assert set(row) == {"introduced_release", "title", "proposal_sha256"}
-        assert row["introduced_release"] == ("1.0.0-beta.81" if identifier in beta81 else "1.0.0-beta.75" if identifier in {
+        assert row["introduced_release"] == ("1.0.0-beta.83" if identifier in beta83 else "1.0.0-beta.81" if identifier in beta81 else "1.0.0-beta.75" if identifier in {
             "sp.learning.local-investigation.v1", "sp.sg.session-evidence.v1",
             "sp.analysis.recommendation-kind.v1"} else "1.0.0-beta.74" if identifier in {
             "sp.sg.confirmed-reset-display.v1", "sp.wallbox.session-source-diagnostics.v1",

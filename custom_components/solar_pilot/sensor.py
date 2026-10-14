@@ -113,7 +113,7 @@ class SolarSensor(SolarEntity, SensorEntity):
         "pv_forecast", "savings", "electricity_today", "panasonic", "sg_boost", "panasonic_archive", "legacy_panasonic_archive",
         "observed_at", "relay_observed_at", "relay_valid_until", "target_stamp", "target_observed_at",
         "power_observed_at", "power_supply1_observed_at", "power_supply2_observed_at",
-        "power_source_quality", "history", "operation_display",
+        "power_source_quality", "history", "operation_display", "sg_tank_goal", "source_contract",
         "compressor_frequency_observed_at", "sg_status_observed_at",
     })
 

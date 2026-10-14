@@ -685,12 +685,18 @@
           "sg_status_entity": "Actual received SG status — read only",
           "power_activity_threshold_w": "Active consumption from (W) — display only",
           "power_supply1_role": "Supply 1 function — automatic display",
-          "power_supply2_role": "Supply 2 function — automatic display"
+          "power_supply2_role": "Supply 2 function — automatic display",
+          "sg_dhw_capacity_percent": "SG capacity 1 — DHW percentage (display only)",
+          "sg_dhw_capacity_confirmed": "DHW percentage confirmed locally on Panasonic",
+          "sg_dhw_capacity_target_entity": "Tank source for calculated SG target — display only"
         },
         "data_description": {
           "power_activity_threshold_w": "Display threshold per valid supply, default 200 W. This does not change SG control or identify the compressor.",
           "power_supply1_role": "The existing meter pair automatically uses the Panasonic display profile: heat-pump circuit including controls/pumps. Explicit other functions are preserved. No new input or control permission.",
-          "power_supply2_role": "The existing meter pair automatically uses the Panasonic display profile: electrical auxiliary heating. Explicit other functions are preserved. No separate heater feedback or control permission."
+          "power_supply2_role": "The existing meter pair automatically uses the Panasonic display profile: electrical auxiliary heating. Explicit other functions are preserved. No separate heater feedback or control permission.",
+          "sg_dhw_capacity_percent": "Enter the percentage set locally on Panasonic. 115% of 50 °C gives a calculated SG target of 57.5 °C; no device setting changes.",
+          "sg_dhw_capacity_confirmed": "A fresh normal target is converted only after your local confirmation. No separate target feedback is needed; past targets are not backfilled.",
+          "sg_dhw_capacity_target_entity": "Exact native tank identity for the percentage display; does not change existing cooling or SG source bindings."
         }
       },
       "sg_advanced": {
@@ -768,7 +774,8 @@
       "sg_meter_overlap": "Use one total meter or two separate non-overlapping partial meters; no double counting.",
       "sg_frequency_unit": "Choose an actual compressor frequency source in Hz.",
       "sg_status_source": "Choose an independent source for actual received SG, not relay feedback or program/valve state.",
-      "sg_supply_role_review": "The partial meter changed. Review and select the new supply function again; the previous function belongs to the old meter."
+      "sg_supply_role_review": "The partial meter changed. Review and select the new supply function again; the previous function belongs to the old meter.",
+      "sg_target_binding": "Select the exact native water_heater or climate tank target with a registered device identity before confirming the DHW percentage."
     },
     "abort": {
       "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",

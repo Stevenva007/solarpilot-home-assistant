@@ -44,8 +44,15 @@ class LiveOptionsMixin:
                             candidate[f"power_supply{index}_role"] = "unconfirmed"
             if any(candidate[key] != current[key] for key in ("activity_entity", "zone_entities", "tank_target_entity")):
                 candidate["cooling_protection_confirmed"] = False
+            capacity_keys = ("sg_dhw_capacity_percent", "sg_dhw_capacity_target_entity", "entity_id",
+                             "sg_dhw_capacity_confirmed", "sg_dhw_capacity_confirmed_at", "sg_dhw_capacity_binding")
+            capacity_choice = tuple(candidate[key] for key in capacity_keys)
+            if (any(candidate[key] != current[key] for key in capacity_keys)
+                    and getattr(self, "_sg_local_capacity_confirmation", None) != capacity_choice):
+                candidate.update(sg_dhw_capacity_confirmed=False, sg_dhw_capacity_confirmed_at=0.0, sg_dhw_capacity_binding="")
             options = {**options, "sg_boost": candidate}
             self._sg_local_confirmed_profile = self._sg_local_confirmed_split = self._sg_local_confirmed_roles = None
+            self._sg_local_capacity_confirmation = None
         if (actuator_conflicts(options.get("sg_boost", {}), options.get("devices", []))
                 or actuator_conflicts(options.get("sg_boost", {}), options.get("batteries", []))):
             raise HomeAssistantError("De SG-uitgang krijgt één eigenaar en mag niet ook een gewoon toestel zijn.")

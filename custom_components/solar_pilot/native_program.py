@@ -15,6 +15,7 @@ import hashlib
 import json
 import math
 import time
+import sys
 
 
 _PROGRAMMES = {
@@ -118,11 +119,61 @@ class NativeClimateProgram:
         # Display watchers are deliberately separate: observing a tank task
         # cannot establish fresh programme/controller evidence.
         self._tank_watches = {}
+        self._display_metadata = {}
+        self._display_metadata_module = None
+        self._display_metadata_checked = None
+        self._display_metadata_task = None
+        self._display_closed = False
+
+    async def async_prepare_display_metadata(self):
+        """Read actual installed metadata off the event loop; no native fetch.
+
+        This affects only the additional display contract. Entry.version is a
+        configuration schema and is deliberately never treated as a release.
+        """
+        if self._display_closed:
+            return
+        try:
+            from .analysis_export import installed_aquarea_metadata
+            executor = getattr(self.runtime.hass, "async_add_executor_job", None)
+            if callable(executor):
+                loaded = sys.modules.get("custom_components.aquarea")
+                metadata = await executor(installed_aquarea_metadata)
+                if self._display_closed:
+                    return
+                self._display_metadata = metadata
+                self._display_metadata_module = loaded
+                if loaded is not sys.modules.get("custom_components.aquarea"):
+                    self._display_metadata = {}
+        except (ImportError, OSError, AttributeError, TypeError, ValueError, RuntimeError):
+            self._display_metadata = {}
+        finally:
+            self._display_metadata_checked = time.monotonic()
+            self._display_metadata_task = None
+
+    def _contract_metadata(self):
+        if self._display_closed:
+            return {}
+        loaded = sys.modules.get("custom_components.aquarea")
+        checked = self._display_metadata_checked
+        age = time.monotonic()-checked if checked is not None else None
+        current = (checked is not None and age is not None and 0 <= age <= 300
+                   and loaded is self._display_metadata_module)
+        if not current and self._display_metadata_task is None:
+            create = getattr(self.runtime.hass, "async_create_task", None)
+            if callable(create):
+                self._display_metadata_task = create(self.async_prepare_display_metadata())
+        return self._display_metadata if current else {}
 
     def close(self):
         """Unsubscribe without retaining programme evidence across reloads."""
         watches = {**self._watches, **{("tank", key): value for key, value in self._tank_watches.items()}}
         self._watches, self._tank_watches = {}, {}
+        self._display_closed = True
+        if self._display_metadata_task is not None:
+            self._display_metadata_task.cancel()
+            self._display_metadata_task = None
+        self._display_metadata = {}
         for watch in watches.values():
             self._unsubscribe(watch)
 
@@ -156,7 +207,7 @@ class NativeClimateProgram:
         without one, discovery requires one unambiguous native device group.
         """
         result = {"tank_entity": "", "zone_entities": [], "direction_entity": "",
-                  "defrost_entity": "", "automatic": True, "reason": ""}
+                  "defrost_entity": "", "pump_status_entity": "", "automatic": True, "reason": ""}
         try:
             from homeassistant.helpers import entity_registry as er
             registry = er.async_get(self.runtime.hass)
@@ -171,6 +222,7 @@ class NativeClimateProgram:
                 eid = getattr(row, "entity_id", "")
                 role = ("tank_entity" if eid.startswith("water_heater.") and uid == f"{native_id}_tank" else
                         "direction_entity" if eid.startswith("sensor.") and uid == f"{native_id}_direction" else
+                        "pump_status_entity" if eid.startswith("sensor.") and uid == f"{native_id}_pump_status" else
                         "defrost_entity" if eid.startswith("binary_sensor.") and uid == f"{native_id}_defrost" else
                         "zone_entities" if eid.startswith("climate.") and uid.startswith(f"{native_id}_climate_")
                         and uid[len(f"{native_id}_climate_"):].isdigit() else None)
@@ -195,6 +247,106 @@ class NativeClimateProgram:
         except (ImportError, AttributeError, KeyError, TypeError, ValueError, RuntimeError):
             return result
 
+    def read_source_contract(self, sources):
+        """Separate read-only evidence for the verified specialStatus mapping.
+
+        The registered pump_status role and typed PumpDuty agree on the same
+        native device. Its ON value is water-pump duty, never compressor proof.
+        The original raw DeviceAction and existing control adapter stay intact.
+        """
+        metadata = self._contract_metadata()
+        metadata = metadata if isinstance(metadata, dict) else {}
+        provider = {key: metadata.get(key) for key in ("integration_domain", "integration_version", "library_distribution", "library_version")}
+        known = (metadata.get("integration_loaded") is True and provider["integration_domain"] == "aquarea"
+                 and provider["integration_version"] in ("1.5.2", "1.5.3")
+                 and provider["library_distribution"] == "aioaquarea-ng" and provider["library_version"] == "1.3.1")
+        result = {"schema": 1, "read_only": True, "status": "unknown", "provider": provider,
+                  "contract_id": "aioaquarea_ng_1_3_1_special_status" if known else None,
+                  "action_semantics": "special_status" if known else "unknown", "source": "aquarea_contract",
+                  "provider_loaded": metadata.get("integration_loaded") is True, "native_device_registered": False,
+                  "reason_code": "provider_contract_unverified", "stale_s": self._stale_s(),
+                  "observed_at": None, "raw_device_action": None,
+                  "pump": {"state": "unknown", "observed_at": None}, "direction": {"state": None, "observed_at": None},
+                  "program": {"state": None, "observed_at": None}, "tank": {"enabled": None, "observed_at": None}, "zones": []}
+        try:
+            from homeassistant.helpers import entity_registry as er
+            if not isinstance(sources, dict):
+                return {**result, "reason_code": "native_source_mapping_unverified"}
+            zones = sources.get("zone_entities") if isinstance(sources.get("zone_entities"), list) else []
+            tank_id, pump_id, direction_id = (sources.get(key, "") for key in ("tank_entity", "pump_status_entity", "direction_entity"))
+            anchor = tank_id or next(iter(zones), "")
+            registry = er.async_get(self.runtime.hass)
+            identity = self._display_identity(registry.async_get(anchor))
+            if identity is None:
+                return {**result, "reason_code": "native_source_mapping_unverified"}
+            result["native_device_registered"] = True
+            if not known:
+                return result
+            required_ids = [pump_id, direction_id, *zones, *([tank_id] if tank_id else [])]
+            if (not pump_id or not direction_id or not zones
+                    or any(self._display_identity(registry.async_get(eid)) is None
+                           or self._display_identity(registry.async_get(eid))[:3] != identity[:3] for eid in required_ids)):
+                return {**result, "reason_code": "native_source_mapping_unverified"}
+            for eid, suffix in ((pump_id, "pump_status"), (direction_id, "direction")):
+                if self._display_identity(registry.async_get(eid))[3] != f"{identity[2]}_{suffix}":
+                    return {**result, "reason_code": "native_source_mapping_unverified"}
+            resolved = self._resolve_action(anchor)
+            if resolved is None:
+                return {**result, "reason_code": "native_source_mapping_unverified"}
+            coordinator, _, entry_id = resolved
+            entry = self.runtime.hass.config_entries.async_get_entry(entry_id)
+            status = self._legacy_status(coordinator, entry)
+            if status is None:
+                return {**result, "reason_code": "native_typed_snapshot_unverified"}
+            action = self._read_action(anchor, self._resolve_action)
+            if action.get("fresh") is not True:
+                watch = self._tank_watches.get(id(coordinator), {})
+                return {**result, "reason_code": "native_poll_not_current",
+                        "observed_at": watch.get("action_observed_at")}
+            original = action["observed_at"]
+            device = coordinator.device
+            def exact_enum(value, name, values):
+                return _native_enum_name(value, name, values) if type(value).__module__ == "aioaquarea.data" else None
+            pump = exact_enum(getattr(device, "pump_duty", None), "PumpDuty", {"OFF": 0, "ON": 1})
+            direction = exact_enum(getattr(device, "current_direction", None), "DeviceDirection", {"IDLE": 0, "PUMP": 1, "WATER": 2})
+            mode = _native_mode(device) if type(getattr(device, "mode", None)).__module__ == "aioaquarea.data" else None
+            if pump is None or direction is None or mode is None:
+                return {**result, "reason_code": "native_typed_value_unverified"}
+            pump_obj, pump_time = self._display_object(pump_id)
+            direction_obj, direction_time = self._display_object(direction_id)
+            pump_state = str(pump_obj.state).strip().casefold() if pump_obj else None
+            direction_state = str(direction_obj.state).strip().upper() if direction_obj else None
+            if pump_obj is None or direction_obj is None:
+                return {**result, "reason_code": "native_source_not_current",
+                        "observed_at": original,
+                        "pump": {"state": "unknown", "entity_id": pump_id, "observed_at": self._display_report_time(pump_id)},
+                        "direction": {"state": None, "entity_id": direction_id, "observed_at": self._display_report_time(direction_id)}}
+            if pump_state != pump.casefold() or direction_state != direction:
+                return {**result, "reason_code": "native_source_value_conflict"}
+            tank_enabled = exact_enum(getattr(getattr(device, "tank", None), "operation_status", None),
+                                      "OperationStatus", {"OFF": 0, "ON": 1, "UNKNOWN": 2}) if device.has_tank else None
+            zone_rows = []
+            for eid in zones:
+                uid = self._display_identity(registry.async_get(eid))[3]
+                prefix = f"{identity[2]}_climate_"
+                zone_number = int(uid[len(prefix):]) if uid.startswith(prefix) and uid[len(prefix):].isdigit() else None
+                zone = device.zones.get(zone_number)
+                enabled = exact_enum(getattr(zone, "operation_status", None), "OperationStatus", {"OFF": 0, "ON": 1, "UNKNOWN": 2})
+                obj, report_time = self._display_object(eid)
+                zone_rows.append({"entity_id": eid, "enabled": True if enabled == "ON" else False if enabled == "OFF" else None,
+                                  "observed_at": report_time if report_time is not None else self._display_report_time(eid), "native_observed_at": original,
+                                  "state": str(obj.state).casefold() if obj else None})
+            return {**result, "status": "verified", "reason_code": "known_special_status_action_mapping",
+                    "observed_at": original, "raw_device_action": action.get("raw_action"),
+                    "pump": {"state": pump_state, "entity_id": pump_id, "observed_at": pump_time, "native_observed_at": original},
+                    "direction": {"state": direction, "entity_id": direction_id, "observed_at": direction_time, "native_observed_at": original},
+                    "program": {"state": mode[1], "raw_mode": mode[0], "observed_at": original},
+                    "tank": {"enabled": True if tank_enabled == "ON" else False if tank_enabled == "OFF" else None,
+                             "entity_id": tank_id, "observed_at": original}, "zones": zone_rows,
+                    "note": "Deze SDK leidt DeviceAction af via specialStatus; geen onafhankelijke hoofd-AAN/UIT-meting. PumpDuty is waterpompbedrijf."}
+        except (ImportError, AttributeError, KeyError, TypeError, ValueError, RuntimeError):
+            return {**result, "reason_code": "native_source_mapping_unverified"}
+
     def _display_object(self, entity_id):
         obj = self.runtime.hass.states.get(entity_id)
         attrs = getattr(obj, "attributes", {}) or {}
@@ -209,6 +361,16 @@ class NativeClimateProgram:
         except (AttributeError, TypeError, ValueError, OverflowError, OSError):
             return None, None
         return obj, stamp
+
+    def _display_report_time(self, entity_id):
+        """Keep an original diagnostic timestamp even when its value is old."""
+        obj = self.runtime.hass.states.get(entity_id)
+        value = getattr(obj, "last_reported", None) or getattr(obj, "last_updated", None)
+        try:
+            stamp = value.timestamp()
+            return stamp if not isinstance(stamp, bool) and math.isfinite(stamp) and stamp > 0 else None
+        except (AttributeError, TypeError, ValueError, OverflowError, OSError):
+            return None
 
     def read_tank_context(self, entity_id):
         """Aquarea's WATER/tank report is routing context, never native action.

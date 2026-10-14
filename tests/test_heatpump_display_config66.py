@@ -77,7 +77,12 @@ async def test_actual_sources_form_exposes_independent_display_controls(display_
     form = await display_flow.async_step_sg_sources()
     fields = form["data_schema"]
     assert fields["power_activity_threshold_w"] == (10, 2000, 10)
-    assert DISPLAY_ONLY_KEYS - {"power_supply_profile"} <= fields.keys()
+    internal_proof = {"sg_dhw_capacity_confirmed_at", "sg_dhw_capacity_binding"}
+    assert DISPLAY_ONLY_KEYS - {"power_supply_profile", *internal_proof} <= fields.keys()
+    # The form accepts the selected percentage/source and an explicit local
+    # checkbox. Original confirmation time and registry proof are created by
+    # the production save path; editable fields cannot supply either proof.
+    assert not internal_proof & fields.keys()
     for key in ("power_supply1_role", "power_supply2_role"):
         assert {option["value"] for option in fields[key]["options"]} == POWER_SUPPLY_ROLES
 

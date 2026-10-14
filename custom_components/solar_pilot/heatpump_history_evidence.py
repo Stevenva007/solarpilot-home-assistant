@@ -10,6 +10,8 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 import math
+from .sg_target_display import contact_observation, retained_sg_goal
+from .operation_source_evidence import contract_evidence, retained_contract_evidence
 
 MAX_POINTS = 8192
 CONTEXT_INTERVAL_S = 300
@@ -54,7 +56,7 @@ class NativeProgrammeEvidence:
     def pause(self):
         self._last = self._fingerprint = None
 
-    def observe(self, p, stamp, evidence, *, max_gap_s=30):
+    def observe(self, p, stamp, evidence, *, sg=None, max_gap_s=30):
         native = p.get("native_task") if isinstance(p.get("native_task"), dict) else {}
         stale = number(p.get("source_stale_s", 120))
         native_stale = number(native.get("stale_s", stale))
@@ -83,6 +85,13 @@ class NativeProgrammeEvidence:
                                       tank.get("temperature_stamp", p.get("temperature_stamp")))
         target, target_time = temperature(tank.get("target_c", p.get("target_c")),
                                           tank.get("target_stamp", p.get("target_stamp")))
+        source_contract = contract_evidence(p.get("source_contract"), stamp, stale)
+        goal = p.get("sg_tank_goal")
+        if isinstance(goal, dict):
+            goal = retained_sg_goal({**goal, **contact_observation(sg, stamp)}, captured_at=stamp,
+                stale_s=stale, normal_target_c=target, normal_target_reported_at=target_time)
+        else:
+            goal = None
         supplies = []
         for n in (1, 2):
             watts, original = number(p.get(f"power_supply{n}_w")), report(p.get(f"power_supply{n}_observed_at"))
@@ -104,10 +113,26 @@ class NativeProgrammeEvidence:
                             "reported_at": native_time, "stale_s": native_stale, "fresh": native_fresh, "start_observed": start},
                  "tank": {"temperature_c": temp, "temperature_reported_at": temp_time,
                           "ordinary_target_c": target, "ordinary_target_reported_at": target_time},
+                 "sg_goal": goal,
+                 "source_contract": source_contract,
                  "effective_target": {"temperature_c": None, "reported_at": None, "status": "unknown"},
                  "completion": {"state": "unknown", "reported_at": None}, "supplies": supplies}
         fingerprint = (point["selected_program"], function, confirmed, bool(inactive), bool(global_off),
-                       temp, target, tuple(row["valid"] for row in supplies))
+                       temp, target, tuple(row["valid"] for row in supplies),
+                       goal.get("profile_percent") if goal else None,
+                       goal.get("profile_confirmed_at") if goal else None,
+                       goal.get("contact_state") if goal else None,
+                       goal.get("reason") if goal else None)
+        if source_contract is not None:
+            fingerprint += (source_contract["contract_id"], source_contract["action_semantics"],
+                tuple(source_contract["provider"].items()), source_contract["verified"], source_contract["fresh"],
+                source_contract["reason_code"], source_contract["raw_device_action"],
+                source_contract["pump"]["state"], source_contract["pump"]["fresh"],
+                source_contract["direction"]["state"], source_contract["direction"]["fresh"],
+                source_contract["program"]["state"], source_contract["program"]["raw_mode"],
+                source_contract["tank"]["enabled"], source_contract["tank"]["fresh"],
+                tuple((row["number"], row["enabled"], row["state"], row["fresh"])
+                      for row in source_contract["zones"]))
         if (self._fingerprint != fingerprint or not continuous or start
                 or not self.points or stamp-self.points[-1]["captured_at"] >= CONTEXT_INTERVAL_S):
             # A start retains the actual immediately preceding OFF sample too,
@@ -160,6 +185,8 @@ class NativeProgrammeEvidence:
         for row in detail["points"]:
             tank = row["tank"]
             points.append({"captured_at": row["captured_at"], **deepcopy(tank),
+                           "sg_goal": deepcopy(row.get("sg_goal")),
+                           "stale_s": row["source_stale_s"],
                            "continuous_from_previous": bool(previous is not None and row["continuity"]
                                and 0 < row["captured_at"]-previous <= max_gap_s)})
             previous = row["captured_at"]
@@ -173,11 +200,20 @@ class NativeProgrammeEvidence:
                               ("ordinary_target_c", "ordinary_target_reported_at")):
             if not current or not fresh(values[original], stamp, stale):
                 values[key] = None
+        goal = deepcopy(last.get("sg_goal")) if last is not None else None
+        if goal is not None:
+            if not current or not fresh(goal.get("normal_target_reported_at"), stamp, goal.get("stale_s")):
+                goal.update(normal_target_c=None, calculated_c=None, valid_until=None, reason="normal_target_unavailable")
+            if (not current or not fresh(goal.get("contact_reported_at"), stamp, goal.get("contact_stale_s"))
+                    or goal.get("contact_valid_until") is None or stamp > goal["contact_valid_until"]):
+                goal.update(contact_state="unknown", contact_valid_until=None)
         return {"schema": 1, "current": {**values, "captured_at": last["captured_at"] if last else None,
+                    "sg_goal": goal,
                     "current": current, "stale_s": stale, "capture_stale_s": max_gap_s},
                 "points": points, "points_truncated": detail["points_truncated"],
-                "ordinary_target_only": True,
-                "note": "Oorspronkelijke tankmetingen en normaal ingesteld doel; geen interpolatie, effectief SG-doel of voltooiingsbewijs."}
+                "ordinary_target_only": not any((row.get("sg_goal") or {}).get("calculated_c") is not None for row in points),
+                "calculated_sg_target_available": any((row.get("sg_goal") or {}).get("calculated_c") is not None for row in points),
+                "note": "Oorspronkelijke tankmetingen en normaal ingesteld doel. Het SG-doel is alleen berekend met het toen lokaal bevestigde percentage; geen interpolatie of voltooiingsbewijs."}
 
     def snapshot(self):
         return {"schema": 1, "points": deepcopy(self.points), "trimmed_before": self.trimmed_before}
@@ -235,6 +271,10 @@ class NativeProgrammeEvidence:
                     or tank_clean["temperature_c"] is not None and not fresh(tank_clean["temperature_reported_at"], at, stale)
                     or tank_clean["ordinary_target_c"] is not None and not fresh(tank_clean["ordinary_target_reported_at"], at, stale)):
                 raise ValueError("Warmtepomphistoriek bevat ongeldige tankwaarden")
+            goal = retained_sg_goal(row.get("sg_goal"), captured_at=at, stale_s=stale,
+                normal_target_c=tank_clean["ordinary_target_c"],
+                normal_target_reported_at=tank_clean["ordinary_target_reported_at"])
+            source_contract = retained_contract_evidence(row.get("source_contract"), at, stale)
             supplies = []
             if len(row["supplies"]) != 2:
                 raise ValueError("Warmtepomphistoriek bevat ongeldige voedingen")
@@ -251,7 +291,8 @@ class NativeProgrammeEvidence:
                 supplies.append({"number": n, "watts": watts, "valid": supply["valid"], "fresh": supply["fresh"],
                                  "reported_at": original})
             cleaned.append({"captured_at": at, "continuity": row["continuity"], "source_stale_s": stale, "selected_program": row["selected_program"],
-                            "native": native_clean, "tank": tank_clean, "supplies": supplies,
+                            "native": native_clean, "tank": tank_clean, "supplies": supplies, "sg_goal": goal,
+                            "source_contract": source_contract,
                             "effective_target": {"temperature_c": None, "reported_at": None, "status": "unknown"},
                             "completion": {"state": "unknown", "reported_at": None}})
             previous = at

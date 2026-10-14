@@ -504,6 +504,11 @@ class PanasonicMonitor:
             "cooling_context_diagnostic": cooling_diagnostic,
             "note": "SG vraagt zonneboost. Het normale Panasonic-doel kan ongewijzigd blijven; dit bewijst geen relaisfout."}
         from .display_operation import classify_display_operation
+        read_source_contract = getattr(self.native_program, "read_source_contract", None)
+        snapshot["source_contract"] = read_source_contract(display_sources) if callable(read_source_contract) else {}
+        from .sg_target_display import calculate_sg_tank_goal, resolved_goal_binding
+        snapshot["sg_tank_goal"] = calculate_sg_tank_goal(c, display_tank, time.time(), stale_s=c["stale_s"],
+            source_binding=resolved_goal_binding(self.runtime.hass, display_tank_entity))
         snapshot["operation_display"] = classify_display_operation(snapshot)
         return snapshot
 

@@ -1057,7 +1057,10 @@
           "sg_status_entity": "Werkelijk ontvangen SG-status — alleen uitlezen",
           "power_activity_threshold_w": "Actief verbruik vanaf (W) — alleen weergave",
           "power_supply1_role": "Functie voeding 1 — automatische weergave",
-          "power_supply2_role": "Functie voeding 2 — automatische weergave"
+          "power_supply2_role": "Functie voeding 2 — automatische weergave",
+          "sg_dhw_capacity_percent": "SG capaciteit 1 — tapwaterpercentage (alleen weergave)",
+          "sg_dhw_capacity_confirmed": "Tapwaterpercentage lokaal op Panasonic bevestigd",
+          "sg_dhw_capacity_target_entity": "Tankbron voor berekend SG-doel — alleen weergave"
         },
         "data_description": {
           "tank_temperature_entity": "Werkelijke tanktemperatuur uit een geschikte bron.",
@@ -1073,7 +1076,10 @@
           "sg_status_entity": "Optionele bestaande bron die werkelijk de ontvangen SG-status op Panasonic meldt.",
           "power_activity_threshold_w": "Actief verbruik wordt vanaf deze waarde per geldige voeding weergegeven, standaard 200 W.",
           "power_supply1_role": "Het bestaande meterpaar gebruikt automatisch het Panasonic-profiel: voeding 1 is de warmtepompvoeding inclusief regeling en pompen.",
-          "power_supply2_role": "Het bestaande meterpaar gebruikt automatisch het Panasonic-profiel: voeding 2 is de elektrische bijverwarming."
+          "power_supply2_role": "Het bestaande meterpaar gebruikt automatisch het Panasonic-profiel: voeding 2 is de elektrische bijverwarming.",
+          "sg_dhw_capacity_percent": "Het door jou op Panasonic ingestelde tapwaterpercentage van SG capaciteit 1, alleen voor de doelweergave.",
+          "sg_dhw_capacity_confirmed": "Bevestig dat het ingevulde tapwaterpercentage overeenkomt met jouw Panasonic SG-capaciteit 1.",
+          "sg_dhw_capacity_target_entity": "Selecteer de native tankbron waarop het bevestigde SG tapwaterpercentage betrekking heeft."
         }
       },
       "sg_advanced": {
@@ -1159,7 +1165,8 @@
       "sg_meter_overlap": "Gebruik één totaalmeter of twee afzonderlijke niet-overlappende deelmeters; geen dubbele meting.",
       "sg_frequency_unit": "Kies een werkelijke compressorfrequentiebron in Hz.",
       "sg_status_source": "Kies een onafhankelijke bron voor werkelijk ontvangen SG, geen relaisstand of programma-/klepstand.",
-      "sg_supply_role_review": "De deelmeter is gewijzigd. Kies de functie van de nieuwe voeding opnieuw na controle; de eerdere functie geldt voor de oude meter."
+      "sg_supply_role_review": "De deelmeter is gewijzigd. Kies de functie van de nieuwe voeding opnieuw na controle; de eerdere functie geldt voor de oude meter.",
+      "sg_target_binding": "Selecteer het exacte native water_heater- of climate-tankdoel met geregistreerde apparaatidentiteit voordat je het tapwaterpercentage bevestigt."
     },
     "abort": {
       "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",

@@ -479,6 +479,13 @@ class LocalInvestigation:
             topic = item.get("id")
             if topic not in TOPICS:
                 continue
+            item["assessment_observed_at"] = result["updated_at"]
+            item["assessment_summary"] = item.get("summary", "")
+            item["assessment_status"] = item.get("status")
+            item["assessment_evidence"] = deepcopy(item.get("evidence", []))
+            item["current_observed_at"] = now
+            item["context_changed"] = contexts.get(topic) != self.cached_context.get(topic)
+            item["observation_changed"] = False
             if item.get("status") == "observed_ok" and (now > self.valid_until.get(topic, 0)
                     or contexts.get(topic) != self.cached_context.get(topic) or not self._current_valid(topic, now)):
                 item.update(status="collecting", summary="De eerdere geldige bronwaarneming is niet meer actueel bevestigd.",
@@ -488,16 +495,31 @@ class LocalInvestigation:
                 if topic == "wallbox_source":
                     item["metrics"]["current_session_confirmed"] = False
             if topic == "wallbox_source" and isinstance(item.get("metrics"), dict):
-                item["metrics"]["source_dossier"] = wallbox_source_dossier(self.r, now)
+                previous_dossier = _dict(item["metrics"].get("source_dossier"))
+                current_dossier = wallbox_source_dossier(self.r, now)
+                # Explanations and relative ages refer to the frozen assessment,
+                # not to the later read-only source dossier. Neither read records
+                # an observation nor gives the Wallbox additional permission.
+                item["metrics"]["assessment_source_dossier"] = deepcopy(previous_dossier)
+                item["metrics"]["source_dossier"] = current_dossier
+                def source_values(dossier):
+                    rows = [dossier.get("session"), *dossier.get("known_sources", [])]
+                    return [{key: source.get(key) for key in ("role", "reported_wall", "value", "watts", "issue", "fresh", "usable")}
+                            for source in rows if isinstance(source, dict)]
+                item["observation_changed"] = source_values(previous_dossier) != source_values(current_dossier)
             if topic == "solar_balance" and isinstance(item.get("metrics"), dict):
                 # Presentation may age/revoke a source proof but never records a
                 # new observation or counts the same capture as a fresh report.
                 previous_proof = _dict(item["metrics"].get("proof"))
                 current_proof = runtime_solar_balance_proof(self.r, now)
+                item["metrics"]["assessment_proof"] = deepcopy(previous_proof)
                 item["metrics"]["proof"] = current_proof
                 comparison_keys = ("status", "grid_w", "pv_w", "source_skew_s", "known_discharge_w", "known_additional_production_w")
-                if (contexts.get(topic) != self.cached_context.get(topic)
-                        or any(previous_proof.get(key) != current_proof.get(key) for key in comparison_keys)):
+                report_times = lambda proof: [(source.get("role"), source.get("reported_wall"))
+                                             for source in proof.get("source_reports", []) if isinstance(source, dict)]
+                item["observation_changed"] = (any(previous_proof.get(key) != current_proof.get(key) for key in comparison_keys)
+                                               or report_times(previous_proof) != report_times(current_proof))
+                if item["context_changed"]:
                     item.update(status="collecting", summary="De broncontext is gewijzigd; eerdere vergelijking is historisch bewijs.")
         if result["updated_at"] is not None:
             result["items"].append(sg_assessment(self.r, now, research=self.sg_research))

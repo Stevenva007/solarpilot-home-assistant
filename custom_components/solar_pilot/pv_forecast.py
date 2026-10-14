@@ -123,8 +123,19 @@ class PVForecast:
                 # calibration guards and realtime dispatch keep their old inputs.
                 try:
                     self.forecast_evidence.capture(now,self.source,self._correct,self.factor_details,bind)
+                    # Read-only classification uses the native original sun
+                    # report, separately from the position fallback used by the
+                    # existing calibration. A calculated elevation cannot be
+                    # retroactively presented as an original source report.
+                    sun_entity=getattr(self.runtime,"local_pv_settings",{}).get("sun_entity","sun.sun")
+                    sun=self.runtime.hass.states.get(sun_entity) if sun_entity else None
+                    sun_attrs=sun.attributes if sun else {}
+                    sun_usable=(sun is not None and sun.state in ("above_horizon","below_horizon")
+                                and not any(sun_attrs.get(key) for key in ("restored","estimated","is_estimated")))
                     self.forecast_evidence.compare(now,actual,meter_stamp,provenance.get("source_context_id"),
-                                                   bind,float(self.settings["inverter_limit_w"]))
+                                                   bind,float(self.settings["inverter_limit_w"]),
+                                                   solar_elevation=sun_attrs.get("elevation") if sun_usable else None,
+                                                   solar_reported_at=self.runtime._reported_wall(sun) if sun_usable else None)
                     self.research_error=""
                 except Exception as err:
                     # Optional research failure cannot invalidate an otherwise

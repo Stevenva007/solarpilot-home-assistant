@@ -106,8 +106,10 @@ def classify_display_operation(snapshot, *, now_wall=None):
         activity_deadlines.append(deadline(frequency_stamp))
     active = True if activity_stamps else False if complete and threshold_valid else None
     activity_pair = max(zip(activity_deadlines, activity_stamps), default=(None, None))
+    if active is False:
+        activity_pair = complete_until, min(complete_stamps)
     result = {"context": "heatpump_unknown", "function": None, "tier": "unknown",
-              "label": "Actief · taak onbekend" if active else "Taak onbekend",
+              "label": "Actief · taak onbekend" if active else "Basisverbruik" if active is False and watts else "Niet actief" if active is False else "Taak onbekend",
               "source": "none", "kind": "none", "observed_at": None, "valid_until": None,
               "stale_s": stale, "active": active,
               "activity_observed_at": activity_pair[1],
@@ -119,7 +121,7 @@ def classify_display_operation(snapshot, *, now_wall=None):
         limits = limits or [stale] * len(stamps)
         original = min(stamps)
         until = min(deadline(stamp, limit) for stamp, limit in zip(stamps, limits))
-        activity_until, activity_stamp = max((until, original), activity_pair if activity_pair[0] is not None else (until, original))
+        activity_until, activity_stamp = max((until, original), activity_pair if active is True and activity_pair[0] is not None else (until, original))
         return {**result, "context": function, "function": function, "tier": tier,
                 "label": LABELS[function], "source": source, "kind": kind,
                 "observed_at": original, "valid_until": until, "active": True,
@@ -130,6 +132,108 @@ def classify_display_operation(snapshot, *, now_wall=None):
             and current(defrost.get("observed_at"), defrost.get("stale_s", stale))):
         return resolved("defrost", "confirmed", defrost["source"], "native_action",
                         [defrost["observed_at"]], [defrost.get("stale_s", stale)], "Panasonic meldt ontdooien")
+    contract = p.get("source_contract") if isinstance(p.get("source_contract"), dict) else {}
+    if contract.get("native_device_registered") is True:
+        # SDK 1.3.1 derives both OFF and positive DeviceAction through
+        # specialStatus. Its raw indication remains intact for existing
+        # controllers/models; only this display uses the composed evidence.
+        provider = contract.get("provider") if isinstance(contract.get("provider"), dict) else {}
+        known = (contract.get("schema") == 1 and contract.get("read_only") is True and contract.get("status") == "verified"
+                 and contract.get("contract_id") == "aioaquarea_ng_1_3_1_special_status"
+                 and contract.get("action_semantics") == "special_status"
+                 and provider.get("integration_domain") == "aquarea"
+                 and provider.get("integration_version") in ("1.5.2", "1.5.3")
+                 and provider.get("library_distribution") == "aioaquarea-ng"
+                 and provider.get("library_version") == "1.3.1")
+        def unknown(code, reason, action, *, skew=None, measurement_skew=None):
+            return {**result, "reason_code": code, "reason": reason, "action": action,
+                    "source_contract_id": contract.get("contract_id"), "context_report_skew_s": skew,
+                    "maximum_context_skew_s": 5, "measurement_context_skew_s": measurement_skew}
+        if not known:
+            return unknown(contract.get("reason_code", "provider_contract_unverified"),
+                           "De native bronmapping of actuele provider-versie is niet bevestigd.",
+                           "Controleer de bron- en providergegevens in deze diagnose.")
+        if current(native.get("observed_at"), native.get("stale_s", stale)) and native.get("conflict") is True:
+            return unknown("native_source_value_conflict", "De actuele native taakbronnen spreken elkaar tegen.",
+                           "Controleer de oorspronkelijke bronwaarden; een tegenstrijdige melding wordt niet automatisch gekozen.")
+        if not current(contract.get("observed_at"), contract.get("stale_s", stale)):
+            return unknown("native_poll_not_current", "Er ontbreekt een actuele geslaagde Panasonic-poll.",
+                           "Wacht op een nieuwe geslaagde provider-update; hergebruik geen oude rapporttijd.")
+        pump = contract.get("pump") if isinstance(contract.get("pump"), dict) else {}
+        direction = contract.get("direction") if isinstance(contract.get("direction"), dict) else {}
+        selected = contract.get("program") if isinstance(contract.get("program"), dict) else {}
+        tank_enabled = contract.get("tank") if isinstance(contract.get("tank"), dict) else {}
+        zones = contract.get("zones") if isinstance(contract.get("zones"), list) else []
+        if not all(current(row.get("observed_at"), contract.get("stale_s", stale)) for row in (pump, direction, selected)):
+            return unknown("native_source_not_current", "Pomptoestand, richting of programma mist een actueel oorspronkelijk rapport.",
+                           "Controleer de actualiteit van de afzonderlijke Panasonic-bronnen.")
+        if pump.get("state") != "on":
+            return unknown("pump_not_on", "De waterpomp is niet actueel AAN gemeld; de gekozen stand bewijst geen uitvoering.",
+                           "Wacht op actuele pomp- en meetgegevens tijdens de volgende werkelijke activiteit.")
+        originals = [contract["observed_at"], pump["observed_at"], direction["observed_at"], selected["observed_at"]]
+        limits = [contract.get("stale_s", stale)]*len(originals)
+        function, feeds = None, []
+        if direction.get("state") == "WATER":
+            if (tank_enabled.get("enabled") is not True
+                    or not current(tank_enabled.get("observed_at"), contract.get("stale_s", stale))):
+                return unknown("tank_enabled_not_current", "WATER is gemeld, maar de eigen tanktoestemming is niet actueel AAN bevestigd.",
+                               "Controleer de oorspronkelijke tankstatus; route en gekozen programma zijn niet voldoende.")
+            function, feeds = "tapwater_heating", main or heater_active
+            originals.append(tank_enabled["observed_at"])
+            limits.append(contract.get("stale_s", stale))
+        elif direction.get("state") == "PUMP":
+            tank_mode = str(tank.get("mode", "")).strip().casefold()
+            tank_action = str(tank.get("action", "")).strip().casefold()
+            tank_idle = (tank.get("available") is True and current(tank.get("observed_at"))
+                         and (tank_mode in ("idle", "off", "inactive") or tank_action in ("idle", "off", "inactive"))
+                         and tank_mode not in ("heating", "heat_pump") and tank_action not in ("heating", "dhw", "hot_water"))
+            if not tank_idle:
+                return unknown("tank_idle_not_current", "Ruimterichting is gemeld zonder afzonderlijke actuele tankrust.",
+                               "Controleer het tankrapport; PUMP kan ook tijdens een tankovergang voorkomen.")
+            if (tank_enabled.get("entity_id") and tank.get("entity_id")
+                    and tank_enabled["entity_id"] != tank["entity_id"]):
+                return unknown("native_source_value_conflict", "De tankrust hoort niet bij het geverifieerde Panasonic-apparaat.",
+                               "Controleer de tankbron; SolarPilot koppelt geen andere tank automatisch om.")
+            if selected.get("state") not in ("heating", "cooling"):
+                return unknown("selected_direction_ambiguous", "De actuele ruimtestand is niet eenduidig Verwarmen of Koelen.",
+                               "Controleer de oorspronkelijk gemelde Panasonic-stand.")
+            required_zones = [row for row in zones if isinstance(row, dict) and row.get("enabled") is True]
+            if (not required_zones or any(not isinstance(row, dict) or type(row.get("enabled")) is not bool for row in zones)
+                    or any(not current(row.get("observed_at"), contract.get("stale_s", stale))
+                           or row.get("state") not in ("heat", "cool", "auto") for row in required_zones)):
+                return unknown("zone_enabled_not_current", "Er ontbreekt een passende actuele ingeschakelde ruimtezone.",
+                               "Controleer de eigen zone-AAN-status en rapporttijd, los van de gekozen stand.")
+            expected = "heat" if selected["state"] == "heating" else "cool"
+            if any(row["state"] not in (expected, "auto") for row in required_zones):
+                return unknown("native_source_value_conflict", "De ingeschakelde zones en geselecteerde richting spreken elkaar tegen.",
+                               "Controleer de oorspronkelijke waarden; SolarPilot past de bronnen niet automatisch aan.")
+            function, feeds = "space_heating" if selected["state"] == "heating" else "space_cooling", main
+            originals += [tank["observed_at"], *[row["observed_at"] for row in required_zones]]
+            limits += [stale, *[contract.get("stale_s", stale)]*len(required_zones)]
+        else:
+            return unknown("native_route_idle_or_unknown", "Er is geen actuele passende WATER- of PUMP-route.",
+                           "Wacht op een eenduidig oorspronkelijk routerapport.")
+        if not feeds:
+            return unknown("assigned_active_feed_missing", "De passende toegewezen voeding is niet actueel als actief gemeten.",
+                           "Controleer de toegewezen voedingsmeting; een ontbrekend totaal blijft onbekend.")
+        skew = max(originals)-min(originals)
+        if skew > 5:
+            return unknown("native_context_report_skew", "De native contextbronnen horen niet bij dezelfde actuele Panasonic-update.",
+                           "Wacht op coherente oorspronkelijke pomp-, route-, tank- en zonerapporten; tijden worden niet verschoven.", skew=skew)
+        originals += [row["observed_at"] for row in feeds]
+        limits += [power.get("stale_s", stale)]*len(feeds)
+        measurement_skew = max(originals)-min(originals)
+        maximum_measurement_skew = min(stale, *[_number(limit) for limit in limits])
+        if measurement_skew > maximum_measurement_skew:
+            return unknown("measurement_context_report_skew", "Meter- en Panasonic-context vallen buiten hun gezamenlijke actualiteitsgrens.",
+                           "Controleer de oorspronkelijke rapporttijden van de toegewezen meter en native context.",
+                           skew=skew, measurement_skew=measurement_skew)
+        resolved_task = resolved(function, "derived", "aquarea_contract", "coherent_native_context", originals, limits,
+            "Afgeleid uit actuele waterpomp, route, toestemming en passende toegewezen voedingsmeting.")
+        return {**resolved_task, "reason_code": "coherent_native_context", "action": "",
+                "source_contract_id": contract["contract_id"], "context_report_skew_s": skew,
+                "maximum_context_skew_s": 5, "measurement_context_skew_s": measurement_skew,
+                "maximum_measurement_context_skew_s": maximum_measurement_skew}
     native_fresh = current(native.get("observed_at"), native.get("stale_s", stale))
     if native_fresh and native.get("conflict") is True:
         return {**result, "reason": "Tegenstrijdige actuele Panasonic-taakmeldingen"}
