@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0-beta.85 — herstel van tijdelijke SG-dispatchopruiming
+
+- Herstelt een vroege terugkeer bij begrensde lokale SG-toestemming: alleen een niet-lege tijdelijke `before_on`-controle die door dezelfde aanroep is geplaatst wordt opgeruimd. Een nog niet vervangen bestaande controle blijft intact; volgende regelrondes krijgen geen ontbrekend-attribuutfout uit deze route. De oorspronkelijke finale veiligheidscontrole blijft gelden.
+- Behoudt alle beta.84-bediening: tijdelijke Aan/Uit 30/60 min, absolute deadline, terugkeer naar Auto, oorspronkelijke sessiegrenzen/importtimer, vijfminutenbuffer van de inschakelklok, verse matching herstart, korte lokale lease en harde guards. Geen native Panasonic-write, gegevensreset of automatische opheffing van foutpauze.
+- Upgrade vereist volledige HA-herstart en browser/app-herlading. Een bestaande interne foutpauze blijft beschermd: eerst de concrete fout controleren en Controle afronden, daarna bewust Automatisch regelen. Bron-/kaart-/geladen moduleversie moeten afzonderlijk worden gecontroleerd; bestandsinhoud bewijst geen geladen runtime.
+- Bouwbasis: gepubliceerde beta.84 `e83bc7027454af1366a490977ddcac70f37a215d`, tree `8f20df320827c54cb43d6d643cf93e95137da91b`. Eigen beta.85-bewijs: `docs/TESTRESULTATEN_BETA85.md`; upgrade/behoud/rollback: `docs/BETA85_INSTELLEN.md`. Eerdere beta.84-resultaten zijn geen beta.85-validatie.
+
 ## 1.0.0-beta.84 — tijdelijke SG-bediening en rustige herstart
 
 - Voegt Automatisch, Aan · 30/60 minuten en Uit · 30/60 minuten toe aan de warmtepompkaart en native HA-select. De absolute eindtijd wordt bewaard en keert bij afloop automatisch terug naar Automatisch; herstart begint de tijd niet opnieuw.

@@ -24,6 +24,7 @@ def test_shipped_catalog_only_contains_release_bound_generic_proposals():
         "sp.pv.daylight-separated-ahead-error.v1", "sp.pv.original-timestamp-validity-proof.v1",
         "sp.hp.aquarea-off-source-contract.v1",
     }
+    beta85 = {"sp.sg.native-callback-lifecycle.v1"}
     assert set(implementations.IMPLEMENTED_PROPOSALS) == {
         "sp.hp.task-presentation.v1", "sp.hp.context-and-learning.v1",
         "sp.meters.source-quality-evidence.v1", "sp.electrical.budget-versus-limits.v1",
@@ -31,10 +32,10 @@ def test_shipped_catalog_only_contains_release_bound_generic_proposals():
         "sp.sg.minimum-request-duration.v1", "sp.sg.cloud-import-buffer.v1",
         "sp.sg.confirmed-reset-display.v1", "sp.wallbox.session-source-diagnostics.v1",
         "sp.hp.inactive-scope-display.v1", "sp.learning.local-investigation.v1",
-        "sp.sg.session-evidence.v1", "sp.analysis.recommendation-kind.v1"} | beta81 | beta83
+        "sp.sg.session-evidence.v1", "sp.analysis.recommendation-kind.v1"} | beta81 | beta83 | beta85
     for identifier, row in implementations.IMPLEMENTED_PROPOSALS.items():
         assert set(row) == {"introduced_release", "title", "proposal_sha256"}
-        assert row["introduced_release"] == ("1.0.0-beta.83" if identifier in beta83 else "1.0.0-beta.81" if identifier in beta81 else "1.0.0-beta.75" if identifier in {
+        assert row["introduced_release"] == ("1.0.0-beta.85" if identifier in beta85 else "1.0.0-beta.83" if identifier in beta83 else "1.0.0-beta.81" if identifier in beta81 else "1.0.0-beta.75" if identifier in {
             "sp.learning.local-investigation.v1", "sp.sg.session-evidence.v1",
             "sp.analysis.recommendation-kind.v1"} else "1.0.0-beta.74" if identifier in {
             "sp.sg.confirmed-reset-display.v1", "sp.wallbox.session-source-diagnostics.v1",
@@ -67,6 +68,26 @@ def test_beta71_proposals_bind_exact_meaning_and_installed_release(identifier, t
     assert row == before
     changed = {**row, "text": text + " Wijzig daarnaast de regeling."}
     result = implementations.logic_update_status([changed], "1.0.0-beta.71")[0]
+    assert result["status"] == "pending" and result["reason"] == "proposal_content_changed"
+
+
+def test_beta85_native_callback_proposal_binds_exact_meaning_and_installed_release():
+    row = {
+        "category": "logic_update",
+        "proposal_id": "sp.sg.native-callback-lifecycle.v1",
+        "text": "Ruim na een SG-inschakelpoging uitsluitend de door die aanroep daadwerkelijk geïnstalleerde callback op. Behoud bestaande native controle-attributen bij vroege terugkeer, opslagfouten en annulering, en behoud de laatste toestemmingscontrole vóór de Shelly-opdracht.",
+    }
+    before = deepcopy(row)
+    assert implementations.proposal_digest(row) == "4d3f0037e81696235fdd87c2b9904e3f6251357db1d9b4f73a53e65c592b3402"
+    old = implementations.logic_update_status([row], "1.0.0-beta.84")[0]
+    current = implementations.logic_update_status([row], "1.0.0-beta.85")[0]
+    assert old["status"] == "pending" and old["reason"] == "release_not_reached"
+    assert current["status"] == "implemented" and current["reason"] == "trusted_catalog_match"
+    assert current["introduced_release"] == "1.0.0-beta.85"
+    assert implementations.IMPLEMENTED_PROPOSALS[row["proposal_id"]]["title"] == "Intacte native controle bij afgebroken SG-inschakeling"
+    assert row == before
+    changed = {**row, "text": row["text"] + " Sla de laatste toestemmingscontrole over."}
+    result = implementations.logic_update_status([changed], "1.0.0-beta.85")[0]
     assert result["status"] == "pending" and result["reason"] == "proposal_content_changed"
 
 

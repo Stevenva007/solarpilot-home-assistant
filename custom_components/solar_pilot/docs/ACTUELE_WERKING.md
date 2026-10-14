@@ -1,10 +1,10 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.84
+**Versie:** 1.0.0-beta.85
 **Bijgewerkt:** 2026-10-14
-**Regel-hash:** `111e4e4cbbd3111e`
+**Regel-hash:** `b3f630b7a852a461`
 
-Beta.84 voegt tijdelijke SG-bediening toe: Aan of Uit voor 30 of 60 minuten, daarna automatisch terug naar Automatisch. Een herstart controleert verse voorwaarden en kan een passende nog actieve eigen SG-sessie zonder onnodige contactwissel voortzetten. De absolute eindtijd, oorspronkelijke sessiegrenzen en korte lokale timer blijven behouden. Handmatig Aan is een bewuste vraag die de zonne- en zachte wachtvoorwaarden vervangt; elektrische grenzen, bruikbare bronnen, ingebruikname, profiel, koelbeveiliging, voorrang en globale modus blijven leidend. Panasonic bepaalt haar eigen bedrijf. De bron-/doelweergave, PV-diagnose, leren, overige apparaten en oude gegevens uit beta.83 blijven behouden.
+Beta.85 herstelt een fout in de tijdelijke SG-dispatchafhandeling: een vroege terugkeer bij een begrensde lokale toestemming kon een bestaande finale veiligheidscontrole verwijderen en latere regelrondes laten stoppen. Alleen een daadwerkelijk door die ene aanroep geplaatste tijdelijke controle wordt nu opgeruimd; de oorspronkelijke controle blijft intact. Tijdelijke Aan/Uit voor 30/60 minuten, de vijfminutenbuffer voor de inschakelklok, verse herstartcontrole, alle harde voorwaarden en gegevens uit beta.84 blijven behouden. Een al bestaande interne foutpauze vraagt na volledige HA-herstart eerst Controle afronden en daarna bewust Automatisch regelen; de update heft haar niet stil op.
 
 ## 1. Basisprincipe en modi
 
@@ -13,6 +13,8 @@ SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele ne
 Alleen bekijken berekent en registreert zonder nieuwe flexibele toestellen te starten. Automatisch regelen voert uitsluitend de toegestane apparaatbediening uit. Pauze start niets nieuws en geeft eigen onderbreekbare lasten veilig vrij, met behoud van minimumlooptijden en beschermde cycli. Een eigen SG-zonneboost wordt ingetrokken; de warmtepomp zelf blijft onder Panasonic-regie. Eigen bevestigde numerieke batterijdoelen behouden hun afzonderlijke veilige vrijgaveroute.
 
 Na herstart automatisch hervatten staat standaard Aan. Een gewone opgeslagen Pauze vraagt na Home Assistant-start of herladen weer Automatisch regelen via de bestaande controles. Alleen bekijken, eerste installatie, echte interne fout- en verwijderpauzes blijven beschermd. De voorkeur wijzigen verandert de huidige modus niet. Opnieuw Pauze kiezen annuleert een wachtende hervatting. SG-ingebruikname en een oude boost krijgen hierdoor geen automatische bevestiging.
+
+Bij een al opgeslagen interne foutpauze blijft automatisch hervatten beschermd. Na een update en volledige Home Assistant-herstart controleer je de concrete melding, kies je Controle afronden en daarna bewust Automatisch regelen wanneer de actuele controles dit toelaten. Herhalen zonder de fout op te lossen, opslag wissen of een native warmtepompopdracht geven is geen herstelroute.
 
 Na een herstart leest SolarPilot echte toestelstatussen. Een tijdelijk onbereikbaar eerder beheerd toestel wordt afzonderlijk opzijgezet; onbekend verbruik wordt niet als nul gerekend. De overige lasten kunnen verder zodra hun eigen voorwaarden en globale net- en veiligheidsmetingen betrouwbaar zijn. Het ontbrekende toestel wordt opnieuw beoordeeld zodra bruikbare brongegevens terugkeren. Onzekere fysieke opdrachten worden niet blind herhaald.
 
@@ -332,7 +334,7 @@ Een privéprofiel blijft optioneel en uitsluitend lokaal. Importeren kan lege ge
 
 Voor verwijderen kies je Verwijderen voorbereiden en wacht je op de gerichte veilige vrijgave. Een onzekere SG-uitgang blijft eerlijk onbekend; de gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, AEG- of Shelly-integratie.
 
-Rollback naar beta.83 behoudt de bronsemantiekcorrectie, berekende SG-doelvergelijking en diagnose-/PV-weergave, maar mist tijdelijke SG-bediening en veilig behoud van een bevestigde bestaande sessie bij echte HA-herstart. Geef vóór rollback tijdelijk Aan/Uit terug naar Automatisch en geef de eigen SG-aanvraag veilig vrij; oudere code kan deze tijdelijke keuze niet uitvoeren. Nieuwe aanvullende opslagvelden kunnen bij een oudere opslagwrite wegvallen; bewaar nieuwe historie met een volledige privéback-up vóór rollback. Oude taakperioden worden niet opnieuw geïnterpreteerd. Rollback corrigeert geen meter of fysieke installatie. Geef vóór codevervanging de eigen SG-aanvraag veilig vrij en controleer lokale terugval. Exact herstel vraagt code én passende volledige privéback-up. Herstel nooit een oude onverbruikte APP-aanvraag nadat dezelfde belading al fysiek gestart is. Gebruik geen twee runtimes tegelijk en verwijder de entry niet. Voor de oude directe beta.61-regeling blijft de volledige back-up van vóór beta.62 nodig. Zie BETA84_INSTELLEN.md.
+Rollback naar beta.84 behoudt tijdelijke SG-bediening, startklokbuffer en bevestigde sessievoortzetting, maar herintroduceert de gerepareerde fout in tijdelijke dispatchopruiming. Geef vóór rollback de eigen SG-aanvraag veilig vrij en controleer de lokale afloop; herstel geen oude ongecontroleerde opdrachten. Nieuwe aanvullende opslagvelden kunnen bij een oudere opslagwrite wegvallen; bewaar nieuwe historie met een volledige privéback-up vóór rollback. Oude taakperioden worden niet opnieuw geïnterpreteerd. Rollback corrigeert geen meter of fysieke installatie. Geef vóór codevervanging de eigen SG-aanvraag veilig vrij en controleer lokale terugval. Exact herstel vraagt code én passende volledige privéback-up. Herstel nooit een oude onverbruikte APP-aanvraag nadat dezelfde belading al fysiek gestart is. Gebruik geen twee runtimes tegelijk en verwijder de entry niet. Voor de oude directe beta.61-regeling blijft de volledige back-up van vóór beta.62 nodig. Zie BETA85_INSTELLEN.md.
 
 ## 21. Release- en documentatieregel
 
