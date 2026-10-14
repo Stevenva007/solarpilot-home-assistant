@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta.82 — werking herkennen, SG-contactbalk en boilerwaarden
+
+- Eén afzonderlijke read-only bedrijfsweergave voor Verwarmen, Boiler opwarmen, Koelen en Ontdooien. Verse werkelijke Panasonic-actie blijft taakbewijs; ontdooien houdt voorrang. Exacte tankroute plus actieve toegewezen voeding kan tankopwarming afleiden; een gekozen verwarmings-/koelstand vereist daarnaast verse expliciete tankrust en actieve hoofdvoeding.
+- Een bruikbare deelmeting kan presentatie ondersteunen zonder onbekend totaal, energie of conservatief leer-/SG-bewijs compleet te maken. Elektrische ondersteuning staat aanvullend naast de primaire taak en vervangt die niet. Oude opgeslagen taakperioden worden niet heringedeeld of teruggevuld.
+- Warmtepompgeschiedenis krijgt een eigen SG-contactbalk AAN/UIT/ONBEKEND op dezelfde tijdas, met oorspronkelijke bevestiging en afloop. Aanvraag, contact en ontvangen SG blijven apart; herstart of oud bewijs geeft geen fictieve voortzetting.
+- Huidige en gewenste gewone boilerwaarde staan bij de geschiedenis. Historische temperatuur-/doelpunten behouden oorspronkelijke brontijd en meetgaten; geen huidig doel op een vorige dag, effectief SG-/hygiënedoel of bewezen sterilisatie afleiden.
+- Behoudt 600 W/vijf minuten/minimum twintig minuten, korte leases, alle harde guards, SG-only Panasonic, read-only Wallbox, AEG start-only/deadline, instellingen, bindings, prioriteiten, modellen en eerdere historie. Nieuwe aanvullende opslag vergt behoud van een volledige privéback-up bij rollback naar oudere code.
+- Bouwbasis: gepubliceerde beta.81 `8083e3647e7bb0e09620da8194dd2ca9e157afe6`, tree `46d3f51af9b1d3dcdb6bcccbfac47a874aa6c92f`. Brongebonden tests/publicatiebewijs: `docs/TESTRESULTATEN_BETA82.md`; installatie/behoud/rollback: `docs/BETA82_INSTELLEN.md`. Geen fysieke apparaatacceptatie of compressor-/levensduurbewijs uit softwareproeven.
+
 ## 1.0.0-beta.81 — SG-onderzoek, oorspronkelijke tijden en controleerbare historie
 
 - Herstelt de bewezen tijdtypefout op de echte runtime-grens naar SG-onderzoek; de bestaande warmtepompgeschiedenis houdt haar aware datumtype. Nieuwe sessies worden werkelijk onderzocht, zonder oude ontbrekende sessies als complete registratie terug te vullen.
