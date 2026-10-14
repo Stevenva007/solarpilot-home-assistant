@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0-beta.84 — tijdelijke SG-bediening en rustige herstart
+
+- Voegt Automatisch, Aan · 30/60 minuten en Uit · 30/60 minuten toe aan de warmtepompkaart en native HA-select. De absolute eindtijd wordt bewaard en keert bij afloop automatisch terug naar Automatisch; herstart begint de tijd niet opnieuw.
+- De bestaande inschakelklok loopt tijdens een korte zachte zondip of tijdelijk ontbrekende/verouderde meting maximaal vijf minuten door. Zij start pas fysiek bij opnieuw verse complete vrijgave; nul resterend tijdens de onderbreking betekent wachten op herstel. Een langere onderbreking of bekende harde-/modus-/bindingblokkering reset. Ontbrekend is geen nul of bewezen wolk.
+- Tijdelijk Aan is een bewuste SG-vraag die zonne-start, startvertraging, gewone rust, anti-herhaalbeleid en zachte importstop vervangt. Alle harde elektrische-, bron-, lokale timer-, profiel-, koel-, prioriteits-, eigendoms- en globale modusvoorwaarden blijven leidend. Een bestaande sessie houdt haar oorspronkelijke start, minimum en harde maximum; de gekozen duur garandeert geen contact- of compressorlooptijd.
+- Een echte Home Assistant-herstart kan een matching nog AAN gemeld eigen contact met een volledig bevestigd beta.84-checkpoint en verse passende voorwaarden zonder onnodige UIT/AAN-cyclus voortzetten. Oude beta.83-journals zijn release-only; geen blinde oude AAN-replay, sessiereset of vernieuwde bronactualiteit. Gewoon integratie-unload, verwijderen en externe overname behouden hun veilige vrijgave.
+- Terugkeer van tijdelijk Aan naar Automatisch behoudt een passende AAN zolang actuele automatische voortzetting geldig is; tijdelijk Uit onderdrukt uitsluitend de eigen SG-vraag tot haar eindtijd. Kaart, native select en beheerdersservice delen dezelfde gevalideerde mode-/duurroute.
+- Behoudt de korte lokale 300 s-toestemming/60 s-vernieuwing, normale SG600/vijf minuten/minimum twintig minuten, SG-only Panasonic, read-only Wallbox, AEG start-only/deadline, bron-/doelweergave, PV-diagnose, instellingen, bindings, prioriteiten, modellen en oude historie. Geen native Panasonic-, heater-, programmasetpoint- of HA-installatiewrite.
+- Bouwbasis: gepubliceerde beta.83 `39b52464ec14d22f61be888c828c2db2fc989774`, tree `0403a7678f933494405a8815937a3a1788d410c0`. Brongebonden tests/publicatiebewijs: `docs/TESTRESULTATEN_BETA84.md`; installatie/behoud/rollback: `docs/BETA84_INSTELLEN.md`. Niet uitgevoerde checks worden niet als geslaagd voorgesteld.
+
 ## 1.0.0-beta.83 — Aquarea-bronsemantiek, berekend SG-doel en consistente diagnose
 
 - Read-only taakweergave herkent de gecontroleerde Aquarea 1.5.2/1.5.3 met aioaquarea-ng 1.3.1, waarin globale OFF uit een presetveld kan ontstaan. Alleen verse getypeerde pomp-, richting-, zone- en tankvelden ondersteunen een passende afleiding; onbekende providers en oude/optimistische data geven geen uitzondering. Geen upstream-object-, leer- of SG-guardwijziging.

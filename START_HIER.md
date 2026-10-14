@@ -1,35 +1,42 @@
-# SolarPilot beta.83 — installatie en upgrade
+# SolarPilot beta.84 — installatie en upgrade
 
-Beta.83 corrigeert uitsluitend de weergave van de bekende Aquarea-bronsemantiek en maakt een berekend tapwater-SG-doel mogelijk met een lokaal bevestigd percentage. Werkelijke contactstand, gewone doelbron en oorspronkelijke tijden blijven apart. Onderzoek houdt eerdere beoordeling en actuele bron coherent; vooruit-PV-scores scheiden daglicht en nacht. Leren, SG-regeling, elektrische grenzen, instellingen en oude historie blijven behouden.
+Beta.84 voegt tijdelijke SG-bediening toe: **Aan of Uit voor 30/60 minuten**, daarna terug naar **Automatisch**. De absolute eindtijd wordt bewaard. Een echte HA-herstart kan een passende nog actieve eigen beta.84-sessie onder verse geldige voorwaarden zonder onnodige contactwissel voortzetten. Het oorspronkelijke harde sessiemaximum, alle harde grenzen en de korte lokale timer blijven leidend.
 
-**Begin met [BETA83_INSTELLEN.md](docs/BETA83_INSTELLEN.md).** Geen extra installatie, sensor, solver of parallelle regelaar. Volledige werking: [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en **SolarPilot → Uitleg**. Uitgevoerde checks en publicatiestatus: [TESTRESULTATEN_BETA83.md](docs/TESTRESULTATEN_BETA83.md). Auditdekking en concrete bevindingen: [AUDIT_BETA79.md](docs/AUDIT_BETA79.md). Oudere resultaten bewijzen geen geslaagde beta.83-release.
+**Begin met [BETA84_INSTELLEN.md](docs/BETA84_INSTELLEN.md).** Geen extra installatie, sensor, solver of parallelle regelaar. Volledige werking: [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en **SolarPilot → Uitleg**. Uitgevoerde checks en publicatiestatus: [TESTRESULTATEN_BETA84.md](docs/TESTRESULTATEN_BETA84.md). Auditdekking: [AUDIT_BETA79.md](docs/AUDIT_BETA79.md). Oudere resultaten bewijzen geen beta.84-release.
 
 ## Bestaande installatie bijwerken
 
-1. Maak een volledige privé HA-back-up met instellingen, eigen opslag, PV-factoren, modellen, tickets, geschiedenis en userfiles. Bewaar gecontroleerde beta.82-code.
-2. Geef vóór codevervanging een eigen SG-aanvraag vrij en controleer contact/lokale afloop. Onderbreek geen beschermde apparaatcyclus.
-3. Update via HACS naar exact `1.0.0-beta.83` nadat releasegates en publicatie zijn geslaagd. Herstart HA volledig en herlaad browser/app volledig.
-4. Controleer backend- en kaartversie apart. Behoud dezelfde entry, bindings, volgorde en geldige SG-/profiel-/split-/koelbevestigingen.
-5. Controleer actuele taakherkenning, ondersteuning, SG-contactbalk en actuele/ingestelde boilerwaarden. Voor een berekend SG-doel kies je onder Warmtepomp — uitleesbronnen de bestaande geregistreerde native tankbron voor de vergelijking, vul je het op Panasonic ingestelde tapwaterpercentage in en bevestig je de overeenkomst lokaal; de update vult dit niet automatisch als bevestigd in. Bekijk daarnaast beslisredenen, de oorspronkelijke AEG-aanvraag/deadline, Planning, PV-diagnose, Meetkwaliteit, kosten en geschiedenis. Een update maakt geen nieuwe belading en geeft geen tweede START vrij.
-6. Bij onbekende of beschadigde oude opslag blijft de oorspronkelijke opslag behouden. Een concrete laadfout kan nieuwe duurzame registratie of adviesimport tegenhouden; wis daarvoor geen gegevens. Oude verbruikershistoriek zonder betrouwbare bronherkomst blijft voor beheerders zichtbaar.
+1. Maak een volledige privé HA-back-up met instellingen, eigen opslag, PV-factoren, modellen, tickets, geschiedenis en userfiles. Bewaar gecontroleerde beta.83-code.
+2. Geef vóór codevervanging een eigen SG-aanvraag veilig vrij en controleer contact/lokale afloop. Onderbreek geen beschermde apparaatcyclus.
+3. Update via HACS naar exact `1.0.0-beta.84` nadat releasegates en publicatie zijn geslaagd. Herstart HA volledig en herlaad browser/app volledig.
+4. Controleer backend- en kaartversie afzonderlijk. Behoud dezelfde entry, bindings, volgorde en geldige SG-/profiel-/split-/koelbevestigingen.
+5. Controleer de nieuwe SG-bediening en haar resterende tijd, echte contactstand en lokale timer. Een oude beta.83-sessie mist het nieuwe checkpointbewijs en kan bij deze eerste upgrade nog één veilig contactvrijgavemoment krijgen. Pas een volledig bevestigd beta.84-checkpoint kan het nieuwe herstartpad gebruiken.
+6. Controleer daarnaast actuele taak, ondersteuning, boilerwaarden, oorspronkelijke AEG-aanvraag/deadline, Planning, PV-diagnose, Meetkwaliteit, kosten en geschiedenis. Een update maakt geen nieuwe belading of tweede START. Onleesbare oude opslag blijft behouden; wis daarvoor geen gegevens.
 
 Lokaal vervang je uitsluitend `custom_components/solar_pilot`, met behoud van userfiles en HA-opslag. Verwijder of hermaak de entry niet. Geen instellingenreset, nieuwe verplichte bron of algemene herbevestiging.
 
+De inschakelklok kan maximaal vijf minuten doorlopen bij een korte zondip of tijdelijk ontbrekende/verouderde meting. AAN wacht altijd op opnieuw verse betrouwbare voldoende zonnebijdrage en harde vrijgave. Een voltooide klok tijdens de dip betekent wachten op herstel; ontbrekend is geen nul of bewezen wolk. Bij een langere onderbreking of harde-/modus-/bindingblokkering begint de opbouw opnieuw.
+
+## Tijdelijke SG-bediening
+
+Kies naast de SG-contactstand **Aan 30 min**, **Aan 1 uur**, **Uit 30 min** of **Uit 1 uur**, in Overzicht of op het warmtepomptabblad. Na afloop wordt **Automatisch** gekozen; je kunt dat tussentijds ook kiezen. Tijdelijk Aan vervangt de zonne- en zachte wachtvoorwaarden, met mogelijke netafname binnen harde grenzen. Alleen bekijken, Pauze, bronverlies, fouten, onvoldoende elektrische ruimte, ongeldige profiel-/koelvrijgave en voorrang blijven leidend. Een lopende sessie krijgt geen nieuw maximum door een tijdelijke keuze.
+
+Tijdelijk Uit onderdrukt alleen de eigen SG-aanvraag; Panasonic mag zelfstandig verder werken. Bij terugkeer naar Automatisch besluit de actuele gewone policy: een geldig al AAN-contact hoeft niet uit/aan, een nieuwe start na Uit krijgt geen automatische vrijstelling. De native HA-select **SG-bediening** biedt dezelfde vijf keuzes. De uitgebreide service- en herstartvoorwaarden staan in de installatiehandleiding.
+
 ## Wat behouden blijft
 
-Panasonic regelt comfort, warm water, verwarmen/koelen, ondersteuning en sterilisatie zelfstandig. Het toegewezen SG-contact blijft de enige warmtepompactuator; geen setpoint-, programma- of heaterwrite. Wallbox blijft autonoom en read-only, ook wanneer SolarPilot-monitoring uit staat. AEG krijgt maximaal één native START per geldige nieuwe belading en mag afwerken.
+Panasonic regelt comfort, warm water, verwarmen/koelen, ondersteuning en sterilisatie zelfstandig. Het toegewezen SG-contact blijft de enige warmtepompactuator; geen setpoint-, programma- of heaterwrite. Wallbox blijft read-only. AEG krijgt maximaal één native START per geldige nieuwe belading en mag afwerken.
 
-SG behoudt 600 W netafname gedurende vijf continue minuten, minimum twintig minuten en korte leases; expliciete geldige gebruikerswaarden en harde guards blijven leidend. De bestaande AEG-deadline/grace, PV-factoren, gezamenlijke planner, batterijadvies, onderzoeken, exports en historie blijven behouden. Een softwarematige netgrens is geen fysieke beveiliging.
+Gewone automatische SG behoudt 600 W netafname gedurende vijf continue minuten, minimum twintig minuten en het bestaande harde maximum. De lokale toestemming blijft standaard 300 seconden, met vernieuwing iedere 60 seconden; zij wordt bij een half uur of uur Aan niet tot die duur verlengd. Expliciete geldige gebruikerswaarden en harde guards blijven leidend. De bron-/doelweergave, PV-factoren, planner, batterijadvies, onderzoeken, exports en historie uit beta.83 blijven behouden.
 
 ## Nieuwe installatie
 
-Voeg `https://github.com/Stevenva007/solarpilot-home-assistant` toe in **HACS → Custom repositories** als **Integration**, download SolarPilot en herstart HA. Voeg de integratie toe onder **Instellingen → Apparaten & diensten**. Selecteer betrouwbare lokale bronnen en begin met **Alleen bekijken**. SG staat standaard uit en vraagt zijn bestaande afzonderlijke gecontroleerde ingebruikname. De meegeleverde kaart wordt automatisch geregistreerd.
+Voeg `https://github.com/Stevenva007/solarpilot-home-assistant` toe in **HACS → Custom repositories** als **Integration**, download SolarPilot en herstart HA. Voeg de integratie toe onder **Instellingen → Apparaten & diensten**. Selecteer betrouwbare lokale bronnen en begin met **Alleen bekijken**. SG staat standaard uit en vraagt gecontroleerde ingebruikname. De meegeleverde kaart wordt automatisch geregistreerd.
 
 ## Rollback
 
-Geef de eigen SG-aanvraag vrij, controleer contact/lokale afloop, stop beta.83 en herstel gecontroleerde beta.82-code met behoud van entry, actuele opslag en userfiles. Beta.82 behoudt taak-/ondersteuningsweergave, SG-contactbalk en gewone temperatuurhistorie, maar mist de specifieke bronsemantiekcorrectie, berekende SG-doelen en nieuwe diagnose-/PV-presentatie. Aanvullende nieuwe velden kunnen bij een opslagwrite door oudere code verdwijnen; bewaar nieuwe historie en een volledige privéback-up vooraf. Code terugzetten maakt geen verbruikte of onzekere START opnieuw beschikbaar.
+Kies Automatisch, geef de eigen SG-aanvraag veilig vrij en controleer contact/lokale afloop. Bewaar een actuele volledige privéback-up, stop beta.84 en herstel gecontroleerde beta.83-code met behoud van entry, actuele opslag en userfiles. Beta.83 behoudt bronherkenning, berekende SG-doelen en diagnose-/PV-weergave, maar mist de tijdelijke bediening en nieuwe sessievoortzetting bij echte HA-herstart. Oudere code kan aanvullende opslagvelden bij schrijven verliezen. Code terugzetten maakt geen verbruikte of onzekere START opnieuw beschikbaar.
 
-Exact herstel vraagt code én de passende volledige privéback-up; bewaar gewenste nieuwe historie eerst. Herstel geen oude onverbruikte ticketback-up bij een inmiddels gestart of afgerond programma. Laat nooit twee runtimes tegelijk werken. Zie [BETA83_INSTELLEN.md](docs/BETA83_INSTELLEN.md).
-
+Exact herstel vraagt code én een passende privéback-up. Herstel geen oude onverbruikte ticketback-up bij een inmiddels gestart of afgerond programma. Laat nooit twee runtimes tegelijk werken. Zie [BETA84_INSTELLEN.md](docs/BETA84_INSTELLEN.md).
 
 Openbare broncontrole en de afzonderlijke geautoriseerde wekelijkse ontwikkeltaak staan in [UPSTREAM_BRONNEN.md](docs/UPSTREAM_BRONNEN.md). De taak verandert geen lokale Home Assistant-installatie of apparaten.

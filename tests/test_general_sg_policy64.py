@@ -339,10 +339,12 @@ async def test_premature_general_lease_expiry_needs_new_real_evidence():
 
 
 @pytest.mark.asyncio
-async def test_reload_of_active_general_request_releases_and_does_not_restart_from_rest_only():
+async def test_legacy_reload_of_active_general_request_releases_and_does_not_restart_from_rest_only():
     previous, adapter, clock, runtime, row = await started()
     manager = SGBoostManager(runtime, adapter=adapter, clock=clock)
-    manager.restore(previous.snapshot())
+    journal = previous.snapshot()
+    journal.pop("session_checkpoint")
+    manager.restore(journal)
     await manager.start()
     assert manager.completion_hold and manager._hold_reason == "response_unknown"
     clock.advance(900)

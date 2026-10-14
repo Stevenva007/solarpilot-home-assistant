@@ -265,6 +265,7 @@ async def test_slow_ownership_save_cannot_move_renewed_lease_past_hard_session_l
 async def test_restart_preserves_evidence_but_never_restores_minimum_authority():
     previous, adapter, clock, runtime = await boosted(min_session_s=1200, import_threshold_w=300, stop_delay_s=60)
     saved = deepcopy(previous.snapshot())
+    saved.pop("session_checkpoint")  # Beta.83 had no fresh continuity proof.
     manager = SGBoostManager(runtime, adapter=adapter, clock=clock)
     runtime.sg_boost = manager
     runtime._snapshot = lambda: {"sg_boost": manager.snapshot()}

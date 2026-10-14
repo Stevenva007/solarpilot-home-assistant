@@ -147,18 +147,13 @@ async def test_missing_enable_or_confirmations_cannot_create_authority(config):
 
 
 @pytest.mark.asyncio
-async def test_start_requires_continuous_real_surplus_not_forecast_or_native_power():
+async def test_start_cloud_buffer_still_requires_current_real_surplus_not_forecast_or_native_power():
     manager, adapter, clock, _ = fixture()
     await tick(manager, surplus=4000)
     clock.advance(119)
     await tick(manager, surplus=2999, predicted_surplus_w=99999, native_hp_power_w=8000)
+    assert not adapter.calls
     clock.advance(120)
-    await tick(manager, surplus=4000)
-    assert not adapter.calls
-    clock.advance(119)
-    await tick(manager, surplus=4000)
-    assert not adapter.calls
-    clock.advance(1)
     await tick(manager, surplus=4000)
     assert adapter.calls == [("on", 300)]
 
@@ -365,9 +360,10 @@ async def test_external_timer_change_releases_ownership_but_respects_contact():
 
 
 @pytest.mark.asyncio
-async def test_restart_releases_owned_request_but_never_replays_it():
+async def test_legacy_restart_releases_owned_request_but_never_replays_it():
     previous, adapter, clock, runtime = await boosted()
     journal = previous.snapshot()
+    journal.pop("session_checkpoint")  # Beta.83 had no confirmed continuity proof.
     manager = SGBoostManager(runtime, adapter=adapter, clock=clock)
     runtime.sg_boost = manager
     runtime._snapshot = lambda: {"sg_boost": manager.snapshot()}
@@ -550,6 +546,7 @@ async def test_firmware_change_releases_and_revokes_old_commissioning():
 async def test_restart_does_not_reuse_firmware_attestation_for_new_version():
     prior, adapter, clock, runtime = await boosted()
     saved = prior.snapshot()
+    saved.pop("session_checkpoint")  # Legacy release-only reconciliation.
     adapter.fingerprint["firmware_id"] = "fixture-v2"
     manager = SGBoostManager(runtime, adapter=adapter, clock=clock)
     manager.restore(saved)
@@ -782,9 +779,10 @@ async def test_final_shorter_renewal_advances_timer_without_exceeding_session_ce
 
 
 @pytest.mark.asyncio
-async def test_restart_final_session_window_requires_new_need_or_explicit_resume():
+async def test_legacy_restart_final_session_window_requires_new_need_or_explicit_resume():
     previous, adapter, clock, runtime = await boosted(max_session_s=300)
     saved = previous.snapshot()
+    saved.pop("session_checkpoint")
     assert saved["session_finishing"] is True
     manager = SGBoostManager(runtime, adapter=adapter, clock=clock)
     manager.restore(saved)

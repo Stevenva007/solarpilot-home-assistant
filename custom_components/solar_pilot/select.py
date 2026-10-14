@@ -1,11 +1,16 @@
 from homeassistant.components.select import SelectEntity
 from .const import MODES, DEVICE_MODES
 from .entity import SolarEntity
+from .sg_control_api import SG_MANUAL_OPTIONS, async_set_sg_manual_control
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
     r = entry.runtime_data
-    r.platforms.register("select", async_add_entities, lambda: [SolarMode(r)] + [SolarMode(r, i) for i in r.configs])
+    r.platforms.register("select", async_add_entities, lambda: _entities(r))
+
+
+def _entities(runtime):
+    return [SolarMode(runtime), SGManualControl(runtime)] + [SolarMode(runtime, i) for i in runtime.configs]
 
 
 class SolarMode(SolarEntity, SelectEntity):
@@ -24,3 +29,43 @@ class SolarMode(SolarEntity, SelectEntity):
             await self.runtime.set_device_mode(self.key, option)
         else:
             await self.runtime.set_mode(option)
+
+
+class SGManualControl(SolarEntity, SelectEntity):
+    """A timed policy preference, independent of the persistent enable switch."""
+    _attr_icon = "mdi:heat-pump-outline"
+    _attr_translation_key = "sg_manual_control"
+    _attr_options = list(SG_MANUAL_OPTIONS)
+    _unrecorded_attributes = frozenset({"remaining_s"})
+
+    def __init__(self, runtime):
+        super().__init__(runtime, "sg_manual_control", "SG-boost bediening")
+
+    @property
+    def available(self):
+        return bool(not self._inactive() and self.runtime.data_loaded
+                    and self.runtime.sg_boost.overview().get("configured"))
+
+    @property
+    def current_option(self):
+        manual = self.runtime.sg_boost.overview().get("manual_control", {})
+        mode, duration = manual.get("mode"), manual.get("duration_s")
+        if mode == "auto":
+            return "auto"
+        if mode in ("on", "off") and type(duration) is int and duration in (1800, 3600):
+            return f"{mode}_{duration // 60}"
+        return None
+
+    @property
+    def extra_state_attributes(self):
+        manual = self.runtime.sg_boost.overview().get("manual_control", {})
+        return {key: manual.get(key) for key in ("expires_at", "remaining_s", "active", "reason")}
+
+    async def async_select_option(self, option):
+        if type(option) is not str or option not in SG_MANUAL_OPTIONS:
+            from homeassistant.exceptions import HomeAssistantError
+            raise HomeAssistantError("Kies een geldige tijdelijke SG-bediening.")
+        mode, duration = ("auto", None) if option == "auto" else (option.split("_")[0], int(option.split("_")[1]) * 60)
+        await async_set_sg_manual_control(
+            self.runtime, mode, duration, context=getattr(self, "_context", None)
+        )

@@ -12,6 +12,8 @@ HA helper: homeassistant.components.shelly.coordinator (Core 2026.10).
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 from dataclasses import dataclass
 import math
 import inspect
@@ -41,6 +43,7 @@ class RelayStatus(TypedDict):
     firmware: str
     firmware_id: str
     fingerprint: dict[str, str | int]
+    binding_identity: str
     known: bool
 
 
@@ -261,7 +264,9 @@ class ShellyLeaseAdapter:
                 "timer_cancelled": timer_cancelled,
                 "setup_valid": configuration_error is None, "configuration_error": configuration_error,
                 "source": SOURCE, "firmware": firmware, "firmware_id": firmware_id,
-                "fingerprint": dict(self._fingerprint), "known": True}
+                "fingerprint": dict(self._fingerprint), "known": True,
+                "binding_identity": hashlib.sha256(json.dumps(self._binding_key,
+                    separators=(",", ":")).encode()).hexdigest()}
 
     async def async_check_mapping(self) -> RelayStatus:
         """Fresh read-only source, configuration, state and timer check."""

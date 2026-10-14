@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.83",
+  "version": "1.0.0-beta.84",
   "language": "nl",
   "steps": {
     "init": {
@@ -1061,7 +1061,7 @@
         "stale_s": "Maximale ouderdom metingen (s)"
       },
       "data_description": {
-        "start_delay_s": "De gezamenlijke zonnebijdrage en alle startvoorwaarden moeten gedurende de ingestelde vertraging geldig blijven vóór een nieuwe SG-aanvraag, standaard 120 seconden.",
+        "start_delay_s": "De gezamenlijke zonnebijdrage en alle startvoorwaarden moeten aanvankelijk geldig zijn om de ingestelde inschakelklok te starten, standaard 120 seconden.",
         "stop_delay_s": "Gewone actueel gemeten netafname moet continu boven de ingestelde wolkenbuffer blijven gedurende deze tijd, standaard 300 seconden of vijf minuten.",
         "import_threshold_w": "Wolkenbuffer voor gewone actueel gemeten netafname, standaard 600 W.",
         "hysteresis_w": "Grens voor het bevestigen van een nieuwe zonneperiode, standaard 300 W werkelijk restoverschot.",
@@ -4016,9 +4016,9 @@
     },
     "sg_advanced.start_delay_s": {
       "title": "Stabiel overschot vóór starten (s)",
-      "short": "De gezamenlijke zonnebijdrage en alle startvoorwaarden moeten gedurende de ingestelde vertraging geldig blijven vóór een nieuwe SG-aanvraag, standaard 120 seconden.",
+      "short": "De gezamenlijke zonnebijdrage en alle startvoorwaarden moeten aanvankelijk geldig zijn om de ingestelde inschakelklok te starten, standaard 120 seconden.",
       "paragraphs": [
-        "De gezamenlijke zonnebijdrage en alle startvoorwaarden moeten gedurende de ingestelde vertraging geldig blijven vóór een nieuwe SG-aanvraag, standaard 120 seconden. De kaart toont deze teller apart van de bestaande 300 seconden bevestiging van een nieuwe zonneperiode of native aanleiding na een beëindigde algemene sessie. Bevestiging op nul geeft geen starttoestemming zonder passend actueel eindrapport; daarna gelden deze vertraging en alle guards opnieuw. De nieuwe uitleesweergave verandert geen instelling of timer.",
+        "De gezamenlijke zonnebijdrage en alle startvoorwaarden moeten aanvankelijk geldig zijn om de ingestelde inschakelklok te starten, standaard 120 seconden. Bij een korte zachte zondip of tijdelijk ontbrekende/verouderde meting kan deze klok maximaal 300 seconden doorlopen. AAN volgt pas bij opnieuw actuele betrouwbare bronnen, voldoende zonnebijdrage en geldige harde guards. Een verstreken klok tijdens een onderbreking betekent wachten op herstel, geen starttoestemming. Ontbrekend is geen nul en geen bewezen wolk. Binnen dit venster hoeft de volledige vertraging niet opnieuw; een langer interval, bekende harde blokkering, Pauze of gewijzigde binding reset. De bestaande 300 seconden bevestiging van een nieuwe zonneperiode of native aanleiding na een beëindigde algemene sessie blijft afzonderlijk.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -4161,6 +4161,14 @@
       "short": "Na herstart automatisch hervatten staat standaard Aan.",
       "paragraphs": [
         "Na herstart automatisch hervatten staat standaard Aan. Een gewone opgeslagen Pauze vraagt bij de volgende Home Assistant-start of herlading weer Automatisch regelen via bestaande bron-/toestelcontroles. Alleen bekijken, eerste installatie, echte interne fouten en voorbereiden van verwijderen blijven beschermd. De voorkeur wijzigen verandert de huidige modus niet. Pauze annuleert een nu wachtende hervatting. SG-ingebruikname en lokale timer moeten afzonderlijk werkelijk bevestigd zijn; deze voorkeur herhaalt geen oude boost of vervallen Panasonic-opdracht.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "dashboard.sg_manual_control": {
+      "title": "SG-bediening",
+      "short": "Kies Automatisch, tijdelijk Aan of tijdelijk Uit, telkens voor 30 of 60 minuten.",
+      "paragraphs": [
+        "Kies Automatisch, tijdelijk Aan of tijdelijk Uit, telkens voor 30 of 60 minuten. De absolute eindtijd blijft na herstart behouden; zij begint niet opnieuw. Bij afloop kiest SolarPilot Automatisch en beoordeelt de actuele voorwaarden. Tijdelijk Uit blokkeert alleen de eigen SG-aanvraag, niet de native warmtepomp. Tijdelijk Aan is een bewuste vraag die zon, startvertraging, rust, beleidswacht en zachte importstop vervangt. Zij blijft afhankelijk van bestaande ingebruikname, betrouwbare bronnen, lokale timer, elektrische ruimte, profiel, koelbeveiliging, globale modus en voorrang. Een nog gemeld AAN wordt na herstart alleen behouden bij passend eigen sessiebewijs en verse geldige voorwaarden. Onzekere opdrachten worden niet blind herhaald. Het oorspronkelijke harde sessiemaximum blijft leidend; een lopende sessie begint niet opnieuw. Alleen een bevestigd beta.84-sessiecheckpoint kan een nog lopende korte lokale timer bij echte HA-herstart voortzetten; oude journals houden de veilige vrijgave. De gemelde contactstand blijft afzonderlijk van deze gekozen bediening.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
