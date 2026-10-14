@@ -141,7 +141,8 @@ def test_actual_p1_pv_budget_remains_valid_without_optional_hp_total(optional_po
     hass.states.set("sensor.public_hp", optional_power, {"unit_of_measurement": "W"})
     budget = sg_solar_budget(runtime)
     assert budget["valid"] and budget["available_w"] == 3350
-    assert budget["hp_power_w"] is None and budget["hp_solar_w"] == 0
+    assert budget["hp_power_w"] == (0 if optional_power == -4580 else None)
+    assert budget["hp_solar_w"] == 0
     assert budget["eligible_w"] == budget["available_w"]
     assert runtime.sg_dispatch_allowed() is True
     # No measured HP total does not shrink the extra 3200 W estimate.

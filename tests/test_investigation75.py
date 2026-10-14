@@ -71,7 +71,7 @@ def test_counter_counts_new_source_reports_not_refreshes_or_changed_values(clock
     assert row(engine.refresh(clock[0]), "heatpump_meter")["metrics"]["reports"] == 2
 
 
-def test_low_negative_pattern_proposes_comparison_without_credit_or_transformation(clock):
+def test_low_negative_pattern_keeps_raw_comparison_while_consumption_is_normalized_zero(clock):
     runtime, hass = build()
     heatpump(runtime)
     before = deepcopy(runtime.settings)
@@ -79,11 +79,12 @@ def test_low_negative_pattern_proposes_comparison_without_credit_or_transformati
         report(hass, "sensor.hp_total", value, clock[0])
         result = row(runtime.learning_hub.investigation.refresh(clock[0]), "heatpump_meter")
         clock[0] += 61
-    assert result["status"] == "check_needed"
+    assert result["status"] == "observed_ok"
     assert result["metrics"]["negative_min_w"] == -8
-    assert result["metrics"]["current_w"] is None
+    assert result["metrics"]["current_w"] == 0
+    assert result["metrics"]["valid_reports"] == 5
     assert "mogelijk" in result["hypotheses"][0]
-    assert "geen tekenomkering" in result["proposals"][0]["text"]
+    assert "tekenomkering" in result["proposals"][0]["text"]
     assert runtime.settings == before and not hass.services.calls
 
 
@@ -114,7 +115,7 @@ def test_binding_change_resets_prior_evidence_and_revokes_cache(clock):
     report(hass, "sensor.replacement", -7, clock[0])
     fresh = row(engine.refresh(clock[0]), "heatpump_meter")
     assert fresh["metrics"]["reports"] == 1
-    assert fresh["metrics"]["valid_reports"] == 0
+    assert fresh["metrics"]["valid_reports"] == 1
 
 
 def test_restart_retains_counters_but_neither_current_proof_nor_duplicate_report(clock):

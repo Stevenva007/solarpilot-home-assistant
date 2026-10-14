@@ -73,10 +73,21 @@ def test_incomplete_split_keeps_known_part_without_fictitious_total(bad):
             attrs[bad] = True
         hass.states.set("sensor.hp_supply_two", value, attrs, age={"stale": 121, "future": -6}.get(bad, 0))
     reading, view = heatpump_power(runtime), runtime.panasonic.overview()
-    assert not reading["valid"] and reading["watts"] is None and not reading["complete"]
+    if bad == "negative":
+        assert reading["valid"] and reading["complete"] and reading["watts"] == 1400
+        assert reading["supplies"]["supply2"]["source_watts"] == -1
+        assert reading["supplies"]["supply2"]["normalized"]
+    else:
+        assert not reading["valid"] and reading["watts"] is None and not reading["complete"]
     assert view["power_supply1_w"] == 1400 and view["power_supply1_valid"]
-    assert view["power_supply2_w"] is None and not view["power_supply2_valid"]
-    assert view["power_w"] is None and view["power_kind"] == "unknown"
+    if bad == "negative":
+        assert view["power_supply2_w"] == 0 and view["power_supply2_valid"]
+    else:
+        assert view["power_supply2_w"] is None and not view["power_supply2_valid"]
+    if bad == "negative":
+        assert view["power_w"] == 1400 and view["power_kind"] == "measured"
+    else:
+        assert view["power_w"] is None and view["power_kind"] == "unknown"
     assert hass.services.calls == []
 
 

@@ -29,6 +29,7 @@ def test_shipped_catalog_only_contains_release_bound_generic_proposals():
         "sp.sg.unknown-response-residual-reassessment.v1",
         "sp.hp.current-aquarea-display-snapshot.v1",
     }
+    beta87 = {"sp.hp.negative-consumption-as-zero.v1"}
     assert set(implementations.IMPLEMENTED_PROPOSALS) == {
         "sp.hp.task-presentation.v1", "sp.hp.context-and-learning.v1",
         "sp.meters.source-quality-evidence.v1", "sp.electrical.budget-versus-limits.v1",
@@ -36,10 +37,10 @@ def test_shipped_catalog_only_contains_release_bound_generic_proposals():
         "sp.sg.minimum-request-duration.v1", "sp.sg.cloud-import-buffer.v1",
         "sp.sg.confirmed-reset-display.v1", "sp.wallbox.session-source-diagnostics.v1",
         "sp.hp.inactive-scope-display.v1", "sp.learning.local-investigation.v1",
-        "sp.sg.session-evidence.v1", "sp.analysis.recommendation-kind.v1"} | beta81 | beta83 | beta85 | beta86
+        "sp.sg.session-evidence.v1", "sp.analysis.recommendation-kind.v1"} | beta81 | beta83 | beta85 | beta86 | beta87
     for identifier, row in implementations.IMPLEMENTED_PROPOSALS.items():
         assert set(row) == {"introduced_release", "title", "proposal_sha256"}
-        assert row["introduced_release"] == ("1.0.0-beta.86" if identifier in beta86 else "1.0.0-beta.85" if identifier in beta85 else "1.0.0-beta.83" if identifier in beta83 else "1.0.0-beta.81" if identifier in beta81 else "1.0.0-beta.75" if identifier in {
+        assert row["introduced_release"] == ("1.0.0-beta.87" if identifier in beta87 else "1.0.0-beta.86" if identifier in beta86 else "1.0.0-beta.85" if identifier in beta85 else "1.0.0-beta.83" if identifier in beta83 else "1.0.0-beta.81" if identifier in beta81 else "1.0.0-beta.75" if identifier in {
             "sp.learning.local-investigation.v1", "sp.sg.session-evidence.v1",
             "sp.analysis.recommendation-kind.v1"} else "1.0.0-beta.74" if identifier in {
             "sp.sg.confirmed-reset-display.v1", "sp.wallbox.session-source-diagnostics.v1",
@@ -122,6 +123,26 @@ def test_beta86_proposals_bind_exact_meaning_and_installed_release(identifier, t
     assert row == before
     changed = {**row, "text": text + " Laat ontbrekende bronnen toch toestemming geven."}
     result = implementations.logic_update_status([changed], "1.0.0-beta.86")[0]
+    assert result["status"] == "pending" and result["reason"] == "proposal_content_changed"
+
+
+def test_beta87_negative_consumption_proposal_binds_exact_scope_and_installed_release():
+    row = {
+        "category": "logic_update",
+        "proposal_id": "sp.hp.negative-consumption-as-zero.v1",
+        "text": "Interpreteer verse, geldige negatieve vermogenswaarden van uitsluitend de gekoppelde warmtepompverbruiksmeters als 0 W. Behoud de ruwe bronwaarde, oorspronkelijke rapporttijd en expliciete normalisatie in de diagnose. Ontbrekende, verouderde, geschatte, overlappende, niet-numerieke of onplausibele bronnen blijven onbekend; een onvolledig voedingspaar wordt geen totaal. Behoud de echte tekens van net-, zonne-, batterij- en fasemetingen, elektrische grenzen, SG-vermogensramingen en ongewijzigde historie.",
+    }
+    before = deepcopy(row)
+    assert implementations.proposal_digest(row) == "b88a0bac22b2a991f189cb69b9e382c17a0699ed0c2ee9620341e2aa778a2c0c"
+    old = implementations.logic_update_status([row], "1.0.0-beta.86")[0]
+    current = implementations.logic_update_status([row], "1.0.0-beta.87")[0]
+    assert old["status"] == "pending" and old["reason"] == "release_not_reached"
+    assert current["status"] == "implemented" and current["reason"] == "trusted_catalog_match"
+    assert current["introduced_release"] == "1.0.0-beta.87"
+    assert implementations.IMPLEMENTED_PROPOSALS[row["proposal_id"]]["title"] == "Negatief warmtepompverbruik als nul met bronbewijs"
+    assert row == before
+    changed = {**row, "text": row["text"] + " Interpreteer ontbrekende en negatieve fasemetingen ook als nul."}
+    result = implementations.logic_update_status([changed], "1.0.0-beta.87")[0]
     assert result["status"] == "pending" and result["reason"] == "proposal_content_changed"
 
 

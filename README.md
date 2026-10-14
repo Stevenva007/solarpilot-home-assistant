@@ -2,9 +2,11 @@
 
 SolarPilot is een lokale Home Assistant-integratie voor zonnestroomverdeling, flexibele verbruikers, een beschermde AEG-afwasmachine, read-only Wallbox-informatie, voorspellingen, kosten, lokaal leren en batterijfuncties.
 
-**Actuele bronversie: 1.0.0-beta.86.** Panasonic regelt de warmtepomp zelfstandig. SolarPilot kan voor die warmtepomp alleen een extra SG-zonneboost aanvragen via één bewust gekoppelde bestaande Shelly-uitgang, met bewezen lokale aflooptimer. Het schrijft geen tank-/kamertemperatuur, AUTO/UIT, heaterkeuze of fabrikantprogramma. Nieuwe SG-sturing staat standaard uit tot gecontroleerde ingebruikname.
+**Actuele bronversie: 1.0.0-beta.87.** Panasonic regelt de warmtepomp zelfstandig. SolarPilot kan voor die warmtepomp alleen een extra SG-zonneboost aanvragen via één bewust gekoppelde bestaande Shelly-uitgang, met bewezen lokale aflooptimer. Het schrijft geen tank-/kamertemperatuur, AUTO/UIT, heaterkeuze of fabrikantprogramma. Nieuwe SG-sturing staat standaard uit tot gecontroleerde ingebruikname.
 
-[Installatie en veilige upgrade](START_HIER.md) · [Volledige actuele werking](docs/ACTUELE_WERKING.md) · [Beta.86 instellen](docs/BETA86_INSTELLEN.md) · [Testresultaten en publicatiestatus](docs/TESTRESULTATEN_BETA86.md) · [Auditdekking en bevindingen](docs/AUDIT_BETA79.md) · [Technische overdracht](OVERDRACHT.md)
+[Installatie en veilige upgrade](START_HIER.md) · [Volledige actuele werking](docs/ACTUELE_WERKING.md) · [Beta.87 instellen](docs/BETA87_INSTELLEN.md) · [Testresultaten en publicatiestatus](docs/TESTRESULTATEN_BETA87.md) · [Auditdekking en bevindingen](docs/AUDIT_BETA79.md) · [Technische overdracht](OVERDRACHT.md)
+
+Beta.87 gebruikt verse, verder volledig geldige negatieve waarden van de toegewezen **warmtepompverbruiksmeters als 0 W**. Ruwe waarde en normalisatiemarkering blijven in diagnose bewaard. Ontbrekende, oude, onvolledige of anders onbruikbare metingen blijven onbekend; net-/export-/batterij-/fasetekens veranderen niet. Dit is de gekozen gebruikersinterpretatie, geen bewezen meterkalibratie. Oude historie wordt niet herschreven.
 
 Beta.86 kan binnen het **lokaal bevestigde algemene SG-profiel** bij **onbekende eerdere SG-reactie** opnieuw beoordelen op voldoende echt resterend overschot: na bestaande rust eerst vijf minuten verse bevestiging met minstens twee nieuwe oorspronkelijke rapporten, daarna de gewone startvertraging. Het overschot moet zowel de startdrempel als volledige conservatieve extra-vraagraming dekken. Ontbrekende warmtepompwatts geven geen credit of fictieve nul; zij blokkeren deze route niet als essentiële bronnen en volledige harde ruimte geldig zijn. Andere bewezen stop-/wachtredenen en alle harde guards behouden hun grenzen.
 
@@ -69,7 +71,7 @@ Bij **Analyse nodig** maakt één klik een export van de beschikbare zeven dagen
 
 ## Herstel van de beta.62-opstartfout
 
-Update via HACS naar beta.86 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.86 vraagt geen herbevestiging alleen door de codeupdate.
+Update via HACS naar beta.87 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.87 vraagt geen herbevestiging alleen door de codeupdate.
 
 ## Upgrade vanaf beta.61
 

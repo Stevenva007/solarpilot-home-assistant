@@ -229,6 +229,64 @@ with sync_playwright() as p:
     assert 'Restoverschot 5,6 kW' not in overview_row.locator('[data-sg-wait=reassessment]').inner_text()
     assert page.evaluate('manualCalls.length===manualBefore')
     page.keyboard.press('Escape')
+    # beta.87 backend-approved zero keeps the negative raw report in Details.
+    page.evaluate("""() => {const a=structuredClone(c._last.attributes),now=Date.now()/1000,p=a.panasonic;
+      window.normalizationOriginalStamp=now;
+      Object.assign(p,{power_w:0,power_kind:'measured',power_complete:true,power_observed_at:now,
+        power_supply1_w:0,power_supply1_valid:true,power_supply1_observed_at:now,
+        power_supply2_w:0,power_supply2_valid:true,power_supply2_observed_at:now});
+      Object.assign(p.power_activity,{state:'off',active:false,complete:true,total_w:0,observed_at:now});
+      for(const row of p.power_activity.supplies)Object.assign(row,{valid:true,watts:0,observed_at:now,state:'off'});
+      p.power_source_quality.supply1={valid:true,watts:0,source_watts:-12,source_value:'-12',source_unit:'W',
+        source_reported_wall:now,source_timestamp_kind:'last_reported',measured_wall:now,
+        normalized:true,normalization_reason:'negative_as_zero',rejection_reason:null,reason:''};
+      a.sg_boost.observed_at=now;
+      c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{state:'Zonnestroom',attributes:a}}};} """)
+    why=overview_row.locator('details[data-ui-key="overview:sg:why"]')
+    if not why.evaluate('e=>e.open'):
+        why.locator(':scope > summary').click()
+    for width in (320,390,768,1280):
+        page.set_viewport_size({'width':width,'height':1000})
+        first=overview_row.locator('[data-supply-number="1"]')
+        assert '0 W' in first.inner_text() and 'Geen verbruik' in first.inner_text()
+        assert 'Ongeldige meetwaarde' not in first.inner_text() and 'Geen actuele meting' not in first.inner_text()
+        assert '12 W' not in first.inner_text()
+        proof=overview_row.locator('[data-heatpump-provenance]')
+        assert 'Bron -12 W → toegepast 0 W' in proof.inner_text()
+        assert 'bron niet actueel' not in proof.inner_text()
+        assert 'laatste bronrapport' in proof.inner_text()
+        assert overview_row.locator('[data-sg-stage=relay]').inner_text()=='SG-contact\nOpen'
+        assert overview_row.evaluate('e=>e.scrollWidth<=e.clientWidth+1'),width
+        assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
+        page.screenshot(path=str(OUT/f'SolarPilot-HP-normalized-zero-{width}.png'),full_page=True)
+    overview_row.locator('[data-help-key=sg_manual_control]').click()
+    assert host.locator('dialog').is_visible()
+    page.evaluate("""() => {for(let i=0;i<80;i++){const a=structuredClone(c._last.attributes);
+      a.sg_boost.observed_at=Date.now()/1000;
+      c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{state:'Zonnestroom',attributes:a}}};}} """)
+    assert host.locator('dialog').is_visible() and why.evaluate('e=>e.open')
+    assert page.evaluate('c._last.attributes.panasonic.power_source_quality.supply1.source_reported_wall===normalizationOriginalStamp')
+    page.evaluate("""() => {const a=structuredClone(c._last.attributes),old=Date.now()/1000-121,p=a.panasonic;
+      p.power_observed_at=old;p.power_supply1_observed_at=old;p.power_supply2_observed_at=old;
+      p.power_activity.observed_at=old;for(const row of p.power_activity.supplies)row.observed_at=old;
+      p.power_source_quality.supply1.source_reported_wall=old;p.power_source_quality.supply1.measured_wall=old;
+      c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{state:'Zonnestroom',attributes:a}}};
+      c._refreshObservationDisplay();} """)
+    first=overview_row.locator('[data-supply-number="1"]')
+    assert 'Geen actuele meting' in first.inner_text() and '0 W' not in first.inner_text()
+    assert 'Bron -12 W → toegepast 0 W · bron niet actueel' in overview_row.locator('[data-heatpump-provenance]').inner_text()
+    assert host.locator('dialog').is_visible()
+    page.evaluate("""() => {const a=structuredClone(c._last.attributes),p=a.panasonic;
+      p.power_w=null;p.power_kind='unknown';p.power_complete=false;p.power_supply1_w=null;p.power_supply1_valid=false;
+      p.power_activity.complete=false;p.power_activity.total_w=null;p.power_activity.state='unknown';
+      Object.assign(p.power_activity.supplies[0],{valid:false,watts:null,observed_at:null,state:'unknown'});
+      Object.assign(p.power_source_quality.supply1,{valid:false,watts:null,source_watts:null,source_value:null,
+        source_reported_wall:null,measured_wall:null,normalized:false,normalization_reason:null,rejection_reason:'missing'});
+      c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{state:'Zonnestroom',attributes:a}}};} """)
+    assert 'Geen actuele meting' in first.inner_text() and '0 W' not in first.inner_text()
+    assert '→ toegepast 0 W' not in overview_row.locator('[data-heatpump-provenance]').inner_text()
+    assert host.locator('dialog').is_visible() and page.evaluate('manualCalls.length===manualBefore')
+    page.keyboard.press('Escape')
     assert not errors, errors
     browser.close()
-print('OK: SG details and help each survive 80 updates; independent compressor/received SG/uptake and split meter evidence; honest unknowns/manual lease; 320/390/768/1280 browser layout; zero device calls from observations; temporary SG service-only ON/OFF 30/60 and Auto payloads at every width, separate contact proof, expiry waits for backend and keeps modal; completed startclock through brief measurement gap never claims contact ON; actual residual rearm, rejected fresh HP reading versus stale source, optional extra estimate and modal retention at four widths. Fictitious data only.')
+print('OK: SG details and help each survive 80 updates; independent compressor/received SG/uptake and split meter evidence; honest unknowns/manual lease; 320/390/768/1280 browser layout; zero device calls from observations; temporary SG service-only ON/OFF 30/60 and Auto payloads at every width, separate contact proof, expiry waits for backend and keeps modal; completed startclock through brief measurement gap never claims contact ON; actual residual rearm, rejected fresh HP reading versus stale source, optional extra estimate and modal retention at four widths; normalized HP zero preserves raw negative Details and original report time, stale/missing values stay unknown, modal survives80updates. Fictitious data only.')

@@ -1,4 +1,6 @@
-# SolarPilot beta.86 — installatie en upgrade
+# SolarPilot beta.87 — installatie en upgrade
+
+Beta.87 behandelt alleen verse verder volledig geldige negatieve warmtepompverbruikswaarden als 0 W. Ruwe bronwaarde/watts en de normalisatiemarkering blijven zichtbaar. Ontbrekend, oud, onvolledig of anders onbruikbaar blijft onbekend; tekens van net, export, batterij en fasen blijven behouden.
 
 Beta.86 voegt alleen binnen het lokaal bevestigde algemene SG-profiel een gecontroleerde herbeoordeling toe bij onbekende eerdere SG-reactie: na bestaande rust vijf minuten verse werkelijk resterende zon, minstens twee nieuwe rapporten en genoeg overschot voor startdrempel én volledige conservatieve extra-vraagraming. Daarna geldt de gewone startvertraging. Ontbrekende warmtepompwatts geven geen krediet; de noodzakelijke net-/PV-/batterij-/fase-/koel-/contactvoorwaarden blijven vereist.
 
@@ -6,13 +8,13 @@ Beta.85 herstelt de tijdelijke SG-dispatchopruiming: een vroege terugkeer mag ge
 
 Beta.84 voegt tijdelijke SG-bediening toe: **Aan of Uit voor 30/60 minuten**, daarna terug naar **Automatisch**. De absolute eindtijd wordt bewaard. Een echte HA-herstart kan een passende nog actieve eigen beta.84-sessie onder verse geldige voorwaarden zonder onnodige contactwissel voortzetten. Het oorspronkelijke harde sessiemaximum, alle harde grenzen en de korte lokale timer blijven leidend.
 
-**Begin met [BETA86_INSTELLEN.md](docs/BETA86_INSTELLEN.md).** Geen extra installatie, sensor, solver of parallelle regelaar. Volledige werking: [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en **SolarPilot → Uitleg**. Uitgevoerde checks en publicatiestatus: [TESTRESULTATEN_BETA86.md](docs/TESTRESULTATEN_BETA86.md). Auditdekking: [AUDIT_BETA79.md](docs/AUDIT_BETA79.md). Oudere resultaten bewijzen geen beta.86-release.
+**Begin met [BETA87_INSTELLEN.md](docs/BETA87_INSTELLEN.md).** Geen extra installatie, sensor, solver of parallelle regelaar. Volledige werking: [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en **SolarPilot → Uitleg**. Uitgevoerde checks en publicatiestatus: [TESTRESULTATEN_BETA87.md](docs/TESTRESULTATEN_BETA87.md). Auditdekking: [AUDIT_BETA79.md](docs/AUDIT_BETA79.md). Oudere resultaten bewijzen geen beta.87-release.
 
 ## Bestaande installatie bijwerken
 
-1. Maak een volledige privé HA-back-up met instellingen, eigen opslag, PV-factoren, modellen, tickets, geschiedenis en userfiles. Bewaar gecontroleerde beta.85-code.
+1. Maak een volledige privé HA-back-up met instellingen, eigen opslag, PV-factoren, modellen, tickets, geschiedenis en userfiles. Bewaar gecontroleerde beta.86-code.
 2. Geef vóór codevervanging een eigen SG-aanvraag veilig vrij en controleer contact/lokale afloop. Onderbreek geen beschermde apparaatcyclus.
-3. Update via HACS naar exact `1.0.0-beta.86` nadat releasegates en publicatie zijn geslaagd. Herstart HA volledig en herlaad browser/app volledig.
+3. Update via HACS naar exact `1.0.0-beta.87` nadat releasegates en publicatie zijn geslaagd. Herstart HA volledig en herlaad browser/app volledig.
 4. Controleer backend- en kaartversie afzonderlijk. Behoud dezelfde entry, bindings, volgorde en geldige SG-/profiel-/split-/koelbevestigingen.
 5. Controleer de nieuwe SG-bediening en haar resterende tijd, echte contactstand en lokale timer. Een oude beta.83-sessie mist het nieuwe checkpointbewijs en kan bij deze eerste upgrade nog één veilig contactvrijgavemoment krijgen. Pas een volledig bevestigd beta.84-checkpoint kan het nieuwe herstartpad gebruiken.
 6. Controleer daarnaast actuele taak, ondersteuning, boilerwaarden, oorspronkelijke AEG-aanvraag/deadline, Planning, PV-diagnose, Meetkwaliteit, kosten en geschiedenis. Een update maakt geen nieuwe belading of tweede START. Onleesbare oude opslag blijft behouden; wis daarvoor geen gegevens.
@@ -39,6 +41,6 @@ Voeg `https://github.com/Stevenva007/solarpilot-home-assistant` toe in **HACS �
 
 ## Rollback
 
-Geef de eigen SG-aanvraag veilig vrij en controleer contact/lokale afloop. Bewaar een actuele volledige privéback-up, stop beta.86 en herstel gecontroleerde beta.85-code met behoud van entry, opslag en userfiles. Beta.85 behoudt de callbackfix, tijdelijke bediening, startklokbuffer en bevestigde herstart, maar mist de nieuwe herbeoordeling bij onbekende reactie op verse restzon. Laat nooit twee runtimes tegelijk werken. Code terugzetten mag geen tweede START of oude AAN-replay vrijgeven. Zie [BETA86_INSTELLEN.md](docs/BETA86_INSTELLEN.md).
+Geef de eigen SG-aanvraag veilig vrij en controleer contact/lokale afloop. Bewaar een actuele volledige privéback-up, stop beta.87 en herstel gecontroleerde beta.86-code met behoud van entry, opslag en userfiles. Beta.86 behoudt SG-herbeoordeling en eerdere fixes, maar behandelt negatieve warmtepompwatts weer als onbruikbaar. Oude geschiedenis wordt niet teruggevuld. Geen twee runtimes tegelijk, tweede START of oude AAN-replay. Zie [BETA87_INSTELLEN.md](docs/BETA87_INSTELLEN.md).
 
 Openbare broncontrole en de afzonderlijke geautoriseerde wekelijkse ontwikkeltaak staan in [UPSTREAM_BRONNEN.md](docs/UPSTREAM_BRONNEN.md). De taak verandert geen lokale Home Assistant-installatie of apparaten.

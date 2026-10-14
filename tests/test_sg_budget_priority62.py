@@ -85,7 +85,11 @@ def test_unusable_hp_measurement_stays_unknown_without_solar_credit(attrs, value
     r, h = configured(export=1000)
     h.states.set("sensor.public_hp", value, attrs, age=age)
     reading = heatpump_power(r)
-    assert not reading["valid"] and reading["watts"] is None
+    if value == -1 and attrs == {"unit_of_measurement": "W"} and age == 0:
+        assert reading["valid"] and reading["watts"] == 0
+        assert reading["source_watts"] == -1 and reading["normalized"]
+    else:
+        assert not reading["valid"] and reading["watts"] is None
     assert sg_solar_budget(r)["available_w"] == 850
 
 
