@@ -20,7 +20,7 @@ with sync_playwright() as p:
     page.on('pageerror', lambda e: errors.append(str(e)))
     page.set_content((ROOT / 'SolarPilot-voorbeeld.html').read_text(encoding='utf-8'), wait_until='load')
     page.wait_for_selector('solar-pilot-card >> h1')
-    page.locator('solar-pilot-card >> button[data-action=view][data-value=comfort]').click()
+    page.locator('solar-pilot-card >> button[role=tab][data-action=view][data-value=comfort]').click()
     panel = page.locator('solar-pilot-card >> .heatpump-sg')
     page.screenshot(path=str(OUT / 'SolarPilot-SG-compact-390.png'), full_page=True)
     panel.locator('details[data-ui-key="sg:comfort:details"] > summary').click()
@@ -106,6 +106,7 @@ with sync_playwright() as p:
       a.mode='solar';a.sg_boost.enabled=true;a.sg_boost.configured=true;
       a.sg_boost.observed_at=now;a.sg_boost.relay_observed_at=now;
       a.sg_boost.relay_on=false;a.sg_boost.relay_confirmed=true;a.sg_boost.desired_on=false;
+      a.sg_boost.manual_hold=false;a.sg_boost.owner='none';a.sg_boost.lease_confirmed=false;
       a.sg_boost.manual_control={mode:'auto',active:false,duration_s:null,expires_at:null,remaining_s:null,reason:''};
       c.hass={...c._hass,user:{id:'fictitious-admin',is_admin:true},states:{...c._hass.states,[c._entity]:{state:'Zonnestroom',attributes:a}}};
     }""")
@@ -170,7 +171,7 @@ with sync_playwright() as p:
     assert 'maximaal 5 min overbrugging' in wait.inner_text()
     assert panel.locator('[data-sg-stage=relay]').inner_text()=='SG-contact\nOpen'
     assert page.evaluate('manualCalls.length===manualBefore')
-    page.locator('solar-pilot-card >> button[data-action=view][data-value=overview]').click()
+    page.locator('solar-pilot-card >> button[role=tab][data-action=view][data-value=overview]').click()
     overview=page.locator('solar-pilot-card >> [data-reason-key="overview:sg"] [data-sg-manual-control]')
     assert overview.locator('button[data-action=sg_manual_control]').count()==5
     assert overview.evaluate('e=>e.scrollWidth<=e.clientWidth+1')
