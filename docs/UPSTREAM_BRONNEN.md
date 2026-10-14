@@ -24,6 +24,19 @@ Concrete code op vaste commits:
 | [aioaquarea PR 12](https://github.com/wpatrik14/aioaquarea/pull/12): globale toestand uit zones en tank | **Open, niet gemerged**; head `ebe561274e1d79160814474c175cfdb3469f61e5` | Een toekomstige gepubliceerde parsercorrectie opnieuw tegen SolarPilot-contracten testen. De huidige SolarPilot-presentatiecorrectie maakt geen upstream-programmabediening, leerbevestiging of SG-veiligheidsvrijgave. |
 | [Aquarea PR 125](https://github.com/wpatrik14/home-assistant-aquarea/pull/125): cloud-UTC-dagen voor energiesensoren | **Open, niet gemerged**; head `458d5113aa3fcc063cdc271837dbba59a2a8ef6b` | Dag-/maandgrenzen, zomertijd en bestaande Recorderstatistiek afzonderlijk beoordelen. Geen cloud-energie herdateren of met SolarPilot-voedingsintegralen verwisselen zonder gevalideerd contract. |
 
+## Aanvullend bronbewijs voor beta.86
+
+De display-only correctie voor vernieuwde getypeerde status naast oudere zoneobjecten is gecontroleerd tegen de bestaande publieke contracten, zonder upstream-object of native-/koelcontrole te wijzigen:
+
+| Publieke bron | Gecontroleerde Git-blob |
+|---|---|
+| [Aquarea v1.5.2 coordinator](https://github.com/wpatrik14/home-assistant-aquarea/blob/v1.5.2/custom_components/aquarea/coordinator.py) | `608f6312eb273e15399e363446263c781214f18e` |
+| [aioaquarea-ng v1.3.1 entities](https://github.com/wpatrik14/aioaquarea/blob/v1.3.1/aioaquarea/entities.py) | `1da1832f657e14eb631b25b7499e9f90925d3650` |
+| [aioaquarea-ng v1.3.1 data](https://github.com/wpatrik14/aioaquarea/blob/v1.3.1/aioaquarea/data.py) | `331db7801729f9e15f225b7394f47b37e1b0cda1` |
+| [aioaquarea-ng v1.3.1 core](https://github.com/wpatrik14/aioaquarea/blob/v1.3.1/aioaquarea/core.py) | `564abc7a2391f0dc44056ad0d8dbe1cf825a2493` |
+
+De provider-eigenschap `device_info` is in zowel Aquarea v1.5.2 als v1.5.3 gecontroleerd. Er is geen onbewezen fallback naar andere objectvormen. Een offline proef met ongewijzigde klassefuncties en synthetische A/B-statussen bevestigt dat eerdere zoneobjecten hun momentopname kunnen behouden terwijl de laatste getypeerde status is vervangen. SolarPilot gebruikt uitsluitend voor presentatie de huidige vaste poll met getypeerde waarden, geverifieerde binding en verse HA-overeenkomst. Deze proef bevat geen woninggegevens en certificeert geen lokale installatie, fysieke meetkwaliteit of SG-koelvrijgave. Afzonderlijke vendor-/probe-bestanden worden niet gepubliceerd.
+
 ## Onderhoud en publicatie
 
 Een afzonderlijke, door de gebruiker geautoriseerde **ChatGPT-taak** controleert vanaf **21 oktober 2026** wekelijks op woensdag rond **19:00 Europe/Brussels** de relevante publieke GitHub-bronnen. Zij kan een relevante SolarPilot-correctie onderzoeken, bouwen, testen en publiceren volgens de normale releaseprocedure. Dit is een extern ontwikkelproces; de geïnstalleerde integratie bevat geen AI die op de achtergrond nieuwe software ontwikkelt of apparaten verandert.

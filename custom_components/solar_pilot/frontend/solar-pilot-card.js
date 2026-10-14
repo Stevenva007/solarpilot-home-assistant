@@ -1,5 +1,5 @@
-/* SolarPilot 1.0.0-beta.85. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
-const SP_CARD_VERSION = '1.0.0-beta.85';
+/* SolarPilot 1.0.0-beta.86. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+const SP_CARD_VERSION = '1.0.0-beta.86';
 const SP_DIALOG_RELEASE = SP_CARD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g,'-');
 const SP_ANALYSIS_DIALOG_TAG = `solar-pilot-analysis-dialog-${SP_DIALOG_RELEASE}`;
 const SP_QUALITY_DIALOG_TAG = `solar-pilot-learning-dialog-${SP_DIALOG_RELEASE}`;
@@ -1294,6 +1294,14 @@ class SolarPilotCard extends HTMLElement {
       return {...row,fresh,state};
     });
   }
+  _heatpumpSupplyProblem(c,row){
+    if(!row)return null;
+    const p=c.panasonic||{},quality=p.power_source_quality?.[`supply${row.number}`]||row;
+    const fresh=this._freshObservation(quality.source_reported_wall,p.power_activity?.stale_s??p.source_stale_s??120);
+    const raw=quality.source_value,missing=raw==null||typeof raw==='string'&&['','unknown','unavailable','none'].includes(raw.trim().toLowerCase());
+    const invalid=quality.valid===false&&fresh&&(['negative','out_of_range'].includes(quality.rejection_reason)||quality.rejection_reason==='invalid_value'&&!missing);
+    return invalid?{state:'invalid',label:'Ongeldige meetwaarde'}:null;
+  }
   _heatpumpSymbol(kind){
     const paths={tapwater_heating:'<path d="M12 3C9 7 6 10 6 14a6 6 0 0 0 12 0c0-4-3-7-6-11Z"/><path d="M9 15c0 2 1 3 3 3"/>',space_heating:'<path d="M5 11 12 5l7 6v9H5Z"/><path d="M9 12v5m3-7v7m3-5v5"/>',space_cooling:'<path d="M12 3v18M4 7l16 10M4 17 20 7M9 5l3 3 3-3M9 19l3-3 3 3M5 10l4-1-1-4M19 14l-4 1 1 4M5 14l4 1-1 4M19 10l-4-1 1-4"/>',heater:'<path d="M4 7h16M4 17h16M5 7v10l3-10 3 10 3-10 3 10 2-10"/><path d="m13 2-3 4h3l-2 4"/>',context:'<path d="M4 8h10l-3-3m3 3-3 3M20 16H10l3-3m-3 3 3 3"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-11v1"/>'};
     return `<svg class="heatpump-task-icon" viewBox="0 0 24 24" aria-hidden="true">${paths[kind]||paths.info}</svg>`;
@@ -1301,7 +1309,8 @@ class SolarPilotCard extends HTMLElement {
   _heatpumpBusiness(c){
     const task=this._heatpumpResolvedTask(c),supplies=this._heatpumpSupplies(c),heater=supplies.find(row=>row.role==='heater'),display=this._heatpumpDisplayOperation(c);
     const heaterActive=display?display.support.active===true:heater?.fresh===true&&heater.state==='active';
-    const heaterLabel=display?(display.support.active==null?'Geen actuele meting':display.support.active?'Aan':'Geen actief verbruik'):!heater||!heater.fresh?'Geen actuele meting':heater.state==='off'?'Geen verbruik':heaterActive?'Aan':heater.state==='basis'?'Basisverbruik':'Gemeten verbruik';
+    const unavailableLabel=this._heatpumpSupplyProblem(c,heater)?.label||'Geen actuele meting';
+    const heaterLabel=display?(display.support.active==null?unavailableLabel:display.support.active?'Aan':'Geen actief verbruik'):!heater||!heater.fresh?unavailableLabel:heater.state==='off'?'Geen verbruik':heaterActive?'Aan':heater.state==='basis'?'Basisverbruik':'Gemeten verbruik';
     const taskHtml=task.known?`<div class="heatpump-business-item" data-heatpump-task="${task.kind}">${this._heatpumpSymbol(task.symbol)}<div><span>Taak van de warmtepomp</span><strong>${spEscape(task.label)}</strong></div></div>`:'';
     return `<div class="heatpump-business" aria-label="Taak en elektrische bijverwarming">${taskHtml}<div class="heatpump-business-item ${heaterActive?'is-active':''}" data-heatpump-heater="${display?(display.support.active==null?'unknown':heaterActive?'active':'off'):heater?.state||'unknown'}" data-heater-inferred="${display?display.support.active!=null:heater?.fresh===true}">${this._heatpumpSymbol('heater')}<div><span>Elektrische bijverwarming</span><strong>${spEscape(heaterLabel)}</strong>${display?display.support.watts!=null?`<b>${spPower(display.support.watts)}</b>`:'':heater?.fresh?`<b>${spEscape(spPower(heater.watts))}</b>`:''}</div></div></div>`;
   }
@@ -1447,14 +1456,16 @@ class SolarPilotCard extends HTMLElement {
   _sgWaitProgress(c){
     const manual=this._sgManualState(c);if(['on','off'].includes(manual.mode)&&manual.remaining!==0)return null;
     const s=c.sgBoost||{},fresh=this._freshObservation(s.observed_at,s.relay_stale_s??120);
-    const kinds={new_solar_period:'Nieuw zonneoverschot',fresh_native_context:'Gewijzigde Panasonic-context',solar_reset:'Zonneperiode resetten',native_reset:'Panasonic-context resetten'};
+    const kinds={new_solar_period:'Nieuw zonneoverschot',fresh_native_context:'Gewijzigde Panasonic-context',fresh_residual_surplus:'Actueel restoverschot',solar_reset:'Zonneperiode resetten',native_reset:'Panasonic-context resetten'};
     if(s.completion_hold===true&&s.profile==='general'){
       const kind=kinds[s.reassessment_kind],required=s.reassessment_required_s;
       const valid=fresh&&s.reassessment_source_current===true&&kind&&s.reassessment_state==='confirming_'+s.reassessment_kind&&typeof required==='number'&&Number.isFinite(required)&&required>0&&typeof s.reassessment_remaining_s==='number'&&s.reassessment_remaining_s<=required;
       const remaining=valid?this._sgWaitCountdown(s,'reassessment_remaining_s'):null;
       const waitingNew=fresh&&s.reassessment_state==='waiting_new_evidence'&&s.reassessment_source_current===true;
-      return{phase:'reassessment',title:'Nieuwe SG-sessie · herbevestiging',remaining,required:typeof required==='number'&&Number.isFinite(required)&&required>0?required:null,
-        label:remaining!=null?(remaining===0||s.reassessment_final_report_required===true?`${kind}: tijd verstreken · wacht op verse bevestiging.`:`${kind}: nog ${this._sgWaitTime(remaining)} van ${this._sgWaitTime(required)}.`):waitingNew?'Wacht op nieuwe zonneperiode of gewijzigde Panasonic-context.':'Herbevestiging onbekend · wacht op actuele brongegevens.'};
+      const residual=s.reassessment_kind==='fresh_residual_surplus',number=value=>typeof value==='number'&&Number.isFinite(value)&&value>=0;
+      const residualProof=valid&&remaining!=null&&number(s.real_residual_surplus_w)&&number(s.residual_reassessment_threshold_w)?` Restoverschot ${spPower(s.real_residual_surplus_w)} · nodig ${spPower(s.residual_reassessment_threshold_w)}.`:'';
+      return{phase:'reassessment',title:residual?'Nieuwe SG-sessie · restoverschot herbevestigen':'Nieuwe SG-sessie · herbevestiging',remaining,required:typeof required==='number'&&Number.isFinite(required)&&required>0?required:null,
+        label:(remaining!=null?(remaining===0||s.reassessment_final_report_required===true?`${kind}: tijd verstreken · wacht op verse bevestiging.`:`${kind}: nog ${this._sgWaitTime(remaining)} van ${this._sgWaitTime(required)}.`):waitingNew?(s.residual_reassessment_available===true?'Wacht op voldoende actueel restoverschot, een nieuwe zonneperiode of gewijzigde Panasonic-context.':'Wacht op nieuwe zonneperiode of gewijzigde Panasonic-context.'):'Herbevestiging onbekend · wacht op actuele brongegevens.')+residualProof};
     }
     if((s.state==='waiting_surplus'||s.start_cloud_active===true)&&s.completion_hold!==true){
       const required=s.start_required_s,valid=typeof required==='number'&&Number.isFinite(required)&&required>=0&&typeof s.start_remaining_s==='number'&&Number.isFinite(s.start_remaining_s)&&s.start_remaining_s>=0&&s.start_remaining_s<=required;
@@ -1504,7 +1515,7 @@ class SolarPilotCard extends HTMLElement {
   }
   _heatpumpDisplaySignature(c){
     const p=c.panasonic||{};
-    return JSON.stringify([this._heatpumpCalculatedGoal(c,{diagnostic:true}),this._heatpumpDisplayOperation(c),this._heatpumpActivity(c),this._heatpumpPresentation(c),this._heatpumpTaskEvidence(c),this._heatpumpSupplies(c).map(row=>[row.number,row.fresh,row.state]),(c.panasonic?.power_activity?.supplies||[]).map(row=>this._freshObservation(row.observed_at,c.panasonic?.power_activity?.stale_s??120)),this._sgDisplayStates(c),this._sgManualState(c),this._sgWaitProgress(c),this._sgMinimumProgress(c),this._sgCloudProgress(c),this._sgCoolingState(c),this._electricalLimits(c),[p.history?.recording,p.history?.storage_available,p.history?.revision,p.history?.recording_error],['power','supply1','supply2','compressor','context','temperature','target'].map(role=>this._panasonicSourceFresh(p,role)),(p.display_zones||p.zones||[]).map(zone=>this._freshObservation(zone.observed_at,p.source_stale_s??120)),['temperature_stamp','target_stamp','observed_at'].map(key=>this._freshObservation(p.display_tank?.[key],p.source_stale_s??120)),['lease_remaining_s','remaining_s','rest_remaining_s'].map(key=>Math.ceil((this._sgCountdown(c.sgBoost||{},key)??-1)/10))]);
+    return JSON.stringify([this._heatpumpCalculatedGoal(c,{diagnostic:true}),this._heatpumpDisplayOperation(c),this._heatpumpActivity(c),this._heatpumpPresentation(c),this._heatpumpTaskEvidence(c),this._heatpumpSupplies(c).map(row=>[row.number,row.fresh,row.state,this._heatpumpSupplyProblem(c,row)]),(c.panasonic?.power_activity?.supplies||[]).map(row=>this._freshObservation(row.observed_at,c.panasonic?.power_activity?.stale_s??120)),this._sgDisplayStates(c),this._sgManualState(c),this._sgWaitProgress(c),this._sgMinimumProgress(c),this._sgCloudProgress(c),this._sgCoolingState(c),this._electricalLimits(c),[p.history?.recording,p.history?.storage_available,p.history?.revision,p.history?.recording_error],['power','supply1','supply2','compressor','context','temperature','target'].map(role=>this._panasonicSourceFresh(p,role)),(p.display_zones||p.zones||[]).map(zone=>this._freshObservation(zone.observed_at,p.source_stale_s??120)),['temperature_stamp','target_stamp','observed_at'].map(key=>this._freshObservation(p.display_tank?.[key],p.source_stale_s??120)),['lease_remaining_s','remaining_s','rest_remaining_s'].map(key=>Math.ceil((this._sgCountdown(c.sgBoost||{},key)??-1)/10))]);
   }
   _sgConfirmation(s,p={}){
     const states=this._sgDisplayStates({sgBoost:s,panasonic:p});
@@ -1536,11 +1547,14 @@ class SolarPilotCard extends HTMLElement {
     const supplies=scope==='split'||supplyRows.length?supplyRows.length?supplyRows.map(row=>{
       const fresh=row.fresh;
       const title=`Voeding ${row.number}${row.role==='main'?' · warmtepomp':row.role==='heater'?' · elektrische bijverwarming':''}`;
+      const problem=this._heatpumpSupplyProblem(c,row),missingLabel=problem?.label||'Geen actuele meting';
       const state=fresh?row.watts===0?'Geen verbruik':({active:'Actief verbruik',basis:'Basisverbruik'})[row.state]||'Gemeten verbruik':'Geen actuele meting';
       const feedState=fresh?(row.watts===0?'off':['active','basis'].includes(row.state)?row.state:'known'):'unknown';
-      return `<div class="heatpump-supply" data-supply-number="${spEscape(row.number)}" data-supply-state="${feedState}"><span><b>${spEscape(title)}</b></span><span><strong>${fresh?spPower(row.watts):'Geen actuele meting'}</strong>${fresh?`<small>${spEscape(state)}</small>`:''}</span></div>`;
+      return `<div class="heatpump-supply" data-supply-number="${spEscape(row.number)}" data-supply-state="${feedState}" data-supply-quality="${fresh?'valid':problem?.state||'unknown'}"><span><b>${spEscape(title)}</b></span><span><strong>${fresh?spPower(row.watts):spEscape(missingLabel)}</strong>${fresh?`<small>${spEscape(state)}</small>`:''}</span></div>`;
     }).join(''):`<small>Voeding 1: ${this._supplyPower(p,1)} · Voeding 2: ${this._supplyPower(p,2)}</small>`:'';
-    return `<div class="reason-power"><b>${known?spPower(value):'Vermogen nog niet bekend'}</b><small>${spEscape(p.power_label||labels[scope]||'Dekking onbekend')}${known?(kind==='estimated'?' · geschat':' · gemeten'):''}</small>${supplies}</div>`;
+    const budget=this._electricalLimits(c),estimate=spNumber(s.estimated_power_w);
+    const optionalMeter=!known&&s.configured===true&&this._freshObservation(s.observed_at,s.relay_stale_s??120)&&estimate!=null&&estimate>0&&spNumber(budget?.sg_residual_solar_w)!=null&&budget.sg_residual_solar_w>=0;
+    return `<div class="reason-power"><b>${known?spPower(value):'Vermogen nog niet bekend'}</b><small>${spEscape(p.power_label||labels[scope]||'Dekking onbekend')}${known?(kind==='estimated'?' · geschat':' · gemeten'):''}</small>${supplies}${optionalMeter?`<small data-sg-optional-meter>SG gebruikt actuele P1/PV-metingen en ${spPower(estimate)} geraamde extra opname. Warmtepompbijdrage blijft onbekend.</small>`:''}</div>`;
   }
   _electricalLimits(c){
     const value=c.ems?.electrical_limits;

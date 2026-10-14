@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta.86 — herbeoordelen op verse resterende zon
+
+- Voegt alleen binnen het lokaal bevestigde algemene SG-profiel voor `response_unknown` het bewijs `fresh_residual_surplus` toe: na bestaande rust (standaard 900 s) gedurende 300 s minstens twee nieuwe oorspronkelijke verse rapporten met werkelijk resterend overschot vanaf `max(threshold_w, expected_power_w)`. Daarna geldt de bestaande gewone startvertraging (standaard 120 s) en volledige actuele vrijgave. Geen warmtepompcredit, oude samples of herstart als nieuw bewijs.
+- Ontbrekende warmtepompvermogensmeting is aanvullend en geeft geen credit, compleet totaal of fictieve nul. De volledige conservatieve extra-vraagraming blijft binnen harde ruimte gereserveerd. Essentiële net/PV/batterij/fase/koel/contact/timerbronnen blijven vereist; terugkerende HP-bronnen worden op nieuwe actuele kwaliteit beoordeeld. Negatieve meting blijft ongeldig, zonder automatische tekenomkering.
+- Uitsluitend voor Aquarea-presentatie gebruikt het gecontroleerde broncontract de actuele getypeerde providerpoll wanneer legacy-zoneobjecten nog een eerdere momentopname houden. Verse geregistreerde bindingen en HA-bronovereenkomst blijven vereist; onbekende/conflicterende context blijft onbekend. Geen providerobjectmutatie, native-/koelguardwijziging of herindeling van oude historie.
+- Behoudt bewezen `no_uptake`, `native_completed`, `session_limit`, `profile_changed` en overige echte handmatige/communicatie-/veiligheidswachtstanden. Geen nieuwe quota, instellingen, causale warmteclaim of verlaging van fysieke grenzen.
+- Behoudt beta.85-callbackfix, alle beta.84-tijdelijke Aan/Uit-/Auto-/deadline-/herstart-/startbufferregels, minimum20/import600/300 s, korte lokale lease, SG-only Panasonic, Wallbox-read-only, AEG-start/deadline en overige instellingen, modellen en historie. Een bestaande interne foutpauze blijft beschermd; volledige HA-herstart en browserrefresh blijven nodig.
+- Bouwbasis: gepubliceerde beta.85 `c9b3a1cce40fa60301d6e7a3bced4351a6b9f8cf`, tree `166ca0498702ed2f1657880cc29da86ddcb920f7`. Eigen bewijs: `docs/TESTRESULTATEN_BETA86.md`; upgrade/behoud/rollback: `docs/BETA86_INSTELLEN.md`. Eerdere resultaten zijn geen beta.86-validatie.
+
 ## 1.0.0-beta.85 — herstel van tijdelijke SG-dispatchopruiming
 
 - Herstelt een vroege terugkeer bij begrensde lokale SG-toestemming: alleen een niet-lege tijdelijke `before_on`-controle die door dezelfde aanroep is geplaatst wordt opgeruimd. Een nog niet vervangen bestaande controle blijft intact; volgende regelrondes krijgen geen ontbrekend-attribuutfout uit deze route. De oorspronkelijke finale veiligheidscontrole blijft gelden.

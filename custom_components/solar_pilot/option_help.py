@@ -1069,12 +1069,7 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                              'uitsluitend zonne-resetbewijs, apart van de nieuwe wolkenbuffer voor '
                              'netafname, standaard 600 W. Een bestaande afwijkende zonne-resetwaarde '
                              'blijft behouden; geen nieuwe starttoestemming door alleen timerafloop.',
- 'sg_advanced:rest_s': 'Na een boost volgt standaard 900 seconden rust. Daarna blijven de profielregels '
-                       'leidend. Tapwater-only behoudt de bewezen '
-                       'tankafkoelregel. Algemene SG beoordeelt verse zonnevoorwaarden en betrouwbare native '
-                       'context; elke beëindigde of onderbroken algemene sessie vraagt een betekenisvolle '
-                       'nieuwe aanleiding, ook bij onbekende opname. '
-                       'Rusttijd, dezelfde samples opnieuw lezen of herstart alleen reset die grens niet.',
+ 'sg_advanced:rest_s': 'Na een boost volgt standaard 900 seconden rust. Daarna blijven de gewone profielregels leidend. Alleen binnen het lokaal bevestigde algemene SG-profiel bij onbekende eerdere reactie kan vijf minuten voldoende werkelijk resterende zonnestroom met minstens twee nieuwe oorspronkelijke rapporten een aanvullende beoordeling dragen. Vereist overschot is minstens de hoogste waarde van startdrempel en conservatieve extra-vraagraming; warmtepompcredit telt niet mee. Daarna geldt nog de gewone startvertraging. Bewezen geen extra opname, native voltooiing, hard sessiemaximum, gewijzigd profiel en echte handmatige of veiligheidsblokkeringen behouden hun eigen voorwaarden. Ontbrekende warmtepompwatts geven geen credit maar de volledige extra-raming blijft gereserveerd; essentiële net/PV/batterij/fase/koel/contact/timerbronnen blijven nodig. Tijd, herstart of oude samples alleen reset de wachtstand niet.',
  'sg_advanced:max_session_s': 'Een SG-aanvraag duurt maximaal 3600 seconden per sessie. Dit harde '
                               'maximum gaat vóór de minimale aanvraagduur; een bestaand korter maximum '
                               'wordt niet verhoogd. Het effectieve minimum is hoogstens de bij '
