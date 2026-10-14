@@ -24,6 +24,7 @@ NEW_STORAGE_DROP_C = 2.0
 NEW_STORAGE_CONFIRM_S = 300.0
 NEW_CONTEXT_CONFIRM_S = 300.0
 RELEVANT_NATIVE_CONTEXTS = frozenset({"space_heating", "space_cooling", "tapwater_heating"})
+_UNSET_RESIDUAL = object()
 
 
 class SGBoostManager:
@@ -1408,7 +1409,21 @@ class SGBoostManager:
         return candidate, (new_report and candidate["reports"] >= 2
                            and now - candidate["first_seen"] >= NEW_CONTEXT_CONFIRM_S)
 
-    def _general_reassessment(self):
+    def _residual_reassessment_threshold(self):
+        values = [finite(self.settings.get(key)) for key in ("threshold_w", "expected_power_w")]
+        return max(values) if all(value is not None and value >= 0 for value in values) else None
+
+    def _residual_source_signature(self, source_identity, grid_source):
+        control = self._control_identity()
+        if control is None:
+            return None
+        try:
+            return hashlib.sha256(json.dumps([control, source_identity, grid_source],
+                sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
+        except (TypeError, ValueError):
+            return None
+
+    def _general_reassessment(self, *, residual_allowed=False):
         if (self.settings.get("profile") != "general" or not self.completion_hold
                 or self.settings.get("profile_confirmed") is not True):
             return False
@@ -1459,9 +1474,23 @@ class SGBoostManager:
                 and finite(reference.get("solar_reset_stamp")) is not None
                 and solar["stamp"] > reference["solar_reset_stamp"]):
             kind, signature, stamp = "new_solar_period", "qualified_surplus", solar["stamp"]
+        elif (self._hold_reason == "response_unknown" and residual_allowed is True
+                and solar_new and self._residual_reassessment_threshold() is not None
+                and solar["watts"] >= self._residual_reassessment_threshold()
+                and isinstance(solar.get("source_signature"), str)):
+            kind, signature, stamp = "fresh_residual_surplus", solar["source_signature"], solar["stamp"]
         if kind is None:
             self._general_candidate = None
             return False
+        if kind == "fresh_residual_surplus" and isinstance(self._general_candidate, dict):
+            previous = self._general_candidate
+            if (previous.get("kind") == kind and (stamp < previous["last_stamp"]
+                    or self._wall_clock()-previous["last_stamp"] > float(self.settings["stale_s"]))):
+                # Unobserved expired P1/PV evidence is not five minutes of
+                # verified residual solar. A returned meter starts new proof.
+                self._general_candidate = None
+                if stamp < previous["last_stamp"]:
+                    return False
         self._general_candidate, confirmed = self._confirmed_reports(
             self._general_candidate, kind, signature, stamp, now)
         if not confirmed:
@@ -1473,7 +1502,9 @@ class SGBoostManager:
         self._need_reference = self._need_candidate = None
         self._tank_source_changed = False
         self._stable_since = None
-        self._note("Nieuwe betrouwbare SG-aanleiding vastgesteld; verse zonne- en veiligheidsbeoordeling volgt")
+        self._note("Werkelijk restoverschot opnieuw bevestigd; warmtepomprespons blijft onbekend; verse veiligheidsbeoordeling volgt"
+            if kind == "fresh_residual_surplus" else
+            "Nieuwe betrouwbare SG-aanleiding vastgesteld; verse zonne- en veiligheidsbeoordeling volgt")
         return True
 
     def _new_storage_available(self):
@@ -1517,10 +1548,10 @@ class SGBoostManager:
         if self.settings.get("profile") == "general":
             prefix = {"native_completed": "Native voltooiing bevestigd",
                       "no_uptake": "Geen extra opname bevestigd",
-                      "response_unknown": "Vorige SG-aanvraag beëindigd; extra opname niet bewezen",
+                      "response_unknown": "Vorige SG-aanvraag beëindigd; wacht na rust op vijf minuten werkelijk restoverschot of nieuwe toestelcontext",
                       "profile_changed": "Algemene SG-keuze bevestigd"}.get(
                           self._hold_reason, "Begrensde sessieduur bereikt; SG-effect onbekend")
-            return prefix + "; wacht op een nieuwe zonneperiode of betrouwbare gewijzigde native context"
+            return prefix if self._hold_reason == "response_unknown" else prefix + "; wacht op een nieuwe zonneperiode of betrouwbare gewijzigde native context"
         if self._tank_source_changed:
             return "Tankbron gewijzigd; hervat de automatisering na controle van de nieuwe bron"
         if self._need_reference is None:
@@ -1535,7 +1566,7 @@ class SGBoostManager:
         return actuator_conflicts(settings, profiles + batteries)
 
     def _gates(self, *, data_fresh, phase_allowed, priority_allowed, hard_limit,
-               electrical_reason=None):
+               electrical_reason=None, include_completion_hold=True):
         reasons = []
         if self._closed:
             reasons.append("SolarPilot wordt afgesloten")
@@ -1573,7 +1604,7 @@ class SGBoostManager:
         origin = self._manual_session_origin()
         if origin is not None and self._clock()-origin >= float(self.settings["max_session_s"]):
             reasons.append("Begrensde SG-sessieduur bereikt; tijdelijke keuze verlengt de sessielimiet niet")
-        if self.completion_hold and self.manual_mode != "on":
+        if include_completion_hold and self.completion_hold and self.manual_mode != "on":
             reasons.append(self._completion_reason())
         if self.fault:
             reasons.append(self.fault)
@@ -1582,7 +1613,7 @@ class SGBoostManager:
     async def tick(self, *, surplus_w, data_fresh, phase_allowed, priority_allowed=True,
                    grid_import_w=0, physical_evidence=None, tank_observation=None,
                    native_observation=None, solar_stamp=None, hard_limit=False,
-                   real_surplus_w=None, electrical_reason=None, grid_import_stamp=None,
+                   real_surplus_w=_UNSET_RESIDUAL, electrical_reason=None, grid_import_stamp=None,
                    grid_import_source=None, start_wait_source_gap=False,
                    start_source_identity=None, **_context):
         if not self._started:
@@ -1612,7 +1643,7 @@ class SGBoostManager:
             self._start_source_identity = deepcopy(start_source_identity)
             if stamp is not None:
                 self._start_source_stamp = stamp
-            residual = surplus if real_surplus_w is None else finite(real_surplus_w)
+            residual = surplus if real_surplus_w is _UNSET_RESIDUAL else finite(real_surplus_w)
             data_fresh = (data_fresh is True and surplus is not None and imported is not None
                           and residual is not None and surplus >= 0 and imported >= 0 and residual >= 0)
             import_stamp = finite(grid_import_stamp)
@@ -1627,7 +1658,8 @@ class SGBoostManager:
             # Already solar-fed native consumption qualifies only the start
             # threshold. A new solar episode still needs fresh residual export;
             # continuing native draw cannot create a completion-hold reset loop.
-            self._solar_observation = ({"watts": residual, "stamp": stamp}
+            self._solar_observation = ({"watts": residual, "stamp": stamp,
+                "source_signature": self._residual_source_signature(start_source_identity, grid_import_source)}
                 if data_fresh and stamp is not None
                 and -5 <= self._wall_clock() - stamp <= float(self.settings["stale_s"]) else None)
             native = self._valid_native_observation(self._native_observation)
@@ -1651,7 +1683,10 @@ class SGBoostManager:
             if self._new_storage_available():
                 await self._save()
             previous_reference = deepcopy(self._general_reference)
-            rearmed = self._general_reassessment()
+            residual_allowed = not self._gates(data_fresh=data_fresh, phase_allowed=phase_allowed,
+                priority_allowed=priority_allowed, hard_limit=hard_limit,
+                electrical_reason=electrical_reason, include_completion_hold=False)
+            rearmed = self._general_reassessment(residual_allowed=residual_allowed)
             if rearmed or previous_reference != self._general_reference:
                 await self._save()
             raw = await self._read() if self.configured and not self._closed else None
@@ -1989,6 +2024,10 @@ class SGBoostManager:
                 native_reset = finite(reference.get("native_reset_stamp"))
                 low_solar = solar_new and solar_watts <= float(self.settings["hysteresis_w"])
                 checks = {
+                    "fresh_residual_surplus": (self._hold_reason == "response_unknown" and solar_new
+                        and self._residual_reassessment_threshold() is not None
+                        and solar_watts >= self._residual_reassessment_threshold()
+                        and isinstance(solar.get("source_signature"), str)),
                     "new_solar_period": (solar_new and solar_watts >= float(self.settings["threshold_w"])
                                          and solar_reset is not None and solar_stamp > solar_reset),
                     "fresh_native_context": (native_new and native["context"] in RELEVANT_NATIVE_CONTEXTS
@@ -2010,8 +2049,9 @@ class SGBoostManager:
                         continue
                     if not checks.get(kind) or not reset and now < self._rest_until:
                         continue
-                    observation = solar if kind in {"new_solar_period", "solar"} else native
-                    signature = ("qualified_surplus" if kind == "new_solar_period" else "near_zero"
+                    observation = solar if kind in {"fresh_residual_surplus", "new_solar_period", "solar"} else native
+                    signature = (solar["source_signature"] if kind == "fresh_residual_surplus"
+                                 else "qualified_surplus" if kind == "new_solar_period" else "near_zero"
                                  if kind == "solar" else native["signature"])
                     if (candidate.get("signature") != signature
                             or observation["stamp"] < candidate["last_stamp"]):
@@ -2071,6 +2111,13 @@ class SGBoostManager:
                                  self._relay_valid_until, wall + max(0.0, self._lease_deadline - now),
                                  wall + session_remaining) if cloud_current else None)
         return {**self._wait_progress(now), "configured": self.configured, "enabled": self.auto_enabled,
+                "real_residual_surplus_w": (self._solar_observation["watts"]
+                    if isinstance(self._solar_observation, dict)
+                    and -5 <= wall-self._solar_observation["stamp"] <= float(self.settings["stale_s"]) else None),
+                "residual_reassessment_threshold_w": self._residual_reassessment_threshold(),
+                "residual_reassessment_available": bool(self.settings.get("profile") == "general"
+                    and self.settings.get("profile_confirmed") is True and self.completion_hold
+                    and self._hold_reason == "response_unknown" and self._general_reference is not None),
                 "manual_control": self._manual_overview(),
                 "observed_at": wall,
                 "commissioning_confirmed": self.settings.get("commissioning_confirmed") is True,

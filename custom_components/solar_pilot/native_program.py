@@ -119,6 +119,10 @@ class NativeClimateProgram:
         # Display watchers are deliberately separate: observing a tank task
         # cannot establish fresh programme/controller evidence.
         self._tank_watches = {}
+        # The ng 1.3.1 provider refreshes DeviceStatus without rebuilding its
+        # DeviceZone objects. This display-only journal observes the current
+        # typed status, never the older zone object's status or control proof.
+        self._display_contract_watches = {}
         self._display_metadata = {}
         self._display_metadata_module = None
         self._display_metadata_checked = None
@@ -167,8 +171,10 @@ class NativeClimateProgram:
 
     def close(self):
         """Unsubscribe without retaining programme evidence across reloads."""
-        watches = {**self._watches, **{("tank", key): value for key, value in self._tank_watches.items()}}
+        watches = {**self._watches, **{("tank", key): value for key, value in self._tank_watches.items()},
+                   **{("display_contract", key): value for key, value in self._display_contract_watches.items()}}
         self._watches, self._tank_watches = {}, {}
+        self._display_contract_watches = {}
         self._display_closed = True
         if self._display_metadata_task is not None:
             self._display_metadata_task.cancel()
@@ -272,7 +278,7 @@ class NativeClimateProgram:
             from homeassistant.helpers import entity_registry as er
             if not isinstance(sources, dict):
                 return {**result, "reason_code": "native_source_mapping_unverified"}
-            zones = sources.get("zone_entities") if isinstance(sources.get("zone_entities"), list) else []
+            zones = list(sources["zone_entities"]) if isinstance(sources.get("zone_entities"), list) else []
             tank_id, pump_id, direction_id = (sources.get(key, "") for key in ("tank_entity", "pump_status_entity", "direction_entity"))
             anchor = tank_id or next(iter(zones), "")
             registry = er.async_get(self.runtime.hass)
@@ -290,26 +296,51 @@ class NativeClimateProgram:
             for eid, suffix in ((pump_id, "pump_status"), (direction_id, "direction")):
                 if self._display_identity(registry.async_get(eid))[3] != f"{identity[2]}_{suffix}":
                     return {**result, "reason_code": "native_source_mapping_unverified"}
+            original_bindings = {eid: self._display_identity(registry.async_get(eid)) for eid in required_ids}
             resolved = self._resolve_action(anchor)
             if resolved is None:
                 return {**result, "reason_code": "native_source_mapping_unverified"}
             coordinator, _, entry_id = resolved
             entry = self.runtime.hass.config_entries.async_get_entry(entry_id)
-            status = self._legacy_status(coordinator, entry)
-            if status is None:
-                return {**result, "reason_code": "native_typed_snapshot_unverified"}
-            action = self._read_action(anchor, self._resolve_action)
-            if action.get("fresh") is not True:
-                watch = self._tank_watches.get(id(coordinator), {})
-                return {**result, "reason_code": "native_poll_not_current",
-                        "observed_at": watch.get("action_observed_at")}
-            original = action["observed_at"]
             device = coordinator.device
             def exact_enum(value, name, values):
                 return _native_enum_name(value, name, values) if type(value).__module__ == "aioaquarea.data" else None
-            pump = exact_enum(getattr(device, "pump_duty", None), "PumpDuty", {"OFF": 0, "ON": 1})
-            direction = exact_enum(getattr(device, "current_direction", None), "DeviceDirection", {"IDLE": 0, "PUMP": 1, "WATER": 2})
-            mode = _native_mode(device) if type(getattr(device, "mode", None)).__module__ == "aioaquarea.data" else None
+            modern = isinstance(getattr(entry, "runtime_data", None), dict)
+            if modern:
+                # The upstream coordinator fetches status A in get_device(),
+                # then refreshes to B. DeviceZone._status still references A.
+                # Read only the exact device's current typed B generation;
+                # do not relax the shared legacy/control programme adapter.
+                coordinators = entry.runtime_data
+                self._prune_entry(entry_id, coordinators.values(), watches=self._display_contract_watches)
+                proof = self._read_display_snapshot(coordinator, entry, entry_id)
+                if proof.get("fresh") is not True:
+                    return {**result, "reason_code": proof["reason_code"],
+                            "observed_at": proof.get("observed_at")}
+                original = proof["observed_at"]
+                snapshot = proof["values"]
+                pump, direction, mode = snapshot["pump"], snapshot["direction"], snapshot["mode"]
+                tank_enabled, enabled_zones = snapshot["tank_enabled"], dict(snapshot["zones"])
+                raw_action = snapshot["raw_action"]
+            else:
+                status = self._legacy_status(coordinator, entry)
+                if status is None:
+                    return {**result, "reason_code": "native_typed_snapshot_unverified"}
+                action = self._read_action(anchor, self._resolve_action)
+                if action.get("fresh") is not True:
+                    watch = self._tank_watches.get(id(coordinator), {})
+                    return {**result, "reason_code": "native_poll_not_current",
+                            "observed_at": watch.get("action_observed_at")}
+                original = action["observed_at"]
+                pump = exact_enum(getattr(device, "pump_duty", None), "PumpDuty", {"OFF": 0, "ON": 1})
+                direction = exact_enum(getattr(device, "current_direction", None), "DeviceDirection", {"IDLE": 0, "PUMP": 1, "WATER": 2})
+                mode = _native_mode(device) if type(getattr(device, "mode", None)).__module__ == "aioaquarea.data" else None
+                tank_enabled = exact_enum(getattr(getattr(device, "tank", None), "operation_status", None),
+                                          "OperationStatus", {"OFF": 0, "ON": 1, "UNKNOWN": 2}) if device.has_tank else None
+                enabled_zones = {number: exact_enum(getattr(zone, "operation_status", None), "OperationStatus",
+                                                    {"OFF": 0, "ON": 1, "UNKNOWN": 2})
+                                 for number, zone in device.zones.items()}
+                raw_action = action.get("raw_action")
             if pump is None or direction is None or mode is None:
                 return {**result, "reason_code": "native_typed_value_unverified"}
             pump_obj, pump_time = self._display_object(pump_id)
@@ -323,21 +354,42 @@ class NativeClimateProgram:
                         "direction": {"state": None, "entity_id": direction_id, "observed_at": self._display_report_time(direction_id)}}
             if pump_state != pump.casefold() or direction_state != direction:
                 return {**result, "reason_code": "native_source_value_conflict"}
-            tank_enabled = exact_enum(getattr(getattr(device, "tank", None), "operation_status", None),
-                                      "OperationStatus", {"OFF": 0, "ON": 1, "UNKNOWN": 2}) if device.has_tank else None
             zone_rows = []
+            bound_zones = set()
             for eid in zones:
                 uid = self._display_identity(registry.async_get(eid))[3]
                 prefix = f"{identity[2]}_climate_"
                 zone_number = int(uid[len(prefix):]) if uid.startswith(prefix) and uid[len(prefix):].isdigit() else None
-                zone = device.zones.get(zone_number)
-                enabled = exact_enum(getattr(zone, "operation_status", None), "OperationStatus", {"OFF": 0, "ON": 1, "UNKNOWN": 2})
+                enabled = enabled_zones.get(zone_number)
                 obj, report_time = self._display_object(eid)
+                bound_zones.add(zone_number)
+                if modern:
+                    if obj is None:
+                        return {**result, "reason_code": "native_zone_source_not_current", "observed_at": original}
+                    expected = ("off" if enabled == "OFF" or mode[0] == "OFF" else
+                                {"HEAT": "heat", "COOL": "cool", "AUTO_HEAT": "auto", "AUTO_COOL": "auto"}.get(mode[0])
+                                if enabled == "ON" else None)
+                    if expected is None or str(obj.state).casefold() != expected:
+                        return {**result, "reason_code": "native_zone_source_value_conflict", "observed_at": original}
                 zone_rows.append({"entity_id": eid, "enabled": True if enabled == "ON" else False if enabled == "OFF" else None,
                                   "observed_at": report_time if report_time is not None else self._display_report_time(eid), "native_observed_at": original,
                                   "state": str(obj.state).casefold() if obj else None})
+            if modern:
+                if bound_zones != set(enabled_zones):
+                    return {**result, "reason_code": "native_display_zone_binding_unverified", "observed_at": original}
+                current_registry = er.async_get(self.runtime.hass)
+                if (self.runtime.hass.config_entries.async_get_entry(entry_id) is not entry
+                        or any(self._display_identity(current_registry.async_get(eid)) != binding
+                               for eid, binding in original_bindings.items())):
+                    watch = self._display_contract_watches.get(id(coordinator))
+                    if watch is not None:
+                        watch.update(snapshot=None, observed=None, observed_at=None)
+                    return {**result, "reason_code": "native_display_binding_changed", "observed_at": original}
+                latest_proof = self._read_display_snapshot(coordinator, entry, entry_id)
+                if latest_proof.get("fresh") is not True or latest_proof.get("generation") != proof["generation"]:
+                    return {**result, "reason_code": latest_proof.get("reason_code") or "native_display_snapshot_changed", "observed_at": original}
             return {**result, "status": "verified", "reason_code": "known_special_status_action_mapping",
-                    "observed_at": original, "raw_device_action": action.get("raw_action"),
+                    "observed_at": original, "raw_device_action": raw_action,
                     "pump": {"state": pump_state, "entity_id": pump_id, "observed_at": pump_time, "native_observed_at": original},
                     "direction": {"state": direction, "entity_id": direction_id, "observed_at": direction_time, "native_observed_at": original},
                     "program": {"state": mode[1], "raw_mode": mode[0], "observed_at": original},
@@ -346,6 +398,162 @@ class NativeClimateProgram:
                     "note": "Deze SDK leidt DeviceAction af via specialStatus; geen onafhankelijke hoofd-AAN/UIT-meting. PumpDuty is waterpompbedrijf."}
         except (ImportError, AttributeError, KeyError, TypeError, ValueError, RuntimeError):
             return {**result, "reason_code": "native_source_mapping_unverified"}
+
+    def _display_snapshot(self, coordinator, entry):
+        """Immutable current ng 1.3.1 status values for display only.
+
+        Its coordinator refreshes the status twice and leaves zone objects
+        referencing the first response. Their own info still proves device
+        ownership; all displayed zone values come from the second response.
+        The stricter legacy/control verifier deliberately stays unchanged.
+        """
+        kind = type(coordinator)
+        if (kind.__module__ != "custom_components.aquarea.coordinator"
+                or kind.__name__ != "AquareaDataUpdateCoordinator"
+                or getattr(coordinator, "_entry", None) is not entry
+                or getattr(coordinator, "hass", None) is not self.runtime.hass):
+            return None, "native_display_binding_unverified"
+        device = getattr(coordinator, "device", None)
+        if type(device).__module__ != "aioaquarea.entities" or type(device).__name__ != "DeviceImpl":
+            return None, "native_display_device_type_unverified"
+        info, own = getattr(coordinator, "_device_info", None), getattr(device, "_info", None)
+        status = getattr(device, "_status", None)
+        if any(type(value).__module__ != "aioaquarea.data" or type(value).__name__ != name
+               or not is_dataclass(value) or isinstance(value, type)
+               for value, name in ((info, "DeviceInfo"), (own, "DeviceInfo"), (status, "DeviceStatus"))):
+            return None, "native_display_status_type_unverified"
+        expected_fields = {"long_id", "operation_status", "device_status", "temperature_outdoor", "operation_mode",
+                           "fault_status", "direction", "pump_duty", "tank_status", "zones", "quiet_mode", "force_dhw",
+                           "force_heater", "holiday_timer", "powerful_time", "special_status", "water_pressure"}
+        frozen = _status_inputs(status)
+        if {field.name for field in fields(status)} != expected_fields or frozen is None:
+            return None, "native_display_status_shape_unverified"
+        native_id, long_id = getattr(info, "device_id", None), getattr(info, "long_id", None)
+        owners = getattr(entry, "runtime_data", None)
+        if (not isinstance(native_id, str) or not native_id or not isinstance(long_id, str) or not long_id
+                or not isinstance(owners, dict) or owners.get(native_id) is not coordinator
+                or getattr(device, "device_id", None) != native_id or getattr(own, "device_id", None) != native_id
+                or getattr(own, "long_id", None) != long_id or getattr(device, "long_id", None) != long_id
+                or getattr(status, "long_id", None) != long_id):
+            return None, "native_display_identity_unverified"
+        zone_sets = []
+        for owner, name in ((info, "DeviceZoneInfo"), (own, "DeviceZoneInfo"), (status, "DeviceZoneStatus")):
+            rows = getattr(owner, "zones", None)
+            if (not isinstance(rows, list) or not rows or len(rows) > 100
+                    or any(type(row).__module__ != "aioaquarea.data" or type(row).__name__ != name
+                           or not is_dataclass(row) or isinstance(row, type)
+                           or isinstance(getattr(row, "zone_id", None), bool)
+                           or not isinstance(getattr(row, "zone_id", None), int) or row.zone_id <= 0 for row in rows)
+                    or len({row.zone_id for row in rows}) != len(rows)):
+                return None, "native_display_zone_binding_unverified"
+            zone_sets.append({row.zone_id for row in rows})
+        objects = getattr(device, "zones", None)
+        if (zone_sets[0] != zone_sets[1] or zone_sets[0] != zone_sets[2] or not isinstance(objects, dict)
+                or any(isinstance(key, bool) or not isinstance(key, int) for key in objects)
+                or set(objects) != zone_sets[0]):
+            return None, "native_display_zone_binding_unverified"
+        for number, zone in objects.items():
+            owner_info = next(row for row in own.zones if row.zone_id == number)
+            if (type(zone).__module__ != "aioaquarea.data" or type(zone).__name__ != "DeviceZone"
+                    or getattr(zone, "zone_id", None) != number or getattr(zone, "_info", None) is not owner_info):
+                # The old library uses a shared zone dictionary. A neighbor's
+                # zone object cannot establish even a display device binding.
+                return None, "native_display_zone_binding_unverified"
+        has_tank = getattr(own, "has_tank", None)
+        if not isinstance(has_tank, bool) or getattr(info, "has_tank", None) is not has_tank or device.has_tank is not has_tank:
+            return None, "native_display_tank_binding_unverified"
+        tank_rows, tank = getattr(status, "tank_status", None), getattr(device, "tank", None)
+        if not isinstance(tank_rows, list):
+            return None, "native_display_tank_binding_unverified"
+        if has_tank:
+            if (len(tank_rows) != 1 or type(tank).__module__ != "aioaquarea.entities" or type(tank).__name__ != "TankImpl"
+                    or type(tank_rows[0]).__module__ != "aioaquarea.data" or type(tank_rows[0]).__name__ != "TankStatus"
+                    or getattr(tank, "_device", None) is not device or getattr(tank, "_status", None) is not tank_rows[0]):
+                return None, "native_display_tank_binding_unverified"
+        elif tank_rows or tank is not None:
+            return None, "native_display_tank_binding_unverified"
+        def exact(value, name, allowed):
+            return _native_enum_name(value, name, allowed) if type(value).__module__ == "aioaquarea.data" else None
+        mode, action = _native_mode(device), _native_action(device)
+        pump = exact(status.pump_duty, "PumpDuty", {"OFF": 0, "ON": 1})
+        direction = exact(status.direction, "DeviceDirection", {"IDLE": 0, "PUMP": 1, "WATER": 2})
+        tank_enabled = exact(tank_rows[0].operation_status, "OperationStatus", {"OFF": 0, "ON": 1, "UNKNOWN": 2}) if has_tank else None
+        zones = tuple((row.zone_id, exact(row.operation_status, "OperationStatus", {"OFF": 0, "ON": 1, "UNKNOWN": 2}))
+                      for row in status.zones)
+        if (mode is None or action is None or type(device.mode).__module__ != "aioaquarea.data"
+                or type(device.current_action).__module__ != "aioaquarea.data" or pump is None or direction is None
+                or has_tank and tank_enabled is None or any(value is None for _number, value in zones)):
+            return None, "native_display_values_unverified"
+        values = {"pump": pump, "direction": direction, "mode": mode, "tank_enabled": tank_enabled,
+                  "zones": zones, "raw_action": action[0]}
+        generation = (id(device), id(status), id(info), id(own), native_id, long_id, frozen,
+                      tuple((number, id(zone), id(zone._info)) for number, zone in sorted(objects.items())), id(tank))
+        return {"generation": generation, "values": values}, ""
+
+    def _read_display_snapshot(self, coordinator, entry, entry_id):
+        """A successful new provider generation, separate from control watches."""
+        key = id(coordinator)
+        watch = self._display_contract_watches.get(key)
+        device = getattr(coordinator, "device", None)
+        identity = (id(device), id(getattr(device, "_status", None)))
+        if self.runtime.hass.config_entries.async_get_entry(entry_id) is not entry:
+            if watch is not None:
+                watch.update(snapshot=None, observed=None, observed_at=None, baseline=None, baseline_ids=identity)
+            return {"fresh": False, "reason_code": "native_display_binding_changed", "observed_at": None}
+        try:
+            snapshot, reason = self._display_snapshot(coordinator, entry)
+        except (AttributeError, KeyError, TypeError, ValueError, RuntimeError):
+            snapshot, reason = None, "native_display_status_shape_unverified"
+        if snapshot is None:
+            if watch is not None:
+                watch.update(snapshot=None, observed=None, observed_at=None, baseline=None, baseline_ids=identity)
+            return {"fresh": False, "reason_code": reason, "observed_at": None}
+        if watch is None:
+            add_listener = getattr(coordinator, "async_add_listener", None)
+            if not callable(add_listener):
+                return {"fresh": False, "reason_code": "native_display_listener_unavailable", "observed_at": None}
+            watch = {"coordinator": coordinator, "entry_id": entry_id, "baseline": snapshot["generation"], "baseline_ids": identity,
+                     "snapshot": None, "observed": None, "observed_at": None, "unsubscribe": None}
+            def updated():
+                current_device = getattr(coordinator, "device", None)
+                current_ids = (id(current_device), id(getattr(current_device, "_status", None)))
+                try:
+                    current, _reason = self._display_snapshot(coordinator, entry)
+                except (AttributeError, KeyError, TypeError, ValueError, RuntimeError):
+                    current = None
+                if (self.runtime.hass.config_entries.async_get_entry(entry_id) is not entry
+                        or getattr(coordinator, "last_update_success", None) is not True or current is None):
+                    watch.update(snapshot=None, observed=None, observed_at=None,
+                                 baseline=current["generation"] if current else None, baseline_ids=current_ids)
+                    return
+                # An unchanged listener event or in-place mutation is not a
+                # new network response. The device or typed status must change.
+                previous = watch["baseline"]
+                generation = current["generation"]
+                if current_ids == watch["baseline_ids"]:
+                    if generation != previous:
+                        watch.update(snapshot=None, observed=None, observed_at=None, baseline=generation, baseline_ids=current_ids)
+                    return
+                watch.update(baseline=generation, baseline_ids=current_ids, snapshot=current,
+                             observed=time.monotonic(), observed_at=time.time())
+            try:
+                watch["unsubscribe"] = add_listener(updated)
+            except (AttributeError, KeyError, TypeError, ValueError, RuntimeError):
+                return {"fresh": False, "reason_code": "native_display_listener_unavailable", "observed_at": None}
+            self._display_contract_watches[key] = watch
+        if getattr(coordinator, "last_update_success", None) is not True:
+            watch.update(snapshot=None, observed=None, observed_at=None, baseline=snapshot["generation"], baseline_ids=identity)
+            return {"fresh": False, "reason_code": "native_poll_unavailable", "observed_at": None}
+        accepted = watch["snapshot"]
+        if accepted is not None and accepted["generation"] != snapshot["generation"]:
+            watch.update(snapshot=None, observed=None, observed_at=None, baseline=snapshot["generation"], baseline_ids=identity)
+            return {"fresh": False, "reason_code": "native_display_snapshot_changed", "observed_at": None}
+        age = time.monotonic()-watch["observed"] if watch["observed"] is not None else None
+        if accepted is None or age is None or not math.isfinite(age) or not 0 <= age <= self._stale_s():
+            watch.update(snapshot=None, observed=None, baseline=snapshot["generation"], baseline_ids=identity)
+            return {"fresh": False, "reason_code": "native_poll_not_current", "observed_at": watch["observed_at"]}
+        return {"fresh": True, "reason_code": "", "observed_at": watch["observed_at"],
+                "generation": accepted["generation"], "values": dict(accepted["values"])}
 
     def _display_object(self, entity_id):
         obj = self.runtime.hass.states.get(entity_id)

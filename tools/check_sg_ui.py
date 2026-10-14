@@ -175,6 +175,60 @@ with sync_playwright() as p:
     overview=page.locator('solar-pilot-card >> [data-reason-key="overview:sg"] [data-sg-manual-control]')
     assert overview.locator('button[data-action=sg_manual_control]').count()==5
     assert overview.evaluate('e=>e.scrollWidth<=e.clientWidth+1')
+    # beta.86: a fresh negative HP report is invalid, never zero. SG may
+    # separately re-confirm actual P1/PV residual using its extra-power estimate.
+    page.evaluate("""() => {const a=structuredClone(c._last.attributes),now=Date.now()/1000;
+      const p=a.panasonic,s=a.sg_boost;
+      Object.assign(p,{power_scope:'split',power_w:null,power_kind:'unknown',power_complete:false,
+        power_supply1_w:null,power_supply1_valid:false,power_supply1_observed_at:null,
+        power_supply2_w:0,power_supply2_valid:true,power_supply2_observed_at:now});
+      p.power_activity={state:'unknown',active:false,complete:false,total_w:null,observed_at:null,stale_s:120,
+        supplies:[{number:1,role:'main',valid:false,watts:null,observed_at:null,state:'unknown'},
+          {number:2,role:'heater',valid:true,watts:0,observed_at:now,state:'off'}]};
+      p.power_source_quality={supply1:{valid:false,watts:null,rejection_reason:'negative',
+        source_reported_wall:now,source_value:'-12',source_watts:-12,source_unit:'W',measured_wall:null}};
+      Object.assign(s,{observed_at:now,profile:'general',state:'completion_hold',completion_hold:true,
+        start_cloud_active:false,reassessment_kind:'fresh_residual_surplus',
+        reassessment_state:'confirming_fresh_residual_surplus',reassessment_remaining_s:240,
+        reassessment_required_s:300,reassessment_reports:3,reassessment_source_current:true,
+        reassessment_final_report_required:false,reassessment_valid_until:now+120,
+        residual_reassessment_available:true,residual_reassessment_threshold_w:3200,
+        real_residual_surplus_w:5600,estimated_power_w:3200});
+      a.ems.electrical_limits={source_valid:true,source_observed_at:now,source_stale_s:120,
+        sg_solar_valid:true,sg_solar_observed_at:now,sg_residual_solar_w:5600,
+        sg_eligible_solar_w:5600,sg_hp_solar_w:0};
+      c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{state:'Zonnestroom',attributes:a}}};} """)
+    overview_row=page.locator('solar-pilot-card >> [data-reason-key="overview:sg"]')
+    for width in (320,390,768,1280):
+        page.set_viewport_size({'width':width,'height':1000})
+        first=overview_row.locator('[data-supply-number="1"]')
+        assert 'Ongeldige meetwaarde' in first.inner_text()
+        assert '0 W' not in first.inner_text() and '12 W' not in first.inner_text()
+        assert first.get_attribute('data-supply-quality')=='invalid'
+        assert '0 W' in overview_row.locator('[data-supply-number="2"]').inner_text()
+        assert 'actuele P1/PV-metingen' in overview_row.locator('[data-sg-optional-meter]').inner_text()
+        assert '3,2 kW geraamde extra opname' in overview_row.locator('[data-sg-optional-meter]').inner_text()
+        residual=overview_row.locator('[data-sg-wait=reassessment]')
+        assert 'restoverschot herbevestigen' in residual.inner_text()
+        assert 'van 5 min' in residual.inner_text() and 'Restoverschot 5,6 kW · nodig 3,2 kW' in residual.inner_text()
+        assert overview_row.locator('[data-sg-stage=relay]').inner_text()=='SG-contact\nOpen'
+        assert overview_row.evaluate('e=>e.scrollWidth<=e.clientWidth+1'),width
+        assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
+        page.screenshot(path=str(OUT/f'SolarPilot-SG-residual-{width}.png'),full_page=True)
+    overview_row.locator('[data-help-key=sg_manual_control]').click()
+    assert host.locator('dialog').is_visible()
+    page.evaluate("""() => {const a=structuredClone(c._last.attributes),now=Date.now()/1000;
+      a.panasonic.power_source_quality.supply1.source_reported_wall=now-121;
+      a.sg_boost.observed_at=now;a.sg_boost.reassessment_valid_until=now-1;
+      c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{state:'Zonnestroom',attributes:a}}};
+      c._refreshObservationDisplay();} """)
+    assert host.locator('dialog').is_visible()
+    assert 'Geen actuele meting' in overview_row.locator('[data-supply-number="1"]').inner_text()
+    assert 'Ongeldige meetwaarde' not in overview_row.locator('[data-supply-number="1"]').inner_text()
+    assert 'Herbevestiging onbekend' in overview_row.locator('[data-sg-wait=reassessment]').inner_text()
+    assert 'Restoverschot 5,6 kW' not in overview_row.locator('[data-sg-wait=reassessment]').inner_text()
+    assert page.evaluate('manualCalls.length===manualBefore')
+    page.keyboard.press('Escape')
     assert not errors, errors
     browser.close()
-print('OK: SG details and help each survive 80 updates; independent compressor/received SG/uptake and split meter evidence; honest unknowns/manual lease; 320/390/768/1280 browser layout; zero device calls from observations; temporary SG service-only ON/OFF 30/60 and Auto payloads at every width, separate contact proof, expiry waits for backend and keeps modal; completed startclock through brief measurement gap never claims contact ON. Fictitious data only.')
+print('OK: SG details and help each survive 80 updates; independent compressor/received SG/uptake and split meter evidence; honest unknowns/manual lease; 320/390/768/1280 browser layout; zero device calls from observations; temporary SG service-only ON/OFF 30/60 and Auto payloads at every width, separate contact proof, expiry waits for backend and keeps modal; completed startclock through brief measurement gap never claims contact ON; actual residual rearm, rejected fresh HP reading versus stale source, optional extra estimate and modal retention at four widths. Fictitious data only.')

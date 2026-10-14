@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.85",
+  "version": "1.0.0-beta.86",
   "language": "nl",
   "steps": {
     "init": {
@@ -4054,7 +4054,7 @@
       "title": "Rusttijd na een boost (s)",
       "short": "Na een boost volgt standaard 900 seconden rust.",
       "paragraphs": [
-        "Na een boost volgt standaard 900 seconden rust. Daarna blijven de profielregels leidend. Tapwater-only behoudt de bewezen tankafkoelregel. Algemene SG beoordeelt verse zonnevoorwaarden en betrouwbare native context; elke beëindigde of onderbroken algemene sessie vraagt een betekenisvolle nieuwe aanleiding, ook bij onbekende opname. Rusttijd, dezelfde samples opnieuw lezen of herstart alleen reset die grens niet.",
+        "Na een boost volgt standaard 900 seconden rust. Daarna blijven de gewone profielregels leidend. Alleen binnen het lokaal bevestigde algemene SG-profiel bij onbekende eerdere reactie kan vijf minuten voldoende werkelijk resterende zonnestroom met minstens twee nieuwe oorspronkelijke rapporten een aanvullende beoordeling dragen. Vereist overschot is minstens de hoogste waarde van startdrempel en conservatieve extra-vraagraming; warmtepompcredit telt niet mee. Daarna geldt nog de gewone startvertraging. Bewezen geen extra opname, native voltooiing, hard sessiemaximum, gewijzigd profiel en echte handmatige of veiligheidsblokkeringen behouden hun eigen voorwaarden. Ontbrekende warmtepompwatts geven geen credit maar de volledige extra-raming blijft gereserveerd; essentiële net/PV/batterij/fase/koel/contact/timerbronnen blijven nodig. Tijd, herstart of oude samples alleen reset de wachtstand niet.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]

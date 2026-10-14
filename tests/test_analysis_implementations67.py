@@ -25,6 +25,10 @@ def test_shipped_catalog_only_contains_release_bound_generic_proposals():
         "sp.hp.aquarea-off-source-contract.v1",
     }
     beta85 = {"sp.sg.native-callback-lifecycle.v1"}
+    beta86 = {
+        "sp.sg.unknown-response-residual-reassessment.v1",
+        "sp.hp.current-aquarea-display-snapshot.v1",
+    }
     assert set(implementations.IMPLEMENTED_PROPOSALS) == {
         "sp.hp.task-presentation.v1", "sp.hp.context-and-learning.v1",
         "sp.meters.source-quality-evidence.v1", "sp.electrical.budget-versus-limits.v1",
@@ -32,10 +36,10 @@ def test_shipped_catalog_only_contains_release_bound_generic_proposals():
         "sp.sg.minimum-request-duration.v1", "sp.sg.cloud-import-buffer.v1",
         "sp.sg.confirmed-reset-display.v1", "sp.wallbox.session-source-diagnostics.v1",
         "sp.hp.inactive-scope-display.v1", "sp.learning.local-investigation.v1",
-        "sp.sg.session-evidence.v1", "sp.analysis.recommendation-kind.v1"} | beta81 | beta83 | beta85
+        "sp.sg.session-evidence.v1", "sp.analysis.recommendation-kind.v1"} | beta81 | beta83 | beta85 | beta86
     for identifier, row in implementations.IMPLEMENTED_PROPOSALS.items():
         assert set(row) == {"introduced_release", "title", "proposal_sha256"}
-        assert row["introduced_release"] == ("1.0.0-beta.85" if identifier in beta85 else "1.0.0-beta.83" if identifier in beta83 else "1.0.0-beta.81" if identifier in beta81 else "1.0.0-beta.75" if identifier in {
+        assert row["introduced_release"] == ("1.0.0-beta.86" if identifier in beta86 else "1.0.0-beta.85" if identifier in beta85 else "1.0.0-beta.83" if identifier in beta83 else "1.0.0-beta.81" if identifier in beta81 else "1.0.0-beta.75" if identifier in {
             "sp.learning.local-investigation.v1", "sp.sg.session-evidence.v1",
             "sp.analysis.recommendation-kind.v1"} else "1.0.0-beta.74" if identifier in {
             "sp.sg.confirmed-reset-display.v1", "sp.wallbox.session-source-diagnostics.v1",
@@ -88,6 +92,36 @@ def test_beta85_native_callback_proposal_binds_exact_meaning_and_installed_relea
     assert row == before
     changed = {**row, "text": row["text"] + " Sla de laatste toestemmingscontrole over."}
     result = implementations.logic_update_status([changed], "1.0.0-beta.85")[0]
+    assert result["status"] == "pending" and result["reason"] == "proposal_content_changed"
+
+
+@pytest.mark.parametrize("identifier,text,digest,title", [
+    (
+        "sp.sg.unknown-response-residual-reassessment.v1",
+        "Beoordeel een algemene SG-wachtstand met onbekende respons na de bestaande rusttijd opnieuw op basis van vijf minuten verse werkelijk resterende zonne-injectie. Vereis minstens de startdrempel en de volledige raming voor extra opname, meerdere nieuwe bronrapporten en alle actuele elektrische, bron-, koel-, voorrangs- en relaisvoorwaarden. Ontbrekend warmtepompvermogen blijft onbekend en levert geen zonnebijdrage; terugkerende metingen worden vanaf hun eigen rapporttijd opnieuw gebruikt. Behoud de bestaande inschakelvertraging, minimum- en maximumduur, korte lease en afzonderlijke wachtstanden voor bewezen voltooiing of sessielimiet.",
+        "fa0d4883da20e02b4a398ece4b010574012d5f44400faa33b4e809a868972ab6",
+        "Nieuwe SG-beoordeling met werkelijk restoverschot",
+    ),
+    (
+        "sp.hp.current-aquarea-display-snapshot.v1",
+        "Lees voor de warmtepomptaakweergave het actuele getypeerde Aquarea-toestelsnapshot met de bevestigde bronidentiteit en oorspronkelijke polltijd. Verouderde interne zoneobjecten mogen dit actuele snapshot niet vervangen of ongeldig maken. Gebruik alleen samenhangende actuele pomp-, route-, tank- en zonewaarden; tegenstrijdige, verouderde of gewijzigde bronnen blijven onbekend. Behoud de bestaande programma-uitlezing, koelbeveiliging, bedieningsrechten en ruwe geschiedenis.",
+        "6f9ab0ffd982d3a604c6a27f32ccf09cde68ca624dd43f4e4a1fbc027c459e62",
+        "Actueel getypeerd Aquarea-snapshot voor taakweergave",
+    ),
+])
+def test_beta86_proposals_bind_exact_meaning_and_installed_release(identifier, text, digest, title):
+    row = {"category": "logic_update", "proposal_id": identifier, "text": text}
+    before = deepcopy(row)
+    assert implementations.proposal_digest(row) == digest
+    old = implementations.logic_update_status([row], "1.0.0-beta.85")[0]
+    current = implementations.logic_update_status([row], "1.0.0-beta.86")[0]
+    assert old["status"] == "pending" and old["reason"] == "release_not_reached"
+    assert current["status"] == "implemented" and current["reason"] == "trusted_catalog_match"
+    assert current["introduced_release"] == "1.0.0-beta.86"
+    assert implementations.IMPLEMENTED_PROPOSALS[identifier]["title"] == title
+    assert row == before
+    changed = {**row, "text": text + " Laat ontbrekende bronnen toch toestemming geven."}
+    result = implementations.logic_update_status([changed], "1.0.0-beta.86")[0]
     assert result["status"] == "pending" and result["reason"] == "proposal_content_changed"
 
 

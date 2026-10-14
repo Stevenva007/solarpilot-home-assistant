@@ -124,7 +124,13 @@ IMPLEMENTED_PROPOSALS = {'sp.hp.task-presentation.v1': {'proposal_sha256': '4c47
                                                    'onafhankelijke UIT-weergave'},
  'sp.sg.native-callback-lifecycle.v1': {'proposal_sha256': '4d3f0037e81696235fdd87c2b9904e3f6251357db1d9b4f73a53e65c592b3402',
                                        'introduced_release': '1.0.0-beta.85',
-                                       'title': 'Intacte native controle bij afgebroken SG-inschakeling'}}
+                                       'title': 'Intacte native controle bij afgebroken SG-inschakeling'},
+ 'sp.sg.unknown-response-residual-reassessment.v1': {'proposal_sha256': 'fa0d4883da20e02b4a398ece4b010574012d5f44400faa33b4e809a868972ab6',
+                                                    'introduced_release': '1.0.0-beta.86',
+                                                    'title': 'Nieuwe SG-beoordeling met werkelijk restoverschot'},
+ 'sp.hp.current-aquarea-display-snapshot.v1': {'proposal_sha256': '6f9ab0ffd982d3a604c6a27f32ccf09cde68ca624dd43f4e4a1fbc027c459e62',
+                                              'introduced_release': '1.0.0-beta.86',
+                                              'title': 'Actueel getypeerd Aquarea-snapshot voor taakweergave'}}
 _PART = r"(?:0|[1-9][0-9]*)"
 _RELEASE = re.compile(rf"({_PART})\.({_PART})\.({_PART})(?:-beta\.({_PART}))?\Z")
 _PROPOSAL_ID = re.compile(r"[a-z0-9][a-z0-9._:-]{0,119}\Z")
