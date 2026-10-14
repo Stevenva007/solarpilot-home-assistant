@@ -121,7 +121,10 @@ IMPLEMENTED_PROPOSALS = {'sp.hp.task-presentation.v1': {'proposal_sha256': '4c47
  'sp.hp.aquarea-off-source-contract.v1': {'proposal_sha256': 'c86539285689ff829b49a75fafe6b5233654b7af0f739da08d4cca6b353fb115',
                                           'introduced_release': '1.0.0-beta.83',
                                           'title': 'ECO/Comfort-bronsemantiek buiten '
-                                                   'onafhankelijke UIT-weergave'}}
+                                                   'onafhankelijke UIT-weergave'},
+ 'sp.sg.native-callback-lifecycle.v1': {'proposal_sha256': '4d3f0037e81696235fdd87c2b9904e3f6251357db1d9b4f73a53e65c592b3402',
+                                       'introduced_release': '1.0.0-beta.85',
+                                       'title': 'Intacte native controle bij afgebroken SG-inschakeling'}}
 _PART = r"(?:0|[1-9][0-9]*)"
 _RELEASE = re.compile(rf"({_PART})\.({_PART})\.({_PART})(?:-beta\.({_PART}))?\Z")
 _PROPOSAL_ID = re.compile(r"[a-z0-9][a-z0-9._:-]{0,119}\Z")

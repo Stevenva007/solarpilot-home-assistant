@@ -1055,7 +1055,8 @@ class SGBoostManager:
             return False
         finally:
             self._in_flight = False
-            if adapter is not None and getattr(adapter, "before_on", None) is callback:
+            if (adapter is not None and callback is not None
+                    and getattr(adapter, "before_on", None) is callback):
                 if supports_callback:
                     adapter.before_on = None
                 else:
