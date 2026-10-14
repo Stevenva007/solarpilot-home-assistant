@@ -61,7 +61,7 @@ def test_native_activity_and_complete_electrical_energy_are_independent_of_sg():
     data = model.detail(None, BASE+timedelta(seconds=20))
     assert data["device_id"] == "heatpump" and data["on_s"] == 20
     assert data["energy_kwh"] == 0.01 and data["energy_known_s"] == 20
-    assert data["task_totals"] == [{"task": "space_heating", "label": "Ruimte verwarmen", "tier": "confirmed", "on_s": 20}]
+    assert data["task_totals"] == [{"task": "space_heating", "label": "Verwarmen", "tier": "confirmed", "on_s": 20}]
     assert data["starts"] == 0  # Already active at first observation.
     assert not data["sessions"][0]["start_confirmed"]
     assert all(lane["on_s"] is None and not lane["has_data"] for lane in data["sg"].values())
@@ -163,7 +163,7 @@ def test_unknown_and_measured_zero_energy_remain_distinct():
     assert data["on_s"] == 0 and data["has_data"]
 
 
-@pytest.mark.parametrize("native_task,expected,tier", [(None, "electrical_support", "derived"),
+@pytest.mark.parametrize("native_task,expected,tier", [(None, "heatpump_unknown", "unknown"),
                                                        ("tapwater_heating", "tapwater_heating", "confirmed")])
 def test_heater_only_watts_do_not_invent_boiler_work_or_hide_confirmed_native_action(native_task, expected, tier):
     model = HeatpumpHistory()
@@ -171,6 +171,8 @@ def test_heater_only_watts_do_not_invent_boiler_work_or_hide_confirmed_native_ac
         observe(model, BASE+timedelta(seconds=n), watts=2800, main=40, heater=2760, task=native_task)
     total = model.detail(None, BASE+timedelta(seconds=10))["task_totals"][0]
     assert total["task"] == expected and total["tier"] == tier
+    assert model.detail(None, BASE+timedelta(seconds=10))["support_totals"] == [
+        {"task": "electrical_support", "label": "Elektrische ondersteuning", "tier": "derived", "on_s": 10}]
 
 
 def test_fresh_defrost_is_native_condition_even_below_electrical_threshold():

@@ -466,7 +466,7 @@ class PanasonicMonitor:
             except Exception:
                 # Optional display history grants no activity/control evidence.
                 pass
-        return {"configured": self.configured, "read_only": True, "temperature_c": temp,
+        snapshot = {"configured": self.configured, "read_only": True, "temperature_c": temp,
             "history": history,
             "temperature_entity": c["tank_temperature_entity"],
             "temperature_stamp": self._reported_stamp(tank) if temp is not None else None,
@@ -503,6 +503,9 @@ class PanasonicMonitor:
             "context_signature": context_signature, "cooling_possible": cooling_possible, "status": status,
             "cooling_context_diagnostic": cooling_diagnostic,
             "note": "SG vraagt zonneboost. Het normale Panasonic-doel kan ongewijzigd blijven; dit bewijst geen relaisfout."}
+        from .display_operation import classify_display_operation
+        snapshot["operation_display"] = classify_display_operation(snapshot)
+        return snapshot
 
     def learning_overview(self):
         # The exact historical model is retained privately and in full exports.

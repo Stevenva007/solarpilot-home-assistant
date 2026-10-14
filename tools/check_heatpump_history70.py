@@ -60,6 +60,17 @@ def fixture(day):
                 sessions=sessions, task_sessions=tasks,
                 task_totals=[dict(task=t["task"], label=t["label"], tier=t["tier"], on_s=t["duration_s"]) for t in tasks],
                 days=days, sg=lanes,
+                sg_contact_overlay={"schema": 1, "on_s": 300 if registered else None,
+                    "segments": ([dict(session(day, "12:30", "12:35"), state="on", reported_at=None),
+                                  dict(session(day, "12:35", "12:50"), state="off", reported_at=None),
+                                  dict(session(day, "12:50", "13:30"), state="unknown", reported_at=None)] if registered else [])},
+                tank_temperature={"schema": 1, "current": {"current": False}, "points": ([{
+                    "captured_at": datetime.fromisoformat(f"{day}T12:40:00+02:00").timestamp(),
+                    "temperature_c": 57, "temperature_reported_at": datetime.fromisoformat(f"{day}T12:39:56+02:00").timestamp(),
+                    "ordinary_target_c": 50, "ordinary_target_reported_at": datetime.fromisoformat(f"{day}T12:39:53+02:00").timestamp()
+                }] if registered else [])},
+                support_sessions=[session(day, "12:40", "12:45")] if registered else [],
+                support_totals=[{"label": "Elektrische ondersteuning", "on_s": 300}] if registered else [],
                 native_evidence={"schema": 1, "read_only": True, "points": [{
                     "captured_at": datetime.fromisoformat(f"{day}T12:40:00+02:00").timestamp(), "continuity": True,
                     "native": {"confirmed": False, "inactive_reported": True, "inactive_scope": "space_circuit",
@@ -129,6 +140,15 @@ with sync_playwright() as playwright:
     assert "Verwarmen" in dialog.inner_text() and "Bevestigd" in dialog.inner_text(), "native task visible"
     assert "09:05" in dialog.inner_text(), "HA Brussels time must be used even when viewer browser is UTC"
     assert "SolarPilot-start" not in dialog.inner_text(), "native heatpump starts cannot be attributed to SolarPilot"
+    assert host.locator('[data-sg-contact-overlay]').is_visible(), "actual contact lane must be visible without expanding SG details"
+    assert host.locator('[data-sg-contact-overlay] [data-sg-contact-state=on]').count() == 1, "actual ON distinct from 10 minute request"
+    assert host.locator('[data-sg-contact-overlay] [data-sg-contact-state=off]').count() == 1, "actual OFF explicit"
+    assert host.locator('[data-sg-contact-overlay] [data-sg-contact-state=unknown]').count() == 1, "gap cannot appear OFF"
+    assert "5 min AAN" in host.locator('[data-sg-contact-overlay]').inner_text(), "contact actual duration"
+    assert "57 °C" in host.locator('[data-tank-history]').inner_text() and "50 °C" in host.locator('[data-tank-history]').inner_text() and "Ingesteld doel" in host.locator('[data-tank-history]').inner_text(), "recorded tank/ordinary target directly visible"
+    assert host.locator('[data-support-history]').is_visible(), "electrical support beside primary task"
+    assert host.locator('[data-session-support]').count() == 1, "support retains its own session interval"
+    assert host.locator('[data-session-tank]').count() == 1, "tank readings scoped to session"
     assert host.locator('[role=switch],[data-action=sg_boost_enabled],[data-action=manual_start]').count() == 0, "history contains no device controls"
     host.locator('details[data-history-key=sg]>summary').click()
     visible_text(host.locator('[data-sg-history=request]>.duration'), "10 min", "independent SG request runtime")
@@ -240,7 +260,7 @@ with sync_playwright() as playwright:
     page.evaluate("fixtures=>{window.hpFixtures=fixtures;}", fixtures)
     page.keyboard.press("Escape")
     page.wait_for_timeout(70)
-    assert not dialog.is_visible() and page.evaluate("c._heatpumpHistoryDialog._timer===null"), "Escape closes dialog and polling"
+    assert not dialog.is_visible() and page.evaluate("c._heatpumpHistoryDialog._timer===null && c._heatpumpHistoryDialog._readingTimer===null"), "Escape closes dialog and polling"
     assert page.evaluate("c.shadowRoot.activeElement?.dataset?.action==='heatpump_history'"), "Escape returns focus to current live entry"
 
     # Render and inspect every entry view at all four requested widths.
@@ -267,7 +287,7 @@ with sync_playwright() as playwright:
     page.wait_for_function("c._heatpumpHistoryDialog._data!==null")
     page.evaluate("""()=>{const a=structuredClone(c._last.attributes);a.config_entry_id='different-fictional-entry';
       c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{state:'Zonnestroom',attributes:a}}};}""")
-    assert not dialog.is_visible() and page.evaluate("c._heatpumpHistoryDialog._timer===null"), "entry change closes history from prior installation"
+    assert not dialog.is_visible() and page.evaluate("c._heatpumpHistoryDialog._timer===null && c._heatpumpHistoryDialog._readingTimer===null"), "entry change closes history from prior installation"
     page.evaluate("""()=>{const a=structuredClone(c._last.attributes);a.config_entry_id='fictional-entry';
       c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{state:'Zonnestroom',attributes:a}}};c._openHeatpumpHistory();}""")
     page.wait_for_function("c._heatpumpHistoryDialog._data!==null")
@@ -275,7 +295,7 @@ with sync_playwright() as playwright:
       d._hass={...c._hass,callWS:()=>new Promise(resolve=>setTimeout(()=>resolve(hpFixtures['2026-10-11']),80))};
       d._fetch(true);c.remove();}""")
     page.wait_for_timeout(120)
-    assert page.evaluate("!c._heatpumpHistoryDialog._isOpen && !c._heatpumpHistoryDialog._dialog.open && c._heatpumpHistoryDialog._timer===null && c._heatpumpHistoryDialog._seq>hpSeqBeforeClose"), "unload invalidates pending fetch and closes polling"
+    assert page.evaluate("!c._heatpumpHistoryDialog._isOpen && !c._heatpumpHistoryDialog._dialog.open && c._heatpumpHistoryDialog._timer===null && c._heatpumpHistoryDialog._readingTimer===null && c._heatpumpHistoryDialog._seq>hpSeqBeforeClose"), "unload invalidates pending fetch and closes polling"
     assert page.evaluate("hpWrites.length===0"), "history must never send actuator/service writes"
     assert not errors, ("browser errors", errors)
     browser.close()

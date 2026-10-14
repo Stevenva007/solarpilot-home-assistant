@@ -11,15 +11,16 @@ from datetime import date, datetime, timedelta, timezone
 import math
 
 from .consumer_history import ConsumerHistory, MAX_SESSIONS
-from .heatpump_learning import ACTIVE_CONTEXTS, classify_heatpump_observation
-from .heatpump_history_evidence import NativeProgrammeEvidence
+from .heatpump_learning import ACTIVE_CONTEXTS
+from .display_operation import classify_display_operation
+from .heatpump_history_evidence import NativeProgrammeEvidence, SGContactEvidence
 
 SCHEMA_VERSION = 1
 MAX_GAP_S = 30
 MAX_TASK_SESSIONS = MAX_SESSIONS
 MAX_POWER_W = 100000
-LABELS = {"space_heating": "Ruimte verwarmen", "space_cooling": "Ruimte koelen",
-          "tapwater_heating": "Sanitair water opwarmen", "sterilization": "Sterilisatie",
+LABELS = {"space_heating": "Verwarmen", "space_cooling": "Koelen",
+          "tapwater_heating": "Boiler opwarmen", "sterilization": "Sterilisatie",
           "electrical_support": "Elektrische ondersteuning", "defrost": "Ontdooien gemeld",
           "heatpump_unknown": "Taak onbekend"}
 LANES = {"heatpump": "Warmtepomp", "sg_request": "SG-aanvraag",
@@ -54,7 +55,9 @@ class HeatpumpHistory:
         self.lanes = ConsumerHistory(timezone_name)
         self.tasks = ConsumerHistory(self.lanes.timezone_name)
         self.electrical = ConsumerHistory(self.lanes.timezone_name)
+        self.support = ConsumerHistory(self.lanes.timezone_name)
         self.native_evidence = NativeProgrammeEvidence(self.lanes.zone)
+        self.contact_evidence = SGContactEvidence(self.lanes.zone)
         self.timezone_name = self.lanes.timezone_name
         self.energy_days = {}
         self.binding = ""
@@ -75,6 +78,7 @@ class HeatpumpHistory:
         for lane, name in LANES.items():
             self.lanes.ensure(lane, self._config(name), when)
         self.electrical.ensure("electrical_activity", self._config("Gemeten elektrische activiteit"), when)
+        self.support.ensure("electrical_support", self._config("Elektrische ondersteuning"), when)
         for task, tier in TASKS:
             self.tasks.ensure(self._task_id(task, tier), self._config(LABELS[task]), when)
 
@@ -101,55 +105,58 @@ class HeatpumpHistory:
                 values.append(value)
             if abs(sum(values)-watts) > max(0.1, watts*0.00001):
                 return None
+            power = p.get("power_activity") if isinstance(p.get("power_activity"), dict) else {}
+            supplies = power.get("supplies")
+            if supplies is not None and not isinstance(supplies, list):
+                return None
+            if supplies:
+                # Typed feed evidence must agree with its raw aggregate. Keep
+                # legacy snapshots without typed rows, but reject duplicates,
+                # malformed numbering and contradictory feed readings.
+                if (not isinstance(supplies, list) or len(supplies) != 2
+                        or any(not isinstance(row, dict) or type(row.get("number")) is not int
+                               or row["number"] not in (1, 2) for row in supplies)
+                        or {row["number"] for row in supplies} != {1, 2}):
+                    return None
+                for row in supplies:
+                    n = row["number"]
+                    value = _number(row.get("watts"))
+                    if (row.get("valid") is not True or value is None or not 0 <= value <= MAX_POWER_W
+                            or not _fresh(row.get("observed_at"), now, power.get("stale_s", stale))
+                            or abs(value-values[n-1]) > max(0.1, values[n-1]*0.00001)
+                            or _number(row.get("observed_at")) != _number(p.get(f"power_supply{n}_observed_at"))):
+                        return None
         return watts
 
     @staticmethod
     def _state(p, now, watts):
-        evidence = classify_heatpump_observation(p, now_wall=now)
-        power = p.get("power_activity") or {}
-        defrost = p.get("defrost") or {}
-        defrost_on = (defrost.get("state") == "active" and defrost.get("source") in ("aquarea_entity", "aquarea_poll")
-                      and _fresh(defrost.get("observed_at"), now, defrost.get("stale_s", p.get("source_stale_s", 120))))
-        native = evidence.get("tier") == "confirmed" and evidence.get("context") in ACTIVE_CONTEXTS
-        threshold = _number(power.get("threshold_w"))
-        metered = watts is not None and threshold is not None and threshold > 0
-        supplies = power.get("supplies") if isinstance(power.get("supplies"), list) else []
-        partial_active = (power.get("state") == "partial" and power.get("active") is True
-            and threshold is not None and threshold > 0 and any(
-                isinstance(row, dict) and row.get("valid") is True and _number(row.get("watts")) is not None
-                and _number(row["watts"]) >= threshold
-                and _fresh(row.get("observed_at"), now, power.get("stale_s", p.get("source_stale_s", 120)))
-                for row in supplies))
-        raw_partial_w = _number(p.get("power_w"))
-        partial_active = partial_active or (power.get("state") == "partial" and power.get("active") is True
-            and p.get("power_kind") == "measured" and threshold is not None and threshold > 0
-            and raw_partial_w is not None and threshold <= raw_partial_w <= MAX_POWER_W
-            and _fresh(p.get("power_observed_at", p.get("power_stamp")), now, p.get("source_stale_s", 120)))
-        if defrost_on or native:
-            active = True
-        elif metered:
-            active = watts >= threshold
-        elif partial_active:
-            active = True
-        elif p.get("configured") is True and evidence.get("tier") == "inactive":
-            active = False
-        else:
-            active = None
+        evidence = classify_display_operation(p, now_wall=now)
+        # The source-bound display classifier is authoritative for task and
+        # activity presentation. The independent watts argument belongs only
+        # to the stricter whole-pump energy integral, never a second task guess.
+        active = evidence.get("active") if type(evidence.get("active")) is bool else None
         task = None
         if active:
-            if defrost_on:
+            if evidence.get("context") == "defrost" and evidence.get("tier") == "confirmed":
                 task = ("defrost", "confirmed")
-            elif native:
-                # A native task names the reported action; it never implies
-                # that the compressor produced the observed electrical uptake.
-                task = (evidence["context"], "confirmed")
-            elif metered and power.get("activity_kind") == "heater":
-                task = ("electrical_support", "derived")
             elif evidence.get("context") in ACTIVE_CONTEXTS and evidence.get("tier") in ("confirmed", "derived"):
                 task = (evidence["context"], evidence["tier"])
             else:
                 task = ("heatpump_unknown", "unknown")
         return active, task, evidence
+
+    @staticmethod
+    def _support(p, stamp, evidence=None):
+        """A role-confirmed electrical heater is an adjunct, never a task.
+
+        Individual valid heater feeds may prove support while the whole-pump
+        total remains unknown. No unassigned or total watts imply a heater.
+        """
+        evidence = classify_display_operation(p, now_wall=stamp) if evidence is None else evidence
+        support = evidence.get("support") if isinstance(evidence.get("support"), dict) else {}
+        state = support.get("active") if type(support.get("active")) is bool else None
+        expiry = _number(support.get("valid_until"))
+        return (state, expiry) if state is not None and expiry is not None and stamp <= expiry else (None, None)
 
     @staticmethod
     def _source_expiry(stamp, now, stale=120):
@@ -167,18 +174,12 @@ class HeatpumpHistory:
         defrost_expiry = (self._source_expiry(defrost.get("observed_at"), stamp, defrost.get("stale_s", stale))
                           if defrost.get("state") == "active" and defrost.get("source") in ("aquarea_entity", "aquarea_poll") else None)
         threshold = _number(power.get("threshold_w"))
-        electrical = [meter if watts is not None and threshold is not None and threshold > 0 and watts >= threshold else None]
-        if power.get("state") == "partial":
-            rows = power.get("supplies") if isinstance(power.get("supplies"), list) else []
-            for row in rows:
-                if (isinstance(row, dict) and row.get("valid") is True and threshold is not None and threshold > 0
-                        and _number(row.get("watts")) is not None and _number(row["watts"]) >= threshold):
-                    electrical.append(self._source_expiry(row.get("observed_at"), stamp, power.get("stale_s", stale)))
-            raw_w = _number(p.get("power_w"))
-            if (p.get("power_kind") == "measured" and threshold is not None and threshold > 0
-                    and raw_w is not None and threshold <= raw_w <= MAX_POWER_W):
-                electrical.append(self._source_expiry(p.get("power_observed_at", p.get("power_stamp")), stamp, stale))
-        activity_expiry = max([value for value in [native_expiry, defrost_expiry, *electrical] if value is not None] or [stamp])
+        electrical = meter if watts is not None and threshold is not None and threshold > 0 and watts >= threshold else None
+        # Separate complete watts may outlive a native task report. Partial
+        # feed/native deadlines come only from the shared display validator,
+        # which already applies numbering, scope and source freshness bounds.
+        activity_expiry = max([value for value in (electrical, _number(evidence.get("activity_valid_until")))
+                               if value is not None] or [stamp])
         expiries = {"heatpump": min(stamp+MAX_GAP_S, activity_expiry),
             "sg_request": self._source_expiry(sg.get("observed_at"), stamp, sg.get("relay_stale_s", 120)),
             "sg_contact": self._source_expiry(sg.get("relay_observed_at"), stamp, sg.get("relay_stale_s", 120)),
@@ -188,7 +189,9 @@ class HeatpumpHistory:
             expiries["sg_contact"] = min(expiries["sg_contact"], deadline)
         if task:
             key, tier = task
-            if key == "defrost":
+            if _number(evidence.get("valid_until")) is not None:
+                task_expiry = evidence["valid_until"]
+            elif key == "defrost":
                 task_expiry = defrost_expiry
             elif tier == "confirmed":
                 task_expiry = native_expiry
@@ -200,7 +203,7 @@ class HeatpumpHistory:
                 context = p.get("task_context") or {}
                 values = [meter, self._source_expiry(power.get("observed_at"), stamp, power.get("stale_s", stale)),
                           self._source_expiry(context.get("observed_at"), stamp, context.get("stale_s", stale))]
-                task_expiry = min(value for value in values if value is not None)
+                task_expiry = min((value for value in values if value is not None), default=stamp)
             expiries[self._task_id(*task)] = min(stamp+MAX_GAP_S, task_expiry if task_expiry is not None else stamp)
         return expiries
 
@@ -260,6 +263,12 @@ class HeatpumpHistory:
         self._expiries["electrical_activity"] = self._source_expiry(p.get("power_observed_at", p.get("power_stamp")), stamp, p.get("source_stale_s", 120))
         self.native_evidence.observe(p, stamp, evidence, max_gap_s=MAX_GAP_S)
         request, contact, received = self._sg(p, sg, stamp)
+        self.contact_evidence.observe(contact, stamp, sg.get("relay_observed_at"),
+                                      self._expiries["sg_contact"], stale_s=sg.get("relay_stale_s", 120), max_gap_s=MAX_GAP_S)
+        support, support_expiry = self._support(p, stamp, evidence)
+        self.support.observe("electrical_support", self._config("Elektrische ondersteuning"), support, when, max_gap_s=MAX_GAP_S)
+        self._describe(self.support, "electrical_support", "Elektrische ondersteuning", support, stamp)
+        self._expiries["electrical_support"] = support_expiry
         for lane, value in zip(LANES, (active, request, contact, received)):
             self.lanes.observe(lane, self._config(LANES[lane]), value, when, max_gap_s=MAX_GAP_S)
             self._describe(self.lanes, lane, LANES[lane], value, stamp, request=lane == "sg_request")
@@ -289,6 +298,7 @@ class HeatpumpHistory:
 
     def _prune(self, stamp):
         self.native_evidence.prune(stamp)
+        self.contact_evidence.prune(stamp)
         first = (datetime.fromtimestamp(stamp, self.lanes.zone).date()-timedelta(days=29)).isoformat()
         self.energy_days = {day: value for day, value in self.energy_days.items() if first <= day <= self.lanes._day(stamp)}
         sessions = [(s["start"], lane, s["id"]) for lane, row in self.tasks.devices.items() for s in row["sessions"]]
@@ -361,9 +371,18 @@ class HeatpumpHistory:
                           note="Afzonderlijke gemeten elektrische perioden; korte perioden blijven zichtbaar. Starts/stops en meetgaten zijn onveranderd en bewijzen geen compressorstarts.")
         result["electrical_activity"] = electrical
         result["native_evidence"] = self.native_evidence.detail(result["date"])
+        result["tank_temperature"] = self.native_evidence.temperature_detail(result["date"], stamp, max_gap_s=MAX_GAP_S)
+        support = self._nullable_detail(self.support.detail("electrical_support", day, when), stamp)
+        result["support_sessions"] = [{**item, "task": "electrical_support", "label": LABELS["electrical_support"], "tier": "derived"}
+                                      for item in support["sessions"]]
+        result["support_totals"] = ([{"task": "electrical_support", "label": LABELS["electrical_support"], "tier": "derived", "on_s": support["on_s"]}]
+                                    if support["on_s"] is not None and support["on_s"] > 0 else [])
+        result["support_coverage"] = {key: support[key] for key in ("known_s", "unobserved_s", "sessions_truncated")}
         result["task_sessions_truncated"] = task_truncated
         result["sg"] = {key: self._nullable_detail(self.lanes.detail("sg_"+key, day, when), stamp)
                         for key in ("request", "contact", "received")}
+        result["sg_contact_overlay"] = self.contact_evidence.detail(result["date"], stamp,
+                                                                   self.lanes._bounds(result["date"]), result["sg"]["contact"])
         result["note"] = ("Actieve tijd is waargenomen native activiteit of elektrisch verbruik boven de ingestelde meetdrempel. "
                           "Dit meet geen continue compressorwerking. kWh is de integraal van volledige actuele vermogensmetingen; "
                           "SG-aanvraag, contact en ontvangen status staan afzonderlijk en bewijzen geen extra warmte of besparing.")
@@ -373,7 +392,9 @@ class HeatpumpHistory:
         self.lanes.pause_recording(reason)
         self.tasks.pause_recording(reason)
         self.electrical.pause_recording(reason)
+        self.support.pause_recording(reason)
         self.native_evidence.pause()
+        self.contact_evidence.pause()
         self._last_energy = self._last_stamp = self._current_task = None
         self._expiries = {}
         self.revision += 1
@@ -381,7 +402,8 @@ class HeatpumpHistory:
     def snapshot(self):
         return {"version": SCHEMA_VERSION, "timezone": self.timezone_name, "binding": self.binding,
                 "lanes": self.lanes.snapshot(), "tasks": self.tasks.snapshot(), "energy_days": deepcopy(self.energy_days),
-                "electrical": self.electrical.snapshot(), "native_evidence": self.native_evidence.snapshot()}
+                "electrical": self.electrical.snapshot(), "native_evidence": self.native_evidence.snapshot(),
+                "support": self.support.snapshot(), "sg_contact_evidence": self.contact_evidence.snapshot()}
 
     def restore(self, data, when):
         """Restore finite retained evidence, never a live continuity anchor."""
@@ -438,8 +460,24 @@ class HeatpumpHistory:
             electrical.restore(raw_electrical, {"electrical_activity": self._config("Gemeten elektrische activiteit", str(data.get("binding", ""))[:256])}, when)
         native_evidence = NativeProgrammeEvidence(self.lanes.zone)
         native_evidence.restore(data.get("native_evidence"), stamp)
+        contact_evidence = SGContactEvidence(self.lanes.zone)
+        contact_evidence.restore(data.get("sg_contact_evidence"), stamp)
+        support = ConsumerHistory(self.timezone_name)
+        raw_support = data.get("support")
+        if raw_support is not None:
+            if (not isinstance(raw_support, dict) or type(raw_support.get("version")) is not int
+                    or raw_support["version"] != 1 or raw_support.get("timezone") != self.timezone_name
+                    or not isinstance(raw_support.get("devices"), dict)
+                    or set(raw_support["devices"])-{"electrical_support"}):
+                raise ValueError("Warmtepomphistoriek bevat ongeldige elektrische ondersteuning")
+            for row in raw_support["devices"].values():
+                if not isinstance(row, dict) or not isinstance(row.get("days"), dict) or not isinstance(row.get("sessions"), list):
+                    raise ValueError("Warmtepomphistoriek bevat ongeldige elektrische ondersteuning")
+                self._validate_row(row, stamp)
+            support.restore(raw_support, {"electrical_support": self._config("Elektrische ondersteuning", str(data.get("binding", ""))[:256])}, when)
         self.lanes, self.tasks = models
         self.electrical, self.native_evidence = electrical, native_evidence
+        self.support, self.contact_evidence = support, contact_evidence
         self.energy_days = cleaned
         self.binding = str(data.get("binding", ""))[:256]
         self._last_energy = self._last_stamp = self._current_task = None

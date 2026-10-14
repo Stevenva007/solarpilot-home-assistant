@@ -3,13 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.81'
-GUIDE_UPDATED = '2026-10-13'
+GUIDE_VERSION = '1.0.0-beta.82'
+GUIDE_UPDATED = '2026-10-14'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.81',
- 'updated': '2026-10-13',
- 'intro': ('Beta.81 herstelt de tijdtypefout waardoor SG-onderzoeksmetingen stil werden afgewezen. Nieuwe begrensde bron- en sessiegegevens maken onderbrekingen, stopbewijs, tankcontext en forecastvergelijkingen controleerbaar. Onbekende metingen blijven onbekend; meetwaarden worden niet automatisch gerepareerd. De bestaande regeling, 600 W/vijf minuten/twintig minuten minimum, harde elektrische grenzen, instellingen, modellen en historie blijven behouden. Geen extra installatie of tweede regelaar.'),
+ 'version': '1.0.0-beta.82',
+ 'updated': '2026-10-14',
+ 'intro': ('Beta.82 verduidelijkt wat de warmtepomp doet, met een afzonderlijke brongebonden weergave voor Verwarmen, Boiler opwarmen, Koelen en Ontdooien. Elektrische ondersteuning blijft een bijkomend signaal naast de taak. De geschiedenis toont gemeld SG-contact en boilerwaarden op dezelfde tijdas. Onbekende metingen blijven onbekend; een bruikbare deelmeting maakt het totaal niet compleet. Leren, SG-voorwaarden, 600 W/vijf minuten/twintig minuten minimum, harde elektrische grenzen, instellingen en bestaande historie blijven behouden.'),
  'sections': [{'title': '1. Basisprincipe en modi',
                'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele '
                               'net- en PV-metingen, echte toestelvoorwaarden en elektrische grenzen gaan '
@@ -114,27 +114,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'nul, basisverbruik of een ontbrekend totaal wist haar bronbetekenis niet. De '
                               'melding bewijst niet apart dat de compressor draait of hoeveel warmte wordt '
                               'geproduceerd.',
-                              'Afgeleid elektrisch bedrijf en taakcontext blijven afzonderlijk herkenbaar. '
-                              'Verse geldige meterwaarden tonen actief verbruik vanaf de standaard '
-                              'weergavegrens van 200 W. Een passende verse tankroute kan alleen met verse '
-                              'actieve hoofdvoeding én compleet actueel totaal sanitair water opwarmen '
-                              'afleiden, met de gebruikte bronnen als uitleg. Zonder hogere actuele '
-                              'tapwater-/ontdooitaak kan dezelfde complete verse actieve hoofdmeting met '
-                              'een verse eenduidige gekozen verwarmings- of koelcontext Verwarmen of '
-                              'Koelen afleiden. Ook bij een cloudmelding idle/rust blijft die afgeleide '
-                              'taak leidend; de oorspronkelijke native melding blijft in Details/export '
-                              'staan. Een expliciete actuele UIT-melding of oude niet gespecificeerde '
-                              'inactiviteitsmelding geeft deze idle-afleiding niet. Watts of gekozen '
-                              'stand alleen, een deelmeting, verouderde of '
-                              'tegenstrijdige context geven deze functie niet. Actieve ondersteuning met '
-                              'hoofdvoeding op nul of basisverbruik heet Elektrische bijverwarming actief '
-                              'en geeft zelf geen warmwater- of ruimtefunctie. Alleen een gekozen '
-                              'heating-tankstand is geen werkelijk gemelde opwarmactie; Details tonen '
-                              'zulke informatie als tankroute of gekozen stand wanneer zij alleen context '
-                              'geeft. Oude, ontbrekende of tegenstrijdige context levert geen actuele '
-                              'functieclaim. Zonder bruikbare taak toont de hoofdkaart geen taakvak; '
-                              'verse actieve meting kan wel Warmtepomp werkt tonen. Technische '
-                              'taakonzekerheid en oorspronkelijke meldingen blijven in Details/export.',
+                              "Afgeleid elektrisch bedrijf en taakcontext blijven afzonderlijk herkenbaar. Verse geldige meterwaarden tonen actief verbruik vanaf de standaard weergavegrens van 200 W. De afzonderlijke read-only bedrijfsweergave gebruikt een verse passende native actie als taakbewijs; een geverifieerde verse ontdooimelding heeft voorrang. Voor een afleiding van Boiler opwarmen zijn een verse exact herkende Panasonic-tankroute en een verse actieve toegewezen hoofd- of ondersteuningsvoeding nodig. Voor Verwarmen of Koelen zijn een verse eenduidige gekozen ruimtestand, actieve toegewezen hoofdvoeding én een afzonderlijke verse expliciete tankrust nodig. Een gekozen stand alleen sluit tankbedrijf niet uit. Deze afleiding kan ook bij een onvolledig totaal zichtbaar zijn: de bruikbare deelmeting blijft een deelmeting, het totale vermogen en totale energie blijven onbekend. De afleiding blijft uitsluitend presentatie en geeft geen nieuw leerbewijs, SG-vrijgave of extra vermogen. Afgeleid staat compact bij de taak; Details/export houden de originele bronnen, tijden en onzekerheden. Expliciete globale UIT, onbekend bereik, echte actieconflicten, oude of ongeldige noodzakelijke bronnen geven geen afgeleide functie. Bij actieve watts zonder passende taak blijft Actief · taak onbekend zichtbaar; zonder actuele activiteit of taak blijft de toestand onbekend. Alleen complete actuele meterbedekking of passend geverifieerd globaal native bewijs kan inactiviteit bevestigen. Elektrische ondersteuning blijft apart en vervangt de warmtepomptaak niet.",
                               'Een gekozen koelprogramma met tankmogelijkheid is geen tegenstrijdige '
                               'werkelijke taakmelding: verse werkelijke tankopwarming kan naast die keuze '
                               'worden gemeld. Gelijktijdige tegenstrijdige werkelijke ruimte- en tankacties '
@@ -142,17 +122,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'houdt haar eigen betekenis en onderdrukt een gewone '
                               'warmwater-/ruimtefunctie. Zij wordt niet uit watts, temperatuur of tijd '
                               'gegokt en verandert geen native programma, koelvrijgave of SG-toestemming.',
-                              'De elektrische bijverwarming heeft een eigen voedingswaarde en activiteit. '
-                              'Het bestaande paar verschillende gebonden sensoren gebruikt automatisch het '
-                              'Panasonic-profiel met de aanname in Details: voeding 1 voor warmtepomp inclusief '
-                              'regeling/pompen, voeding 2 voor elektrische bijverwarming. Dat is een '
-                              'presentatie-aanname en geen gecontroleerde bedrading of afzonderlijke '
-                              'heaterterugmelding. Eerder bewust gekozen afwijkende geldige rollen blijven '
-                              'staan. Verse hoge voeding-2-meting kan Bijverwarming aan · afgeleid tonen, '
-                              'nul Geen verbruik, laag positief Basisverbruik en ontbrekend of oud Geen '
-                              'actuele meting. Zonder gekoppelde heaterdeelmeting heet dit Geen '
-                              'heaterdeelmeting. Wattages onderscheiden geen interne backupheater en '
-                              'eventuele tapwaterbooster.',
+                              "De elektrische bijverwarming heeft een eigen voedingswaarde en activiteit. Zij is een bijkomend signaal naast Verwarmen, Koelen, Boiler opwarmen of Ontdooien en wordt niet als vervangende primaire taak weergegeven. Het bestaande paar verschillende gebonden sensoren gebruikt automatisch het Panasonic-profiel met de aanname in Details: voeding 1 voor warmtepomp inclusief regeling/pompen, voeding 2 voor elektrische bijverwarming. Dat is een presentatie-aanname en geen gecontroleerde bedrading of afzonderlijke heaterterugmelding. Eerder bewust gekozen afwijkende geldige rollen blijven staan. Verse hoge voeding-2-meting kan Bijverwarming aan · afgeleid tonen, nul Geen verbruik, laag positief Basisverbruik en ontbrekend of oud Geen actuele meting. Zonder gekoppelde heaterdeelmeting heet dit Geen heaterdeelmeting. Wattages onderscheiden geen interne backupheater en eventuele tapwaterbooster.",
                               'Blauwe grafische activiteit en ventilatoranimatie tonen bevestigde '
                               'activiteit of actueel elektrisch bedrijf van de hoofdvoeding. De ventilator '
                               'mag daarom bij verse actieve hoofdmeting bewegen, ook als een afzonderlijke '
@@ -757,24 +727,9 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'redenen worden niet achteraf gereconstrueerd.',
                               'De bestaande eigen historie blijft bij updates staan: maximaal dertig kalenderdagen per gewone verbruiker, 2000 sessies en 300 extra gebeurtenissen. Bij volle detailgrens blijven dagtotalen met onvolledigheidslabel bestaan. Opslag is gebundeld; het laatste nog niet opgeslagen stukje kan bij een abrupte uitval ontbreken. Details worden alleen op aanvraag gelezen en bedienen niets. Leesrechten controleren zowel huidige als aantoonbaar historische bronkoppelingen. Oude historie zonder volledige bronherkomst blijft bewaard en is alleen voor een beheerder toegankelijk; privé bronherkomst wordt niet meegestuurd naar de gewone geschiedenisweergave.',
                               ('De warmtepomp bewaart een afzonderlijke lokale geschiedenis over maximaal dertig HA-kalenderdagen. Kies een dag of vergelijk zeven/dertig dagen. Grafiek, activiteitperioden, taaksegmenten en SG-lagen gebruiken de daadwerkelijk beschikbare waarnemingen. De registratie begint na installatie van deze functie; oude verbruikerhistorie, modellen en analysegegevens blijven bewaard en worden niet als nieuwe warmtepompgeschiedenis teruggevuld.'),
-                              ('Start en stop betekenen een waargenomen overgang van warmtepompactiviteit '
-                               'uit passend vers native taakbewijs of complete actuele elektrische meting, '
-                               'geen compressorstart of gegarandeerd thermisch bedrijf. Verse native '
-                               'taakmeldingen en afgeleide taken blijven herkenbaar gescheiden. Het '
-                               'bestaande weergavecriterium voor elektrische activiteit wordt uitsluitend '
-                               'voor observatie gebruikt. Verwarmen, koelen, boiler, ondersteuning en '
-                               'ontdooien worden alleen met hun passende bronbewijs benoemd; onbekende '
-                               'perioden krijgen geen verzonnen taak of stopoorzaak.'),
+                              ("Start en stop betekenen een waargenomen overgang van warmtepompactiviteit uit passend vers native taakbewijs of actuele elektrische activiteit van een geldige toegewezen voeding; geen compressorstart of gegarandeerd thermisch bedrijf. De afzonderlijke read-only bedrijfsweergave bewaart verse native taken en expliciet afgeleide taken apart. Verwarmen, Koelen, Boiler opwarmen en Ontdooien vormen de primaire taaklijn; elektrische ondersteuning wordt daarnaast geregistreerd en kan dezelfde periode overlappen. Ondersteuning vervangt de taak niet en haar duur wordt niet bij taakduur opgeteld. Onbekende perioden krijgen geen verzonnen taak of stopoorzaak. De bestaande energie-integratie blijft complete meterdekking vereisen."),
                               ('De aanvullende native-programmatijdlijn zet oorspronkelijke verse taakmelding, tanktemperatuur, gewoon tankdoel, eventueel bewezen effectief doel, afzonderlijke voedingen en native voltooiing naast elkaar. Onbekend blijft onbekend; watts of temperatuur boven het gewone doel bewijzen geen sterilisatie of haar resultaat. Korte elektrische activiteit krijgt een eigen presentatie naast de ruwe perioden en overgangen. Die presentatie wijzigt geen draaitijd, starts/stops, meetgaten of SG-timers en bewijst geen compressorstarts.'),
-                              ('Open Geschiedenis bij de warmtepomp in Overzicht, Toestellen of '
-                               'Warmtepomp. De popup Warmtepompgeschiedenis heeft een datumkiezer, '
-                               'Vorige/Volgende dag, Vandaag en Vernieuwen. Geregistreerde draaitijd, '
-                               'Starts, Stops, Gemeten verbruik en meetdekking beschrijven alleen de '
-                               'geregistreerde periode. De taaklijn onderscheidt Bevestigd, Afgeleid en '
-                               'Taak onbekend. Zeven/dertig-dagenbalken tonen geregistreerde activiteit '
-                               'en elektrische dagenergie. Ontbrekende dagen krijgen geen nul. De '
-                               'popup blijft bij gewone dashboardupdates open en geeft geen '
-                               'apparaatopdracht.'),
+                              ("Open Geschiedenis bij de warmtepomp in Overzicht, Toestellen of Warmtepomp. De popup Warmtepompgeschiedenis heeft een datumkiezer, Vorige/Volgende dag, Vandaag en Vernieuwen. Geregistreerde draaitijd, Starts, Stops, Gemeten verbruik en meetdekking beschrijven alleen de geregistreerde periode. De taaklijn onderscheidt Bevestigd, Afgeleid en Taak onbekend. Een afzonderlijke balk direct onder de taaklijn toont SG-contact AAN, UIT of onbekend op dezelfde lokale tijdas, uitsluitend met het oorspronkelijke actuele contactbewijs. De SolarPilot-aanvraag en ontvangen SG blijven hun eigen gegevens; zij vullen een onbekend contact niet in. De huidige boilertemperatuur en het ingestelde gewone Panasonic-doel staan bij de geschiedenis, met afzonderlijk onbekend als de betrokken bron niet actueel is. Voor de gekozen historische dag toont een eigen grafiek alleen opgeslagen brongebonden temperatuurpunten en het toen gemelde gewone doel; meetgaten worden niet overbrugd en de huidige doelwaarde wordt niet teruggeplaatst op een vorige dag. Zeven/dertig-dagenbalken tonen geregistreerde activiteit en elektrische dagenergie. Ontbrekende dagen krijgen geen nul. De popup blijft bij gewone dashboardupdates open en geeft geen apparaatopdracht."),
                               ('Geregistreerde elektrische energie betreft de gehele gemeten warmtepomp. '
                                'Alleen twee bruikbare complete actuele bevestigde niet-overlappende '
                                'meetpunten van dezelfde bronbinding leveren een trapeziumintegraal. '
@@ -784,12 +739,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                                'of oude metingen, een meetgat, herstart of gewijzigde bronbinding '
                                'onderbreken de integraal. Nul blijft gemeten nul. Dekking staat naast '
                                'energie, zodat een gedeeltelijke dag niet volledig lijkt.'),
-                              ('SG-aanvraag, gemeld contact en werkelijk ontvangen SG-status hebben '
-                               'afzonderlijke tijdlijnen. Ontvangen SG vereist zijn eigen passende verse '
-                               'bron; contact AAN of warmtepompverbruik bewijst ontvangst niet. Gelijktijdig '
-                               'warmtepompverbruik en SG is een waarneming, geen bewezen extra SG-kWh. Er '
-                               'wordt geen energie per taak, compressorlooptijd, COP of causale '
-                               'SG-besparing uit deze historie berekend.'),
+                              ("SG-aanvraag, gemeld contact en werkelijk ontvangen SG-status hebben afzonderlijke tijdlijnen. De prominente contactbalk gebruikt alleen gemelde expliciet bevestigde contactstand en bewaart oorspronkelijke ontvangst en afloop: AAN, UIT en onbekend blijven gescheiden. Een oude contactwaarde, ontbrekende registratie of herstart wordt geen verlengd AAN- of UIT-segment. Ontvangen SG vereist zijn eigen passende verse bron; contact AAN of warmtepompverbruik bewijst ontvangst niet. Gelijktijdig warmtepompverbruik en SG is een waarneming, geen bewezen extra SG-kWh. Er wordt geen energie per taak, compressorlooptijd, COP of causale SG-besparing uit deze historie berekend."),
                               ('Herstart, unload, ontbrekende bronnen en wijziging van meterbinding worden '
                                'als registratiegrens behandeld, zonder oude actieve perioden over het gat '
                                'door te trekken. Sessies worden over lokale middernacht verdeeld; dagen '
@@ -932,7 +882,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Bij een wachtend APP-ticket kiest wijzigen van deadline/herstelvenster tussen volgende beladingen of expliciet hetzelfde huidige ticket. De bestaande kalenderdag blijft gelijk; er ontstaat geen START door opslaan. Wachtende voorstellen en archieven blijven inspecteerbaar. Alleen eigen virtuele SolarPilot-entiteiten mogen bij wijzigingen verdwijnen, nooit de oorspronkelijke apparaatentiteiten.'],
                'bullets': []},
               {'title': '19. Migratie en veilige ingebruikname',
-               'paragraphs': ['Beta.68 behoudt de beta.63-fix voor onveranderbare en geneste Home '
+               'paragraphs': ['Beta.82 behoudt de beta.63-fix voor onveranderbare en geneste Home '
                               'Assistant-opties. Verwijder de integratie, configuratie, modellen of opslag '
                               'niet. De upgrade houdt geldige single-meterkoppelingen, bestaande overige '
                               'toestellen en privégegevens intact. Ongewijzigde geldige SG-, profiel-, '
@@ -958,7 +908,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'apparaat-/batterijfouten, gebruikers-Pauze en verwijdering blijven beschermd. '
                               'Brononzekerheid voor de nieuwe SG-functie blijft gelden.',
                               'De globale hervatvoorkeur, geldige andere toestellen, entity-identiteiten, opgeslagen prioriteiten, APP-tickets, historie en leerdata blijven behouden. Nieuwe SG-sturing blijft uit totdat juiste uitgang, native basisinstellingen, geen dubbele writers, contactmapping en lokale aflooptimer werkelijk zijn bevestigd. De noodzakelijke lokale Panasonic/Shelly-controle is geen softwaretest. Geldige opgeslagen numerieke SG-teksten worden uitsluitend in de gekopieerde runtimeweergave naar dezelfde getalswaarde omgezet; de oorspronkelijke opties en private archieven blijven behouden. Ongeldige waarden blijven herkenbaar voor validatie.',
-                              ('Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische metingen in geopende apparatuur. Gebruik de korte controle in BETA81_INSTELLEN.md.')],
+                              ('Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische metingen in geopende apparatuur. Gebruik de korte controle in BETA82_INSTELLEN.md.')],
                'bullets': []},
               {'title': '20. Installatie, verwijderen en rollback',
                'paragraphs': ['Installeer of update de Integration via HACS en herstart Home Assistant. De '
@@ -982,7 +932,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van '
                               'SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, '
                               'AEG- of Shelly-integratie.',
-                              ('Rollback naar beta.80 gebruikt dezelfde geldige instellingen, SG-regeling en historiek. De beta.81-onderzoeksinnamefix en aanvullende bewijsgegevens vervallen; beta.80 kan opnieuw geen nieuwe SG-onderzoeksrecords verzamelen. Rollback corrigeert geen meter of fysieke installatie. Geef vóór codevervanging de eigen SG-aanvraag veilig vrij en controleer lokale terugval. Exact herstel vraagt code én de passende volledige privéback-up; bewaar gewenste nieuwe historie eerst. Herstel nooit een oude onverbruikte APP-aanvraag nadat dezelfde belading al fysiek gestart is. Gebruik geen twee runtimes tegelijk en verwijder de entry niet. Voor de oude directe beta.61-regeling blijft de volledige back-up van vóór beta.62 nodig. Zie BETA81_INSTELLEN.md.')],
+                              ('Rollback naar beta.81 gebruikt dezelfde geldige instellingen en SG-regeling. De SG-onderzoeksinnamefix en eerdere brongegevens blijven, maar beta.81 mist de nieuwe taakclassificatie, aanvullende ondersteuning, contactbalk en temperatuurweergave. Nieuwe aanvullende opslagvelden kunnen bij een oudere opslagwrite wegvallen; bewaar de nieuwe historie met een volledige privéback-up vóór rollback. Oude taakperioden worden niet opnieuw geïnterpreteerd. Rollback corrigeert geen meter of fysieke installatie. Geef vóór codevervanging de eigen SG-aanvraag veilig vrij en controleer lokale terugval. Exact herstel vraagt code én de passende volledige privéback-up; bewaar gewenste nieuwe historie eerst. Herstel nooit een oude onverbruikte APP-aanvraag nadat dezelfde belading al fysiek gestart is. Gebruik geen twee runtimes tegelijk en verwijder de entry niet. Voor de oude directe beta.61-regeling blijft de volledige back-up van vóór beta.62 nodig. Zie BETA82_INSTELLEN.md.')],
                'bullets': []},
               {'title': '21. Release- en documentatieregel',
                'paragraphs': ['Dit is de enige volledige actuele regelbeschrijving. current_guide.py genereert '

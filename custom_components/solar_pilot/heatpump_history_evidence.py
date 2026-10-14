@@ -8,7 +8,7 @@ native completion result, so those two columns deliberately remain unknown.
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import math
 
 MAX_POINTS = 8192
@@ -148,6 +148,37 @@ class NativeProgrammeEvidence:
                 "effective_target_available": False, "native_completion_available": False,
                 "note": "Vergelijkingspunten met oorspronkelijke rapporttijden; geen continue programmameting. Het normale tankdoel, temperatuur en watts bewijzen geen sterilisatie of native voltooiing."}
 
+    def temperature_detail(self, day, stamp, *, max_gap_s=30):
+        """Expose actual retained readings and a separately bounded live view.
+
+        Temperature points are never interpolated, shifted to capture time or
+        backfilled from today's tank. Restoration deliberately has no live
+        continuity anchor, even when its final stored point is recent.
+        """
+        detail = self.detail(day)
+        points, previous = [], None
+        for row in detail["points"]:
+            tank = row["tank"]
+            points.append({"captured_at": row["captured_at"], **deepcopy(tank),
+                           "continuous_from_previous": bool(previous is not None and row["continuity"]
+                               and 0 < row["captured_at"]-previous <= max_gap_s)})
+            previous = row["captured_at"]
+        last = self._last
+        current = bool(last is not None and 0 <= stamp-last["captured_at"] <= max_gap_s)
+        stale = last["source_stale_s"] if last is not None else None
+        tank = last["tank"] if last is not None else {}
+        values = {key: tank.get(key) for key in ("temperature_c", "temperature_reported_at",
+                                               "ordinary_target_c", "ordinary_target_reported_at")}
+        for key, original in (("temperature_c", "temperature_reported_at"),
+                              ("ordinary_target_c", "ordinary_target_reported_at")):
+            if not current or not fresh(values[original], stamp, stale):
+                values[key] = None
+        return {"schema": 1, "current": {**values, "captured_at": last["captured_at"] if last else None,
+                    "current": current, "stale_s": stale, "capture_stale_s": max_gap_s},
+                "points": points, "points_truncated": detail["points_truncated"],
+                "ordinary_target_only": True,
+                "note": "Oorspronkelijke tankmetingen en normaal ingesteld doel; geen interpolatie, effectief SG-doel of voltooiingsbewijs."}
+
     def snapshot(self):
         return {"schema": 1, "points": deepcopy(self.points), "trimmed_before": self.trimmed_before}
 
@@ -230,5 +261,146 @@ class NativeProgrammeEvidence:
             raise ValueError("Warmtepomphistoriek bevat ongeldige bewaargrens")
         self.points, self.trimmed_before = cleaned, trimmed
         self._last_prune_day = None
+        self.pause()
+        self.prune(stamp)
+
+
+class SGContactEvidence:
+    """Bounded actual contact ON/OFF intervals, distinct from request intent.
+
+    Existing contact sessions still supply retained historical ON evidence.
+    An old aggregate of known seconds cannot reconstruct where OFF occurred.
+    """
+
+    def __init__(self, zone):
+        self.zone = zone
+        self.spans = []
+        self.trimmed_before = None
+        self._last = None
+
+    def pause(self):
+        self._last = None
+
+    def observe(self, state, stamp, reported_at, expiry, *, stale_s=120, max_gap_s=30):
+        if state is not None and type(state) is not bool:
+            raise ValueError("SG-contactbewijs vereist een bevestigde contacttoestand")
+        original, expiry, stale = report(reported_at), report(expiry), number(stale_s)
+        valid = (type(state) is bool and original is not None and expiry is not None
+                 and fresh(original, stamp, stale) and stamp <= expiry <= original+stale)
+        last = self._last
+        if valid and last is not None and 0 < stamp-last["captured_at"] <= max_gap_s:
+            right = min(stamp, last["valid_until"])
+            if right > last["captured_at"]:
+                span = {"start": last["captured_at"], "end": right, "on": last["on"],
+                        "reported_at": last["reported_at"], "valid_until": last["valid_until"], "source_stale_s": last["source_stale_s"]}
+                previous = self.spans[-1] if self.spans else None
+                # Adjacent equal states may share the first actual source
+                # report only within its unchanged original expiry. New HA
+                # reports cannot renew that earlier evidence's deadline.
+                if (previous is not None and previous["end"] == span["start"]
+                        and previous["on"] == span["on"] and right <= previous["valid_until"]):
+                    previous["end"] = right
+                else:
+                    self.spans.append(span)
+        self._last = {"captured_at": stamp, "on": state, "reported_at": original,
+                      "valid_until": expiry, "source_stale_s": stale} if valid else None
+        self.prune(stamp)
+
+    def prune(self, stamp):
+        first = datetime.fromtimestamp(stamp, self.zone).date()-timedelta(days=29)
+        boundary = datetime.combine(first, datetime.min.time(), self.zone).timestamp()
+        self.spans = [row for row in self.spans if row["end"] > boundary]
+        if len(self.spans) > MAX_POINTS:
+            self.trimmed_before = self.spans[-MAX_POINTS-1]["end"]
+            self.spans = self.spans[-MAX_POINTS:]
+
+    def detail(self, day, stamp, bounds, contact):
+        self.prune(stamp)
+        left, day_end = bounds
+        until = max(left, min(stamp, day_end))
+        # Legacy retained ON sessions are still actual contact evidence. OFF is
+        # included solely from this feature's explicit observed interval store.
+        candidates = [{**row, "legacy": False} for row in self.spans if row["end"] > left and row["start"] < until]
+        for session in contact.get("sessions", ()):
+            start = datetime.fromisoformat(session["segment_start"]).timestamp()
+            end = datetime.fromisoformat(session["segment_end"]).timestamp()
+            if end > start:
+                candidates.append({"start": start, "end": end, "on": True,
+                                   "reported_at": None, "valid_until": None, "legacy": True})
+        events = {left: {"start": [], "end": []}, until: {"start": [], "end": []}}
+        for ident, row in enumerate(candidates):
+            start, end = max(left, row["start"]), min(until, row["end"])
+            if end <= start:
+                continue
+            events.setdefault(start, {"start": [], "end": []})["start"].append(ident)
+            events.setdefault(end, {"start": [], "end": []})["end"].append(ident)
+        boundaries = sorted(events)
+        active = {}
+        segments, known, on = [], 0.0, 0.0
+        for start, end in zip(boundaries, boundaries[1:]):
+            for ident in events[start]["end"]:
+                active.pop(ident, None)
+            for ident in events[start]["start"]:
+                active[ident] = candidates[ident]
+            covering = list(active.values())
+            explicit = [row for row in covering if not row["legacy"]]
+            proof = explicit[0] if explicit else covering[0] if covering else None
+            conflict = len({row["on"] for row in covering}) > 1
+            state = "unknown" if proof is None or conflict else "on" if proof["on"] else "off"
+            duration = end-start
+            if duration <= 0:
+                continue
+            if state != "unknown":
+                known += duration
+                on += duration if state == "on" else 0
+            segment = {"state": state, "segment_start": datetime.fromtimestamp(start, timezone.utc).isoformat(timespec="seconds"),
+                       "segment_end": datetime.fromtimestamp(end, timezone.utc).isoformat(timespec="seconds"),
+                       "duration_s": round(duration, 1), "left_pct": round(100*(start-left)/(day_end-left), 5),
+                       "width_pct": round(100*duration/(day_end-left), 5),
+                       "reported_at": proof["reported_at"] if proof is not None and not conflict else None}
+            if segments and segments[-1]["state"] == state and segments[-1]["reported_at"] == segment["reported_at"]:
+                segments[-1].update(segment_end=segment["segment_end"],
+                    duration_s=round(segments[-1]["duration_s"]+duration, 1),
+                    width_pct=round(segments[-1]["width_pct"]+segment["width_pct"], 5))
+            else:
+                segments.append(segment)
+        last = self._last
+        current = last is not None and 0 <= stamp-last["captured_at"] <= 30 and stamp <= last["valid_until"]
+        return {"schema": 1, "label": "SG-contact", "state": "on" if current and last["on"] else "off" if current else "unknown",
+                "reported_at": last["reported_at"] if last is not None else None,
+                "captured_at": last["captured_at"] if last is not None else None,
+                "valid_until": last["valid_until"] if last is not None else None, "capture_stale_s": 30,
+                "known_s": round(known, 1), "on_s": round(on, 1) if known > 0 else None,
+                "unknown_s": round(max(0, until-left-known), 1), "segments": segments,
+                "segments_truncated": bool(contact.get("sessions_truncated") or self.trimmed_before is not None and self.trimmed_before >= left),
+                "note": "Bevestigd contact apart van SG-aanvraag; grijs is ontbrekend contactbewijs. Oude UIT-perioden worden niet uit dagtotalen gereconstrueerd."}
+
+    def snapshot(self):
+        return {"schema": 1, "spans": deepcopy(self.spans), "trimmed_before": self.trimmed_before}
+
+    def restore(self, data, stamp):
+        if data is None:
+            return
+        if (not isinstance(data, dict) or type(data.get("schema")) is not int or data["schema"] != 1
+                or not isinstance(data.get("spans"), list) or len(data["spans"]) > MAX_POINTS):
+            raise ValueError("Warmtepomphistoriek bevat ongeldig SG-contactbewijs")
+        cleaned, previous = [], None
+        for row in data["spans"]:
+            if not isinstance(row, dict) or type(row.get("on")) is not bool:
+                raise ValueError("Warmtepomphistoriek bevat ongeldig SG-contactbewijs")
+            values = {key: report(row.get(key)) for key in ("start", "end", "reported_at", "valid_until")}
+            stale = number(row.get("source_stale_s"))
+            if (any(value is None for value in values.values()) or not values["start"] < values["end"] <= stamp+60
+                    or previous is not None and values["start"] < previous
+                    or stale is None or stale <= 0 or not fresh(values["reported_at"], values["start"], stale)
+                    or not values["end"] <= values["valid_until"] <= values["reported_at"]+stale):
+                raise ValueError("Warmtepomphistoriek bevat ongeldige SG-contacttijden")
+            cleaned.append({**values, "on": row["on"], "source_stale_s": stale})
+            previous = values["end"]
+        trimmed = data.get("trimmed_before")
+        if trimmed is not None and (report(trimmed) is None or trimmed > stamp+60
+                                   or cleaned and trimmed > cleaned[0]["start"]):
+            raise ValueError("Warmtepomphistoriek bevat een ongeldige SG-contactbewaargrens")
+        self.spans, self.trimmed_before = cleaned, trimmed
         self.pause()
         self.prune(stamp)
