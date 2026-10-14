@@ -28,12 +28,15 @@ with sync_playwright() as p:
     assert panel.locator('[role=switch]').count() == 1
     assert panel.locator('input, select').count() == 0
     assert '50 °C' in panel.inner_text() and 'Verwarmen' in panel.inner_text()
-    assert 'Panasonic-reactie niet afzonderlijk bevestigd' in panel.inner_text()
+    assert 'SG-contact actief.' in panel.inner_text()
+    assert 'Panasonic-reactie niet afzonderlijk bevestigd' not in panel.inner_text()
     assert 'voeding 1 1,72 kW · voeding 2 0 W' in panel.inner_text()
     assert 'Totaal voeding 1 + voeding 2' in panel.inner_text()
     assert 'compressor draait · 33 Hz' in panel.inner_text()
-    assert 'Ontvangen SG-status\nOnbekend' in panel.inner_text()
-    assert 'SG-effect op verbruik\nNiet afzonderlijk bevestigd' in panel.inner_text()
+    assert panel.locator('[data-sg-stage=received]').count()==0
+    assert 'Ontvangen SG-status' not in panel.inner_text()
+    assert 'Compressorbedrijf bewijst geen extra verbruik door SG' in panel.inner_text()
+    assert 'SG-effect op verbruik' not in panel.inner_text()
     assert 'Algemene SG-boost' in panel.inner_text()
     assert 'Extra-koelbeveiliging\nNiet bevestigd' in panel.inner_text()
     page.evaluate('''() => {window.c=document.querySelector('solar-pilot-card');window.calls=[];
@@ -66,9 +69,11 @@ with sync_playwright() as p:
     # still not established by either compressor activity or received SG.
     page.evaluate('''() => {const a=structuredClone(c._last.attributes);
       a.panasonic.sg_status='active';a.panasonic.sg_status_confirmed=true;
+      a.panasonic.sg_status_observed_at=Date.now()/1000;
       c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{state:'Zonnestroom',attributes:a}}};}''')
     assert 'Ontvangen SG-status\nActief · afzonderlijk bevestigd' in panel.inner_text()
-    assert 'SG-effect op verbruik\nNiet afzonderlijk bevestigd' in panel.inner_text()
+    assert 'Compressorbedrijf bewijst geen extra verbruik door SG' in panel.inner_text()
+    assert 'SG-effect op verbruik' not in panel.inner_text()
     # A manually ON contact is not a SolarPilot lease, and a missing second
     # meter does not turn a partial value into a total.
     page.evaluate('''() => {const a=structuredClone(c._last.attributes);
@@ -89,7 +94,9 @@ with sync_playwright() as p:
       c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{state:'Zonnestroom',attributes:a}}};}''')
     assert 'Vermogen nog niet bekend' in panel.inner_text()
     assert 'Nog niet bevestigd' in panel.inner_text() and 'Afzonderlijk bevestigd' not in panel.inner_text()
-    assert 'compressorstatus onbekend' in panel.inner_text()
+    assert 'compressor draait' not in panel.inner_text()
+    assert 'Compressorfrequentie' not in panel.inner_text()
+    assert panel.locator('[data-sg-stage=received]').count()==0
     assert page.evaluate('calls.length') == 0
     # beta.84 temporary requests: select a mode and duration, never write the
     # physical switch or claim the selected request as a confirmed contact.
