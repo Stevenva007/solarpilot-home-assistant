@@ -30,6 +30,16 @@ def session(day, start, end, *, ongoing=False):
                 stop_reason="Einde van de waargenomen activiteit; stopoorzaak niet vastgesteld.")
 
 
+def goal_fixture(day):
+    at = datetime.fromisoformat(f"{day}T12:40:00+02:00").timestamp()
+    return {"normal_target_c": 50, "calculated_c": 57.5, "profile_percent": 115,
+        "profile_confirmed_at": at-3600, "normal_target_reported_at": at-7,
+        "valid_until": at+113, "stale_s": 120, "source": "local_confirmed_profile",
+        "source_binding": "b"*64, "read_only": True, "reason": "calculated",
+        "contact_state": "off", "contact_reported_at": at-2,
+        "contact_valid_until": at+118, "contact_stale_s": 120}
+
+
 def fixture(day):
     registered = day in ("2026-10-11", TODAY)
     sessions = [session(day, "09:05", "09:50"), session(day, "12:30", "13:30", ongoing=day == TODAY)] if registered else []
@@ -46,9 +56,9 @@ def fixture(day):
     for key in ("request", "contact", "received"):
         known = registered and key != "received"
         lanes[key] = dict(device_id="sg_" + key, name=key, has_data=known,
-                          on_s=600 if known and key == "request" else 0,
+                          on_s=600 if known and key == "request" else 300 if known and key == "contact" else 0,
                           known_s=7200 if known else 0, partial=True,
-                          sessions=[session(day, "12:40", "12:50")] if known and key == "request" else [])
+                          sessions=[session(day, "12:40", "12:50")] if known and key == "request" else [session(day, "12:30", "12:35")] if known and key == "contact" else [])
     return dict(device_id="heatpump", name="Warmtepomp · fictieve registratie", date=day,
                 today=TODAY, first_date="2026-09-13", timezone="Europe/Brussels",
                 generated_at=f"{TODAY}T13:30:00+02:00", recording_since="2026-10-11",
@@ -67,12 +77,14 @@ def fixture(day):
                 tank_temperature={"schema": 1, "current": {"current": False}, "points": ([{
                     "captured_at": datetime.fromisoformat(f"{day}T12:40:00+02:00").timestamp(),
                     "temperature_c": 57, "temperature_reported_at": datetime.fromisoformat(f"{day}T12:39:56+02:00").timestamp(),
-                    "ordinary_target_c": 50, "ordinary_target_reported_at": datetime.fromisoformat(f"{day}T12:39:53+02:00").timestamp()
+                    "ordinary_target_c": 50, "ordinary_target_reported_at": datetime.fromisoformat(f"{day}T12:39:53+02:00").timestamp(),
+                    "stale_s": 120, "sg_goal": goal_fixture(day)
                 }] if registered else [])},
                 support_sessions=[session(day, "12:40", "12:45")] if registered else [],
                 support_totals=[{"label": "Elektrische ondersteuning", "on_s": 300}] if registered else [],
                 native_evidence={"schema": 1, "read_only": True, "points": [{
                     "captured_at": datetime.fromisoformat(f"{day}T12:40:00+02:00").timestamp(), "continuity": True,
+                    "sg_goal": goal_fixture(day),
                     "native": {"confirmed": False, "inactive_reported": True, "inactive_scope": "space_circuit",
                                "reported_at": datetime.fromisoformat(f"{day}T12:39:55+02:00").timestamp(), "fresh": True},
                     "tank": {"temperature_c": 57, "temperature_reported_at": datetime.fromisoformat(f"{day}T12:39:56+02:00").timestamp(),
@@ -152,7 +164,7 @@ with sync_playwright() as playwright:
     assert host.locator('[role=switch],[data-action=sg_boost_enabled],[data-action=manual_start]').count() == 0, "history contains no device controls"
     host.locator('details[data-history-key=sg]>summary').click()
     visible_text(host.locator('[data-sg-history=request]>.duration'), "10 min", "independent SG request runtime")
-    visible_text(host.locator('[data-sg-history=contact]>.duration'), "0 s", "confirmed inactive SG contact runtime")
+    visible_text(host.locator('[data-sg-history=contact]>.duration'), "5 min", "confirmed actual SG contact runtime")
     visible_text(host.locator('[data-sg-history=received]>.duration'), "—", "unknown Panasonic SG reception")
     assert "extra verbruik door SG is niet vastgesteld" in dialog.inner_text(), "SG causal energy must remain unclaimed"
     host.locator('details[data-history-key=coverage]>summary').click()
@@ -161,6 +173,7 @@ with sync_playwright() as playwright:
     native = host.locator('details[data-history-key=native]')
     assert "Native ruimtekring in rust" in native.inner_text(), "scoped idle cannot become whole-HP inactivity"
     assert "57 °C" in native.inner_text() and "50 °C" in native.inner_text(), "temperature and ordinary target remain separate"
+    assert "57,5 °C" in native.inner_text() and "SG-doel bij AAN · berekend" in native.inner_text(), "stored calculated preview remains conditional"
     assert "Effectief doel" in native.inner_text() and "Native voltooiing" in native.inner_text(), "unknown programme target/result remain separate"
     assert "12:40" in native.inner_text() and "12:39" in native.inner_text(), "capturetime must remain distinct from original reports"
     assert "0 W" in native.inner_text() and "onbruikbaar / ontbreekt" in native.inner_text(), "true zero and unknown feed stay different"
@@ -196,6 +209,46 @@ with sync_playwright() as playwright:
     page.wait_for_function("hpReads.length>hpReadsBefore && !c._heatpumpHistoryDialog._inflight")
     assert page.evaluate("c._heatpumpHistoryDialog._scroll.scrollTop===hpSavedScroll"), "same-day refresh must retain scroll"
     assert host.locator('details[data-history-key=sg]').get_attribute("open") is not None, "same-day refresh must retain SG Details"
+
+    # New live task and calculated goal use original typed status/contact
+    # fields. Rendering and a changing request never send device commands.
+    page.evaluate("""()=>{
+      const a=structuredClone(c._last.attributes),now=Date.now()/1000,p=a.panasonic;
+      p.source_stale_s=120;p.display_tank={available:true,temperature_c:49,temperature_stamp:now,
+        target_c:50,target_stamp:now};
+      p.native_task={source:'aquarea_poll',observed_at:now,stale_s:120,inactive:true,
+        inactive_action:'off',inactive_scope:'global',verified_global_off:true};
+      p.source_contract={schema:1,read_only:true,status:'verified',
+        contract_id:'aioaquarea_ng_1_3_1_special_status',action_semantics:'special_status',
+        provider:{integration_domain:'aquarea',integration_version:'1.5.3',library_distribution:'aioaquarea-ng',library_version:'1.3.1'},
+        raw_device_action:'OFF',pump:{state:'on',observed_at:now},direction:{state:'PUMP',observed_at:now},
+        program:{state:'heating',observed_at:now},tank:{enabled:true,observed_at:now},
+        zones:[{enabled:true,state:'heat',observed_at:now}]};
+      p.operation_display={read_only:true,model_eligible:false,context:'space_heating',function:'space_heating',
+        tier:'derived',source:'aquarea_contract',kind:'coherent_native_context',
+        source_contract_id:'aioaquarea_ng_1_3_1_special_status',observed_at:now,valid_until:now+120,
+        active:true,activity_observed_at:now,activity_valid_until:now+120,stale_s:120,
+        support:{active:false,watts:0,observed_at:now,valid_until:now+120},
+        reason:'Afgeleid uit actuele broncontext',action:''};
+      p.sg_tank_goal={read_only:true,source:'local_confirmed_profile',normal_target_c:50,normal_target_reported_at:now,
+        calculated_c:57.5,profile_percent:115,profile_confirmed_at:now-60,valid_until:now+120};
+      a.sg_boost={...a.sg_boost,observed_at:now,relay_observed_at:now,relay_confirmed:true,
+        relay_on:true,desired_on:false,relay_valid_until:now+120,relay_stale_s:120};
+      c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{state:'Zonnestroom',attributes:a}}};
+    }""")
+    assert host.locator('dialog').is_visible(), "new live evidence cannot replace the native popup"
+    visible_text(page.locator('solar-pilot-card >> [data-heatpump-task] strong'), "Verwarmen", "known typed contract resolves space task")
+    live_tank=page.locator('solar-pilot-card >> [data-boiler-temperatures]')
+    assert "49 °C" in live_tank.inner_text() and "50 °C" in live_tank.inner_text(), "actual tank and normal goal"
+    assert "57,5 °C" in live_tank.inner_text() and "SG-doel · berekend" in live_tank.inner_text(), "actual closed contact plus calculated goal"
+    page.evaluate("()=>{const s=c._last.attributes.sg_boost;s.relay_on=false;s.desired_on=true;c._refreshObservationDisplay();}")
+    assert "SG-doel bij AAN · berekend" in live_tank.inner_text(), "request cannot be actual closed contact"
+    page.evaluate("()=>{c._last.attributes.sg_boost.relay_confirmed=false;c._refreshObservationDisplay();}")
+    assert "57,5 °C" not in live_tank.inner_text(), "unknown contact keeps preview out of concise overview"
+    assert "SG-doel bij AAN · berekend" in page.locator('solar-pilot-card >> [data-heatpump-provenance]').text_content(), "conditional expanded preview remains available"
+    page.evaluate("()=>{c._last.attributes.panasonic.sg_tank_goal.valid_until=Date.now()/1000-1;c._refreshObservationDisplay();}")
+    assert "57,5 °C" not in page.locator('solar-pilot-card >> [data-heatpump-provenance]').text_content(), "expired ordinary source cannot retain a computed target"
+    assert page.evaluate("c._heatpumpHistoryDialog._dialog===hpDialogNode && hpDialogNode.open"), "live task/goal refresh preserves modal node"
 
     # Actual date/range controls and a delayed prior-day response.
     host.locator('[data-action=prev]').click()

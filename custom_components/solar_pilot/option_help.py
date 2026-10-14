@@ -974,6 +974,28 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                                'meldt. Relaisstand, programma WATER, stijgende temperatuur of compressorbedrijf '
                                'zijn daarvoor geen vervanging. Zonder geschikte actuele bron blijft ontvangen '
                                'SG onbekend; extra verbruik door SG is niet afzonderlijk bewezen.',
+ 'sg_sources:sg_dhw_capacity_percent': 'Het door jou op Panasonic ingestelde tapwaterpercentage van SG '
+                                      'capaciteit 1, alleen voor de doelweergave. Bijvoorbeeld: 115% van een '
+                                      'normaal doel van 50 °C geeft een berekend SG-doel van 57,5 °C. '
+                                      'SolarPilot schrijft dit percentage niet naar Panasonic en gebruikt '
+                                      'het niet voor SG-toestemming, responsebewijs of het thermische model. '
+                                      'Het standaardveld 100% is nog geen bevestigde instelling.',
+ 'sg_sources:sg_dhw_capacity_target_entity': 'Selecteer de native tankbron waarop het bevestigde SG '
+                                            'tapwaterpercentage betrekking heeft. Dit is alleen een binding '
+                                            'voor de berekende doelweergave; de gewone tankdoelbron, '
+                                            'koelcontext en SG-regeling worden niet gewijzigd. De exacte '
+                                            'geregistreerde apparaatidentiteit wordt lokaal vastgelegd. '
+                                            'Een andere of vervangen tank krijgt geen oude bevestiging.',
+ 'sg_sources:sg_dhw_capacity_confirmed': 'Bevestig dat het ingevulde tapwaterpercentage overeenkomt met '
+                                       'jouw Panasonic SG-capaciteit 1. Selecteer hiervoor het exacte native '
+                                       'water_heater- of climate-tankdoel met geregistreerde apparaatidentiteit. '
+                                       'Een automatisch gevonden of vervangen tank erft geen eerder percentage. '
+                                       'Vanaf dit lokale bevestigingsmoment '
+                                       'wordt het SG-doel berekend uit een vers normaal tankdoel; er is geen '
+                                       'aparte Panasonic-doelterugmelding nodig. Oude geschiedenis wordt '
+                                       'niet aangevuld. De actuele contactstand blijft afzonderlijk: bij '
+                                       'UIT toont de kaart een doel voor bij AAN. Native prioriteiten, '
+                                       'afronding en SG-grenzen worden niet automatisch afgeleid of aangepast.',
  'sg_advanced:lease_s': 'Korte lokaal aflopende toestemming, standaard 300 seconden. Zonder tijdige '
                         'vernieuwing opent het contact ook wanneer Home Assistant uitvalt. Zij blijft '
                         'apart van de minimale en maximale SG-aanvraagduur: geen lokale '

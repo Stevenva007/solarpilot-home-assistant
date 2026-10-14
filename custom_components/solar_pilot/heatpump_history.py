@@ -261,7 +261,7 @@ class HeatpumpHistory:
         self.electrical.observe("electrical_activity", self._config("Gemeten elektrische activiteit"), electrical_active, when, max_gap_s=MAX_GAP_S)
         self._describe(self.electrical, "electrical_activity", "Gemeten elektrische activiteit", electrical_active, stamp)
         self._expiries["electrical_activity"] = self._source_expiry(p.get("power_observed_at", p.get("power_stamp")), stamp, p.get("source_stale_s", 120))
-        self.native_evidence.observe(p, stamp, evidence, max_gap_s=MAX_GAP_S)
+        self.native_evidence.observe(p, stamp, evidence, sg=sg, max_gap_s=MAX_GAP_S)
         request, contact, received = self._sg(p, sg, stamp)
         self.contact_evidence.observe(contact, stamp, sg.get("relay_observed_at"),
                                       self._expiries["sg_contact"], stale_s=sg.get("relay_stale_s", 120), max_gap_s=MAX_GAP_S)

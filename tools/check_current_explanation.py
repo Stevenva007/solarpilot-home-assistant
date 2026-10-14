@@ -15,6 +15,7 @@ spec.loader.exec_module(guide)
 manifest = json.loads((ROOT / "custom_components" / "solar_pilot" / "manifest.json").read_text(encoding="utf-8"))
 const_text = (ROOT / "custom_components" / "solar_pilot" / "const.py").read_text(encoding="utf-8")
 card_text = (ROOT / "custom_components" / "solar_pilot" / "frontend" / "solar-pilot-card.js").read_text(encoding="utf-8")
+options_text = (ROOT / "custom_components" / "solar_pilot" / "frontend" / "option-help.js").read_text(encoding="utf-8")
 actual_md = (ROOT / "docs" / "ACTUELE_WERKING.md").read_text(encoding="utf-8")
 embedded_md = (ROOT / "custom_components" / "solar_pilot" / "docs" / "ACTUELE_WERKING.md").read_text(encoding="utf-8")
 expected_md = guide.render_markdown()
@@ -26,6 +27,10 @@ if f'VERSION = "{guide.GUIDE_VERSION}"' not in const_text:
     errors.append("const.py version != current guide version")
 if f"SolarPilot {guide.GUIDE_VERSION}." not in card_text:
     errors.append("dashboard card version != current guide version")
+if f"const SP_HELP_VERSION='{guide.GUIDE_VERSION}';" not in options_text:
+    errors.append("options dialog version != current guide version")
+if f"/solar_pilot_static/option-help.json?v={guide.GUIDE_VERSION}" not in options_text:
+    errors.append("options help cache version != current guide version")
 if actual_md != expected_md:
     errors.append("docs/ACTUELE_WERKING.md is not regenerated from current_guide.py")
 if embedded_md != expected_md:

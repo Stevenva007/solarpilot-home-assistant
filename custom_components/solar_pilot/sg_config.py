@@ -30,18 +30,24 @@ SG_DEFAULTS = {
     "profile": "dhw_only", "profile_confirmed": False,
     "cooling_protection_confirmed": False,
     "activity_entity": "", "zone_entities": [],
+    "sg_dhw_capacity_percent": 100.0, "sg_dhw_capacity_confirmed": False,
+    "sg_dhw_capacity_confirmed_at": 0.0,
+    "sg_dhw_capacity_binding": "",
+    "sg_dhw_capacity_target_entity": "",
 }
 READ_ENTITY_KEYS = frozenset({"tank_temperature_entity", "tank_target_entity",
                               "power_entity", "activity_entity", "power_supply1_entity",
                               "power_supply2_entity", "compressor_frequency_entity", "sg_status_entity"})
 POWER_ENTITY_KEYS = ("power_entity", "power_supply1_entity", "power_supply2_entity")
 PROFILES = frozenset({"dhw_only", "general"})
-REFERENCE_KEYS = frozenset({"entity_id", *READ_ENTITY_KEYS, "zone_entities"})
+REFERENCE_KEYS = frozenset({"entity_id", *READ_ENTITY_KEYS, "zone_entities", "sg_dhw_capacity_target_entity"})
 POWER_SCOPES = frozenset({"unconfirmed", "total", "supply1", "supply2"})
 POWER_SUPPLY_ROLES = frozenset({"unconfirmed", "main", "heater"})
 POWER_SUPPLY_PROFILES = frozenset({"panasonic_standard", "unconfirmed"})
 DISPLAY_ONLY_KEYS = frozenset({"power_activity_threshold_w", "power_supply_profile",
-                              "power_supply1_role", "power_supply2_role"})
+                              "power_supply1_role", "power_supply2_role", "sg_dhw_capacity_percent",
+                              "sg_dhw_capacity_confirmed", "sg_dhw_capacity_confirmed_at", "sg_dhw_capacity_binding",
+                              "sg_dhw_capacity_target_entity"})
 NUMBER_LIMITS = {
     "threshold_w": (500, 20000), "expected_power_w": (100, 30000),
     "hysteresis_w": (0, 5000), "import_threshold_w": (0, 20000),
@@ -50,6 +56,7 @@ NUMBER_LIMITS = {
     "min_session_s": (0, 14400), "max_session_s": (300, 14400), "lease_s": (60, 600),
     "renew_s": (10, 120), "ack_timeout_s": (5, 60),
     "stale_s": (15, 600), "power_activity_threshold_w": (10, 2000),
+    "sg_dhw_capacity_percent": (100, 200), "sg_dhw_capacity_confirmed_at": (0, 4102444800),
 }
 
 
@@ -117,9 +124,16 @@ def validate_config(raw):
         if value is None or not low <= value <= high:
             errors[key] = "range"
     for key in ("enabled", "commissioning_confirmed", "watchdog_confirmed", "profile_confirmed",
-                "cooling_protection_confirmed", "split_power_confirmed"):
+                "cooling_protection_confirmed", "split_power_confirmed", "sg_dhw_capacity_confirmed"):
         if type(c[key]) is not bool:
             errors[key] = "range"
+    if (not isinstance(c["sg_dhw_capacity_binding"], str)
+            or c["sg_dhw_capacity_binding"] and not re.fullmatch("[0-9a-f]{64}", c["sg_dhw_capacity_binding"])):
+        errors["sg_dhw_capacity_confirmed"] = "range"
+    capacity_target = c["sg_dhw_capacity_target_entity"]
+    if (not isinstance(capacity_target, str) or capacity_target
+            and not capacity_target.startswith(("water_heater.", "climate."))):
+        errors["sg_dhw_capacity_target_entity"] = "entity_missing"
     for key in {"entity_id", *READ_ENTITY_KEYS}:
         if not isinstance(c[key], str):
             errors[key] = "entity_missing"
@@ -258,6 +272,9 @@ def source_errors(hass, config, *, site=None, devices=(), wallbox=None, batterie
     for eid in c.get("zone_entities", []) if isinstance(c.get("zone_entities"), list) else []:
         if isinstance(eid, str) and hass.states.get(eid) is None:
             errors["zone_entities"] = "entity_missing"
+    target = c.get("sg_dhw_capacity_target_entity")
+    if isinstance(target, str) and target and hass.states.get(target) is None:
+        errors["sg_dhw_capacity_target_entity"] = "entity_missing"
     reserved = {str(site.get(k) or "") for k in ("grid_entity", "export_entity", "pv_entity", "battery_power_entity")}
     reserved.update(str(d.get("power_entity") or "") for d in devices if isinstance(d, dict))
     reserved.add(str(wallbox.get("power_entity") or ""))

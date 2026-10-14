@@ -628,6 +628,7 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
             self._sg_profile_review = None
             self._sg_split_review = None
             self._sg_local_confirmed_roles = None
+            self._sg_local_capacity_confirmation = None
         current = self._sg_values()
         candidate = {**current, **{k: deepcopy(SG_DEFAULTS[k]) for k in cleared}, **(user_input or {})}
         # Changing a physical endpoint invalidates commissioning proof even if
@@ -635,7 +636,38 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
         if user_input is not None and candidate["entity_id"] != current["entity_id"]:
             candidate.update(enabled=False, commissioning_confirmed=False, watchdog_confirmed=False,
                              profile_confirmed=False, cooling_protection_confirmed=False)
+        if user_input is not None:
+            # This confirms a display calculation only. Changing its source or
+            # percentage never reuses the old installation's confirmation time.
+            capacity_scope_changed = any(candidate[key] != current[key] for key in (
+                "sg_dhw_capacity_percent", "sg_dhw_capacity_target_entity", "entity_id"))
+            explicit_capacity = (step_id == "sg_sources"
+                                 and user_input.get("sg_dhw_capacity_confirmed") is True)
+            if explicit_capacity:
+                from custom_components.solar_pilot.sg_target_display import resolved_goal_binding
+                candidate["sg_dhw_capacity_binding"] = resolved_goal_binding(self.hass, candidate["sg_dhw_capacity_target_entity"]) or ""
+                if not candidate["sg_dhw_capacity_binding"]:
+                    candidate["sg_dhw_capacity_confirmed"] = False
+                capacity_scope_changed = (capacity_scope_changed
+                    or candidate["sg_dhw_capacity_binding"] != current["sg_dhw_capacity_binding"])
+            if capacity_scope_changed and not explicit_capacity:
+                candidate.update(sg_dhw_capacity_confirmed=False, sg_dhw_capacity_confirmed_at=0.0, sg_dhw_capacity_binding="")
+            if candidate["sg_dhw_capacity_confirmed"] is not True:
+                candidate["sg_dhw_capacity_confirmed_at"] = 0.0
+                candidate["sg_dhw_capacity_binding"] = ""
+            elif explicit_capacity:
+                import time as capacity_clock
+                from math import isfinite as finite_capacity_time
+                old_confirmation = current["sg_dhw_capacity_confirmed_at"]
+                now = capacity_clock.time()
+                if (capacity_scope_changed or current["sg_dhw_capacity_confirmed"] is not True
+                        or not isinstance(old_confirmation, (int, float)) or isinstance(old_confirmation, bool)
+                        or not finite_capacity_time(old_confirmation) or not 0 < old_confirmation <= now):
+                    candidate["sg_dhw_capacity_confirmed_at"] = now
         errors = self._sg_errors(candidate) if user_input is not None else {}
+        if (user_input is not None and user_input.get("sg_dhw_capacity_confirmed") is True
+                and not candidate["sg_dhw_capacity_binding"]):
+            errors["sg_dhw_capacity_confirmed"] = "sg_target_binding"
         # A checkbox carried over from the old scope is not local confirmation
         # of a new one. First show the proposed scope with fresh unchecked
         # proof; only the next explicit submission can confirm it.
@@ -698,6 +730,9 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
                 if old_split != new_split and getattr(self, "_sg_split_review", None) == (old_split, new_split)
                 and any(user_input.get(key) in ("main", "heater") for key in
                         ("power_supply1_role", "power_supply2_role")) else None)
+            self._sg_local_capacity_confirmation = tuple(opts["sg_boost"][key] for key in (
+                "sg_dhw_capacity_percent", "sg_dhw_capacity_target_entity", "entity_id",
+                "sg_dhw_capacity_confirmed", "sg_dhw_capacity_confirmed_at", "sg_dhw_capacity_binding"))
             return await self._save(opts)
         return self.async_show_form(step_id=step_id, data_schema=vol.Schema(schema(candidate)), errors=errors)
 
@@ -728,6 +763,9 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
             return {
                 optional("tank_temperature_entity", c): entity(["sensor", "water_heater", "climate"]),
                 optional("tank_target_entity", c): entity(["water_heater", "climate", "number", "sensor"]),
+                optional("sg_dhw_capacity_target_entity", c): entity(["water_heater", "climate"]),
+                vol.Required("sg_dhw_capacity_percent", default=c["sg_dhw_capacity_percent"]): num(100, 200, 1),
+                vol.Required("sg_dhw_capacity_confirmed", default=c["sg_dhw_capacity_confirmed"]): selector.BooleanSelector(),
                 optional("power_entity", c): entity(["sensor"]),
                 vol.Required("power_scope", default=c["power_scope"]): selector.SelectSelector({"options": [
                     {"value": "unconfirmed", "label": "Dekking nog niet bevestigd"},
@@ -748,7 +786,7 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
         return await self._sg_save_form("sg_sources", user_input, schema,
             cleared=("tank_temperature_entity", "tank_target_entity", "power_entity", "power_supply1_entity",
                      "power_supply2_entity", "activity_entity", "compressor_frequency_entity",
-                     "sg_status_entity", "zone_entities") if user_input is not None else ())
+                     "sg_status_entity", "zone_entities", "sg_dhw_capacity_target_entity") if user_input is not None else ())
 
     async def async_step_sg_advanced(self, user_input=None):
         def schema(c):

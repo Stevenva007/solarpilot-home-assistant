@@ -19,6 +19,23 @@ EDGE_MAX_DAYS = 45
 EDGE_MAX_AGE_DAYS = 120
 
 
+def original_time_quality(value):
+    """Classify a report timestamp without changing calibration eligibility.
+
+    The runtime's missing-power return uses zero as a sentinel. It is not an
+    original report from 1970. Positive old timestamps remain real (stale)
+    report evidence; quality of a timestamp is separate from source freshness.
+    """
+    if value is None:
+        return "missing"
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return "invalid"
+    number = finite(value)
+    if number == 0:
+        return "zero_sentinel"
+    return "valid" if number is not None and 0 < number <= 32503680000 else "invalid"
+
+
 def solar_position(dt, latitude, longitude):
     """NOAA fractional-year approximation; sufficient for coarse learning bins.
 
@@ -208,6 +225,7 @@ class PVCalibration:
 
     def observe(self, *, now, actual_w, raw_w, meter_stamp, azimuth=None, elevation=None, binding="", forecast_context=None):
         ts=now.timestamp()
+        report_time_quality=original_time_quality(meter_stamp)
         meter_stamp=finite(meter_stamp)
         if self.started is None or ts<self.started:
             self.started=ts; self.window=None; self.samples=[]
@@ -265,6 +283,7 @@ class PVCalibration:
         except Exception:proof=None
         self.samples.append({"ts":ts,"actual":actual,"raw":raw,"factor":factor,"az":finite(azimuth),"el":finite(elevation),"reason":reason,
                              "meter_stamp":meter_stamp,"source_status":source_status,
+                             "report_time_quality":report_time_quality,
                              "forecast_context":proof})
         self.samples=self.samples[-20:]
         self.last_reason=reason or "Kwartiermetingen verzamelen"
@@ -365,7 +384,9 @@ class PVCalibration:
         """Explain rejected parts even when the remaining median is finite."""
         reasons=Counter(row["reason"] for row in rows if row["reason"])
         statuses=Counter(row.get("source_status","missing") for row in rows)
-        reports=sorted({value for row in rows if (value:=finite(row.get("meter_stamp"))) is not None and 0<=value<=32503680000})
+        time_quality=Counter(row.get("report_time_quality") or original_time_quality(row.get("meter_stamp")) for row in rows)
+        reports=sorted({value for row in rows if (row.get("report_time_quality") or original_time_quality(row.get("meter_stamp")))=="valid"
+                        and (value:=finite(row.get("meter_stamp"))) is not None})
         times=[row["ts"] for row in rows]
         quarter=int(times[0]//900)*900
         contexts=[];seen=set()
@@ -381,6 +402,8 @@ class PVCalibration:
                 "rejection_reasons":[{"reason":reason,"count":count} for reason,count in reasons.most_common(12)],
                 "original_reports":{"distinct":len(reports),
                     **{name:statuses[name] for name in ("missing","stale","duplicate","conflicting","out_of_order")},
+                    "time_quality":{"valid":time_quality["valid"],"unknown":len(rows)-time_quality["valid"],
+                                    **{name:time_quality[name] for name in ("missing","zero_sentinel","invalid")}},
                     "first_at":iso(reports[0]) if reports else None,"last_at":iso(reports[-1]) if reports else None,
                     "span_s":reports[-1]-reports[0] if len(reports)>1 else 0. if reports else None,
                     "max_gap_s":max((b-a for a,b in zip(reports,reports[1:])),default=0.) if reports else None},
@@ -439,6 +462,17 @@ class PVCalibration:
                     first,last=stamp(clean["first_at"]),stamp(clean["last_at"])
                     if first>last or clean["span_s"]!=last-first or clean["max_gap_s"] is None or clean["max_gap_s"]>clean["span_s"]:return None
                 elif clean["span_s"] is not None or clean["max_gap_s"] is not None:return None
+                # Optional extension: old stored evidence keeps its original
+                # meaning and does not acquire invented timestamp-quality counts.
+                quality=section.get("time_quality")
+                if quality is not None:
+                    if not isinstance(quality,dict):return None
+                    counts={key:count(quality.get(key)) for key in ("valid","unknown","missing","zero_sentinel","invalid")}
+                    if (any(v is None for v in counts.values())
+                            or counts["valid"]+counts["unknown"]!=result["observations"]
+                            or sum(counts[key] for key in ("missing","zero_sentinel","invalid"))!=counts["unknown"]
+                            or clean["distinct"]>counts["valid"]):return None
+                    clean["time_quality"]=counts
             else:
                 start,end,first,last=(stamp(clean[key]) for key in timekeys)
                 if end-start!=900 or not start<=first<=last<end or clean["span_s"]!=last-first or clean["max_gap_s"]>clean["span_s"]:return None

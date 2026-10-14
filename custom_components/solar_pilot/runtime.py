@@ -462,6 +462,7 @@ class SolarRuntime:
         }
 
     async def start(self):
+        await self.panasonic.native_program.async_prepare_display_metadata()
         data = await self.store.async_load() or {}
         migrated_options, data, migration = migrate_panasonic(self.entry.options, data)
         self.panasonic_archive = deepcopy(data.get("panasonic_archive", {}))

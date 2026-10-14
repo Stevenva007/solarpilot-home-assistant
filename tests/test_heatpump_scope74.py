@@ -76,32 +76,75 @@ def test_fresh_zone_off_tank_on_idle_and_invalid_main_feed_remain_unknown(monkey
     assert not hass.services.calls and not coordinator.api_calls
 
 
-def test_typed_whole_device_off_remains_a_read_only_native_proof(monkeypatch):
+def test_raw_typed_whole_device_off_is_retained_but_unverified_provider_is_not_display_stop_proof(monkeypatch):
     runtime, hass, coordinator = monitored_scope(monkeypatch, tank=OperationStatus.OFF)
     overview = runtime.panasonic.overview()
     assert overview['native_task']['verified_global_off'] is True
     assert overview['operation']['state'] == 'idle'
     assert overview['operation']['observed_at'] == overview['native_task']['observed_at']
+    assert overview['source_contract']['status'] == 'unknown'
+    assert overview['source_contract']['native_device_registered'] is True
+    assert overview['operation_display']['function'] is None
+    assert overview['operation_display']['active'] is None
     data = metered_sample(0, complete=False)
     data['panasonic'] = overview
     _, root = parsed(data)
-    assert business_tile(root, 'data-heatpump-task').text().endswith('Niet actief')
+    assert_unknown_operation_is_hidden(root)
+    assert_no_whole_hp_idle_label(root)
     assert not hass.services.calls and not coordinator.api_calls
 
 
-def test_space_off_with_typed_tank_on_water_and_complete_active_main_keeps_derived_task(monkeypatch):
+def test_raw_space_off_tank_route_and_electrical_activity_do_not_bypass_unverified_provider_contract(monkeypatch):
     runtime, hass, coordinator = monitored_scope(monkeypatch, main=2170, direction=DeviceDirection.WATER)
     overview = runtime.panasonic.overview()
     assert overview['native_task']['inactive_scope'] == 'space_circuit'
     assert overview['operation']['state'] == 'unknown'
     assert overview['power_activity']['function'] == 'tapwater_heating'
+    assert overview['source_contract']['status'] == 'unknown'
+    assert overview['operation_display']['function'] is None
+    assert overview['operation_display']['active'] is True
     data = metered_sample(2170)
     data['panasonic'] = overview
     _, root = parsed(data)
     tile = business_tile(root, 'data-heatpump-task')
-    assert tile.attributes['data-heatpump-task'] == 'inferred' and 'Boiler opwarmen' in tile.text()
+    assert tile.attributes['data-heatpump-task'] == 'activity'
+    assert 'taak onbekend' in tile.text()
     assert 'Niet actief' not in tile.text()
     assert not hass.services.calls and not coordinator.api_calls
+
+
+def test_known_source_contract_qualifies_dhw_ui_without_rewriting_raw_space_off():
+    from custom_components.solar_pilot.display_operation import classify_display_operation
+    from test_display_operation83 import contract_snapshot, NOW
+    p = contract_snapshot(route='WATER', tank=True, main=2170)
+    p['native_task'].update(inactive_scope='space_circuit', verified_global_off=False, independent_tank_on=True)
+    delta = time.time()-NOW
+    def shift_reports(value):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if key.endswith('observed_at') and isinstance(child, (int, float)):
+                    value[key] = child+delta
+                else:
+                    shift_reports(child)
+        elif isinstance(value, list):
+            for child in value:
+                shift_reports(child)
+    shift_reports(p)
+    original = deepcopy(p['native_task'])
+    p['operation_display'] = classify_display_operation(p)
+    assert p['native_task'] == original
+    assert p['operation_display']['function'] == 'tapwater_heating'
+    assert p['operation_display']['tier'] == 'derived'
+    data = metered_sample(2170)
+    data['panasonic'] = p
+    _, root = parsed(data)
+    tile = business_tile(root, 'data-heatpump-task')
+    assert tile.attributes['data-heatpump-task'] == 'inferred' and 'Boiler opwarmen' in tile.text()
+    p['source_contract']['pump']['state'] = 'off'
+    p['operation_display'] = classify_display_operation(p)
+    assert p['native_task'] == original and p['operation_display']['function'] is None
+    _, root = parsed(data)
+    assert 'taak onbekend' in business_tile(root, 'data-heatpump-task').text()
 
 
 @pytest.mark.parametrize('change', [

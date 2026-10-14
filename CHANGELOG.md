@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta.83 — Aquarea-bronsemantiek, berekend SG-doel en consistente diagnose
+
+- Read-only taakweergave herkent de gecontroleerde Aquarea 1.5.2/1.5.3 met aioaquarea-ng 1.3.1, waarin globale OFF uit een presetveld kan ontstaan. Alleen verse getypeerde pomp-, richting-, zone- en tankvelden ondersteunen een passende afleiding; onbekende providers en oude/optimistische data geven geen uitzondering. Geen upstream-object-, leer- of SG-guardwijziging.
+- Nieuwe lokaal bevestigde SG capaciteit 1-tapwaterwaarde berekent een doel uit het verse gewone Panasonic-doel. Werkelijk gemeld contact blijft apart: AAN toont berekend SG-doel, UIT de vergelijking voor bij AAN. Geen aparte native doelterugmelding vereist voor de formule, geen native instelling/afronding/grens afleiden, geen huidige factor op oude geschiedenis.
+- Onderzoek houdt eerdere beoordeling en actuele bronwaarneming afzonderlijk en samenhangend. Gewone nieuwe meterberichten worden niet als gewijzigde bronidentiteit of policy voorgesteld. Ongeldige/nul/sentinel forecastuitgifte blijft onbekend; vooruit-PV-scores onderscheiden daglicht en nacht met eigen populaties en foutmaten.
+- Openbaar upstream-register bewaart vaste commits, actuele releases/PR's en de afzonderlijke geautoriseerde wekelijkse ontwikkeltaak. Geen achtergrond-AI of automatische provider-/apparaatupdate in de integratie.
+- Behoudt SG600/vijf minuten/minimum twintig minuten, korte leases en alle harde guards, SG-only Panasonic, read-only Wallbox, AEG start-only/deadline, instellingen, bindings, prioriteiten, modellen en oude historie. Nieuwe aanvullende doel-/diagnosevelden vragen behoud van de volledige privéback-up bij rollback naar oudere code.
+- Bouwbasis: gepubliceerde beta.82 `a1b051d9c780ba1027ee48c261c9fafa2388f561`, tree `6e5205c1d3acc800b60551e68d8bd78f63e797b0`. Brongebonden tests/publicatiebewijs: `docs/TESTRESULTATEN_BETA83.md`; installatie/behoud/rollback: `docs/BETA83_INSTELLEN.md`; openbare bronnen: `docs/UPSTREAM_BRONNEN.md`. Alleen volledig geïmplementeerde geteste voorstelbetekenissen krijgen vertrouwde release-/digeststatus.
+
 ## 1.0.0-beta.82 — werking herkennen, SG-contactbalk en boilerwaarden
 
 - Eén afzonderlijke read-only bedrijfsweergave voor Verwarmen, Boiler opwarmen, Koelen en Ontdooien. Verse werkelijke Panasonic-actie blijft taakbewijs; ontdooien houdt voorrang. Exacte tankroute plus actieve toegewezen voeding kan tankopwarming afleiden; een gekozen verwarmings-/koelstand vereist daarnaast verse expliciete tankrust en actieve hoofdvoeding.
