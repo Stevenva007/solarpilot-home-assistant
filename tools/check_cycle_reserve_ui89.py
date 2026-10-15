@@ -84,7 +84,10 @@ with sync_playwright() as p:
     # Telemetry updates preserve an open explanation and a read-only help modal,
     # including keyboard focus. Opening help never writes a policy or setting.
     page.evaluate("c._openHelp('dashboard','priority_board','Voorrang')")
-    help_tag = page.evaluate("SP_OPTION_HELP_TAG")
+    # The current release may legitimately reuse its stable alias. Inspect the
+    # element actually opened by the shipped card, rather than guessing which
+    # constructor name spDialogTag selected in this module-loading scenario.
+    help_tag = page.evaluate("c._helpDialog.localName")
     help_dialog = card.locator(help_tag)
     assert help_dialog.locator("dialog").is_visible()
     close = help_dialog.locator(".close")
