@@ -261,7 +261,7 @@ Geheimen komen uitsluitend uit bestaande HA-koppelingen/lokale configuratie; gee
 
 ## 9. Testprocedure + actuele teststatus
 
-Actuele release: beta.92. Zie `docs/TESTRESULTATEN_BETA92.md` voor brongebonden tests en publicatie; de volgende beta.91-verslagen zijn historisch.
+Actuele release: beta.92. Zie `docs/TESTRESULTATEN_BETA92.md` voor brongebonden tests en publicatie; de volgende beta.91-verslagen zijn historisch. De volledige lokale suite op de beta.92-code behaalde 6915 geslaagde tests; alle vijf PR- en eerste main-gates zijn groen. Zowel installatie- als testverslag hebben een bytegelijke componentmirror voor de afzonderlijke vier-assets-pakketcontrole. De verpakkingsafronding verandert geen regellogica.
 
 De eerste exacte beta.91-PR-run 38759077795 gaf 6.739 geslaagde tests en één echte timestampregressie. Die afrondingsfout is gericht hersteld met zeven deterministische gevallen en 145 gerichte tests. HACS, Hassfest en echte Core waren groen; de browsergate vroeg aanpassing aan de bewuste nieuwe voorwaardelijke SG-doelweergave, die daarna lokaal is geslaagd. Deze eerste run is geen bewijs voor de latere capability-/melding-/upstreamuitbreiding. De definitieve PR-head moet alle vijf gates opnieuw doorstaan. De lokale executor viel tijdens de afronding uit; verdere bronwijzigingen zijn via de GitHub-API opgebouwd en worden vóór merge door dezelfde CI gecontroleerd.
 
