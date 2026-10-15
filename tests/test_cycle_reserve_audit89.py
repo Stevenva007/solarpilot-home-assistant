@@ -259,21 +259,40 @@ async def test_fresh_evidence_is_rechecked_after_the_durable_intent(monkeypatch,
     monkeypatch.setattr(runtime.store, "async_save", mutate_after_journal)
     await runtime.tick()
     assert changed
-    assert not writes(hass)
-    assert runtime.pending is None and not runtime.states["a"].owned
-    assert "a" not in runtime.store.data["leases"]
+    if change in ("dishwasher_unavailable", "dishwasher_stale"):
+        # A lost appliance source cannot invent either a future consumption
+        # reserve or a solar credit. Actual P1 still has 750 W after reserve.
+        assert [row[:2] for row in writes(hass)] == [("switch", "turn_on")]
+        assert runtime.pending and runtime.states["a"].owned
+        assert runtime._power("sensor.grid")[0] == -900
+        await runtime.tick()
+        assert runtime._dishwasher_unmetered_reserve == 0
+        assert runtime._dishwasher_solar_cycle_relief_w == 0
+        assert runtime.result.free_w == 750
+        assert runtime.result.budget_w == 750
+        assert len(writes(hass)) == 1
+    else:
+        # Current import, missing P1/device readings and Pause still revoke the
+        # known-unsent ordinary command at the final boundary.
+        assert not writes(hass)
+        assert runtime.pending is None and not runtime.states["a"].owned
+        assert "a" not in runtime.store.data["leases"]
 
 
 @pytest.mark.asyncio
-async def test_no_soft_relief_is_created_from_a_stale_cycle_before_planning():
+async def test_stale_cycle_uses_actual_surplus_without_estimated_peak_or_credit():
     runtime, hass = runtime_with_running_cycle()
     # Observe the real running state once, then retain it across a missing report.
     runtime._observe(time.monotonic(), runtime._local_now())
     hass.states.set("sensor.dw_connection", "Connected", reported_age=301)
     await runtime.tick()
-    assert not writes(hass)
-    assert not runtime.states["a"].owned
-    assert runtime.result.start_power["a"]["solar_cycle_reserve_relief_w"] == 0
+    assert [row[:2] for row in writes(hass)] == [("switch", "turn_on")]
+    assert runtime.states["a"].owned
+    allocation = runtime.result.start_power["a"]
+    assert allocation["solar_cycle_reserve_relief_w"] == 0
+    assert allocation["protected_cycle_reserve_w"] == 0
+    assert allocation["available_w"] == 750
+    assert runtime.result.budget_w == 750
 
 
 @pytest.mark.asyncio
@@ -388,7 +407,11 @@ async def test_restart_does_not_restore_a_stale_solar_exception_from_prior_obser
     # telemetry must never restore the earlier fresh-source solar exemption.
     replacement.states["fictional_cycle"].on = True
     await replacement.tick()
-    assert not writes(hass)
-    assert replacement.result.start_power["a"]["solar_cycle_reserve_relief_w"] == 0
-    assert not replacement.states["a"].owned
+    assert [row[:2] for row in writes(hass)] == [("switch", "turn_on")]
+    allocation = replacement.result.start_power["a"]
+    assert allocation["solar_cycle_reserve_relief_w"] == 0
+    assert allocation["protected_cycle_reserve_w"] == 0
+    assert allocation["available_w"] == 750
+    assert replacement.result.budget_w == 750
+    assert replacement.states["a"].owned
     assert "cycle_solar_relief_w" not in saved
