@@ -24,6 +24,7 @@ EXPECTED_CONSTRUCTOR_TAGS = [
         "solar-pilot-learning-dialog", "solar-pilot-pv-dialog", "solar-pilot-priority-dialog",
     ) for tag in (stable, stable + "-" + RELEASE)],
     "solar-pilot-heatpump-history-dialog-" + RELEASE,
+    "solar-pilot-wallbox-priority-dialog-" + RELEASE,
 ]
 
 
@@ -170,7 +171,7 @@ async function run() {
   assert(card._content.innerHTML.includes('Integratie en kaart hebben verschillende versies'),
     'Explain a backend/card mismatch rather than presenting the backend version as the loaded UI');
   assert.equal(listeners.size, 1);
-  assert.equal(intervalTimers.size, 1, 'One read-only freshness timer while the panel is connected');
+  assert.equal(intervalTimers.size, 2, 'One read-only freshness timer and one text-only countdown timer while connected');
   card.disconnectedCallback();
   assert.equal(listeners.size, 0);
   assert.equal(intervalTimers.size, 0, 'Release the freshness timer when leaving the panel');

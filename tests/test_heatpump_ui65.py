@@ -14,7 +14,7 @@ from test_sg_ui_platforms62 import execute, text
 def sample():
     now = time.time()
     return {
-        "mode": "solar", "config_entry_id": "example", "devices": [],
+        "_test_clock": now, "mode": "solar", "config_entry_id": "example", "devices": [],
         "panasonic": {
             "configured": True, "source_stale_s": 120,
             "operation": {"state": "active", "label": "Warmtepomp in werking",

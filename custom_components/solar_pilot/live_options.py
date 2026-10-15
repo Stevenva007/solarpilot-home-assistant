@@ -435,6 +435,7 @@ class LiveOptions:
                         r.device_modes, r.reclaim_blocks, r.planner_hold_since):
             mapping.pop(i, None)
         r.dishwasher_app.data.pop(i, None)
+        r.wallbox_priority.retire(i)
         r.dishwasher_app._seeded.discard(i)
         r.dishwasher_app._need_remote_baseline.discard(i)
 

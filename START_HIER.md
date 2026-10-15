@@ -1,46 +1,50 @@
-# SolarPilot beta.87 — installatie en upgrade
+# SolarPilot beta.88 — installatie en upgrade
 
-Beta.87 behandelt alleen verse verder volledig geldige negatieve warmtepompverbruikswaarden als 0 W. Ruwe bronwaarde/watts en de normalisatiemarkering blijven zichtbaar. Ontbrekend, oud, onvolledig of anders onbruikbaar blijft onbekend; tekens van net, export, batterij en fasen blijven behouden.
+Beta.88 voegt **Wallbox voorrang geven** toe, algemeen en per ondersteund flexibel toestel. Je kiest **30 min, 1 uur, 2 uur, 3 uur, 4 uur, 5 uur** of **tot ik terug op automatisch zet**. Tijdelijke keuzes tonen een aftelklok; de oorspronkelijke eindtijd blijft na herladen of herstart behouden.
 
-Beta.86 voegt alleen binnen het lokaal bevestigde algemene SG-profiel een gecontroleerde herbeoordeling toe bij onbekende eerdere SG-reactie: na bestaande rust vijf minuten verse werkelijk resterende zon, minstens twee nieuwe rapporten en genoeg overschot voor startdrempel én volledige conservatieve extra-vraagraming. Daarna geldt de gewone startvertraging. Ontbrekende warmtepompwatts geven geen krediet; de noodzakelijke net-/PV-/batterij-/fase-/koel-/contactvoorwaarden blijven vereist.
+**Begin met [BETA88_INSTELLEN.md](docs/BETA88_INSTELLEN.md).** Volledige werking: [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en **SolarPilot → Uitleg**. Uitgevoerde checks en publicatiestatus: [TESTRESULTATEN_BETA88.md](docs/TESTRESULTATEN_BETA88.md). Technische overdracht: [OVERDRACHT.md](OVERDRACHT.md). Oudere resultaten bewijzen geen beta.88-release.
 
-Beta.85 herstelt de tijdelijke SG-dispatchopruiming: een vroege terugkeer mag geen bestaande finale controle verwijderen. **Herstart Home Assistant volledig** na de update en herlaad browser/app. Een bestaande interne foutpauze blijft beschermd; controleer de melding, kies **Controle afronden** en daarna bewust **Automatisch regelen** zodra de actuele voorwaarden dit toelaten.
+## Wallbox-voorrang gebruiken
 
-Beta.84 voegt tijdelijke SG-bediening toe: **Aan of Uit voor 30/60 minuten**, daarna terug naar **Automatisch**. De absolute eindtijd wordt bewaard. Een echte HA-herstart kan een passende nog actieve eigen beta.84-sessie onder verse geldige voorwaarden zonder onnodige contactwissel voortzetten. Het oorspronkelijke harde sessiemaximum, alle harde grenzen en de korte lokale timer blijven leidend.
+1. Schakel **Wallbox voorrang geven** in en kies de duur. Op de SolarPilot-kaart kies je die vóór activering; een gewone Home Assistant-schakelaar AAN kiest standaard 30 minuten.
+2. De algemene keuze kopieert de duur en eindtijd naar de aanwezige ondersteunde toestelkeuzes. Daarna kun je ieder toestel afzonderlijk aanpassen, ook terug naar **Automatisch**.
+3. Algemeen terug naar **Automatisch**, handmatig of door afloop, zet **alle individuele keuzes terug op Automatisch**, ook afwijkende blijvende keuzes. Alleen individuele uitzonderingen actief? Gebruik **Alle toestellen terug op Automatisch** om ze samen te wissen.
 
-**Begin met [BETA87_INSTELLEN.md](docs/BETA87_INSTELLEN.md).** Geen extra installatie, sensor, solver of parallelle regelaar. Volledige werking: [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en **SolarPilot → Uitleg**. Uitgevoerde checks en publicatiestatus: [TESTRESULTATEN_BETA87.md](docs/TESTRESULTATEN_BETA87.md). Auditdekking: [AUDIT_BETA79.md](docs/AUDIT_BETA79.md). Oudere resultaten bewijzen geen beta.87-release.
+Automatisch volgt de huidige opgeslagen rangorde; je hoeft die niet opnieuw in te stellen. Een individuele afloop verandert de andere toestellen niet. De blijvende keuze toont **tot ik terug op automatisch zet**.
+
+De afwasmachine krijgt deze keuze niet en krijgt hierdoor geen extra startblokkering. Haar bestaande klaarzettoestemming, deur-/apparaatvoorwaarden, deadline, elektrische ruimte en globale modus blijven gelden. Een lopende beurt mag afwerken. Bij de warmtepomp geldt deze keuze uitsluitend voor de optionele SG-zonneboost; Panasonic-comfort blijft zelfstandig. De nieuwe tijdelijke voorkeur blokkeert nieuwe SG-starts en respecteert de lopende oorspronkelijke SG-minimumduur. Bestaande vrijgavegronden, waaronder de bestaande Wallbox-/EV- en veiligheidsregels, blijven gelden en kunnen eerder vrijgeven.
+
+SolarPilot start of versnelt de auto hiermee niet rechtstreeks. Wallbox blijft read-only. Bestaande actuele laadvraag, hysterese, klein overschot, minimumtijden, beschermde cycli, terugmelding en elektrische grenzen bepalen wanneer een flexibele last kan wijken. In Alleen bekijken of Pauze kun je de voorkeur bewaren, maar er ontstaat geen fysieke bedieningsvrijgave.
 
 ## Bestaande installatie bijwerken
 
-1. Maak een volledige privé HA-back-up met instellingen, eigen opslag, PV-factoren, modellen, tickets, geschiedenis en userfiles. Bewaar gecontroleerde beta.86-code.
-2. Geef vóór codevervanging een eigen SG-aanvraag veilig vrij en controleer contact/lokale afloop. Onderbreek geen beschermde apparaatcyclus.
-3. Update via HACS naar exact `1.0.0-beta.87` nadat releasegates en publicatie zijn geslaagd. Herstart HA volledig en herlaad browser/app volledig.
-4. Controleer backend- en kaartversie afzonderlijk. Behoud dezelfde entry, bindings, volgorde en geldige SG-/profiel-/split-/koelbevestigingen.
-5. Controleer de nieuwe SG-bediening en haar resterende tijd, echte contactstand en lokale timer. Een oude beta.83-sessie mist het nieuwe checkpointbewijs en kan bij deze eerste upgrade nog één veilig contactvrijgavemoment krijgen. Pas een volledig bevestigd beta.84-checkpoint kan het nieuwe herstartpad gebruiken.
-6. Controleer daarnaast actuele taak, ondersteuning, boilerwaarden, oorspronkelijke AEG-aanvraag/deadline, Planning, PV-diagnose, Meetkwaliteit, kosten en geschiedenis. Een update maakt geen nieuwe belading of tweede START. Onleesbare oude opslag blijft behouden; wis daarvoor geen gegevens.
+1. Maak een volledige privé HA-back-up met instellingen, SolarPilot-opslag, modellen, APP-aanvragen, geschiedenis en userfiles. Bewaar gecontroleerde beta.87-code.
+2. Geef vóór codevervanging een eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk; controleer contact of lokale afloop. Onderbreek geen beschermde apparaatcyclus.
+3. Update via HACS naar exact `1.0.0-beta.88` nadat releasegates en publicatie zijn geslaagd. **Herstart Home Assistant volledig** en herlaad browser/app volledig.
+4. Controleer backend- en kaartversie afzonderlijk. Behoud dezelfde entry, bindings, opgeslagen rangorde en geldige lokale SG-/profiel-/split-/koelbevestigingen.
+5. Controleer de algemene en individuele Wallbox-voorkeur, resterende tijd en terugkeer naar Automatisch. De update zelf activeert geen nieuwe voorrangskeuze.
+6. Controleer taak- en boilerwaarden, SG-contact/timers, oorspronkelijke AEG-aanvraag/deadline, Planning, Meetkwaliteit en geschiedenis. Een update maakt geen nieuwe belading of tweede START.
 
-Lokaal vervang je uitsluitend `custom_components/solar_pilot`, met behoud van userfiles en HA-opslag. Verwijder of hermaak de entry niet. Geen instellingenreset, nieuwe verplichte bron of algemene herbevestiging.
+Lokaal vervang je uitsluitend `custom_components/solar_pilot`, met behoud van userfiles en HA-opslag. Verwijder of hermaak de entry niet. Geen extra installatie, verplichte nieuwe sensor, instellingenreset of parallelle regelaar.
 
-De inschakelklok kan maximaal vijf minuten doorlopen bij een korte zondip of tijdelijk ontbrekende/verouderde meting. AAN wacht altijd op opnieuw verse betrouwbare voldoende zonnebijdrage en harde vrijgave. Een voltooide klok tijdens de dip betekent wachten op herstel; ontbrekend is geen nul of bewezen wolk. Bij een langere onderbreking of harde-/modus-/bindingblokkering begint de opbouw opnieuw.
-
-## Tijdelijke SG-bediening
-
-Kies naast de SG-contactstand **Aan 30 min**, **Aan 1 uur**, **Uit 30 min** of **Uit 1 uur**, in Overzicht of op het warmtepomptabblad. Na afloop wordt **Automatisch** gekozen; je kunt dat tussentijds ook kiezen. Tijdelijk Aan vervangt de zonne- en zachte wachtvoorwaarden, met mogelijke netafname binnen harde grenzen. Alleen bekijken, Pauze, bronverlies, fouten, onvoldoende elektrische ruimte, ongeldige profiel-/koelvrijgave en voorrang blijven leidend. Een lopende sessie krijgt geen nieuw maximum door een tijdelijke keuze.
-
-Tijdelijk Uit onderdrukt alleen de eigen SG-aanvraag; Panasonic mag zelfstandig verder werken. Bij terugkeer naar Automatisch besluit de actuele gewone policy: een geldig al AAN-contact hoeft niet uit/aan, een nieuwe start na Uit krijgt geen automatische vrijstelling. De native HA-select **SG-bediening** biedt dezelfde vijf keuzes. De uitgebreide service- en herstartvoorwaarden staan in de installatiehandleiding.
+Een bestaande interne foutpauze blijft beschermd. Controleer de concrete melding, kies **Controle afronden** en daarna bewust **Automatisch regelen** zodra actuele controles dat toelaten. De update wist de foutpauze niet automatisch.
 
 ## Wat behouden blijft
 
-Panasonic regelt comfort, warm water, verwarmen/koelen, ondersteuning en sterilisatie zelfstandig. Het toegewezen SG-contact blijft de enige warmtepompactuator; geen setpoint-, programma- of heaterwrite. Wallbox blijft read-only. AEG krijgt maximaal één native START per geldige nieuwe belading en mag afwerken.
+Verse, verder geldige negatieve warmtepompverbruikswaarden tellen als 0 W met oorspronkelijke bronwaarde en markering in de diagnose. Ontbrekend, oud of onvolledig blijft onbekend; P1-, net-, batterij- en fasetekens blijven behouden. De Aquarea-weergave, actuele bronnen en oude historie blijven gescheiden.
 
-Gewone automatische SG behoudt 600 W netafname gedurende vijf continue minuten, minimum twintig minuten en het bestaande harde maximum. De lokale toestemming blijft standaard 300 seconden, met vernieuwing iedere 60 seconden; zij wordt bij een half uur of uur Aan niet tot die duur verlengd. Expliciete geldige gebruikerswaarden en harde guards blijven leidend. De bron-/doelweergave, PV-factoren, planner, batterijadvies, onderzoeken, exports en historie uit beta.83 blijven behouden.
+De aparte tijdelijke SG-Aan/Uit-bediening voor 30/60 minuten blijft beschikbaar. Automatische SG behoudt twintig minuten minimum voor zachte importvrijgave en de nieuwe tijdelijke voorkeursvrijgave, 600 W netafname gedurende vijf continue minuten, bestaande maximumduur, startbuffer, actuele herstartcontrole en korte lokale toestemming van standaard 300 seconden met vernieuwing iedere 60 seconden. Harde grenzen en echte eigendomsoverdracht blijven leidend; geen compressorlooptijdgarantie.
+
+Panasonic blijft eigenaar van comfort, verwarmen/koelen, tank, ondersteuning en sterilisatie. SolarPilot bedient daarvoor uitsluitend het bewust gekoppelde SG-contact. Wallbox blijft autonoom en read-only; AEG behoudt maximaal één START per geldige nieuwe belading en haar bestaande deadline. PV-factoren, modellen, batterijadvies, kosten en geschiedenis blijven bewaard.
 
 ## Nieuwe installatie
 
-Voeg `https://github.com/Stevenva007/solarpilot-home-assistant` toe in **HACS → Custom repositories** als **Integration**, download SolarPilot en herstart HA. Voeg de integratie toe onder **Instellingen → Apparaten & diensten**. Selecteer betrouwbare lokale bronnen en begin met **Alleen bekijken**. SG staat standaard uit en vraagt gecontroleerde ingebruikname. De meegeleverde kaart wordt automatisch geregistreerd.
+Voeg `https://github.com/Stevenva007/solarpilot-home-assistant` toe in **HACS → Custom repositories** als **Integration**, download SolarPilot en herstart HA. Voeg de integratie toe onder **Instellingen → Apparaten & diensten**. Selecteer betrouwbare lokale bronnen en begin met **Alleen bekijken**. De kaart wordt automatisch geregistreerd. SG staat standaard uit tot gecontroleerde ingebruikname.
 
-## Rollback
+## Rollback naar beta.87
 
-Geef de eigen SG-aanvraag veilig vrij en controleer contact/lokale afloop. Bewaar een actuele volledige privéback-up, stop beta.87 en herstel gecontroleerde beta.86-code met behoud van entry, opslag en userfiles. Beta.86 behoudt SG-herbeoordeling en eerdere fixes, maar behandelt negatieve warmtepompwatts weer als onbruikbaar. Oude geschiedenis wordt niet teruggevuld. Geen twee runtimes tegelijk, tweede START of oude AAN-replay. Zie [BETA87_INSTELLEN.md](docs/BETA87_INSTELLEN.md).
+Zet algemeen en alle individuele Wallbox-keuzes terug op **Automatisch**. Geef de eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk en controleer contact of lokale afloop. Maak een actuele volledige privéback-up, stop beta.88 en herstel gecontroleerde beta.87-code met behoud van entry, opslag en userfiles. Herstart HA volledig en herlaad browser/app.
+
+Beta.87 kent de nieuwe tijdelijke Wallbox-voorkeuren niet; zij voert ze niet uit en gebruikt haar bestaande prioriteitsregels. De HP-nulinterpretatie en eerdere SG-/Aquarea-fixes blijven beschikbaar. Exact herstel vraagt code én passende privéback-up. Geen twee runtimes tegelijk, tweede START, oude AAN-replay of entryverwijdering. Zie [BETA88_INSTELLEN.md](docs/BETA88_INSTELLEN.md).
 
 Openbare broncontrole en de afzonderlijke geautoriseerde wekelijkse ontwikkeltaak staan in [UPSTREAM_BRONNEN.md](docs/UPSTREAM_BRONNEN.md). De taak verandert geen lokale Home Assistant-installatie of apparaten.

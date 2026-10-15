@@ -1,6 +1,7 @@
 """Native policy switches. These switches never address a Wallbox entity."""
 from homeassistant.components.switch import SwitchEntity
 from .entity import SolarEntity
+from .wallbox_priority_api import async_set_wallbox_priority, priority_choice_view
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -13,7 +14,56 @@ def _entities(r):
                 SolarSwitch(r, "learning", "Toestelvermogen en Wallbox-respons leren"),
                 SolarSwitch(r, "auto_resume_after_restart", "Na herstart automatisch hervatten")]
     entities.append(SolarSwitch(r, "sg_boost_enabled", "Automatische zonneboost"))
+    if getattr(r, "wallbox_priority", None) is not None:
+        overview = r.wallbox_priority.overview()
+        entities.append(WallboxPrioritySwitch(r))
+        entities.extend(WallboxPrioritySwitch(r, key) for key, row in overview.get("devices", {}).items()
+                        if row.get("eligible") is True)
+        if isinstance(overview.get("sg_boost"), dict) and overview["sg_boost"].get("eligible") is True:
+            entities.append(WallboxPrioritySwitch(r, sg=True))
     return entities
+
+
+class WallboxPrioritySwitch(SolarEntity, SwitchEntity):
+    """ON selects thirty minutes; the companion select exposes every duration."""
+    _attr_icon = "mdi:ev-station"
+    _unrecorded_attributes = frozenset({"remaining_s", "observed_at"})
+
+    def __init__(self, runtime, device_id=None, *, sg=False):
+        super().__init__(runtime, "wallbox_priority_sg" if sg else "wallbox_priority",
+                         "Wallbox voorrang geven · SG-zonneboost" if sg else "Wallbox voorrang geven", device_id)
+        self.target = "dhw_extra" if sg else f"device:{device_id}" if device_id else "global"
+
+    @property
+    def available(self):
+        return bool(not self._inactive() and self.runtime.data_loaded is True
+                    and priority_choice_view(self.runtime, self.target) is not None)
+
+    @property
+    def is_on(self):
+        row = priority_choice_view(self.runtime, self.target)
+        return row.get("active") is True if row is not None else None
+
+    @property
+    def extra_state_attributes(self):
+        row = priority_choice_view(self.runtime, self.target) or {}
+        return {**{key: row.get(key) for key in ("target", "option", "expires_at", "remaining_s", "duration_s",
+                                                "indefinite", "label")},
+                "on_duration_s": 1800, "off_meaning": "Automatisch volgens de bestaande voorrangsregels",
+                "wallbox_read_only": True}
+
+    async def async_turn_on(self, **kwargs):
+        await self._set_priority("30m")
+
+    async def async_turn_off(self, **kwargs):
+        await self._set_priority("auto")
+
+    async def _set_priority(self, option):
+        if self._inactive():
+            from homeassistant.exceptions import HomeAssistantError
+            raise HomeAssistantError("Deze voorrangsschakelaar is vervallen; vernieuw de bediening.")
+        await async_set_wallbox_priority(self.runtime, self.target, option,
+                                        context=getattr(self, "_context", None))
 
 
 class SolarSwitch(SolarEntity, SwitchEntity):

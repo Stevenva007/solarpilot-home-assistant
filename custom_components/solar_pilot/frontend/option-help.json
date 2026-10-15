@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.87",
+  "version": "1.0.0-beta.88",
   "language": "nl",
   "steps": {
     "init": {
@@ -4063,7 +4063,7 @@
       "title": "Minimale SG-aanvraagduur (s)",
       "short": "Minimale SG-aanvraagduur, standaard 1200 seconden of twintig minuten.",
       "paragraphs": [
-        "Minimale SG-aanvraagduur, standaard 1200 seconden of twintig minuten. Aanhoudende gewone netafname geeft de aanvraag pas na dit effectieve minimum vrij. Harde guards, onbetrouwbare noodzakelijke bronnen, handmatige overname, geverifieerde native voltooiing en de maximale sessieduur kunnen eerder beëindigen. Alleen de SG-aanvraag wordt beschermd; Panasonic bepaalt de compressorlooptijd. Bereik 0–14400 seconden, stap 60; nul schakelt dit minimum uit. Een expliciete bestaande waarde blijft behouden. Het minimum begint na bevestigde contact-AAN en is hoogstens de nog beschikbare harde maximumtijd. De gewone tekortvertraging loopt intussen door, dus geen verplichte extra stopvertraging na het minimum; de korte lokale lease blijft afzonderlijk.",
+        "Minimale SG-aanvraagduur, standaard 1200 seconden of twintig minuten. Aanhoudende gewone netafname geeft de aanvraag pas na dit effectieve minimum vrij. Ook de nieuwe tijdelijke Wallbox-voorkeur respecteert dit lopende minimum. Bestaande Wallbox-/EV-vrijgave, harde guards, onbetrouwbare noodzakelijke bronnen, handmatige overname, geverifieerde native voltooiing en de maximale sessieduur kunnen eerder beëindigen. Alleen de SG-aanvraag wordt beschermd; Panasonic bepaalt de compressorlooptijd. Bereik 0–14400 seconden, stap 60; nul schakelt dit minimum uit. Een expliciete bestaande waarde blijft behouden. Het minimum begint na bevestigde contact-AAN en is hoogstens de nog beschikbare harde maximumtijd. De gewone tekortvertraging loopt intussen door, dus geen verplichte extra stopvertraging na het minimum; de korte lokale lease blijft afzonderlijk.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -4128,7 +4128,7 @@
       "title": "Voorrang en autoladen",
       "short": "De centrale lijst is de enige flexibele rangorde.",
       "paragraphs": [
-        "De centrale lijst is de enige flexibele rangorde. Deze update bewaart de gebruikersvolgorde en voert geen oude rangordemigratie opnieuw uit. Extra zonneboost via SG gebruikt nooit EV-vermogenskrediet en neemt geen afwas- of noodzakelijk native comfortvermogen af. Mag de auto minder laden geldt voor andere ondersteunde toestellen alleen boven de Wallbox met afzonderlijke toestemming en betrouwbare bronnen. Openen of opslaan geeft geen fysieke opdracht.",
+        "De centrale lijst is de enige flexibele rangorde. Deze update bewaart de gebruikersvolgorde en voert geen oude rangordemigratie opnieuw uit. Extra zonneboost via SG gebruikt nooit EV-vermogenskrediet en neemt geen afwas- of noodzakelijk native comfortvermogen af. Mag de auto minder laden geldt voor andere ondersteunde toestellen alleen boven de Wallbox met afzonderlijke toestemming en betrouwbare bronnen. Openen of opslaan geeft geen fysieke opdracht. Wallbox voorrang geven vormt een afzonderlijke tijdelijke uitzondering en herschrijft deze opgeslagen volgorde niet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -4177,6 +4177,22 @@
       "short": "Globale standaard voor gewone verbruikers: Andere eerst of Wallbox eerst.",
       "paragraphs": [
         "Globale standaard voor gewone verbruikers: Andere eerst of Wallbox eerst. Een bewust opgeslagen centrale volgorde is leidend. Panasonic regelt noodzakelijk comfort zelfstandig. Extra SG-zonneboost is een afzonderlijke flexibele vraag en gebruikt geen EV-vermogen.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "dashboard.wallbox_priority": {
+      "title": "Wallbox voorrang geven",
+      "short": "Wallbox voorrang geven kiest algemeen 30 min, 1 uur, 2 uur, 3 uur, 4 uur, 5 uur of tot ik terug op automatisch zet.",
+      "paragraphs": [
+        "Wallbox voorrang geven kiest algemeen 30 min, 1 uur, 2 uur, 3 uur, 4 uur, 5 uur of tot ik terug op automatisch zet. De algemene keuze wordt naar de bestaande ondersteunde flexibele toestellen en optionele SG-zonneboost gekopieerd; daarna blijft ieder toestel apart wijzigbaar. Een tijdelijke keuze toont de resterende tijd tot haar oorspronkelijke eindtijd, ook na herstart. Algemeen terug naar Automatisch, handmatig of door afloop, zet alle individuele keuzes terug op Automatisch, ook tussentijds afwijkende blijvende keuzes. Als alleen individuele uitzonderingen actief zijn, kun je die met Alle toestellen terug op Automatisch tegelijk wissen. De opgeslagen volgorde blijft behouden. De afwasmachine krijgt deze keuze niet en krijgt hierdoor geen extra startblokkering. Native comfort, beschermde gewone cycli, gewone minimumtijden, actuele laadvraag en veiligheidsgrenzen blijven gelden. De nieuwe tijdelijke voorkeur blokkeert nieuwe SG-starts en respecteert de lopende oorspronkelijke SG-minimumduur. Bestaande vrijgavegronden, waaronder de bestaande Wallbox-/EV- en veiligheidsregels, blijven gelden en kunnen eerder vrijgeven. Dit bedient de Wallbox niet. Een gewone HA-schakelaar AAN kiest standaard 30 minuten; de kaart en keuzelijst bieden alle duren.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "dashboard.wallbox_priority_device": {
+      "title": "Wallbox voorrang bij dit toestel",
+      "short": "Laat dit ondersteunde flexibele toestel volgens de bestaande voorwaarden plaatsmaken voor autonoom autoladen.",
+      "paragraphs": [
+        "Laat dit ondersteunde flexibele toestel volgens de bestaande voorwaarden plaatsmaken voor autonoom autoladen. Kies 30 min, 1 uur, 2 uur, 3 uur, 4 uur, 5 uur of tot ik terug op automatisch zet. Automatisch volgt voor dit toestel de huidige opgeslagen rangorde. Je kunt een algemene keuze voor dit toestel afzonderlijk aanpassen; zijn eigen eindtijd blijft na herstart gelijk. Als de algemene keuze teruggaat naar Automatisch of afloopt, vervallen alle individuele uitzonderingen. De voorkeur forceert geen autostart en respecteert gewone minimumtijden, beschermde cycli en veiligheidsvoorwaarden. Bij de warmtepomp betreft dit alleen optionele SG-zonneboost; Panasonic-comfort blijft zelfstandig. De nieuwe tijdelijke voorkeur blokkeert een nieuwe SG-start en respecteert een lopende oorspronkelijke bevestigde SG-minimumduur. Bestaande Wallbox-/EV-, veiligheids-, handmatig Uit- en communicatieregels kunnen nog steeds eerder vrijgeven. De afwasmachine heeft deze keuze niet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.88 — tijdelijke Wallbox-voorrang algemeen en per toestel
+
+- Voegt **Wallbox voorrang geven** toe: 30 min, 1, 2, 3, 4 of 5 uur, of **tot ik terug op automatisch zet**, met echte resterende tijd voor tijdelijke keuzes. De oorspronkelijke eindtijd blijft na herladen en herstart staan.
+- Een algemene keuze wordt naar de dan aanwezige ondersteunde flexibele toestellen en optionele SG-zonneboost gekopieerd. Individuele keuzes blijven daarna onafhankelijk wijzigbaar. Algemeen terug naar Automatisch, handmatig of bij afloop, wist alle individuele uitzonderingen; een aparte reset blijft beschikbaar wanneer alleen individuele uitzonderingen actief zijn.
+- Automatisch gebruikt de bestaande opgeslagen rangorde zonder die te herschrijven. De afwasmachine krijgt deze voorkeur niet en krijgt er geen nieuwe startblokkering door. Bestaande APP-toestemming, deadline en fysieke voorwaarden blijven gelden; een lopende beurt blijft beschermd.
+- Wallbox blijft read-only. De voorkeur werkt via de bestaande actuele EV-vraag, hysterese, klein-overschot- en overdrachtvoorwaarden. Geen gedwongen autostart, nieuwe native warmtepomp- of batterijbediening, verkorte gewone minimumtijd of ruimere elektrische grens. De nieuwe tijdelijke voorkeur blokkeert nieuwe SG-starts en respecteert de oorspronkelijke bevestigde lopende SG-minimumduur; alle bestaande vroege vrijgavegronden blijven ongewijzigd. Native comfort blijft zelfstandig. SG-Aan/Uit blijft afzonderlijk; minimum twintig minuten voor zachte import- en nieuwe voorkeursvrijgave, 600 W/vijf minuten, lokale lease en overige harde guards blijven gelden.
+- Bouwbasis: gepubliceerde beta.87 `a16a3f368149cf631cf7fb9a74247322e8f99232`, tree `9e03dbc6dd8368c2defaf270b7066dbbcf0d4c56`. Eigen bewijs: `docs/TESTRESULTATEN_BETA88.md`; upgrade/behoud/rollback: `docs/BETA88_INSTELLEN.md`. Eerdere resultaten zijn geen beta.88-validatie.
+
 ## 1.0.0-beta.87 — negatieve warmtepompverbruikswaarden als nul
 
 - Gebruikt uitsluitend verse eindige negatieve W/kW-waarden van toegewezen HP-verbruiksmeters binnen het bestaande plausibele bereik als 0 W, na alle gewone bron-/eenheids-/actualiteits-/dekkingscontroles. Ruwe bronwaarde/watts en normalisatiemarkering blijven in diagnose beschikbaar.

@@ -62,6 +62,7 @@ from .learning_hub import LearningHub
 from .live_options import LiveOptions, ARCHIVED, keyed
 from .platforms import LivePlatforms
 from .priority_board import PriorityBoard
+from .wallbox_priority import WallboxPriority
 from .heatpump_budget import sg_solar_budget, heatpump_power, heatpump_shared
 
 _LOGGER = logging.getLogger(__name__)
@@ -172,6 +173,7 @@ class SolarRuntime:
         self.live_options = LiveOptions(self)
         self.platforms = LivePlatforms(self)
         self.priority_board = PriorityBoard(self)
+        self.wallbox_priority = WallboxPriority(self)
 
     def heat_pump_shared(self):
         """The configured room zones and tank use one physical heat pump."""
@@ -388,6 +390,8 @@ class SolarRuntime:
         # deviates from the global preference, preserving legacy global behaviour.
         if hasattr(self, "priority_board") and self.priority_board.active:
             return True
+        if getattr(self, "wallbox_priority", None) is not None and self.wallbox_priority.any_active():
+            return True
         return any(c.get("wallbox_precedence", "global") != "global" or dishwasher_has_priority(c)
                    for c in getattr(self, "configs", keyed(self.entry.options.get("devices"))).values())
 
@@ -441,6 +445,7 @@ class SolarRuntime:
             "panasonic_archive": deepcopy(self.panasonic_archive),
             "priorities": self.priorities, "device_modes": self.device_modes,
             "others_first": self.others_first, "learning": self.learning.snapshot(),
+            "wallbox_priority": self.wallbox_priority.snapshot(),
             "heatpump_learning": self.heatpump_learning.snapshot(),
             "local_pv": self.local_pv.snapshot(), "pv_forecast": self.pv_forecast.snapshot(), "phase_learning": self.phase_learning.snapshot(),
             "battery_analysis": self.battery_analysis.snapshot(),
@@ -500,6 +505,7 @@ class SolarRuntime:
         self.sg_boost.restore(data.get("sg_boost", {}))
         self.electricity_cost.restore(data.get("electricity_cost", {}))
         self.others_first = data.get("others_first", True) is True
+        self.wallbox_priority.restore(data.get("wallbox_priority", {}))
         self.learning.restore(data.get("learning", {}), self.configs)
         heatpump_ok = self.heatpump_learning.restore(data.get("heatpump_learning", {}))
         if not heatpump_ok:
@@ -1608,9 +1614,9 @@ class SolarRuntime:
         p = self.consumer_wallbox.update(
             now=now, reading=reading, grid_w=grid if valid else None,
             filtered_grid_w=self.filtered if valid else None, discharge_w=discharge,
-            owned_lower=owned, has_lower=bool(controlled),
+            owned_lower=owned, has_lower=bool(controlled) or self.wallbox_priority.active("dhw_extra"),
             sample_gap_s=max(30, 2*self.settings["interval_s"]))
-        holds = {i: p.reason for i in controlled} if p.yield_loads else {}
+        holds = {i: "Wallbox-voorrang: " + p.reason for i in controlled} if p.yield_loads else {}
         blocks = {i: p.reason for i in controlled} if p.block_starts else {}
         if self.priority_board.active:
             # The visible central order is authoritative: everything below the
@@ -2484,6 +2490,16 @@ class SolarRuntime:
                 _LOGGER.debug("SolarPilot SG-sessieonderzoek overgeslagen", exc_info=True)
 
     async def _tick(self):
+        try:
+            await self.wallbox_priority.expire()
+        except HomeAssistantError:
+            # The read-only projection already enforces an expired deadline.
+            # A failed cleanup cannot prolong it or stop unrelated controllers.
+            _LOGGER.warning("Verlopen Wallbox-voorrang kon nog niet worden opgeslagen")
+        per_device = self._per_device_wallbox_enabled()
+        expected_guard = HouseFirstGuard if self.others_first or per_device else WallboxGuard
+        if type(self.wallbox_guard) is not expected_guard:
+            self.wallbox_guard = self._make_wallbox_guard()
         now = time.monotonic()
         dt = max(0.0, now - self.last_tick)
         self.last_tick = now
@@ -3287,6 +3303,10 @@ class SolarRuntime:
                     return "APP-aanvraag gewijzigd of ingetrokken vóór START"
         trial = copy(self)
         trial.states = {**self.states, i: st}
+        trial.wallbox_priority = copy(self.wallbox_priority)
+        trial.wallbox_priority.r = trial
+        trial.priority_board = copy(self.priority_board)
+        trial.priority_board.r = trial
         trial.pending = None
         trial.last_issued, trial.last_issued_wall = previous_issued, previous_issued_wall
         trial.wallbox_guard, trial.consumer_wallbox = deepcopy(previous_guards[:2])
@@ -3375,6 +3395,58 @@ class SolarRuntime:
                 return "Onvoldoende actueel zonneoverschot vóór opdracht"
         return ""
 
+    def _wallbox_yield_dispatch_block(self, action, expected_cfg, previous_state, previous_guards):
+        """Revalidate a discretionary EV yield, never a safety stop."""
+        i, now = action.id, time.monotonic()
+        cfg, current = self.configs.get(i), self.states.get(i)
+        if (cfg != expected_cfg or current is None or self.mode != "solar"
+                or self._closed or self.removal_requested or cfg.get("kind") == "dishwasher"
+                or cfg.get("non_interruptible") or not previous_state.on or not previous_state.owned
+                or not current.available
+                or now-current.last_on < cfg["min_on_s"]):
+            return "Wallbox-voorrang gewijzigd of toestel beschermd; vrijgeven geannuleerd"
+        trial = copy(self)
+        trial.states = {**self.states, i: deepcopy(previous_state)}
+        trial.pending = None
+        trial.wallbox_guard, trial.consumer_wallbox = deepcopy(previous_guards[:2])
+        trial.wallbox_priority = copy(self.wallbox_priority)
+        trial.wallbox_priority.r = trial
+        trial.priority_board = copy(self.priority_board)
+        trial.priority_board.r = trial
+        grid, valid, discharge, _ready, _stamp = trial._site_data()
+        if (current.manual_stop_requested or not current.interlock or current.fault
+                or not current.enabled and not current.manual_forced
+                or not current.demand and not current.manual_forced):
+            return ""
+        fault_expired = (self.invalid_since is not None
+                         and now-self.invalid_since >= self.settings["fault_grace_s"])
+        if not _ready and (valid or fault_expired) or not valid and fault_expired:
+            return ""
+        # A hold label can coexist with a hard electrical reduction in engine
+        # planning. Expiry must never cancel that independently necessary OFF.
+        limit = self.settings["max_import_w"]
+        if self.capacity_settings.get("enabled"):
+            capacity = capacity_decision(self._local_now(),
+                self._power(self.capacity_settings.get("average_demand_entity"), self.capacity_settings["stale_s"])[0],
+                self._power(self.capacity_settings.get("monthly_peak_entity"), max(3600, self.capacity_settings["stale_s"]))[0],
+                grid, self.capacity_settings)
+            if capacity.valid:
+                limit = min(limit, capacity.allowed_grid_w if capacity.allowed_grid_w is not None
+                            else max(0.0, capacity.effective_target_w-self.capacity_settings["margin_w"]))
+        if valid and grid > limit:
+            return ""
+        if self.phase_settings.get("enabled"):
+            phase = phase_decision(tuple(self._power(self.phase_settings.get(key), self.phase_settings["stale_s"])[0]
+                for key in ("phase_1_entity", "phase_2_entity", "phase_3_entity")), self.phase_settings)
+            if phase.valid and phase.release_flexible:
+                return ""
+        if (current.manual_forced or current.manual_until > now or current.boost_until > now
+                or current.deadline_force or current.planner_grid_force):
+            return "Wallbox-voorrang gewijzigd of toestel beschermd; vrijgeven geannuleerd"
+        reading = trial._wallbox_reading()
+        holds, _blocks, _no_reclaim = trial._wallbox_device_constraints(now, reading, grid, valid, discharge)
+        return "" if i in holds else "Wallbox-voorrang niet meer van toepassing; vrijgeven geannuleerd"
+
     async def _send(self, action, now):
         i = action.id
         cfg, s = self.configs[i], self.states[i]
@@ -3384,6 +3456,7 @@ class SolarRuntime:
             self.result.reasons[i] = authority_error
             return
         extra_stop = action.reason.startswith("Zonnestroom vrijmaken voor SG-zonneboost")
+        wallbox_stop = action.watts == 0 and action.reason.startswith("Wallbox-voorrang: ")
         if extra_stop:
             allowed, _reason = self.heat_pump_increase_allowed(check_capacity=False)
             candidate = self.priority_board.extra_reclaim_action(now, self._local_now()) if allowed else None
@@ -3494,7 +3567,7 @@ class SolarRuntime:
         old_handover = deepcopy(self.handover)
         previous_issued, previous_issued_wall = self.last_issued, self.last_issued_wall
         previous_guards = (deepcopy(self.wallbox_guard), deepcopy(self.consumer_wallbox),
-                           deepcopy(self.phase_learning)) if extra_stop or deadline_start else None
+                           deepcopy(self.phase_learning)) if extra_stop or deadline_start or wallbox_stop else None
         dispatch_guards = (deepcopy(self.wallbox_guard), deepcopy(self.consumer_wallbox),
             deepcopy(self.phase_learning), deepcopy(self.dishwasher.tickets.get(i, {})),
             deepcopy(self.dishwasher_app.data.get(i, {}).get("request"))) if increasing and not deadline_start else None
@@ -3515,6 +3588,11 @@ class SolarRuntime:
             if block:
                 self.result.reasons[i] = block
                 s.start_since = None
+                return
+        if wallbox_stop:
+            block = self._wallbox_yield_dispatch_block(action, dispatch_config, previous_state, previous_guards)
+            if block:
+                self.result.reasons[i] = block
                 return
         if self.phase_settings.get("enabled") and self.phase_settings.get("learning_enabled", True) and cfg.get("power_entity"):
             before_w, _ = self._power(cfg.get("power_entity"))
@@ -3549,6 +3627,20 @@ class SolarRuntime:
         self.consumer_history.command(i, action.watts, action.reason)
         # Durable intent BEFORE any physical command, including an uncertain result.
         await self.store.async_save(self._snapshot())
+        if wallbox_stop:
+            block = self._wallbox_yield_dispatch_block(action, dispatch_config, previous_state, previous_guards)
+            if block:
+                self.pending = None
+                s.owned, s.target_w, s.last_on, s.cycle_armed = old_owned, old_target, old_last_on, old_cycle_armed
+                self.last_issued, self.last_issued_wall = previous_issued, previous_issued_wall
+                self.wallbox_guard, self.consumer_wallbox, self.phase_learning = previous_guards
+                self.handover = old_handover
+                self.result.action = None
+                self.result.targets[i] = old_target
+                self.result.reasons[i] = block
+                self.consumer_history.failure(i, block)
+                await self.store.async_save(self._snapshot())
+                return
         if dispatch_guards is not None:
             block = self._ordinary_dispatch_block(action, expected_cfg=dispatch_config,
                 previous_state=previous_state, previous_guards=dispatch_guards,
@@ -3612,6 +3704,8 @@ class SolarRuntime:
             trial.last_issued, trial.last_issued_wall = previous_issued, previous_issued_wall
             trial.priority_board = copy(self.priority_board)
             trial.priority_board.r = trial
+            trial.wallbox_priority = copy(self.wallbox_priority)
+            trial.wallbox_priority.r = trial
             allowed, _reason = trial.heat_pump_increase_allowed(check_capacity=False)
             candidate = trial.priority_board.extra_reclaim_action(now, trial._local_now()) if allowed else None
             if candidate is None or candidate.id != i:
@@ -3777,6 +3871,21 @@ class SolarRuntime:
             self.priorities[device_id] = max(1, min(100, int(value)))
             self.store.async_delay_save(self._snapshot, 1)
         await self.tick()
+
+    async def async_set_wallbox_priority(self, target, option, context=None, *, expected_scope=None):
+        """Persist a policy choice; the next ordinary tick may act on it."""
+        scope = self.wallbox_priority.scope(target) if expected_scope is None else expected_scope
+        async with self._lock:
+            entries = getattr(self.hass, "config_entries", None)
+            lookup = getattr(entries, "async_get_entry", None)
+            current = lookup(self.entry.entry_id) if lookup is not None else self.entry
+            if (self._closed or not self.data_loaded or self.removal_requested
+                    or current is not self.entry
+                    or getattr(current, "runtime_data", self) is not self):
+                raise HomeAssistantError("SolarPilot is niet geladen of wordt opnieuw geladen; vernieuw het overzicht.")
+            result = await self.wallbox_priority.set(target, option, expected_scope=scope)
+            self.publish()
+            return result
 
     async def set_device_mode(self, device_id, value):
         async with self._lock:

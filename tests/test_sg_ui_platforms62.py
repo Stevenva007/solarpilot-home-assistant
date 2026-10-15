@@ -18,7 +18,9 @@ CARD = ROOT / "custom_components/solar_pilot/frontend/solar-pilot-card.js"
 
 def attributes(**boost):
     observed_at = time.time()
-    return {"mode": "solar", "config_entry_id": "example", "devices": [],
+    # A test clock belongs to fixture construction, not mutable source evidence.
+    # Reusing this fixture in multiple Node renders must not age its timers.
+    return {"_test_clock": observed_at, "mode": "solar", "config_entry_id": "example", "devices": [],
             "panasonic": {"configured": True, "temperature_c": 48, "target_c": 50,
                 "power_w": 3700, "power_kind": "measured", "power_scope": "total",
                 "source_stale_s": 120, "temperature_stamp": observed_at,
@@ -35,13 +37,14 @@ def attributes(**boost):
                 "start_threshold_w": 3000, "estimated_power_w": 3200, **boost}}
 
 
-def execute(data, *, view="comfort", actions=()):
+def execute(data, *, view="comfort", actions=(), now=None):
     node = shutil.which("node")
     if not node:
         pytest.skip("Node is required for actual frontend execution")
     script = r"""
 const fs=require('node:fs'),vm=require('node:vm'),input=JSON.parse(fs.readFileSync(0,'utf8'));
-const sandbox={HTMLElement:class{},window:{},customElements:{get:()=>null,define:()=>{}},input};
+const BaseDate=Date,sandbox={HTMLElement:class{},window:{},customElements:{get:()=>null,define:()=>{}},input,
+Date:class extends BaseDate{static now(){return input.now*1000;}}};
 vm.createContext(sandbox);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),sandbox);
 vm.runInContext(`(async()=>{
   const calls=[],card=Object.create(SolarPilotCard.prototype);
@@ -58,7 +61,8 @@ vm.runInContext(`(async()=>{
 })()`,sandbox).then(result=>process.stdout.write(JSON.stringify(result))).catch(error=>{process.stderr.write(error.stack);process.exitCode=1;});
 """
     completed = subprocess.run([node, "-e", script, str(CARD)],
-        input=json.dumps({"attributes": data, "view": view, "actions": actions}), text=True, capture_output=True)
+        input=json.dumps({"attributes": data, "view": view, "actions": actions,
+                          "now": data.get("_test_clock", time.time()) if now is None else now}), text=True, capture_output=True)
     assert completed.returncode == 0, completed.stderr
     return json.loads(completed.stdout)
 
@@ -296,7 +300,8 @@ async def test_entry_removal_clears_both_software_notifications_without_equipmen
         "delete_private_files_if_requested": lambda: None,
         "async_unregister_frontend": lambda *_args, **kwargs: frontend.append(kwargs),
         "SERVICE_SET_PLANNER_SETTING": "set_planner_setting",
-        "SERVICE_SG_MANUAL_CONTROL": "sg_manual_control"}
+        "SERVICE_SG_MANUAL_CONTROL": "sg_manual_control",
+        "SERVICE_WALLBOX_PRIORITY_CONTROL": "wallbox_priority_control"}
     future = ast.ImportFrom(module="__future__", names=[ast.alias(name="annotations")], level=0)
     exec(compile(ast.fix_missing_locations(ast.Module(body=[future, function], type_ignores=[])),
                  str(source), "exec"), namespace)
@@ -307,4 +312,5 @@ async def test_entry_removal_clears_both_software_notifications_without_equipmen
                             "analysis.entry", "feedback.entry"}
     assert frontend == [{"final": True}]
     assert removed_services == [("solar_pilot", "set_planner_setting"),
-                                ("solar_pilot", "sg_manual_control")]
+                                ("solar_pilot", "sg_manual_control"),
+                                ("solar_pilot", "wallbox_priority_control")]
