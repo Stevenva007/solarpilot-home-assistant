@@ -2554,6 +2554,7 @@ class SolarRuntime:
             now = time.monotonic()
             local_now = datetime.now(local_now.tzinfo)
             self._observe(now, local_now)
+            self.device_retry.observe()
             grid, valid, discharge, ready, reported = self._site_data()
             self.grid_w = grid
             self._local_pv_update(local_now)
