@@ -41,7 +41,15 @@ async def test_owned_meter_waits_then_recovers_without_reset_or_command(source):
     await runtime.tick()
     assert runtime.problem_kind == "source_wait"
     assert runtime.analysis.fast[-1]["problem_kind"] == "source_wait"
-    assert "Ontvochtiger" in runtime.problem and "Vermogensmeting onbetrouwbaar" in runtime.problem
+    assert "Ontvochtiger" in runtime.problem
+    if source == "wrong_unit":
+        assert "Vermogensmeting onbetrouwbaar" in runtime.problem
+        assert runtime.states["a"].fault  # A real unit problem remains visible.
+    else:
+        recovery = runtime.device_retry.overview("a")
+        assert recovery["active"] and recovery["state"] == "source_wait"
+        assert "Vermogensmeting tijdelijk niet beschikbaar" in recovery["reason"]
+        assert runtime.states["a"].fault == ""
     assert "Opdrachtfout" not in runtime.problem
     assert not runtime.faults and runtime.pending is None
     assert runtime.mode == "solar" and runtime.states["a"].owned

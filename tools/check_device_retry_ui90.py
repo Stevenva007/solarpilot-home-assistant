@@ -100,7 +100,7 @@ with sync_playwright() as p:
     assert "Veiligheidsreserve voor mogelijk verbruik" not in offline.inner_text()
     assert "Toestelfout:" not in offline.inner_text()
     assert "Opdrachtfout: ongeldige koppeling vraagt controle" in fault.inner_text()
-    assert "Toestelgegevens deels onbekend; het actuele netoverschot blijft leidend." in card.inner_text()
+    assert "Toestelgegevens deels onbekend; het actuele netoverschot blijft leidend." in card.locator("ha-card").inner_text()
     assert page.evaluate("retryCalls.length") == 0
 
     for width in (320, 360, 390, 768):
@@ -153,7 +153,7 @@ with sync_playwright() as p:
     assert card.locator('button[data-action="mode"][data-value="solar"]').get_attribute("class") == "active"
     assert offline.locator(".badge").inner_text() == "Tijdelijk niet bereikbaar"
     assert pending.locator(".badge").inner_text() == "Wacht op terugmelding"
-    assert "Andere beschikbare toestellen kunnen automatisch verder" in card.inner_text()
+    assert "Andere beschikbare toestellen kunnen automatisch verder" in card.locator("ha-card").inner_text()
 
     # Genuine actionable faults still receive the existing visible review
     # banner; an unrelated source wait cannot remove or reset that protection.
@@ -161,8 +161,8 @@ with sync_playwright() as p:
       retryAttributes.problem_kind='command_fault';
       retryAttributes.problem='Voorbeeld echte opdrachtfout vraagt controle';
       retryAttributes.reset_entity='button.fictional_review';publishRetry();}""")
-    assert "Aandacht nodig" in card.inner_text()
-    assert "Voorbeeld echte opdrachtfout vraagt controle" in card.inner_text()
+    assert "Aandacht nodig" in card.locator("ha-card").inner_text()
+    assert "Voorbeeld echte opdrachtfout vraagt controle" in card.locator("ha-card").inner_text()
     assert card.locator('button[data-action="reset"]').count() == 1
     assert "Opdrachtfout: ongeldige koppeling vraagt controle" in fault.inner_text()
     assert page.evaluate("retryCalls.length") == 1
