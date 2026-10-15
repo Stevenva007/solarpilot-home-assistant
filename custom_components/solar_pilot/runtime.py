@@ -351,15 +351,16 @@ class SolarRuntime:
         # conservative; actual phase scheduling remains deferred.
         isolated_ids = set(self.source_isolated_devices)
         unmetered_by_device = {i: devices[i].maximum for i,c in self.configs.items()
-            if c.get("kind") == "dishwasher" and self.states[i].on and not c.get("power_entity")
-            and i not in isolated_ids}
+            if c.get("kind") == "dishwasher" and self.states[i].on and self.states[i].available
+            and not c.get("power_entity") and i not in isolated_ids
+            and read_dishwasher(self.hass, c, time.time()).active is True}
         unmetered = sum(unmetered_by_device.values())
         reserve += unmetered
         self._dishwasher_unmetered_reserve = unmetered
         self._dishwasher_unmetered_reserves = unmetered_by_device
-        # Only the currently trusted running subset can relax a SOLAR reserve
-        # for ordinary interruptible loads. Missing status retains the full
-        # electrical reservation and never becomes evidence of zero load.
+        # Only a currently trusted running cycle has a future-peak reserve.
+        # An offline cycle remains unknown: its cached watts are not an extra
+        # deduction from actual P1 surplus and never become measured zero.
         self._dishwasher_solar_cycle_relief_w = sum(watts for i, watts in unmetered_by_device.items()
             if read_dishwasher(self.hass, self.configs[i], time.time()).active is True)
         permitted = {i for i,c in self.configs.items() if dishwasher_has_priority(c)
@@ -3341,18 +3342,18 @@ class SolarRuntime:
         isolated = trial.source_isolated_devices
         if i in isolated:
             return "Toestelbronnen onbetrouwbaar vóór opdracht"
-        # The cycle may change while its own/another command's durable intent is
-        # saved. Retain every cached peak, add newly reported running cycles and
-        # charge isolated sources separately. Only fresh running evidence grants
-        # solar relief; the complete future peak stays in every physical check.
+        # Re-evaluate native cycles after the durable intent. Preserve the full
+        # known future peak only for cycles currently reported running; an
+        # unavailable cached state does not add hypothetical offline consumption.
+        # Active trusted cycles retain their existing electrical protection.
         cached_cycles = getattr(self, "_dishwasher_unmetered_reserves", {})
         devices = {d.id: d for d in trial.devices()}
         fresh_cycles = {key: devices[key].maximum for key, other_cfg in self.configs.items()
             if other_cfg.get("kind") == "dishwasher" and not other_cfg.get("power_entity")
             and key not in isolated
             and read_dishwasher(self.hass, other_cfg, time.time()).active is True}
-        cycles = {key: max(cached_cycles.get(key, 0.0), fresh_cycles.get(key, 0.0))
-            for key in cached_cycles.keys() | fresh_cycles.keys() if key not in isolated}
+        cycles = {key: max(cached_cycles.get(key, 0.0), watts)
+            for key, watts in fresh_cycles.items()}
         comfort = max(0.0, getattr(self, "_dishwasher_comfort_reserve", 0)-sum(cached_cycles.values()))
         reserve = (sum(info["reserve_w"] for info in isolated.values())
                    + comfort + sum(cycles.values()) + self.sg_unconfirmed_reserve_w)
