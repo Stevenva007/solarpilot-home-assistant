@@ -51,7 +51,8 @@ async def test_service_error_does_not_create_physical_start_history():
     r.notify=notify
     await r._send(Action('a',1000,'Zonnestroom'),time.monotonic())
     assert not r.consumer_history.detail('a')['sessions']
-    assert r.consumer_history.detail('a')['events'][0]['kind']=='warning'
+    assert r.consumer_history.detail('a')['events'][0]['kind']=='info'
+    assert r.device_retry.command_waiting('a') and not r.faults
 
 
 @pytest.mark.asyncio

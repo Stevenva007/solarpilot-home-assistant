@@ -442,8 +442,13 @@ async def test_shelly_phase_profile_uses_cyclephase_not_appliance_running(monkey
 async def test_unsure_start_survives_restart_without_second_command(monkeypatch):
     r,h,c,w=configured(monkeypatch);ready(r,h,c,w);await r.tick();saved=deepcopy(r._snapshot())
     r2,h2,c2,w2=configured(monkeypatch);h2.states.set('sensor.dw_remote','Enabled');r2.store.data=saved
-    await r2.start();assert r2.faults['a']
-    assert not [x for x in h2.services.calls if x[0]=='button'];await r2.close()
+    await r2.start()
+    assert r2.device_retry.command_waiting('a') and 'a' in r2.recovery
+    assert 'a' not in r2.faults and r2.mode == 'solar'
+    assert r2.dishwasher.tickets['a']['attempted']
+    assert not r2.dishwasher.tickets['a'].get('armed')
+    assert not [x for x in h2.services.calls if x[0]=='button']
+    await r2.close()
 
 @pytest.mark.asyncio
 async def test_ack_is_running_not_paused(monkeypatch):

@@ -121,7 +121,7 @@ async def test_direct_reset_during_source_wait_does_not_claim_an_on_device_is_ve
     hass.states.set("sensor.load", "unavailable", {"unit_of_measurement": "W"})
     await runtime.tick()
     saved_count, logs = len(runtime.store.saves), list(runtime.logs)
-    with pytest.raises(HomeAssistantError, match="Wacht automatisch"):
+    with pytest.raises(HomeAssistantError, match="Controleer en schakel eerst veilig uit"):
         await runtime.reset()
     assert runtime.states["a"].owned and runtime.states["a"].on
     assert not runtime.faults and list(runtime.logs) == logs
@@ -135,7 +135,7 @@ async def test_protected_cycle_is_not_stopped_by_missing_meter_or_source_reset()
     for _ in range(3):
         await runtime.tick()
     assert runtime.problem_kind == "source_wait"
-    with pytest.raises(HomeAssistantError, match="Wacht automatisch"):
+    with pytest.raises(HomeAssistantError, match="Controleer en schakel eerst veilig uit"):
         await runtime.reset()
     assert runtime.states["a"].on and runtime.states["a"].owned
     assert not physical_calls(hass)

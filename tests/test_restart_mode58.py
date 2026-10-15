@@ -231,13 +231,14 @@ async def test_removal_requested_flag_itself_blocks_resume_without_a_cause():
 
 
 @pytest.mark.asyncio
-async def test_unconfirmed_start_is_reconciled_before_pause_auto_resume_and_never_replayed():
+async def test_unconfirmed_start_is_quarantined_while_pause_auto_resume_remains_available():
     runtime, hass = attempted_dishwasher(mode="paused")
     await runtime.start()
 
-    assert runtime.mode == "observe" and runtime.restart_blocking
-    assert runtime.pause_cause == "command_fault"
-    assert runtime.restart_requested_mode == "paused"
+    assert runtime.mode == "solar" and not runtime.restart_blocking
+    assert runtime.pause_cause == "" and runtime.restart_requested_mode is None
+    assert runtime.device_retry.command_waiting("a") and "a" in runtime.recovery
+    assert "a" not in runtime.faults
     assert runtime.dishwasher.tickets["a"]["attempted"]
     assert not commands(hass)
 
@@ -245,13 +246,16 @@ async def test_unconfirmed_start_is_reconciled_before_pause_auto_resume_and_neve
     hass.states.set("sensor.dw_phase", "Idle")
     for _ in range(3):
         await runtime.tick()
-    assert runtime.restart_blocking and runtime.dishwasher.tickets["a"]["attempted"]
+    assert runtime.device_retry.command_waiting("a")
+    assert not runtime.restart_blocking and runtime.mode == "solar"
+    assert runtime.dishwasher.tickets["a"]["attempted"]
     assert not commands(hass)
 
     hass.states.set("sensor.dw_phase", "Running")
+    runtime.device_retry.records["a"]["next_check_wall"] = time.time() - 1
     await runtime.tick()
-    assert not runtime.restart_blocking and runtime.mode == "paused"
-    assert runtime.pause_cause == "command_fault"
+    assert not runtime.restart_blocking and runtime.mode == "solar"
+    assert runtime.pause_cause == "" and not runtime.device_retry.waiting("a")
     assert runtime.states["a"].owned and runtime.states["a"].on
     assert not commands(hass)
 
@@ -262,7 +266,9 @@ async def test_durable_unconfirmed_start_does_not_replay_across_two_restarts():
     for _ in range(2):
         await runtime.start()
         await runtime.tick()
-        assert runtime.restart_blocking and runtime.pause_cause == "command_fault"
+        assert not runtime.restart_blocking and runtime.pause_cause == ""
+        assert runtime.mode == "solar" and runtime.device_retry.command_waiting("a")
+        assert "a" in runtime.recovery and "a" not in runtime.faults
         assert runtime.dishwasher.tickets["a"]["attempted"]
         assert not commands(hass)
         runtime = reboot(runtime, hass)

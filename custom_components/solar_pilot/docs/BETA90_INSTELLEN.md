@@ -16,6 +16,8 @@ Voor een tijdelijk geïsoleerd offline toestel wordt **geen extra hypothetische 
 - Een al geprobeerd of onzeker **afwas-START blijft verbruikt**. De vijfminutencontrole verstuurt geen tweede START, maakt geen nieuwe APP-aanvraag en verlengt geen deadline of bestaande hersteltermijn. Een lopend beschermd programma wordt niet onderbroken.
 - Exact herkende oude gewone transport-, timeout- en terugmeldfouten kunnen naar deze herstelwacht overgaan. Een oud opgeslagen bericht na upgrade is geen nieuw herstelbewijs. Echte configuratie-, authenticatie-, toestemmings-, interne, maximumlooptijd- of fysieke fouten blijven gerichte controle vragen.
 
+Een **eerder door SolarPilot beheerd toestel dat bij herstel nog AAN staat hoeft niet eerst UIT en opnieuw AAN**. Alleen een passende bewaarde eigen opdracht-/eigendomcontext én nieuwe oorspronkelijke AAN-terugmelding na de upgrade laten die bestaande AAN-toestand opnieuw als eigen actief bevestigen, zonder extra schakelopdracht. Dit neemt geen willekeurig extern ingeschakeld toestel over. Vanaf de herstelwaarneming wordt de volledige ingestelde minimumlooptijd beschermd; later kan een actueel tekort onder de gewone stopvoorwaarden alsnog uitschakelen. Automatisch is direct kiesbaar, ook als de afzonderlijke herstelwacht nog passend nieuw bewijs of het volgende vijfminutenmoment afwacht.
+
 ## Wat je op de kaart ziet
 
 Bij tijdelijke onbereikbaarheid verschijnt een wachtstatus met de eerstvolgende hercontrole, in plaats van een blijvende opdrachtfout waarvoor je telkens bevestiging moet geven. Ontbrekend vermogen blijft onbekend. Andere echte fouten en SG-/batterijproblemen worden niet verborgen. De klok geeft de volgende beoordeling aan, geen gegarandeerd startmoment.

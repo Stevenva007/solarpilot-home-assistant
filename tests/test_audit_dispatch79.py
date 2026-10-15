@@ -85,7 +85,8 @@ async def test_number_does_not_enable_when_grid_changes_during_setpoint_call():
     await r.tick()
     assert [call[1] for call in writes(h)] == ["set_value"]
     assert h.states.get("switch.load").state == "off"
-    assert r.faults.get("a") and r.states["a"].owned
+    assert not r.faults and r.device_retry.command_waiting("a")
+    assert r.states["a"].owned
     assert r.pending is None and "a" in r.store.data["leases"]
 
 
@@ -526,7 +527,7 @@ async def test_unmetered_cycle_peak_stays_electrical_while_flexible_dispatch_use
 
 
 @pytest.mark.asyncio
-async def test_unavailable_unmetered_cycle_has_one_isolated_peak_reserve():
+async def test_unavailable_unmetered_cycle_keeps_journal_without_an_offline_power_estimate():
     from copy import deepcopy
     from custom_components.solar_pilot.engine import State
     r, h, _cfg = setup(nominal_w=1800)
@@ -545,12 +546,13 @@ async def test_unavailable_unmetered_cycle_has_one_isolated_peak_reserve():
     r.device_modes["b"] = "auto"
     h.states.set("switch.other_load", "off")
     await r.tick()
-    assert r.isolated_reserve_w == 1800
+    assert r.isolated_reserve_w == 0
+    assert r.source_isolated_devices["a"]["possible_w"] == 1800
     assert r._dishwasher_unmetered_reserve == 0
     allocation = r.result.start_power["b"]
-    assert allocation["isolated_reserve_w"] == 1800
+    assert allocation["isolated_reserve_w"] == 0
     assert allocation["protected_cycle_reserve_w"] == 0
-    assert allocation["available_w"] == 1180
+    assert allocation["available_w"] == 2980
     assert [call[:2] for call in writes(h)] == [("switch", "turn_on")]
     assert r.states["a"].owned
 

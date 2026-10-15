@@ -154,7 +154,7 @@ async def test_saved_retry_deadline_survives_restart_without_replaying_command(m
     saved = runtime._snapshot()
     clock.advance(100)
     restarted, restored_hass = build(device={"nominal_w": 1000})
-    restored_hass.store.data = saved
+    restarted.store.data = saved
     reports(restored_hass, clock)
     await restarted.start()
     try:
@@ -186,7 +186,7 @@ async def test_changed_number_setting_is_left_to_current_operator(monkeypatch):
     assert len(physical(hass)) == 1
     clock.advance(300)
     reports(hass, clock, active="on")
-    fresh(hass, "number.amps", 10, clock,
+    fresh(hass, "number.amps", 9, clock,
           {"min": 6, "max": 16, "step": 1, "unit_of_measurement": "A"})
     await runtime.tick()
     assert not runtime.states["a"].owned
@@ -322,3 +322,28 @@ async def test_orphan_legacy_fault_cannot_claim_an_external_on_device(monkeypatc
         assert not physical(hass)
     finally:
         await runtime.close()
+
+@pytest.mark.asyncio
+async def test_reset_of_unrelated_off_fault_cannot_clear_an_unknown_command(monkeypatch):
+    from copy import deepcopy
+    from homeassistant.exceptions import HomeAssistantError
+
+    runtime, hass, clock = await failed_start(monkeypatch)
+    runtime.configs["b"] = {
+        **runtime.configs["a"], "id": "b", "name": "Ander testtoestel",
+        "control_entity": "switch.healthy",
+    }
+    runtime.states["b"] = type(runtime.states["a"])()
+    runtime.faults["b"] = "Ongeldige configuratie"
+    fresh(hass, "switch.healthy", "off", clock)
+    fresh(hass, "switch.load", "unavailable", clock)
+    journal = deepcopy(runtime.device_retry.snapshot()["records"]["a"])
+
+    with pytest.raises(HomeAssistantError, match="schakel eerst veilig uit"):
+        await runtime.reset()
+
+    assert runtime.device_retry.command_waiting("a")
+    assert runtime.device_retry.snapshot()["records"]["a"] == journal
+    assert runtime.faults["b"] == "Ongeldige configuratie"
+    assert runtime.states["a"].owned
+    assert len(physical(hass)) == 1

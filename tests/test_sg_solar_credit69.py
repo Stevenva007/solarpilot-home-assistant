@@ -67,15 +67,17 @@ def test_reserve_and_filtered_grid_are_conservative_and_not_counted_twice():
     assert budget["hp_solar_w"] == 2000
 
 
-def test_all_protected_reserves_remain_in_threshold_budget_once():
+def test_protected_reserve_counts_once_without_extra_offline_estimate():
     runtime, hass = metered(reserve=150)
     runtime.states["a"].available = False
     hass.states.set("sensor.load", 700, {"unit_of_measurement": "W"})
     runtime._dishwasher_comfort_reserve = 200
     budget = sg_solar_budget(runtime)
-    assert budget["reserve_w"] == 650
-    assert budget["available_w"] == 350
-    assert budget["eligible_w"] == 2350
+    assert runtime.isolated_reserve_w == 0
+    assert budget["reserve_w"] == 350
+    assert budget["available_w"] == 650
+    assert budget["eligible_w"] == 2650
+    assert budget["hp_solar_w"] == 2000
 
 
 def test_coherent_site_balance_only_counts_pv_left_after_other_actual_loads():
@@ -250,4 +252,3 @@ def test_threshold_credit_never_replaces_full_future_physical_hp_envelope():
     # The existing 2 kW may persist while SG adds demand; it is not a delta model.
     allowed, _ = runtime.heat_pump_increase_allowed()
     assert not allowed  # -1 kW + 3.2 kW exceeds the unchanged 0.5 kW import limit.
-

@@ -45,15 +45,17 @@ async def test_missing_restart_device_isolated_while_healthy_load_starts():
     await runtime.start()
     assert runtime.mode == "solar" and runtime.restart_requested_mode is None
     assert "a" in runtime.recovery and not runtime.restart_blocking
-    assert runtime.source_isolated_devices["a"]["reserve_w"] == 1000
+    assert runtime.source_isolated_devices["a"]["reserve_w"] == 0
+    assert runtime.source_isolated_devices["a"]["possible_w"] == 1000
     assert runtime.result.budget_w == 2500  # P1 surplus, never synthetic owned credit.
     assert runtime.energy_estimated
     assert commands(hass) == [("switch", "turn_on", {"entity_id": "switch.healthy"})]
     assert "Tijdelijk apart gehouden" in runtime.result.reasons["a"]
     assert runtime.store.data["leases"]["a"]["watts"] == 1000
     assert not runtime.states["a"].owned and not runtime.states["a"].available
-    assert runtime.analysis.fast[-1]["isolated_devices"]["a"]["reserve_w"] == 1000
-    assert runtime.analysis.fast[-1]["isolated_reserve_w"] == 1000
+    assert runtime.analysis.fast[-1]["isolated_devices"]["a"]["reserve_w"] == 0
+    assert runtime.analysis.fast[-1]["isolated_devices"]["a"]["possible_w"] == 1000
+    assert runtime.analysis.fast[-1]["isolated_reserve_w"] == 0
     assert not runtime.analysis.fast[-1]["restart_blocking"]
 
 
@@ -72,35 +74,63 @@ async def test_device_isolation_never_bypasses_invalid_global_p1(grid):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("watts", [2200, 3000])
-async def test_unknown_restart_consumption_is_reserved_without_phantom_surplus(watts):
+async def test_unknown_restart_consumption_is_metadata_not_reserved_or_credited(watts):
     runtime, hass = paired_runtime()
     runtime.store.data["leases"]["a"]["watts"] = watts
+    hass.states.set("sensor.load", "unavailable", {"unit_of_measurement": "W"})
     await runtime.start()
-    assert runtime.isolated_reserve_w == watts
+    isolated = runtime.source_isolated_devices["a"]
+    assert runtime.isolated_reserve_w == 0
+    assert isolated["possible_w"] == watts
+    assert isolated["observed_power_w"] is None and isolated["power_unknown"]
     assert runtime.result.budget_w == 2500
-    assert not commands(hass)
-    assert runtime.result.start_power["b"]["available_w"] == max(0, 2500 - watts)
+    assert not runtime.states["a"].owned
+    assert commands(hass) == [("switch", "turn_on", {"entity_id": "switch.healthy"})]
+    assert runtime.result.start_power["b"]["available_w"] == 2500
 
 
 @pytest.mark.asyncio
-async def test_number_isolation_reserves_configured_maximum_not_old_minimum():
+@pytest.mark.parametrize("grid", [-500, 0, 3000])
+async def test_unknown_restart_draw_never_supplies_synthetic_power_for_healthy_start(grid):
+    runtime, hass = paired_runtime()
+    runtime.store.data["leases"]["a"]["watts"] = 5000
+    hass.states.set("sensor.load", "unavailable", {"unit_of_measurement": "W"})
+    hass.states.set("sensor.grid", grid, {"unit_of_measurement": "W"})
+    await runtime.start()
+    assert runtime.isolated_reserve_w == 0
+    assert runtime.source_isolated_devices["a"]["possible_w"] == 5000
+    assert runtime.result.budget_w == max(0, -grid)
+    assert runtime.result.start_power["b"]["available_w"] < 1000
+    assert not runtime.states["a"].owned
+    assert not commands(hass)
+
+
+@pytest.mark.asyncio
+async def test_number_isolation_retains_maximum_as_metadata_without_reserving_it():
     runtime, hass = paired_runtime(kind="number")
     hass.states.set("sensor.load", 300, {"unit_of_measurement": "W"})
     await runtime.start()
-    assert runtime.isolated_reserve_w == 16 * 230 - 300
-    assert not commands(hass)
+    isolated = runtime.source_isolated_devices["a"]
+    assert runtime.isolated_reserve_w == 0
+    assert isolated["possible_w"] == 16 * 230
+    assert isolated["observed_power_w"] == 300 and not isolated["power_unknown"]
+    assert runtime.result.budget_w == 2500
+    assert not commands(hass, "switch.load")
+    assert commands(hass, "switch.healthy") == [("switch", "turn_on", {"entity_id": "switch.healthy"})]
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("meter", ["unavailable", "old", "wrong_unit", "restored"])
-async def test_only_fresh_dedicated_power_reduces_unknown_future_reservation(meter):
+async def test_untrusted_dedicated_power_stays_unknown_without_an_offline_reserve(meter):
     runtime, hass = paired_runtime()
     hass.states.set("sensor.load", "unavailable" if meter == "unavailable" else 800,
                     {"unit_of_measurement": "kWh" if meter == "wrong_unit" else "W",
                      **({"restored": True} if meter == "restored" else {})},
                     age=999 if meter == "old" else 0)
     await runtime.start()
-    assert runtime.isolated_reserve_w == 1000
+    assert runtime.isolated_reserve_w == 0
+    assert runtime.source_isolated_devices["a"]["observed_power_w"] is None
+    assert runtime.source_isolated_devices["a"]["power_unknown"]
     assert len(commands(hass, "switch.healthy")) == 1
     assert not commands(hass, "switch.load")
 
@@ -110,7 +140,9 @@ async def test_valid_exclusive_live_power_is_already_inside_p1():
     runtime, hass = paired_runtime()
     hass.states.set("sensor.load", 800, {"unit_of_measurement": "W"})
     await runtime.start()
-    assert runtime.isolated_reserve_w == 200
+    assert runtime.isolated_reserve_w == 0
+    assert runtime.source_isolated_devices["a"]["observed_power_w"] == 800
+    assert not runtime.source_isolated_devices["a"]["power_unknown"]
     assert runtime.result.budget_w == 2500
     assert not commands(hass, "switch.load")
 
@@ -174,7 +206,7 @@ async def test_explicit_mode_while_isolated_survives_return_and_reboot(mode):
 @pytest.mark.asyncio
 async def test_true_command_fault_keeps_site_restart_hold_and_is_not_quarantined():
     runtime, hass = paired_runtime()
-    runtime.store.data["faults"] = {"a": "Geen opdrachtbevestiging: handmatige controle nodig"}
+    runtime.store.data["faults"] = {"a": "Opdrachtfout: ValueError; controleer het toestel"}
     await runtime.start()
     assert runtime.restart_blocking and runtime.mode == "observe"
     assert not runtime.source_isolated_devices and not commands(hass)
@@ -282,7 +314,8 @@ async def test_return_after_live_status_outage_restarts_minimum_once():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("use_map", [False, True])
-async def test_isolated_future_load_reserves_individual_phase_room(use_map):
+@pytest.mark.parametrize("phase_load, expected_start", [(6500, True), (6800, False)])
+async def test_isolation_uses_actual_individual_phase_room_without_future_estimate(use_map, phase_load, expected_start):
     runtime, hass = paired_runtime()
     runtime.configs["a"]["nominal_w"] = 300
     runtime.configs["b"].update(nominal_w=300, phase_hint="l2")
@@ -294,15 +327,19 @@ async def test_isolated_future_load_reserves_individual_phase_room(use_map):
         phase_1_entity="sensor.phase_one", phase_2_entity="sensor.phase_two",
         phase_3_entity="sensor.phase_three", limit_w=7000, margin_w=0,
         start_headroom_w=0, stale_s=120)
-    for entity, watts in (("sensor.phase_one", 0), ("sensor.phase_two", 6500),
+    for entity, watts in (("sensor.phase_one", 0), ("sensor.phase_two", phase_load),
                           ("sensor.phase_three", 0)):
         hass.states.set(entity, watts, {"unit_of_measurement": "W"})
     await runtime.start()
-    assert runtime.phase.valid and runtime.isolated_reserve_w == 300
-    assert runtime._start_context["max_increase_w"] == (None if use_map else 200)
+    actual_room = 7000 - phase_load
+    assert runtime.phase.valid and runtime.isolated_reserve_w == 0
+    assert runtime.source_isolated_devices["a"]["possible_w"] == 300
+    assert runtime._start_context["max_increase_w"] == (None if use_map else actual_room)
     if use_map:
-        assert runtime._start_context["device_increase_limits"]["b"] == 200
-    assert not commands(hass)
+        assert runtime._start_context["device_increase_limits"]["b"] == actual_room
+    assert bool(commands(hass, "switch.healthy")) is expected_start
+    assert not commands(hass, "switch.load")
+    assert "a" in runtime.recovery
 
 
 @pytest.mark.asyncio

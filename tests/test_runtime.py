@@ -126,7 +126,7 @@ async def test_stop_number_does_not_write_zero_amps():
 
 
 @pytest.mark.asyncio
-async def test_missing_feedback_latches_fault_no_blind_retry():
+async def test_missing_feedback_waits_for_fresh_report_without_blind_retry():
     r, h = build()
     r.mode = "solar"
     r.device_modes["a"] = "auto"
@@ -135,7 +135,9 @@ async def test_missing_feedback_latches_fault_no_blind_retry():
     assert r.pending is not None
     r.pending["issued"] -= 100
     await r.tick()
-    assert r.pending is None and "a" in r.faults
+    assert r.pending is None and r.device_retry.command_waiting("a")
+    assert not r.faults
+    assert r.states["a"].owned and r.store.data["leases"]["a"]["watts"] > 0
     calls = len(h.services.calls)
     await r.tick()
     assert len(h.services.calls) == calls
@@ -149,7 +151,9 @@ async def test_service_failure_preserves_ambiguous_lease():
     r.device_modes["a"] = "auto"
     await r.tick()
     assert r.states["a"].owned and r.store.data["leases"]["a"]
-    assert "a" in r.faults
+    assert r.device_retry.command_waiting("a") and not r.faults
+    assert r.pending is None
+    assert not [call for call in h.services.calls if call[0] == "persistent_notification"]
 
 
 @pytest.mark.asyncio

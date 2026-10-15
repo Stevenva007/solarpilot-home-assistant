@@ -174,17 +174,21 @@ def test_invalid_wait_journal_cannot_clear_or_replay_anything(payload):
 
 
 @pytest.mark.asyncio
-async def test_legacy_failed_command_already_on_resumes_without_off_reset_or_duplicate_on():
+@pytest.mark.parametrize("lease_w", [0, 1000])
+@pytest.mark.parametrize("remembered_mode_key", [False, True])
+async def test_legacy_failed_command_already_on_resumes_without_off_reset_or_duplicate_on(lease_w, remembered_mode_key):
     runtime, hass = build(device={"nominal_w": 1000, "min_on_s": 600})
     hass.states.set("switch.load", "on")
     runtime.store.data = {
-        "mode": "observe", "restart_requested_mode": None,
-        "device_modes": {"a": "auto"},
-        "leases": {"a": {"watts": 1000, "name": "Testtoestel"}},
+        "mode": "observe", "device_modes": {"a": "auto"},
+        "leases": {"a": {"watts": lease_w, "name": "Testtoestel"}},
         "faults": {"a": "Opdrachtfout: HomeAssistantError; controleer het toestel"},
     }
+    if remembered_mode_key:
+        runtime.store.data["restart_requested_mode"] = None
     await runtime.start()
     try:
+        assert runtime.mode == "observe"
         assert runtime.device_retry.command_waiting("a")
         assert not runtime.faults
         await runtime.set_mode("solar")
@@ -301,3 +305,47 @@ async def test_old_transport_message_without_lease_never_takes_over_external_on(
         assert not runtime.faults
     finally:
         await runtime.close()
+
+
+@pytest.mark.asyncio
+async def test_external_dishwasher_losing_connection_does_not_keep_a_cached_peak():
+    from test_cycle_reserve_audit89 import runtime_with_running_cycle
+
+    runtime, hass = runtime_with_running_cycle()
+    runtime.mode = "observe"
+    await runtime.tick()
+    assert runtime._dishwasher_unmetered_reserve == 2000
+    assert runtime.states["fictional_cycle"].on
+    assert not runtime.states["fictional_cycle"].owned
+    hass.states.set("sensor.dw_connection", "Disconnected")
+    await runtime.tick()
+    assert not runtime.states["fictional_cycle"].available
+    assert runtime.states["fictional_cycle"].on  # Unknown does not mean OFF.
+    assert runtime._dishwasher_unmetered_reserve == 0
+    assert not physical(hass)
+
+
+@pytest.mark.asyncio
+async def test_dispatch_uses_actual_surplus_when_external_cycle_goes_offline_during_journal(monkeypatch):
+    from test_cycle_reserve_audit89 import runtime_with_running_cycle
+
+    runtime, hass = runtime_with_running_cycle()
+    runtime.settings["max_import_w"] = 0
+    hass.states.set("sensor.grid", -4000, {"unit_of_measurement": "W"})
+    saved = runtime.store.async_save
+    changed = False
+
+    async def become_unavailable(data):
+        nonlocal changed
+        await saved(data)
+        if changed or "a" not in data.get("leases", {}):
+            return
+        changed = True
+        hass.states.set("sensor.dw_connection", "Disconnected")
+        hass.states.set("sensor.grid", -900, {"unit_of_measurement": "W"})
+
+    monkeypatch.setattr(runtime.store, "async_save", become_unavailable)
+    await runtime.tick()
+    assert changed
+    assert [call[:2] for call in physical(hass)] == [("switch", "turn_on")]
+    assert runtime.pending and runtime.states["a"].owned

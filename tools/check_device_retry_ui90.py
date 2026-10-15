@@ -41,7 +41,7 @@ SETUP = """() => {
    name:'Voorbeeld toestel met open terugmelding',isolated:false,isolation_reason:'',
    availability_retry:retryRecord('command_wait')};
  window.retryFault={...structuredClone(retryOffline),id:'fictional-fault',
-   name:'Voorbeeld toestel met technische fout',isolated:false,availability_retry:null,
+   name:'Voorbeeld toestel met technische fout',isolated:false,isolation_reason:'',availability_retry:null,
    reason:'Opdrachtfout: ongeldige koppeling vraagt controle'};
  retryFault.start_diagnostics.summary=retryFault.reason;
  retryFault.start_requirements.availability_and_fault.fault='Ongeldige koppeling vraagt controle';

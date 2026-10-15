@@ -201,7 +201,7 @@ async def test_legacy_observe_with_real_fault_does_not_infer_solar_resume():
     runtime, hass = build()
     hass.states.set("sensor.grid", 500, {"unit_of_measurement": "W"})
     hass.states.set("switch.load", "unavailable")
-    fault = "Opdrachtfout: HomeAssistantError; controleer het toestel"
+    fault = "Opdrachtfout: ValueError; controleer de configuratie"
     runtime.store.data = saved_lease(runtime, mode="observe", faults={"a": fault})
     await runtime.start()
 
@@ -273,7 +273,7 @@ async def test_waiting_flag_distinguishes_automatic_status_retry_from_real_start
     assert waiting.restart_recovery_pending
 
     blocked, blocked_hass = attempted_dishwasher(
-        fault="Opdrachtfout: HomeAssistantError; controleer het toestel")
+        fault="Opdrachtfout: ValueError; controleer de configuratie")
     await blocked.start()
     assert "a" in blocked.recovery and "a" in blocked.faults
     assert not blocked.restart_recovery_pending
@@ -282,7 +282,7 @@ async def test_waiting_flag_distinguishes_automatic_status_retry_from_real_start
 
 
 @pytest.mark.asyncio
-async def test_restart_notification_is_dismissed_once_after_reliable_recovery():
+async def test_temporary_restart_wait_does_not_emit_a_persistent_error_notification():
     runtime, hass = build()
     hass.states.set("sensor.grid", 500, {"unit_of_measurement": "W"})
     hass.states.set("switch.load", "unavailable")
@@ -295,11 +295,11 @@ async def test_restart_notification_is_dismissed_once_after_reliable_recovery():
     for _ in range(3):
         await runtime.tick()
 
-    dismissals = [call for call in hass.services.calls if call[:2] == (
-        "persistent_notification", "dismiss")]
-    assert dismissals == [
-        ("persistent_notification", "dismiss", {"notification_id": "solar_pilot_test"}),
-    ]
+    # No warning was emitted for temporary unavailability, so there is no
+    # matching dismissal either. Recovery still reconciles the original lease.
+    assert not [call for call in hass.services.calls
+                if call[0] == "persistent_notification"]
+    assert not runtime.recovery and runtime.mode == "solar"
     assert not actuator_calls(hass)
 
 
@@ -321,7 +321,7 @@ async def test_latched_actuator_fault_survives_restart_and_late_known_state():
     runtime, hass = build(device={"min_on_s": 600})
     hass.states.set("sensor.grid", 500, {"unit_of_measurement": "W"})
     hass.states.set("switch.load", "unavailable")
-    fault = "Geen opdrachtbevestiging: handmatige controle nodig"
+    fault = "Opdrachtfout: ValueError; controleer de configuratie"
     runtime.store.data = saved_lease(runtime, faults={"a": fault})
     await runtime.start()
 
@@ -357,6 +357,9 @@ async def test_late_running_dishwasher_is_adopted_without_duplicate_start_or_sto
 
     hass.states.set("sensor.dw_connection", "Connected")
     hass.states.set("sensor.dw_phase", running_state)
+    # This scenario exercises the next scheduled status check. The separate
+    # device-retry tests verify that it cannot run before five minutes.
+    runtime.device_retry.records["a"]["next_check_wall"] = time.time() - 1
     await runtime.tick()
     await runtime.tick()
 
@@ -369,7 +372,7 @@ async def test_late_running_dishwasher_is_adopted_without_duplicate_start_or_sto
 
 
 @pytest.mark.asyncio
-async def test_generated_dishwasher_restart_fault_survives_then_resolves_after_second_restart():
+async def test_dishwasher_retry_wait_survives_then_resolves_after_second_restart():
     first, first_hass = attempted_dishwasher()
     await first.start()
     interrupted = deepcopy(first._snapshot())
@@ -378,10 +381,13 @@ async def test_generated_dishwasher_restart_fault_survives_then_resolves_after_s
     second_hass.states.set("sensor.dw_connection", "unavailable")
     second.store.data = interrupted
     await second.start()
-    assert "a" in second.faults and "a" in second.recovery
+    assert second.device_retry.command_waiting("a") and "a" in second.recovery
+    assert "a" not in second.faults and not second.restart_blocking
+    assert second.mode == "solar"
 
     second_hass.states.set("sensor.dw_connection", "Connected")
     second_hass.states.set("sensor.dw_phase", "Running")
+    second.device_retry.records["a"]["next_check_wall"] = time.time() - 1
     await second.tick()
 
     assert second.mode == "solar" and not second.recovery
@@ -398,10 +404,13 @@ async def test_late_idle_dishwasher_does_not_replay_uncertain_start():
 
     hass.states.set("sensor.dw_connection", "Connected")
     hass.states.set("sensor.dw_phase", "Idle")
+    runtime.device_retry.records["a"]["next_check_wall"] = time.time() - 1
     for _ in range(3):
         await runtime.tick()
 
-    assert "a" in runtime.recovery and "a" in runtime.faults
+    assert "a" in runtime.recovery and runtime.device_retry.command_waiting("a")
+    assert "a" not in runtime.faults and not runtime.restart_blocking
+    assert runtime.mode == "solar"
     assert runtime.dishwasher.tickets["a"]["attempted"]
     assert not runtime.dishwasher.tickets["a"]["armed"]
     assert not actuator_calls(hass)
@@ -414,6 +423,7 @@ async def test_late_explicit_finished_dishwasher_resolves_without_rearming():
 
     hass.states.set("sensor.dw_connection", "Connected")
     hass.states.set("sensor.dw_phase", "Finished")
+    runtime.device_retry.records["a"]["next_check_wall"] = time.time() - 1
     await runtime.tick()
 
     assert not runtime.recovery and runtime.mode == "solar"
@@ -441,7 +451,7 @@ async def test_prior_pause_preserves_running_dishwasher_through_restart():
 
 @pytest.mark.asyncio
 async def test_real_dishwasher_command_fault_is_not_cleared_by_running_report():
-    fault = "Opdrachtfout: HomeAssistantError; controleer het toestel"
+    fault = "Opdrachtfout: ValueError; controleer de configuratie"
     runtime, hass = attempted_dishwasher(fault=fault)
     await runtime.start()
     hass.states.set("sensor.dw_connection", "Connected")
@@ -483,6 +493,7 @@ async def test_consumed_app_request_cannot_rearm_after_recovered_dishwasher_cycl
     if boot_state == "unavailable":
         assert "a" in runtime.recovery
         hass.states.set("sensor.dw_phase", "Finished")
+        runtime.device_retry.records["a"]["next_check_wall"] = time.time() - 1
         await runtime.tick()
     assert not runtime.dishwasher_app.data["a"].get("request")
 

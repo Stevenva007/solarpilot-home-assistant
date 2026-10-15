@@ -1,4 +1,4 @@
-"""Unavailable loads reserve only unknown future power beside healthy managers."""
+"""Unavailable loads use actual site power without a speculative reserve."""
 from copy import deepcopy
 from types import SimpleNamespace
 import time
@@ -24,8 +24,8 @@ def isolate(runtime, hass, device_id="a", watts=600, measured=None):
     return state
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("grid,target", [(-1800, -1200), (-500, 0), (0, 0), (1200, 1100)])
-async def test_battery_reservation_reduces_charge_room_without_inventing_import(grid, target):
+@pytest.mark.parametrize("grid,target", [(-1800, -1800), (-500, -500), (0, 0), (1200, 1100)])
+async def test_battery_uses_actual_grid_without_estimated_offline_consumption(grid, target):
     runtime, hass = setup_battery()
     isolate(runtime, hass)
     before_settings = deepcopy(runtime.battery_fleet.settings)
@@ -36,6 +36,10 @@ async def test_battery_reservation_reduces_charge_room_without_inventing_import(
     assert not sent
     assert runtime.battery_fleet.recommendation.valid
     assert runtime.battery_fleet.recommendation.total_target_w == target
+    assert runtime.isolated_reserve_w == 0
+    isolated = runtime.source_isolated_devices["a"]
+    assert isolated["possible_w"] >= 600
+    assert isolated["observed_power_w"] is None and isolated["power_unknown"]
     assert runtime.battery_fleet.settings == before_settings
     assert runtime.entry.options == before_options
     assert not runtime.battery_fleet.state.pending
