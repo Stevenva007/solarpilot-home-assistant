@@ -106,7 +106,7 @@ async def test_valid_phase_map_can_start_on_roomy_phase_beside_a_busy_phase(use_
 @pytest.mark.asyncio
 @pytest.mark.parametrize("use_map", [False, True])
 @pytest.mark.parametrize("meter_attrs", [None, {"estimated": True}, {"is_estimated": True}])
-async def test_unknown_isolated_load_future_draw_is_reserved_on_each_phase(use_map, meter_attrs):
+async def test_isolation_leaves_actual_phase_room_and_does_not_reserve_estimates(use_map, meter_attrs):
     runtime, hass = phase_runtime(use_map=use_map)
     runtime.configs["b"] = {**runtime.configs["a"], "id": "b", "name": "Offline load",
                             "control_entity": "switch.offline_load", "nominal_w": 300,
@@ -117,23 +117,26 @@ async def test_unknown_isolated_load_future_draw_is_reserved_on_each_phase(use_m
     hass.states.set("switch.offline_load", "unavailable")
     if meter_attrs is not None:
         runtime.configs["b"]["power_entity"] = "sensor.offline_power"
-        # An estimate matching nominal power proves no part of physical load
-        # is already represented in the actual phase measurement.
+        # An estimated dedicated reading proves no individual draw. P1 and
+        # the live phase reports remain the actual site-load measurements.
         hass.states.set("sensor.offline_power", 300,
                         {"unit_of_measurement": "W", **meter_attrs})
-    # P1 has ample current export. A 1000 W healthy load still cannot fit on
-    # L2 beside an unknown compressor's possible 300 W future restart.
-    hass.states.set("sensor.phase_two", 5500, {"unit_of_measurement": "W"})
+    # Actual L2 load leaves only 800 W beneath its guarded 6700 W limit:
+    # a 1000 W start must still wait despite ample P1 export.
+    hass.states.set("sensor.phase_two", 5900, {"unit_of_measurement": "W"})
     await runtime.tick()
-    assert runtime.phase.valid and runtime.phase.headroom_w == 1200
-    assert runtime.isolated_reserve_w == 300
+    assert runtime.phase.valid and runtime.phase.headroom_w == 800
+    assert runtime.isolated_reserve_w == 0
+    isolated = runtime.source_isolated_devices["b"]
+    assert isolated["possible_w"] == 300
+    assert isolated["observed_power_w"] is None and isolated["power_unknown"]
     assert runtime.result.action is None and not hass.services.calls
     assert runtime.pending is None and "b" in runtime.recovery
-    # The quarantine holds only its own future commitment; enough real phase
-    # headroom lets the healthy load start without waking the offline device.
-    hass.states.set("sensor.phase_two", 5300, {"unit_of_measurement": "W"})
+    # With actual 1200 W phase headroom the healthy 1000 W load now fits.
+    # No speculative 300 W reservation is taken from any phase or solar pool.
+    hass.states.set("sensor.phase_two", 5500, {"unit_of_measurement": "W"})
     await runtime.tick()
-    assert runtime.phase.headroom_w == 1400 and runtime.isolated_reserve_w == 300
+    assert runtime.phase.headroom_w == 1200 and runtime.isolated_reserve_w == 0
     assert runtime.pending is not None and runtime.pending["id"] == "a"
     assert hass.services.calls == [("switch", "turn_on", {"entity_id": "switch.load"})]
     assert "b" in runtime.recovery
