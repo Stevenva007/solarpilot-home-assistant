@@ -154,7 +154,7 @@ async def test_saved_retry_deadline_survives_restart_without_replaying_command(m
     saved = runtime._snapshot()
     clock.advance(100)
     restarted, restored_hass = build(device={"nominal_w": 1000})
-    restored_hass.store.data = saved
+    restarted.store.data = saved
     reports(restored_hass, clock)
     await restarted.start()
     try:
@@ -186,7 +186,7 @@ async def test_changed_number_setting_is_left_to_current_operator(monkeypatch):
     assert len(physical(hass)) == 1
     clock.advance(300)
     reports(hass, clock, active="on")
-    fresh(hass, "number.amps", 10, clock,
+    fresh(hass, "number.amps", 9, clock,
           {"min": 6, "max": 16, "step": 1, "unit_of_measurement": "A"})
     await runtime.tick()
     assert not runtime.states["a"].owned
