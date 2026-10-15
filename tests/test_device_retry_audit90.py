@@ -211,3 +211,30 @@ async def test_protected_script_does_not_rearm_after_failed_start(monkeypatch):
     await runtime.tick()
     assert not runtime.states["a"].cycle_armed
     assert len(physical(hass)) == 1
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("legacy_command_fault", [False, True])
+async def test_global_auto_can_be_selected_while_one_offline_load_is_quarantined(legacy_command_fault):
+    from test_restart_isolation53 import paired_runtime, commands
+
+    runtime, hass = paired_runtime()
+    runtime.store.data["mode"] = "observe"
+    if legacy_command_fault:
+        runtime.store.data["faults"] = {
+            "a": "Opdrachtfout: HomeAssistantError; controleer het toestel"
+        }
+    await runtime.start()
+    try:
+        assert runtime.mode == "observe"
+        assert not commands(hass)
+        await runtime.set_mode("solar")
+        assert runtime.mode == "solar"
+        assert runtime.isolated_reserve_w >= 1000
+        assert not commands(hass, "switch.load")
+        assert commands(hass, "switch.healthy") == [
+            ("switch", "turn_on", {"entity_id": "switch.healthy"})
+        ]
+        assert not runtime.states["a"].available
+        assert runtime.store.data["leases"]["a"]["watts"] >= 1000
+    finally:
+        await runtime.close()
