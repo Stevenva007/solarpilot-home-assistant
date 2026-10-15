@@ -110,7 +110,7 @@ async def test_stale_or_restored_report_never_confirms_failed_start(monkeypatch,
     assert runtime.device_retry.waiting("a")
     assert len(physical(hass)) == 1
     assert runtime.states["a"].owned
-    assert runtime.isolated_reserve_w >= 1000
+    assert runtime.isolated_reserve_w == 0
     assert runtime.store.data["leases"]["a"]["watts"] >= 1000
 
 @pytest.mark.asyncio
@@ -124,7 +124,7 @@ async def test_successful_start_seen_after_exception_is_adopted_without_second_t
     assert len(physical(hass)) == 1
 
 @pytest.mark.asyncio
-async def test_failed_stop_does_not_release_unknown_power_or_repeat_obsolete_off(monkeypatch):
+async def test_failed_stop_keeps_unknown_journal_without_replaying_obsolete_off(monkeypatch):
     clock = install_clock(monkeypatch)
     runtime, hass = build(device={"nominal_w": 1000})
     runtime.mode = "solar"
@@ -140,7 +140,7 @@ async def test_failed_stop_does_not_release_unknown_power_or_repeat_obsolete_off
     clock.advance(100)
     reports(hass, clock, active="unavailable")
     await runtime.tick()
-    assert runtime.isolated_reserve_w >= 1000
+    assert runtime.isolated_reserve_w == 0
     clock.advance(200)
     reports(hass, clock, active="on", grid=-2500)
     await runtime.tick()
@@ -218,6 +218,10 @@ async def test_global_auto_can_be_selected_while_one_offline_load_is_quarantined
     from test_restart_isolation53 import paired_runtime, commands
 
     runtime, hass = paired_runtime()
+    # Exceed the measured solar pool deliberately: an estimated offline load
+    # must neither consume that pool nor create synthetic owned-power credit.
+    runtime.configs["a"]["nominal_w"] = 3000
+    hass.states.set("sensor.load", "unavailable", {"unit_of_measurement": "W"})
     runtime.store.data["mode"] = "observe"
     if legacy_command_fault:
         runtime.store.data["faults"] = {
@@ -229,7 +233,10 @@ async def test_global_auto_can_be_selected_while_one_offline_load_is_quarantined
         assert not commands(hass)
         await runtime.set_mode("solar")
         assert runtime.mode == "solar"
-        assert runtime.isolated_reserve_w >= 1000
+        assert runtime.isolated_reserve_w == 0
+        assert runtime.grid_w == -2500
+        assert runtime._power("sensor.load")[0] is None
+        assert runtime.result.start_power["b"]["available_w"] >= 1000
         assert not commands(hass, "switch.load")
         assert commands(hass, "switch.healthy") == [
             ("switch", "turn_on", {"entity_id": "switch.healthy"})
