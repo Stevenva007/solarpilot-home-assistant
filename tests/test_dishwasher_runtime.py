@@ -68,13 +68,14 @@ async def test_manual_start_and_boost_cannot_bypass_readiness():
     assert not h.services.calls
 
 @pytest.mark.asyncio
-async def test_ack_requires_report_newer_than_command_and_timeout_no_retry():
+async def test_ack_requires_report_newer_than_command_and_timeout_waits_without_replay():
     r,h,c=setup(ack_timeout_s=10);await arm(r)
     h.states.set('sensor.dw_phase','Washing',reported_age=5)
     await r._confirm_pending(time.monotonic());assert r.pending
     h.states.set('sensor.dw_phase','Idle');r.pending['issued']-=11
     await r.tick();await r.tick()
-    assert r.faults and r.dishwasher.tickets['a']['attempted']
+    assert not r.faults and r.device_retry.command_waiting('a')
+    assert r.dishwasher.tickets['a']['attempted']
     assert len([x for x in h.services.calls if x[0]=='button'])==1
 
 @pytest.mark.asyncio
@@ -85,28 +86,26 @@ async def test_restart_never_replays_unconfirmed_start(active):
     await r2.start()
     assert not [x for x in h2.services.calls if x[0]=='button']
     if active=='Washing':assert r2.states['a'].owned
-    else:assert r2.faults
+    else:
+        assert not r2.faults and r2.device_retry.command_waiting('a')
+        assert 'a' in r2.recovery and not r2.restart_blocking
     await r2.close()
 
 @pytest.mark.asyncio
-async def test_failed_start_call_never_retried():
-    r,h,c=setup();h.services.fail=True;r.notify=lambda m:__import__('asyncio').sleep(0)
+async def test_failed_start_call_waits_without_error_or_duplicate_start():
+    r,h,c=setup();h.services.fail=True
     await arm(r);await r.tick()
-    assert r.faults and r.dishwasher.tickets['a']['attempted']
+    assert not r.faults and r.device_retry.command_waiting('a')
+    assert r.dishwasher.tickets['a']['attempted']
     writes=[call for call in h.services.calls if call[0]!='persistent_notification']
     assert writes==[('button','press',{'entity_id':'button.dw_start'})]
-    notices=[call for call in h.services.calls if call[0]=='persistent_notification']
-    # Notification transport also fails in this double. Retrying that message
-    # must never retry the uncertain physical dishwasher START.
-    assert len(notices)==2 and all(call[1]=='create' for call in notices)
-    assert all(call[2]['notification_id']=='solar_pilot_test_action_required' for call in notices)
-    assert all('Controle afronden' in call[2]['message'] for call in notices)
+    assert not [call for call in h.services.calls if call[0]=='persistent_notification']
     assert not r.action_notifications.snapshot()['active']
     h.services.fail=False
     await r.tick();await r.tick()
     assert [call for call in h.services.calls if call[0]!='persistent_notification']==writes
-    assert len([call for call in h.services.calls if call[0]=='persistent_notification'])==3
-    assert r.action_notifications.snapshot()['active']
+    assert not [call for call in h.services.calls if call[0]=='persistent_notification']
+    assert r.device_retry.command_waiting('a') and not r.faults
 
 @pytest.mark.asyncio
 async def test_shelly_is_only_read_no_relays_written():

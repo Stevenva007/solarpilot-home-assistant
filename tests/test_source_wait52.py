@@ -41,7 +41,15 @@ async def test_owned_meter_waits_then_recovers_without_reset_or_command(source):
     await runtime.tick()
     assert runtime.problem_kind == "source_wait"
     assert runtime.analysis.fast[-1]["problem_kind"] == "source_wait"
-    assert "Ontvochtiger" in runtime.problem and "Vermogensmeting onbetrouwbaar" in runtime.problem
+    assert "Ontvochtiger" in runtime.problem
+    if source == "wrong_unit":
+        assert "Vermogensmeting onbetrouwbaar" in runtime.problem
+        assert runtime.states["a"].fault  # A real unit problem remains visible.
+    else:
+        recovery = runtime.device_retry.overview("a")
+        assert recovery["active"] and recovery["state"] == "source_wait"
+        assert "Vermogensmeting tijdelijk niet beschikbaar" in recovery["reason"]
+        assert runtime.states["a"].fault == ""
     assert "Opdrachtfout" not in runtime.problem
     assert not runtime.faults and runtime.pending is None
     assert runtime.mode == "solar" and runtime.states["a"].owned
@@ -121,7 +129,7 @@ async def test_direct_reset_during_source_wait_does_not_claim_an_on_device_is_ve
     hass.states.set("sensor.load", "unavailable", {"unit_of_measurement": "W"})
     await runtime.tick()
     saved_count, logs = len(runtime.store.saves), list(runtime.logs)
-    with pytest.raises(HomeAssistantError, match="Wacht automatisch"):
+    with pytest.raises(HomeAssistantError, match="Controleer en schakel eerst veilig uit"):
         await runtime.reset()
     assert runtime.states["a"].owned and runtime.states["a"].on
     assert not runtime.faults and list(runtime.logs) == logs
@@ -135,7 +143,7 @@ async def test_protected_cycle_is_not_stopped_by_missing_meter_or_source_reset()
     for _ in range(3):
         await runtime.tick()
     assert runtime.problem_kind == "source_wait"
-    with pytest.raises(HomeAssistantError, match="Wacht automatisch"):
+    with pytest.raises(HomeAssistantError, match="Controleer en schakel eerst veilig uit"):
         await runtime.reset()
     assert runtime.states["a"].on and runtime.states["a"].owned
     assert not physical_calls(hass)

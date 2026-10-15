@@ -1,8 +1,14 @@
-# SolarPilot beta.89 — installatie en upgrade
+# SolarPilot beta.90 — installatie en upgrade
 
-Beta.89 maakt de **afwasreserve gerichter**: gewone onderbreekbare toestellen mogen werkelijke restzon benutten naast een betrouwbaar gemelde lopende afwasbeurt zonder eigen vermogensmeter. De geschatte toekomstige piek blijft volledig gereserveerd in de totale elektrische ruimte. SG, beschermde lasten, onbetrouwbare bronnen en bestaande minimumtijden houden hun bescherming. Algemene en individuele Wallbox-voorkeuren blijven beschikbaar.
+Beta.90 laat gewone toestellen bij tijdelijke onbereikbaarheid **rustig wachten en elke vijf minuten opnieuw beoordelen**. Na herstel gelden de voorwaarden van dat moment: vraag, voorrang, wachttijden, globale modus, betrouwbare terugmelding en elektrische ruimte. **Automatisch regelen** blijft kiesbaar wanneer één toestel wacht; gezonde andere toestellen kunnen onder hun eigen voorwaarden verder. Voor het gewone offline toestel wordt geen extra geschatte verbruiksreserve afgehouden: het actuele P1-overschot bepaalt de beschikbare zon. Onbekend blijft onbekend; een onzekere al verzonden opdracht en het eigendom worden bewaard tot passende nieuwe terugmelding. Echte configuratie-, authenticatie-, toestemmings-, interne en fysieke fouten blijven zichtbaar; een onzekere afwas-START wordt nooit herhaald.
 
-**Begin met [BETA89_INSTELLEN.md](docs/BETA89_INSTELLEN.md).** Volledige werking: [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en **SolarPilot → Uitleg**. Uitgevoerde checks en publicatiestatus: [TESTRESULTATEN_BETA89.md](docs/TESTRESULTATEN_BETA89.md). Technische overdracht: [OVERDRACHT.md](OVERDRACHT.md). Oudere resultaten bewijzen geen beta.89-release.
+De behouden beta.89-verdeling maakt de **afwasreserve gerichter**: gewone onderbreekbare toestellen mogen werkelijke restzon benutten naast een betrouwbaar gemelde lopende afwasbeurt zonder eigen vermogensmeter. De geschatte toekomstige piek blijft volledig gereserveerd in de totale elektrische ruimte. SG, beschermde lasten, onbetrouwbare bronnen en bestaande minimumtijden houden hun bescherming. Algemene en individuele Wallbox-voorkeuren blijven beschikbaar.
+
+**Begin met [BETA90_INSTELLEN.md](docs/BETA90_INSTELLEN.md).** Volledige werking: [ACTUELE_WERKING.md](docs/ACTUELE_WERKING.md) en **SolarPilot → Uitleg**. Uitgevoerde checks en publicatiestatus: [TESTRESULTATEN_BETA90.md](docs/TESTRESULTATEN_BETA90.md). Technische overdracht: [OVERDRACHT.md](OVERDRACHT.md). Oudere resultaten bewijzen geen beta.90-release.
+
+## Tijdelijk toestel niet bereikbaar
+
+SolarPilot toont een informatieve herstelwacht en het volgende vijfminutenmoment. Er is daarvoor geen handmatige foutbevestiging nodig. Zodra bruikbare gegevens terugkomen beoordeelt de regeling de actuele voorwaarden opnieuw. Eigendom en uitvoering die nog onzeker zijn blijven bewaard tot passende nieuwe terugmelding. Een tijdelijk geïsoleerd offline toestel krijgt geen extra geschatte verbruiksreserve; werkelijk P1-overschot is leidend. Onbekend wordt geen gemeten nul. De toekomstige afwaspiek blijft bij werkelijk nu betrouwbaar actieve afwasstatus gelden; een oude offline ON-status geeft geen extra hypothetische reserve. Specifieke SG-reserves blijven afzonderlijk beschermd. De klok is geen herhaalopdracht. Automatisch regelen kiezen blijft mogelijk met één wachtend toestel; andere lasten krijgen daarmee geen vrijstelling van hun eigen voorwaarden of de gedeelde harde grenzen.
 
 ## Restzon naast de afwasmachine
 
@@ -22,11 +28,11 @@ SolarPilot start of versnelt de auto hiermee niet rechtstreeks. Wallbox blijft r
 
 ## Bestaande installatie bijwerken
 
-1. Maak een volledige privé HA-back-up met instellingen, SolarPilot-opslag, modellen, APP-aanvragen, geschiedenis en userfiles. Bewaar gecontroleerde beta.88-code.
+1. Maak een volledige privé HA-back-up met instellingen, SolarPilot-opslag, modellen, APP-aanvragen, geschiedenis en userfiles. Bewaar gecontroleerde beta.89-code.
 2. Geef vóór codevervanging een eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk; controleer contact of lokale afloop. Onderbreek geen beschermde apparaatcyclus.
-3. Update via HACS naar exact `1.0.0-beta.89` nadat releasegates en publicatie zijn geslaagd. **Herstart Home Assistant volledig** en herlaad browser/app volledig.
+3. Update via HACS naar exact `1.0.0-beta.90` nadat releasegates en publicatie zijn geslaagd. **Herstart Home Assistant volledig** en herlaad browser/app volledig.
 4. Controleer backend- en kaartversie afzonderlijk. Behoud dezelfde entry, bindings, opgeslagen rangorde en geldige lokale SG-/profiel-/split-/koelbevestigingen.
-5. Controleer bij een gewone onderbreekbare last de afzonderlijke zonne- en elektrische reserve. De algemene en individuele Wallbox-voorkeur, resterende tijd en terugkeer naar Automatisch blijven behouden. De update zelf activeert geen nieuwe voorrangskeuze.
+5. Controleer bij tijdelijke onbereikbaarheid de herstelwacht en het volgende hercontrolemoment. Controleer bij een gewone onderbreekbare last ook de afzonderlijke zonne- en elektrische reserve. De algemene en individuele Wallbox-voorkeur, resterende tijd en terugkeer naar Automatisch blijven behouden. De update zelf activeert geen nieuwe voorrangskeuze.
 6. Controleer taak- en boilerwaarden, SG-contact/timers, oorspronkelijke AEG-aanvraag/deadline, Planning, Meetkwaliteit en geschiedenis. Een update maakt geen nieuwe belading of tweede START.
 
 Lokaal vervang je uitsluitend `custom_components/solar_pilot`, met behoud van userfiles en HA-opslag. Verwijder of hermaak de entry niet. Geen extra installatie, verplichte nieuwe sensor, instellingenreset of parallelle regelaar.
@@ -45,10 +51,10 @@ Panasonic blijft eigenaar van comfort, verwarmen/koelen, tank, ondersteuning en 
 
 Voeg `https://github.com/Stevenva007/solarpilot-home-assistant` toe in **HACS → Custom repositories** als **Integration**, download SolarPilot en herstart HA. Voeg de integratie toe onder **Instellingen → Apparaten & diensten**. Selecteer betrouwbare lokale bronnen en begin met **Alleen bekijken**. De kaart wordt automatisch geregistreerd. SG staat standaard uit tot gecontroleerde ingebruikname.
 
-## Rollback naar beta.88
+## Rollback naar beta.89
 
-Geef de eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk en controleer contact of lokale afloop. Maak een actuele volledige privéback-up, stop beta.89 en herstel gecontroleerde beta.88-code met behoud van entry, opslag en userfiles. Herstart HA volledig en herlaad browser/app.
+Geef de eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk en controleer contact of lokale afloop. Maak een actuele volledige privéback-up, stop beta.90 en herstel gecontroleerde beta.89-code met behoud van entry, opslag en userfiles. Herstart HA volledig en herlaad browser/app.
 
-Beta.88 reserveert de toekomstige onbemeterde afwaspiek opnieuw volledig in de gewone zonnepot, waardoor kleine lasten weer kunnen wachten. Zij blijft de algemene en individuele Wallbox-keuzes en oorspronkelijke eindtijden ondersteunen. Exact herstel vraagt code én passende privéback-up. Geen twee runtimes tegelijk, tweede START, oude AAN-replay of entryverwijdering. Zie [BETA89_INSTELLEN.md](docs/BETA89_INSTELLEN.md).
+Beta.89 behoudt de restzonverdeling en algemene en individuele Wallbox-keuzes met oorspronkelijke eindtijden, maar heeft het eerdere fout-/herstelgedrag bij toestelonbereikbaarheid. Een dergelijke situatie kan weer controle vragen. Exact herstel vraagt code én een passende privéback-up. Geen twee runtimes tegelijk, tweede START, blinde herhaling van een onzekere opdracht, oude AAN-replay of entryverwijdering. Zie [BETA90_INSTELLEN.md](docs/BETA90_INSTELLEN.md).
 
 Openbare broncontrole en de afzonderlijke geautoriseerde wekelijkse ontwikkeltaak staan in [UPSTREAM_BRONNEN.md](docs/UPSTREAM_BRONNEN.md). De taak verandert geen lokale Home Assistant-installatie of apparaten.

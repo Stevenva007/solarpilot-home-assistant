@@ -104,6 +104,10 @@ jobs:
         env:
           SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests
         run: python tools/check_cycle_reserve_ui89.py
+      - name: Validate device recovery waits, global Auto and mobile status
+        env:
+          SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests
+        run: python tools/check_device_retry_ui90.py
       - name: Validate PV factor evidence and quarter profile with fictitious data
         env:
           SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests

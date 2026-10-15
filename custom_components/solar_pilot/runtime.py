@@ -20,6 +20,7 @@ from homeassistant.helpers import entity_registry as er
 
 from .const import DEFAULTS, DEVICE_DEFAULTS, DOMAIN, NAME, VERSION
 from .engine import Action, Device, Plan, Site, State, plan
+from .device_retry import DeviceRetry, DeviceUnavailable, ambiguous_transport
 from .wallbox import (WALLBOX_DEFAULTS, Reading, WallboxGuard,
                       confirmed_no_active_request, state_set,
                       protected_entity, conflicting_devices)
@@ -137,6 +138,8 @@ class SolarRuntime:
         self._restart_faults = {}
         self._restart_notice = False
         self.faults = {}
+        self.device_retry = DeviceRetry(self)
+        self._command_service_entered = False
         self.listeners = set()
         self._sensor_overviews = {}
         self.logs = deque(maxlen=30)
@@ -348,15 +351,16 @@ class SolarRuntime:
         # conservative; actual phase scheduling remains deferred.
         isolated_ids = set(self.source_isolated_devices)
         unmetered_by_device = {i: devices[i].maximum for i,c in self.configs.items()
-            if c.get("kind") == "dishwasher" and self.states[i].on and not c.get("power_entity")
-            and i not in isolated_ids}
+            if c.get("kind") == "dishwasher" and self.states[i].on and self.states[i].available
+            and not c.get("power_entity") and i not in isolated_ids
+            and read_dishwasher(self.hass, c, time.time()).active is True}
         unmetered = sum(unmetered_by_device.values())
         reserve += unmetered
         self._dishwasher_unmetered_reserve = unmetered
         self._dishwasher_unmetered_reserves = unmetered_by_device
-        # Only the currently trusted running subset can relax a SOLAR reserve
-        # for ordinary interruptible loads. Missing status retains the full
-        # electrical reservation and never becomes evidence of zero load.
+        # Only a currently trusted running cycle has a future-peak reserve.
+        # An offline cycle remains unknown: its cached watts are not an extra
+        # deduction from actual P1 surplus and never become measured zero.
         self._dishwasher_solar_cycle_relief_w = sum(watts for i, watts in unmetered_by_device.items()
             if read_dishwasher(self.hass, self.configs[i], time.time()).active is True)
         permitted = {i for i,c in self.configs.items() if dishwasher_has_priority(c)
@@ -440,6 +444,7 @@ class SolarRuntime:
             "restart_resume_from_pause": self._restart_resume_from_pause,
             "removal_requested": self.removal_requested,
             "faults": dict(self.faults),
+            "device_retry": self.device_retry.snapshot(),
             "restart_faults": dict(self._restart_faults),
             "live_options": self.live_options.snapshot(),
             "learning_hub": self.learning_hub.snapshot(),
@@ -587,13 +592,15 @@ class SolarRuntime:
         stored_restart_faults = data.get("restart_faults", {})
         self._restart_faults = {i: reason for i, reason in stored_restart_faults.items()
                                if self.faults.get(i) == reason} if isinstance(stored_restart_faults, dict) else {}
+        self.device_retry.restore(data.get("device_retry", {}))
+        self.device_retry.migrate_legacy(leases)
         # A consumed START ticket is also durable evidence of an interrupted
         # transaction, even if an older store did not contain its lease.
         leases = dict(leases)
         for i, cfg in self.configs.items():
             if cfg.get("kind") == "dishwasher" and self.dishwasher.tickets.get(i, {}).get("attempted"):
                 leases.setdefault(i, {"watts": cfg["nominal_w"], "name": cfg["name"]})
-        clean_interruption = (not self.faults and any(
+        clean_interruption = (not self.faults and not self.device_retry.records and any(
             i in self.configs and self.device_modes.get(i) == "auto" for i in leases))
         requested_mode = data.get("restart_requested_mode") or str(data.get("mode", "observe"))
         if requested_mode not in ("observe", "solar", "paused"):
@@ -649,7 +656,7 @@ class SolarRuntime:
                 self.restart_requested_mode = None
                 self._restart_resume_from_pause = False
             self.note(f"Herstartcontrole automatisch afgerond; modus {self.mode} hervat.")
-        if self.recovery:
+        if self.recovery and self.restart_blocking:
             names = ", ".join(self.configs[i]["name"] for i in self.recovery)
             continuation = ("Nieuwe automatische starts blijven geblokkeerd zolang een opdrachtuitkomst onzeker is. "
                             if self.restart_blocking else
@@ -700,11 +707,11 @@ class SolarRuntime:
 
     @property
     def source_isolated_devices(self):
-        """Quarantine missing device sources without crediting unknown power.
+        """Quarantine unknown devices without inventing solar power or demand.
 
-        The original lease remains durable. A valid dedicated power reading may
-        cover part of the maximum future load already present in the real P1
-        measurement; otherwise reserve the full possible load conservatively.
+        Keep their original leases and possible-load metadata. Actual P1 already
+        includes their present draw; an offline estimate adds no extra reserve.
+        Known live command intents and SG/protected-cycle policies stay separate.
         """
         isolated = {}
         devices = {d.id: d for d in self.devices()}
@@ -741,9 +748,10 @@ class SolarRuntime:
             measured = None
             if cfg.get("power_entity") and self._reclaim_meter(device_id):
                 measured, _ = self._power(cfg["power_entity"])
-            present = max(0.0, measured) if measured is not None and measured >= 0 else 0.0
             isolated[device_id] = {"id": device_id, "name": cfg["name"],
-                "reason": "; ".join(reasons), "reserve_w": max(0.0, maximum - present)}
+                "reason": "; ".join(reasons), "reserve_w": 0.0,
+                "possible_w": maximum, "observed_power_w": measured,
+                "power_unknown": measured is None}
         return isolated
 
     @property
@@ -784,6 +792,8 @@ class SolarRuntime:
     def _reconcile_restart_lease(self, device_id, lease, now):
         """Adopt a durable lease from current evidence; never issue a command."""
         cfg, st = self.configs[device_id], self.states[device_id]
+        if self.device_retry.command_waiting(device_id):
+            return False
         active = self._restart_active(cfg)
         ticket = self.dishwasher.tickets.get(device_id, {}) if cfg.get("kind") == "dishwasher" else {}
         if ticket.get("attempted"):
@@ -794,10 +804,8 @@ class SolarRuntime:
             except (TypeError, ValueError):
                 post_command = False
             if not post_command:
-                reason = "START-uitkomst onzeker na herstart; wacht op een nieuwe cyclusrapportage na de opdracht"
                 if device_id not in self.faults:
-                    self.faults[device_id] = reason
-                    self._restart_faults[device_id] = reason
+                    self.device_retry.begin(device_id, cfg["nominal_w"], ticket.get("sent_at"))
                 return False
         if cfg.get("kind") == "dishwasher":
             reading = self.dishwasher.readings[device_id]
@@ -814,10 +822,8 @@ class SolarRuntime:
             elif active is False and reading.finished:
                 self.dishwasher.review(device_id)
             else:
-                reason = "START-uitkomst onzeker na herstart; wacht op bevestigde cyclus of controleer de afwasmachine"
                 if device_id not in self.faults:
-                    self.faults[device_id] = reason
-                    self._restart_faults[device_id] = reason
+                    self.device_retry.begin(device_id, cfg["nominal_w"], ticket.get("sent_at"))
                 return False
             reason = self._restart_faults.pop(device_id, None)
             if reason and self.faults.get(device_id) == reason:
@@ -2243,11 +2249,8 @@ class SolarRuntime:
             self.note(f'{cfg["name"]}: opdracht bevestigd ({p["watts"]:.0f} W).')
             await self.store.async_save(self._snapshot())
         elif now - p["issued"] >= cfg["ack_timeout_s"]:
-            self.faults[i] = "Geen opdrachtbevestiging: handmatige controle nodig"
-            self.consumer_history.failure(i, self.faults[i])
-            self.pending = None
-            self.note(f'{cfg["name"]}: bevestiging ontbreekt. Nieuwe starts geblokkeerd.')
-            await self.notify(f'{cfg["name"]}: een opdracht werd niet bevestigd. Controleer de fysieke toestand en de gekoppelde entiteiten. SolarPilot neemt niet aan dat het toestel geschakeld is.')
+            await self.device_retry.hold(i, p["watts"], p.get("issued_wall"),
+                p.get("previous_w", 0.0), max_runtime=p.get("max_runtime", False))
 
     def _observe(self, now, local_now=None):
         changed = False
@@ -2260,6 +2263,14 @@ class SolarRuntime:
                 s.demand = False
                 s.start_since = None
                 s.fault = authority_error
+                continue
+            if self.device_retry.command_waiting(i):
+                # Preserve the unknown outcome until a new original report has
+                # reconciled it. Never adopt an unavailable placeholder as OFF.
+                s.available = False
+                s.enabled = self.device_modes.get(i, "disabled") == "auto"
+                s.start_since = None
+                s.fault = self.faults.get(i, "")
                 continue
             if i in self.recovery:
                 # The durable lease has not yet been reconciled. Do not let a
@@ -2510,6 +2521,7 @@ class SolarRuntime:
         dt = max(0.0, now - self.last_tick)
         self.last_tick = now
         await self._confirm_pending(now)
+        await self.device_retry.tick(now)
         await self._retry_restart_recovery(now)
         zone = getattr(getattr(self.hass, "config", None), "time_zone", "Europe/Brussels")
         try:
@@ -2518,6 +2530,7 @@ class SolarRuntime:
         except Exception:
             local_now = datetime.now().astimezone()
         self._observe(now, local_now)
+        self.device_retry.observe()
         try:
             await self.live_options.process_pending()
         except Exception as err:
@@ -2541,6 +2554,7 @@ class SolarRuntime:
             now = time.monotonic()
             local_now = datetime.now(local_now.tzinfo)
             self._observe(now, local_now)
+            self.device_retry.observe()
             grid, valid, discharge, ready, reported = self._site_data()
             self.grid_w = grid
             self._local_pv_update(local_now)
@@ -2970,15 +2984,17 @@ class SolarRuntime:
             raise HomeAssistantError("Wallbox-monitor is alleen-lezen: deze opdracht is geblokkeerd")
         domain = entity_id.split(".", 1)[0]
         if not self.hass.services.has_service(domain, service):
-            raise HomeAssistantError(f"Actie {domain}.{service} niet beschikbaar")
-        await self.hass.services.async_call(domain, service,
-                                           self.command_authority.assert_allowed(domain, service, entity_id, extra), blocking=True)
+            raise DeviceUnavailable(f"Actie {domain}.{service} tijdelijk niet beschikbaar")
+        payload = self.command_authority.assert_allowed(domain, service, entity_id, extra)
+        self._command_service_entered = True
+        await self.hass.services.async_call(domain, service, payload, blocking=True)
 
     async def _call_dishwasher_start(self, device_id, entity_id):
         """The bound native one-shot START has its own durable owner boundary."""
         if not self.hass.services.has_service("button", "press"):
-            raise HomeAssistantError("Actie button.press niet beschikbaar")
+            raise DeviceUnavailable("Actie button.press tijdelijk niet beschikbaar")
         payload = self.command_authority.assert_dishwasher_start(device_id, entity_id, now_wall=time.time())
+        self._command_service_entered = True
         await self.hass.services.async_call("button", "press", payload, blocking=True)
 
     def _profile_authority_error(self, cfg):
@@ -3327,18 +3343,18 @@ class SolarRuntime:
         isolated = trial.source_isolated_devices
         if i in isolated:
             return "Toestelbronnen onbetrouwbaar vóór opdracht"
-        # The cycle may change while its own/another command's durable intent is
-        # saved. Retain every cached peak, add newly reported running cycles and
-        # charge isolated sources separately. Only fresh running evidence grants
-        # solar relief; the complete future peak stays in every physical check.
+        # Re-evaluate native cycles after the durable intent. Preserve the full
+        # known future peak only for cycles currently reported running; an
+        # unavailable cached state does not add hypothetical offline consumption.
+        # Active trusted cycles retain their existing electrical protection.
         cached_cycles = getattr(self, "_dishwasher_unmetered_reserves", {})
         devices = {d.id: d for d in trial.devices()}
         fresh_cycles = {key: devices[key].maximum for key, other_cfg in self.configs.items()
             if other_cfg.get("kind") == "dishwasher" and not other_cfg.get("power_entity")
             and key not in isolated
             and read_dishwasher(self.hass, other_cfg, time.time()).active is True}
-        cycles = {key: max(cached_cycles.get(key, 0.0), fresh_cycles.get(key, 0.0))
-            for key in cached_cycles.keys() | fresh_cycles.keys() if key not in isolated}
+        cycles = {key: max(cached_cycles.get(key, 0.0), watts)
+            for key, watts in fresh_cycles.items()}
         comfort = max(0.0, getattr(self, "_dishwasher_comfort_reserve", 0)-sum(cached_cycles.values()))
         reserve = (sum(info["reserve_w"] for info in isolated.values())
                    + comfort + sum(cycles.values()) + self.sg_unconfirmed_reserve_w)
@@ -3569,7 +3585,8 @@ class SolarRuntime:
                 self.result.reasons[i] = "Afwasstart uitgesteld: Wallbox-/zonne- of netruimte gewijzigd bij laatste controle"
                 s.start_since = None
                 return
-        # Ambiguous failed stops are not retried blindly; an operator must check.
+        # Genuine actionable faults stay latched; temporary uncertain calls wait
+        # for a new report and are never replayed from their saved intent.
         if self.faults.get(i):
             return
         if action.watts > 0 and not self._target_matches(cfg, 0) and not s.owned:
@@ -3584,12 +3601,12 @@ class SolarRuntime:
         increasing = action.watts > old_target + .5
         dispatch_config = deepcopy(cfg)
         old_last_on, old_cycle_armed = s.last_on, s.cycle_armed
-        old_ticket = deepcopy(self.dishwasher.tickets.get(i, {})) if deadline_start else None
-        old_sg_guard = deepcopy(self.sg_wallbox_guard) if deadline_start or increasing else None
+        old_ticket = deepcopy(self.dishwasher.tickets.get(i, {})) if cfg.get("kind") == "dishwasher" else None
+        old_sg_guard = deepcopy(self.sg_wallbox_guard)
         old_handover = deepcopy(self.handover)
         previous_issued, previous_issued_wall = self.last_issued, self.last_issued_wall
         previous_guards = (deepcopy(self.wallbox_guard), deepcopy(self.consumer_wallbox),
-                           deepcopy(self.phase_learning)) if extra_stop or deadline_start or wallbox_stop else None
+                           deepcopy(self.phase_learning))
         dispatch_guards = (deepcopy(self.wallbox_guard), deepcopy(self.consumer_wallbox),
             deepcopy(self.phase_learning), deepcopy(self.dishwasher.tickets.get(i, {})),
             deepcopy(self.dishwasher_app.data.get(i, {}).get("request"))) if increasing and not deadline_start else None
@@ -3642,7 +3659,7 @@ class SolarRuntime:
                 self.wallbox_guard.reading.power_w or 0)
             self.dishwasher.sent(cfg, self.last_issued_wall)
         self.pending = {"id": i, "watts": action.watts, "issued": now, "issued_wall": self.last_issued_wall,
-                        "reason": action.reason,
+                        "previous_w": old_target, "reason": action.reason,
                         "max_runtime": action.reason.startswith("Maximale looptijd")}
         if action.reason.startswith("Zonnestroom vrijmaken voor SG-zonneboost"):
             self.priority_board.extra_reclaim_sent(action, now)
@@ -3746,6 +3763,7 @@ class SolarRuntime:
                 self.note(message)
                 return
         self.note(f'{cfg["name"]}: {action.watts:.0f} W aangevraagd — {action.reason}.')
+        self._command_service_entered = False
         try:
             async with asyncio.timeout(20):
                 if cfg["kind"] == "dishwasher":
@@ -3774,7 +3792,30 @@ class SolarRuntime:
                         await self._call(cfg["control_entity"], "turn_off")
                 else:
                     await self._call(cfg["control_entity"], "turn_on" if action.watts else "turn_off")
-        except (HomeAssistantError, TimeoutError, ValueError) as err:
+        except (HomeAssistantError, TimeoutError, ConnectionError, ValueError) as err:
+            if isinstance(err, DeviceUnavailable) and not self._command_service_entered:
+                # Known unsent: no native service was entered. Restore this
+                # intent, including its one-shot ticket, before a later plan.
+                self.pending = None
+                s.owned, s.target_w, s.last_on, s.cycle_armed = old_owned, old_target, old_last_on, old_cycle_armed
+                s.start_since = None
+                self.last_issued, self.last_issued_wall = previous_issued, previous_issued_wall
+                self.wallbox_guard, self.consumer_wallbox, self.phase_learning = previous_guards
+                self.sg_wallbox_guard = old_sg_guard if old_sg_guard is not None else self.sg_wallbox_guard
+                self.handover = old_handover
+                if cfg.get("kind") == "dishwasher":
+                    self.dishwasher.tickets[i] = old_ticket
+                    self.dishwasher_priority.watches.pop(i, None)
+                self.result.action = None
+                self.result.targets[i] = old_target
+                self.result.reasons[i] = "Toestelactie tijdelijk niet beschikbaar; controle elke 5 minuten"
+                await self.device_retry.defer_unsent(i)
+                return
+            if self._command_service_entered and ambiguous_transport(err):
+                await self.device_retry.hold(i, action.watts, self.last_issued_wall, old_target,
+                    max_runtime=action.reason.startswith("Maximale looptijd"))
+                _LOGGER.debug("Consumer call awaits fresh feedback: %s", cfg["name"])
+                return
             self.faults[i] = f"Opdrachtfout: {type(err).__name__}; controleer het toestel"
             self.consumer_history.failure(i, self.faults[i])
             self.pending = None
@@ -4027,6 +4068,7 @@ class SolarRuntime:
                 raise HomeAssistantError("Kies eerst Pauze en wacht op lopende opdrachten")
             s = self.states[device_id]
             self.recovery.pop(device_id, None)
+            self.device_retry.records.pop(device_id, None)
             self._restart_faults.pop(device_id, None)
             self.faults.pop(device_id, None)
             s.owned = False
@@ -4046,7 +4088,7 @@ class SolarRuntime:
         async with self._lock:
             if self.pending:
                 raise HomeAssistantError("Wacht eerst op de lopende opdracht")
-            ids = set(self.recovery) | set(self.faults) | set(self.reclaim_blocks) | set(self.dishwasher_priority.ev_blocks)
+            ids = set(self.recovery) | set(self.faults) | set(self.device_retry.records) | set(self.reclaim_blocks) | set(self.dishwasher_priority.ev_blocks)
             if not ids and self.problem_kind in ("source_wait", "source_configuration"):
                 # A stale page or direct button call must not claim all devices
                 # were verified OFF when only a derived source guard exists.
@@ -4067,6 +4109,7 @@ class SolarRuntime:
                         self.dishwasher.review(i)
                         self.states[i].cycle_armed = False
             self.faults.clear()
+            self.device_retry.records.clear()
             self.recovery.clear()
             self._restart_faults.clear()
             self.reclaim_blocks.clear()
@@ -4308,6 +4351,7 @@ class SolarRuntime:
                 "dishwasher_cancel_entity": self.entity_id("button", "dishwasher_cancel", d.id) if cfg.get("kind") == "dishwasher" else None,
                 "mode": self.device_modes.get(d.id, "disabled"),
                 "owned": s.owned, "on": s.on, "available": s.available,
+                "availability_retry": self.device_retry.overview(d.id),
                 "power_w": round(s.measured_w, 1), "estimated": self._power_is_estimated(d.id),
                 "target_w": round(self.result.targets.get(d.id, 0), 1),
                 "reason": self.result.reasons.get(d.id, "Initialiseren"),
