@@ -25,10 +25,21 @@ class DeviceUnavailable(HomeAssistantError):
 
 def ambiguous_transport(error):
     """An external service failure is uncertain, not proof that nothing ran."""
+    if not isinstance(error, (HomeAssistantError, TimeoutError, ConnectionError)):
+        return False
     actionable = {"ServiceValidationError", "ServiceNotFound", "Unauthorized",
                   "ConfigEntryAuthFailed", "HomeAssistantAuthError"}
-    return isinstance(error, (HomeAssistantError, TimeoutError)) and not any(
-        cls.__name__ in actionable for cls in type(error).__mro__)
+    pending, seen = [error], set()
+    while pending and len(seen) < 16:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if any(cls.__name__ in actionable for cls in type(current).__mro__):
+            return False
+        pending.extend(cause for cause in (current.__cause__, current.__context__)
+                       if isinstance(cause, BaseException) and id(cause) not in seen)
+    return True
 
 
 def _finite(value, default=None):
@@ -77,6 +88,8 @@ class DeviceRetry:
                     or issued < 0 or due is None or target is None or target < 0
                     or previous < 0):
                 continue
+            if issued > wall + 5:
+                issued = wall  # A clock jump still requires a new current report.
             self.records[device_id] = {
                 "state": state, "issued_wall": issued,
                 "next_check_wall": min(due, wall + INTERVAL_S),
@@ -103,11 +116,20 @@ class DeviceRetry:
             if (not (ordinary or appliance) or self.configuration_fault(device_id)
                     or (device_id in self.r._restart_faults and not appliance)):
                 continue
-            lease = leases.get(device_id, {})
-            target = _finite(lease.get("watts"), 0.0) if isinstance(lease, dict) else 0.0
-            self.records[device_id] = self._record(
-                "command_wait", wall, max(0.0, target), max(0.0, target),
-                "Wacht op een nieuwe toestelterugmelding; controle elke 5 minuten")
+            lease = leases.get(device_id)
+            target = _finite(lease.get("watts")) if isinstance(lease, dict) else None
+            owned_evidence = target is not None and target >= 0
+            if not owned_evidence and not appliance:
+                # An old message alone is not permission to take over an ON
+                # appliance. Normal observation keeps any current ON external.
+                self.records[device_id] = self._record(
+                    "source_wait", wall, 0.0, 0.0,
+                    "Wacht op betrouwbare toestelgegevens; geen beheer overgenomen")
+            else:
+                target = target if owned_evidence else float(cfg["nominal_w"])
+                self.records[device_id] = self._record(
+                    "command_wait", wall, max(0.0, target), max(0.0, target),
+                    "Wacht op een nieuwe toestelterugmelding; controle elke 5 minuten")
             self.r.faults.pop(device_id, None)
             if appliance:
                 self.r._restart_faults.pop(device_id, None)
@@ -197,6 +219,10 @@ class DeviceRetry:
         """Describe passive source waits; an actual new report may resolve early."""
         r, wall = self.r, time.time()
         changed = False
+        for device_id in tuple(self.records):
+            if device_id not in r.configs or device_id not in r.states:
+                self.records.pop(device_id, None)
+                changed = True
         for device_id, st in r.states.items():
             if self.command_waiting(device_id):
                 continue
@@ -252,6 +278,10 @@ class DeviceRetry:
         r, wall = self.r, time.time()
         changed = False
         for device_id, item in tuple(self.records.items()):
+            if device_id not in r.configs or device_id not in r.states:
+                self.records.pop(device_id, None)
+                changed = True
+                continue
             if item["state"] != "command_wait" or wall < item["next_check_wall"]:
                 continue
             item["next_check_wall"] = wall + INTERVAL_S

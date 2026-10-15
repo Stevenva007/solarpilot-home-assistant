@@ -205,3 +205,99 @@ async def test_legacy_failed_command_already_on_resumes_without_off_reset_or_dup
         assert [call[:2] for call in physical(hass)] == [("switch", "turn_off")]
     finally:
         await runtime.close()
+
+
+def test_wrapped_explicit_authorization_error_remains_actionable():
+    unauthorized = type("Unauthorized", (HomeAssistantError,), {})
+    wrapped = HomeAssistantError("native integration wrapped its cause")
+    wrapped.__cause__ = unauthorized("authorization failed")
+    assert not ambiguous_transport(wrapped)
+
+
+@pytest.mark.asyncio
+async def test_explicit_manual_takeover_removes_retry_permission_and_never_readopts():
+    runtime, hass = build()
+    runtime.mode = "solar"
+    runtime.device_modes["a"] = "auto"
+    hass.services.fail = True
+    await runtime.tick()
+    hass.services.fail = False
+    assert runtime.device_retry.command_waiting("a")
+    issued = runtime.device_retry.records["a"]["issued_wall"]
+    runtime.mode = "paused"
+    post_send(hass, "switch.load", "on", issued)
+    await runtime.takeover("a")
+    assert not runtime.device_retry.waiting("a")
+    assert not runtime.states["a"].owned
+    await runtime.set_mode("solar")
+    assert not runtime.states["a"].owned
+    assert runtime.device_modes["a"] == "disabled"
+    assert len(physical(hass)) == 1
+
+
+@pytest.mark.asyncio
+async def test_explicit_verified_off_reset_removes_retry_record():
+    runtime, hass = build()
+    runtime.mode = "solar"
+    runtime.device_modes["a"] = "auto"
+    hass.services.fail = True
+    await runtime.tick()
+    hass.services.fail = False
+    runtime.mode = "paused"
+    hass.states.set("switch.load", "off")
+    await runtime.reset()
+    assert not runtime.device_retry.waiting("a")
+    assert not runtime.states["a"].owned
+    assert len(physical(hass)) == 1
+
+
+@pytest.mark.asyncio
+async def test_removed_device_retry_record_is_pruned_without_global_internal_fault():
+    runtime, hass = build()
+    runtime.device_retry.begin("a", 1000, time.time())
+    runtime.configs.pop("a")
+    runtime.states.pop("a")
+    await runtime.device_retry.tick(time.monotonic())
+    assert not runtime.device_retry.waiting("a")
+    assert not runtime.faults
+
+
+@pytest.mark.asyncio
+async def test_dishwasher_missing_start_service_restores_unconsumed_ticket():
+    runtime, hass, cfg = dishwasher_setup()
+    native = hass.services.has_service
+    hass.services.has_service = lambda domain, action: False if (domain, action) == ("button", "press") else native(domain, action)
+    await arm_dishwasher(runtime)
+    assert not physical(hass)
+    assert not runtime.faults
+    assert runtime.device_retry.waiting("a")
+    ticket = runtime.dishwasher.tickets["a"]
+    assert isinstance(ticket, dict)
+    assert ticket["armed"] and not ticket.get("attempted")
+    assert not runtime.states["a"].owned
+    await runtime.tick()
+    assert not physical(hass)
+    hass.services.has_service = native
+    due(runtime)
+    await runtime.tick()
+    assert [call[:2] for call in physical(hass)] == [("button", "press")]
+    assert runtime.dishwasher.tickets["a"]["attempted"]
+
+
+@pytest.mark.asyncio
+async def test_old_transport_message_without_lease_never_takes_over_external_on():
+    runtime, hass = build()
+    hass.states.set("switch.load", "on")
+    runtime.store.data = {
+        "mode": "observe", "device_modes": {"a": "auto"}, "leases": {},
+        "faults": {"a": "Opdrachtfout: HomeAssistantError; controleer het toestel"},
+    }
+    await runtime.start()
+    try:
+        await runtime.set_mode("solar")
+        assert not runtime.states["a"].owned
+        assert runtime.states["a"].on
+        assert not physical(hass)
+        assert not runtime.faults
+    finally:
+        await runtime.close()

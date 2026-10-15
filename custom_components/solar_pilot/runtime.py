@@ -3790,7 +3790,7 @@ class SolarRuntime:
                         await self._call(cfg["control_entity"], "turn_off")
                 else:
                     await self._call(cfg["control_entity"], "turn_on" if action.watts else "turn_off")
-        except (HomeAssistantError, TimeoutError, ValueError) as err:
+        except (HomeAssistantError, TimeoutError, ConnectionError, ValueError) as err:
             if isinstance(err, DeviceUnavailable) and not self._command_service_entered:
                 # Known unsent: no native service was entered. Restore this
                 # intent, including its one-shot ticket, before a later plan.
@@ -4066,6 +4066,7 @@ class SolarRuntime:
                 raise HomeAssistantError("Kies eerst Pauze en wacht op lopende opdrachten")
             s = self.states[device_id]
             self.recovery.pop(device_id, None)
+            self.device_retry.records.pop(device_id, None)
             self._restart_faults.pop(device_id, None)
             self.faults.pop(device_id, None)
             s.owned = False
@@ -4085,7 +4086,7 @@ class SolarRuntime:
         async with self._lock:
             if self.pending:
                 raise HomeAssistantError("Wacht eerst op de lopende opdracht")
-            ids = set(self.recovery) | set(self.faults) | set(self.reclaim_blocks) | set(self.dishwasher_priority.ev_blocks)
+            ids = set(self.recovery) | set(self.faults) | set(self.device_retry.records) | set(self.reclaim_blocks) | set(self.dishwasher_priority.ev_blocks)
             if not ids and self.problem_kind in ("source_wait", "source_configuration"):
                 # A stale page or direct button call must not claim all devices
                 # were verified OFF when only a derived source guard exists.
@@ -4106,6 +4107,7 @@ class SolarRuntime:
                         self.dishwasher.review(i)
                         self.states[i].cycle_armed = False
             self.faults.clear()
+            self.device_retry.records.clear()
             self.recovery.clear()
             self._restart_faults.clear()
             self.reclaim_blocks.clear()
