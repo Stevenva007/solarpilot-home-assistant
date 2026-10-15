@@ -389,7 +389,10 @@ async def test_uncertain_start_is_not_success_and_never_retried_blindly(monkeypa
     await r.tick()
     await r.tick()
     assert len(starts(h)) == 1
-    assert "a" in r.faults
+    assert r.device_retry.command_waiting("a") and "a" not in r.faults
+    assert not r.restart_blocking and r.mode == "solar"
+    assert r.dishwasher.tickets["a"]["attempted"]
+    assert not r.dishwasher.tickets["a"].get("armed")
     assert not notifications(h, "dismiss")
     assert not notifications(h, "create")
 
