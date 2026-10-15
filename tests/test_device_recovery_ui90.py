@@ -213,3 +213,18 @@ const html=card._overview(card._ctx());
 assert.match(html,/Toestelgegevens deels onbekend; het actuele netoverschot blijft leidend/);
 assert.doesNotMatch(html,/mogelijk verbruik wordt apart gereserveerd/);
 """)
+
+
+def test_genuine_fault_overview_uses_current_nonisolated_diagnostic_provenance():
+    payload = device(
+        isolated=False, isolation_reason="", availability_retry=None,
+        reason="Opdrachtfout: ongeldige koppeling vraagt controle",
+    )
+    payload["start_diagnostics"]["summary"] = payload["reason"]
+    payload["start_requirements"]["availability_and_fault"]["fault"] = (
+        "Ongeldige koppeling vraagt controle"
+    )
+    html = render(payload, method="_decisionBoard")
+    assert payload["reason"] in html
+    assert "Tijdelijk niet bereikbaar" not in html
+    assert "controleert elke 5 minuten opnieuw" not in html
