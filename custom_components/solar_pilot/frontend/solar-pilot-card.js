@@ -1,5 +1,5 @@
-/* SolarPilot 1.0.0-beta.88. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
-const SP_CARD_VERSION = '1.0.0-beta.88';
+/* SolarPilot 1.0.0-beta.89. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+const SP_CARD_VERSION = '1.0.0-beta.89';
 const SP_DIALOG_RELEASE = SP_CARD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g,'-');
 const SP_ANALYSIS_DIALOG_TAG = `solar-pilot-analysis-dialog-${SP_DIALOG_RELEASE}`;
 const SP_QUALITY_DIALOG_TAG = `solar-pilot-learning-dialog-${SP_DIALOG_RELEASE}`;
@@ -1122,12 +1122,21 @@ class SolarPilotCard extends HTMLElement {
     return `<section class="policy"><div class="row"><div class="grow"><h2>Auto laden in de gezamenlijke volgorde</h2><p>De volledige volgorde en de gevolgen voor autoladen staan op één plek.</p></div><button type="button" data-action="view" data-value="priorities">Naar Voorrang</button></div></section>
       <section class="external wallbox-device${activity.active?' on':''}"><div class="row"><div class="icon">EV</div><div class="grow"><h2>${spEscape(wb.name||'Wallbox')} <span class="runstate ${activity.active?'active':''}">${spEscape(activity.label)}</span> <span class="readonly">WALLBOX REGELT ZELF</span></h2><p>${spEscape((wb.per_device_priority?wb.consumer_priority?.reason:wb.reason)||'Extern geregeld')}</p></div><strong>${spPower(activity.known?wb.power_w:null)}</strong></div><p class="note">SolarPilot leest het werkelijke laden; de Wallbox kiest zelf de laadstroom. Een ingestelde laadmodus is geen bewijs dat de auto nu laadt.</p>${this._wallboxPriorityControl(c,'global')}${this._wallboxExplanation(wb,activity)}${this._wallboxProfile(wb)}<div class="facts"><span>Ingestelde Wallbox-modus <b>${spEscape(spWallboxMode(wb.configured_mode||wb.reported_mode))}</b></span><span>Werkelijk gedetecteerde sessie <b>${spEscape(wb.session_value||(!wb.session_entity?'geen sessiesensor gekoppeld':spWallboxMode(wb.effective_mode)))}</b></span><span>Laadvermogen <b>${spPower(activity.known?wb.power_w:null)}</b></span><span>Wallbox-vermogen terugnemen <b>${wb.reclaim_allowed_now?'ja, nu bevestigd':'nee, nu niet beschikbaar'}</b></span>${wb.last_report_age_s!=null?`<span>Rapport <b>${Math.round(Number(wb.last_report_age_s))} s oud</b></span>`:''}</div><p class="note wb-session">${spEscape(wb.reclaim_reason||wb.session_reason||'Alleen werkelijk vrij zonneoverschot wordt gebruikt.')}</p>${wb.warning?this._notice(spEscape(wb.warning),true):''}</section>`;
   }
-  _startAllocationFacts(allocation){
+  _cycleReserveRelief(allocation){
+    if(!allocation||typeof allocation!=='object')return null;
+    const full=spNumber(allocation.protected_cycle_reserve_w),solar=spNumber(allocation.solar_cycle_reserve_w),relief=spNumber(allocation.solar_cycle_reserve_relief_w);
+    if(full==null||solar==null||relief==null||full<0||solar<0||relief<=0||relief>full||solar>full||Math.abs(full-solar-relief)>0.5)return null;
+    return {full,solar,relief};
+  }
+  _startAllocationFacts(allocation,cycleRelief=null){
     if(!allocation)return '';
     const rows=[],add=(key,label,{positive=false}={})=>{const value=spNumber(allocation[key]);if(value==null||positive&&value<=0)return;rows.push(`<span>${label} <b>${spPower(value)}</b></span>`);};
     add('filtered_free_w','Zonneoverschot na vermogensfilter');
     add('smoothing_hold_w','Tijdelijk achtergehouden door vermogensfilter',{positive:true});
-    add('protected_cycle_reserve_w','Reserve voor lopende beschermde cycli · komende pieken',{positive:true});
+    if(cycleRelief){
+      add('protected_cycle_reserve_w','Reserve voor lopende beschermde cycli · elektrisch behouden',{positive:true});
+      add('solar_cycle_reserve_w','Cyclusreserve afgetrokken van zonnestroom');
+    }else add('protected_cycle_reserve_w','Reserve voor lopende beschermde cycli · komende pieken',{positive:true});
     add('isolated_reserve_w','Reserve voor toestellen met onzekere metingen',{positive:true});
     add('sg_unconfirmed_reserve_w','Reserve voor nog onbevestigde SG-opname',{positive:true});
     add('other_reserved_w','Andere bestaande vermogensreserve',{positive:true});
@@ -1178,6 +1187,7 @@ class SolarPilotCard extends HTMLElement {
     const gridFallback=d.kind==='dishwasher'&&d.dishwasher?.deadline_due===true;
     const pool=gridFallback?null:power?.solar_start_pool,required=spNumber(power?.required_start_w);
     const allocation=power?.allocation;
+    const cycleRelief=power?.measurement_valid===true&&d.available!==false&&['switch','number','script'].includes(d.kind)&&d.non_interruptible!==true?this._cycleReserveRelief(allocation):null;
     const available=allocation?spNumber(allocation.available_w):pool?spNumber(pool.available_solar_w):spNumber(power?.measured_free_w);
     if(!d.on&&power?.measurement_valid&&required!=null&&available!=null&&required>available&&/vermogen|prioriteit/i.test(reason)&&!(d.kind==='dishwasher'&&!pool)&&!diagnostics?.missing?.includes('allocated_start_power')){
       missing.push(`Nog ongeveer ${spPower(required-available)} beschikbaar startvermogen nodig na reserves en toewijzingen.`);
@@ -1185,13 +1195,14 @@ class SolarPilotCard extends HTMLElement {
     if(pool?.import_headroom_after_release_w!=null&&Number(pool.import_headroom_after_release_w)<Number(power.minimum_w))missing.push(`De ingestelde netafnamegrens laat momenteel ${spPower(pool.import_headroom_after_release_w)} extra verbruik toe; dit toestel vraagt minstens ${spPower(power.minimum_w)}.`);
     for(const [label,value,state] of extra){if(state!=='ok')missing.push(`${label}: ${value}.`);}
     missing=[...new Set(missing)];
-    const sharing=(pool?`<span>Van autoladen beschikbaar <b>${spPower(pool.wallbox_solar_w)}</b></span>${Number(pool.lower_loads_releasable_w)>0?`<span>Van lagere toestellen vrij te maken <b>${spPower(pool.lower_loads_releasable_w)}</b></span>`:''}<span>Toegelaten zonnepot vóór eindtoewijzing <b>${spPower(pool.available_solar_w)}</b></span>`:'')+(allocation?this._startAllocationFacts(allocation)+`<span>Beschikbaar voor dit toestel <b>${spPower(allocation.available_w)}</b></span>`:'');
+    const sharing=(pool?`<span>Van autoladen beschikbaar <b>${spPower(pool.wallbox_solar_w)}</b></span>${Number(pool.lower_loads_releasable_w)>0?`<span>Van lagere toestellen vrij te maken <b>${spPower(pool.lower_loads_releasable_w)}</b></span>`:''}<span>Toegelaten zonnepot vóór eindtoewijzing <b>${spPower(pool.available_solar_w)}</b></span>`:'')+(allocation?this._startAllocationFacts(allocation,cycleRelief)+`<span>Beschikbaar voor dit toestel <b>${spPower(allocation.available_w)}</b></span>`:'');
     const powerFacts=power?`<div class="start-facts"><span>Benodigd voor start <b>${spPower(power.required_start_w)}</b></span>${gridFallback?'<span>Netstroom op deadline <b>toegestaan</b></span>':`<span>Vrije zonnestroom na huisreserve <b>${power.measurement_valid?spPower(power.measured_free_w):'niet betrouwbaar'}</b></span>`}${sharing}<span>Stabiel nodig <b>${stable?.remaining_s!=null?(stable.remaining_s>0?'nog '+wait(stable.remaining_s):'gereed'):stable?.configured_s!=null?(Number(stable.configured_s)>0?wait(stable.configured_s)+' vereist':'geen wachttijd'):'nog niet bekend'}</b></span></div><p class="power-note">${gridFallback?'Op de deadline is zonneoverschot niet nodig. Het beschikbare vermogen blijft begrensd door de actuele net-, fase- en cyclusruimte.':pool?'Het vermogen voor dit toestel telt toegelaten zonnestroom uit autoladen mee, na reserves en begrensd door de echte zonneopbrengst. De Wallbox regelt zelf terug; dit is geen extra netcapaciteit. Lagere toestellen moeten eerst veilig stoppen. Wachttijden en elektrische grenzen blijven gelden.':d.kind==='dishwasher'?'Vrije zonnestroom is niet het totale startvermogen. Toegelaten vermogen uit autoladen kan ook meetellen, zodra de toestelstatus en de laadgegevens betrouwbaar zijn.':''}${power.note?` ${spEscape(power.note)}`:''}</p>`:'';
+    const cycleNote=cycleRelief?'<p class="power-note cycle-reserve-note">Dit onderbreekbare toestel mag het actuele resterende zonneoverschot gebruiken. De volledige reserve voor komende afwaspieken blijft elektrisch behouden. Dit telt geen extra zonnestroom of elektrische ruimte bij. Minimumlooptijden en beschermde cycli blijven gelden.</p>':'';
     const readyLabels={global_solar_mode:'Automatisch regelen staat aan.',recovery_clear:'Herstartcontrole afgerond.',automatic_participation:'Dit toestel mag automatisch meedoen.',reliable_energy_measurement:'Actuele energiemeting betrouwbaar.',availability_and_fault:'Toestel beschikbaar zonder gemelde fout.',release:'Vrijgavevoorwaarden zijn gehaald.',demand_or_time_window:'Startvraag of toegestaan tijdvenster aanwezig.',minimum_rest:'Minimale rusttijd afgerond.',non_interruptible_cycle_release:'Eén volledige beschermde cyclus vrijgegeven.',daily_maximum:'Dagmaximum laat deze start toe.',planner_start_block:'Planning houdt deze start niet tegen.',wallbox_start_block:'Autoladen houdt deze start niet tegen.',runtime_start_block:'Andere regelingen laten deze start toe.',general_increase_permission:'Veiligheidscontrole laat nieuwe starts toe.',allocated_start_power:'Voldoende vermogen aan dit toestel toegewezen.'};
     const ready=requirements?Object.entries(requirements).filter(([key,value])=>value?.met===true&&value.required!==false&&readyLabels[key]).map(([key])=>readyLabels[key]):[];
     const readyHtml=ready.length?`<div class="condition-group ready"><b>In orde</b><ul>${ready.map(text=>`<li>${spEscape(text)}</li>`).join('')}</ul></div>`:'';
     const missingHtml=missing.length?`<div class="start-missing"><b>Nog nodig</b><ul>${missing.map(text=>`<li>${spEscape(text)}</li>`).join('')}</ul></div>`:requirements?'<p class="start-ready">Geen ontbrekende startvoorwaarde gemeld; de beslisreden hierboven blijft leidend.</p>':'<p>De afzonderlijke startvoorwaarden zijn nog niet volledig ontvangen.</p>';
-    return `<div class="start-explanation"><strong>${d.available===false?'Toestelactiviteit nog niet bevestigd':'Waarom dit toestel nog niet gestart is'}</strong><p>${spEscape(reason)}</p>${powerFacts}${missingHtml}${readyHtml}<small>De beslisreden komt rechtstreeks uit de regelaar. Een ontbrekende externe oorzaak wordt niet ingevuld.</small></div>`;
+    return `<div class="start-explanation"><strong>${d.available===false?'Toestelactiviteit nog niet bevestigd':'Waarom dit toestel nog niet gestart is'}</strong><p>${spEscape(reason)}</p>${powerFacts}${cycleNote}${missingHtml}${readyHtml}<small>De beslisreden komt rechtstreeks uit de regelaar. Een ontbrekende externe oorzaak wordt niet ingevuld.</small></div>`;
   }
   _deviceCard(d,mode){
     if(d.kind==='dishwasher')return this._dishwasherCard(d,mode);

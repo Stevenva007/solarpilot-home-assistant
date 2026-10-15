@@ -64,6 +64,7 @@ from .platforms import LivePlatforms
 from .priority_board import PriorityBoard
 from .wallbox_priority import WallboxPriority
 from .heatpump_budget import sg_solar_budget, heatpump_power, heatpump_shared
+from .cycle_reserve import solar_cycle_reserve_relief
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -353,6 +354,11 @@ class SolarRuntime:
         reserve += unmetered
         self._dishwasher_unmetered_reserve = unmetered
         self._dishwasher_unmetered_reserves = unmetered_by_device
+        # Only the currently trusted running subset can relax a SOLAR reserve
+        # for ordinary interruptible loads. Missing status retains the full
+        # electrical reservation and never becomes evidence of zero load.
+        self._dishwasher_solar_cycle_relief_w = sum(watts for i, watts in unmetered_by_device.items()
+            if read_dishwasher(self.hass, self.configs[i], time.time()).active is True)
         permitted = {i for i,c in self.configs.items() if dishwasher_has_priority(c)
             and self.dishwasher.permitted(c, read_dishwasher(self.hass,c), time.time())[0]}
         # This release's additional reservation is scoped to an actual priority
@@ -2755,6 +2761,7 @@ class SolarRuntime:
                     protected_ev_credit=priority.ev_credit,
                     comfort_reserve_w=getattr(self,"_dishwasher_comfort_reserve",0) + isolated_reserve + self.sg_unconfirmed_reserve_w,
                     protected_cycle_reserve_w=getattr(self,"_dishwasher_unmetered_reserve",0),
+                    cycle_solar_relief_w=getattr(self,"_dishwasher_solar_cycle_relief_w",0),
                     isolated_reserve_w=isolated_reserve,
                     sg_unconfirmed_reserve_w=self.sg_unconfirmed_reserve_w,
                     reclaimable_w=getattr(self.wallbox_guard, "reclaimable_w", 0),
@@ -3320,14 +3327,29 @@ class SolarRuntime:
         isolated = trial.source_isolated_devices
         if i in isolated:
             return "Toestelbronnen onbetrouwbaar vóór opdracht"
+        # The cycle may change while its own/another command's durable intent is
+        # saved. Retain every cached peak, add newly reported running cycles and
+        # charge isolated sources separately. Only fresh running evidence grants
+        # solar relief; the complete future peak stays in every physical check.
+        cached_cycles = getattr(self, "_dishwasher_unmetered_reserves", {})
+        devices = {d.id: d for d in trial.devices()}
+        fresh_cycles = {key: devices[key].maximum for key, other_cfg in self.configs.items()
+            if other_cfg.get("kind") == "dishwasher" and not other_cfg.get("power_entity")
+            and key not in isolated
+            and read_dishwasher(self.hass, other_cfg, time.time()).active is True}
+        cycles = {key: max(cached_cycles.get(key, 0.0), fresh_cycles.get(key, 0.0))
+            for key in cached_cycles.keys() | fresh_cycles.keys() if key not in isolated}
+        comfort = max(0.0, getattr(self, "_dishwasher_comfort_reserve", 0)-sum(cached_cycles.values()))
         reserve = (sum(info["reserve_w"] for info in isolated.values())
-                   + getattr(self, "_dishwasher_comfort_reserve", 0) + self.sg_unconfirmed_reserve_w)
+                   + comfort + sum(cycles.values()) + self.sg_unconfirmed_reserve_w)
+        solar_relief = solar_cycle_reserve_relief(cfg.get("kind"), cfg.get("non_interruptible"),
+            reserve, sum(fresh_cycles.values()))
         for key, other in self.states.items():
             if key == i or key in isolated or not other.owned or not other.on:
                 continue
             actual = self._power(self.configs[key].get("power_entity"))[0] if self._reclaim_meter(key) else None
             future = max(0.0, other.target_w-(actual if actual is not None and actual >= 0 else 0.0))
-            covered = getattr(self, "_dishwasher_unmetered_reserves", {}).get(key, 0.0)
+            covered = cycles.get(key, 0.0)
             reserve += max(0.0, future-covered)
         increment = max(0.0, action.watts-(max(0.0, measured) if active else 0.0))
         cap = self.settings["max_import_w"]
@@ -3388,7 +3410,7 @@ class SolarRuntime:
                     return "Onvoldoende bevestigd zonnevermogen voor overname vóór opdracht"
         grid_allowed = st.manual_forced or st.boost_until > now or st.deadline_force or st.planner_grid_force
         if not grid_allowed:
-            free = -max(grid, self.filtered if self.filtered is not None else grid)-discharge-self.settings["reserve_w"]-reserve+credit
+            free = -max(grid, self.filtered if self.filtered is not None else grid)-discharge-self.settings["reserve_w"]-reserve+solar_relief+credit
             restrict_start_budget(free)
             margin = cfg["start_margin_w"] if not active else 0.0
             if free+.01 < increment+margin:

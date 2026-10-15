@@ -497,7 +497,7 @@ async def test_future_restored_running_report_cannot_confirm_an_actual_start_com
 
 
 @pytest.mark.asyncio
-async def test_unmetered_running_cycle_peak_is_reserved_once_at_ordinary_dispatch():
+async def test_unmetered_cycle_peak_stays_electrical_while_flexible_dispatch_uses_real_solar():
     from copy import deepcopy
     from custom_components.solar_pilot.engine import State
     r, h, c = setup(nominal_w=1800)
@@ -517,7 +517,10 @@ async def test_unmetered_running_cycle_peak_is_reserved_once_at_ordinary_dispatc
     h.states.set("switch.other_load", "off")
     await r.tick()
     assert r._dishwasher_unmetered_reserve == 1800
-    assert r.result.start_power["b"]["available_w"] == 1180
+    assert r.result.start_power["b"]["available_w"] == 2980
+    assert r.result.start_power["b"]["electrical_headroom_w"] == 4800
+    assert r.result.start_power["b"]["protected_cycle_reserve_w"] == 1800
+    assert r.result.start_power["b"]["solar_cycle_reserve_w"] == 0
     assert [call[:2] for call in writes(h)] == [("switch", "turn_on")]
     assert r.states["a"].owned and h.states.get("sensor.dw_phase").state == "Running"
 

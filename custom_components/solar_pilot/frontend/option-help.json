@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.88",
+  "version": "1.0.0-beta.89",
   "language": "nl",
   "steps": {
     "init": {
@@ -1304,7 +1304,7 @@
       "title": "Vast / conservatief maximaal elektrisch vermogen (W)",
       "short": "Realistische conservatieve planningswaarde voor het toestel.",
       "paragraphs": [
-        "Realistische conservatieve planningswaarde voor het toestel. Gebruik ongeveer het werkelijk benodigde vermogen, niet bewust te laag. Bij tijdelijke onbeschikbaarheid blijft een conservatieve reservering voor mogelijk verbruik gelden; een ontbrekende meting is geen nul. Een exclusieve meter kan na voldoende leren de schatting begrensd verhogen; het ingestelde veld wordt niet vanzelf herschreven.",
+        "Realistische conservatieve planningswaarde voor het toestel. Gebruik ongeveer het werkelijk benodigde vermogen, niet bewust te laag. Bij tijdelijke onbeschikbaarheid blijft een conservatieve reservering voor mogelijk verbruik gelden; een ontbrekende meting is geen nul. Een exclusieve meter kan na voldoende leren de schatting begrensd verhogen; het ingestelde veld wordt niet vanzelf herschreven. Bij een lopende onbemeterde afwasbeurt blijft de nominale piekraming elektrisch gereserveerd. Alleen gewone onderbreekbare lasten kunnen met betrouwbare actieve afwasstatus werkelijk resterende zon benutten zonder die piek nogmaals van de zonnepot af te trekken. SG, niet-onderbreekbare lasten en onzekere bronnen behouden hun strengere reserve.",
         "Toestelvoorwaarden, fysieke terugmelding, minimumtijden en beschermde programma’s gaan vóór energie-optimalisatie.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -2558,7 +2558,7 @@
       "title": "Gewenste injectiemarge (W)",
       "short": "Injectiebuffer die SolarPilot niet opnieuw toewijst.",
       "paragraphs": [
-        "Injectiebuffer die SolarPilot niet opnieuw toewijst. Bij 600 W injectie en 150 W reserve blijft ongeveer 450 W over voor een nieuwe last. Hoger is voorzichtiger; lager benut meer zon maar geeft eerder korte netafname.",
+        "Injectiebuffer die SolarPilot niet opnieuw toewijst. Bij 600 W injectie en 150 W reserve blijft ongeveer 450 W over voor een nieuwe last. Hoger is voorzichtiger; lager benut meer zon maar geeft eerder korte netafname. Dit is de huisreserve, los van de toekomstige piekreserve van een lopende beschermde cyclus. Bij betrouwbaar gemeld actief afwassen zonder gekoppelde eigen vermogensmeter trekt een gewone onderbreekbare last die afwaspiek niet opnieuw van haar zachte zonnepot af. De volledige piek blijft in de totale elektrische ruimte gereserveerd. Bestaande fasecontroles, minimumtijden en start-/stopbuffers blijven gelden; geen nulimportgarantie.",
         "Vermogensinstellingen zijn softwarematige planningsgrenzen. Ze verhogen nooit de echte capaciteit van de aansluiting.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -2958,7 +2958,7 @@
       "title": "Vast / conservatief maximaal elektrisch vermogen (W)",
       "short": "Realistische conservatieve planningswaarde voor het toestel.",
       "paragraphs": [
-        "Realistische conservatieve planningswaarde voor het toestel. Gebruik ongeveer het werkelijk benodigde vermogen, niet bewust te laag. Bij tijdelijke onbeschikbaarheid blijft een conservatieve reservering voor mogelijk verbruik gelden; een ontbrekende meting is geen nul. Een exclusieve meter kan na voldoende leren de schatting begrensd verhogen; het ingestelde veld wordt niet vanzelf herschreven.",
+        "Realistische conservatieve planningswaarde voor het toestel. Gebruik ongeveer het werkelijk benodigde vermogen, niet bewust te laag. Bij tijdelijke onbeschikbaarheid blijft een conservatieve reservering voor mogelijk verbruik gelden; een ontbrekende meting is geen nul. Een exclusieve meter kan na voldoende leren de schatting begrensd verhogen; het ingestelde veld wordt niet vanzelf herschreven. Bij een lopende onbemeterde afwasbeurt blijft de nominale piekraming elektrisch gereserveerd. Alleen gewone onderbreekbare lasten kunnen met betrouwbare actieve afwasstatus werkelijk resterende zon benutten zonder die piek nogmaals van de zonnepot af te trekken. SG, niet-onderbreekbare lasten en onzekere bronnen behouden hun strengere reserve.",
         "Toestelvoorwaarden, fysieke terugmelding, minimumtijden en beschermde programma’s gaan vóór energie-optimalisatie. Een ingeschakelde stekker bewijst niet dat een compressor continu draait.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -3308,7 +3308,7 @@
       "title": "Optioneel: exclusieve vermogensmeter (Shelly, W/kW)",
       "short": "Optionele exclusieve W/kW-sensor van de afwasmachine, bijvoorbeeld een Shelly.",
       "paragraphs": [
-        "Optionele exclusieve W/kW-sensor van de afwasmachine, bijvoorbeeld een Shelly. Het relais van de plug wordt nooit bediend. Zonder meter gebruikt planning een duidelijk geschatte conservatieve last; het stageprofiel wordt niet uit totale woningafname verzonnen. Gedeelde net/PV/Wallbox/boilermeters zijn ongeschikt.",
+        "Optionele exclusieve W/kW-sensor van de afwasmachine, bijvoorbeeld een Shelly. Het relais van de plug wordt nooit bediend. Zonder meter gebruikt planning een duidelijk geschatte conservatieve last; het stageprofiel wordt niet uit totale woningafname verzonnen. Gedeelde net/PV/Wallbox/boilermeters zijn ongeschikt. Een betrouwbare actieve afwasstatus zonder gekoppelde meter laat gewone onderbreekbare lasten wel werkelijk resterende zon benutten; de volledige toekomstige afwaspiek blijft in de totale elektrische ruimte gereserveerd. Een gekoppelde maar onbruikbare meter geeft deze versoepeling niet. Een piekraming is geen gemeten actueel verbruik of faseprofiel.",
         "Een gestart afwasprogramma blijft beschermd: geen stop/pauze/reset of stroomonderbreking voor energiesturing. Begin met gecontroleerde bronwaarden en één geschikte geladen afwasbeurt.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]

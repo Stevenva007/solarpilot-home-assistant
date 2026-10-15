@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.89 — restzon benutten naast een lopende afwasbeurt
+
+- Scheidt het zachte zonnebudget van de toekomstige afwaspiek voor gewone onderbreekbare `switch`-, `number`- en gecontroleerde `script`-lasten. Alleen een actuele betrouwbare actieve native afwasstatus zonder gekoppelde afwasmeter en zonder bronisolatie geeft deze versoepeling. Werkelijk resterende actuele/gefilterde zon na huisreserve en batterijontlading moet de nieuwe last plus startmarge nog steeds dekken.
+- Behoudt de volledige toekomstige piekraming in de totale elektrische net-/kwartierberekening. De bestaande fasecontroles blijven gelijk; onbemeterd betekent geen bekend toekomstig faseprofiel. SG, beschermde lasten, overige comfort-/isolatie-/onbevestigde reserves en een gekoppelde maar onbruikbare afwasmeter behouden hun strengere bescherming.
+- Maakt de geschatte toekomstige piek, het voor een geschikte last versoepelde zonnedeel, het toegepaste zonnebudget en de elektrische ruimte afzonderlijk zichtbaar. Een schatting wordt geen gemeten verbruik. Minimumtijden en start-/stopbuffers blijven gelden; een latere verwarmingspiek kan tijdelijk netafname geven.
+- Beoordeelt verse status en ruimte ook na wachtende opdrachtopslag opnieuw. Geen nieuwe configuratie, meterplicht, afwas-stoprecht, gewijzigde APP-deadline, Wallbox-write of Panasonic-bediening. Behoudt beta.88-voorkeurskeuzes en eindtijden, bestaande SG-regels, instellingen, modellen en historie.
+- Bouwbasis: gepubliceerde beta.88 `cd334cc779f78634e24aa4244128eacd4fad4040`, tree `956e2ae8558db13c908fcac032a0c043932541d7`. Eigen bewijs: `docs/TESTRESULTATEN_BETA89.md`; upgrade/behoud/rollback: `docs/BETA89_INSTELLEN.md`. Eerdere resultaten zijn geen beta.89-validatie.
+
 ## 1.0.0-beta.88 — tijdelijke Wallbox-voorrang algemeen en per toestel
 
 - Voegt **Wallbox voorrang geven** toe: 30 min, 1, 2, 3, 4 of 5 uur, of **tot ik terug op automatisch zet**, met echte resterende tijd voor tijdelijke keuzes. De oorspronkelijke eindtijd blijft na herladen en herstart staan.

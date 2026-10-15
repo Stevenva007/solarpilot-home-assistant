@@ -76,7 +76,11 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                        'autobatterij kiezen voor de algemene thuisbatterijreserve.',
  'reserve_w': 'Injectiebuffer die SolarPilot niet opnieuw toewijst. Bij 600 W injectie en 150 W reserve blijft '
               'ongeveer 450 W over voor een nieuwe last. Hoger is voorzichtiger; lager benut meer zon maar '
-              'geeft eerder korte netafname.',
+              'geeft eerder korte netafname. Dit is de huisreserve, los van de toekomstige piekreserve van een '
+              'lopende beschermde cyclus. Bij betrouwbaar gemeld actief afwassen zonder gekoppelde eigen '
+              'vermogensmeter trekt een gewone onderbreekbare last die afwaspiek niet opnieuw van haar zachte '
+              'zonnepot af. De volledige piek blijft in de totale elektrische ruimte gereserveerd. Bestaande '
+              'fasecontroles, minimumtijden en start-/stopbuffers blijven gelden; geen nulimportgarantie.',
  'max_import_w': 'Softwarematige bovengrens voor de totale netafname. Dit is geen zekeringbeveiliging en '
                  'beschermt niet zelfstandig elke fase. Lagere waarden beperken toegestane starts; onbeheerde '
                  'apparaten kunnen de grens toch overschrijden.',
@@ -127,7 +131,10 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
               'benodigde vermogen, niet bewust te laag. Bij tijdelijke onbeschikbaarheid blijft een '
               'conservatieve reservering voor mogelijk verbruik gelden; een ontbrekende meting is geen nul. '
               'Een exclusieve meter kan na voldoende leren de schatting begrensd verhogen; het ingestelde veld '
-              'wordt niet vanzelf herschreven.',
+              'wordt niet vanzelf herschreven. Bij een lopende onbemeterde afwasbeurt blijft de nominale '
+              'piekraming elektrisch gereserveerd. Alleen gewone onderbreekbare lasten kunnen met betrouwbare '
+              'actieve afwasstatus werkelijk resterende zon benutten zonder die piek nogmaals van de zonnepot '
+              'af te trekken. SG, niet-onderbreekbare lasten en onzekere bronnen behouden hun strengere reserve.',
  'min_units': 'Kleinste bruikbare actieve instelling van de numerieke actuator. Dit kan bijvoorbeeld ampère '
               'zijn; het is niet automatisch watt. SolarPilot begint niet op een kleiner onbruikbaar doel.',
  'max_units': 'Hoogste toegestane actuatorinstelling binnen het fysieke apparaatbereik. De instelling is een '
@@ -520,7 +527,12 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                                        'Shelly. Het relais van de plug wordt nooit bediend. Zonder meter '
                                        'gebruikt planning een duidelijk geschatte conservatieve last; het '
                                        'stageprofiel wordt niet uit totale woningafname verzonnen. Gedeelde '
-                                       'net/PV/Wallbox/boilermeters zijn ongeschikt.',
+                                       'net/PV/Wallbox/boilermeters zijn ongeschikt. Een betrouwbare actieve '
+                                       'afwasstatus zonder gekoppelde meter laat gewone onderbreekbare lasten '
+                                       'wel werkelijk resterende zon benutten; de volledige toekomstige '
+                                       'afwaspiek blijft in de totale elektrische ruimte gereserveerd. Een '
+                                       'gekoppelde maar onbruikbare meter geeft deze versoepeling niet. '
+                                       'Een piekraming is geen gemeten actueel verbruik of faseprofiel.',
  'dishwasher_alert_entity': 'Optionele alarmbron. Bij koppeling moet deze actueel zijn en een expliciet '
                             'geconfigureerde vrij-toestand hebben. De fabrikant blijft eigenaar van lek-, '
                             'deur- en apparaatbeveiliging. Een generieke OFF-waarde is alleen bruikbaar als de '
