@@ -15,7 +15,7 @@ def incompatible():
 
 
 def compatible():
-    return {"schema": 1, "provider_loaded": True, "native_device_registered": True,
+    return {"schema": 1, "provider_loaded": True, "native_device_registered": True, "status": "verified",
             "compatibility_state": "compatible", "compatibility": {
                 "schema": 1, "contract": "aquarea_special_status_action_v1", "verified": True,
                 "basis": "loaded_source", "fingerprint": "a" * 64}}
@@ -213,5 +213,20 @@ async def test_other_positively_inspected_contract_changes_get_one_notice(detail
     value["compatibility_state"] = "unknown"
     await reporter.sync(value)
     assert [call[1] for call in notices(hass)] == ["create"]
+    await reporter.sync(compatible())
+    assert [call[1] for call in notices(hass)] == ["create", "dismiss"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["unknown", "unavailable", None])
+async def test_compatible_metadata_without_verified_active_source_cannot_clear_notice(status):
+    _runtime, hass, reporter = setup()
+    await reporter.sync(incompatible())
+    value = compatible()
+    value["status"] = status
+    value["reason_code"] = "native_typed_snapshot_unverified"
+    await reporter.sync(value)
+    assert [call[1] for call in notices(hass)] == ["create"]
+    assert reporter.snapshot()["active"]
     await reporter.sync(compatible())
     assert [call[1] for call in notices(hass)] == ["create", "dismiss"]

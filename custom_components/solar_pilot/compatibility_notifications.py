@@ -62,8 +62,8 @@ class CompatibilityNotifications:
                 and contract.get("compatibility_detail") in _INCOMPATIBLE_DETAILS):
             return "incompatible"
         proof = contract.get("compatibility")
-        if (contract.get("compatibility_state") == "compatible" and isinstance(proof, Mapping)
-                and valid_semantic_contract(dict(proof))):
+        if (contract.get("compatibility_state") == "compatible" and contract.get("status") == "verified"
+                and isinstance(proof, Mapping) and valid_semantic_contract(dict(proof))):
             return "compatible"
         return "unknown"
 

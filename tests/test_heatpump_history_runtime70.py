@@ -78,6 +78,7 @@ async def test_recording_poll_is_independent_of_analysis_and_control_mode(monkey
     monkeypatch.setattr(r, "_tick", no_control)
     monkeypatch.setattr(r.learning_hub, "tick", no_control)
     monkeypatch.setattr(r.action_notifications, "sync", no_control)
+    monkeypatch.setattr(r.compatibility_notifications, "sync", no_control)
     monkeypatch.setattr(r, "publish", lambda: None)
     await r.tick()
     assert calls == ["hp", "sg"]
