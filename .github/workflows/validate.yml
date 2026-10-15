@@ -96,6 +96,10 @@ jobs:
         env:
           SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests
         run: python tools/check_sg_ui.py
+      - name: Validate timed Wallbox priority, individual overrides and countdowns
+        env:
+          SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests
+        run: python tools/check_wallbox_priority_ui88.py
       - name: Validate PV factor evidence and quarter profile with fictitious data
         env:
           SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests

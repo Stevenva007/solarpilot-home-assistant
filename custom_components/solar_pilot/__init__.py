@@ -17,6 +17,7 @@ from .analysis_api import async_register_analysis_api
 from .learning_api import async_register_learning_api
 from .pv_forecast_api import async_register_pv_api
 from .priority_api import async_register_priority_api
+from .wallbox_priority_api import async_register_wallbox_priority_api, SERVICE_WALLBOX_PRIORITY_CONTROL
 from .pv_forecast import PV_SENSOR_DEFINITIONS
 from .analysis_export import storage_key as analysis_storage_key
 from .feedback_store import storage_key as feedback_storage_key
@@ -107,6 +108,7 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hub_suffixes.update({"wallbox_status", "wallbox_power"})
     hub_suffixes.update({"dhw_status", "dhw_temperature", "dhw_target", "sg_boost_status",
                          "sg_boost_enabled", "sg_boost_resume", "sg_manual_control", "panasonic_status", "panasonic_power"})
+    hub_suffixes.update({"wallbox_priority", "wallbox_priority_sg"})
     registry = er.async_get(hass)
     for ent in er.async_entries_for_config_entry(registry, entry.entry_id):
         hub = ent.unique_id.removeprefix(f"{entry.entry_id}_") in hub_suffixes
@@ -125,6 +127,7 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async_register_learning_api(hass)
     async_register_pv_api(hass)
     async_register_priority_api(hass)
+    async_register_wallbox_priority_api(hass)
     try:
         await async_register_frontend(hass)
     except Exception:  # Frontend convenience must never disable the EMS core.
@@ -211,6 +214,6 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     # SolarPilot entry still exists.
     if not hass.config_entries.async_entries(DOMAIN):
         async_unregister_frontend(hass, final=True)
-        for service in (SERVICE_SET_PLANNER_SETTING, SERVICE_SG_MANUAL_CONTROL):
+        for service in (SERVICE_SET_PLANNER_SETTING, SERVICE_SG_MANUAL_CONTROL, SERVICE_WALLBOX_PRIORITY_CONTROL):
             if hass.services.has_service(DOMAIN, service):
                 hass.services.async_remove(DOMAIN, service)

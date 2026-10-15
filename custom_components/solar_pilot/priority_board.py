@@ -73,7 +73,7 @@ class PriorityBoard:
         last = [device_key(i) for i in ids if follows_wallbox(r.configs[i], r.others_first)]
         return first + [WALLBOX] + last + [EXTRA]
 
-    def order(self):
+    def base_order(self):
         if not self.active:
             return self.legacy_order()
         known = {device_key(i) for i in self.r.configs} | {WALLBOX, EXTRA}
@@ -96,6 +96,12 @@ class PriorityBoard:
                     # deliberately moves it in the central priority screen.
                     result.append(key)
         return result
+
+    def order(self):
+        """Current allocation order, with temporary preferences projected only."""
+        result = self.base_order()
+        policy = getattr(self.r, "wallbox_priority", None)
+        return policy.overlay_order(result) if policy is not None else result
 
     def ranks(self):
         return {key: n + 1 for n, key in enumerate(self.order())}
@@ -123,14 +129,15 @@ class PriorityBoard:
         return {device_key(i): saved.get(device_key(i), self.original_permission(c)) is True
                 for i, c in self.r.configs.items()}
 
-    def effective_config(self, device_id, config=None):
+    def effective_config(self, device_id, config=None, *, temporary=True):
         c = self.r.configs[device_id] if config is None else config
         if not self.active:
-            return c
-        ranks = self.ranks()
+            policy = getattr(self.r, "wallbox_priority", None)
+            return policy.effective_config(device_id, c) if temporary and policy is not None else c
+        ranks = self.ranks() if temporary else {key: n+1 for n, key in enumerate(self.base_order())}
         before = ranks[device_key(device_id)] < ranks[WALLBOX]
         permission = self.permissions()[device_key(device_id)]
-        return {**c, "priority": ranks[device_key(device_id)],
+        result = {**c, "priority": ranks[device_key(device_id)],
                 "_priority_board_before_wallbox": before,
                 "_priority_board_wallbox_power": permission,
                 "_priority_board_rank": ranks[device_key(device_id)],
@@ -138,6 +145,8 @@ class PriorityBoard:
                 "wallbox_power_policy": ("legacy" if c.get("wallbox_power_policy") == "legacy" else "priority") if permission else "never",
                 "allow_wallbox_reclaim": permission and c.get("kind") != "dishwasher",
                 "dishwasher_ev_solar_priority": permission and before}
+        policy = getattr(self.r, "wallbox_priority", None)
+        return policy.effective_config(device_id, result) if temporary and policy is not None else result
 
     def configs(self):
         return {i: self.effective_config(i, c) for i, c in self.r.configs.items()}
@@ -158,7 +167,7 @@ class PriorityBoard:
             raise HomeAssistantError("Bevestig eerst dat je deze voorrang wilt toepassen.")
         if revision != self.revision():
             raise HomeAssistantError("De instellingen zijn intussen gewijzigd. Vernieuw de lijst en controleer je keuze opnieuw.")
-        expected = self.order()
+        expected = self.base_order()
         if (not isinstance(order, list) or not all(isinstance(x, str) for x in order)
                 or len(order) != len(expected) or len(set(order)) != len(order)
                 or set(order) != set(expected)):
@@ -173,7 +182,7 @@ class PriorityBoard:
     async def save(self, revision, order, permissions, confirm):
         """Caller holds SolarRuntime._lock. This method never ticks or sends a command."""
         self.validate(revision, order, permissions, confirm)
-        if order == self.order() and permissions == self.permissions():
+        if order == self.base_order() and permissions == self.permissions():
             return {**self.overview(), "message": "Geen wijziging: de bestaande regeling blijft ongewijzigd."}
         if self.r.handover or self.r.pending:
             raise HomeAssistantError("Er wordt nog op een toestel of Wallbox-overdracht gewacht. De huidige opdracht wordt eerst afgerond; probeer daarna opnieuw.")
@@ -189,7 +198,7 @@ class PriorityBoard:
     async def migrate_beta36(self):
         """Activate one central board while preserving beta.35 effective order exactly."""
         saved = self.saved
-        order = self.order()
+        order = self.base_order()
         permissions = self.permissions()
         if (saved.get("schema") == SCHEMA and saved.get("order") == order
                 and saved.get("wallbox_power") == permissions):
@@ -214,10 +223,11 @@ class PriorityBoard:
                  "reason": "Panasonic regelt ruimtecomfort, normaal warm water en sterilisatie zelfstandig. SG verandert geen native instelling."}]
 
     def overview(self):
-        r, ranks = self.r, self.ranks()
+        r = self.r
+        ranks = {key: n+1 for n, key in enumerate(self.base_order())}
         permissions = self.permissions()
         rows = []
-        for key in self.order():
+        for key in self.base_order():
             if key == WALLBOX:
                 rows.append({"id": key, "name": "Auto laden (Wallbox)", "kind": "wallbox",
                     "active": bool(r.wallbox_settings.get("enabled")), "position": ranks[key],
@@ -230,7 +240,7 @@ class PriorityBoard:
                     "reason": "Een extra SG-vraag mag alleen lager geplaatste, eigen onderbreekbare toestellen veilig laten wachten."})
             else:
                 i = key[len("device:"):]
-                c = self.effective_config(i)
+                c = self.effective_config(i, temporary=False)
                 before = not follows_wallbox(c, r.others_first)
                 if c.get("kind") == "dishwasher":
                     may = before and permissions[key] and dishwasher_priority_enabled(c) and i not in r.dishwasher_priority.ev_blocks
@@ -246,7 +256,8 @@ class PriorityBoard:
                     "effective_permission": may,
                     "power_label": "Ja, onder voorwaarden" if may else "Nee in de huidige instelling",
                     "reason": why, "non_interruptible": bool(c.get("non_interruptible"))})
-        return {"active": self.active, "revision": self.revision(), "order": self.order(),
+        return {"active": self.active, "revision": self.revision(), "order": self.base_order(),
+                "effective_order": self.order(),
                 "extra_reclaim": dict(self.extra_reclaim),
                 "wallbox_power": permissions, "rows": rows, "protected": self.protected_rows(),
                 "constraints": self.constraints(),
@@ -274,6 +285,11 @@ class PriorityBoard:
     def sg_priority_allowed(self, now):
         """Higher fitting requests get the next actual solar window first."""
         r, ranks = self.r, self.ranks()
+        temporary = getattr(r, "wallbox_priority", None)
+        if (temporary is not None and temporary.active(EXTRA)
+                and getattr(getattr(r.consumer_wallbox, "result", None), "block_starts", False)
+                and not r.sg_boost.minimum_hold_active):
+            return False
         guard = getattr(r.wallbox_guard, "result", None)
         if r.wallbox_settings.get("enabled") and getattr(guard, "block_increase", False):
             return False

@@ -287,7 +287,7 @@ def pseudonymize(payload, references, labels):
                 result_key = field
                 if ENTITY_RE.fullmatch(field) or key in DEVICE_REFERENCE_MAPS:
                     result_key = references.get(field, field)
-                else:
+                if result_key == field:
                     qualified = re.fullmatch(r"(device|consumer|battery):(.+)", field)
                     if qualified and qualified[2] in consumer_references:
                         result_key = qualified[1] + ":" + consumer_references[qualified[2]]
@@ -722,6 +722,9 @@ class AnalysisRecorder:
                  "dishwasher": r.dishwasher.snapshot, "dishwasher_app": r.dishwasher_app.snapshot,
                  "consumer_history": r.consumer_history.model.snapshot}
         feedback = getattr(r, "analysis_feedback", None)
+        wallbox_priority = getattr(r, "wallbox_priority", None)
+        if callable(getattr(wallbox_priority, "overview", None)):
+            calls["wallbox_priority"] = wallbox_priority.overview
         heatpump_history = getattr(r, "heatpump_history", None)
         if callable(getattr(heatpump_history, "export", None)):
             calls["heatpump_history"] = lambda: heatpump_history.export(

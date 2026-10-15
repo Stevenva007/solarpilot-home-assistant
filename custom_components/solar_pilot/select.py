@@ -2,6 +2,7 @@ from homeassistant.components.select import SelectEntity
 from .const import MODES, DEVICE_MODES
 from .entity import SolarEntity
 from .sg_control_api import SG_MANUAL_OPTIONS, async_set_sg_manual_control
+from .wallbox_priority_api import WALLBOX_PRIORITY_OPTIONS, async_set_wallbox_priority, priority_choice_view
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -10,7 +11,51 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 def _entities(runtime):
-    return [SolarMode(runtime), SGManualControl(runtime)] + [SolarMode(runtime, i) for i in runtime.configs]
+    entities = [SolarMode(runtime), SGManualControl(runtime)] + [SolarMode(runtime, i) for i in runtime.configs]
+    if getattr(runtime, "wallbox_priority", None) is not None:
+        overview = runtime.wallbox_priority.overview()
+        entities.append(WallboxPriorityDuration(runtime))
+        entities.extend(WallboxPriorityDuration(runtime, key) for key, row in overview.get("devices", {}).items()
+                        if row.get("eligible") is True)
+        if isinstance(overview.get("sg_boost"), dict) and overview["sg_boost"].get("eligible") is True:
+            entities.append(WallboxPriorityDuration(runtime, sg=True))
+    return entities
+
+
+class WallboxPriorityDuration(SolarEntity, SelectEntity):
+    """The stored backend deadline survives HA and browser restarts."""
+    _attr_icon = "mdi:timer-outline"
+    _attr_translation_key = "wallbox_priority"
+    _unrecorded_attributes = frozenset({"remaining_s", "observed_at"})
+
+    def __init__(self, runtime, device_id=None, *, sg=False):
+        super().__init__(runtime, "wallbox_priority_sg" if sg else "wallbox_priority",
+                         "Wallbox voorrang · SG-duur" if sg else "Wallbox voorrang · duur", device_id)
+        self._attr_options = list(WALLBOX_PRIORITY_OPTIONS)
+        self.target = "dhw_extra" if sg else f"device:{device_id}" if device_id else "global"
+
+    @property
+    def available(self):
+        return bool(not self._inactive() and self.runtime.data_loaded is True
+                    and priority_choice_view(self.runtime, self.target) is not None)
+
+    @property
+    def current_option(self):
+        row = priority_choice_view(self.runtime, self.target) or {}
+        option = row.get("option")
+        return option if type(option) is str and option in self._attr_options else None
+
+    @property
+    def extra_state_attributes(self):
+        row = priority_choice_view(self.runtime, self.target) or {}
+        return {key: row.get(key) for key in ("target", "expires_at", "remaining_s", "duration_s", "indefinite", "label")}
+
+    async def async_select_option(self, option):
+        if self._inactive():
+            from homeassistant.exceptions import HomeAssistantError
+            raise HomeAssistantError("Deze voorrangsschakelaar is vervallen; vernieuw de bediening.")
+        await async_set_wallbox_priority(self.runtime, self.target, option,
+                                        context=getattr(self, "_context", None))
 
 
 class SolarMode(SolarEntity, SelectEntity):

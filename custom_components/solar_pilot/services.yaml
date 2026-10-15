@@ -17,6 +17,44 @@ set_planner_setting:
       required: true
       selector:
         object:
+wallbox_priority_control:
+  name: Wallbox voorrang geven
+  description: Kies een tijdelijke of blijvende voorrang voor de Wallbox. Algemeen past alle afzonderlijke schakelaars aan; terug naar automatisch herstelt ze allemaal. Afwasmachines blijven uitgesloten. Dit wijzigt alleen SolarPilot-voorrang, zonder rechtstreekse Wallbox- of toestelopdracht. Alleen voor beheerders.
+  fields:
+    config_entry_id:
+      name: Configuratie-ID
+      description: Verplicht bij meerdere SolarPilot-configuraties.
+      required: false
+      selector:
+        text:
+    target:
+      name: Bereik
+      description: global, dhw_extra voor de SG-zonneboost, of device gevolgd door een dubbele punt en de bestaande SolarPilot-toestel-ID.
+      required: true
+      selector:
+        text:
+    option:
+      name: Tijdsduur
+      required: true
+      selector:
+        select:
+          options:
+            - label: Automatisch
+              value: auto
+            - label: 30 minuten
+              value: 30m
+            - label: 1 uur
+              value: 1h
+            - label: 2 uur
+              value: 2h
+            - label: 3 uur
+              value: 3h
+            - label: 4 uur
+              value: 4h
+            - label: 5 uur
+              value: 5h
+            - label: Tot ik terug op automatisch zet
+              value: until_auto
 sg_manual_control:
   name: Tijdelijke SG-boost bedienen
   description: Kies tijdelijk aan of uit voor 30 of 60 minuten. Daarna keert de regeling terug naar automatisch. Aan vereist een ingeschakelde SG-regeling en behoudt harde elektrische grenzen; dit wijzigt geen Panasonic-instellingen. Alleen voor beheerders.

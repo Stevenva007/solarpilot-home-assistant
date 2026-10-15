@@ -1,6 +1,5 @@
 """Backend-approved negative-as-zero preserves raw evidence, not stale authority."""
 import re
-import time
 
 import pytest
 
@@ -42,7 +41,7 @@ def test_valid_normalized_zero_appears_as_zero_and_raw_source_stays_in_details(v
 def test_normalization_does_not_refresh_its_original_source_time():
     data = normalized_feed()
     p = data["panasonic"]
-    old = time.time()-121
+    old = data["_test_clock"]-121
     p.update(power_observed_at=old, power_supply1_observed_at=old, power_supply2_observed_at=old)
     p["power_activity"].update(observed_at=old)
     for row in p["power_activity"]["supplies"]:
