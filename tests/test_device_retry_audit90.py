@@ -245,3 +245,43 @@ async def test_global_auto_can_be_selected_while_one_offline_load_is_quarantined
         assert runtime.store.data["leases"]["a"]["watts"] >= 1000
     finally:
         await runtime.close()
+
+@pytest.mark.asyncio
+async def test_prolonged_unavailability_has_no_retry_limit_or_notification_spam(monkeypatch):
+    runtime, hass, clock = await failed_start(monkeypatch)
+    for _ in range(24):
+        clock.advance(300)
+        reports(hass, clock, active="unavailable")
+        await runtime.tick()
+        assert runtime.device_retry.waiting("a")
+        assert not runtime.faults
+        assert len(physical(hass)) == 1
+        assert runtime.isolated_reserve_w == 0
+        assert runtime.store.data["leases"]["a"]["watts"] >= 1000
+    assert not [call for call in hass.services.calls if call[0] == "persistent_notification"]
+    clock.advance(300)
+    reports(hass, clock, grid=500)
+    await runtime.tick()
+    assert not runtime.device_retry.waiting("a")
+    assert len(physical(hass)) == 1
+
+@pytest.mark.asyncio
+async def test_configuration_value_error_is_not_hidden_as_temporary_unavailability(monkeypatch):
+    clock = install_clock(monkeypatch)
+    runtime, hass = build(device={"nominal_w": 1000})
+    runtime.mode = "solar"
+    runtime.device_modes["a"] = "auto"
+    reports(hass, clock)
+    async def invalid_call(domain, action, data, blocking=False):
+        hass.services.calls.append((domain, action, data))
+        raise ValueError("Invalid configured actuator value")
+    hass.services.async_call = invalid_call
+    await runtime.tick()
+    assert "a" in runtime.faults
+    assert not runtime.device_retry.waiting("a")
+    initial = len(physical(hass))
+    clock.advance(300)
+    reports(hass, clock)
+    await runtime.tick()
+    assert len(physical(hass)) == initial
+    assert "a" in runtime.faults
