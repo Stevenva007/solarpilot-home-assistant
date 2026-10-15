@@ -10,27 +10,31 @@ Tijdelijke gewone toestelonbereikbaarheid geeft bron- of opdrachtwacht met een h
 
 Een tijdelijk geïsoleerd offline toestel krijgt geen extra hypothetische verbruiksreserve: werkelijk P1-overschot is leidend. Ontbrekende terugmelding wordt geen gemeten nul, bevestigde UIT of eigen-vermogenskrediet. Eigendom en al geprobeerd/onzeker resultaat blijven als metadata beschikbaar. Een oude offline ON-status van een afwasmachine geeft geen actuele toekomstige piekreserve. Werkelijk nu betrouwbare actieve afwasstatus houdt de bestaande beta.89-piekbegroting; de afzonderlijke SG-reserve en SG-/batterijbevoegdheden blijven ongewijzigd.
 
-Nieuwe passende oorspronkelijke terugmelding ná een onzekere opdracht is nodig voor verzoening; er is geen actie-replay of fysieke bereikbaarheidstest. Een reeds geprobeerd afwas-START blijft verbruikt. Een klok, herstart of terugkerende bron maakt geen nieuwe APP-aanvraag, tweede START of ruimere deadline. Alleen exact herkende oude gewone transport-/timeout-/terugmeldfouten worden brongebonden herstelwacht. Echte configuratie-, authenticatie-, toestemmings-, interne, maximumlooptijd- en fysieke fouten blijven zichtbaar.
+Nieuwe passende oorspronkelijke terugmelding ná een onzekere opdracht is nodig voor verzoening; er is geen actie-replay of fysieke bereikbaarheidstest. Bij een geldige duurzame eerdere eigen AAN-poging en passende nieuwe AAN-terugmelding blijft het toestel AAN zonder redundante AAN- of verplichte UIT-opdracht; de volledige minimumlooptijd begint bij herstel. Een willekeurig extern AAN-toestel zonder eigen opdrachtbewijs wordt niet overgenomen. Een reeds geprobeerd afwas-START blijft verbruikt. Een klok, herstart of terugkerende bron maakt geen nieuwe APP-aanvraag, tweede START of ruimere deadline. Alleen exact herkende oude gewone transport-/timeout-/terugmeldfouten worden brongebonden herstelwacht. Echte configuratie-, authenticatie-, toestemmings-, interne, maximumlooptijd- en fysieke fouten blijven zichtbaar.
 
 Publieke fixtures zijn fictief. Softwaretests bewijzen geen bereikbare gebruikersinstallatie, fysieke start, werkelijk apparaatverbruik of gerealiseerde besparing.
 
 ## Uitvoering
 
-Beta.90-uitvoering is bij opstellen van dit verslag **nog open**. Er zijn in deze bronwerkronde geen lokale executorresultaten vastgesteld. Oudere beta.89-testtellingen worden niet overgenomen als beta.90-bewijs. De definitieve exacte PR-head moet de volledige controles en alle vijf vereiste CI-gates doorstaan.
+De implementatie is op **15 oktober 2026** gecontroleerd in [Validate-run 38740723321](https://github.com/Stevenva007/solarpilot-home-assistant/actions/runs/38740723321), exacte PR-head `18b46369d541e04317fb1037007a6d67473c89e9`. Alle vijf vereiste validatiejobs zijn geslaagd. Er is geen lokale executoruitvoering of fysieke gebruikersinstallatie geclaimd.
 
-| Controle | Vastgestelde status |
+| Controle | Vastgesteld resultaat op die bron |
 |---|---|
-| Nieuwe 300s bron-/opdrachtwachttests en oude regressies | Nog open |
-| Globale Auto-keuze bij één offline toestel; gezonde andere lasten | Nog open |
-| Geen extra offline-reserve; geen onbekend-als-nul of fictief krediet | Nog open |
-| Passend nieuw terugmeldbewijs; geen blind retry of tweede afwas-START | Nog open |
-| Behoud echte fouten, SG-/batterijgrenzen, minimumtijden en bescherming | Nog open |
-| Canonieke gids, optiehulp, mirrors, handoff en versie | Nog open; oorspronkelijke gidsreconstructie vooraf exact bewezen |
-| Volledige suite, syntax, privacy/repository en opdrachtgrenzen | Nog open |
-| HACS, Hassfest, echte Core en Chromium op exacte PR-head | Nog open |
-| Annotated tag en vier teruggedownloade releasebestanden | Nog open |
+| Volledige Python-testsuite | **6.562 geslaagd**, 100,19 seconden |
+| 300s bron-/opdrachtwacht, globale Auto bij offline toestel, geen extra offline-reserve | Nieuwe en behouden regressies geslaagd in de volledige suite |
+| Terugkeer terwijl AAN, passend nieuw post-pogingbewijs, geen blinde retry of tweede afwas-START | Regressies geslaagd; geen verplichte UIT-stap voor een geldige eerdere eigen opdracht |
+| Echte fouten, SG-/batterijgrenzen, minimumtijden, eigendom en harde elektrische guards | Regressies en SG-bevoegdheidscontrole geslaagd |
+| Privacy/structuur, overdracht, actuele gids/optiehulp/mirrors | Alle repository-preflights geslaagd |
+| Publisherfoutgrenzen | 29 echte PowerShell/native regressies geslaagd met fictieve opdrachten, zonder netwerk of echte repositorymutatie |
+| Python-syntax | Compileall geslaagd |
+| HACS en Hassfest | Beide jobs geslaagd |
+| Home Assistant Core 2026.10.0 | Productiesetup, herladen en afsluiten geslaagd voor beide fixtures; configuratie behouden; `physical_service_calls: 0` |
+| Chromium | Volledige browserjob geslaagd; nieuwe herstelcontrole bij vier breedtes met vijfminutentermijnen, onbekend vermogen, geen extra offline-reserve, globale Auto, echte foutzichtbaarheid en behoud van hulp/focus/details; één expliciete moduskeuze, nul toestelopdrachten |
+| Annotated tag en vier teruggedownloade releasebestanden | Nog te bewijzen door de publicatiejob op main; geen PR-publicatie uitgevoerd |
 
-De bestaande gids is vóór aanpassing exact gereconstrueerd uit haar gegenereerde Markdown. Canonieke Python-JSON-serialisatie gaf SHA-256 `8b0d496ee62719358f03b087d06985915cdf2baf80eeecd3c8641cf4a23bc5ac`; her-renderen was bytegelijk met het bestaande bestand. Dat bewijst de equivalentie van de documentgeneratiebasis, geen uitgevoerde beta.90-softwaretest. De nieuwe gids en mirrors blijven aan de normale Python-consistentiechecks onderworpen.
+Deze resultatentekst en de bijbehorende overdracht worden na de geslaagde run toegevoegd. Die laatste wijziging betreft alleen verslaglegging; de definitieve exacte PR-head moet de vijf gates opnieuw doorstaan. Na samenvoegen herhaalt de main-pushrun de controles en volgt pas de publicatiecontrole.
+
+De nieuwe canonieke gids heeft SHA-256 `1d16898220e480bd3f7a67c67d52950c7f9a46efe74c9f19f0d5eb91f5a2b501`; de Python-gids-/mirrorconsistentiecheck is geslaagd. Dit is bronconsistentiebewijs en geen bewijs van een fysieke installatie.
 
 ## Vereiste regressiegrenzen
 
