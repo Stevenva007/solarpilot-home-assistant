@@ -322,3 +322,28 @@ async def test_orphan_legacy_fault_cannot_claim_an_external_on_device(monkeypatc
         assert not physical(hass)
     finally:
         await runtime.close()
+
+@pytest.mark.asyncio
+async def test_reset_of_unrelated_off_fault_cannot_clear_an_unknown_command(monkeypatch):
+    from copy import deepcopy
+    from homeassistant.exceptions import HomeAssistantError
+
+    runtime, hass, clock = await failed_start(monkeypatch)
+    runtime.configs["b"] = {
+        **runtime.configs["a"], "id": "b", "name": "Ander testtoestel",
+        "control_entity": "switch.healthy",
+    }
+    runtime.states["b"] = type(runtime.states["a"])()
+    runtime.faults["b"] = "Ongeldige configuratie"
+    fresh(hass, "switch.healthy", "off", clock)
+    fresh(hass, "switch.load", "unavailable", clock)
+    journal = deepcopy(runtime.device_retry.snapshot()["records"]["a"])
+
+    with pytest.raises(HomeAssistantError, match="schakel eerst veilig uit"):
+        await runtime.reset()
+
+    assert runtime.device_retry.command_waiting("a")
+    assert runtime.device_retry.snapshot()["records"]["a"] == journal
+    assert runtime.faults["b"] == "Ongeldige configuratie"
+    assert runtime.states["a"].owned
+    assert len(physical(hass)) == 1
