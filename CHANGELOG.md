@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.90 — rustig herstellen bij tijdelijke toestelonbereikbaarheid
+
+- Behandelt tijdelijke onbereikbaarheid van gewone toestellen als informatieve herstelwacht en herbeoordeelt elke 300 seconden. Na bronherstel worden vraag, tijden, prioriteit, globale modus, eigenaarschap en actuele elektrische ruimte opnieuw getoetst; geen oude opdracht blind afspelen.
+- Laat Automatisch regelen als globale modus kiezen wanneer één toestel op herstel wacht. Dat toestel houdt zijn eigen uitvoeringsblokkering; gezonde andere lasten kunnen onder hun eigen actuele voorwaarden en gedeelde harde grenzen verder. Het gemeten P1-overschot is leidend, zonder extra geschatte verbruiksreserve voor het tijdelijk geïsoleerde offline toestel.
+- Houdt mogelijk al uitgevoerde opdrachten onzeker tot passende nieuwe terugmelding volgt. Onbekend wordt geen gemeten nul; geen tweede afwas-START, herarmde APP-aanvraag of gewiste echte configuratie-, authenticatie-, toestemmings-, interne of fysieke fout.
+- Behoudt beta.89-restzonverdeling, Wallbox-voorkeuren en eindtijden, minimumtijden, beschermde cycli, SG-/batterijgrenzen, Panasonic-read-only en bestaande gegevens. Geen nieuwe sensor, timerinstelling of fysieke bediening door deze update.
+- Bouwbasis: gepubliceerde beta.89 `18a052933a6178b2772022fac57e6d29dc70d5d5`, tree `3855933360b4924990a9e37011f96e2a1cdb2408`. Eigen bewijs: `docs/TESTRESULTATEN_BETA90.md`; upgrade/behoud/rollback: `docs/BETA90_INSTELLEN.md`. Eerdere resultaten zijn geen beta.90-validatie.
+
 ## 1.0.0-beta.89 — restzon benutten naast een lopende afwasbeurt
 
 - Scheidt het zachte zonnebudget van de toekomstige afwaspiek voor gewone onderbreekbare `switch`-, `number`- en gecontroleerde `script`-lasten. Alleen een actuele betrouwbare actieve native afwasstatus zonder gekoppelde afwasmeter en zonder bronisolatie geeft deze versoepeling. Werkelijk resterende actuele/gefilterde zon na huisreserve en batterijontlading moet de nieuwe last plus startmarge nog steeds dekken.

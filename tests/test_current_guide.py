@@ -32,7 +32,7 @@ def test_current_guide_has_required_topics_and_no_previous_release_label():
         assert topic.lower() in titles.lower()
     current = guide.render_markdown()
     assert not re.search(r"1\.0\.0-beta\.8(?!\d)", current)
-    assert "1.0.0-beta.9" not in current
+    assert not re.search(r"1\.0\.0-beta\.9(?!\d)", current)
     assert "43 °C setpoint" not in current
 
 
