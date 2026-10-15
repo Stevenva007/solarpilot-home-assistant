@@ -255,14 +255,13 @@ async def test_decline_remembered_no_repeated_popup_until_source_changes():
 
 
 @pytest.mark.asyncio
-async def test_notification_optin_deduplicated_and_separate_from_faults():
+async def test_old_notification_optin_never_promotes_analysis_to_an_alert():
     r,h=build();hub=r.learning_hub;await hub.tick();assert not h.services.calls
     await hub.set_policy('notifications',True);await hub.tick();await hub.tick()
-    assert len(h.services.calls)==1
-    domain,action,data=h.services.calls[0];assert (domain,action)==('persistent_notification','create')
-    assert data['notification_id']=='solar_pilot_learning_test'
+    assert not h.services.calls
     r.settings['grid_entity']='sensor.different';hub.refresh(force=True);await hub.tick()
-    assert len(h.services.calls)==1  # no repeated notification inside 24 h
+    assert not h.services.calls
+    assert hub.refresh()['questions']  # findings remain available for export
 
 
 def test_export_includes_questions_models_and_answer_history():
@@ -300,7 +299,8 @@ def test_disabled_planner_and_phase_are_not_shown_as_collecting():
 @pytest.mark.asyncio
 async def test_answered_questions_clear_only_own_notification():
     r,h=build();hub=r.learning_hub
-    await hub.set_policy('notifications',True);await hub.tick()
+    hub.restore({**hub.snapshot(), 'notification_signature':'a'*32,
+                 'policy':{**hub.policy,'notifications':True}})
     for q in list(hub.refresh()['questions']):await hub.answer(q['id'],q['revision'],'keep')
     await hub.tick()
     assert h.services.calls[-1]==('persistent_notification','dismiss',{'notification_id':'solar_pilot_learning_test'})

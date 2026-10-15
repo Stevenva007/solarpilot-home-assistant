@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.91",
+  "version": "1.0.0-beta.92",
   "language": "nl",
   "steps": {
     "init": {
@@ -4261,10 +4261,10 @@
       ]
     },
     "learning_hub.notifications": {
-      "title": "Vragen als HA-melding",
-      "short": "Toon Analyse nodig ook onder Home Assistant-meldingen.",
+      "title": "Analysemeldingen",
+      "short": "Gewone analysebevindingen blijven bij Meetkwaliteit en Export; zij maken geen Home Assistant-melding, ook niet wanneer deze vroegere voorkeur aanstaat.",
       "paragraphs": [
-        "Toon Analyse nodig ook onder Home Assistant-meldingen. Standaard uit; open bevindingen staan altijd bij Meetkwaliteit en Export. Maximaal eenmaal per 24 uur wordt een afzonderlijke melding bijgewerkt bij betekenisvol gewijzigde bevindingen. Download de analyse van 7 dagen en upload eventueel het bijbehorende adviesrapport. Beoordeeld verbergt alleen de nog actuele bevindingversie; meer gegevens nodig houdt die open. Gewijzigde oorzaken, bronkoppelingen of software maken een nieuwe beoordeling nodig. Dit is geen mobiele push of ChatGPT-bericht en verandert geen instellingen of bediening.",
+        "Gewone analysebevindingen blijven bij Meetkwaliteit en Export; zij maken geen Home Assistant-melding, ook niet wanneer deze vroegere voorkeur aanstaat. Een bestaande algemene melding Analyse nodig wordt opgeruimd. Dringende regelingsfouten en bewezen Aquarea-incompatibiliteit houden hun eigen gerichte melding, die na herstel verdwijnt. Download desgewenst de analyse van zeven dagen. Onderzoek en gegevensverzameling blijven doorgaan.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     }

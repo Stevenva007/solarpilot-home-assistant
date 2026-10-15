@@ -2,11 +2,13 @@
 
 SolarPilot is een lokale Home Assistant-integratie voor zonnestroomverdeling, flexibele verbruikers, een beschermde AEG-afwasmachine, read-only Wallbox-informatie, voorspellingen, kosten, lokaal leren en batterijfuncties.
 
-**Actuele bronversie: 1.0.0-beta.91.** Panasonic regelt de warmtepomp zelfstandig. SolarPilot kan voor die warmtepomp alleen een extra SG-zonneboost aanvragen via één bewust gekoppelde bestaande Shelly-uitgang, met bewezen lokale aflooptimer. Het schrijft geen tank-/kamertemperatuur, AUTO/UIT, heaterkeuze of fabrikantprogramma. Nieuwe SG-sturing staat standaard uit tot gecontroleerde ingebruikname.
+**Actuele bronversie: 1.0.0-beta.92.** Panasonic regelt de warmtepomp zelfstandig. SolarPilot kan voor die warmtepomp alleen een extra SG-zonneboost aanvragen via één bewust gekoppelde bestaande Shelly-uitgang, met bewezen lokale aflooptimer. Het schrijft geen tank-/kamertemperatuur, AUTO/UIT, heaterkeuze of fabrikantprogramma. Nieuwe SG-sturing staat standaard uit tot gecontroleerde ingebruikname.
 
-[Installatie en veilige upgrade](START_HIER.md) · [Volledige actuele werking](docs/ACTUELE_WERKING.md) · [Beta.91 instellen](docs/BETA91_INSTELLEN.md) · [Testresultaten en publicatiestatus](docs/TESTRESULTATEN_BETA91.md) · [Auditdekking en bevindingen](docs/AUDIT_BETA79.md) · [Technische overdracht](OVERDRACHT.md)
+[Installatie en veilige upgrade](START_HIER.md) · [Volledige actuele werking](docs/ACTUELE_WERKING.md) · [Beta.92 instellen](docs/BETA92_INSTELLEN.md) · [Testresultaten en publicatiestatus](docs/TESTRESULTATEN_BETA92.md) · [Auditdekking en bevindingen](docs/AUDIT_BETA79.md) · [Technische overdracht](OVERDRACHT.md)
 
 Iedere nieuwe SolarPilot-update controleert de actuele Aquarea-defaultbranch, laatste gepubliceerde release en werkelijke SDK-bron. Vergelijk met docs/upstream_review.json, beoordeel alle relevante nieuwe verschillen en verwerk noodzakelijke wijzigingen met regressies in dezelfde release. tools/check_upstream_review.py blokkeert publicatie bij onbeoordeelde bronwijzigingen of mislukte controle. Een open PR of prerelease wordt niet automatisch geïnstalleerd. Compatibele toekomstige versies blijven werken; aantoonbare contractbreuk geeft een aparte melding en kan door de bestaande onderhoudstaak met een geteste GitHub-release worden hersteld.
+
+Beta.92 laat gewone analysebevindingen alleen bij Meetkwaliteit en Export zien. De terugkerende algemene melding **Analyse nodig** wordt niet meer aangemaakt, ook niet bij een eerder ingeschakelde voorkeur. Een oude melding wordt opgeruimd. Dringende regelingsfouten en bewezen Aquarea-incompatibiliteit houden hun gerichte meldingen. Onderzoek en gegevensverzameling gaan door.
 
 Beta.91 verwerkt bronvaste Aquarea-, PV-, leer-, SG- en herstelverbeteringen. Aquarea-/SDK-compatibiliteit volgt de geladen semantiek zonder vaste versielijst, UTC-cloudenergieperioden worden expliciet gelabeld, tijdelijke leerstabilisatie krijgt een eigen tijdvenster en nieuwe PV-vergelijkingen worden vooraf per termijn vastgelegd. SG-sessies bewaren oorspronkelijke regels en eindreden; fysieke waarnemingen staan in exports apart van planning/eigendom. Een geldig lager opgeslagen number-doel blijft na herstart behouden. De beta.90-herstelroute, bestaande instellingen, modellen en historie blijven behouden.
 
@@ -81,7 +83,7 @@ Bij **Analyse nodig** maakt één klik een export van de beschikbare zeven dagen
 
 ## Herstel van de beta.62-opstartfout
 
-Update via HACS naar beta.91 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.91 vraagt geen herbevestiging alleen door de codeupdate.
+Update via HACS naar beta.92 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.91 vraagt geen herbevestiging alleen door de codeupdate.
 
 ## Upgrade vanaf beta.61
 
