@@ -38,6 +38,7 @@ from .dishwasher_recovery import RECOVERED_AUTO_KEY, RECOVERY_KEY, RECOVERY_SOUR
 from .analysis_export import AnalysisRecorder
 from .feedback_store import AnalysisFeedbackStore
 from .action_notifications import ActionRequiredNotifications
+from .compatibility_notifications import CompatibilityNotifications
 from .house_first import HOUSE_DEFAULTS, HouseFirstGuard, Handover
 from .learning import LocalLearning
 from .heatpump_learning import HeatPumpActivityModel
@@ -173,6 +174,7 @@ class SolarRuntime:
         self.analysis = AnalysisRecorder(self)
         self.analysis_feedback = AnalysisFeedbackStore(self)
         self.action_notifications = ActionRequiredNotifications(self)
+        self.compatibility_notifications = CompatibilityNotifications(self)
         self.learning_hub = LearningHub(self)
         self.live_options = LiveOptions(self)
         self.platforms = LivePlatforms(self)
@@ -449,6 +451,7 @@ class SolarRuntime:
             "live_options": self.live_options.snapshot(),
             "learning_hub": self.learning_hub.snapshot(),
             "action_notifications": self.action_notifications.snapshot(),
+            "compatibility_notifications": self.compatibility_notifications.snapshot(),
             "dishwasher": self.dishwasher.snapshot(),
             "dishwasher_app": self.dishwasher_app.snapshot(),
             "dishwasher_priority": self.dishwasher_priority.snapshot(),
@@ -529,6 +532,7 @@ class SolarRuntime:
         self.unified_planner.restore(data.get("unified_planner", {}))
         self.learning_hub.restore(data.get("learning_hub", {}))
         self.action_notifications.restore(data.get("action_notifications", {}))
+        self.compatibility_notifications.restore(data.get("compatibility_notifications", {}))
         self.cycle_learning.restore(data.get("cycle_learning", {}))
         self.reclaim_blocks = {i: str(reason) for i, reason in data.get("reclaim_blocks", {}).items() if i in self.configs}
         self.priorities = {i: p for i, p in data.get("priorities", {}).items() if i in self.configs}
@@ -832,11 +836,20 @@ class SolarRuntime:
             return False
         if active:
             try:
-                target = max(float(lease.get("watts", 0) or 0), float(cfg["nominal_w"]))
-            except (AttributeError, TypeError, ValueError):
+                saved_target = lease.get("watts")
+                target = float(saved_target) if not isinstance(saved_target, bool) else float("nan")
+            except (AttributeError, TypeError, ValueError, OverflowError):
                 target = float(cfg["nominal_w"])
-            if not math.isfinite(target):
+            if not math.isfinite(target) or target <= 0:
                 target = float(cfg["nominal_w"])
+            if cfg["kind"] == "number":
+                minimum = cfg["min_units"] * cfg["watts_per_unit"]
+                maximum = cfg["max_units"] * cfg["watts_per_unit"]
+                if not minimum <= target <= maximum:
+                    target = float(cfg["nominal_w"])
+            else:
+                # Non-variable loads retain their conservative nominal budget.
+                target = max(target, float(cfg["nominal_w"]))
             if cfg["kind"] == "number" and not self._target_matches(cfg, target):
                 # A changed physical setpoint belongs to its current operator.
                 # Reading it is not permission to adopt it and immediately
@@ -852,6 +865,7 @@ class SolarRuntime:
             st.owned, st.on, st.available = True, True, True
             st.target_w = target
             st.last_on = now
+            self.device_retry.mark_recovered(device_id, now, "restart_lease")
             if cfg["non_interruptible"]:
                 st.cycle_armed = False
             self.note(f'{cfg["name"]}: herstartcontrole automatisch — toestel staat aan; beheer hervat zonder schakelopdracht.')
@@ -2318,6 +2332,7 @@ class SolarRuntime:
                     # During a lost status interval the compressor may have
                     # cycled. Protect one full minimum run from its return.
                     s.last_on = now
+                    self.device_retry.mark_recovered(i, now, "source_return")
                 if previous_on != active:
                     if active:
                         s.last_on = now
@@ -2429,6 +2444,7 @@ class SolarRuntime:
                 self.analysis.error = "Analysemeting onvolledig: " + type(err).__name__
             self._capture_heatpump_history()
             await self.action_notifications.sync()
+            await self.compatibility_notifications.sync()
             self.publish()
 
     def _capture_heatpump_history(self):

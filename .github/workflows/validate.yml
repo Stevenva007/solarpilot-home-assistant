@@ -36,6 +36,11 @@ jobs:
         run: python tools/check_handoff.py
       - name: Release/documentation consistency
         run: python tools/check_current_explanation.py
+      - name: Verify current upstream source review
+        timeout-minutes: 3
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python tools/check_upstream_review.py
       - name: Panasonic read-only / SG command boundary
         run: python tools/check_sg_boundary.py
       - name: Validate publisher failure gates with fictitious native commands
@@ -108,6 +113,10 @@ jobs:
         env:
           SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests
         run: python tools/check_device_retry_ui90.py
+      - name: Validate analysis waits, PV cohorts, SG stop evidence and display goals
+        env:
+          SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests
+        run: python tools/check_analysis_ui91.py
       - name: Validate PV factor evidence and quarter profile with fictitious data
         env:
           SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests

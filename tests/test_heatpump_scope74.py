@@ -117,6 +117,10 @@ def test_known_source_contract_qualifies_dhw_ui_without_rewriting_raw_space_off(
     from custom_components.solar_pilot.display_operation import classify_display_operation
     from test_display_operation83 import contract_snapshot, NOW
     p = contract_snapshot(route='WATER', tank=True, main=2170)
+    # This current UI fixture carries the loaded semantic proof; legacy history
+    # fixtures intentionally keep their original closed version-bound evidence.
+    p["source_contract"]["compatibility"] = {"schema": 1, "contract": "aquarea_special_status_action_v1",
+        "verified": True, "basis": "loaded_source", "fingerprint": "c"*64}
     p['native_task'].update(inactive_scope='space_circuit', verified_global_off=False, independent_tank_on=True)
     delta = time.time()-NOW
     def shift_reports(value):

@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.0-beta.91 — bronvaste analyse en correct herstel
+
+- Vervangt exacte versie-allowlists door controle van de geladen Aquarea-/SDK-parser en actiebetekenis. Compatibele toekomstige versies blijven functioneren; bewezen contractbreuk geeft één afzonderlijke melding zonder nieuwe actuatorrechten.
+- Controleert bij iedere update de actuele Aquarea- en bibliotheekbron tegen een publiek reviewcheckpoint. Onbeoordeelde nieuwe commits/releases of mislukte broncontrole blokkeren publicatie. Relevante verschillen gaan met regressies mee; de bestaande onderhoudstaak is hiervoor bijgewerkt.
+- Verhindert dat een oud toestelrapport dat door datetime-afronding minder dan één microseconde later lijkt, een mislukte opdracht bevestigt.
+- Controleert het exacte Aquarea 1.5.4/aioaquarea-ng 1.3.1-presentatiecontract met oorspronkelijke rapporttijden, bronbinding, conflicten en onbekende waarden; geen nieuwe native schrijfrechten of SG-koelvrijgave.
+- Exporteert uitsluitend werkelijk uitgelezen cloudenergieperioden met provider, bronsoort, UTC-begin en exclusief einde. Geen herdatering van oude dagen of gelijkschakeling van cloud- en eigen meters.
+- Toont de twee minuten leerstabilisatie als tijdelijke informatieve wacht met begin/einde; houdt langdurige warmtepompcontextuitsluiting afzonderlijk.
+- Legt voorspellingen vooraf onveranderlijk vast per doel, bronbinding en vooruitkijktermijn. Banden delen dezelfde oorspronkelijke meting; daglicht, unieke doelen/dagen en afhankelijkheid blijven apart. Geen retrospectieve selectie of nieuwe vaste PV-factor.
+- Bewaart SG-versie, effectieve policyhash, eigenaarschap, opdrachtidentiteit en oorspronkelijke bronrapporten bij sessiestart. Stopreden en transport zijn afzonderlijk; timerafloop en externe overname leggen ook hun eigen einde vast. Herbevestigingswacht toont oorspronkelijke en actuele reden.
+- Houdt een geldig berekend SG-tapwaterdoel zichtbaar wanneer het contact onbekend is. Het reeds ingestelde brongebonden percentage blijft leidend: 50 °C × 115% = 57,5 °C. Een ontbrekende lokale weergavekoppeling is rechtstreeks bereikbaar; geen universele 115%-aanname of Panasonic-write.
+- Scheidt fysieke schakel-/meterwaarneming van planning en eigendom; legt herstel en minimumlooptijd vast en verdeelt werkelijk geregistreerde dekking per release/bron.
+- Herstelt een regelbug bij herstart: een geldig opgeslagen number-doel onder nominaal wordt niet meer verhoogd en daardoor als externe overname verworpen. Volledige minimumlooptijd en huidige stopvoorwaarden blijven gelden.
+- Bouwbasis: beta.90 `ab872c236516e2121535f073380a6363aee228a5`. Upgrade/rollback: `docs/BETA91_INSTELLEN.md`; bewijs: `docs/TESTRESULTATEN_BETA91.md`. Privé-export en woningwaarden worden niet gepubliceerd.
+
 ## 1.0.0-beta.90 — rustig herstellen bij tijdelijke toestelonbereikbaarheid
 
 - Behandelt tijdelijke onbereikbaarheid van gewone toestellen als informatieve herstelwacht en herbeoordeelt elke 300 seconden. Na bronherstel worden vraag, tijden, prioriteit, globale modus, eigenaarschap en actuele elektrische ruimte opnieuw getoetst; geen oude opdracht blind afspelen.

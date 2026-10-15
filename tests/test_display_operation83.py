@@ -37,7 +37,7 @@ def display(p):
 
 @pytest.mark.parametrize("mode,function", [("heating", "space_heating"), ("cooling", "space_cooling")])
 @pytest.mark.parametrize("raw", ["OFF", "HEATING", "COOLING"])
-@pytest.mark.parametrize("version", ["1.5.2", "1.5.3"])
+@pytest.mark.parametrize("version", ["1.5.2", "1.5.3", "1.5.4"])
 def test_known_specialstatus_mapping_has_same_derived_task_for_zero_eco_and_comfort(mode, function, raw, version):
     p = contract_snapshot(mode=mode, raw=raw)
     p["source_contract"]["provider"]["integration_version"] = version
@@ -102,7 +102,7 @@ def test_unknown_contract_never_lifts_correct_off_or_trusts_positive_sdk_action(
     p = contract_snapshot(raw="HEATING")
     p["native_task"].update(function="space_heating", inactive=False, verified_global_off=False)
     c = p["source_contract"]
-    if problem == "unknown_version":c["provider"]["integration_version"] = "1.5.4"
+    if problem == "unknown_version":c["provider"]["integration_version"] = "1.5.5"
     elif problem == "other_library":c["provider"]["library_distribution"] = "aioaquarea"
     elif problem == "old_library":c["provider"]["library_version"] = "1.3.0"
     elif problem in ("mapping_unknown", "metadata_refresh"):
