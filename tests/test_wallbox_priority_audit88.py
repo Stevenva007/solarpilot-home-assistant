@@ -426,4 +426,3 @@ async def test_expiry_cannot_cancel_independently_required_stop_during_save(monk
     await runtime._send(Action("a", 0, holds["a"]), now)
     assert site_changed
     assert [(call[0], call[1], call[2]["entity_id"]) for call in commands(hass)] == [("switch", "turn_off", "switch.load")]
-

@@ -200,4 +200,3 @@ def test_device_name_is_escaped_in_markup_and_aria_label():
     result = execute(target="device:fan", label=payload)
     root = Markup(result["html"]).root
     assert payload in root.text() and not any(n.tag == "img" for n in root.walk())
-

@@ -12,6 +12,24 @@ Absolute eindtijden blijven na reload/herstart staan en verlopen tijd krijgt gee
 
 Publieke fixtures zijn fictief; geen privé-exports, woningwaarden, entiteiten of logs. Softwaretests bewijzen geen werkelijk aangesloten auto, geladen HA-code, fysieke start, compressorlooptijd, levensduurwinst of gerealiseerde besparing.
 
+## Eerste volledige PR-validatie
+
+De eerste PR-bron **`a6713bc0b59407236a1d80b0bd4e2ad4e6d2a20c`** heeft alle vijf vereiste CI-gates doorstaan in [run 38704724542](https://github.com/Stevenva007/solarpilot-home-assistant/actions/runs/38704724542). De volledige suite gaf **6375 geslaagd, 0 mislukt, 79,48 s**. Dit is werkelijk uitgevoerd bewijs voor die exacte bron.
+
+| Controle op eerste PR-bron | Werkelijk resultaat |
+|---|---|
+| Repositorytests — job `116321183161` | 6375 geslaagd; 0 mislukt; 79,48 s |
+| Werkelijke PowerShell-validatie in repositoryjob | 29 controles geslaagd |
+| HACS en Hassfest | Beide geslaagd |
+| Chromium — job `116321183294` | Geslaagd: zeven voorkeurskeuzes plus Automatisch, algemene reset, individuele uitzonderingen, klokken, herstart-eindtijden, focus en rechten op vier schermbreedten |
+| Echte Core 2026.10.0 — job `116321182619` | Setup/reload/unload geslaagd; 63 entiteiten op 6 platformen; 0 fysieke opdrachten |
+| Definitieve volledige CI op uiteindelijke PR-head | Nog vereist vóór merge |
+| Publicatie, annotated tag en vier teruggedownloade assets | Nog open |
+
+De Core-proef verifieert echte integratie-setup, herladen en afsluiten. Specifieke logische acties van de nieuwe API worden in de geïsoleerde tests getoetst; zij worden niet als een volledige nieuwe API-bedieningsproef in echte Core voorgesteld. De Chromium-proef gebruikt fictieve gegevens en bewijst geen fysieke Wallbox- of apparaatwerking.
+
+Na uitsluitend twee testbestanden met overbodige afsluitende witregels en deze verslagupdate krijgt de definitieve PR-head opnieuw alle vereiste CI-controles vóór merge. De eerste groene run wordt niet als bewijs voor een andere head hergebruikt.
+
 ## Lokale uitvoering
 
 De eerste volledige lokale beta.88-run eindigde met **6365 geslaagd, 10 mislukt, 627,02 seconden**. Dit is geen geslaagde volledige suite. De tien afwijkingen zijn herleid tot testfixtures: zeven bestaande constructorverwachtingen namen het nieuwe prioriteitsdialoogvenster nog niet mee; drie countdownverwachtingen gebruikten de echte lopende klok en verschilden daardoor één à twee seconden. De fixtures zijn aangepast aan het bedoelde dialoogvenster en een gedeelde vaste testklok; een oude bronleeftijd wordt aan dezelfde testklok verankerd. De productielogica is hiervoor niet gewijzigd. De laatste gerichte hercontrole is geslaagd: **128 tests, 0 mislukt, 51,75 s**. Zij omvat de gecorrigeerde negatieve-bronweergave, SG-wolken-/reset-/wacht-/minimumgevallen en panelgevallen.
