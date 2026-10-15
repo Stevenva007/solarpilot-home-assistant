@@ -171,3 +171,37 @@ def test_invalid_wait_journal_cannot_clear_or_replay_anything(payload):
     assert not runtime.device_retry.waiting("a")
     assert runtime.faults["a"] == "Ongeldige configuratie"
     assert not physical(hass)
+
+
+@pytest.mark.asyncio
+async def test_legacy_failed_command_already_on_resumes_without_off_reset_or_duplicate_on():
+    runtime, hass = build(device={"nominal_w": 1000, "min_on_s": 600})
+    hass.states.set("switch.load", "on")
+    runtime.store.data = {
+        "mode": "observe", "restart_requested_mode": None,
+        "device_modes": {"a": "auto"},
+        "leases": {"a": {"watts": 1000, "name": "Testtoestel"}},
+        "faults": {"a": "Opdrachtfout: HomeAssistantError; controleer het toestel"},
+    }
+    await runtime.start()
+    try:
+        assert runtime.device_retry.command_waiting("a")
+        assert not runtime.faults
+        await runtime.set_mode("solar")
+        assert runtime.mode == "solar"
+        assert not physical(hass)
+        issued = runtime.device_retry.records["a"]["issued_wall"]
+        post_send(hass, "switch.load", "on", issued)
+        due(runtime)
+        await runtime.tick()
+        assert not runtime.device_retry.waiting("a")
+        assert runtime.states["a"].owned and runtime.states["a"].on
+        assert not physical(hass)  # No OFF prerequisite and no duplicate ON.
+        hass.states.set("sensor.grid", 500, {"unit_of_measurement": "W"})
+        await runtime.tick()
+        assert not physical(hass)  # The fresh minimum run remains protected.
+        runtime.states["a"].last_on -= 601
+        await runtime.tick()
+        assert [call[:2] for call in physical(hass)] == [("switch", "turn_off")]
+    finally:
+        await runtime.close()
