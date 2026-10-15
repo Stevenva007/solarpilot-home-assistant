@@ -12,6 +12,7 @@ import sys
 from types import SimpleNamespace as NS
 
 import pytest
+from custom_components.solar_pilot.operation_source_evidence import SEMANTIC_CONTRACT_ID
 
 from test_native_display_sources67 import display_setup
 from test_native_program56 import ExtendedOperationMode
@@ -124,7 +125,9 @@ def modern_setup(monkeypatch, *, version="1.5.2"):
     env.state(env.sources["tank_entity"],"idle",{"operation_mode":"idle"})
     env.sources = env.helper.display_sources()
     env.helper._display_metadata = {"integration_loaded":True,"integration_domain":"aquarea",
-        "integration_version":version,"library_distribution":"aioaquarea-ng","library_version":"1.3.1"}
+        "integration_version":version,"library_distribution":"aioaquarea-ng","library_version":"1.3.1",
+        "compatibility": {"schema":1,"contract":SEMANTIC_CONTRACT_ID,"verified":True,"basis":"loaded_source","fingerprint":"a"*64},
+        "_loaded_device_class": type(env.coordinator.device)}
     env.helper._display_metadata_checked = env.clock[0]
     env.helper._display_metadata_module = sys.modules.get("custom_components.aquarea")
     env.data = NS(OperationStatus=OperationStatus, PumpDuty=PumpDuty, ExtendedOperationMode=ExtendedOperationMode,

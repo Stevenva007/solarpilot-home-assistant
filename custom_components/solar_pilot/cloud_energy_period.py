@@ -44,7 +44,7 @@ def _number(value):
 
 
 def period_evidence(provider, key, *, period_start, fetched_at, reported_at, captured_at):
-    """Project only an observed native period under the exact verified contract.
+    """Project only an observed native period under the verified native period contract.
 
     The caller establishes source identity; this pure projection never invents
     a start from now, a source label, the entity state or the fetch timestamp.
@@ -53,11 +53,10 @@ def period_evidence(provider, key, *, period_start, fetched_at, reported_at, cap
     if not isinstance(key, str) or key not in _KEYS:
         return None
     provider = provider if isinstance(provider, dict) else {}
+    # The observed native period, not a release label, identifies the aggregate.
     known = (provider.get("integration_loaded") is True
              and provider.get("integration_domain") == "aquarea"
-             and provider.get("integration_version") == "1.5.4"
-             and provider.get("library_distribution") == "aioaquarea-ng"
-             and provider.get("library_version") == "1.3.1")
+)
     start, fetched, reported, captured = map(_aware, (period_start, fetched_at, reported_at, captured_at))
     period, scope = _KEYS[key]
     result = {"schema": 1, "read_only": True, "source_kind": "panasonic_cloud_energy",

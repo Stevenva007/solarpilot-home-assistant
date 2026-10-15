@@ -17,7 +17,7 @@ import math
 import time
 import sys
 
-from .operation_source_evidence import AQUAREA_SPECIAL_STATUS_VERSIONS, CONTRACT_ID
+from .operation_source_evidence import CONTRACT_ID, inspect_loaded_aquarea_semantics, loaded_semantic_identity, valid_semantic_contract
 
 
 _PROGRAMMES = {
@@ -127,6 +127,7 @@ class NativeClimateProgram:
         self._display_contract_watches = {}
         self._display_metadata = {}
         self._display_metadata_module = None
+        self._display_semantic_identity = loaded_semantic_identity()
         self._display_metadata_checked = None
         self._display_metadata_task = None
         self._display_closed = False
@@ -144,12 +145,17 @@ class NativeClimateProgram:
             executor = getattr(self.runtime.hass, "async_add_executor_job", None)
             if callable(executor):
                 loaded = sys.modules.get("custom_components.aquarea")
-                metadata = await executor(installed_aquarea_metadata)
+                semantic_identity = loaded_semantic_identity()
+                def inspect_metadata():
+                    return {**installed_aquarea_metadata(), **inspect_loaded_aquarea_semantics()}
+                metadata = await executor(inspect_metadata)
                 if self._display_closed:
                     return
                 self._display_metadata = metadata
                 self._display_metadata_module = loaded
-                if loaded is not sys.modules.get("custom_components.aquarea"):
+                self._display_semantic_identity = semantic_identity
+                if (loaded is not sys.modules.get("custom_components.aquarea")
+                        or semantic_identity != loaded_semantic_identity()):
                     self._display_metadata = {}
         except (ImportError, OSError, AttributeError, TypeError, ValueError, RuntimeError):
             self._display_metadata = {}
@@ -164,7 +170,8 @@ class NativeClimateProgram:
         checked = self._display_metadata_checked
         age = time.monotonic()-checked if checked is not None else None
         current = (checked is not None and age is not None and 0 <= age <= 300
-                   and loaded is self._display_metadata_module)
+                   and loaded is self._display_metadata_module
+                   and self._display_semantic_identity == loaded_semantic_identity())
         if not current and self._display_metadata_task is None:
             create = getattr(self.runtime.hass, "async_create_task", None)
             if callable(create):
@@ -266,14 +273,22 @@ class NativeClimateProgram:
         metadata = metadata if isinstance(metadata, dict) else {}
         provider = {key: metadata.get(key) for key in ("integration_domain", "integration_version", "library_distribution", "library_version")}
         known = (metadata.get("integration_loaded") is True and provider["integration_domain"] == "aquarea"
-                 and isinstance(provider["integration_version"], str)
-                 and provider["integration_version"] in AQUAREA_SPECIAL_STATUS_VERSIONS
-                 and provider["library_distribution"] == "aioaquarea-ng" and provider["library_version"] == "1.3.1")
+                 and valid_semantic_contract(metadata.get("compatibility")))
         result = {"schema": 1, "read_only": True, "status": "unknown", "provider": provider,
                   "contract_id": CONTRACT_ID if known else None,
                   "action_semantics": "special_status" if known else "unknown", "source": "aquarea_contract",
                   "provider_loaded": metadata.get("integration_loaded") is True, "native_device_registered": False,
-                  "reason_code": "provider_contract_unverified", "stale_s": self._stale_s(),
+                  "compatibility": dict(metadata["compatibility"]) if known else None,
+                  "compatibility_state": "compatible" if known else metadata.get("compatibility_state", "unknown"),
+                  "compatibility_detail": metadata.get("compatibility_detail"),
+                  "reason_code": metadata.get("reason_code", "provider_semantics_unavailable") if not known else "known_special_status_action_mapping",
+                  "stale_s": self._stale_s(),
+                  "reason": ("De betekenis of opbouw van de geladen Aquarea-statusbron is gewijzigd."
+                             if metadata.get("reason_code") == "provider_semantics_changed" else
+                             "De betekenis van de geladen Aquarea-statusbron kon niet gecontroleerd worden.") if not known else "",
+                  "action": ("Laat de gewijzigde bronmapping controleren; de bestaande taakgegevens blijven afzonderlijk bewaard."
+                             if metadata.get("reason_code") == "provider_semantics_changed" else
+                             "Controleer de broncompatibiliteit; een versienummer alleen is geen reden om de bron te blokkeren.") if not known else "",
                   "observed_at": None, "raw_device_action": None,
                   "pump": {"state": "unknown", "observed_at": None}, "direction": {"state": None, "observed_at": None},
                   "program": {"state": None, "observed_at": None}, "tank": {"enabled": None, "observed_at": None}, "zones": []}
@@ -306,6 +321,12 @@ class NativeClimateProgram:
             coordinator, _, entry_id = resolved
             entry = self.runtime.hass.config_entries.async_get_entry(entry_id)
             device = coordinator.device
+            # A reloaded SDK can coexist briefly with a coordinator retaining
+            # an older same-named class. Its old getters cannot borrow new proof.
+            if metadata.get("_loaded_device_class") is not type(device):
+                return {**result, "reason_code": "native_loaded_device_type_changed",
+                        "reason": "De warmtepompbron gebruikt nog een eerdere geladen bronklasse.",
+                        "action": "Wacht op een nieuwe passende providerpoll; oude objecten krijgen geen nieuw bronbewijs."}
             def exact_enum(value, name, values):
                 return _native_enum_name(value, name, values) if type(value).__module__ == "aioaquarea.data" else None
             modern = isinstance(getattr(entry, "runtime_data", None), dict)

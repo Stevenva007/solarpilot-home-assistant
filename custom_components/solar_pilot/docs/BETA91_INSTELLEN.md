@@ -22,7 +22,7 @@ Is het weergavepercentage of de bronbinding lokaal nog niet vastgelegd? Open bij
 
 ## Bron- en bewijsgrenzen
 
-Aquarea 1.5.4 met aioaquarea-ng 1.3.1 is gericht gecontroleerd voor presentatie en nieuwe historische presentatiewaarnemingen. De conservatieve leerclassificatie en SG-koelvrijgave blijven dezelfde. Een presentatie die een taak toont bewijst geen nieuwe koel- of actuatorvrijgave.
+Aquarea 1.5.4 met aioaquarea-ng 1.3.1 is de actuele gecontroleerde bron. Toelating volgt de daadwerkelijk geladen semantiek en gegevensstructuur, zodat toekomstige compatibele versies blijven werken zonder nieuwe versielijst. Een bewezen semantiekwijziging geeft één afzonderlijke compatibiliteitsmelding; gewone offline-/brongaten doen dat niet. Historische punten behouden hun eigen oorspronkelijke contractbewijs. De conservatieve leerclassificatie en SG-koelvrijgave blijven dezelfde. Een presentatie die een taak toont bewijst geen nieuwe koel- of actuatorvrijgave.
 
 Cloudenergie gebruikt alleen een daadwerkelijk uitgelezen native periode. UTC-cloudtotalen en lokale SolarPilot-dagen worden niet automatisch met elkaar gelijkgesteld. Ontbrekende periodegegevens en oorspronkelijke provideruitgiftetijden blijven onbekend.
 
@@ -37,3 +37,7 @@ Maak eerst een actuele volledige privéback-up, geef de eigen SG-aanvraag veilig
 Beta.90 behoudt de automatische toestelherstelroute, restzonverdeling en Wallbox-voorkeuren. De nieuwe bron-/sessie-/prognosevelden worden door oudere code mogelijk niet getoond of bij nieuwe opslag bewaard; exact herstel vraagt passende code én een volledige privéback-up. De fix voor het lagere opgeslagen number-doel en Aquarea 1.5.4-presentatie vervallen. Gebruik geen twee runtimes tegelijk en herstel nooit een oude onverbruikte APP-aanvraag nadat dezelfde belading fysiek gestart is.
 
 Volledige werking: [ACTUELE_WERKING.md](ACTUELE_WERKING.md). Tests en publicatiestatus: [TESTRESULTATEN_BETA91.md](TESTRESULTATEN_BETA91.md). Technische overdracht: [OVERDRACHT.md](../OVERDRACHT.md).
+
+## Controle bij iedere update
+
+Iedere nieuwe SolarPilot-update controleert de actuele Aquarea-defaultbranch, laatste gepubliceerde release en werkelijke SDK-bron. Vergelijk met docs/upstream_review.json, beoordeel alle relevante nieuwe verschillen en verwerk noodzakelijke wijzigingen met regressies in dezelfde release. tools/check_upstream_review.py blokkeert publicatie bij onbeoordeelde bronwijzigingen of mislukte controle. Een open PR of prerelease wordt niet automatisch geïnstalleerd. De bestaande onderhoudstaak onderzoekt compatibiliteitswijzigingen zelfstandig, bouwt en test de noodzakelijke SolarPilot-correctie en kan een GitHub/HACS-release publiceren met een melding en release-link. Deze taak installeert geen software in Home Assistant; volg HACS. Lokale meldingen worden niet automatisch geüpload.

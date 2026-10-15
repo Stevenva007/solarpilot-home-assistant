@@ -112,7 +112,10 @@ def test_legacy_points_do_not_inherit_a_new_confirmed_profile():
 
 def contract():
     return {"schema": 1, "read_only": True, "status": "verified",
+        "provider_loaded": True, "native_device_registered": True,
         "contract_id": "aioaquarea_ng_1_3_1_special_status", "action_semantics": "special_status",
+        "compatibility": {"schema": 1, "contract": "aquarea_special_status_action_v1",
+                          "verified": True, "basis": "loaded_source", "fingerprint": "a"*64},
         "provider": {"integration_domain": "aquarea", "integration_version": "1.5.3",
                      "library_distribution": "aioaquarea-ng", "library_version": "1.3.1"},
         "raw_device_action": "OFF", "pump": {"state": "on", "observed_at": time.time()},
@@ -123,13 +126,13 @@ def contract():
 
 
 @pytest.mark.parametrize("verified", [True, False])
-def test_exact_provider_contract_bounds_new_heating_interpretation(verified):
+def test_verified_semantic_contract_bounds_new_heating_interpretation(verified):
     data = metered_sample(1700, complete=False, roles=("main", "unconfirmed"))
     row = display("space_heating", source="aquarea_contract", kind="coherent_native_context",
                   source_contract_id="aioaquarea_ng_1_3_1_special_status", reason="Samengestelde verse broncontext")
     data["panasonic"].update(operation_display=row, source_contract=contract())
     if not verified:
-        data["panasonic"]["source_contract"]["provider"]["library_version"] = "unknown"
+        data["panasonic"]["source_contract"]["compatibility"]["verified"] = False
     _, root = parsed(data)
     task = business_tile(root, "data-heatpump-task")
     assert ("Verwarmen" in task.text()) is verified
@@ -140,19 +143,68 @@ def test_exact_provider_contract_bounds_new_heating_interpretation(verified):
     assert "OFF" in details.text()
 
 
-@pytest.mark.parametrize("provider_version,visible", [("1.5.4", True), ("1.5.5", False)])
-def test_provider154_context_is_supported_without_granting_future_versions(provider_version, visible):
+@pytest.mark.parametrize("provider_version,library_version", [
+    ("1.5.4", "1.3.1"), ("1.5.5", "1.3.2"), ("2.0.0", "2.0.0"),
+])
+def test_verified_future_provider_context_uses_capability_marker_without_version_gate(provider_version, library_version):
     data = metered_sample(1700, complete=False, roles=("main", "unconfirmed"))
     row = display("space_heating", source="aquarea_contract", kind="coherent_native_context",
                   source_contract_id="aioaquarea_ng_1_3_1_special_status", reason="Verse samenhangende broncontext")
     evidence = contract()
     evidence["provider"]["integration_version"] = provider_version
-    evidence["provider_loaded"] = True
+    evidence["provider"]["library_version"] = library_version
     data["panasonic"].update(operation_display=row, source_contract=evidence)
     _, root = parsed(data)
     task = business_tile(root, "data-heatpump-task").text()
-    assert ("Verwarmen" in task) is visible
-    assert ("Actief · taak onbekend" in task) is not visible
+    assert "Verwarmen" in task
+    assert "Actief · taak onbekend" not in task
+
+
+@pytest.mark.parametrize("problem", [
+    "missing", "unverified", "schema", "semantics", "basis", "fingerprint",
+    "fingerprint_case", "provider_unloaded", "status", "action_semantics", "contract_id",
+])
+def test_unknown_or_mismatched_semantic_marker_never_confirms_future_task(problem):
+    data = metered_sample(1700, complete=False, roles=("main", "unconfirmed"))
+    row = display("space_heating", source="aquarea_contract", kind="coherent_native_context",
+                  source_contract_id="aioaquarea_ng_1_3_1_special_status", reason="Verse samenhangende broncontext")
+    evidence = contract()
+    evidence["provider"].update(integration_version="2.0.0", library_version="2.0.0")
+    if problem == "missing":evidence.pop("compatibility")
+    elif problem == "unverified":evidence["compatibility"]["verified"] = False
+    elif problem == "schema":evidence["compatibility"]["schema"] = 2
+    elif problem == "semantics":evidence["compatibility"]["contract"] = "main_status_action"
+    elif problem == "basis":evidence["compatibility"]["basis"] = "version_label"
+    elif problem == "fingerprint":evidence["compatibility"]["fingerprint"] = "a"*63
+    elif problem == "fingerprint_case":evidence["compatibility"]["fingerprint"] = "A"*64
+    elif problem == "provider_unloaded":evidence["provider_loaded"] = False
+    elif problem == "status":evidence["status"] = "unknown"
+    elif problem == "action_semantics":evidence["action_semantics"] = "main_status"
+    else:evidence["contract_id"] = "different_contract"
+    data["panasonic"].update(operation_display=row, source_contract=evidence)
+    _, root = parsed(data)
+    task = business_tile(root, "data-heatpump-task").text()
+    assert "Verwarmen" not in task
+    assert "Actief · taak onbekend" in task
+
+
+@pytest.mark.parametrize("reason_code", ["provider_semantics_unavailable", "provider_semantics_changed"])
+def test_incompatible_or_unverified_source_explains_reason_and_action_without_html(reason_code):
+    data = metered_sample(1700, complete=False, roles=("main", "unconfirmed"))
+    evidence = contract()
+    evidence.update(status="unknown", reason_code=reason_code,
+                    reason='Aquarea-statusformaat niet bevestigd <img src=x onerror="bad()">',
+                    action="Laat de compatibiliteit controleren; actuele netmeting blijft leidend.")
+    evidence["compatibility"]["verified"] = False
+    data["panasonic"].update(source_contract=evidence, operation_display=display(
+        None, context="heatpump_unknown", tier="unknown", reason_code=reason_code,
+        reason=evidence["reason"], action=evidence["action"]))
+    _, root = parsed(data)
+    details = next(n for n in root.walk() if "data-panasonic-source-contract" in n.attributes)
+    assert "Aquarea-statusformaat niet bevestigd" in details.text()
+    assert "Laat de compatibiliteit controleren" in details.text()
+    assert not any(n.tag == "img" for n in details.walk())
+    assert "Actief · taak onbekend" in business_tile(root, "data-heatpump-task").text()
 
 
 def test_actionable_unknown_reason_remains_escaped_and_does_not_claim_task():

@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "reviewed_at": "2026-10-15T15:24:35Z",
+  "assessment": {
+    "status": "complete_no_unprocessed_changes",
+    "summary": "Both public default-branch HEADs and latest published stable release tags were fetched again. Exact comparisons against the source register pins contain zero additional commits or changed files. The Aquarea 1.5.4 UTC energy boundaries and typed status route, and aioaquarea-ng 1.3.1 status semantics, remain the reviewed sources recorded in UPSTREAM_BRONNEN.md. SDK PR 12 remains open and unmerged; it is not a released parser fix. No additional relevant source changes remain unprocessed.",
+    "compatibility_claim": false,
+    "evidence_document": "docs/UPSTREAM_BRONNEN.md"
+  },
+  "repositories": [
+    {
+      "repository": "wpatrik14/home-assistant-aquarea",
+      "default_branch": "main",
+      "head_commit": "4b5f7f3d2ad8c284fae5ff8c165707f69443a0fa",
+      "latest_release": {
+        "tag": "v1.5.4",
+        "commit": "4b5f7f3d2ad8c284fae5ff8c165707f69443a0fa",
+        "target_commitish": "main",
+        "published_at": "2026-10-15T09:52:26Z",
+        "selection": "github_latest_published_stable"
+      },
+      "reviewed_base_commit": "4b5f7f3d2ad8c284fae5ff8c165707f69443a0fa",
+      "review_result": "no_additional_changes"
+    },
+    {
+      "repository": "wpatrik14/aioaquarea",
+      "default_branch": "main",
+      "head_commit": "d859f3727556c8a07964affd61a038edfd2d353a",
+      "latest_release": {
+        "tag": "v1.3.1",
+        "commit": "d859f3727556c8a07964affd61a038edfd2d353a",
+        "target_commitish": "main",
+        "published_at": "2026-10-10T11:49:16Z",
+        "selection": "github_latest_published_stable"
+      },
+      "reviewed_base_commit": "d859f3727556c8a07964affd61a038edfd2d353a",
+      "review_result": "no_additional_changes"
+    }
+  ]
+}

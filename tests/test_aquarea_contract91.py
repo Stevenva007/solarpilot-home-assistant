@@ -32,7 +32,7 @@ def test_154_parser_specialstatus_values_keep_raw_action_and_native_read_only_bo
 
 @pytest.mark.parametrize("change", ["missing_typed_pump", "missing_zone", "missing_tank", "wrong_entry",
     "pump_conflict", "direction_conflict", "zone_conflict", "missing_report", "old_report", "future_report",
-    "failed_poll", "optimistic_mutation", "unloaded_metadata", "wrong_sdk"])
+    "failed_poll", "optimistic_mutation", "unloaded_metadata", "changed_semantics"])
 def test_154_contract_keeps_original_shape_binding_conflict_and_time_guards(change, monkeypatch):
     env = fixture.modern_setup(monkeypatch, version="1.5.4")
     env.helper.read_source_contract(env.sources)
@@ -51,7 +51,7 @@ def test_154_contract_keeps_original_shape_binding_conflict_and_time_guards(chan
     elif change == "failed_poll": env.coordinator.notify(success=False)
     elif change == "optimistic_mutation": env.coordinator.device._status.direction = fixture.DeviceDirection.WATER
     elif change == "unloaded_metadata": env.helper._display_metadata["integration_loaded"] = False
-    else: env.helper._display_metadata["library_version"] = "1.3.2"
+    else: env.helper._display_metadata["compatibility"]["contract"] = "global_status"
     result = env.helper.read_source_contract(env.sources)
     assert result["status"] == "unknown" and result["reason_code"]
     assert result["observed_at"] in (None, original_time)
@@ -100,7 +100,9 @@ def test_154_display_refuses_malformed_or_missing_contract_flags_without_raising
     assert display(p)["function"] is None
 
 
-def test_malformed_installed_version_is_unknown_even_before_native_binding_lookup(monkeypatch):
+def test_malformed_installed_version_does_not_override_inspected_loaded_semantics(monkeypatch):
     env = fixture.modern_setup(monkeypatch, version=["1.5.4"])
+    env.helper.read_source_contract(env.sources)
+    env.coordinator.poll()
     result = env.helper.read_source_contract(env.sources)
-    assert result["status"] == "unknown" and result["reason_code"] == "provider_contract_unverified"
+    assert result["status"] == "verified"

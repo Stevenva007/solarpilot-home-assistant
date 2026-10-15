@@ -218,8 +218,9 @@ with sync_playwright() as playwright:
         target_c:50,target_stamp:now};
       p.native_task={source:'aquarea_poll',observed_at:now,stale_s:120,inactive:true,
         inactive_action:'off',inactive_scope:'global',verified_global_off:true};
-      p.source_contract={schema:1,read_only:true,status:'verified',
+      p.source_contract={schema:1,read_only:true,status:'verified',provider_loaded:true,native_device_registered:true,
         contract_id:'aioaquarea_ng_1_3_1_special_status',action_semantics:'special_status',
+        compatibility:{schema:1,contract:'aquarea_special_status_action_v1',verified:true,basis:'loaded_source',fingerprint:'a'.repeat(64)},
         provider:{integration_domain:'aquarea',integration_version:'1.5.3',library_distribution:'aioaquarea-ng',library_version:'1.3.1'},
         raw_device_action:'OFF',pump:{state:'on',observed_at:now},direction:{state:'PUMP',observed_at:now},
         program:{state:'heating',observed_at:now},tank:{enabled:true,observed_at:now},
@@ -244,7 +245,8 @@ with sync_playwright() as playwright:
     page.evaluate("()=>{const s=c._last.attributes.sg_boost;s.relay_on=false;s.desired_on=true;c._refreshObservationDisplay();}")
     assert "SG-doel bij AAN · berekend" in live_tank.inner_text(), "request cannot be actual closed contact"
     page.evaluate("()=>{c._last.attributes.sg_boost.relay_confirmed=false;c._refreshObservationDisplay();}")
-    assert "57,5 °C" not in live_tank.inner_text(), "unknown contact keeps preview out of concise overview"
+    assert "57,5 °C" in live_tank.inner_text() and "SG-doel bij AAN · berekend" in live_tank.inner_text(), "a source-confirmed calculated comparison stays conditional while contact is unknown"
+    assert page.evaluate("c._sgDisplayStates(c._ctx()).relay.state==='unknown'"), "conditional calculation cannot confirm contact"
     assert "SG-doel bij AAN · berekend" in page.locator('solar-pilot-card >> [data-heatpump-provenance]').text_content(), "conditional expanded preview remains available"
     page.evaluate("()=>{c._last.attributes.panasonic.sg_tank_goal.valid_until=Date.now()/1000-1;c._refreshObservationDisplay();}")
     assert "57,5 °C" not in page.locator('solar-pilot-card >> [data-heatpump-provenance]').text_content(), "expired ordinary source cannot retain a computed target"

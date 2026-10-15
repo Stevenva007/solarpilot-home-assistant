@@ -4,6 +4,8 @@ Versie: **1.0.0-beta.91** · 15 oktober 2026
 
 Bouwbasis: gepubliceerde beta.90 `ab872c236516e2121535f073380a6363aee228a5`. Eerdere versieresultaten zijn geen beta.91-validatie. Privé-export, bronidentiteiten en woningwaarden staan buiten publieke bron en pakketten; alle fixtures zijn fictief.
 
+De initiële exacte PR-run [38759077795](https://github.com/Stevenva007/solarpilot-home-assistant/actions/runs/38759077795) had 6.739 geslaagde tests en één timestampfout. Die is hersteld; zeven deterministische regressies en 145 gerichte tests slaagden. HACS, Hassfest en echte Core waren groen. De op de oude zichtbaarheid gerichte browserassertie is aangepast; beide bijgewerkte browsergates en 45 Node-tests slaagden lokaal. Dit valideert niet automatisch de latere capability-/melding-/bronreviewuitbreidingen. De definitieve exacte PR-head en main-run moeten alle vijf gates opnieuw doorstaan; toekomstige groene resultaten worden niet vooruit geclaimd.
+
 ## Concrete correcties
 
 - Een geldig opgeslagen lager number-doel wordt bij herstart behouden, zodat een passende echte instelling niet ten onrechte als externe overname wordt afgewezen. Ongeldige doelen blijven conservatief; een werkelijk gewijzigde fysieke instelling wordt niet overgenomen.
@@ -32,6 +34,10 @@ De gezamenlijke nieuwe backendregressies zijn lokaal uitgevoerd: **159 geslaagd*
 | Immutable annotated tag en vier assets | Pas bevestigd na de main-publicatiejob met terugdownload en bytevergelijking |
 
 Lokale tests en de vijf verplichte CI-gates zijn softwarebewijs. Zij tonen geen uitgevoerde gebruikersinstallatie, fysieke ontvochtigerstop of Panasonic-reactie. De toegevoegde herstelregressie test wel het softwarepad over de volledige beschermde minimumlooptijd en één stop onder de dan ongunstige voorwaarden.
+
+## Nieuwe compatibiliteits- en bronreviewgrenzen
+
+Versienummers zijn diagnosegegevens. De geladen parser/getter-semantiek, echte symbolen, codebinding en getypeerde bronnen bepalen of de bestaande presentatiemapping past. Gewijzigde of niet-verifieerbare betekenis krijgt geen oude aanname. Een bewezen wijziging geeft één gededupliceerde melding; positief geverifieerd herstel sluit die. Geen nieuwe melding bij gewone offline-/stale bron. De bronreviewgate vergelijkt actuele upstreammain en laatste gepubliceerde stabiele release met beoordeelde commits, inclusief tag→commit; een verplaatste tag of nieuwe onbeoordeelde bron blokkeert publicatie. De geautoriseerde onderhoudstaak bouwt/publiceert geteste SolarPilot-correcties; automatische HA-installatie of lokale gegevensupload wordt niet geclaimd.
 
 ## Publicatiecontrole
 

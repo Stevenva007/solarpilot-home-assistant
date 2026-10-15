@@ -152,13 +152,46 @@ def run():
         sources.click()
         assert page.evaluate("analysisSettingsRoutes") == ["sg_sources"]
         assert "57,5 °C" not in card.locator("[data-boiler-temperatures]").inner_text()
+
+        # Compatible future integration/SDK versions use loaded semantic
+        # evidence. A mismatched marker preserves activity without inventing a
+        # task and explains what requires attention.
+        page.evaluate("""() => {const now=Date.now()/1000,p=analysisAttributes.panasonic;
+          p.source_contract={schema:1,read_only:true,status:'verified',provider_loaded:true,
+            native_device_registered:true,contract_id:'aioaquarea_ng_1_3_1_special_status',
+            action_semantics:'special_status',provider:{integration_domain:'aquarea',
+              integration_version:'2.0.0',library_distribution:'aioaquarea-ng',library_version:'2.0.0'},
+            compatibility:{schema:1,contract:'aquarea_special_status_action_v1',verified:true,
+              basis:'loaded_source',fingerprint:'a'.repeat(64)},raw_device_action:'OFF'};
+          p.operation_display={read_only:true,model_eligible:false,context:'space_heating',
+            function:'space_heating',tier:'derived',source:'aquarea_contract',
+            kind:'coherent_native_context',source_contract_id:'aioaquarea_ng_1_3_1_special_status',
+            observed_at:now,valid_until:now+120,active:true,activity_observed_at:now,
+            activity_valid_until:now+120,stale_s:120,support:{active:false,watts:0,
+              observed_at:now,valid_until:now+120}};
+          c._view='comfort';publishAnalysis();} """)
+        assert panel.locator("[data-heatpump-task] strong").inner_text() == "Verwarmen"
+        page.evaluate("""() => {const contract=analysisAttributes.panasonic.source_contract;
+          contract.compatibility.verified=false;contract.status='unknown';
+          contract.reason_code='provider_semantics_changed';
+          contract.reason='Aquarea-statusformaat gewijzigd <img src=x onerror="window.analysisInjected=true">';
+          contract.action='Laat de compatibiliteit controleren';publishAnalysis();} """)
+        assert panel.locator("[data-heatpump-task] strong").inner_text() == "Actief · taak onbekend"
+        details = panel.locator('details[data-ui-key="sg:comfort:details"]')
+        if details.get_attribute("open") is None:
+            details.locator(":scope > summary").click()
+        contract_details = panel.locator("[data-panasonic-source-contract]")
+        contract_details.locator(":scope > summary").click()
+        assert "Aquarea-statusformaat gewijzigd" in contract_details.inner_text()
+        assert "Laat de compatibiliteit controleren" in contract_details.inner_text()
+        assert contract_details.locator("img").count() == 0
         assert page.evaluate("analysisDeviceCalls.length") == 0
         assert page.evaluate("window.analysisInjected===true") is False
         assert all(call["type"] in ("solar_pilot/learning", "solar_pilot/pv_diagnostics")
                    for call in page.evaluate("analysisCalls"))
         assert not errors, errors
         browser.close()
-    print("Analysis beta91 browser validation: timed learning wait, separate unknown-context exclusions, original PV lead cohorts/daylight/dependency, SG stop versus current gate, conditional source-confirmed goal with unknown contact and explicit settings route, escaped evidence, four mobile/desktop widths, read-only RPCs and zero device calls passed. Fictitious evidence only.")
+    print("Analysis beta91 browser validation: timed learning wait, separate unknown-context exclusions, original PV lead cohorts/daylight/dependency, SG stop versus current gate, conditional source-confirmed goal with unknown contact and explicit settings route, compatible future semantic marker versus changed source contract with actionable reason, escaped evidence, four mobile/desktop widths, read-only RPCs and zero device calls passed. Fictitious evidence only.")
 
 
 if __name__ == "__main__":

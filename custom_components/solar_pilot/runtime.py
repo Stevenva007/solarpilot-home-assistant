@@ -38,6 +38,7 @@ from .dishwasher_recovery import RECOVERED_AUTO_KEY, RECOVERY_KEY, RECOVERY_SOUR
 from .analysis_export import AnalysisRecorder
 from .feedback_store import AnalysisFeedbackStore
 from .action_notifications import ActionRequiredNotifications
+from .compatibility_notifications import CompatibilityNotifications
 from .house_first import HOUSE_DEFAULTS, HouseFirstGuard, Handover
 from .learning import LocalLearning
 from .heatpump_learning import HeatPumpActivityModel
@@ -173,6 +174,7 @@ class SolarRuntime:
         self.analysis = AnalysisRecorder(self)
         self.analysis_feedback = AnalysisFeedbackStore(self)
         self.action_notifications = ActionRequiredNotifications(self)
+        self.compatibility_notifications = CompatibilityNotifications(self)
         self.learning_hub = LearningHub(self)
         self.live_options = LiveOptions(self)
         self.platforms = LivePlatforms(self)
@@ -449,6 +451,7 @@ class SolarRuntime:
             "live_options": self.live_options.snapshot(),
             "learning_hub": self.learning_hub.snapshot(),
             "action_notifications": self.action_notifications.snapshot(),
+            "compatibility_notifications": self.compatibility_notifications.snapshot(),
             "dishwasher": self.dishwasher.snapshot(),
             "dishwasher_app": self.dishwasher_app.snapshot(),
             "dishwasher_priority": self.dishwasher_priority.snapshot(),
@@ -529,6 +532,7 @@ class SolarRuntime:
         self.unified_planner.restore(data.get("unified_planner", {}))
         self.learning_hub.restore(data.get("learning_hub", {}))
         self.action_notifications.restore(data.get("action_notifications", {}))
+        self.compatibility_notifications.restore(data.get("compatibility_notifications", {}))
         self.cycle_learning.restore(data.get("cycle_learning", {}))
         self.reclaim_blocks = {i: str(reason) for i, reason in data.get("reclaim_blocks", {}).items() if i in self.configs}
         self.priorities = {i: p for i, p in data.get("priorities", {}).items() if i in self.configs}
@@ -2440,6 +2444,7 @@ class SolarRuntime:
                 self.analysis.error = "Analysemeting onvolledig: " + type(err).__name__
             self._capture_heatpump_history()
             await self.action_notifications.sync()
+            await self.compatibility_notifications.sync()
             self.publish()
 
     def _capture_heatpump_history(self):

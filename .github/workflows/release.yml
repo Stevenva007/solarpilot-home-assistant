@@ -27,6 +27,11 @@ jobs:
         run: python tools/check_handoff.py
       - name: Release/documentation consistency
         run: python tools/check_current_explanation.py
+      - name: Verify current upstream source review
+        timeout-minutes: 3
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python tools/check_upstream_review.py
       - name: Validate Python syntax
         run: python -m compileall -q custom_components/solar_pilot
       - name: Verify requested tag

@@ -12,6 +12,10 @@ import time
 from homeassistant.exceptions import HomeAssistantError
 
 INTERVAL_S = 300.0
+# Home Assistant report datetimes have microsecond resolution, whereas command
+# time.time() values can contain sub-microseconds. Rounding an earlier report
+# upward within that resolution cannot establish a post-command observation.
+REPORT_RESOLUTION_S = 0.000001
 LEGACY_TRANSPORT_FAULTS = frozenset({
     "Opdrachtfout: HomeAssistantError; controleer het toestel",
     "Opdrachtfout: TimeoutError; controleer het toestel",
@@ -50,6 +54,12 @@ def _finite(value, default=None):
     except (TypeError, ValueError, OverflowError):
         return default
     return number if math.isfinite(number) else default
+
+
+def _reported_after_command(stamp, issued_wall):
+    stamp, issued_wall = _finite(stamp), _finite(issued_wall)
+    return (stamp is not None and issued_wall is not None
+            and stamp-issued_wall > REPORT_RESOLUTION_S)
 
 
 class DeviceRetry:
@@ -295,17 +305,17 @@ class DeviceRetry:
         r = self.r
         if cfg.get("kind") == "dishwasher":
             reading = r.dishwasher.readings.get(cfg["id"])
-            return bool(reading and reading.stamp > issued_wall
+            return bool(reading and _reported_after_command(reading.stamp, issued_wall)
                         and (reading.active is True or reading.finished))
         key = "active_entity" if cfg.get("kind") == "script" else "control_entity"
         obj = r.hass.states.get(cfg.get(key, ""))
         stamp = r._reported_wall(obj)
-        if stamp is None or stamp <= issued_wall:
+        if not _reported_after_command(stamp, issued_wall):
             return False
         if cfg.get("kind") == "number":
             number_obj = r.hass.states.get(cfg.get("number_entity", ""))
             number_stamp = r._reported_wall(number_obj)
-            if number_stamp is None or number_stamp <= issued_wall:
+            if not _reported_after_command(number_stamp, issued_wall):
                 return False
         return True
 

@@ -10,7 +10,7 @@ import math
 import time
 
 from .heatpump_learning import ACTIVE_CONTEXTS
-from .operation_source_evidence import AQUAREA_SPECIAL_STATUS_VERSIONS, CONTRACT_ID
+from .operation_source_evidence import CONTRACT_ID, special_status_contract
 
 LABELS = {"space_heating": "Verwarmen", "space_cooling": "Koelen",
           "tapwater_heating": "Boiler opwarmen", "sterilization": "Sterilisatie",
@@ -145,17 +145,14 @@ def classify_display_operation(snapshot, *, now_wall=None):
                  and contract.get("contract_id") == CONTRACT_ID
                  and contract.get("action_semantics") == "special_status"
                  and provider.get("integration_domain") == "aquarea"
-                 and isinstance(provider.get("integration_version"), str)
-                 and provider.get("integration_version") in AQUAREA_SPECIAL_STATUS_VERSIONS
-                 and provider.get("library_distribution") == "aioaquarea-ng"
-                 and provider.get("library_version") == "1.3.1")
+                 and special_status_contract(contract))
         def unknown(code, reason, action, *, skew=None, measurement_skew=None):
             return {**result, "reason_code": code, "reason": reason, "action": action,
                     "source_contract_id": contract.get("contract_id"), "context_report_skew_s": skew,
                     "maximum_context_skew_s": 5, "measurement_context_skew_s": measurement_skew}
         if not known:
             return unknown(contract.get("reason_code", "provider_contract_unverified"),
-                           "De native bronmapping of actuele provider-versie is niet bevestigd.",
+                           "De betekenis of bronbinding van de geladen native bron is niet bevestigd.",
                            "Controleer de bron- en providergegevens in deze diagnose.")
         if current(native.get("observed_at"), native.get("stale_s", stale)) and native.get("conflict") is True:
             return unknown("native_source_value_conflict", "De actuele native taakbronnen spreken elkaar tegen.",

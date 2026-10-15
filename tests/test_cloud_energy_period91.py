@@ -83,16 +83,14 @@ def test_missing_or_restored_local_period_does_not_acquire_utc_bounds(start):
         assert result["reported_period_start"] == start.isoformat()
 
 
-@pytest.mark.parametrize("change", ["version", "sdk", "not_loaded", "future_fetch", "future_report", "missing_capture", "missing_fetch"])
+@pytest.mark.parametrize("change", ["not_loaded", "future_fetch", "future_report", "missing_capture", "missing_fetch"])
 def test_unverified_source_metadata_or_original_times_never_claim_known_period(change):
     provider = dict(PROVIDER)
     start = datetime(2026, 10, 15, tzinfo=UTC)
     capture = start+timedelta(hours=12)
     values = {"period_start": start, "fetched_at": capture-timedelta(minutes=3),
               "reported_at": capture-timedelta(seconds=2), "captured_at": capture}
-    if change == "version": provider["integration_version"] = "1.5.5"
-    elif change == "sdk": provider["library_version"] = "1.3.2"
-    elif change == "not_loaded": provider["integration_loaded"] = 1
+    if change == "not_loaded": provider["integration_loaded"] = 1
     elif change == "future_fetch": values["fetched_at"] = capture+timedelta(seconds=6)
     elif change == "future_report": values["reported_at"] = capture+timedelta(seconds=6)
     elif change == "missing_capture": values["captured_at"] = None

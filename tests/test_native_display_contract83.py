@@ -5,6 +5,7 @@ import sys
 from types import SimpleNamespace as NS
 
 import pytest
+from custom_components.solar_pilot.operation_source_evidence import SEMANTIC_CONTRACT_ID
 
 from test_cooling_native80 import (AquareaDataUpdateCoordinator as BaseCoordinator,
     DeviceImpl as BaseDevice, DeviceStatus as BaseStatus, OperationStatus)
@@ -61,7 +62,9 @@ def setup_contract(monkeypatch, *, version="1.5.2"):
     for eid in env.sources["zone_entities"]:
         env.state(eid, "heat", {"hvac_action": "off"})
     env.helper._display_metadata = {"integration_loaded": True, "integration_domain": "aquarea", "integration_version": version,
-                                   "library_distribution": "aioaquarea-ng", "library_version": "1.3.1"}
+                                   "library_distribution": "aioaquarea-ng", "library_version": "1.3.1",
+                                   "compatibility": {"schema":1,"contract":SEMANTIC_CONTRACT_ID,"verified":True,"basis":"loaded_source","fingerprint":"a"*64},
+                                   "_loaded_device_class": type(coordinator.device)}
     env.helper._display_metadata_checked = env.clock[0]
     env.helper._display_metadata_module = sys.modules.get("custom_components.aquarea")
     env.sources = env.helper.display_sources()
@@ -87,7 +90,7 @@ def test_exact_registered_pump_role_is_read_only_and_needs_real_successful_poll(
     assert not env.helper._watches  # New display proof is never controller-programme permission.
 
 
-@pytest.mark.parametrize("case", ["pump_uid", "pump_device", "pump_entry", "duplicate_role", "pump_disabled", "wrong_provider_version", "wrong_distribution", "wrong_library_version", "raw_duty", "duty_unknown_enum", "state_conflict", "direction_conflict", "old_pump"])
+@pytest.mark.parametrize("case", ["pump_uid", "pump_device", "pump_entry", "duplicate_role", "pump_disabled", "missing_semantics", "wrong_semantics", "unverified_semantics", "raw_duty", "duty_unknown_enum", "state_conflict", "direction_conflict", "old_pump"])
 def test_unverified_mapping_version_or_actual_pump_identity_never_qualifies_display(case, monkeypatch):
     env = setup_contract(monkeypatch)
     pump = env.sources["pump_status_entity"]
@@ -100,9 +103,9 @@ def test_unverified_mapping_version_or_actual_pump_identity_never_qualifies_disp
         env.rows["sensor.synthetic_duplicate"] = NS(**{**vars(env.rows[pump]), "entity_id": "sensor.synthetic_duplicate"})
         env.sources = env.helper.display_sources()
     elif case == "pump_disabled":env.rows[pump].disabled_by = "user"
-    elif case == "wrong_provider_version":env.helper._display_metadata["integration_version"] = "1.5.5"
-    elif case == "wrong_distribution":env.helper._display_metadata["library_distribution"] = "aioaquarea"
-    elif case == "wrong_library_version":env.helper._display_metadata["library_version"] = "1.3.2"
+    elif case == "missing_semantics":env.helper._display_metadata.pop("compatibility")
+    elif case == "wrong_semantics":env.helper._display_metadata["compatibility"]["contract"] = "global_status"
+    elif case == "unverified_semantics":env.helper._display_metadata["compatibility"]["verified"] = False
     elif case == "raw_duty":env.coordinator.device._status.pump_duty = 1
     elif case == "duty_unknown_enum":env.coordinator.device._status.pump_duty = IntEnum("PumpDuty", {"ON":1}, module="unrelated.data").ON
     elif case == "state_conflict":env.state(pump, "Off")

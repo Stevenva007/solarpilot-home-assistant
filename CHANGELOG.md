@@ -2,6 +2,9 @@
 
 ## 1.0.0-beta.91 — bronvaste analyse en correct herstel
 
+- Vervangt exacte versie-allowlists door controle van de geladen Aquarea-/SDK-parser en actiebetekenis. Compatibele toekomstige versies blijven functioneren; bewezen contractbreuk geeft één afzonderlijke melding zonder nieuwe actuatorrechten.
+- Controleert bij iedere update de actuele Aquarea- en bibliotheekbron tegen een publiek reviewcheckpoint. Onbeoordeelde nieuwe commits/releases of mislukte broncontrole blokkeren publicatie. Relevante verschillen gaan met regressies mee; de bestaande onderhoudstaak is hiervoor bijgewerkt.
+- Verhindert dat een oud toestelrapport dat door datetime-afronding minder dan één microseconde later lijkt, een mislukte opdracht bevestigt.
 - Controleert het exacte Aquarea 1.5.4/aioaquarea-ng 1.3.1-presentatiecontract met oorspronkelijke rapporttijden, bronbinding, conflicten en onbekende waarden; geen nieuwe native schrijfrechten of SG-koelvrijgave.
 - Exporteert uitsluitend werkelijk uitgelezen cloudenergieperioden met provider, bronsoort, UTC-begin en exclusief einde. Geen herdatering van oude dagen of gelijkschakeling van cloud- en eigen meters.
 - Toont de twee minuten leerstabilisatie als tijdelijke informatieve wacht met begin/einde; houdt langdurige warmtepompcontextuitsluiting afzonderlijk.
