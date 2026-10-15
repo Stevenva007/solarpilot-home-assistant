@@ -285,3 +285,40 @@ async def test_configuration_value_error_is_not_hidden_as_temporary_unavailabili
     await runtime.tick()
     assert len(physical(hass)) == initial
     assert "a" in runtime.faults
+
+@pytest.mark.asyncio
+async def test_explicit_manual_takeover_cancels_retry_and_cannot_re_adopt_later(monkeypatch):
+    runtime, hass, clock = await failed_start(monkeypatch)
+    runtime.mode = "paused"
+    await runtime.takeover("a")
+    assert not runtime.device_retry.waiting("a")
+    assert not runtime.states["a"].owned
+    assert runtime.device_modes["a"] == "disabled"
+    clock.advance(300)
+    reports(hass, clock, active="on", grid=500)
+    await runtime.tick()
+    assert not runtime.states["a"].owned
+    assert runtime.states["a"].on
+    assert len(physical(hass)) == 1
+    assert "a" not in runtime.store.data["leases"]
+
+@pytest.mark.asyncio
+async def test_orphan_legacy_fault_cannot_claim_an_external_on_device(monkeypatch):
+    clock = install_clock(monkeypatch)
+    runtime, hass = build(device={"nominal_w": 1000})
+    reports(hass, clock, active="on", grid=500)
+    runtime.store.data = {
+        "mode": "observe", "device_modes": {"a": "auto"}, "leases": {},
+        "faults": {"a": "Opdrachtfout: HomeAssistantError; controleer het toestel"},
+    }
+    await runtime.start()
+    try:
+        clock.advance(300)
+        reports(hass, clock, active="on", grid=500)
+        await runtime.tick()
+        assert not runtime.states["a"].owned
+        assert runtime.states["a"].on
+        assert "a" not in runtime.store.data["leases"]
+        assert not physical(hass)
+    finally:
+        await runtime.close()
