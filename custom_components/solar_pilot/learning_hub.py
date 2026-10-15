@@ -11,6 +11,7 @@ from copy import deepcopy
 from datetime import date, datetime, timedelta
 import hashlib
 import json
+import logging
 import math
 import time
 
@@ -22,6 +23,7 @@ from .investigation import LocalInvestigation
 
 
 BASELINE_SETTLING_S = 120.0
+_LOGGER = logging.getLogger(__name__)
 
 
 def number(value):
@@ -208,6 +210,9 @@ class LearningHub:
         self.last_refresh = 0.0
         self.last_notification = 0.0
         self.notification_signature = ""
+        self._legacy_notice_pending = False
+        self._notification_cleanup_dirty = False
+        self._notification_cleanup_failed = False
         self.latest_sample = {"valid": False, "watts": None, "code": "initializing", "reason": "Eerste meetcontrole afwachten."}
         self.cached = {"models": [], "questions": [], "ready": False, "policy": dict(self.policy)}
         self.active_candidates = set()
@@ -267,6 +272,8 @@ class LearningHub:
         self.active_candidates = {x[:32] for x in candidates[:48] if isinstance(x, str)} if isinstance(candidates, list) else set()
         self.last_notification = number(data.get("last_notification")) or 0
         self.notification_signature = str(data.get("notification_signature", ""))[:64]
+        self._legacy_notice_pending = bool(self.notification_signature or self.last_notification
+                                          or self.policy["notifications"])
         self.r.unified_planner.base_load.adaptive_enabled = self.policy["adaptation"] == "automatic"
 
     def observe(self, local_now, monotonic):
@@ -605,29 +612,37 @@ class LearningHub:
         return deepcopy(self.refresh(force=True))
 
     async def tick(self):
+        """Keep findings local; retire only our old non-urgent analysis notice.
+
+        Finding revisions and the legacy opt-in never establish urgency. Actual
+        controller faults and proven provider breaks have their own reporters.
+        Retain the old policy/receipt schema so upgrades preserve stored data.
+        """
         self.refresh()
-        questions = self.cached.get("questions", [])
-        if not self.policy["notifications"] or not questions:
-            if self.notification_signature and self.r.hass.services.has_service("persistent_notification", "dismiss"):
-                await self.r.hass.services.async_call("persistent_notification", "dismiss", {
+        try:
+            if self.notification_signature or self._legacy_notice_pending:
+                services = self.r.hass.services
+                if not services.has_service("persistent_notification", "dismiss"):
+                    return
+                await services.async_call("persistent_notification", "dismiss", {
                     "notification_id": "solar_pilot_learning_" + self.r.entry.entry_id}, blocking=False)
                 self.notification_signature = ""
-                if self.r.data_loaded:
-                    self.r.store.async_delay_save(self.r._snapshot, 60)
+                self.last_notification = 0.0
+                self._legacy_notice_pending = False
+                self._notification_cleanup_dirty = True
+            if self._notification_cleanup_dirty and self.r.data_loaded:
+                self.r.store.async_delay_save(self.r._snapshot, 60)
+                self._notification_cleanup_dirty = False
+        except Exception:
+            # Delivery/persistence failure is not a controller or learner fault.
+            # Retry dismissal until accepted; retry storage without dismissing
+            # again after an accepted call.
+            if not self._notification_cleanup_failed:
+                _LOGGER.warning("Oude SolarPilot-analysemelding kon niet worden opgeruimd; "
+                                "volgende cyclus probeert opnieuw", exc_info=True)
+            self._notification_cleanup_failed = True
             return
-        signature = hashlib.sha256(json.dumps([(x["id"], x["revision"]) for x in questions]).encode()).hexdigest()[:32]
-        stamp = time.time()
-        if not questions or signature == self.notification_signature or stamp-self.last_notification < 86400:
-            return
-        services = self.r.hass.services
-        if services.has_service("persistent_notification", "create"):
-            await services.async_call("persistent_notification", "create", {
-                "notification_id": "solar_pilot_learning_" + self.r.entry.entry_id,
-                "title": "SolarPilot · Analyse nodig",
-                "message": f'{len(questions)} bevindingen vragen analyse. Open SolarPilot → Export en download de analyse van 7 dagen. Laat het bestand analyseren en upload desgewenst het adviesrapport. Instellingen en apparaten worden niet automatisch aangepast.'}, blocking=False)
-            self.last_notification = stamp
-            self.notification_signature = signature
-            self.r.store.async_delay_save(self.r._snapshot, 60)
+        self._notification_cleanup_failed = False
 
     def summary(self):
         return {"ready": self.cached.get("ready", False), "open_questions": self.cached.get("open_questions", 0),

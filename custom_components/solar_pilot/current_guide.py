@@ -3,13 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.91'
+GUIDE_VERSION = '1.0.0-beta.92'
 GUIDE_UPDATED = '2026-10-15'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.91',
+ 'version': '1.0.0-beta.92',
  'updated': '2026-10-15',
- 'intro': "Beta.91 controleert de werkelijk geladen Aquarea-bronsemantiek voor presentatie in plaats van versienummers toe te laten. Iedere SolarPilot-update controleert de actuele Aquarea- en bibliotheekbron; onbeoordeelde wijzigingen blokkeren publicatie. De update maakt leerstabilisatie, UTC-cloudperioden, vooraf vastgelegde PV-reeksen en oorspronkelijke SG-sessieregels zichtbaar. Waarneming, planning en herstelminimumtijd staan apart. Een geldig lager opgeslagen number-doel blijft behouden en afgeronde oude rapporten bevestigen geen nieuwe opdracht. Bestaande instellingen, modellen en historie blijven behouden.",
+ 'intro': 'Beta.92 reserveert Home Assistant-meldingen voor dringende regelingsproblemen en bewezen Aquarea-incompatibiliteit. Gewone analysebevindingen blijven bij Meetkwaliteit en Export, zonder terugkerende melding Analyse nodig. Een oude analysemelding wordt gericht opgeruimd. Het lokale onderzoek blijft doorgaan. De Aquarea-, herstel-, PV- en SG-verbeteringen uit beta.91 blijven behouden.',
  'sections': [{'title': '1. Basisprincipe en modi',
                'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele '
                               'net- en PV-metingen, echte toestelvoorwaarden en elektrische grenzen gaan '
@@ -719,8 +719,9 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Gemeten verbruik kan volgens de ingestelde bronkeuze worden gebruikt; '
                               'geschatte, dubbele of ongeschikte bronnen zijn geen echte meting. Een '
                               'recente basislastaanpassing wordt eerst vergeleken en alleen binnen de '
-                              'bestaande begrensde toestemming toegepast. Optionele HA-analysemeldingen '
-                              'verwijzen naar Export en blijven afzonderlijk van echte controlefouten.',
+                              'bestaande begrensde toestemming toegepast. Gewone analysebevindingen blijven '
+                              'bij Meetkwaliteit en Export en maken geen Home Assistant-melding. Alleen '
+                              'dringende regelingsproblemen houden hun gerichte melding.',
                               ('Automatisch onderzoek controleert de bestaande gekoppelde bronnen lokaal, '
                                'zonder upload of nieuwe apparaatbediening. Vijf onderwerpen krijgen een '
                                'eigen status: warmtepompmeting, Wallboxsessiebron, PV-voorspelling en '
@@ -1081,9 +1082,11 @@ CURRENT_GUIDE["sections"][7]["paragraphs"].append("Een terugkerend eerder eigen 
 CURRENT_GUIDE["sections"][9]["paragraphs"].append("Vanaf beta.91 wordt naast de oude gemengde vooruitvergelijking een nieuwe afzonderlijke reeks per 5–60 minuten, 1–3 uur en 3–12 uur aangelegd. Per doelmoment, bronbinding en termijn geldt vooraf de eerste geldige lokaal waargenomen voorspelling; latere varianten vervangen haar niet. Banden delen dezelfde oorspronkelijke doelmeting. Unieke doelen, oorspronkelijke rapporten, daglichtdoelen, verschillende dagen en afhankelijkheid blijven zichtbaar. Oude gegevens worden niet teruggevuld, de provideruitgiftetijd blijft onbekend en de nieuwe score past geen correctiefactor toe.")
 CURRENT_GUIDE["sections"][13]["paragraphs"].append("De twee minuten na inschakeling of bronherstel zijn een informatieve tijdelijke leerwacht, met begin, einde en resterende duur waar bekend. Een opdracht die op terugmelding wacht heeft geen verzonnen eindtijd. De laatste broncontrole staat apart van de telling van leerpogingen per kwartier. Langdurige uitsluiting door onbekende warmtepompcontext staat afzonderlijk; ontbrekende perioden worden nooit als nul geleerd.")
 CURRENT_GUIDE["sections"][16]["paragraphs"].append("Nieuwe exports scheiden observed.control en observed.power van planning en eigendom. Hersteltijd en de minimumlooptijd zijn expliciete bewijsvelden. Dekking wordt daarnaast per werkelijk verzamelende release en bron verdeeld; een interval over een releasewissel of meetgat wordt niet overbrugd. Bij een geverifieerde Aquarea-cloudenergiesensor staan provider, bronsoort, werkelijk uitgelezen aggregatiebegin, exclusief periode-einde en UTC-tijdzone apart. Dag-/maandtotalen zijn pas vergelijkbaar bij dezelfde uren, scope en dekking; een HA-rapporttijd is geen aggregatiebegin. Ontbrekende native periodegegevens blijven onbekend. Een bekende aggregatieperiode is geen bewijs van actualiteit of volledige meetdekking.")
-CURRENT_GUIDE["sections"][19]["paragraphs"][-1] = "Rollback naar beta.90 behoudt de herstelroute en Wallbox-voorkeuren, maar verwijdert de beta.91-weergave- en bewijsuitbreidingen en de fix voor een geldig lager opgeslagen number-doel. Maak eerst een actuele volledige privéback-up, geef een eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk en controleer de lokale afloop. Herstel uitsluitend code met behoud van entry, opslag en userfiles; herstart Home Assistant volledig. Onbekende nieuwere bewijsopslag mag niet stil worden vervangen. Herstel nooit een oude onverbruikte APP-aanvraag nadat dezelfde belading fysiek gestart is. Gebruik geen twee runtimes tegelijk. Zie BETA91_INSTELLEN.md."
+CURRENT_GUIDE["sections"][19]["paragraphs"][-1] = "Rollback naar beta.91 behoudt de Aquarea-, leer-, PV-, SG- en toestelherstelverbeteringen, maar kan de algemene analysemeldingen weer toelaten wanneer de vroegere voorkeur aanstaat. Geef een eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk en controleer de lokale afloop. Herstel uitsluitend code met behoud van entry, opslag en userfiles; herstart Home Assistant volledig. Gebruik geen twee runtimes tegelijk. Zie BETA92_INSTELLEN.md."
 
 CURRENT_GUIDE["sections"][20]["paragraphs"].append("Elke SolarPilot-update controleert de laatste Aquarea-defaultbranch, gepubliceerde release en werkelijk gebruikte bibliotheek tegen het publieke bronreviewcheckpoint. Nieuwe relevante wijzigingen worden beoordeeld en met regressietests verwerkt in dezelfde update; ongewijzigde of irrelevante code wordt als zodanig vastgelegd. De CI-gate blokkeert publicatie bij onbeoordeelde upstreamwijzigingen of een niet-uitvoerbare broncontrole. De bestaande onderhoudstaak kan zelfstandig een geteste SolarPilot-herstelrelease op GitHub publiceren en daarover berichten. Dit is geen automatische installatie op Home Assistant en geen live verbinding met lokale meldingen. Installeer de release via HACS; instellingen en fysieke apparaten worden niet op afstand aangepast.")
+
+CURRENT_GUIDE["sections"][14]["paragraphs"].append("Gewone analysebevindingen, nieuwe bevindingrevisies, meer gegevens nodig en tijdelijke onbereikbaarheid veroorzaken geen algemene melding Analyse nodig, ook niet bij een eerder ingeschakelde analysemeldingsvoorkeur. Bevindingen en onderzoek blijven bij Meetkwaliteit en Export. Een bestaande algemene analysemelding wordt bij de eerste geslaagde controle opgeruimd. Dringende regelingsfouten blijven gericht zichtbaar, worden bij inhoudelijke wijziging bijgewerkt en verdwijnen na herstel. Een bewezen Aquarea-contractbreuk houdt haar afzonderlijke compatibiliteitsmelding. Het opruimen raakt geen andere melding of apparaat.")
 
 GUIDE_HASH = hashlib.sha256(
     json.dumps(CURRENT_GUIDE, sort_keys=True, ensure_ascii=False).encode("utf-8")

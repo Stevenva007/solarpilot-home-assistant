@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.92 — alleen urgente meldingen
+
+- Algemene **Analyse nodig**-meldingen vervallen, ook bij een eerder ingeschakelde voorkeur, nieuwe bevindingrevisies of een verstreken dag. Meetkwaliteit, export en lokaal onderzoek blijven werken.
+- Oude analysemeldingen worden gericht opgeruimd met herpoging bij tijdelijk transportverlies; fouten bij melding/opslag onderbreken de regeling niet.
+- Dringende regelingsfouten en bewezen Aquarea-incompatibiliteit houden hun bestaande gerichte, gededupliceerde melding en herstelroute.
+- Aquarea-/SDK-defaultbranches en laatste stabiele releases opnieuw gecontroleerd: geen nieuwe bronwijzigingen. Alle beta.91-regelings- en bronverbeteringen blijven behouden.
+
+
 ## 1.0.0-beta.91 — bronvaste analyse en correct herstel
 
 - Vervangt exacte versie-allowlists door controle van de geladen Aquarea-/SDK-parser en actiebetekenis. Compatibele toekomstige versies blijven functioneren; bewezen contractbreuk geeft één afzonderlijke melding zonder nieuwe actuatorrechten.

@@ -650,14 +650,12 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                             'live basislastmodel blijft ook in adviesstand leren; dit is geen stilzetten van '
                             'alle modellen. Temperaturen, deadlines, vermogensgrenzen, prioriteiten en '
                             'toestemmingen worden niet gewijzigd.',
- 'learning_hub:notifications': 'Toon Analyse nodig ook onder Home Assistant-meldingen. Standaard uit; open '
-                               'bevindingen staan altijd bij Meetkwaliteit en Export. Maximaal eenmaal per '
-                               '24 uur wordt een afzonderlijke melding bijgewerkt bij betekenisvol gewijzigde '
-                               'bevindingen. Download de analyse van 7 dagen en upload eventueel het bijbehorende '
-                               'adviesrapport. Beoordeeld verbergt alleen de nog actuele bevindingversie; meer '
-                               'gegevens nodig houdt die open. Gewijzigde oorzaken, bronkoppelingen of software '
-                               'maken een nieuwe beoordeling nodig. Dit is geen mobiele push of ChatGPT-bericht '
-                               'en verandert geen instellingen of bediening.',
+ 'learning_hub:notifications': 'Gewone analysebevindingen blijven bij Meetkwaliteit en Export; zij maken geen '
+                               'Home Assistant-melding, ook niet wanneer deze vroegere voorkeur aanstaat. '
+                               'Een bestaande algemene melding Analyse nodig wordt opgeruimd. Dringende '
+                               'regelingsfouten en bewezen Aquarea-incompatibiliteit houden hun eigen gerichte '
+                               'melding, die na herstel verdwijnt. Download desgewenst de analyse van zeven '
+                               'dagen. Onderzoek en gegevensverzameling blijven doorgaan.',
  'dishwasher_phase_entity': 'Aanvullende oorspronkelijke Cycle phase-sensor van dezelfde machine. Toont '
                             'bijvoorbeeld Prewash, Drying of Ado Drying en wordt gebruikt voor het gemeten '
                             'faseprofiel. Appliance state blijft de bron voor gereed, werkelijk gestart en '

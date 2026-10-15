@@ -20,7 +20,7 @@ def build():
         entries.setdefault(f'planner.{key}',helpmod.help_for('planner',key,spec['label'],spec))
     for key,label in [('priority_board','Voorrang en autoladen'),('manage_devices','Toestellen beheren'),('learning_hub','Leren & vragen'),('participation','Automatisch / Uitgesloten'),('restart_auto','Na herstart automatisch hervatten'),('sg_manual_control','SG-bediening'),('others_first','Globale Wallbox-voorkeur'),('wallbox_priority','Wallbox voorrang geven'),('wallbox_priority_device','Wallbox voorrang bij dit toestel'),('manual_start','Manueel starten'),('manual_stop','Manueel stoppen'),('boost','Boost 30 minuten'),('analysis_export','Export samenstellen'),('dishwasher_arm','Afwasbeurt klaarzetten'),('dishwasher_cancel','Klaarzetten annuleren')]:
         entries[f'dashboard.{key}']=helpmod.help_for('dashboard',key,label)
-    for key,label in [('sampling','Brongebruik voor leren'),('adaptation','Recente voorspellingen aanpassen'),('notifications','Vragen als HA-melding')]:
+    for key,label in [('sampling','Brongebruik voor leren'),('adaptation','Recente voorspellingen aanpassen'),('notifications','Analysemeldingen')]:
         entries[f'learning_hub.{key}']=helpmod.help_for('learning_hub',key,label)
     return {'version':guide.GUIDE_VERSION,'language':'nl','steps':steps,'errors':j['options'].get('error',{}),'abort':j['options'].get('abort',{}),'entries':entries}
 
