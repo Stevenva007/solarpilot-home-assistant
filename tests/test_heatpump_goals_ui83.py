@@ -45,12 +45,14 @@ def test_goal_uses_confirmed_actual_contact_and_never_request_as_contact(on, lab
     assert "effectief" not in strip.text().lower() and "ontvangen" not in strip.text().lower()
 
 
-def test_unknown_contact_hides_concise_goal_but_keeps_conditional_diagnostic_preview():
+def test_unknown_contact_keeps_conditional_calculation_without_claiming_contact_on():
     data = metered_sample()
     set_goal(data, goal(contact="unknown"))
     data["sg_boost"].update(desired_on=True, relay_on=True, relay_confirmed=False)
     _, root = parsed(data)
-    assert "57,5 °C" not in boiler_strip(root).text()
+    assert "57,5 °C" in boiler_strip(root).text()
+    assert "SG-doel bij AAN · berekend" in boiler_strip(root).text()
+    assert "SG-doel · berekend" not in boiler_strip(root).text()
     assert "SG-doel bij AAN · berekend" in provenance(root).text()
     assert "57,5 °C" in provenance(root).text()
 
@@ -94,7 +96,8 @@ def test_historical_calculation_keeps_its_factor_and_unknown_contact_is_conditio
     assert "57,5 °C" in table.text() and "115%" in table.text()
     assert "SG-doel bij AAN · berekend" in table.text()
     assert "75 °C" not in root.text(), "Today's later confirmation must not repaint historical metadata"
-    assert not any("data-tank-sg-target" in n.attributes for n in root.walk()), "Unknown contact is hidden in concise history"
+    concise = next(n for n in root.walk() if "data-tank-sg-target" in n.attributes)
+    assert "57,5 °C" in concise.text(), "A recorded conditional comparison keeps its original percentage"
 
 
 def test_legacy_points_do_not_inherit_a_new_confirmed_profile():
@@ -135,6 +138,21 @@ def test_exact_provider_contract_bounds_new_heating_interpretation(verified):
     assert "Waterpomp" in details.text() and "Ruimtebedrijf" in details.text()
     assert "Zone 1 ingeschakeld" in details.text() and "Ja" in details.text()
     assert "OFF" in details.text()
+
+
+@pytest.mark.parametrize("provider_version,visible", [("1.5.4", True), ("1.5.5", False)])
+def test_provider154_context_is_supported_without_granting_future_versions(provider_version, visible):
+    data = metered_sample(1700, complete=False, roles=("main", "unconfirmed"))
+    row = display("space_heating", source="aquarea_contract", kind="coherent_native_context",
+                  source_contract_id="aioaquarea_ng_1_3_1_special_status", reason="Verse samenhangende broncontext")
+    evidence = contract()
+    evidence["provider"]["integration_version"] = provider_version
+    evidence["provider_loaded"] = True
+    data["panasonic"].update(operation_display=row, source_contract=evidence)
+    _, root = parsed(data)
+    task = business_tile(root, "data-heatpump-task").text()
+    assert ("Verwarmen" in task) is visible
+    assert ("Actief · taak onbekend" in task) is not visible
 
 
 def test_actionable_unknown_reason_remains_escaped_and_does_not_claim_task():

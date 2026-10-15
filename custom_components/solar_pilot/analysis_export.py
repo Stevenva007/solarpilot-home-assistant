@@ -49,7 +49,7 @@ MACHINE_VALUE_FIELDS = {
     "schema", "schema_version", "release", "version", "type", "domain", "kind",
     "unit_of_measurement", "device_class", "state_class", "media_type", "service",
     "platform", "manufacturer", "model", "software_version", "hardware_version",
-    "state", "mode", "action", "hvac_action", "hvac_modes", "operation_mode",
+    "state", "raw_state", "mode", "action", "hvac_action", "hvac_modes", "operation_mode",
     "operation_list", "preset_mode", "preset_modes", "stage", "cycle_phase",
     "command_mode", "last_command_mode", "requested_mode", "expected_mode", "device_modes",
     "source", "source_kind", "function", "function_source", "function_kind", "inactive_action", "role",
@@ -58,6 +58,8 @@ MACHINE_VALUE_FIELDS = {
     "integration_version", "library_version", "library_distribution", "question_id", "proposal_id",
     "created_at", "analyzed_at", "imported_at", "category", "confidence", "outcome",
     "installed_release", "introduced_release", "current_release", "proposal_sha256",
+    "timezone", "aggregation", "period_basis", "period_start", "period_end",
+    "reported_period_start", "source_fetched_at", "source_reported_at", "reconciliation_reason",
 }
 MACHINE_STATUS_VALUES = {
     "pending", "implemented", "untracked", "reviewed", "needs_more_data", "ignored_unverified", "ignored_stale",
@@ -344,6 +346,132 @@ def entity_snapshot(hass, eid, wall):
     return result
 
 
+def consumer_evidence(runtime, device_id, wall=None, now=None):
+    """Read original feedback separately from controller accounting values."""
+    wall = time.time() if wall is None else wall
+    now = time.monotonic() if now is None else now
+    cfg, st = runtime.configs[device_id], runtime.states[device_id]
+    entity_id = cfg.get("active_entity") if cfg.get("kind") == "script" else cfg.get("control_entity")
+    if cfg.get("kind") == "dishwasher":
+        entity_id = cfg.get("dishwasher_state_entity")
+    obj = runtime.hass.states.get(entity_id) if entity_id else None
+    reported = runtime._reported_wall(obj)
+    active = (obj.state == "on" if obj is not None and obj.state in ("on", "off")
+              and reported is not None else None)
+    if cfg.get("kind") == "dishwasher":
+        reading = runtime.dishwasher.readings.get(device_id)
+        active = reading.active if reading is not None else None
+        reported = getattr(reading, "stamp", None) if reading is not None else None
+    meter = cfg.get("power_entity")
+    meter_obj = runtime.hass.states.get(meter) if meter else None
+    watts, meter_reported = runtime._power(meter)
+    valid_power = bool(meter and runtime._dedicated_meter(device_id)
+                       and watts is not None and watts >= 0)
+    return {
+        "observed": {
+            "control": {"entity_id": entity_id, "raw_state": obj.state if obj is not None else None,
+                        "on": active, "valid": active is not None,
+                        "reported_at_wall": reported,
+                        "report_age_s": round(wall - reported, 2) if reported is not None else None},
+            "power": {"entity_id": meter, "raw_state": meter_obj.state if meter_obj is not None else None,
+                      "unit_of_measurement": meter_obj.attributes.get("unit_of_measurement") if meter_obj is not None else None,
+                      "watts": watts if valid_power else None, "valid": valid_power,
+                      "reported_at_wall": meter_reported or None,
+                      "report_age_s": round(wall - meter_reported, 2) if meter_reported else None},
+        },
+        "planning": {"on": st.on, "owned": st.owned, "available": st.available,
+                     "accounted_power_w": st.measured_w, "owned_target_w": st.target_w,
+                     "allocated_target_w": runtime.result.targets.get(device_id)},
+        "recovery": runtime.device_retry.recovery_overview(device_id, now, wall),
+    }
+
+
+def collecting_coverage(windows, max_gap_s):
+    """Count only adjacent same-release intervals; preserve source identities.
+
+    Historical rows without source policy still retain numeric/report coverage,
+    but cannot acquire the current freshness threshold after an upgrade.
+    """
+    result = {}
+
+    def bucket(release):
+        return result.setdefault(release, {
+            "release": release, "sample_count": 0, "fast_sample_count": 0,
+            "event_count": 0, "first_sample_wall": None, "last_sample_wall": None,
+            "sample_interval_s": 0.0, "fast_interval_s": 0.0, "sources": {},
+        })
+
+    def value(row, eid):
+        item = row.get("entities", {}).get(eid)
+        if not isinstance(item, list) or len(item) < 2:
+            return None, None
+        raw, stamp = item[:2]
+        if raw is None or str(raw).lower() in ("unknown", "unavailable", "none", ""):
+            return None, None
+        if isinstance(stamp, bool) or not isinstance(stamp, (int, float)) or not math.isfinite(stamp):
+            stamp = None
+        return raw, stamp
+
+    def numeric(raw):
+        if raw is None or isinstance(raw, bool):
+            return False
+        try:
+            return math.isfinite(float(raw))
+        except (ValueError, TypeError, OverflowError):
+            return False
+
+    def fresh(row, stamp):
+        policy = row.get("source_policy", {})
+        limit = policy.get("stale_s") if isinstance(policy, dict) else None
+        return (not isinstance(limit, bool) and isinstance(limit, (int, float))
+                and math.isfinite(limit) and limit > 0 and stamp is not None
+                and -5 <= row["ts"] - stamp <= limit)
+
+    for kind, count_key, interval_key, gap in (
+            ("samples", "sample_count", "sample_interval_s", max_gap_s),
+            ("fast", "fast_sample_count", "fast_interval_s", 30.0)):
+        rows = sorted(windows[kind], key=lambda row: row["ts"])
+        for row in rows:
+            item = bucket(row["release"])
+            item[count_key] += 1
+            item["first_sample_wall"] = (row["ts"] if item["first_sample_wall"] is None
+                                          else min(row["ts"], item["first_sample_wall"]))
+            item["last_sample_wall"] = (row["ts"] if item["last_sample_wall"] is None
+                                         else max(row["ts"], item["last_sample_wall"]))
+            if kind == "samples":
+                for eid in row.get("entities", {}):
+                    source = item["sources"].setdefault(eid, {
+                        "sample_count": 0, "numeric_sample_count": 0,
+                        "known_value_interval_s": 0.0, "numeric_interval_s": 0.0,
+                        "fresh_report_interval_s": 0.0,
+                    })
+                    source["sample_count"] += 1
+                    source["numeric_sample_count"] += int(numeric(value(row, eid)[0]))
+        for before, after in zip(rows, rows[1:]):
+            delta = after["ts"] - before["ts"]
+            if before["release"] != after["release"] or not 0 < delta <= gap:
+                continue
+            item = bucket(before["release"])
+            item[interval_key] += delta
+            if kind != "samples":
+                continue
+            for eid in before.get("entities", {}).keys() & after.get("entities", {}).keys():
+                source = item["sources"][eid]
+                left, left_stamp = value(before, eid)
+                right, right_stamp = value(after, eid)
+                if left is not None and right is not None:
+                    source["known_value_interval_s"] += delta
+                    if numeric(left) and numeric(right):
+                        source["numeric_interval_s"] += delta
+                    if fresh(before, left_stamp) and fresh(after, right_stamp):
+                        source["fresh_report_interval_s"] += delta
+    for row in windows["events"]:
+        bucket(row["release"])["event_count"] += 1
+    return {"by_release": result,
+            "method": "Alleen korte aangrenzende intervallen met dezelfde verzamelende release en dezelfde bronidentiteit; geen overbrugging van releases of meetgaten.",
+            "source_scope": "Numerieke/gekende bronwaarden zijn geen bewijs van fysieke juistheid. Verse rapportdekking vereist de in die sample vastgelegde bronpolicy; oude onbekende policy blijft onbekend."}
+
+
 def source_metadata(hass, refs):
     """Only linked device provenance, never registry credentials or hardware IDs."""
     result = {}
@@ -510,6 +638,9 @@ class AnalysisRecorder:
             return
         self.timing.append(round(elapsed_ms, 3))
         fast = {"ts": wall, "release": VERSION, "mode": r.mode, "grid_w": r.grid_w, "pv_w": r.pv_w,
+                "source_policy": {"grid_entity": r.settings.get("grid_entity"),
+                                  "pv_entity": r.settings.get("pv_entity"),
+                                  "stale_s": r.settings.get("stale_s")},
                 "problem": safe(getattr(r, "problem", "")),
                 "problem_kind": getattr(r, "problem_kind", ""),
                 "pause_cause": getattr(r, "pause_cause", ""),
@@ -526,6 +657,7 @@ class AnalysisRecorder:
                             for i, s in r.states.items()}, "cycle_ms": round(elapsed_ms, 3)}
         for device_id, data in fast["devices"].items():
             cfg = r.configs[device_id]
+            data.update(consumer_evidence(r, device_id, wall))
             watts, _ = r._power(cfg.get("power_entity"))
             measured = bool(cfg.get("power_entity")) and watts is not None and watts >= 0
             data["measurement_valid"] = measured
@@ -648,6 +780,13 @@ class AnalysisRecorder:
         cutoff = wall - hours*3600
         refs = self.refs()
         current = {eid: entity_snapshot(r.hass, eid, wall) for eid in refs}
+        from .cloud_energy_period import cloud_energy_periods
+        provider = getattr(getattr(r, "panasonic", None), "native_program", None)
+        metadata_reader = getattr(provider, "_contract_metadata", None)
+        metadata = metadata_reader() if callable(metadata_reader) else {}
+        for eid, period in cloud_energy_periods(r.hass, refs, metadata,
+                                               captured_at=datetime.fromtimestamp(wall, timezone.utc)).items():
+            current[eid]["source_period"] = period
         # Older stored rows did not record their collecting release. Do not
         # relabel them with the exporting release after an integration update.
         windows = {key: [{**x, "release": x.get("release") or "unknown"}
@@ -743,6 +882,9 @@ class AnalysisRecorder:
                 failures[key] = type(err).__name__
             except Exception as err:
                 failures[key] = type(err).__name__
+        for consumer in components.get("consumers", []):
+            if isinstance(consumer, dict) and consumer.get("id") in r.states:
+                consumer.update(safe(consumer_evidence(r, consumer["id"], wall)))
         history = components.get("consumer_history", {})
         for row in history.get("devices", {}).values():
             row["sessions"] = [x for x in row.get("sessions", []) if (x.get("end") or x.get("observed_until") or 0) >= cutoff]
@@ -762,6 +904,7 @@ class AnalysisRecorder:
                    "current_faults": safe({"problem": r.problem, "faults": r.faults, "recovery": r.recovery}),
                    "telemetry": windows,
                    "coverage_summary": coverage_summary,
+                   "coverage_by_collecting_release_and_source": collecting_coverage(windows, max_gap_s),
                    "data_provenance": {
                        "recorder_or_historical_bootstrap": "Alleen aanwezige geaggregeerde bootstrap-/historische modellen; geen verzonnen ruwe SolarPilot-live samples.",
                        "solarpilot_live_learning": "Eigen SolarPilot-leerdata en ruwe analysemetingen sinds de werkelijke verzameling startte.",

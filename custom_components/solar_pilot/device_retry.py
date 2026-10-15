@@ -58,6 +58,40 @@ class DeviceRetry:
     def __init__(self, runtime):
         self.r = runtime
         self.records = {}
+        # Observation evidence is deliberately not restored as a new recovery.
+        # Each captured telemetry row preserves the actual collecting moment.
+        self.recovered = {}
+
+    def mark_recovered(self, device_id, now, reason):
+        """Record reconciliation, never a physical start or permission to act."""
+        self.recovered[device_id] = {"at_wall": time.time(), "at_monotonic": now,
+                                     "reason": reason}
+
+    def recovery_overview(self, device_id, now=None, wall=None):
+        now = time.monotonic() if now is None else now
+        wall = time.time() if wall is None else wall
+        st, cfg = self.r.states[device_id], self.r.configs[device_id]
+        last_on = _finite(st.last_on)
+        duration = max(0.0, _finite(cfg.get("min_on_s"), 0.0))
+        running = bool(st.owned and st.on and last_on is not None and 0 <= last_on <= now)
+        elapsed = max(0.0, now - last_on) if running else None
+        remaining = max(0.0, duration - elapsed) if elapsed is not None else 0.0
+        item = self.recovered.get(device_id, {})
+        reference_wall = (item.get("at_wall") if running and item.get("at_monotonic") == last_on
+                          else wall - elapsed if elapsed is not None else None)
+        return {
+            "reconciled_at_wall": item.get("at_wall"),
+            "reconciliation_reason": item.get("reason"),
+            "minimum_run": {
+                "configured_s": duration,
+                "active": bool(running and st.available and remaining > 0),
+                "status_confirmed": bool(st.available),
+                "reference_at_wall": reference_wall,
+                "until_wall": reference_wall + duration if reference_wall is not None else None,
+                "remaining_s": math.ceil(remaining),
+                "physical_start_confirmed": False,
+            },
+        }
 
     def waiting(self, device_id):
         return device_id in self.records
@@ -70,6 +104,7 @@ class DeviceRetry:
 
     def restore(self, data):
         self.records = {}
+        self.recovered = {}
         if not isinstance(data, dict) or data.get("schema") != 1:
             return
         records = data.get("records", {})
@@ -334,6 +369,7 @@ class DeviceRetry:
             st.fault = r.faults.get(device_id, "")
             self.records.pop(device_id, None)
             r.recovery.pop(device_id, None)
+            self.mark_recovered(device_id, now, "command_feedback")
             r.consumer_history.event(device_id, "Toestelterugmelding hersteld; actuele voorwaarden opnieuw beoordelen")
             r.note(cfg["name"] + ": terugmelding hersteld; actuele voorwaarden worden opnieuw beoordeeld.")
         if changed:

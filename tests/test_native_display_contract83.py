@@ -69,7 +69,7 @@ def setup_contract(monkeypatch, *, version="1.5.2"):
     return env
 
 
-@pytest.mark.parametrize("version", ["1.5.2", "1.5.3"])
+@pytest.mark.parametrize("version", ["1.5.2", "1.5.3", "1.5.4"])
 def test_exact_registered_pump_role_is_read_only_and_needs_real_successful_poll(version, monkeypatch):
     env = setup_contract(monkeypatch, version=version)
     assert env.sources["pump_status_entity"] == "sensor.synthetic_water_pump"
@@ -100,7 +100,7 @@ def test_unverified_mapping_version_or_actual_pump_identity_never_qualifies_disp
         env.rows["sensor.synthetic_duplicate"] = NS(**{**vars(env.rows[pump]), "entity_id": "sensor.synthetic_duplicate"})
         env.sources = env.helper.display_sources()
     elif case == "pump_disabled":env.rows[pump].disabled_by = "user"
-    elif case == "wrong_provider_version":env.helper._display_metadata["integration_version"] = "1.5.4"
+    elif case == "wrong_provider_version":env.helper._display_metadata["integration_version"] = "1.5.5"
     elif case == "wrong_distribution":env.helper._display_metadata["library_distribution"] = "aioaquarea"
     elif case == "wrong_library_version":env.helper._display_metadata["library_version"] = "1.3.2"
     elif case == "raw_duty":env.coordinator.device._status.pump_duty = 1

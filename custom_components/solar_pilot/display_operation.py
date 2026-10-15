@@ -10,6 +10,7 @@ import math
 import time
 
 from .heatpump_learning import ACTIVE_CONTEXTS
+from .operation_source_evidence import AQUAREA_SPECIAL_STATUS_VERSIONS, CONTRACT_ID
 
 LABELS = {"space_heating": "Verwarmen", "space_cooling": "Koelen",
           "tapwater_heating": "Boiler opwarmen", "sterilization": "Sterilisatie",
@@ -138,11 +139,14 @@ def classify_display_operation(snapshot, *, now_wall=None):
         # specialStatus. Its raw indication remains intact for existing
         # controllers/models; only this display uses the composed evidence.
         provider = contract.get("provider") if isinstance(contract.get("provider"), dict) else {}
-        known = (contract.get("schema") == 1 and contract.get("read_only") is True and contract.get("status") == "verified"
-                 and contract.get("contract_id") == "aioaquarea_ng_1_3_1_special_status"
+        known = (type(contract.get("schema")) is int and contract["schema"] == 1
+                 and contract.get("read_only") is True and contract.get("status") == "verified"
+                 and contract.get("provider_loaded") is True
+                 and contract.get("contract_id") == CONTRACT_ID
                  and contract.get("action_semantics") == "special_status"
                  and provider.get("integration_domain") == "aquarea"
-                 and provider.get("integration_version") in ("1.5.2", "1.5.3")
+                 and isinstance(provider.get("integration_version"), str)
+                 and provider.get("integration_version") in AQUAREA_SPECIAL_STATUS_VERSIONS
                  and provider.get("library_distribution") == "aioaquarea-ng"
                  and provider.get("library_version") == "1.3.1")
         def unknown(code, reason, action, *, skew=None, measurement_skew=None):

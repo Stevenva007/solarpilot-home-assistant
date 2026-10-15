@@ -832,11 +832,20 @@ class SolarRuntime:
             return False
         if active:
             try:
-                target = max(float(lease.get("watts", 0) or 0), float(cfg["nominal_w"]))
-            except (AttributeError, TypeError, ValueError):
+                saved_target = lease.get("watts")
+                target = float(saved_target) if not isinstance(saved_target, bool) else float("nan")
+            except (AttributeError, TypeError, ValueError, OverflowError):
                 target = float(cfg["nominal_w"])
-            if not math.isfinite(target):
+            if not math.isfinite(target) or target <= 0:
                 target = float(cfg["nominal_w"])
+            if cfg["kind"] == "number":
+                minimum = cfg["min_units"] * cfg["watts_per_unit"]
+                maximum = cfg["max_units"] * cfg["watts_per_unit"]
+                if not minimum <= target <= maximum:
+                    target = float(cfg["nominal_w"])
+            else:
+                # Non-variable loads retain their conservative nominal budget.
+                target = max(target, float(cfg["nominal_w"]))
             if cfg["kind"] == "number" and not self._target_matches(cfg, target):
                 # A changed physical setpoint belongs to its current operator.
                 # Reading it is not permission to adopt it and immediately
@@ -852,6 +861,7 @@ class SolarRuntime:
             st.owned, st.on, st.available = True, True, True
             st.target_w = target
             st.last_on = now
+            self.device_retry.mark_recovered(device_id, now, "restart_lease")
             if cfg["non_interruptible"]:
                 st.cycle_armed = False
             self.note(f'{cfg["name"]}: herstartcontrole automatisch — toestel staat aan; beheer hervat zonder schakelopdracht.')
@@ -2318,6 +2328,7 @@ class SolarRuntime:
                     # During a lost status interval the compressor may have
                     # cycled. Protect one full minimum run from its return.
                     s.last_on = now
+                    self.device_retry.mark_recovered(i, now, "source_return")
                 if previous_on != active:
                     if active:
                         s.last_on = now

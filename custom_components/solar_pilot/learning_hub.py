@@ -21,6 +21,9 @@ from .const import VERSION
 from .investigation import LocalInvestigation
 
 
+BASELINE_SETTLING_S = 120.0
+
+
 def number(value):
     if isinstance(value, bool):
         return None
@@ -77,10 +80,12 @@ def measured_baseline(r, local_now, monotonic):
     an inferred wattage. Energy (kWh) counters cannot be substituted for power.
     """
     refs, stamps, parts = [], [], {}
+    checked_at = local_now.timestamp()
 
-    def fail(code, message):
+    def fail(code, message, **detail):
         return {"valid": False, "watts": None, "code": code, "reason": message,
-                "sources": list(refs), "parts": dict(parts), "context": "unknown"}
+                "sources": list(refs), "parts": dict(parts), "context": "unknown",
+                "checked_at": checked_at, **detail}
 
     def power(entity, limit=120):
         if not entity or entity in refs:
@@ -137,7 +142,7 @@ def measured_baseline(r, local_now, monotonic):
         if ev is None or ev < 0:
             return fail("wallbox_source", "Wallboxmeting niet actueel/eenduidig; geen nul invullen en niet blind aftrekken.")
     parts["wallbox_w"] = ev
-    owned = 0.0
+    owned, settling_since = 0.0, None
     for device_id, state in r.states.items():
         if not state.owned or not state.on:
             continue
@@ -148,11 +153,33 @@ def measured_baseline(r, local_now, monotonic):
         if value is None or value < 0:
             return fail("consumer_source", "Vermogen beheerde last onbekend/dubbel; basislastmeting overgeslagen.")
         owned += value
-        if getattr(state, "last_on", 0) and monotonic-getattr(state, "last_on", 0) < 120:
-            return fail("settling", "Nieuwe last nog aan het stabiliseren; twee minuten geen basislastmeting.")
+        last_on = number(getattr(state, "last_on", None))
+        if last_on is not None and 0 <= monotonic-last_on < BASELINE_SETTLING_S:
+            # All active meters still need validation. If several loads were
+            # recognised, the most recent transition owns the latest end time.
+            settling_since = max(settling_since, last_on) if settling_since is not None else last_on
     parts["owned_w"] = owned
+    if settling_since is not None:
+        elapsed = monotonic-settling_since
+        started_at = checked_at-elapsed
+        return fail("settling", "Last na inschakeling of herstel nog aan het stabiliseren; twee minuten geen basislastmeting.",
+                    settling={"kind": "load_settling", "started_at": started_at,
+                              "ends_at": started_at+BASELINE_SETTLING_S,
+                              "remaining_s": math.ceil(BASELINE_SETTLING_S-elapsed)})
     if getattr(r, "pending", None) or getattr(r, "handover", None):
-        return fail("settling", "Een opdracht of vermogensoverdracht wacht nog op terugmelding.")
+        # Feedback has no promised completion time. Do not present an actuator
+        # timeout as a guaranteed end to the learning exclusion.
+        starts = []
+        pending = getattr(r, "pending", None)
+        handover = getattr(r, "handover", None)
+        for issued in (pending.get("issued") if isinstance(pending, dict) else None,
+                       getattr(handover, "issued", None)):
+            issued = number(issued)
+            if issued is not None and issued <= monotonic:
+                starts.append(checked_at-(monotonic-issued))
+        return fail("settling", "Een opdracht of vermogensoverdracht wacht nog op terugmelding.",
+                    settling={"kind": "command_feedback", "started_at": min(starts) if starts else None,
+                              "ends_at": None, "remaining_s": None})
     if max(stamps)-min(stamps) > 120:
         return fail("source_alignment", "Bronrapporten liggen meer dan twee minuten uiteen.")
     base = grid + pv + battery - ev - owned
@@ -162,7 +189,7 @@ def measured_baseline(r, local_now, monotonic):
     context, context_reason = context_evidence["context"], context_evidence["reason"]
     return {"valid": True, "watts": round(base, 1), "code": "measured",
             "reason": "Gemeten restlast uit net + PV + batterijontlading − gemeten beheerde lasten − gemeten Wallbox.",
-            "sources": refs, "parts": parts, "context": context,
+            "sources": refs, "parts": parts, "context": context, "checked_at": checked_at,
             "context_reason": context_reason,
             "context_evidence": context_evidence,
             "old_rule_would_skip": bool(ev > 100 or owned > 100),
@@ -188,6 +215,8 @@ class LearningHub:
         self.error = ""
         self.investigation = LocalInvestigation(runtime)
         self._unsupported_snapshot = None
+        self._sampling_state_key = None
+        self._sampling_state_since = None
 
     def snapshot(self):
         if self._unsupported_snapshot is not None:
@@ -242,6 +271,7 @@ class LearningHub:
 
     def observe(self, local_now, monotonic):
         r = self.r
+        previous = self.latest_sample
         sample = measured_baseline(r, local_now, monotonic)
         self.latest_sample = sample
         stamp = time.time()
@@ -274,6 +304,14 @@ class LearningHub:
         else:
             r.heatpump_learning.interrupt()
 
+        # A change in sampling state must also remove obsolete source findings
+        # immediately; the normal 60-second presentation cache is too slow at a
+        # short wait boundary. Countdown ticks alone do not rebuild all models.
+        if any(previous.get(key) != sample.get(key) for key in
+               ("valid", "code", "context", "reason", "context_reason")):
+            self.last_refresh = 0
+        self._sampling_status(stamp)
+
         if stamp-self.last_attempt < 900:
             return sample
         self.last_attempt = stamp
@@ -297,6 +335,40 @@ class LearningHub:
             r.store.async_delay_save(r._snapshot, 60)
         return sample
 
+    def _sampling_status(self, stamp):
+        """Explain the current learning gate, without granting model eligibility."""
+        sample = self.latest_sample
+        code, reason = sample.get("code", "initializing"), sample.get("reason", "")
+        state, severity, scope = "ready", "info", "baseline"
+        detail = {}
+        if not self.r.planner_settings.get("base_load_learning", True):
+            state, code, reason = "disabled", "learning_disabled", "Basislastleren is uitgeschakeld."
+        elif code == "initializing":
+            state = "initializing"
+        elif not sample.get("valid"):
+            state = "transient_wait" if code == "settling" else "source_unusable"
+            severity = "info" if code == "settling" else "attention"
+            detail = sample.get("settling", {})
+        elif sample.get("context") != CONTEXT_NORMAL:
+            state, scope = "excluded", "heatpump_context"
+            prefix = "heatpump_derived_" if sample.get("context_evidence", {}).get("tier") == "derived" else "heatpump_"
+            code = prefix + str(sample.get("context") or CONTEXT_UNKNOWN)
+            reason = sample.get("context_reason") or "Warmtepompcontext nog niet bruikbaar voor gewone basislast."
+        elif self.policy["sampling"] == "quiet" and sample.get("old_rule_would_skip"):
+            state, code = "excluded", "quiet_policy"
+            reason = "Rustig-meetbeleid slaat dit meetmoment met actieve Wallbox of beheerde last over."
+        key = (state, code, reason, detail.get("kind"))
+        if key != self._sampling_state_key:
+            self._sampling_state_key, self._sampling_state_since = key, sample.get("checked_at") or stamp
+        started_at = detail.get("started_at") or self._sampling_state_since
+        ends_at = number(detail.get("ends_at"))
+        return {"state": state, "severity": severity, "scope": scope, "code": code,
+                "reason": reason, "kind": detail.get("kind"),
+                "started_at": started_at, "ends_at": ends_at,
+                "remaining_s": max(0, math.ceil(ends_at-stamp)) if ends_at is not None else None,
+                "last_checked_at": sample.get("checked_at"),
+                "basis": "Actuele meetcontrole; leerpogingen worden afzonderlijk per kwartier geteld."}
+
     def _event(self, what, detail):
         self.audit.append({"time": datetime.now().astimezone().isoformat(), "event": what, "details": detail})
         self.r.analysis.event("learning", what + ": " + str(detail))
@@ -305,6 +377,9 @@ class LearningHub:
         stamp = time.time()
         if not force and stamp-self.last_refresh < 60:
             self.cached["investigation"] = self.investigation.overview(stamp)
+            if "sampling" in self.cached:
+                self.cached["sampling"]["last"] = deepcopy(self.latest_sample)
+                self.cached["sampling"]["status"] = self._sampling_status(stamp)
             return self.cached
         self.last_refresh = stamp
         r = self.r
@@ -413,7 +488,7 @@ class LearningHub:
             ask("adaptation", "Mag een aantoonbaar beter recent verbruiksprofiel gebruikt worden?",
                 "SolarPilot vergelijkt een 14-dagenmodel met het bestaande profiel op latere, vooraf niet meegeleerde dagen. Alleen na minstens vier vergelijkingsdagen, minstens 10% en 20 W minder fout, maximaal ±25% bijsturen. Bij slechter bewijs terug naar het basisprofiel. Dit wijzigt geen comfort-, net- of toestelbeveiliging.",
                 [{"id": "auto", "label": "Begrensd automatisch"}, {"id": "keep", "label": "Alleen advies"}, {"id": "later", "label": "Morgen vragen"}])
-        if not self.latest_sample.get("valid") and self.latest_sample.get("code") != "initializing":
+        if not self.latest_sample.get("valid") and self.latest_sample.get("code") not in ("initializing", "settling"):
             ask("source_"+self.latest_sample.get("code", "unknown"), "Een leerbron is nog niet bruikbaar", self.latest_sample["reason"] + " Langer wachten verhelpt een verkeerde koppeling niet. Geen nulwaarden invullen om de score op te krikken.",
                 [{"id": "configure", "label": "Koppelingen bekijken"}, {"id": "keep", "label": "Voorlopig zo laten"}, {"id": "later", "label": "Morgen vragen"}], "attention")
         if not r.planner_settings.get("enabled", True) or not r.planner_settings.get("base_load_learning", True):
@@ -461,10 +536,17 @@ class LearningHub:
         for day, counts in self.days.items():
             if cutoff <= day <= local.date().isoformat():
                 for key, n in counts.items(): totals[key] = totals.get(key, 0) + n
+        unknown_attempts = totals.get("heatpump_"+CONTEXT_UNKNOWN, 0)
+        heatpump_attempts = sum(n for key, n in totals.items() if key.startswith("heatpump_"))
+        exclusions = {"settling_attempts": totals.get("settling", 0),
+                      "heatpump_unknown_attempts": unknown_attempts,
+                      "other_heatpump_context_attempts": heatpump_attempts-unknown_attempts,
+                      "note": "Kwartierpogingen, geen gemeten uren. Een tijdelijke stabilisatie en ontbrekende warmtepompcontext zijn afzonderlijke leeruitsluitingen; onbekende waarden worden niet als nul aangevuld."}
         self.cached = {"ready": True, "updated_at": stamp, "policy": dict(self.policy), "models": models,
                        "questions": findings, "open_questions": len(findings), "pending_findings": len(findings),
                        "reviewed_findings": reviewed, "analysis_needed": bool(findings), "analysis_action": "export_7d", "quality": quality,
-                       "sampling": {"last": deepcopy(self.latest_sample), "attempts_7d": totals, "days": deepcopy(self.days)},
+                       "sampling": {"last": deepcopy(self.latest_sample), "status": self._sampling_status(stamp),
+                                    "attempts_7d": totals, "exclusions_7d": exclusions, "days": deepcopy(self.days)},
                        "audit": list(self.audit), "error": self.error,
                        "investigation": investigation,
                        "contract": "Geen perfecte voorkennis van jouw huis. Modelzekerheid is geen kans op een juiste fysieke actie. Alleen expliciet gekoppelde bronnen, geen automatische camerabeelden/aanwezigheidsprofielen of cloud-AI. Bediening blijft door bestaande vrijgaven, actuele meters, prioriteiten en grenzen bepaald."}

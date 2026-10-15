@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from copy import deepcopy
+import hashlib
+import json
 import math
 import re
 import time
@@ -26,6 +28,7 @@ POLICY_KEYS = ("import_threshold_w", "stop_delay_s", "min_session_s", "max_sessi
                "renew_s", "stale_s", "ack_timeout_s")
 _NET_STOP = re.compile(r"^Netgrens overschreden: ([0-9]+(?:\.[0-9]+)?) W afname > ([0-9]+(?:\.[0-9]+)?) W$")
 _RELEASE = re.compile(r"^\d+\.\d+\.\d+(?:-beta\.\d+)?$")
+_IDENTITY = re.compile(r"^[0-9a-f]{32,64}$")
 
 
 def _number(value):
@@ -55,6 +58,74 @@ def _release(value):
     return value if isinstance(value, str) and len(value) <= 40 and _RELEASE.fullmatch(value) else None
 
 
+def effective_session_policy(config, effective_minimum_s, fixed_import_limit_w=None):
+    """Capture policy at the command boundary; never reconstruct old policy."""
+    policy = _current_policy({"effective_min_session_s": effective_minimum_s}, _map(config))
+    policy["fixed_import_limit_w"] = _number(fixed_import_limit_w)
+    return policy
+
+
+def session_policy_hash(policy):
+    """Hash exactly the exported policy, without mutable presentation options."""
+    try:
+        return hashlib.sha256(json.dumps(policy, sort_keys=True, separators=(",", ":"),
+            allow_nan=False).encode()).hexdigest()
+    except (TypeError, ValueError):
+        return None
+
+
+def _original_reports(reports, labels):
+    reports = _map(reports)
+    cleaned_reports = {}
+    for label in labels:
+        report = _map(reports.get(label))
+        cleaned = {}
+        for key in ("watts", "temperature_c", "stamp", "until", "reported_at", "lease_remaining_s",
+                    "timer_started_at", "timer_duration", "expires_at", "timer_expires_at"):
+            if key in report:
+                cleaned[key] = _number(report.get(key))
+        for key in ("entity_id", "context", "signature", "source_signature", "binding_identity"):
+            if isinstance(report.get(key), str):
+                cleaned[key] = _text(report[key], 240)
+        source = report.get("source")
+        if isinstance(source, str):
+            cleaned["source"] = _text(source)
+        elif isinstance(source, (list, tuple)):
+            cleaned["source"] = [_text(part) if isinstance(part, str) else None for part in source[:8]]
+        for key in ("output", "confirmed", "state"):
+            if type(report.get(key)) is bool:
+                cleaned[key] = report[key]
+        cleaned_reports[label] = cleaned if cleaned else None
+    return cleaned_reports
+
+
+def clean_session_provenance(value):
+    """Historical evidence only. Invalid/absent legacy fields remain unknown."""
+    value = _map(value)
+    policy = _map(value.get("policy"))
+    identity = value.get("command_identity")
+    started = _number(value.get("started_at"))
+    if (type(value.get("schema")) is not int or value.get("schema") != 1
+            or _release(value.get("release")) is None or not _valid_policy(policy)
+            or not isinstance(identity, str) or not _IDENTITY.fullmatch(identity)
+            or value.get("owner") != "solarpilot" or started is None or started <= 0):
+        return None
+    frozen = effective_session_policy(policy, policy.get("effective_min_session_s"),
+        policy.get("fixed_import_limit_w"))
+    if value.get("policy_hash") != session_policy_hash(frozen):
+        return None
+    # These are the original reports, including their source timestamps. No
+    # restore/export time is substituted for a missing historical source.
+    cleaned_reports = _original_reports(value.get("source_reports"), ("grid", "solar", "tank", "native", "contact"))
+    return {"schema": 1, "release": value["release"], "policy": frozen,
+        "policy_hash": value["policy_hash"], "command_identity": identity,
+        "owner": "solarpilot", "started_at": started,
+        "command_issued_at": _number(value.get("command_issued_at")),
+        "request_mode": value.get("request_mode") if value.get("request_mode") in ("automatic", "manual_on") else None,
+        "binding_identity": _text(value.get("binding_identity"), 64) or None,
+        "source_reports": cleaned_reports}
+
+
 def _transport(value):
     """Only explicit transport telemetry, never derive a stage from UI text."""
     value = _map(value)
@@ -78,6 +149,13 @@ def _contact(sg, now):
 def _controller_stop(record, last, now=None):
     """A controller end is separate from contact confirmation or transport."""
     last = _map(last)
+    original = clean_session_provenance(record.get("session_provenance"))
+    if original is not None:
+        ended_provenance = clean_session_provenance(last.get("session_provenance"))
+        identity = (ended_provenance["command_identity"] if ended_provenance is not None
+                    else last.get("command_identity"))
+        if original["command_identity"] != identity:
+            return None
     ended, duration, started = (_number(value) for value in
         (last.get("ended_at"), last.get("duration_s"), record.get("started_at")))
     lower = _number(record.get("start_lower_at"))
@@ -87,8 +165,11 @@ def _controller_stop(record, last, now=None):
             or (lower is not None and ended - duration < lower - 30)
             or (now is not None and ended > now + 5)):
         return None
-    return {"ended_at": ended, "duration_s": duration, "reason": _text(last.get("reason")),
-            "category": _category(last.get("reason"))}
+    result = {"ended_at": ended, "duration_s": duration, "reason": _text(last.get("reason")),
+              "category": _category(last.get("reason"))}
+    if original is not None:
+        result["command_identity"] = original["command_identity"]
+    return result
 
 
 def _category(reason):
@@ -123,6 +204,8 @@ def _current_policy(sg, config):
 
 
 def _valid_policy(policy):
+    policy = {key: _number(_map(policy).get(key)) for key in (
+        "import_threshold_w", "stop_delay_s", "effective_min_session_s", "max_session_s", "stale_s")}
     return (policy.get("import_threshold_w") is not None and 0 <= policy["import_threshold_w"] <= 20000
             and policy.get("stop_delay_s") is not None and 5 <= policy["stop_delay_s"] <= 600
             and policy.get("effective_min_session_s") is not None and 0 <= policy["effective_min_session_s"] <= 14400
@@ -241,6 +324,14 @@ class SGSessionResearch:
                            release=_release(record.get("release")), binding=_text(record.get("binding"), 64))
             cleaned["policy"] = _current_policy(_map(record.get("policy")), _map(record.get("policy")))
             cleaned["policy"]["fixed_import_limit_w"] = _number(_map(record.get("policy")).get("fixed_import_limit_w"))
+            frozen_hash = record.get("policy_hash")
+            cleaned["policy_hash"] = (frozen_hash if isinstance(frozen_hash, str)
+                and frozen_hash == session_policy_hash(cleaned["policy"]) else None)
+            cleaned["session_provenance"] = clean_session_provenance(record.get("session_provenance"))
+            # Older research records stay useful history, but do not acquire a
+            # newly invented command identity, original report or policy hash.
+            original = _map(record.get("source_reports"))
+            cleaned["source_reports"] = _original_reports(original, ("grid", "pv", "contact")) if original else None
             for key in ("known_start", "source_complete", "policy_unchanged", "end_matched"):
                 cleaned[key] = record.get(key) is True
             for key in ("started_at", "start_lower_at", "continuous_import_s", "max_grid_import_w"):
@@ -292,6 +383,8 @@ class SGSessionResearch:
         if not (record.get("known_start") is True and record.get("source_complete") is True
                 and record.get("policy_unchanged") is True and record.get("end_matched") is True
                 and _valid_policy(_map(record.get("policy"))) and _release(record.get("release"))
+                and record.get("policy_hash") == session_policy_hash(record.get("policy"))
+                and bool(_map(record.get("source_reports")))
                 and chronology and reports and _number(record.get("gaps")) == 0):
             return "unknown"
         if record.get("stop_category") != "soft_cloud_import":
@@ -353,7 +446,11 @@ class SGSessionResearch:
                                and current["relay_stamp"] > previous["relay_stamp"]
                                and previous["now"] - 5 <= current["relay_stamp"] <= now + 5)
             task = _map(native.get("native_task"))
+            provenance = clean_session_provenance(sg.get("active_session_provenance"))
             self.active = {"release": current["release"], "policy": deepcopy(policy),
+                "policy_hash": session_policy_hash(policy), "session_provenance": provenance,
+                "source_reports": {"grid": deepcopy(grid_value), "pv": deepcopy(pv_value),
+                    "contact": _contact(sg, now)},
                 "binding": current["binding"], "started_at": now, "start_lower_at": previous["now"] if known_start else None,
                 "known_start": known_start, "source_complete": bool(grid_value and pv_value and _valid_policy(policy)),
                 "policy_unchanged": True, "end_matched": False, "grid_reports": 0,
@@ -404,6 +501,8 @@ class SGSessionResearch:
                               reason=_text(last.get("reason")), end_matched=matched,
                               stop_category=_category(last.get("reason")))
                 stop = _controller_stop(active, last, now)
+                if active.get("session_provenance") is not None and stop is None:
+                    active.update(reason="", stop_category="unknown", end_matched=False)
                 active.update(controller_stop=stop, contact_end=_contact(sg, now),
                     transport=_transport(last.get("transport")) if stop is not None else None)
                 active["consistency"] = self._consistency(active)
@@ -432,7 +531,11 @@ def assessment(runtime, now, sg=None, research=None):
     release = _release(observed_last.get("release")) if observed_last is not None else _release(last.get("release"))
     last_metrics = {"release": release, "duration_s": _number(last.get("duration_s")),
                     "ended_at": _number(last.get("ended_at")), "stop_category": category,
-                    "historical": release != VERSION if release is not None else None}
+                    "historical": release != VERSION if release is not None else None,
+                    "session_provenance": clean_session_provenance(last.get("session_provenance")),
+                    "policy_hash": last.get("policy_hash") if isinstance(last.get("policy_hash"), str) else None,
+                    "command_identity": last.get("command_identity") if isinstance(last.get("command_identity"), str) else None,
+                    "transport": _transport(last.get("transport")), "reason": _text(last.get("reason"))}
     item = {"id": "sg_policy", "title": "SG-duur en stopredenen", "status": "collecting",
         "summary": "Nieuwe SG-sessies worden onderzocht; de huidige timers zijn nog niet met een complete sessie beoordeeld.",
         "next_action": "Volg een nieuwe, normaal toegelaten SG-sessie met actuele net-, zonne- en contactmetingen.",

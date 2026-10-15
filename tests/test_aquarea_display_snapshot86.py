@@ -133,7 +133,7 @@ def modern_setup(monkeypatch, *, version="1.5.2"):
                   TankImpl=TankImpl, fields=fields)
     return env
 
-@pytest.mark.parametrize("version",["1.5.2","1.5.3"])
+@pytest.mark.parametrize("version",["1.5.2","1.5.3","1.5.4"])
 def test_current_second_response_drives_display_without_repairing_old_zone_objects(version,monkeypatch):
     env=modern_setup(monkeypatch,version=version)
     assert env.helper.read_source_contract(env.sources)["reason_code"] == "native_poll_not_current"

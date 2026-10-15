@@ -14,10 +14,13 @@ import hashlib
 import json
 import math
 import time
+import uuid
 
 from homeassistant.exceptions import HomeAssistantError
 
 from .sg_config import DISPLAY_ONLY_KEYS, actuator_conflicts, finite, normalize_config, validate_config
+from .const import VERSION
+from .sg_investigation import clean_session_provenance, effective_session_policy, session_policy_hash
 
 # Anti-repeat evidence thresholds, not Panasonic targets or comfort settings.
 NEW_STORAGE_DROP_C = 2.0
@@ -94,6 +97,8 @@ class SGBoostManager:
         self._tank_source_changed = False
         self._last_rearm = None
         self._last_session = None
+        self._session_provenance = None
+        self._hold_origin = None
         self._transport_evidence = None
         self._native_observation = {}
         self._solar_observation = None
@@ -175,7 +180,8 @@ class SGBoostManager:
                 "lease_duration_s": self._lease_duration,
                 "import_started_at": wall-(now-self._import_since) if self._import_since is not None else None,
                 "import_observation": deepcopy(self._import_observation),
-                "import_policy": list(self._import_policy) if self._import_policy is not None else None}
+                "import_policy": list(self._import_policy) if self._import_policy is not None else None,
+                "session_provenance": deepcopy(self._session_provenance)}
 
     def update_config(self, value):
         """Apply effective options; a changed binding is never an old lease."""
@@ -261,6 +267,8 @@ class SGBoostManager:
                 "hold_reason": self._hold_reason,
                 "general_reference": deepcopy(self._general_reference),
                 "session_reference": deepcopy(self._session_reference),
+                "session_provenance": deepcopy(self._session_provenance),
+                "hold_origin": deepcopy(self._hold_origin),
                 "hold_provenance": deepcopy(self._hold_provenance)}
 
     def restore(self, stored):
@@ -344,6 +352,17 @@ class SGBoostManager:
             self._rest_until_wall = rest
         last = stored.get("last_session")
         self._last_session = deepcopy(last) if isinstance(last, dict) else None
+        # Evidence never grants ownership or supplies restart permission. In
+        # particular, a pre-provenance journal stays historically unknown.
+        self._session_provenance = clean_session_provenance(stored.get("session_provenance"))
+        if self._restart_resume is not None:
+            self._session_provenance = clean_session_provenance(self._restart_resume.get("session_provenance"))
+        origin = stored.get("hold_origin")
+        self._hold_origin = ({"hold_reason": origin.get("hold_reason") if isinstance(origin.get("hold_reason"), str) else None,
+            "stop_reason": origin.get("stop_reason")[:240] if isinstance(origin.get("stop_reason"), str) else None,
+            "ended_at": finite(origin.get("ended_at")),
+            "session_provenance": clean_session_provenance(origin.get("session_provenance"))}
+            if isinstance(origin, dict) else None)
         fingerprint = stored.get("commissioned_fingerprint")
         self._commissioned_fingerprint = deepcopy(fingerprint) if isinstance(fingerprint, dict) else None
         reason = stored.get("hold_reason")
@@ -393,6 +412,71 @@ class SGBoostManager:
         self._minimum_started = None
         if self._restart_resume is None:
             self._import_since = self._import_observation = self._import_policy = None
+
+    def _capture_session_provenance(self, *, identity, settings, issued_at, source_reports,
+                                    fixed_import_limit_w, request_mode):
+        """Freeze the actual command's observations; this has no control role."""
+        try:
+            configured_minimum = finite(settings.get("min_session_s"))
+            maximum = finite(settings.get("max_session_s"))
+            # Manual reissue can retain an older hard-session origin. Record
+            # that actual minimum/max relationship, separately from this ON.
+            delay = (max(0.0, self._minimum_started-self._session_started)
+                if self._minimum_started is not None and self._session_started is not None else 0.0)
+            effective_minimum = (max(0.0, min(configured_minimum, maximum-delay))
+                if configured_minimum is not None and maximum is not None else None)
+            policy = effective_session_policy(settings, effective_minimum,
+                fixed_import_limit_w)
+            value = {"schema": 1, "release": VERSION, "policy": policy,
+                "policy_hash": session_policy_hash(policy), "command_identity": identity,
+                "owner": "solarpilot", "started_at": self._wall_clock()-(self._clock()-self._session_started),
+                "command_issued_at": self._wall_clock()-(self._clock()-issued_at),
+                "request_mode": request_mode,
+                "binding_identity": self._binding_identity,
+                "source_reports": source_reports}
+            self._session_provenance = clean_session_provenance(value)
+        except (Exception, asyncio.CancelledError):
+            # Failure to collect optional evidence cannot change native safety.
+            self._session_provenance = None
+
+    def _record_session_end(self, reason, *, transport=None, ended_at=None):
+        if self._session_started is None:
+            return
+        ended = self._wall_clock() if ended_at is None else ended_at
+        provenance = deepcopy(self._session_provenance)
+        self._last_session = {"ended_at": ended, "reason": reason,
+            "duration_s": max(0, self._clock()-self._session_started),
+            "transport": deepcopy(transport), "session_provenance": provenance,
+            "release": provenance.get("release") if provenance else None,
+            "policy_hash": provenance.get("policy_hash") if provenance else None,
+            "command_identity": provenance.get("command_identity") if provenance else None,
+            "provenance_status": "recorded_at_start" if provenance else "unknown_legacy"}
+        if self.completion_hold and isinstance(self._hold_origin, dict):
+            # Match by the captured command, never attach an unrelated old end
+            # to a restored completion hold merely because it was the latest.
+            origin = self._hold_origin.get("session_provenance")
+            if provenance and isinstance(origin, dict) and origin.get("command_identity") == provenance["command_identity"]:
+                self._hold_origin.update(stop_reason=reason, ended_at=ended)
+        self._session_provenance = None
+
+    def _rearm_wait(self):
+        if not self.completion_hold:
+            return None
+        origin = self._hold_origin if isinstance(self._hold_origin, dict) else {}
+        provenance = origin.get("session_provenance")
+        if self.settings.get("profile") == "general":
+            condition = ("Na rust vijf minuten werkelijk restoverschot of nieuwe betrouwbare toestelcontext bevestigen"
+                if self._hold_reason == "response_unknown" else
+                "Na rust een nieuwe zonneperiode of betrouwbare gewijzigde toestelcontext bevestigen")
+        else:
+            condition = ("Na rust aantoonbare afkoeling van de tank bevestigen"
+                if self._need_reference is not None and not self._tank_source_changed else self._completion_reason())
+        return {"original_stop_reason": origin.get("stop_reason"),
+            "original_hold_reason": origin.get("hold_reason"),
+            "original_ended_at": origin.get("ended_at"),
+            "command_identity": provenance.get("command_identity") if isinstance(provenance, dict) else None,
+            "provenance_status": "recorded_at_start" if isinstance(provenance, dict) else "unknown_legacy",
+            "current_condition": condition}
 
     def _effective_minimum_s(self):
         configured = finite(self.settings.get("min_session_s"))
@@ -918,13 +1002,22 @@ class SGBoostManager:
         status_callback = None
         supports_status_callback = False
         write_guard_deadline = None
+        command_identity = uuid.uuid4().hex if not renewal else None
+        command_settings = None
+        source_reports = None
+        command_fixed_import_limit_w = None
+        command_request_mode = None
+        before_contact = {"output": self.relay_on, "confirmed": self.relay_confirmed,
+            "stamp": self._relay_observed_at}
 
         def before_on_status(raw):
+            nonlocal before_contact
             # The native transport reads the contact after awaited preflight.
             # Changes there must not be overwritten with our earlier cached
             # lease. The existing no-arg callback still checks live electrical
             # permission at Switch.Set; no new ON authority comes from a read.
             self._status(raw)
+            before_contact = {**deepcopy(raw), "confirmed": True, "stamp": self._relay_observed_at}
             if not renewal and raw["output"] is True:
                 self.owned = self._possibly_owned = self.desired_on = False
                 self.manual_hold = True
@@ -935,7 +1028,7 @@ class SGBoostManager:
             return self._on_authorized(generation, renewal)
 
         def before_on():
-            nonlocal issued_at
+            nonlocal issued_at, command_settings, source_reports, command_fixed_import_limit_w, command_request_mode
             if not self._on_authorized(generation, renewal):
                 return False
             if automatic_bridge and not self._automatic_continuation_allowed(generation):
@@ -954,6 +1047,15 @@ class SGBoostManager:
                 return False
             issued_at = final_now
             if not renewal:
+                command_settings = deepcopy(self.settings)
+                runtime_settings = getattr(self.runtime, "settings", {})
+                command_fixed_import_limit_w = (runtime_settings.get("max_import_w")
+                    if isinstance(runtime_settings, dict) else None)
+                command_request_mode = "manual_on" if self.manual_mode == "on" else "automatic"
+                source_reports = {"grid": deepcopy(self._import_observation),
+                    "solar": deepcopy(self._solar_observation), "tank": deepcopy(self._tank_observation),
+                    "native": self._valid_native_observation(self._native_observation),
+                    "contact": deepcopy(before_contact)}
                 self._command_clock()
             return True
 
@@ -1017,6 +1119,12 @@ class SGBoostManager:
                 raise ValueError("commissioning_changed")
             self._timer_proof(raw, renewal=renewal, lease_s=lease_s)
             self._transport_confirmed("renew" if renewal else "on")
+            if not renewal:
+                self._session_started = manual_origin if manual_origin is not None else issued_at
+                self._minimum_started = self._clock()
+                self._capture_session_provenance(identity=command_identity, settings=command_settings,
+                    issued_at=issued_at, source_reports=source_reports,
+                    fixed_import_limit_w=command_fixed_import_limit_w, request_mode=command_request_mode)
         except (Exception, asyncio.CancelledError) as err:
             self._record_transport("renew" if renewal else "on", error=err,
                                    attempted=False if not write_started else None)
@@ -1076,6 +1184,7 @@ class SGBoostManager:
             self._need_reference = self._need_candidate = None
             self._general_reference = self._general_candidate = self._general_reset_candidate = None
             self._hold_reason = ""
+            self._hold_origin = None
             self._low_uptake_noted = False
             self._low_uptake_since = self._low_uptake_stamp = None
             native = self._valid_native_observation(self._native_observation)
@@ -1083,8 +1192,6 @@ class SGBoostManager:
                 "native_stamp": native["stamp"], "solar_stamp": (self._solar_observation or {}).get("stamp")}
                 if native is not None else None)
             self._tank_source_changed = False
-            self._session_started = manual_origin if manual_origin is not None else issued_at
-            self._minimum_started = self._clock()
             if self.manual_mode == "on" and self._manual_control.get("session_started_at") is None:
                 self._manual_control["session_started_at"] = self._wall_clock()-(self._clock()-self._session_started)
                 self._manual_session_started = self._session_started
@@ -1227,11 +1334,9 @@ class SGBoostManager:
         if rest:
             self._begin_rest()
         if self._session_started is not None:
-            self._last_session = {"ended_at": self._wall_clock(), "reason": reason,
-                                  "duration_s": max(0, self._clock() - self._session_started),
-                                  "transport": (deepcopy(self._transport_evidence)
-                                      if isinstance(self._transport_evidence, dict)
-                                      and self._transport_evidence.get("operation") == "off" else None)}
+            self._record_session_end(reason, transport=(self._transport_evidence
+                if isinstance(self._transport_evidence, dict)
+                and self._transport_evidence.get("operation") == "off" else None))
             self._note("SG-aanvraag beëindigd: " + reason + self._observation_summary())
         self._session_started = None
         self._minimum_started = None
@@ -1258,8 +1363,11 @@ class SGBoostManager:
                 self.completion_hold = True
                 self._hold_reason = "session_limit" if self._session_finishing or limit_reached else "response_unknown"
                 self._capture_need_reference()
-            self._session_finishing = False
             releasing = self._off_attempted or not self.desired_on
+            self._record_session_end("Begrensde SG-sessieduur bereikt" if limit_reached or self._session_finishing
+                else "Lokale SG-toestemming afgelopen" if expired else
+                "Eigen SG-aanvraag vrijgegeven" if releasing else "SG-contact handmatig uitgeschakeld")
+            self._session_finishing = False
             self.owned = self._possibly_owned = False
             self.desired_on = False
             self._lease_expiry = self._lease_deadline = None
@@ -1281,6 +1389,8 @@ class SGBoostManager:
                          or raw.get("timer_cancelled") is True
                          or finite(raw.get("timer_duration")) == 0)):
                 self.owned = self._possibly_owned = self.desired_on = False
+                self._record_session_end("SG-contact buiten SolarPilot gewijzigd; eigenaarschap vrijgegeven")
+                self._session_started = self._last_renewed = None
                 self._minimum_started = None
                 self.manual_hold = True
                 self._set_state("blocked", "SG-contact buiten SolarPilot gewijzigd; handmatige stand blijft behouden")
@@ -1314,6 +1424,8 @@ class SGBoostManager:
         self._need_reference = ({"schema": 1, **observation, "ended_at": self._wall_clock()}
                                 if observation is not None and not self._tank_source_changed else None)
         self._need_candidate = None
+        self._hold_origin = {"hold_reason": self._hold_reason or None, "stop_reason": None,
+            "ended_at": self._wall_clock(), "session_provenance": deepcopy(self._session_provenance)}
         if self.settings.get("profile") == "general":
             native = self._valid_native_observation(self._native_observation)
             self._general_reference = {
@@ -1498,6 +1610,7 @@ class SGBoostManager:
         self._last_rearm = {"kind": kind, "at": self._wall_clock()}
         self.completion_hold = False
         self._hold_reason = ""
+        self._hold_origin = None
         self._general_reference = self._general_candidate = self._general_reset_candidate = None
         self._need_reference = self._need_candidate = None
         self._tank_source_changed = False
@@ -1539,6 +1652,7 @@ class SGBoostManager:
                            "drop_c": round(reference["temperature_c"] - observation["temperature_c"], 2)}
         self.completion_hold = False
         self._hold_reason = ""
+        self._hold_origin = None
         self._need_reference = self._need_candidate = None
         self._stable_since = None
         self._note("Tank na vorige SG-sessie aantoonbaar afgekoeld; nieuw zonneoverschot wordt beoordeeld")
@@ -2128,6 +2242,9 @@ class SGBoostManager:
                 "cooling_block_reason": self.cooling_block_reason(),
                 "cooling_diagnostic": deepcopy(source.get("cooling_context_diagnostic", {})),
                 "policy_hold_reason": self._hold_reason,
+                "rearm_wait": self._rearm_wait(),
+                "active_session_provenance": deepcopy(self._session_provenance)
+                    if self._session_started is not None or self._restart_resume is not None else None,
                 "owner": ("manual" if self.manual_hold else "solarpilot" if self.owned or self._possibly_owned
                           else "unknown" if self.relay_on is None else "none"),
                 "lease_confirmed": bool(self.owned and self.relay_confirmed and self.relay_on is True

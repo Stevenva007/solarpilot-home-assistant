@@ -17,6 +17,8 @@ import math
 import time
 import sys
 
+from .operation_source_evidence import AQUAREA_SPECIAL_STATUS_VERSIONS, CONTRACT_ID
+
 
 _PROGRAMMES = {
     "OFF": (0, "off"),
@@ -264,10 +266,11 @@ class NativeClimateProgram:
         metadata = metadata if isinstance(metadata, dict) else {}
         provider = {key: metadata.get(key) for key in ("integration_domain", "integration_version", "library_distribution", "library_version")}
         known = (metadata.get("integration_loaded") is True and provider["integration_domain"] == "aquarea"
-                 and provider["integration_version"] in ("1.5.2", "1.5.3")
+                 and isinstance(provider["integration_version"], str)
+                 and provider["integration_version"] in AQUAREA_SPECIAL_STATUS_VERSIONS
                  and provider["library_distribution"] == "aioaquarea-ng" and provider["library_version"] == "1.3.1")
         result = {"schema": 1, "read_only": True, "status": "unknown", "provider": provider,
-                  "contract_id": "aioaquarea_ng_1_3_1_special_status" if known else None,
+                  "contract_id": CONTRACT_ID if known else None,
                   "action_semantics": "special_status" if known else "unknown", "source": "aquarea_contract",
                   "provider_loaded": metadata.get("integration_loaded") is True, "native_device_registered": False,
                   "reason_code": "provider_contract_unverified", "stale_s": self._stale_s(),

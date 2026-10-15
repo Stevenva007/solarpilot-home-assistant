@@ -10,6 +10,9 @@ import math
 import re
 
 CONTRACT_ID = "aioaquarea_ng_1_3_1_special_status"
+# Exact releases checked against pinned upstream source. A dependency floor in
+# the provider manifest is not proof of the actually loaded SDK's semantics.
+AQUAREA_SPECIAL_STATUS_VERSIONS = frozenset({"1.5.2", "1.5.3", "1.5.4"})
 MAX_ZONES = 2
 MAX_TIME = 4102444800
 ACTIONS = frozenset({"OFF", "IDLE", "HEATING", "COOLING", "HEATING_WATER"})
@@ -70,7 +73,7 @@ def _project(raw, captured_at, stale_s, *, retained=False):
     provider_loaded = raw.get("provider_loaded") is True
     known = (type(raw.get("schema")) is int and raw["schema"] == 1 and raw.get("read_only") is True and provider_loaded
              and raw.get("contract_id") == CONTRACT_ID and raw.get("action_semantics") == "special_status"
-             and provider["integration_domain"] == "aquarea" and provider["integration_version"] in ("1.5.2", "1.5.3")
+             and provider["integration_domain"] == "aquarea" and provider["integration_version"] in AQUAREA_SPECIAL_STATUS_VERSIONS
              and provider["library_distribution"] == "aioaquarea-ng" and provider["library_version"] == "1.3.1")
     pump_raw, direction_raw, program_raw, tank_raw = (_dict(raw.get(key)) for key in ("pump","direction","program","tank"))
     pump = {"state":_enum(pump_raw.get("state"), {"on","off"}, "unknown"), **observed(pump_raw)}
