@@ -174,17 +174,21 @@ def test_invalid_wait_journal_cannot_clear_or_replay_anything(payload):
 
 
 @pytest.mark.asyncio
-async def test_legacy_failed_command_already_on_resumes_without_off_reset_or_duplicate_on():
+@pytest.mark.parametrize("lease_w", [0, 1000])
+@pytest.mark.parametrize("remembered_mode_key", [False, True])
+async def test_legacy_failed_command_already_on_resumes_without_off_reset_or_duplicate_on(lease_w, remembered_mode_key):
     runtime, hass = build(device={"nominal_w": 1000, "min_on_s": 600})
     hass.states.set("switch.load", "on")
     runtime.store.data = {
-        "mode": "observe", "restart_requested_mode": None,
-        "device_modes": {"a": "auto"},
-        "leases": {"a": {"watts": 1000, "name": "Testtoestel"}},
+        "mode": "observe", "device_modes": {"a": "auto"},
+        "leases": {"a": {"watts": lease_w, "name": "Testtoestel"}},
         "faults": {"a": "Opdrachtfout: HomeAssistantError; controleer het toestel"},
     }
+    if remembered_mode_key:
+        runtime.store.data["restart_requested_mode"] = None
     await runtime.start()
     try:
+        assert runtime.mode == "observe"
         assert runtime.device_retry.command_waiting("a")
         assert not runtime.faults
         await runtime.set_mode("solar")

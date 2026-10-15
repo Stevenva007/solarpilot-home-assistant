@@ -600,7 +600,7 @@ class SolarRuntime:
         for i, cfg in self.configs.items():
             if cfg.get("kind") == "dishwasher" and self.dishwasher.tickets.get(i, {}).get("attempted"):
                 leases.setdefault(i, {"watts": cfg["nominal_w"], "name": cfg["name"]})
-        clean_interruption = (not self.faults and any(
+        clean_interruption = (not self.faults and not self.device_retry.records and any(
             i in self.configs and self.device_modes.get(i) == "auto" for i in leases))
         requested_mode = data.get("restart_requested_mode") or str(data.get("mode", "observe"))
         if requested_mode not in ("observe", "solar", "paused"):
