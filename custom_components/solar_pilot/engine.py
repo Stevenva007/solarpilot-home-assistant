@@ -7,6 +7,7 @@ The runtime must verify feedback and a new grid sample after every command.
 from __future__ import annotations
 from dataclasses import dataclass, field
 import math
+from .cycle_reserve import solar_cycle_reserve_relief
 
 
 @dataclass(frozen=True)
@@ -108,6 +109,7 @@ class Site:
     protected_ev_credit: dict[str, float] = field(default_factory=dict)
     comfort_reserve_w: float = 0.0
     protected_cycle_reserve_w: float = 0.0
+    cycle_solar_relief_w: float = 0.0
     isolated_reserve_w: float = 0.0
     sg_unconfirmed_reserve_w: float = 0.0
     no_reclaim_ids: set[str] = field(default_factory=set)
@@ -200,7 +202,9 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
                     and not s.fault and s.manual_until <= site.now
                     and d.id not in site.device_holds and d.id not in site.device_start_blocks):
                 boost = s.boost_until > site.now
-                extra_solar = remaining_solar - (credit if d.id in site.no_reclaim_ids else 0)
+                relief = solar_cycle_reserve_relief(d.kind, d.non_interruptible,
+                    site.comfort_reserve_w, min(site.cycle_solar_relief_w, site.protected_cycle_reserve_w))
+                extra_solar = remaining_solar + relief - (credit if d.id in site.no_reclaim_ids else 0)
                 extra = remaining_cap if boost else min(extra_solar, remaining_cap)
                 previous = out.targets[d.id]
                 amount = d.quantize(previous + max(0, extra))
@@ -259,13 +263,18 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
         deadline_boost = s.deadline_force
         planner_grid = s.planner_grid_force
         boost = manual_force or manual_boost or deadline_boost or planner_grid
-        available = remaining_cap if boost else min(remaining_solar, remaining_cap)
+        relief = solar_cycle_reserve_relief(d.kind, d.non_interruptible,
+            site.comfort_reserve_w, min(site.cycle_solar_relief_w, site.protected_cycle_reserve_w))
+        # Keep one allocation pool: each target is still deducted below. Relief
+        # applies only to a future dishwasher peak, never to physical capacity.
+        device_solar = remaining_solar + relief
+        available = remaining_cap if boost else min(device_solar, remaining_cap)
         eligible = (d.allow_wallbox_reclaim and not d.non_interruptible and (d.priority_reclaim or d.min_on_s <= site.handover_s))
         protected_credit = (min(credit, max(0.0, site.protected_ev_credit.get(d.id, 0.0)))
                             if d.kind == "dishwasher" and d.id in site.priority_ids
                             and d.id not in site.no_reclaim_ids else 0.0)
         if (not s.owned and not eligible or d.id in site.no_reclaim_ids) and not boost:
-            available = min(available, remaining_solar-credit+protected_credit)
+            available = min(available, device_solar-credit+protected_credit)
         needed = d.minimum + (d.start_margin_w if not s.on and not boost else 0)
         if not s.on:
             # Report the SAME conservative allocation used below, not a second
@@ -275,7 +284,7 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
             prior_w = sum(watts for i, watts in out.targets.items() if i != d.id and i not in locked)
             locked_commitment = max(0.0, locked_w-owned_w)
             higher_commitment = max(0.0, locked_w+prior_w-owned_w)-locked_commitment
-            solar_available = remaining_solar
+            solar_available = device_solar
             if (not s.owned and not eligible or d.id in site.no_reclaim_ids) and not boost:
                 solar_available -= credit-protected_credit
             total_reserve = max(0.0, site.comfort_reserve_w)
@@ -288,7 +297,7 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
                 electrical = min(electrical, site.max_increase_w)
             if d.id in site.device_increase_limits:
                 electrical = min(electrical, max(0.0, site.device_increase_limits[d.id]))
-            physical_solar = -site.grid_w-site.battery_discharge_w-site.reserve_w-committed
+            physical_solar = -site.grid_w-site.battery_discharge_w-site.reserve_w-committed+relief
             usable_credit = (min(max(0.0, site.reclaimable_w), max(0.0, site.max_takeover_w))
                              if eligible and d.id not in site.no_reclaim_ids else 0.0)
             actual_available = min(available, electrical) if boost else min(
@@ -302,6 +311,9 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
                 "filtered_free_w": round(filtered_free, 2),
                 "smoothing_hold_w": round(max(0.0, out.free_w-filtered_free), 2),
                 "protected_cycle_reserve_w": round(components[0], 2),
+                "solar_cycle_reserve_relief_w": round(relief, 2),
+                "solar_cycle_reserve_w": round(max(0.0, components[0]-relief), 2),
+                "solar_applied_reserve_w": round(max(0.0, total_reserve-relief), 2),
                 "isolated_reserve_w": round(components[1], 2),
                 "sg_unconfirmed_reserve_w": round(components[2], 2),
                 "other_reserved_w": round(max(0.0, total_reserve-sum(components)), 2),
@@ -404,7 +416,9 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
         own_commitment = max(0.0, s.target_w - current) if s.owned and s.on else 0.0
         other_commitment = committed - own_commitment
         cap_free = site.max_import_w - site.grid_w - other_commitment
-        solar_free = -site.grid_w - site.battery_discharge_w - site.reserve_w - other_commitment
+        relief = solar_cycle_reserve_relief(d.kind, d.non_interruptible,
+            site.comfort_reserve_w, min(site.cycle_solar_relief_w, site.protected_cycle_reserve_w))
+        solar_free = -site.grid_w - site.battery_discharge_w - site.reserve_w - other_commitment + relief
         actual_solar_free = solar_free
         grid_boost = s.manual_forced or s.boost_until > site.now or s.deadline_force or s.planner_grid_force
         eligible = (d.allow_wallbox_reclaim and d.id not in site.no_reclaim_ids and not d.non_interruptible
