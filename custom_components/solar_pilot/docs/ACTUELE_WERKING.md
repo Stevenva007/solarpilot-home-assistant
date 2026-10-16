@@ -1,10 +1,10 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.92
+**Versie:** 1.0.0-beta.93
 **Bijgewerkt:** 2026-10-15
-**Regel-hash:** `404f7e4caa551749`
+**Regel-hash:** `afb96b44c69aa4ef`
 
-Beta.92 reserveert Home Assistant-meldingen voor dringende regelingsproblemen en bewezen Aquarea-incompatibiliteit. Gewone analysebevindingen blijven bij Meetkwaliteit en Export, zonder terugkerende melding Analyse nodig. Een oude analysemelding wordt gericht opgeruimd. Het lokale onderzoek blijft doorgaan. De Aquarea-, herstel-, PV- en SG-verbeteringen uit beta.91 blijven behouden.
+Beta.93 herstelt twee oorzaken van onterecht wachten: korte Taak onbekend-onderbrekingen tijdens Aquarea-bronhercontrole en blokkering van andere toestellen door ontbrekende Wallbox-gegevens. Gewone verbruikers en SG-zonneboost gebruiken het werkelijk beschikbare netoverschot zonder een afhankelijkheid van onbekende laadtelemetrie. Echte bronactualiteit, net-/fase-/kwartiergrenzen, minimumtijden en apparaatvoorwaarden blijven gelden. Eerdere historie en de rustige meldingen uit beta.92 blijven behouden.
 
 ## 1. Basisprincipe en modi
 
@@ -193,6 +193,8 @@ Het laadprofiel leest expliciete grenzen en fasen uit betrouwbare bronnen of geb
 
 Een gekoppelde Wallboxsessiebron die oud, onbeschikbaar of ongeldig is blijft onbekend. Beta.74 benoemt die bronkwaliteit als oorzaak bij de leervraag in plaats van onbekend te laten klinken als een bevestigde sessiestand. De ingestelde stale-grens, bestaande bewijsregels en read-only Wallboxbevoegdheid blijven gelijk.
 
+Geen of oude laadgegevens leggen andere SolarPilot-toestellen niet stil. De actuele P1-injectie bevat het werkelijke verbruik van de hele woning, inclusief de auto; alleen het resterende gemeten overschot komt beschikbaar, na de gewone reserves, batterijcorrectie en toewijzingen. Ontbrekend laadvermogen blijft onbekend en wordt geen gemeten nul of overneembaar EV-vermogen. Dit geldt ook voor SG-zonneboost, dat nooit EV-krediet krijgt. Een verse bewezen laadvraag of laadsessie behoudt de gekozen voorrang. Actuele net-/fase-/kwartiergrenzen, minimumtijden, beschermde cycli en apparaatvoorwaarden blijven gelden.
+
 ## 8. Gewone flexibele toestellen en ontvochtiger
 
 Bestaande toestellen behouden hun adapter, deelname, centrale positie, meter, minimumlooptijd, rusttijd, bescherming, dagdoel en bewuste nettoestemming. Nieuwe identiteiten beginnen Uitgesloten. Tijdelijke onbereikbaarheid van een gewoon toestel geeft een informatieve herstelwacht, geen blijvende opdrachtfout. Elke vijf minuten volgt een nieuwe beoordeling. Alleen opnieuw bereikbare, voldoende actuele bronnen en de op dat moment geldige vraag, voorrang, tijden, modus en elektrische ruimte kunnen daarna een nieuwe opdracht toelaten. Een gemiste opdracht wordt niet uit een oude planning afgespeeld; deelname wordt niet stil gewijzigd.
@@ -333,6 +335,8 @@ Herstart, unload, ontbrekende bronnen en wijziging van meterbinding worden als r
 
 Deze geschiedenis staat in afzonderlijke lokale Home Assistant-opslag en blijft bij gewone updates/herstart behouden. Ze werkt in de bestaande modi onafhankelijk van de analysedetailregistratie. Lezen gebruikt Home Assistant-leesrechten op de betrokken bronnen; bediening of instellingswijziging is niet beschikbaar. Een onleesbaar of niet ondersteund opslagformaat wordt niet stil overschreven. De laatste nog niet opgeslagen waarnemingen kunnen bij abrupte uitval ontbreken.
 
+Nieuwe taakregistraties krijgen geen kunstmatige onderbreking alleen doordat SolarPilot de herkenning van dezelfde geladen Aquarea-koppeling op de achtergrond opnieuw controleert. De gewone grenzen voor actuele native rapporten, passende vermogensmetingen, bronbinding en tegenstrijdige gegevens blijven gelden. Een gewijzigde of onbruikbare koppeling levert geen bekende taak op. Eerdere onbekende intervallen blijven als oorspronkelijke geschiedenis bewaard; zij worden niet achteraf tot verwarmen of boilerbedrijf gemaakt.
+
 ## 17. Privé-analyse-export
 
 Export → Maak analysebestand levert voor een HA-beheerder met één klik een lokaal gecomprimeerd JSON.GZ-bestand van de beschikbare zeven dagen. De oorspronkelijke exportroute blijft ook perioden van 1 uur of 24 uur ondersteunen. Het bevat actuele bron-/configuratiegegevens, beslisredenen, versie per nieuwe registratie, beschikbare historie en modellen. Oude records zonder versie blijven onbekend. Het pakket bevat een gerichte analysis_request voor warmtepompinstellingen, SolarPilot-keuzes en logische verbetervoorstellen, plus bronherkomst en het adviesrapportformaat. Het bijbehorende Adviesrapport-sjabloon downloaden is daarna apart beschikbaar; dat sjabloon bevat de exacte bronhash. Het bestand verandert geen toestel, wordt niet automatisch geüpload en is geen herstelbare HA-back-up.
@@ -387,7 +391,7 @@ Een privéprofiel blijft optioneel en uitsluitend lokaal. Importeren kan lege ge
 
 Voor verwijderen kies je Verwijderen voorbereiden en wacht je op de gerichte veilige vrijgave. Een onzekere SG-uitgang blijft eerlijk onbekend; de gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, AEG- of Shelly-integratie.
 
-Rollback naar beta.91 behoudt de Aquarea-, leer-, PV-, SG- en toestelherstelverbeteringen, maar kan de algemene analysemeldingen weer toelaten wanneer de vroegere voorkeur aanstaat. Geef een eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk en controleer de lokale afloop. Herstel uitsluitend code met behoud van entry, opslag en userfiles; herstart Home Assistant volledig. Gebruik geen twee runtimes tegelijk. Zie BETA92_INSTELLEN.md.
+Rollback naar beta.92 behoudt rustige meldingen en de bestaande regeling, maar kan opnieuw korte onbekende taken en startblokkering door ontbrekende Wallbox-gegevens veroorzaken. Bewaar een actuele privéback-up en behoud entry, opslag en userfiles. Herstart Home Assistant volledig na codevervanging. Zie BETA93_INSTELLEN.md.
 
 ## 21. Release- en documentatieregel
 

@@ -218,12 +218,12 @@ def test_new_stable_sample_completes_watch_without_warning():
     assert g.watch is None and not g.conflict_count
 
 
-def test_uncertain_reading_blocks_then_releases_after_grace():
+def test_uncertain_ev_reading_leaves_actual_export_to_the_ordinary_engine():
     g = guard()
-    v = g.update(0, Reading(), -5000, 150)
-    assert v.block_increase and not v.release_flexible
-    assert not g.update(29, Reading(), -5000, 150).release_flexible
-    assert g.update(30, Reading(), -5000, 150).release_flexible
+    for stamp in (0, 29, 30, 600):
+        v = g.update(stamp, Reading(), -5000, 150)
+        assert v.state == "unavailable" and not v.block_increase and not v.release_flexible
+        assert v.max_increase_w is None
 
 
 def test_recovery_from_invalid_requires_new_stability_window():

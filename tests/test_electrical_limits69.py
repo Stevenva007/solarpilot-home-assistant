@@ -94,11 +94,17 @@ def test_solar_credited_hp_never_inherits_house_first_ev_takeover_rights():
     assert not hass.services.calls
 
 
-def test_final_sg_dispatch_rechecks_ev_source_even_after_a_good_guard_result():
+def test_final_sg_dispatch_keeps_actual_export_when_only_ev_telemetry_expires():
     runtime, hass = configured(export=5000)
     protected_ev(runtime, hass)
     assert runtime.sg_dispatch_allowed()
     hass.states.set("sensor.ev_power", 2000, {"unit_of_measurement": "W"}, age=301)
+    assert runtime.sg_dispatch_allowed()
+    assert runtime.sg_wallbox_guard.reading.power_w is None
+    assert runtime.sg_wallbox_guard.result.max_increase_w is None
+    # Expired EV watts cannot replace a real loss of residual solar.
+    hass.states.set("sensor.grid", -1000, {"unit_of_measurement": "W"})
+    hass.states.set("sensor.public_hp", 0, {"unit_of_measurement": "W"})
     assert not runtime.sg_dispatch_allowed()
     assert not hass.services.calls
 

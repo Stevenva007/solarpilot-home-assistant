@@ -30,6 +30,8 @@ _PROGRAMMES = {
 _ACTIONS = {"OFF": (0, "off"), "IDLE": (1, "idle"),
             "HEATING": (2, "space_heating"), "COOLING": (3, "space_cooling"),
             "HEATING_WATER": (4, "tapwater_heating")}
+_DISPLAY_METADATA_REFRESH_S = 300
+_DISPLAY_METADATA_REFRESH_GRACE_S = 30
 
 
 def _native_mode(device):
@@ -157,6 +159,8 @@ class NativeClimateProgram:
                 if (loaded is not sys.modules.get("custom_components.aquarea")
                         or semantic_identity != loaded_semantic_identity()):
                     self._display_metadata = {}
+            else:
+                self._display_metadata = {}
         except (ImportError, OSError, AttributeError, TypeError, ValueError, RuntimeError):
             self._display_metadata = {}
         finally:
@@ -169,14 +173,24 @@ class NativeClimateProgram:
         loaded = sys.modules.get("custom_components.aquarea")
         checked = self._display_metadata_checked
         age = time.monotonic()-checked if checked is not None else None
-        current = (checked is not None and age is not None and 0 <= age <= 300
-                   and loaded is self._display_metadata_module
-                   and self._display_semantic_identity == loaded_semantic_identity())
+        same_implementation = (loaded is self._display_metadata_module
+                               and self._display_semantic_identity == loaded_semantic_identity())
+        current = (checked is not None and age is not None and 0 <= age <= _DISPLAY_METADATA_REFRESH_S
+                   and same_implementation)
         if not current and self._display_metadata_task is None:
             create = getattr(self.runtime.hass, "async_create_task", None)
             if callable(create):
                 self._display_metadata_task = create(self.async_prepare_display_metadata())
-        return self._display_metadata if current else {}
+        # Metadata describes the loaded implementation, not a live pump report.
+        # Its periodic background reinspection must not insert a false unknown
+        # task every five minutes. Only an already verified identical loaded
+        # implementation may bridge a bounded in-flight refresh; actual polls,
+        # source ages and registry bindings still pass their independent checks.
+        refreshing_verified = (same_implementation and self._display_metadata_task is not None
+            and age is not None and 0 <= age <= _DISPLAY_METADATA_REFRESH_S+_DISPLAY_METADATA_REFRESH_GRACE_S
+            and self._display_metadata.get("integration_loaded") is True
+            and valid_semantic_contract(self._display_metadata.get("compatibility")))
+        return self._display_metadata if current or refreshing_verified else {}
 
     def close(self):
         """Unsubscribe without retaining programme evidence across reloads."""

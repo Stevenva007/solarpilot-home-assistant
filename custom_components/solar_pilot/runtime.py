@@ -194,7 +194,7 @@ class SolarRuntime:
 
     def heat_pump_increase_allowed(self, *, check_capacity=True):
         """Final live electrical gate; an earlier plan is never a power lease."""
-        grid, valid, _discharge, ready, reported = self._site_data()
+        grid, valid, discharge, ready, reported = self._site_data()
         pv, _pv_reported = self._power(self.settings.get("pv_entity"))
         if not valid or not ready or pv is None or pv < 0:
             return False, "Wacht op betrouwbare net-, zonne- en batterijmetingen"
@@ -219,7 +219,14 @@ class SolarRuntime:
             free = max(0.0, self.settings["max_import_w"] - grid - isolated - unconsumed)
             return False, (f"Netgrens: SG vraagt {incremental:.0f} W extra; "
                            f"nu {free:.0f} W beschikbaar binnen {self.settings['max_import_w']:.0f} W netafname")
-        wallbox_cap = getattr(self.sg_wallbox_guard.result, "max_increase_w", None)
+        # A remembered Wallbox wait/cap is not current charging evidence. Read
+        # it again independently of P1; missing EV telemetry grants no EV watts
+        # and must not erase the actual residual export measured at the site.
+        wallbox_cap = None
+        if self.wallbox_settings.get("enabled"):
+            current_wallbox = self._update_sg_wallbox_guard(time.monotonic(), self._wallbox_reading(),
+                grid, self.settings["reserve_w"], discharge)
+            wallbox_cap = current_wallbox.max_increase_w
         if (self.wallbox_settings.get("enabled")
                 and wallbox_cap is not None and incremental + isolated + unconsumed > wallbox_cap):
             free = max(0.0, wallbox_cap - isolated - unconsumed)
