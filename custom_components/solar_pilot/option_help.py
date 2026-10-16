@@ -155,7 +155,9 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
              'wordt niet verkort om Wallbox-voorrang of een goedkope elektriciteitsprijs te halen.',
  'min_off_s': 'Minimale rusttijd na uitschakelen voordat SolarPilot opnieuw mag starten. Kies op basis van het '
               'toestel. Een langere rusttijd vermindert korte aan/uit-cycli, maar laat sommige zonnepieken '
-              'voorbijgaan.',
+              'voorbijgaan. Bij een herstart blijft de bewaarde bevestigde UIT-tijd leidend en telt alleen '
+              'het restant, na controle van de actuele toestelstatus. Zonder betrouwbaar eerder bewijs '
+              'kan nog een volledige rusttijd nodig zijn.',
  'start_margin_w': 'Extra vermogen boven het verwachte toestelvermogen voor een nieuwe start. Voorbeeld: 350 W '
                    'toestel plus 100 W marge vraagt ongeveer 450 W bruikbare ruimte, na de algemene reserve.',
  'ack_timeout_s': 'Maximale wachttijd op een echte terugmelding na een opdracht. Dit is geen '

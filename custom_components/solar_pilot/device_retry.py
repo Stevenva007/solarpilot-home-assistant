@@ -370,7 +370,7 @@ class DeviceRetry:
                     st.cycle_armed = False
             else:
                 st.owned, st.on, st.target_w = False, False, 0.0
-                st.last_off = now
+                r.minimum_rest.note_off(device_id, now, wall)
                 st.manual_forced = st.manual_stop_requested = False
                 if item.get("max_runtime"):
                     r.faults[device_id] = "Maximale looptijd bereikt: controleer en wis de melding"

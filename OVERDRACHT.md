@@ -1,9 +1,9 @@
 <!-- solarpilot-handoff-schema: 1 -->
-<!-- solarpilot-handoff-version: 1.0.0-beta.93 -->
+<!-- solarpilot-handoff-version: 1.0.0-beta.94 -->
 
 # OVERDRACHT — SolarPilot
 
-Laatst bijgewerkt: **16 oktober 2026**. Actuele bron: **v1.0.0-beta.93**. Beta.93 herstelt kunstmatige onbekende taaksegmenten bij Aquarea-metadatahercontrole en een onterechte algemene Wallbox-telemetrieafhankelijkheid. Gewone verbruikers en SG gebruiken echte P1-restinjectie; onbekende EV-data geeft geen blokkering, fictieve nul, gedwongen gewone stop of EV-krediet. Alle echte bron-/net-/fase-/kwartier-/apparaatgrenzen en bestaande historie blijven behouden. Bewijs: `docs/TESTRESULTATEN_BETA93.md`; installatie/rollback: `docs/BETA93_INSTELLEN.md`.
+Laatst bijgewerkt: **16 oktober 2026**. Actuele bron: **v1.0.0-beta.94**. Beta.94 bewaart de bevestigde UIT-tijd van gewone verbruikers, zodat een HA-herstart of integratieherlaad alleen de resterende minimale rusttijd telt. Herstarttijd telt mee; herhaalde herstarts verschuiven de oorspronkelijke deadline niet. Alleen passende huidige toestel-/broncontrole kan het checkpoint gebruiken. Zonder betrouwbaar oud bewijs geldt de volledige bescherming. Bewijs: `docs/TESTRESULTATEN_BETA94.md`; installatie/rollback: `docs/BETA94_INSTELLEN.md`.
 
 ## 1. Projectdoel in gewone taal
 
@@ -11,11 +11,13 @@ SolarPilot verdeelt beschikbare zonnestroom tussen flexibele verbruikers, een be
 
 ## 2. Actuele basis
 
-Bouwbasis: gepubliceerde beta.92-commit `6eb4c49c743bcc5ca0e5aff2f3f7d15d0de55386`. Beta.93 corrigeert metadatahercontrole voor taakpresentatie/geschiedenis en gewone/SG-vrijgave bij ontbrekende Wallbox-telemetrie. Actuele validatie/publicatie: `docs/TESTRESULTATEN_BETA93.md`; eerdere releaseresultaten zijn historische herkomst.
+Bouwbasis: gepubliceerde beta.93-commit `0ff89ed72a982e1b16e84885cb977cf28a1e23dc`. Beta.94 corrigeert uitsluitend de onterechte herstart van de minimale rusttijd van gewone verbruikers. Actuele validatie/publicatie: `docs/TESTRESULTATEN_BETA94.md`; eerdere releaseresultaten zijn historische herkomst.
 
 De canonieke gebruikersuitleg blijft `custom_components/solar_pilot/current_guide.py`; `docs/ACTUELE_WERKING.md`, de ingebedde mirror en optiehulp worden gegenereerd. Dit dossier beschrijft actuele waarheid. Immutable/geneste HA-opties, SG-profiel/reassessment, read-only bronnen/interface, analyse-/antwoordrapport en lokaal bron-/SG-onderzoek blijven behouden. Het vertrouwde implementatieregister koppelt uitsluitend generieke softwarevoorstellen aan exacte inhoud en geïnstalleerde release. Een import kan die status niet zelf creëren. Warmtepompgeschiedenis gebruikt aparte versie-1-opslag en is geen migratie of vervanging van bestaande verbruikerhistorie, analysedata of modellen.
 
 ## 3. Absolute ontwerpregels
+
+- Een gewone herstart is geen nieuwe fysieke UIT-overgang. Bewaar een bevestigde absolute UIT-tijd met passende toestel-/bronbinding en herstel alleen het restant op de nieuwe monotonic-klok na betrouwbare actuele UIT-controle. Herstarttijd telt mee; herhaalde herstarts behouden de oorspronkelijke deadline. Een echte nieuwe UIT-overgang krijgt een nieuwe rusttijd. Onzekere opdrachten, onbekende/restored bronnen, andere koppeling, corrupte tijd en ongeschikte actieve lease geven geen verkorting. Legacy zonder bewijs blijft conservatief. Herstelde AAN-lasten behouden hun volledige minimumlooptijd; een checkpoint geeft geen actuator-, bron- of zonne-stabiliteitsrecht.
 
 - Ontbrekende/oude/ongeldige Wallbox-telemetrie is geen veto voor gewone P1-restinjectie: geen globale EV-startblokkering, 0 W-cap of afgedwongen lastvrijgave alleen om dat gebrek. Onbekend blijft onbekend; EV-reclaim/protected credit blijft nul en wordt niet uit oude watts hersteld. Bij nieuwe actuele bevestigde laadvraag geldt de bewaarde voorrang opnieuw. Harde P1/batterij/fase/kwartierguards, pending/handover/journal en aparte toestelfouten blijven beschermd. SG krijgt nooit EV-krediet en herleest actuele Wallboxcontext vóór de finale capcontrole; geen oude 0 W-cap hergebruiken.
 
@@ -267,7 +269,7 @@ Geheimen komen uitsluitend uit bestaande HA-koppelingen/lokale configuratie; gee
 
 ## 9. Testprocedure + actuele teststatus
 
-Actuele release: beta.93. Zie `docs/TESTRESULTATEN_BETA93.md` voor brongebonden tests en publicatie. De volledige lokale beta.93-suite behaalde 6986 geslaagde tests. De bestaande exacte 120-seconden-leertest en 1800-seconden-hersteltest gebruiken nu exact representabele monotonic-klokken om afronding door echte hostuptime uit te sluiten, zonder grensasserties of productieguards te wijzigen. De leertest legt ook haar kalender vanaf runtimeconstructie vast. De gerichte leer-/brongroep behaalde daarna 110 geslaagde tests; de volledige CI-suite en vijf releasegates draaien opnieuw op de definitieve bron. Beide huidige releasedocumenten hebben een bytegelijke componentmirror. Onderstaande beta.92/beta.91-resultaten zijn historisch. De volledige lokale suite op de beta.92-code behaalde 6915 geslaagde tests; alle vijf PR- en eerste main-gates waren groen. Zowel installatie- als testverslag hebben een bytegelijke componentmirror voor de afzonderlijke vier-assets-pakketcontrole. De verpakkingsafronding verandert geen regellogica.
+Actuele release: beta.94. Zie `docs/TESTRESULTATEN_BETA94.md` voor brongebonden tests en publicatie. De timerbug is onafhankelijk gereproduceerd voor een verstreken en gedeeltelijke rusttijd. De 17 nieuwe functionele regressies en 36 onafhankelijke grenscontroles slagen. De brede gerichte route behaalde 461 geslaagde tests; de groepen overlappen. Alleen echte verificatie wijzigt de checkpointwatermark; read-only snapshots blijven stabiel en de nieuwe autosave wacht op geladen opslag. De volledige suite en vijf CI-gates draaien op de definitieve bron. Beide actuele releasedocumenten hebben een bytegelijke componentmirror. De beta.93-suite behaalde 6986 geslaagde tests en alle vijf PR-/main-gates plus vier-assets-downloadverificatie; dat is uitsluitend historische herkomst en geen beta.94-testbewijs.
 
 De eerste exacte beta.91-PR-run 38759077795 gaf 6.739 geslaagde tests en één echte timestampregressie. Die afrondingsfout is gericht hersteld met zeven deterministische gevallen en 145 gerichte tests. HACS, Hassfest en echte Core waren groen; de browsergate vroeg aanpassing aan de bewuste nieuwe voorwaardelijke SG-doelweergave, die daarna lokaal is geslaagd. Deze eerste run is geen bewijs voor de latere capability-/melding-/upstreamuitbreiding. De definitieve PR-head moet alle vijf gates opnieuw doorstaan. De lokale executor viel tijdens de afronding uit; verdere bronwijzigingen zijn via de GitHub-API opgebouwd en worden vóór merge door dezelfde CI gecontroleerd.
 
@@ -315,7 +317,7 @@ De eerder waargenomen `via_device`-deprecatiewaarschuwing met grens Home Assista
 
 ## 12. Installatie/upgrade en rollback
 
-Voor beta.93: volg `docs/BETA93_INSTELLEN.md`, behoud entry/opslag/userfiles, herstart HA volledig. De eerste geslaagde leercontrole ruimt de oude analysemelding op; urgente meldingen en alle regelingsrechten blijven behouden. Rollback naar beta.91 kan de oude analysemelding opnieuw toelaten. Onderstaande uitgebreide beta.91-aanwijzingen blijven achtergrond.
+Voor beta.94: volg `docs/BETA94_INSTELLEN.md`, behoud entry/opslag/userfiles, herstart HA volledig. Beta.93 bewaarde geen UIT-tijd: de eerste upgrade kan eenmaal volledige rust vragen, daarna blijft de bevestigde tijd over herstarts behouden. Een onbekende bron of opdracht mag niet worden vrijgegeven door een verstreken checkpoint. Rollback naar beta.93 kan de timerreset opnieuw veroorzaken. Onderstaande uitgebreide beta.91-aanwijzingen blijven achtergrond.
 
 Volledige privé HA-back-up vóór update, inclusief instellingen, eigen opslag, PV-factoren, modellen, tickets, bestaande geschiedenis en userfiles. Geef een eigen SG-aanvraag vrij vóór codevervanging; onderbreek geen beschermde cyclus. Update via HACS naar exact beta.91 na geslaagde releasegates en publicatie, volledige HA-herstart en volledige browser/app-herlading. Controleer backend-/kaartversie apart. Lokaal uitsluitend `custom_components/solar_pilot` vervangen met behoud van userfiles en opslag; entry niet verwijderen/hermaken. Bestaande geldige SG-/profiel-/split-/koelbevestigingen blijven staan; nieuwe wijzigingen houden hun bestaande voorwaarden. Geen nieuwe verplichte entiteiten, handmatig geïnstalleerde dependency, reset of leervragen.
 
@@ -324,6 +326,8 @@ Controleer eerst de AEG-aanvraag met haar oorspronkelijke geplande dag/deadline,
 Rollback naar beta.90: geef de eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk en controleer contact/lokale afloop. Bewaar een actuele volledige privéback-up, stop beta.91 en herstel gecontroleerde beta.90-code met behoud van entry, opslag en userfiles. De toestelherstelroute, restzonverdeling en Wallbox-voorkeuren blijven ondersteund; de nieuwe Aquarea-, bewijs- en number-herstelverbeteringen vervallen. Oudere code kan nieuwe bewijsuitbreidingen niet tonen of bij nieuwe opslag behouden; exact herstel vraagt passende code én volledige privéback-up. Geen tweede START, blinde retry, oude ON-replay, twee runtimes tegelijk of entryverwijdering. Zie `docs/BETA91_INSTELLEN.md`.
 
 ## 13. Belangrijkste bestanden
+
+- `minimum_rest.py`, `runtime.py`: privé UIT-tijdcheckpoint met toestel-/bronbinding, herstarttijd en oorspronkelijke deadline; uitsluitend rusttijdherstel na passende huidige UIT-controle.
 
 - `device_retry.py`, `runtime.py`: per-toestel bron-/opdrachtwacht, 300s-hercontrole, passende verse verzoening, actuele Auto-keuze en source-isolatie zonder extra hypothetische reserve. `tests/test_device_retry90.py` plus onafhankelijke audit-/UI-regressies toetsen de nieuwe grenzen.
 - `docs/AUDIT_BETA79.md`, `docs/TESTRESULTATEN_BETA91.md`: actuele moduledekking, concrete bevindingen en afzonderlijk brongebonden uitvoering/publicatiebewijs; niet vervangen door oudere releaseverslagen.

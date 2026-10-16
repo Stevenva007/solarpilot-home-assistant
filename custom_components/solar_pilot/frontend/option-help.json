@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.93",
+  "version": "1.0.0-beta.94",
   "language": "nl",
   "steps": {
     "init": {
@@ -1376,7 +1376,7 @@
       "title": "Minimale rusttijd volgens toestelvereisten (seconden)",
       "short": "Minimale rusttijd na uitschakelen voordat SolarPilot opnieuw mag starten.",
       "paragraphs": [
-        "Minimale rusttijd na uitschakelen voordat SolarPilot opnieuw mag starten. Kies op basis van het toestel. Een langere rusttijd vermindert korte aan/uit-cycli, maar laat sommige zonnepieken voorbijgaan.",
+        "Minimale rusttijd na uitschakelen voordat SolarPilot opnieuw mag starten. Kies op basis van het toestel. Een langere rusttijd vermindert korte aan/uit-cycli, maar laat sommige zonnepieken voorbijgaan. Bij een herstart blijft de bewaarde bevestigde UIT-tijd leidend en telt alleen het restant, na controle van de actuele toestelstatus. Zonder betrouwbaar eerder bewijs kan nog een volledige rusttijd nodig zijn.",
         "Toestelvoorwaarden, fysieke terugmelding, minimumtijden en beschermde programma’s gaan vóór energie-optimalisatie.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -3030,7 +3030,7 @@
       "title": "Minimale rusttijd volgens toestelvereisten (seconden)",
       "short": "Minimale rusttijd na uitschakelen voordat SolarPilot opnieuw mag starten.",
       "paragraphs": [
-        "Minimale rusttijd na uitschakelen voordat SolarPilot opnieuw mag starten. Kies op basis van het toestel. Een langere rusttijd vermindert korte aan/uit-cycli, maar laat sommige zonnepieken voorbijgaan.",
+        "Minimale rusttijd na uitschakelen voordat SolarPilot opnieuw mag starten. Kies op basis van het toestel. Een langere rusttijd vermindert korte aan/uit-cycli, maar laat sommige zonnepieken voorbijgaan. Bij een herstart blijft de bewaarde bevestigde UIT-tijd leidend en telt alleen het restant, na controle van de actuele toestelstatus. Zonder betrouwbaar eerder bewijs kan nog een volledige rusttijd nodig zijn.",
         "Toestelvoorwaarden, fysieke terugmelding, minimumtijden en beschermde programma’s gaan vóór energie-optimalisatie. Een ingeschakelde stekker bewijst niet dat een compressor continu draait.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
