@@ -46,10 +46,10 @@ class HouseFirstGuard:
             if self.invalid_since is None:
                 self.invalid_since = now
             self.history.clear()
-            # Do not pretend the EV is off. No new starts. Existing own loads
-            # stay subject to actual grid/battery limits in the normal engine.
-            self.result = GuardResult("unavailable", r.issue or "Wallbox-metingen niet betrouwbaar", True,
-                                      False, 0, r.issue or "Geen vermogen van Wallbox overnemen")
+            # Unknown EV consumption is already inside P1. It supplies no
+            # reclaim credit, but cannot veto independently measured export.
+            self.result = GuardResult("unavailable", r.issue or "Wallbox-metingen niet betrouwbaar",
+                                      warning=r.issue or "Geen vermogen van Wallbox overnemen; alleen werkelijk netoverschot gebruiken")
             return self.result
         self.invalid_since = None
         if confirmed_no_active_request(r, c):

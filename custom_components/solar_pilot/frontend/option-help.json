@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.92",
+  "version": "1.0.0-beta.93",
   "language": "nl",
   "steps": {
     "init": {
@@ -166,7 +166,7 @@
       "data_description": {
         "enabled": "Zet de alleen-lezen Wallbox-monitor aan.",
         "name": "De herkenbare naam van deze koppeling in SolarPilot.",
-        "power_entity": "Werkelijk actueel vermogen van dit ene apparaat, in W of kW.",
+        "power_entity": "Werkelijk Wallbox-laadvermogen in W of kW voor laadweergave en bewezen vermogensovername.",
         "status_entity": "Tekststatus van de laadpaal.",
         "demand_entity": "Optionele expliciete laadvraagbron.",
         "mode_entity": "Oorspronkelijke instelling van de zonnelaadmodus.",
@@ -1446,8 +1446,8 @@
       "title": "Wallbox-monitor inschakelen",
       "short": "Zet de alleen-lezen Wallbox-monitor aan.",
       "paragraphs": [
-        "Zet de alleen-lezen Wallbox-monitor aan. Deze leest laadvermogen, vraag en modus uit bestaande HA-entiteiten; SolarPilot verstuurt hier geen laadstroom-, start-, stop- of fasecommando’s naar de Wallbox.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Zet de alleen-lezen Wallbox-monitor aan. Deze leest laadvermogen, vraag en modus uit bestaande HA-entiteiten; SolarPilot verstuurt hier geen laadstroom-, start-, stop- of fasecommando’s naar de Wallbox. Ontbrekende of oude Wallbox-gegevens blokkeren geen andere toestellen wanneer hun actuele netmeting en gewone voorwaarden geldig zijn.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -1456,16 +1456,16 @@
       "short": "De herkenbare naam van deze koppeling in SolarPilot.",
       "paragraphs": [
         "De herkenbare naam van deze koppeling in SolarPilot. Dit hernoemt het fysieke apparaat of de oorspronkelijke Home Assistant-entiteiten niet.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
     "wallbox.power_entity": {
       "title": "Werkelijk laadvermogen (W of kW)",
-      "short": "Werkelijk actueel vermogen van dit ene apparaat, in W of kW.",
+      "short": "Werkelijk Wallbox-laadvermogen in W of kW voor laadweergave en bewezen vermogensovername.",
       "paragraphs": [
-        "Werkelijk actueel vermogen van dit ene apparaat, in W of kW. Dit is geen energieteller in kWh. Een exclusieve meter maakt de vermogensschatting en historie betrouwbaarder; een gedeelde meter kan verkeerd gedrag veroorzaken.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Werkelijk Wallbox-laadvermogen in W of kW voor laadweergave en bewezen vermogensovername. Een ontbrekende of oude waarde blijft onbekend. Gewone toestellen en SG-zonneboost gebruiken dan uitsluitend werkelijk gemeten vrij netoverschot. De auto wordt niet als 0 W verondersteld en er ontstaat geen EV-vermogenskrediet. Actuele net-, batterij-, fase- en vermogensgrenzen blijven gelden.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -1474,7 +1474,7 @@
       "short": "Tekststatus van de laadpaal.",
       "paragraphs": [
         "Tekststatus van de laadpaal. Exacte herkenningswoorden staan bij Geavanceerd. Een aangesloten auto kan gepauzeerd, vol of niet startklaar zijn; een kabel alleen is geen laadvraag.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -1483,7 +1483,7 @@
       "short": "Optionele expliciete laadvraagbron.",
       "paragraphs": [
         "Optionele expliciete laadvraagbron. Gebruik een echte vraag/startklaar-terugmelding, niet alleen kabel aangesloten. Laat leeg wanneer de betrouwbare tekststatus deze informatie levert.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -1492,7 +1492,7 @@
       "short": "Oorspronkelijke instelling van de zonnelaadmodus.",
       "paragraphs": [
         "Oorspronkelijke instelling van de zonnelaadmodus. Die kan Full Solar blijven tonen tijdens een manuele override. Koppel daarom ook de effectieve laadsessie. Deze bron wordt alleen uitgelezen; geen laadmoduswijzigingen vanuit SolarPilot.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -1501,7 +1501,7 @@
       "short": "Vanaf dit gemeten vermogen telt de Wallbox als daadwerkelijk ladend.",
       "paragraphs": [
         "Vanaf dit gemeten vermogen telt de Wallbox als daadwerkelijk ladend. Standaard 50 W scheidt kleine standbywaarden van laden. Dit is niet het Full Solar-startminimum van ongeveer 1380 W bij één fase.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -1510,7 +1510,7 @@
       "short": "Optionele expliciete terugmelding dat er een auto op deze laadpaal aangesloten is.",
       "paragraphs": [
         "Optionele expliciete terugmelding dat er een auto op deze laadpaal aangesloten is. Aanwezigheid geeft niet automatisch laadvraag; een volle of gepauzeerde auto hoeft geen vermogen te reserveren.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -1519,7 +1519,7 @@
       "short": "Werkelijk benodigd minimum om autonoom Full Solar te beginnen.",
       "paragraphs": [
         "Werkelijk benodigd minimum om autonoom Full Solar te beginnen. Bij bevestigd éénfasig laden is 1380 W een uitgangspunt. Alleen gebruikt voor voorrang; geen laadstroomopdracht. Automatisch profiel-afleiden kan deze handwaarde vervangen.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -1528,7 +1528,7 @@
       "short": "Extra ruimte boven het Full Solar-minimum voordat lagere verbruikers voor de auto wijken.",
       "paragraphs": [
         "Extra ruimte boven het Full Solar-minimum voordat lagere verbruikers voor de auto wijken. Bij 1380 W en 150 W marge is het voorrangsdoel circa 1530 W. Hoger voorkomt starten op de grens, maar wacht langer.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -1537,7 +1537,7 @@
       "short": "Leest de maximale laadstroom van dezelfde Wallbox via het HA-entiteitsregister.",
       "paragraphs": [
         "Leest de maximale laadstroom van dezelfde Wallbox via het HA-entiteitsregister. Geen extra cloudverzoeken. Ontbrekende, verouderde of onduidelijke bronnen gebruiken een zichtbaar gemarkeerde handmatige terugval. Er wordt niets naar de Wallbox geschreven.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -1546,7 +1546,7 @@
       "short": "Optionele expliciete bron voor maximale laadstroom in ampère.",
       "paragraphs": [
         "Optionele expliciete bron voor maximale laadstroom in ampère. Bij voorkeur de number-instelling of sensorspiegel Max charging current. ICP is de hoofdaansluiting en is hiervoor fout. Leeg laat veilige herkenning op hetzelfde Wallbox-apparaat toe.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -1555,7 +1555,7 @@
       "short": "Alleen een bron die expliciet 1 of 3 laadfasen rapporteert.",
       "paragraphs": [
         "Alleen een bron die expliciet 1 of 3 laadfasen rapporteert. SolarPilot raadt het aantal fasen niet uit watt, ampère of een driefasige huisaansluiting. Zonder geldige bron geldt jouw bevestigde faseprofiel.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -1564,7 +1564,7 @@
       "short": "Werkelijk gebruikte laadfasen: 1 of 3.",
       "paragraphs": [
         "Werkelijk gebruikte laadfasen: 1 of 3. Nu éénfase; verander pas na bevestiging van de echte laadconfiguratie. Deze keuze stuurt geen fysieke faseschakelaar.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -1573,7 +1573,7 @@
       "short": "Handmatig bevestigde terugval voor de maximale laadstroom wanneer live uitlezen niet bruikbaar is.",
       "paragraphs": [
         "Handmatig bevestigde terugval voor de maximale laadstroom wanneer live uitlezen niet bruikbaar is. Uitgangspunt 25 A voor het huidige profiel. Het dashboard vermeldt dan dat dit niet live bevestigd is. Geen elektrische beveiliging.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -1582,7 +1582,7 @@
       "short": "Spanning per fase voor de vermogensschatting, standaard 230 V.",
       "paragraphs": [
         "Spanning per fase voor de vermogensschatting, standaard 230 V. 1 × 230 × 25 geeft 5750 W; 3 × 230 × 25 geeft 17250 W. Dit is een schatting, geen gemeten laadvermogen of installatiegoedkeuring.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -1591,7 +1591,7 @@
       "short": "Minimale laadstroom per gebruikte fase voor de berekende Full Solar-grens.",
       "paragraphs": [
         "Minimale laadstroom per gebruikte fase voor de berekende Full Solar-grens. Standaard 6 A; met 230 V is dat 1380 W bij 1 fase of 4140 W bij 3 fasen. Gebruik de werkelijke laadconfiguratie.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -1600,7 +1600,7 @@
       "short": "AAN berekent het zonnelaadminimum uit fasen × rekenspanning × minimumstroom.",
       "paragraphs": [
         "AAN berekent het zonnelaadminimum uit fasen × rekenspanning × minimumstroom. UIT behoudt het afzonderlijk ingestelde minimumvermogen. Je kunt later naar 3 fasen zonder herschrijven van de regeling; pas het profiel bewust aan.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -1609,7 +1609,7 @@
       "short": "Bron die de werkelijk actieve sessie onderscheidt: zonne-auto, manueel of gestopt.",
       "paragraphs": [
         "Bron die de werkelijk actieve sessie onderscheidt: zonne-auto, manueel of gestopt. De ingestelde Full Solar-optie kan bij manueel starten aan blijven; daarom is alleen die instelling standaard onvoldoende om EV-vermogen over te nemen. Gebruik een actueel, gecontroleerd statusveld. Een dashboardhelper die alleen netimport naar manueel vertaalt is onvoldoende. Bij een ontbrekende, te oude of strijdige bron geen EV-overname; werkelijk restoverschot blijft bruikbaar. Een al gekoppelde maar oude of ongeldige bron blijft onbekend; de leervraag benoemt deze oorzaak zonder de actualiteitsgrens te verlengen.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -1618,7 +1618,7 @@
       "short": "Deze terugvalkeuze staat standaard UIT.",
       "paragraphs": [
         "Deze terugvalkeuze staat standaard UIT. Alleen AAN na bewust bevestigen dat de configuratie de effectieve sessie betrouwbaar weergeeft of dat er geen manuele/plannings-overrides zijn. Anders kan netstroom ten onrechte als vrijmaakbare zon worden gezien. Bij een expliciet gekoppelde sessiebron blijft een onbekende of manuele toestand blokkerend, ook wanneer deze terugvaloptie aanstaat.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2707,7 +2707,7 @@
       "short": "Maximale ouderdom van een ontvangen bronrapport.",
       "paragraphs": [
         "Maximale ouderdom van een ontvangen bronrapport. Te oude gegevens worden niet als actuele waarheid gebruikt. Dit gaat om het laatste rapport, niet om de laatste keer dat de waarde veranderde. Verleng niet om een kapotte bron te verbergen.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2716,7 +2716,7 @@
       "short": "Hoe lang werkelijk restoverschot stabiel moet zijn voordat extra lasten naast de autonome laadpaal mogen starten.",
       "paragraphs": [
         "Hoe lang werkelijk restoverschot stabiel moet zijn voordat extra lasten naast de autonome laadpaal mogen starten. Langer is rustiger; korter kan reageren vóór vertraagde laadrapporten binnenkomen.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2725,7 +2725,7 @@
       "short": "Rust na vermoede wisselwerking tussen laadpaal en eigen lasten.",
       "paragraphs": [
         "Rust na vermoede wisselwerking tussen laadpaal en eigen lasten. Vermindert herhaald vermogen afpakken en teruggeven. De autonome Wallbox-regeling blijft ondertussen eigenaar van het laden.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2734,7 +2734,7 @@
       "short": "Korte buffer bij onbetrouwbare of ontbrekende informatie vóór de bijbehorende foutreactie.",
       "paragraphs": [
         "Korte buffer bij onbetrouwbare of ontbrekende informatie vóór de bijbehorende foutreactie. Voorkomt reageren op één gemist rapport. Maak deze niet groot om structurele meetproblemen te negeren.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2743,7 +2743,7 @@
       "short": "Kleinste relevante verandering in laadvermogen voor de wisselwerkingsbewaking.",
       "paragraphs": [
         "Kleinste relevante verandering in laadvermogen voor de wisselwerkingsbewaking. Kleine meetruis wordt niet als een echte reactie behandeld. Te groot kan een werkelijke daling missen.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2752,7 +2752,7 @@
       "short": "Puntkomma-gescheiden exacte laadstatussen die vraag betekenen.",
       "paragraphs": [
         "Puntkomma-gescheiden exacte laadstatussen die vraag betekenen. Gebruik geen komma als scheiding: sommige Wallbox-statusnamen bevatten zelf een komma. Onbekende teksten gelden niet zomaar als toestemming.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2761,7 +2761,7 @@
       "short": "Puntkomma-gescheiden statusnamen zonder actuele laadvraag, bijvoorbeeld Ready of Paused.",
       "paragraphs": [
         "Puntkomma-gescheiden statusnamen zonder actuele laadvraag, bijvoorbeeld Ready of Paused. Verwar wachten op groene energie niet met klaar/geen vraag; dat zou de voorrang verkeerd om maken.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2770,7 +2770,7 @@
       "short": "Puntkomma-gescheiden herkenningswaarden voor uitsluitend zonneladen, bijvoorbeeld full_solar.",
       "paragraphs": [
         "Puntkomma-gescheiden herkenningswaarden voor uitsluitend zonneladen, bijvoorbeeld full_solar. Dit leest de modus, het verandert de modus niet. Een onbekende modus geeft geen onbeperkt overneembaar vermogen.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2779,7 +2779,7 @@
       "short": "Uiterste termijn om een gecontroleerde vermogensovername van de Wallbox te bevestigen.",
       "paragraphs": [
         "Uiterste termijn om een gecontroleerde vermogensovername van de Wallbox te bevestigen. Een cloudrapport kan later komen dan de fysieke reactie. Verleng dit niet om een niet-reagerende laadpaal toch goed te keuren.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2788,7 +2788,7 @@
       "short": "Vereiste duur van bevestigde stabiele netmetingen tijdens een overname.",
       "paragraphs": [
         "Vereiste duur van bevestigde stabiele netmetingen tijdens een overname. Pas daarna wordt een volgende verhoging toegelaten. Een serviceaanroep alleen is geen bewijs.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2797,7 +2797,7 @@
       "short": "Kleine tolerantie op netafname bij de bevestiging van een overdracht.",
       "paragraphs": [
         "Kleine tolerantie op netafname bij de bevestiging van een overdracht. Geen doel om stroom van het net af te nemen. Een grotere waarde kan een mislukte overdracht verhullen.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2806,7 +2806,7 @@
       "short": "Maximale leeftijd van het Wallbox-rapport voordat een nieuwe gecontroleerde overname mag beginnen.",
       "paragraphs": [
         "Maximale leeftijd van het Wallbox-rapport voordat een nieuwe gecontroleerde overname mag beginnen. Oude laadgegevens mogen niet als actueel vrijmaakbaar vermogen worden gebruikt.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2815,7 +2815,7 @@
       "short": "Maximale vermogenstap bij het overnemen van laadvermogen.",
       "paragraphs": [
         "Maximale vermogenstap bij het overnemen van laadvermogen. Alleen de eigen last wordt gestuurd. Werkelijke importgrens, exclusieve meting en terugmelding blijven ook bij een kleine stap verplicht.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2824,7 +2824,7 @@
       "short": "Hoe lang genoeg vermogen vrijgemaakt kan worden voor het EV-minimum voordat lagere eigen lasten wijken.",
       "paragraphs": [
         "Hoe lang genoeg vermogen vrijgemaakt kan worden voor het EV-minimum voordat lagere eigen lasten wijken. Standaard 120 s. Een lopende compressor krijgt eerst zijn minimumlooptijd.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2833,7 +2833,7 @@
       "short": "Wachttijd voordat lagere lasten opnieuw stabiel restoverschot mogen gebruiken.",
       "paragraphs": [
         "Wachttijd voordat lagere lasten opnieuw stabiel restoverschot mogen gebruiken. Houdt de regelingen uit elkaars vaarwater; is niet dezelfde tijd als de eigen compressor-rusttijd.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2842,7 +2842,7 @@
       "short": "Vermogensband tussen voorrang vasthouden en vrijgeven.",
       "paragraphs": [
         "Vermogensband tussen voorrang vasthouden en vrijgeven. Vermindert heen-en-weer schakelen rond de laadgrens. Te groot reserveert onnodig lang vermogen.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2851,7 +2851,7 @@
       "short": "Maximale kans voor de Wallbox om na daadwerkelijk vrijgeven te starten.",
       "paragraphs": [
         "Maximale kans voor de Wallbox om na daadwerkelijk vrijgeven te starten. Standaard 600 s. Wanneer de auto toch niet laadt, mogen lagere lasten later opnieuw meedoen met hun normale rusttijden.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2860,7 +2860,7 @@
       "short": "Rust vóór een nieuwe voorrangspoging na een niet-bevestigde EV-start.",
       "paragraphs": [
         "Rust vóór een nieuwe voorrangspoging na een niet-bevestigde EV-start. Standaard 1800 s. Voorkomt dat de ontvochtiger telkens stopt voor een auto die geen lading accepteert.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2869,7 +2869,7 @@
       "short": "Volledige waarden, gescheiden door puntkomma.",
       "paragraphs": [
         "Volledige waarden, gescheiden door puntkomma. Alleen exact matchen, hoofdletters worden genegeerd. Daarnaast moet de oorspronkelijke zonnelaadinstelling Full Solar melden. Geen substring-match en geen onbekende modecode raden.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2878,7 +2878,7 @@
       "short": "Volledige waarden die werkelijk manueel of niet-zongeregeld laden betekenen.",
       "paragraphs": [
         "Volledige waarden die werkelijk manueel of niet-zongeregeld laden betekenen. Deze herkenning wint altijd van een Full Solar-instelling; het laadvermogen is niet vrijmaakbaar. Geen maximumstroom, pauze of hervatopdracht wordt naar de laadpaal gestuurd.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
@@ -2887,7 +2887,7 @@
       "short": "Volledige waarden die een gestopte sessie aanduiden.",
       "paragraphs": [
         "Volledige waarden die een gestopte sessie aanduiden. SolarPilot rekent alleen met echte injectie. Een nulvermogen alleen bewijst niet dat de sessie gestopt is; de lader kan op zon wachten.",
-        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
+        "Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },

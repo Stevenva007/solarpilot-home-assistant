@@ -113,7 +113,8 @@ def test_battery_discharge_is_not_reclassified_as_solar():
 def test_offline_monitor_does_not_make_claim_about_power():
     g=guard(); stable(g)
     v=g.update(35, Reading(), 0, 150)
-    assert v.block_increase and g.reclaimable_w == 0
+    assert v.state == "unavailable" and not v.block_increase and g.reclaimable_w == 0
+    assert v.max_increase_w is None and not v.release_flexible
 
 
 def test_missed_ticks_require_a_new_observation_window():

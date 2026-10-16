@@ -219,7 +219,13 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                          'Hiermee worden geleerde cycli bij het juiste programma bewaard.',
  'wallbox:enabled': 'Zet de alleen-lezen Wallbox-monitor aan. Deze leest laadvermogen, vraag en modus uit '
                     'bestaande HA-entiteiten; SolarPilot verstuurt hier geen laadstroom-, start-, stop- of '
-                    'fasecommando’s naar de Wallbox.',
+                    'fasecommando’s naar de Wallbox. Ontbrekende of oude Wallbox-gegevens blokkeren geen '
+                    'andere toestellen wanneer hun actuele netmeting en gewone voorwaarden geldig zijn.',
+ 'wallbox:power_entity': 'Werkelijk Wallbox-laadvermogen in W of kW voor laadweergave en bewezen '
+                        'vermogensovername. Een ontbrekende of oude waarde blijft onbekend. Gewone '
+                        'toestellen en SG-zonneboost gebruiken dan uitsluitend werkelijk gemeten vrij '
+                        'netoverschot. De auto wordt niet als 0 W verondersteld en er ontstaat geen '
+                        'EV-vermogenskrediet. Actuele net-, batterij-, fase- en vermogensgrenzen blijven gelden.',
  'status_entity': 'Tekststatus van de laadpaal. Exacte herkenningswoorden staan bij Geavanceerd. Een '
                   'aangesloten auto kan gepauzeerd, vol of niet startklaar zijn; een kabel alleen is geen '
                   'laadvraag.',
@@ -1104,7 +1110,8 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
  'dashboard:analysis_export': 'Maakt uitsluitend voor een ingelogde Home Assistant-beheerder één lokaal gecomprimeerd JSON.GZ-onderzoeksbestand met actuele bronnen, instellingen, modellen, beslisredenen en werkelijk beschikbare historie. Het gekozen rollende venster is 1, 24 of 168 uur. Warmtepompgeschiedenis bewaart apart maximaal dertig lokale kalenderdagen en exporteert alle overlappende datums. Geregistreerde dagtotalen blijven volledige kalenderdagtotalen; gedeeltelijke grensdatums en meetdekking worden afzonderlijk vermeld. Geen energie naar rato, backfill, automatische upload of toestelopdracht. Pseudonimisering en privacyfilters vervangen niet het controleren vóór delen; nooit publiek op GitHub zetten.'}
 
 GROUP_NOTES = {'wallbox': 'Alleen bestaande Wallbox-terugmelding wordt gelezen; SolarPilot bedient de laadpaal niet. '
-            'SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.',
+            'Ontbrekende laadgegevens blokkeren de gewone zonneoverschotregeling niet; werkelijk P1-overschot '
+            'blijft leidend. SG-zonneboost gebruikt uitsluitend restzon en krijgt nooit EV-vermogenskrediet.',
  'phase': 'De meter kan import en injectie over fasen verrekenen, maar iedere fase behoudt haar eigen fysieke '
           'stroomgrens. Software is geen elektrische beveiliging.',
  'battery': 'Een simulatie is geen echte batterijbesturing. Echte regeling vereist passende bronnen, '

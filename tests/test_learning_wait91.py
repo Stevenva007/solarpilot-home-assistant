@@ -6,21 +6,32 @@ import time
 import pytest
 
 from test_learning_hub30 import metered
+from custom_components.solar_pilot import learning_hub
 from custom_components.solar_pilot.learning_hub import measured_baseline
 
 
-def _clock(monkeypatch, hass):
-    wall = [round(time.time(), 6)]
+def _metered_clock(monkeypatch):
+    # Freeze both clocks before creating the runtime. A real host uptime can
+    # round (mono + 120) - mono just below 120 when it crosses a binary exponent
+    # boundary (for example mono=1000.1). This fixture tests the exact boundary,
+    # independent of host uptime, calendar time and construction-time reports.
+    wall = [datetime(2026, 10, 16, 12, 0, tzinfo=timezone.utc).timestamp()]
+    monotonic = [10000.0]
     monkeypatch.setattr(time, "time", lambda: wall[0])
+    monkeypatch.setattr(time, "monotonic", lambda: monotonic[0])
+    monkeypatch.setattr(learning_hub, "local_time", lambda _runtime: datetime.fromtimestamp(wall[0], timezone.utc))
+    runtime, hass = metered()
 
     def advance(seconds):
         wall[0] += seconds
+        monotonic[0] += seconds
         # New original meter reports, so elapsed settling is not confused with
         # stale metering at the 120-second boundary.
         for obj in hass.states.data.values():
             obj.last_reported = obj.last_updated = datetime.fromtimestamp(wall[0], timezone.utc)
 
-    return wall, advance
+    advance(0)
+    return runtime, hass, wall, advance
 
 
 def _observe(runtime, wall, mono):
@@ -28,8 +39,7 @@ def _observe(runtime, wall, mono):
 
 
 def test_settling_has_exact_start_end_and_no_source_attention(monkeypatch):
-    r, h = metered()
-    wall, _ = _clock(monkeypatch, h)
+    r, h, wall, _ = _metered_clock(monkeypatch)
     mono = time.monotonic()
     r.states["a"].last_on = mono - 20
     before = deepcopy(r.settings)
@@ -51,8 +61,7 @@ def test_settling_has_exact_start_end_and_no_source_attention(monkeypatch):
 
 
 def test_wait_boundary_rechecks_source_without_forcing_quarter_hour_attempt(monkeypatch):
-    r, h = metered()
-    wall, advance = _clock(monkeypatch, h)
+    r, h, wall, advance = _metered_clock(monkeypatch)
     mono = time.monotonic()
     r.states["a"].last_on = mono
     _observe(r, wall[0], mono)
@@ -73,8 +82,7 @@ def test_wait_boundary_rechecks_source_without_forcing_quarter_hour_attempt(monk
 
 
 def test_elapsed_timer_never_grants_learning_without_new_source_check(monkeypatch):
-    r, h = metered()
-    wall, advance = _clock(monkeypatch, h)
+    r, h, wall, advance = _metered_clock(monkeypatch)
     mono = time.monotonic()
     r.states["a"].last_on = mono - 119
     _observe(r, wall[0], mono)
@@ -89,8 +97,7 @@ def test_elapsed_timer_never_grants_learning_without_new_source_check(monkeypatc
 
 
 def test_command_feedback_does_not_promise_a_completion_deadline(monkeypatch):
-    r, h = metered()
-    wall, _ = _clock(monkeypatch, h)
+    r, h, wall, _ = _metered_clock(monkeypatch)
     mono = time.monotonic()
     r.pending = {"issued": mono - 15, "issued_wall": wall[0] - 15}
     _observe(r, wall[0], mono)
@@ -102,8 +109,7 @@ def test_command_feedback_does_not_promise_a_completion_deadline(monkeypatch):
 
 
 def test_missing_meter_during_settling_remains_an_unknown_source(monkeypatch):
-    r, h = metered()
-    wall, _ = _clock(monkeypatch, h)
+    r, h, wall, _ = _metered_clock(monkeypatch)
     mono = time.monotonic()
     r.states["a"].last_on = mono - 20
     h.states.set("sensor.load", "unavailable", {"unit_of_measurement": "W"})
@@ -116,8 +122,7 @@ def test_missing_meter_during_settling_remains_an_unknown_source(monkeypatch):
 
 
 def test_unknown_heatpump_after_wait_is_separate_and_never_zero_filled(monkeypatch):
-    r, h = metered()
-    wall, advance = _clock(monkeypatch, h)
+    r, h, wall, advance = _metered_clock(monkeypatch)
     mono = time.monotonic()
     r.states["a"].last_on = mono - 119
     r.panasonic.overview = lambda: {"configured": True, "context": "heatpump_unknown"}
@@ -142,14 +147,14 @@ def test_unknown_heatpump_after_wait_is_separate_and_never_zero_filled(monkeypat
 
 
 def test_most_recent_load_transition_controls_stabilization_end(monkeypatch):
-    r, h = metered()
-    wall, _ = _clock(monkeypatch, h)
+    r, h, wall, advance = _metered_clock(monkeypatch)
     mono = time.monotonic()
     r.states["a"].last_on = mono - 100
     r.configs["b"] = {**r.configs["a"], "id": "b", "power_entity": "sensor.second"}
     r.states["b"] = deepcopy(r.states["a"])
     r.states["b"].last_on = mono - 10
     h.states.set("sensor.second", 50, {"unit_of_measurement": "W"})
+    advance(0)
     result = measured_baseline(r, datetime.fromtimestamp(wall[0], timezone.utc), mono)
     assert result["code"] == "settling"
     assert result["settling"]["remaining_s"] == 110

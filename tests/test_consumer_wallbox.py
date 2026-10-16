@@ -84,7 +84,8 @@ def test_confirmed_unplugged_never_reserves():
 
 def test_unknown_data_not_treated_as_unplugged_or_as_a_stop_command():
     x=tick(guard(),0,5000,{'dry':350},r=replace(read(),valid=False,connected=None))
-    assert x.block_starts and not x.yield_loads
+    assert x.state == 'actual_surplus' and not x.block_starts and not x.yield_loads
+    assert x.potential_w is None
 
 
 def test_non_solar_wait_does_not_reserve():

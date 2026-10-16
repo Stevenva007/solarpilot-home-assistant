@@ -1,9 +1,9 @@
 <!-- solarpilot-handoff-schema: 1 -->
-<!-- solarpilot-handoff-version: 1.0.0-beta.92 -->
+<!-- solarpilot-handoff-version: 1.0.0-beta.93 -->
 
 # OVERDRACHT — SolarPilot
 
-Laatst bijgewerkt: **15 oktober 2026**. Actuele bron: **v1.0.0-beta.92**. Beta.92 verwijdert terugkerende algemene analysemeldingen. Gewone bevindingen blijven bij Meetkwaliteit/Export; echte regelingsfouten en bewezen Aquarea-contractbreuk behouden hun eigen gerichte meldingen. Bestaande oude analysemeldingen worden gericht opgeruimd, met foutgeïsoleerde herpoging. Alle beta.91-bron-, herstel-, PV-, leer- en SG-verbeteringen blijven behouden. Actueel bewijs: `docs/TESTRESULTATEN_BETA92.md`; installatie/rollback: `docs/BETA92_INSTELLEN.md`.
+Laatst bijgewerkt: **16 oktober 2026**. Actuele bron: **v1.0.0-beta.93**. Beta.93 herstelt kunstmatige onbekende taaksegmenten bij Aquarea-metadatahercontrole en een onterechte algemene Wallbox-telemetrieafhankelijkheid. Gewone verbruikers en SG gebruiken echte P1-restinjectie; onbekende EV-data geeft geen blokkering, fictieve nul, gedwongen gewone stop of EV-krediet. Alle echte bron-/net-/fase-/kwartier-/apparaatgrenzen en bestaande historie blijven behouden. Bewijs: `docs/TESTRESULTATEN_BETA93.md`; installatie/rollback: `docs/BETA93_INSTELLEN.md`.
 
 ## 1. Projectdoel in gewone taal
 
@@ -11,11 +11,15 @@ SolarPilot verdeelt beschikbare zonnestroom tussen flexibele verbruikers, een be
 
 ## 2. Actuele basis
 
-Bouwbasis: gepubliceerde beta.91-commit `394e021eeaf731834bbfe178e5a7fc424f0803ee`. Beta.92 verandert uitsluitend de algemene analysemeldingsroute en de bijbehorende uitleg. Actuele validatie en publicatiebewijs staan in `docs/TESTRESULTATEN_BETA92.md`; onderstaande beta.91-resultaten zijn historische herkomst.
+Bouwbasis: gepubliceerde beta.92-commit `6eb4c49c743bcc5ca0e5aff2f3f7d15d0de55386`. Beta.93 corrigeert metadatahercontrole voor taakpresentatie/geschiedenis en gewone/SG-vrijgave bij ontbrekende Wallbox-telemetrie. Actuele validatie/publicatie: `docs/TESTRESULTATEN_BETA93.md`; eerdere releaseresultaten zijn historische herkomst.
 
 De canonieke gebruikersuitleg blijft `custom_components/solar_pilot/current_guide.py`; `docs/ACTUELE_WERKING.md`, de ingebedde mirror en optiehulp worden gegenereerd. Dit dossier beschrijft actuele waarheid. Immutable/geneste HA-opties, SG-profiel/reassessment, read-only bronnen/interface, analyse-/antwoordrapport en lokaal bron-/SG-onderzoek blijven behouden. Het vertrouwde implementatieregister koppelt uitsluitend generieke softwarevoorstellen aan exacte inhoud en geïnstalleerde release. Een import kan die status niet zelf creëren. Warmtepompgeschiedenis gebruikt aparte versie-1-opslag en is geen migratie of vervanging van bestaande verbruikerhistorie, analysedata of modellen.
 
 ## 3. Absolute ontwerpregels
+
+- Ontbrekende/oude/ongeldige Wallbox-telemetrie is geen veto voor gewone P1-restinjectie: geen globale EV-startblokkering, 0 W-cap of afgedwongen lastvrijgave alleen om dat gebrek. Onbekend blijft onbekend; EV-reclaim/protected credit blijft nul en wordt niet uit oude watts hersteld. Bij nieuwe actuele bevestigde laadvraag geldt de bewaarde voorrang opnieuw. Harde P1/batterij/fase/kwartierguards, pending/handover/journal en aparte toestelfouten blijven beschermd. SG krijgt nooit EV-krediet en herleest actuele Wallboxcontext vóór de finale capcontrole; geen oude 0 W-cap hergebruiken.
+
+- Een verstreken metadatahercontroletijd mag niet op zichzelf actuele bekende taaksemantiek wissen. Alleen dezelfde geladen Aquarea-module plus dezelfde geladen semantische identiteit mogen geverifieerde metadata kort tijdens een lopende hercontrole behouden. Identiteitswisseling of afgeronde mislukte/onbekende/incompatibele inspectie trekt bewijs in. Dit vernieuwt geen native poll, HA-rapport, metertijd, task-valid_until, modelrecht of actuatorrecht. De achtergrondperiode is begrensd; een vastgelopen inspectie geeft geen onbeperkt oud bewijs.
 
 - Algemene leer-/analysebevindingen mogen nooit een HA-melding aanmaken, ook niet bij oude `notifications=True`, nieuwe revisies of een dagovergang. `LearningHub.tick` ververst gewone bevindingen en ruimt uitsluitend `solar_pilot_learning_<entry>` op. De bestaande fout- en compatibiliteitsreporters behouden urgentie, eigen identiteit en herstel. Bewaar het oude opslagschema/beleid; meldings-/opslagtransport mag geen nieuwe regelingsfout maken.
 
@@ -61,6 +65,8 @@ De canonieke gebruikersuitleg blijft `custom_components/solar_pilot/current_guid
 - Softwaretests/publicatie zijn geen live hardwareacceptatie. Fysiek proefdraaien gebeurt uitsluitend na expliciete toestemming, zonder metingen in geopende elektrische apparatuur.
 
 ## 4. Actuele werking
+
+**Beta.93-taakcontinuïteit.** Een statische bronmetadatahercontrole veroorzaakt geen periodiek onbekend segment wanneer dezelfde geladen module/semantiek, echte verse poll, bronbinding en passende metingen intact blijven. De bestaande harde actualiteitsgrenzen en alle regelings-/leerclassificaties veranderen niet. Eerdere onbekende geschiedenis wordt niet herschreven.
 
 **Bronvaste beta.91-uitbreidingen.** Beta.91 verwerkt bronvaste Aquarea-, PV-, leer-, SG- en herstelverbeteringen. De geladen Aquarea-/SDK-semantiek bepaalt presentatiecompatibiliteit, zonder versie-allowlist, UTC-cloudenergieperioden worden expliciet gelabeld, tijdelijke leerstabilisatie krijgt een eigen tijdvenster en nieuwe PV-vergelijkingen worden vooraf per termijn vastgelegd. SG-sessies bewaren oorspronkelijke regels en eindreden; fysieke waarnemingen staan in exports apart van planning/eigendom. Een geldig lager opgeslagen number-doel blijft na herstart behouden. De beta.90-herstelroute, bestaande instellingen, modellen en historie blijven behouden. SG-doel is een brongebonden berekening, geen contact-/native setpointbewijs; een onbekende contactstand blokkeert de vergelijking niet. Een ontbrekende bevestiging wordt niet op grond van een analyse-import of algemeen profiel voor alle gebruikers ingevuld. De conservatieve leer-/SG-veiligheidsclassificatie wordt door de presentatiecontractuitbreiding niet verruimd. Zie nieuwe regressies met suffix91, cloud_energy_period.py en de vijf afzonderlijke releasegates.
 
@@ -261,7 +267,7 @@ Geheimen komen uitsluitend uit bestaande HA-koppelingen/lokale configuratie; gee
 
 ## 9. Testprocedure + actuele teststatus
 
-Actuele release: beta.92. Zie `docs/TESTRESULTATEN_BETA92.md` voor brongebonden tests en publicatie; de volgende beta.91-verslagen zijn historisch. De volledige lokale suite op de beta.92-code behaalde 6915 geslaagde tests; alle vijf PR- en eerste main-gates zijn groen. Zowel installatie- als testverslag hebben een bytegelijke componentmirror voor de afzonderlijke vier-assets-pakketcontrole. De verpakkingsafronding verandert geen regellogica.
+Actuele release: beta.93. Zie `docs/TESTRESULTATEN_BETA93.md` voor brongebonden tests en publicatie. De volledige lokale beta.93-suite behaalde 6986 geslaagde tests. De bestaande exacte 120-seconden-leertest en 1800-seconden-hersteltest gebruiken nu exact representabele monotonic-klokken om afronding door echte hostuptime uit te sluiten, zonder grensasserties of productieguards te wijzigen. De leertest legt ook haar kalender vanaf runtimeconstructie vast. De gerichte leer-/brongroep behaalde daarna 110 geslaagde tests; de volledige CI-suite en vijf releasegates draaien opnieuw op de definitieve bron. Beide huidige releasedocumenten hebben een bytegelijke componentmirror. Onderstaande beta.92/beta.91-resultaten zijn historisch. De volledige lokale suite op de beta.92-code behaalde 6915 geslaagde tests; alle vijf PR- en eerste main-gates waren groen. Zowel installatie- als testverslag hebben een bytegelijke componentmirror voor de afzonderlijke vier-assets-pakketcontrole. De verpakkingsafronding verandert geen regellogica.
 
 De eerste exacte beta.91-PR-run 38759077795 gaf 6.739 geslaagde tests en één echte timestampregressie. Die afrondingsfout is gericht hersteld met zeven deterministische gevallen en 145 gerichte tests. HACS, Hassfest en echte Core waren groen; de browsergate vroeg aanpassing aan de bewuste nieuwe voorwaardelijke SG-doelweergave, die daarna lokaal is geslaagd. Deze eerste run is geen bewijs voor de latere capability-/melding-/upstreamuitbreiding. De definitieve PR-head moet alle vijf gates opnieuw doorstaan. De lokale executor viel tijdens de afronding uit; verdere bronwijzigingen zijn via de GitHub-API opgebouwd en worden vóór merge door dezelfde CI gecontroleerd.
 
@@ -309,7 +315,7 @@ De eerder waargenomen `via_device`-deprecatiewaarschuwing met grens Home Assista
 
 ## 12. Installatie/upgrade en rollback
 
-Voor beta.92: volg `docs/BETA92_INSTELLEN.md`, behoud entry/opslag/userfiles, herstart HA volledig. De eerste geslaagde leercontrole ruimt de oude analysemelding op; urgente meldingen en alle regelingsrechten blijven behouden. Rollback naar beta.91 kan de oude analysemelding opnieuw toelaten. Onderstaande uitgebreide beta.91-aanwijzingen blijven achtergrond.
+Voor beta.93: volg `docs/BETA93_INSTELLEN.md`, behoud entry/opslag/userfiles, herstart HA volledig. De eerste geslaagde leercontrole ruimt de oude analysemelding op; urgente meldingen en alle regelingsrechten blijven behouden. Rollback naar beta.91 kan de oude analysemelding opnieuw toelaten. Onderstaande uitgebreide beta.91-aanwijzingen blijven achtergrond.
 
 Volledige privé HA-back-up vóór update, inclusief instellingen, eigen opslag, PV-factoren, modellen, tickets, bestaande geschiedenis en userfiles. Geef een eigen SG-aanvraag vrij vóór codevervanging; onderbreek geen beschermde cyclus. Update via HACS naar exact beta.91 na geslaagde releasegates en publicatie, volledige HA-herstart en volledige browser/app-herlading. Controleer backend-/kaartversie apart. Lokaal uitsluitend `custom_components/solar_pilot` vervangen met behoud van userfiles en opslag; entry niet verwijderen/hermaken. Bestaande geldige SG-/profiel-/split-/koelbevestigingen blijven staan; nieuwe wijzigingen houden hun bestaande voorwaarden. Geen nieuwe verplichte entiteiten, handmatig geïnstalleerde dependency, reset of leervragen.
 

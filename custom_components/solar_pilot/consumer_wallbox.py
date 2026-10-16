@@ -78,6 +78,11 @@ class ConsumerWallboxPriority:
         if self.last_now is not None and (now < self.last_now or now - self.last_now > sample_gap_s):
             self.ready_since = self.low_since = None
         self.last_now = now
+        if any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value)
+               for value in (grid_w, filtered_grid_w)):
+            self.ready_since = self.low_since = None
+            self.result = PriorityResult("unknown", "Netmeting onzeker: wacht op actuele zonneoverschotmeting", True)
+            return self.result
         if confirmed_no_active_request(reading, c):
             self._reset()
             self.result = PriorityResult(
@@ -88,13 +93,12 @@ class ConsumerWallboxPriority:
             self._reset()
             self.result = PriorityResult("actual_surplus", reading.session_reason or "Alleen echt restoverschot; auto regelt niet bevestigd terug")
             return self.result
-        # A snapshot's lack of EV demand is not the same as a valid unplug signal.
-        # Unknown/offline data blocks new lower-priority starts, without cutting
-        # an already running compressor or inventing an EV demand.
-        if (not reading.valid or grid_w is None or not math.isfinite(grid_w)
-                or filtered_grid_w is None or not math.isfinite(filtered_grid_w)):
-            self.ready_since = self.low_since = None
-            self.result = PriorityResult("unknown", "Wallbox/netmeting onzeker: geen nieuwe lagere start", True)
+        # Unknown/offline EV data proves neither unplugging nor a charging
+        # request. P1 includes the car's actual consumption, so ordinary loads
+        # may still use its measured export without EV credit or forced yield.
+        if not reading.valid:
+            self._reset()
+            self.result = PriorityResult("actual_surplus", "Wallbox-status onzeker: alleen werkelijk netoverschot gebruiken")
             return self.result
         charging = (reading.power_w or 0) >= float(c.get("charging_threshold_w", 50))
         if not charging and reading.connected is False:
@@ -120,8 +124,8 @@ class ConsumerWallboxPriority:
         # EV precedence is not justified solely by cable presence: demand and
         # usable solar mode are required. Actual charging proves usable demand.
         if not charging and reading.demand is not True:
-            self.ready_since = self.low_since = None
-            self.result = PriorityResult("unknown", "Auto mogelijk aangesloten, maar laadvraag niet bevestigd", True)
+            self._reset()
+            self.result = PriorityResult("actual_surplus", "Geen bevestigde Wallbox-laadvraag: alleen werkelijk netoverschot gebruiken")
             return self.result
         if minimum <= 0 and not charging:
             self.result = PriorityResult("unconfigured", "Stel eerst het minimum zonnelaadvermogen van de Wallbox in", True)

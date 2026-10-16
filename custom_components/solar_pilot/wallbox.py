@@ -168,10 +168,13 @@ class WallboxGuard:
                 self.invalid_since = now
             self.history.clear()
             self.phase = None
-            release = now - self.invalid_since >= c["fault_grace_s"]
+            self.watch = None
+            # P1 already includes every load, including an unobserved charger.
+            # Missing EV telemetry grants no transferable watts and proves no
+            # priority demand. Let the ordinary engine use actual net export;
+            # it retains its independent grid/battery/phase/import checks.
             return GuardResult("unavailable", r.issue or "Wallbox-metingen onbetrouwbaar",
-                               priority, priority and release, 0.0 if priority else None,
-                               r.issue or "Wallbox-metingen onbetrouwbaar")
+                               warning=r.issue or "Wallbox-metingen onbetrouwbaar; alleen werkelijk netoverschot gebruiken")
         self.invalid_since = None
         if confirmed_no_active_request(r, c):
             self.history.clear(); self.watch = None; self.phase = None

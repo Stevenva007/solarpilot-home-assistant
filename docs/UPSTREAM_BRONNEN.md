@@ -1,6 +1,6 @@
 # Openbaar upstream-bronregister
 
-Laatst gecontroleerd: **15 oktober 2026**. Dit register beschrijft openbare broncontracten die voor SolarPilot relevant zijn. Een upstream-release is geen bewijs dat die versie lokaal is geïnstalleerd; een open pull request is geen gepubliceerde correctie. Gegevens uit privé-installaties, exports en automatiseringsidentiteiten horen niet in dit register.
+Laatst gecontroleerd: **16 oktober 2026**. Dit register beschrijft openbare broncontracten die voor SolarPilot relevant zijn. Een upstream-release is geen bewijs dat die versie lokaal is geïnstalleerd; een open pull request is geen gepubliceerde correctie. Gegevens uit privé-installaties, exports en automatiseringsidentiteiten horen niet in dit register.
 
 ## Gepinde bronnen
 
@@ -70,3 +70,7 @@ Runtimecompatibiliteit gebruikt een begrensde inspectie van daadwerkelijk gelade
 ## Broncontrole voor beta.92
 
 De online bronreviewgate is op 15 oktober 2026 opnieuw uitgevoerd. Beide actuele defaultbranch-HEADs en laatste gepubliceerde stabiele releasetags/commits komen exact overeen met het bestaande checkpoint: Aquarea 1.5.4 en aioaquarea-ng 1.3.1. Er zijn geen nieuwe relevante verschillen te verwerken. Beta.92 wijzigt uitsluitend algemene analysemeldingen en hun uitleg; geladen semantiek, bronactualiteit en bedieningsgrenzen blijven gelijk. Het bijbehorende reviewtijdstip staat in `upstream_review.json`.
+
+## Broncontrole voor beta.93
+
+Op 16 oktober 2026 zijn beide actuele defaultbranch-HEADs en laatste stabiele releasecommits opnieuw online gecontroleerd. Aquarea 1.5.4 en aioaquarea-ng 1.3.1 zijn ongewijzigd tegenover het beoordeelde checkpoint. Er zijn geen nieuwe upstreamverschillen te verwerken. Beta.93 corrigeert de kortstondige metadata-invalidatie tijdens de periodieke achtergrondinspectie en isoleert ontbrekende Wallbox-telemetrie van werkelijk gemeten P1-restinjectie voor andere lasten. Echte polls, bronactualiteit, geladen semantische identiteit en actuator-/leerrechten blijven gescheiden; onbekende EV-data creëert geen vermogenskrediet.

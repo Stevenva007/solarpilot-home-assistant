@@ -16,8 +16,10 @@ from test_runtime import build
 
 class Clock:
     def __init__(self):
-        self.wall = time.time()
-        self.mono = time.monotonic()
+        self.wall = round(time.time(), 6)
+        # Exact retry/minimum-run boundaries must not depend on host uptime:
+        # fractional starts can make 900 + 899 + 1 seconds subtract as <1800.
+        self.mono = 10000.0
     def advance(self, seconds):
         self.wall += seconds
         self.mono += seconds

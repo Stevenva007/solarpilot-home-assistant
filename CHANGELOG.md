@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta.93 — taakherkenning en vrije zonnestroom
+
+- De vijfminuten-hercontrole van statische Aquarea-bronmetadata wist niet langer tijdelijk de nog passende bronherkenning terwijl de achtergrondinspectie loopt.
+- Alleen dezelfde geladen module en semantiek mogen de korte begrensde overgang gebruiken. Een gewijzigde, mislukte of onbruikbare koppeling trekt het bewijs in.
+- Echte poll-/meteractualiteit, conflicten, oorspronkelijke rapporttijden, model- en stuurvoorwaarden blijven gelijk. Eerdere onbekende historie wordt niet achteraf ingevuld.
+- Ontbrekende of oude Wallbox-laadgegevens blokkeren gewone lasten en SG niet meer. Werkelijke P1-restinjectie blijft leidend zonder fictieve nul, EV-krediet, geforceerde gewone stop of oude SG-cap. Bewezen actuele laadvoorrang en alle harde grenzen blijven gelden.
+- Actuele Aquarea- en SDK-defaultbranches en stabiele releasecommits opnieuw gecontroleerd: geen relevante nieuwe bronwijzigingen. De beta.92-meldingscorrectie blijft behouden.
+
+
 ## 1.0.0-beta.92 — alleen urgente meldingen
 
 - Algemene **Analyse nodig**-meldingen vervallen, ook bij een eerder ingeschakelde voorkeur, nieuwe bevindingrevisies of een verstreken dag. Meetkwaliteit, export en lokaal onderzoek blijven werken.

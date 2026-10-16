@@ -55,7 +55,8 @@ async def test_ev_power_has_its_own_cloud_freshness_threshold():
     assert r.wallbox_guard.reading.valid
     h.states.set("sensor.ev_power", 2, {"unit_of_measurement": "kW"}, age=301)
     await r.tick()
-    assert not r.wallbox_guard.reading.valid and r.wallbox_guard.result.block_increase
+    assert not r.wallbox_guard.reading.valid and not r.wallbox_guard.result.block_increase
+    assert r.wallbox_guard.result.max_increase_w is None
 
 
 @pytest.mark.asyncio
@@ -73,7 +74,8 @@ async def test_unknown_status_does_not_imply_fully_charged():
     h.states.set("sensor.ev_power", 0, {"unit_of_measurement": "W"})
     h.states.set("sensor.ev_status", "Something new")
     await r.tick()
-    assert r.wallbox_guard.reading.demand is None and r.wallbox_guard.result.block_increase
+    assert r.wallbox_guard.reading.demand is None and not r.wallbox_guard.result.block_increase
+    assert r.wallbox_guard.result.state == "unavailable"
 
 
 @pytest.mark.asyncio

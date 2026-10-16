@@ -204,7 +204,7 @@
         "data_description": {
           "enabled": "Zet de alleen-lezen Wallbox-monitor aan.",
           "name": "De herkenbare naam van deze koppeling in SolarPilot.",
-          "power_entity": "Werkelijk actueel vermogen van dit ene apparaat, in W of kW.",
+          "power_entity": "Werkelijk Wallbox-laadvermogen in W of kW voor laadweergave en bewezen vermogensovername.",
           "status_entity": "Tekststatus van de laadpaal.",
           "demand_entity": "Optionele expliciete laadvraagbron.",
           "mode_entity": "Oorspronkelijke instelling van de zonnelaadmodus.",
