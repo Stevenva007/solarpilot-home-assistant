@@ -74,3 +74,7 @@ De online bronreviewgate is op 15 oktober 2026 opnieuw uitgevoerd. Beide actuele
 ## Broncontrole voor beta.93
 
 Op 16 oktober 2026 zijn beide actuele defaultbranch-HEADs en laatste stabiele releasecommits opnieuw online gecontroleerd. Aquarea 1.5.4 en aioaquarea-ng 1.3.1 zijn ongewijzigd tegenover het beoordeelde checkpoint. Er zijn geen nieuwe upstreamverschillen te verwerken. Beta.93 corrigeert de kortstondige metadata-invalidatie tijdens de periodieke achtergrondinspectie en isoleert ontbrekende Wallbox-telemetrie van werkelijk gemeten P1-restinjectie voor andere lasten. Echte polls, bronactualiteit, geladen semantische identiteit en actuator-/leerrechten blijven gescheiden; onbekende EV-data creëert geen vermogenskrediet.
+
+## Broncontrole voor beta.94
+
+Op 16 oktober 2026 zijn beide actuele defaultbranch-HEADs en de laatste stabiele releasecommits opnieuw online gecontroleerd. Aquarea 1.5.4 en aioaquarea-ng 1.3.1 zijn ongewijzigd tegenover het beoordeelde checkpoint. Er zijn geen nieuwe upstreamverschillen te verwerken. Beta.94 bewaart uitsluitend de bevestigde UIT-tijd van gewone verbruikers voor rusttijdherstel na een herstart. Deze tijd geeft geen actuatorrecht of bronactualiteit en verandert geen Aquarea-semantiek, native bediening of SG-bevoegdheid.

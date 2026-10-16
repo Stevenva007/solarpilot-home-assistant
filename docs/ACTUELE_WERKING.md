@@ -1,10 +1,10 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.93
-**Bijgewerkt:** 2026-10-15
-**Regel-hash:** `afb96b44c69aa4ef`
+**Versie:** 1.0.0-beta.94
+**Bijgewerkt:** 2026-10-16
+**Regel-hash:** `282378e4f0a95f14`
 
-Beta.93 herstelt twee oorzaken van onterecht wachten: korte Taak onbekend-onderbrekingen tijdens Aquarea-bronhercontrole en blokkering van andere toestellen door ontbrekende Wallbox-gegevens. Gewone verbruikers en SG-zonneboost gebruiken het werkelijk beschikbare netoverschot zonder een afhankelijkheid van onbekende laadtelemetrie. Echte bronactualiteit, net-/fase-/kwartiergrenzen, minimumtijden en apparaatvoorwaarden blijven gelden. Eerdere historie en de rustige meldingen uit beta.92 blijven behouden.
+Beta.94 voorkomt dat een Home Assistant-herstart de minimale rusttijd van een al uitgeschakeld toestel opnieuw laat beginnen. SolarPilot bewaart de bevestigde UIT-tijd en telt na een passende actuele toestelcontrole alleen de resterende rusttijd, inclusief de tijd tijdens de herstart. Zonder bruikbaar eerder bewijs geldt de volledige beschermende rusttijd. De verbeterde taakherkenning, vrije zonnestroom zonder Wallbox-blokkering en rustige analysemeldingen blijven behouden.
 
 ## 1. Basisprincipe en modi
 

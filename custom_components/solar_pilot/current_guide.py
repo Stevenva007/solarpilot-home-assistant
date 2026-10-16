@@ -3,13 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.93'
-GUIDE_UPDATED = '2026-10-15'
+GUIDE_VERSION = '1.0.0-beta.94'
+GUIDE_UPDATED = '2026-10-16'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.93',
- 'updated': '2026-10-15',
- 'intro': 'Beta.93 herstelt twee oorzaken van onterecht wachten: korte Taak onbekend-onderbrekingen tijdens Aquarea-bronhercontrole en blokkering van andere toestellen door ontbrekende Wallbox-gegevens. Gewone verbruikers en SG-zonneboost gebruiken het werkelijk beschikbare netoverschot zonder een afhankelijkheid van onbekende laadtelemetrie. Echte bronactualiteit, net-/fase-/kwartiergrenzen, minimumtijden en apparaatvoorwaarden blijven gelden. Eerdere historie en de rustige meldingen uit beta.92 blijven behouden.',
+ 'version': '1.0.0-beta.94',
+ 'updated': '2026-10-16',
+ 'intro': 'Beta.94 voorkomt dat een Home Assistant-herstart de minimale rusttijd van een al uitgeschakeld toestel opnieuw laat beginnen. SolarPilot bewaart de bevestigde UIT-tijd en telt na een passende actuele toestelcontrole alleen de resterende rusttijd, inclusief de tijd tijdens de herstart. Zonder bruikbaar eerder bewijs geldt de volledige beschermende rusttijd. De verbeterde taakherkenning, vrije zonnestroom zonder Wallbox-blokkering en rustige analysemeldingen blijven behouden.',
  'sections': [{'title': '1. Basisprincipe en modi',
                'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele '
                               'net- en PV-metingen, echte toestelvoorwaarden en elektrische grenzen gaan '
@@ -30,6 +30,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'SG-ingebruikname en een oude boost krijgen hierdoor geen automatische '
                               'bevestiging.',
                               'Bij een al opgeslagen interne foutpauze blijft automatisch hervatten beschermd. Na een update en volledige Home Assistant-herstart controleer je de concrete melding, kies je Controle afronden en daarna bewust Automatisch regelen wanneer de actuele controles dit toelaten. Herhalen zonder de fout op te lossen, opslag wissen of een native warmtepompopdracht geven is geen herstelroute.',
+                              'De minimale rusttijd na UIT loopt bij een herstart verder vanaf de bewaarde bevestigde UIT-tijd. Bij 30 minuten rust, 10 minuten reeds verstreken en 2 minuten herstart blijven 18 minuten over. Een opnieuw bevestigd UIT-toestel krijgt geen nieuwe volle rusttijd alleen door de herstart. Een echte nieuwe AAN-naar-UIT-overgang begint wel een nieuwe rusttijd. Een gewijzigde bronkoppeling, onzekere opdracht of ontbrekend betrouwbaar bewijs geeft geen verkorting. Oudere versies bewaarden deze tijd niet: bij de eerste upgrade kan daarom nog eenmaal de volle rusttijd nodig zijn. De afzonderlijke wachttijd voor stabiel zonneoverschot wordt opnieuw op actuele metingen beoordeeld.',
                               'Na een herstart leest SolarPilot echte toestelstatussen. Een tijdelijk '
                               'onbereikbaar eerder beheerd toestel wordt afzonderlijk opzijgezet; onbekend '
                               'verbruik wordt niet als nul gerekend. De overige lasten kunnen verder zodra hun '

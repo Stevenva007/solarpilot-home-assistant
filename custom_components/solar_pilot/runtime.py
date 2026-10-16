@@ -21,6 +21,7 @@ from homeassistant.helpers import entity_registry as er
 from .const import DEFAULTS, DEVICE_DEFAULTS, DOMAIN, NAME, VERSION
 from .engine import Action, Device, Plan, Site, State, plan
 from .device_retry import DeviceRetry, DeviceUnavailable, ambiguous_transport
+from .minimum_rest import MinimumRestJournal
 from .wallbox import (WALLBOX_DEFAULTS, Reading, WallboxGuard,
                       confirmed_no_active_request, state_set,
                       protected_entity, conflicting_devices)
@@ -126,6 +127,7 @@ class SolarRuntime:
         self.dishwasher_priority = DishwasherPriority()
         self.dishwasher_app = DishwasherApp(self)
         self.states = {key: State(last_off=time.monotonic(), cycle_armed=cfg.get("kind") != "dishwasher") for key, cfg in self.configs.items()}
+        self.minimum_rest = MinimumRestJournal(self)
         self.consumer_history = ConsumerHistoryRecorder(hass, entry, {**keyed(entry.options.get(ARCHIVED)), **self.configs}, self.settings["interval_s"])
         self.heatpump_history = HeatpumpHistoryRecorder(hass, entry, self.settings["interval_s"])
         self.mode = "observe"
@@ -454,6 +456,7 @@ class SolarRuntime:
             "removal_requested": self.removal_requested,
             "faults": dict(self.faults),
             "device_retry": self.device_retry.snapshot(),
+            "minimum_rest": self.minimum_rest.snapshot(time.monotonic(), time.time()),
             "restart_faults": dict(self._restart_faults),
             "live_options": self.live_options.snapshot(),
             "learning_hub": self.learning_hub.snapshot(),
@@ -611,6 +614,7 @@ class SolarRuntime:
         for i, cfg in self.configs.items():
             if cfg.get("kind") == "dishwasher" and self.dishwasher.tickets.get(i, {}).get("attempted"):
                 leases.setdefault(i, {"watts": cfg["nominal_w"], "name": cfg["name"]})
+        self.minimum_rest.restore(data.get("minimum_rest"), time.monotonic(), time.time(), blocked=leases)
         clean_interruption = (not self.faults and not self.device_retry.records and any(
             i in self.configs and self.device_modes.get(i) == "auto" for i in leases))
         requested_mode = data.get("restart_requested_mode") or str(data.get("mode", "observe"))
@@ -879,7 +883,7 @@ class SolarRuntime:
         else:
             st.owned, st.on, st.available = False, False, True
             st.target_w = 0
-            st.last_off = now
+            self.minimum_rest.note_off(device_id, now, time.time())
             st.manual_forced = st.manual_stop_requested = False
             self.note(f'{cfg["name"]}: herstartcontrole automatisch — toestel staat uit; normale regeling hervat.')
         st.observed_once = True
@@ -2256,7 +2260,7 @@ class SolarRuntime:
             if p["watts"] == 0:
                 s.owned = False
                 s.target_w = 0
-                s.last_off = now
+                self.minimum_rest.note_off(i, now, time.time())
                 s.boost_until = 0
                 s.manual_forced = False
                 s.manual_stop_requested = False
@@ -2346,7 +2350,7 @@ class SolarRuntime:
                         if had_observation and cfg.get("kind") != "dishwasher" and cfg.get("cycle_learning_enabled") and cfg.get("power_entity"):
                             self.cycle_learning.begin(i, self._cycle_program(cfg), time.time(), (local_now or datetime.now().astimezone()).date().isoformat())
                     else:
-                        s.last_off = now
+                        self.minimum_rest.note_off(i, now, time.time())
                         s.manual_forced = False
                         s.manual_stop_requested = False
                         if had_observation and cfg.get("kind") != "dishwasher" and cfg.get("cycle_learning_enabled") and cfg.get("power_entity"):
@@ -2358,6 +2362,8 @@ class SolarRuntime:
                                 self.note(f'{cfg["name"]}: volledige cyclus geleerd ({learned["energy_kwh"]:.2f} kWh, {learned["duration_min"]:.0f} min).')
                                 changed = True
                 s.observed_once = True
+            if self.minimum_rest.observe(i, active, now, time.time()) and self.data_loaded:
+                changed = True
             # Never adopt an external start. Relinquish a mismatching owned setting.
             # A latched ambiguous command is retained until verified off/reset.
             if s.owned and not is_pending and not self.faults.get(i) and active is not None and not self._target_matches(cfg, s.target_w):
@@ -3313,6 +3319,10 @@ class SolarRuntime:
             return "Toestelstatus gewijzigd of onbruikbaar vóór opdracht"
         if active and not st.owned:
             return "Extern actief: niet overnemen"
+        if active is False:
+            self.minimum_rest.observe(i, active, now, time.time())
+            if now-max(st.last_off, self.states[i].last_off) < cfg["min_off_s"]:
+                return "Minimale rusttijd: toestelbron of stoptijd gewijzigd vóór opdracht"
         if cfg.get("power_entity"):
             measured, _stamp = self._power(cfg["power_entity"])
             if not self._dedicated_meter(i) or measured is None or measured < -1:
@@ -4124,7 +4134,7 @@ class SolarRuntime:
                 if i in self.states:
                     self.states[i].owned = False
                     self.states[i].target_w = 0
-                    self.states[i].last_off = time.monotonic()
+                    self.minimum_rest.note_off(i, time.monotonic(), time.time())
                     self.states[i].fault = ""
                     self.states[i].manual_forced = False
                     self.states[i].manual_stop_requested = False

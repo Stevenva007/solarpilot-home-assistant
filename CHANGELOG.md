@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0-beta.94 — rusttijd voortzetten na herstart
+
+- Bewaart de bevestigde UIT-tijd met passende toestel-/bronkoppeling. Een herstart of herladen telt voortaan alleen de resterende minimale rusttijd; verstreken herstarttijd telt mee en herhaalde herstarts verlengen de oorspronkelijke deadline niet.
+- Gebruikt dat bewijs pas na een betrouwbare actuele UIT-controle. Een echte nieuwe uitschakeling begint opnieuw de volledige rusttijd. Onbekende of herstelde placeholders, onzekere opdrachten, gewijzigde bronnen en onbruikbare tijdgegevens geven geen verkorting.
+- Oudere versies bewaarden geen UIT-tijd. Bij de eerste upgrade kan daarom eenmaal de volledige rusttijd gelden. Lopende minimumlooptijden, toestelvoorwaarden, elektrische grenzen en de afzonderlijke zonne-stabiliteitsbuffer blijven beschermd.
+- Aquarea- en SDK-defaultbranches en laatste stabiele releases opnieuw online gecontroleerd: geen nieuwe bronwijzigingen. Installatie/rollback: `docs/BETA94_INSTELLEN.md`; uitvoeringsbewijs: `docs/TESTRESULTATEN_BETA94.md`.
+
 ## 1.0.0-beta.93 — taakherkenning en vrije zonnestroom
 
 - De vijfminuten-hercontrole van statische Aquarea-bronmetadata wist niet langer tijdelijk de nog passende bronherkenning terwijl de achtergrondinspectie loopt.

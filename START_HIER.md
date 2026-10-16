@@ -1,31 +1,31 @@
-# SolarPilot beta.93 — installatie en upgrade
+# SolarPilot beta.94 — installatie en upgrade
 
-Versie: **1.0.0-beta.93** · 16 oktober 2026
+Versie: **1.0.0-beta.94** · 16 oktober 2026
 
-Beta.93 herstelt korte terugkerende **Taak onbekend**-intervallen tijdens Aquarea-bronhercontrole en laat andere toestellen weer hun werkelijk beschikbare zonneoverschot gebruiken wanneer Wallbox-laadgegevens ontbreken. De auto hoeft niet eerst te laden om de gewone automatiseringen te laten werken. Verse echte bronnen en de gewone apparaat- en netvoorwaarden blijven nodig.
+Beta.94 voorkomt dat een Home Assistant-herstart of integratieherlaad de minimale rusttijd van een al uitgeschakeld toestel opnieuw laat beginnen. SolarPilot bewaart de bevestigde UIT-tijd en gebruikt na een passende actuele UIT-controle alleen de resterende tijd. De tijd tijdens de herstart telt mee.
+
+Voorbeeld: bij 30 minuten minimale rust, 10 minuten al verstreken en 2 minuten herstart blijven **18 minuten** over. Was de rusttijd al verstreken, dan begint er geen nieuwe rusttijd alleen door het herstarten. De overige actuele startvoorwaarden blijven gelden.
 
 ## Bijwerken
 
-1. Bewaar een actuele volledige privé Home Assistant-back-up met SolarPilot-opslag en userfiles.
+1. Bewaar een actuele volledige privé Home Assistant-back-up, inclusief SolarPilot-opslag en userfiles.
 2. Geef een eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk; onderbreek geen beschermde apparaatcyclus.
-3. Installeer exact **1.0.0-beta.93** via HACS nadat de release gepubliceerd is. Behoud dezelfde integratie-entry, instellingen, opslag en userfiles.
+3. Installeer **1.0.0-beta.94** via HACS nadat de release gepubliceerd is. Behoud dezelfde integratie-entry, instellingen en opslag.
 4. Herstart Home Assistant volledig en herlaad browser/app. Controleer backend- en kaartversie afzonderlijk.
-5. Nieuwe taakregistraties houden bij ongewijzigde actuele brongegevens hun taak tijdens de hercontrole. Gewone toestellen en SG beoordelen actuele vrije zonnestroom zonder op ontbrekende Wallbox-data te wachten. Eerdere onbekende historie blijft bewaard.
+5. Controleer bij een volgende herstart dat de resterende rusttijd verder afloopt zodra de toestelgegevens betrouwbaar zijn.
 
-Er is geen nieuwe bron of instelling nodig. Alle bestaande Aquarea-, PV-, SG-, leer-, toestelherstel- en meldingsfuncties blijven behouden. De gewone uitvoeringsroute beslist opnieuw met de actuele vrije zonne-energie en bestaande toestelvoorwaarden. Panasonic en Wallbox blijven uitsluitend via hun bestaande toegestane routes betrokken; geen nieuwe native schrijfbevoegdheid.
+Er is geen nieuwe instelling of sensor nodig. Wijzig de ingestelde rusttijd niet om deze softwarefout te omzeilen.
 
-## Welke onderbreking wordt hersteld?
+## Eerste upgrade en ontbrekend bewijs
 
-De interne bronherkenning werd elke vijf minuten opnieuw gecontroleerd. Tijdens de asynchrone controle verdween het eerdere bewijs meteen, waardoor één of meer registratietikken onbekend werden. Bij dezelfde daadwerkelijk geladen module en semantiek blijft het eerder geverifieerde bewijs nu kort beschikbaar tot de inspectie klaar is. Een gewijzigde of onbruikbare koppeling trekt dat bewijs in. De gewone grenzen voor echte bronactualiteit worden niet verlengd.
+Beta.93 en ouder bewaarden de oorspronkelijke UIT-tijd niet. Bij de eerste upgrade kan daarom nog eenmaal de volledige rusttijd nodig zijn. Beta.94 bewaart vervolgens de bevestigde tijd voor volgende herstarts. Een oude tijd wordt niet gegokt of achteraf uit een screenshot afgeleid.
 
-## Vrije zonnestroom bij onbekende Wallbox
+Een echte nieuwe AAN-naar-UIT-overgang begint een nieuwe rusttijd. Een onbekende of herstelde placeholderstatus, onzekere opdracht, gewijzigde toestel-/bronkoppeling of onbruikbare tijdregistratie geeft geen verkorting. Een onbereikbaar toestel mag niet starten door alleen een opgeslagen tijd. Lopende minimumlooptijden en alle bestaande toestel-, bron- en elektrische voorwaarden blijven gelden.
 
-De actuele P1-injectie bevat het verbruik van de hele woning, inclusief de auto. Dit werkelijk vrije overschot is leidend voor gewone verbruikers en SG, na bestaande reserves, batterijcorrectie en toewijzing aan andere lasten. Bruto PV-productie wordt niet als volledig vrije ruimte beschouwd.
-
-Oude, ontbrekende of ongeldige Wallbox-data blijft onbekend. Zij creëert geen extra verbruiksreserve, 0 W-startlimiet, geforceerde stop van gewone lasten of overneembaar EV-vermogen. SG krijgt nooit EV-krediet. Een actuele bewezen laadvraag of laadsessie behoudt de ingestelde voorrang. De actuele net-/fase-/kwartiergrenzen, minimumtijden, beschermde programma’s, opdrachtbevestiging en eigen apparaatvoorwaarden blijven gelden.
+De vijfminutenbuffer voor stabiel zonneoverschot is een andere voorwaarde dan de minimale rusttijd. Die buffer wordt na een herstart opnieuw op echte actuele metingen beoordeeld. Voldoende overschot alleen maakt een toestel met resterende rusttijd niet startklaar.
 
 ## Rollback
 
-Herstel zo nodig beta.92 met behoud van entry, opslag en userfiles en herstart HA volledig. Geef een eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk en gebruik geen twee runtimes tegelijk. Beta.92 behoudt de rustige meldingen, maar kan tijdens de bronhercontrole opnieuw korte onbekende taken registreren en andere lasten door ontbrekende Wallbox-data blokkeren.
+Herstel zo nodig beta.93 met behoud van entry, instellingen, opslag en userfiles en herstart Home Assistant volledig. Gebruik geen twee runtimes tegelijk. Beta.93 kan de rusttijd bij een herstart opnieuw laten beginnen. De taakherkennings-, Wallbox- en meldingscorrecties uit die versie blijven daarin beschikbaar.
 
-[Actuele werking](docs/ACTUELE_WERKING.md) · [Testverslag](docs/TESTRESULTATEN_BETA93.md) · [Overdracht](OVERDRACHT.md)
+[Actuele werking](docs/ACTUELE_WERKING.md) · [Testverslag](docs/TESTRESULTATEN_BETA94.md) · [Overdracht](OVERDRACHT.md)

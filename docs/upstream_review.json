@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "reviewed_at": "2026-10-16T13:15:52Z",
+  "reviewed_at": "2026-10-16T14:02:20Z",
   "assessment": {
     "status": "complete_no_unprocessed_changes",
-    "summary": "Beta.93 rechecked current public default-branch HEADs and stable release tags/commits. Aquarea 1.5.4 and aioaquarea-ng 1.3.1 pins are unchanged. The release bounds background metadata refresh for read-only task continuity and isolates missing EV telemetry from actual P1 residual-solar allocation. It creates no EV credit, native device write authority or renewed source timestamps; real source, electrical and appliance constraints remain.",
+    "summary": "Beta.94 rechecked current public default-branch HEADs and stable release tags/commits. Aquarea 1.5.4 and aioaquarea-ng 1.3.1 pins are unchanged. This release persists confirmed ordinary consumer OFF timing across restarts after matching current source evidence. It changes no native device authority, EV credit, source timestamps, minimum-run or electrical constraints.",
     "compatibility_claim": false,
     "evidence_document": "docs/UPSTREAM_BRONNEN.md"
   },
