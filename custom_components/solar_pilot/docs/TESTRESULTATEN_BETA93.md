@@ -30,7 +30,7 @@ De actuele Aquarea- en SDK-defaultbranches en laatste stabiele releasecommits zi
 
 ## Definitieve releasegates
 
-De volledige lokale suite behaalde **6986 geslaagde tests** op Python 3.12. De eerste Python 3.13-CI-run vond één bestaande hosttijdafhankelijke test op de exacte stabilisatiegrens van 120 seconden. De test gebruikt nu vaste wall- en monotonic-klokken vanaf de runtimeconstructie; alle grensasserties en productieguards blijven behouden. De gerichte leer-/brongroep behaalde daarna **110 geslaagde tests**. De volledige CI-suite wordt op deze correctie opnieuw uitgevoerd.
+De volledige lokale suite behaalde **6986 geslaagde tests** op Python 3.12. Python 3.13-CI bracht twee bestaande hosttijdafhankelijke testfixtures aan het licht: de exacte leerstabilisatiegrens van 120 seconden en de herstelminimumlooptijd van 1800 seconden. De fixtures gebruiken nu exact representabele monotonic-klokken; de leertest legt ook haar kalender vanaf de runtimeconstructie vast. Alle grensasserties en productieguards blijven behouden. De gerichte leer-/brongroep behaalde daarna **110 geslaagde tests**. De volledige CI-suite wordt op deze correcties opnieuw uitgevoerd.
 
 De volledige Python-suite, repository-/privacy-/documentatiecontroles, HACS, Hassfest, echte Home Assistant-startup en Chromium draaien op de definitieve bron. Alle vijf verplichte CI-jobs moeten slagen voordat de main-publicatie begint. De [Validate-workflow](https://github.com/Stevenva007/solarpilot-home-assistant/actions/workflows/validate.yml) bevat het brongebonden uitvoeringsbewijs; eerdere releases of gerichte aantallen vervangen dat niet.
 
