@@ -16,10 +16,13 @@ class SolarEntity(Entity):
         self._attr_name = name
         self._attr_unique_id = f'{runtime.entry.entry_id}_{device_id + "_" if device_id else ""}{suffix}'
         if device_id:
+            hub_id = getattr(runtime, "hub_device_id", None)
+            hub_link = ({"via_device_id": hub_id} if hub_id
+                        else {"via_device": (DOMAIN, runtime.entry.entry_id)})
             self._attr_device_info = DeviceInfo(
                 identifiers={(DOMAIN, f"{runtime.entry.entry_id}_{device_id}")},
                 name=runtime.configs[device_id]["name"], manufacturer=NAME,
-                model="Virtuele verbruiker", via_device=(DOMAIN, runtime.entry.entry_id),
+                model="Virtuele verbruiker", **hub_link,
             )
         else:
             self._attr_device_info = DeviceInfo(

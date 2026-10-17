@@ -3,13 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.95'
+GUIDE_VERSION = '1.0.0-beta.96'
 GUIDE_UPDATED = '2026-10-17'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.95',
+ 'version': '1.0.0-beta.96',
  'updated': '2026-10-17',
- 'intro': 'Beta.95 herstelt het direct toepassen van uitsluitend visuele SG-instellingen, de actuele beschikbaarheid van een offline afwasmachine, concrete SG-stopdiagnose en de meetdekking van dagelijkse PV-cijfers. Oude voltooiingen blijven geschiedenis en ontbrekende PV blijft onbekend. Het normale boilerdoel en het lokaal bevestigde berekende SG-doel staan apart; een ontbrekend percentage krijgt een zichtbare instelroute. Alle bestaande regelgrenzen, toestelrechten, modellen en historie blijven behouden.',
+ 'intro': 'Beta.96 vermindert herhaalde Panasonic-presentatieberekeningen en gebruikt geregistreerde, entry-gebonden Home Assistant-apparaatkoppelingen. De presentatiecache bewaart de oorspronkelijke brontijden en levert geen regelings- of leerbewijs. De gewijzigde Aquarea 1.6.0-intervalenergie wordt niet als dagverbruik aangemerkt. Alle beta.95-correcties, bestaande instellingen, modellen, historie en toestelrechten blijven behouden.',
  'sections': [{'title': '1. Basisprincipe en modi',
                'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele '
                               'net- en PV-metingen, echte toestelvoorwaarden en elektrische grenzen gaan '

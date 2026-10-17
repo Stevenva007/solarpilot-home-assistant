@@ -174,6 +174,10 @@ class SolarSensor(SolarEntity, SensorEntity):
         reader = getattr(self.runtime, "sensor_overview", None)
         return reader("learning") if callable(reader) else self.runtime.learning_overview()
 
+    def _panasonic(self):
+        reader = getattr(self.runtime, "sensor_overview", None)
+        return reader("panasonic") if callable(reader) else self.runtime.panasonic.overview()
+
     @property
     def native_value(self):
         r = self.runtime
@@ -187,7 +191,7 @@ class SolarSensor(SolarEntity, SensorEntity):
             data = r.sg_boost.overview()
             return str(data.get("reason") or data.get("status") or "Zonneboost uit")[:250]
         if self.suffix in {"panasonic_status", "panasonic_power", "dhw_status", "dhw_temperature", "dhw_target"}:
-            data = r.panasonic.overview()
+            data = self._panasonic()
             return {
                 "panasonic_status": str(data.get("status") or "Panasonic regelt zelfstandig")[:250],
                 "panasonic_power": data.get("power_w"),
@@ -286,7 +290,7 @@ class SolarSensor(SolarEntity, SensorEntity):
         if self.suffix == "sg_boost_status":
             return r.sg_boost.overview()
         if self.suffix in {"panasonic_status", "panasonic_power", "dhw_status", "dhw_temperature", "dhw_target"}:
-            return {**r.panasonic.overview(), "read_only": True}
+            return {**self._panasonic(), "read_only": True}
         if self.suffix in {
             "ems_status", "capacity_status", "capacity_limit", "capacity_headroom", "phase_status", "phase_headroom",
             "phase_learning_status", "phase_l1_known", "phase_l2_known", "phase_l3_known", "phase_l1_residual",
@@ -325,7 +329,7 @@ class SolarSensor(SolarEntity, SensorEntity):
                     "budget_w": r.result.budget_w,
                     "budget_note": "Voorwaardelijk regelbudget; geen gemeten vrije injectie", "managed_w": round(r.managed_w, 1),
                     "reserve_w": r.settings["reserve_w"], "max_import_w": r.settings["max_import_w"],
-                    "panasonic": r.panasonic.overview(), "sg_boost": r.sg_boost.overview(), "devices": r.overview(), "wallbox": r.wallbox_overview(), "learning": self._learning(),
+                    "panasonic": self._panasonic(), "sg_boost": r.sg_boost.overview(), "devices": r.overview(), "wallbox": r.wallbox_overview(), "learning": self._learning(),
                 "learning_insights": r.learning_hub.summary(),
                     "device_management": r.live_options.overview(),
                     "priority_board": r.priority_board.overview(),

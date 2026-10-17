@@ -976,7 +976,8 @@ class SolarRuntime:
 
     def sensor_overview(self, name):
         """One complete presentation snapshot per publication, never control data."""
-        builders = {"ems": self.ems_overview, "learning": self.learning_overview}
+        builders = {"ems": self.ems_overview, "learning": self.learning_overview,
+                    "panasonic": self.panasonic.overview}
         if name not in builders:
             raise ValueError("Unknown sensor presentation")
         if name not in self._sensor_overviews:
