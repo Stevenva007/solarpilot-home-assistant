@@ -20,7 +20,8 @@ from homeassistant.exceptions import HomeAssistantError
 
 from .sg_config import DISPLAY_ONLY_KEYS, actuator_conflicts, finite, normalize_config, validate_config
 from .const import VERSION
-from .sg_investigation import clean_session_provenance, effective_session_policy, session_policy_hash
+from .sg_investigation import (clean_dispatch_rejection, clean_session_provenance,
+    effective_session_policy, session_policy_hash)
 
 # Anti-repeat evidence thresholds, not Panasonic targets or comfort settings.
 NEW_STORAGE_DROP_C = 2.0
@@ -100,6 +101,7 @@ class SGBoostManager:
         self._session_provenance = None
         self._hold_origin = None
         self._transport_evidence = None
+        self._dispatch_rejection = None
         self._native_observation = {}
         self._solar_observation = None
         self._general_reference = None
@@ -439,7 +441,7 @@ class SGBoostManager:
             # Failure to collect optional evidence cannot change native safety.
             self._session_provenance = None
 
-    def _record_session_end(self, reason, *, transport=None, ended_at=None):
+    def _record_session_end(self, reason, *, transport=None, ended_at=None, stop_evidence=None):
         if self._session_started is None:
             return
         ended = self._wall_clock() if ended_at is None else ended_at
@@ -450,7 +452,8 @@ class SGBoostManager:
             "release": provenance.get("release") if provenance else None,
             "policy_hash": provenance.get("policy_hash") if provenance else None,
             "command_identity": provenance.get("command_identity") if provenance else None,
-            "provenance_status": "recorded_at_start" if provenance else "unknown_legacy"}
+            "provenance_status": "recorded_at_start" if provenance else "unknown_legacy",
+            "stop_evidence": clean_dispatch_rejection(stop_evidence)}
         if self.completion_hold and isinstance(self._hold_origin, dict):
             # Match by the captured command, never attach an unrelated old end
             # to a restored completion hold merely because it was the latest.
@@ -921,21 +924,42 @@ class SGBoostManager:
 
     def _on_authorized(self, generation, renewal):
         """Recheck authority after async work and at the transport boundary."""
-        if (not self._on_permission_current(generation)
-                or renewal and not self._confirmed_request_current()):
+        if not self._on_permission_current(generation):
+            self._capture_dispatch_rejection("permission_changed", renewal)
+            return False
+        if renewal and not self._confirmed_request_current():
+            self._capture_dispatch_rejection("lease_unconfirmed", renewal)
             return False
         gate = getattr(self.runtime, "sg_dispatch_allowed", None)
         if not callable(gate):
             # Small isolated tests have no runtime. Production SolarRuntime
             # provides a final live electrical/priority gate.
             return self._injected_adapter
+        owner = getattr(gate, "__self__", self.runtime)
+        previous_evidence = getattr(owner, "_sg_dispatch_rejection", None)
         try:
             approved = gate(renewal=renewal)
         except Exception:
+            self._capture_dispatch_rejection("dispatch_callback_error", renewal)
             return False
         if isinstance(approved, tuple):
             approved = approved[0] if approved else False
+        if approved is not True:
+            evidence = getattr(owner, "_sg_dispatch_rejection", None)
+            self._capture_dispatch_rejection("dispatch_unexplained", renewal,
+                evidence=evidence if evidence is not previous_evidence else None)
         return approved is True
+
+    def _capture_dispatch_rejection(self, code, renewal, *, evidence=None):
+        """Attach the exact rejected check; never reread it during safe OFF."""
+        try:
+            cleaned = clean_dispatch_rejection(evidence)
+            if cleaned is None or cleaned["renewal"] != (renewal is True):
+                cleaned = clean_dispatch_rejection({"schema": 1, "code": code,
+                    "evaluated_at": self._wall_clock(), "renewal": renewal is True})
+            self._dispatch_rejection = cleaned
+        except Exception:
+            self._dispatch_rejection = None
 
     def _automatic_continuation_allowed(self, generation):
         """Only current automatic permission may bridge a manual deadline."""
@@ -957,6 +981,7 @@ class SGBoostManager:
     async def _issue_on(self, *, renewal=False):
         if renewal and not self._confirmed_request_current():
             return False
+        self._dispatch_rejection = None
         # A physical write may arrive late within the bounded ACK interval.
         # Reserve that delivery time on the initial lease as well as renewals,
         # so the local fallback never extends a short hard session ceiling.
@@ -1032,6 +1057,7 @@ class SGBoostManager:
             if not self._on_authorized(generation, renewal):
                 return False
             if automatic_bridge and not self._automatic_continuation_allowed(generation):
+                self._capture_dispatch_rejection("permission_changed", renewal)
                 return False
             final_now = self._clock()
             remaining_ack = max(0.0, write_guard_deadline - final_now)
@@ -1039,11 +1065,13 @@ class SGBoostManager:
                              + float(self.settings["max_session_s"]))
             if (final_now >= write_guard_deadline
                     or final_now + lease_s + remaining_ack > hard_deadline):
+                self._capture_dispatch_rejection("session_deadline", renewal)
                 return False
             if manual_limit is not None and (
                     self.manual_mode != "on" or self._manual_deadline != manual_limit
                     or final_now+lease_s+remaining_ack > manual_limit
                     or self._wall_clock()+lease_s+remaining_ack > manual_wall_limit):
+                self._capture_dispatch_rejection("manual_deadline", renewal)
                 return False
             issued_at = final_now
             if not renewal:
@@ -1066,7 +1094,8 @@ class SGBoostManager:
                 self._possibly_owned = False
                 self.desired_on = False
                 if self.owned:
-                    await self._release("SG-voorwaarden gewijzigd; eigen aanvraag vrijgegeven", preserve_fault=bool(self.fault))
+                    await self._release("SG-voorwaarden gewijzigd; eigen aanvraag vrijgegeven",
+                        preserve_fault=bool(self.fault), stop_evidence=self._dispatch_rejection)
                 else:
                     self._dispatch_start_wait(generation)
                     self._set_state("blocked", "SG-voorwaarden gewijzigd; verse zonnebeoordeling volgt")
@@ -1140,7 +1169,8 @@ class SGBoostManager:
                 self._dispatch_start_wait(generation)
                 reason = "SG-voorwaarden gewijzigd; verse zonnebeoordeling volgt"
                 if self.owned:
-                    await self._release(reason, preserve_fault=bool(self.fault))
+                    await self._release(reason, preserve_fault=bool(self.fault),
+                        stop_evidence=self._dispatch_rejection)
                 else:
                     self._set_state("blocked", reason)
             else:
@@ -1175,7 +1205,9 @@ class SGBoostManager:
                 adapter.before_on_status = None
         if not self._on_permission_current(generation):
             self.desired_on = False
-            await self._release("Verouderde SG-aanvraag vrijgegeven", rest=True)
+            self._capture_dispatch_rejection("permission_changed", renewal)
+            await self._release("Verouderde SG-aanvraag vrijgegeven", rest=True,
+                stop_evidence=self._dispatch_rejection)
             return False
         self.owned = True
         self._possibly_owned = False
@@ -1255,8 +1287,11 @@ class SGBoostManager:
             self._low_uptake_noted = True
             self._note("SG-contact actief; extra warmteopname nog niet aangetoond")
 
-    async def _release(self, reason, *, rest=True, preserve_fault=False, policy_hold=True):
+    async def _release(self, reason, *, rest=True, preserve_fault=False, policy_hold=True, stop_evidence=None):
         cancelled = None
+        frozen_stop = clean_dispatch_rejection(stop_evidence)
+        if frozen_stop is not None:
+            reason = reason + "; " + frozen_stop["reason"]
         self.desired_on = False
         self._stable_since = self._import_since = None
         self._import_observation = self._import_policy = None
@@ -1336,7 +1371,7 @@ class SGBoostManager:
         if self._session_started is not None:
             self._record_session_end(reason, transport=(self._transport_evidence
                 if isinstance(self._transport_evidence, dict)
-                and self._transport_evidence.get("operation") == "off" else None))
+                and self._transport_evidence.get("operation") == "off" else None), stop_evidence=frozen_stop)
             self._note("SG-aanvraag beëindigd: " + reason + self._observation_summary())
         self._session_started = None
         self._minimum_started = None
@@ -2269,6 +2304,7 @@ class SGBoostManager:
                 "manual_hold": self.manual_hold, "completion_hold": self.completion_hold,
                 "fault": self.fault, "fault_code": self.fault_code, "action_required": self.action_required,
                 "transport_evidence": deepcopy(self._transport_evidence),
+                "dispatch_rejection": deepcopy(self._dispatch_rejection),
                 "blocked_reasons": list(self._blocked_reasons), "last_session": deepcopy(self._last_session),
                 "automatic_rearm_available": ((self._general_reference is not None) if self.settings.get("profile") == "general"
                     else self._need_reference is not None and not self._tank_source_changed),

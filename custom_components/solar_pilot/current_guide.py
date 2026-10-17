@@ -3,13 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.94'
-GUIDE_UPDATED = '2026-10-16'
+GUIDE_VERSION = '1.0.0-beta.95'
+GUIDE_UPDATED = '2026-10-17'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.94',
- 'updated': '2026-10-16',
- 'intro': 'Beta.94 voorkomt dat een Home Assistant-herstart de minimale rusttijd van een al uitgeschakeld toestel opnieuw laat beginnen. SolarPilot bewaart de bevestigde UIT-tijd en telt na een passende actuele toestelcontrole alleen de resterende rusttijd, inclusief de tijd tijdens de herstart. Zonder bruikbaar eerder bewijs geldt de volledige beschermende rusttijd. De verbeterde taakherkenning, vrije zonnestroom zonder Wallbox-blokkering en rustige analysemeldingen blijven behouden.',
+ 'version': '1.0.0-beta.95',
+ 'updated': '2026-10-17',
+ 'intro': 'Beta.95 herstelt het direct toepassen van uitsluitend visuele SG-instellingen, de actuele beschikbaarheid van een offline afwasmachine, concrete SG-stopdiagnose en de meetdekking van dagelijkse PV-cijfers. Oude voltooiingen blijven geschiedenis en ontbrekende PV blijft onbekend. Het normale boilerdoel en het lokaal bevestigde berekende SG-doel staan apart; een ontbrekend percentage krijgt een zichtbare instelroute. Alle bestaande regelgrenzen, toestelrechten, modellen en historie blijven behouden.',
  'sections': [{'title': '1. Basisprincipe en modi',
                'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele '
                               'net- en PV-metingen, echte toestelvoorwaarden en elektrische grenzen gaan '
@@ -1092,6 +1092,13 @@ CURRENT_GUIDE["sections"][14]["paragraphs"].append("Gewone analysebevindingen, n
 CURRENT_GUIDE["sections"][15]["paragraphs"].append("Nieuwe taakregistraties krijgen geen kunstmatige onderbreking alleen doordat SolarPilot de herkenning van dezelfde geladen Aquarea-koppeling op de achtergrond opnieuw controleert. De gewone grenzen voor actuele native rapporten, passende vermogensmetingen, bronbinding en tegenstrijdige gegevens blijven gelden. Een gewijzigde of onbruikbare koppeling levert geen bekende taak op. Eerdere onbekende intervallen blijven als oorspronkelijke geschiedenis bewaard; zij worden niet achteraf tot verwarmen of boilerbedrijf gemaakt.")
 
 CURRENT_GUIDE["sections"][6]["paragraphs"].append("Geen of oude laadgegevens leggen andere SolarPilot-toestellen niet stil. De actuele P1-injectie bevat het werkelijke verbruik van de hele woning, inclusief de auto; alleen het resterende gemeten overschot komt beschikbaar, na de gewone reserves, batterijcorrectie en toewijzingen. Ontbrekend laadvermogen blijft onbekend en wordt geen gemeten nul of overneembaar EV-vermogen. Dit geldt ook voor SG-zonneboost, dat nooit EV-krediet krijgt. Een verse bewezen laadvraag of laadsessie behoudt de gekozen voorrang. Actuele net-/fase-/kwartiergrenzen, minimumtijden, beschermde cycli en apparaatvoorwaarden blijven gelden.")
+
+# Beta.95 keeps current evidence distinct from retained history and display settings.
+CURRENT_GUIDE["sections"][5]["paragraphs"].append('Een uitsluitend visuele SG-wijziging wordt vergeleken met de effectief gebruikte instellingen, inclusief bestaande standaardwaarden en migraties. Het toevoegen van zulke al geldende waarden of een andere volgorde van dezelfde ruimtebronnen is geen nieuwe stuurwijziging. Een echt andere bron, regelgrens, toestemming of gemengd voorstel houdt zijn veilige wachtgrens. Een reeds opgeslagen passend weergavevoorstel kan daardoor worden toegepast terwijl dezelfde SG-sessie doorloopt. Dit bevestigt geen ontbrekend percentage of tankbron. Bij een ontbrekend berekend SG-doel tonen Overzicht en Warmtepomp de reden en de knop SG-doel voor weergave instellen naast het normale Panasonic-doel.')
+CURRENT_GUIDE["sections"][8]["paragraphs"].append('Een vroegere bevestigde afwasvoltooiing blijft met haar oorspronkelijke tijd bewaard wanneer de cloudverbinding later wegvalt. Zij wordt geen bewijs dat de afwasmachine nu bereikbaar of UIT is. Actuele status en export gebruiken de oorspronkelijke bruikbare huidige bron; een ontbrekende rapporttijd blijft onbekend en wordt geen datum in 1970. Een nieuw eenmalig waargenomen einde blijft de oorspronkelijke beurt afsluiten, zonder nieuwe START of opnieuw klaarzetten.')
+CURRENT_GUIDE["sections"][3]["paragraphs"].append('Nieuwe SG-stopregistraties bewaren bij de laatste hercontrole welke concrete voorwaarde de aanvraag afwees, met de oorspronkelijke beschikbare bronwaarden. Een algemene melding dat voorwaarden gewijzigd zijn bewijst geen handmatige ingreep. Oudere generieke stops blijven qua specifieke oorzaak onbekend. Een expliciet geregistreerde onbereikbare SG-uitgang krijgt een bron-/contactcategorie. Stopbesluit, verzenduitkomst en werkelijk gemelde contactstand blijven afzonderlijke bewijzen; dit verandert geen vijfminutenbuffer, minimale sessieduur of lokale Shelly-timer.')
+CURRENT_GUIDE["sections"][12]["paragraphs"].append('Dagelijkse EMS-cijfers houden de werkelijk gemeten PV-tijd, ontbrekende PV-tijd en oudere onbekende dekking afzonderlijk bij. Een geldige nulmeting telt als meting; ontbrekend of ongeldig PV is geen gemeten nul. Net- en verbruikerenergie mogen met hun eigen passende metingen doorlopen. Een zelfverbruikspercentage op onvolledige dekking wordt als gedeeltelijk herkenbaar gemaakt; oude totalen krijgen geen achteraf verzonnen meetdekking. De registratie blijft een indicatieve toerekening en is geen bewezen besparing.')
+CURRENT_GUIDE["sections"][19]["paragraphs"][-1] = 'Rollback naar beta.94 behoudt de gewone regeling, taakherkenning en rusttijd na herstart, maar kan de vier herstelde status-/diagnoseproblemen opnieuw tonen. Bewaar een actuele volledige privéback-up en behoud entry, opslag en userfiles. Geef een eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk; onderbreek geen beschermde cyclus. Herstart Home Assistant volledig en herlaad de app/browser. Oudere code kent de nieuwe PV-dekkingsvelden mogelijk niet; exact herstel vraagt passende code én back-up. Zie BETA95_INSTELLEN.md.'
 
 GUIDE_HASH = hashlib.sha256(
     json.dumps(CURRENT_GUIDE, sort_keys=True, ensure_ascii=False).encode("utf-8")

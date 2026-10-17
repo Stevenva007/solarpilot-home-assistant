@@ -233,6 +233,7 @@ def sg_solar_budget(runtime):
             "hp_power_w": hp if complete else None, "hp_credit_reason": credit_reason,
             "grid_w": grid, "conservative_grid_w": conservative_grid,
             "discharge_w": discharge, "pv_w": pv, "reserve_w": reserve,
+            "grid_reported_at": grid_stamp, "pv_reported_at": pv_stamp,
             "stamp": min(residual_stamp, hp_stamp) if credit > 0 else residual_stamp,
             "residual_stamp": residual_stamp,
             "reason": "Werkelijk restoverschot na beschermde toestellen"}

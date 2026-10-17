@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta.95 — actuele status en concrete diagnose
+
+- Vergelijkt visuele SG-voorstellen met effectieve instellingen, zodat oude standaardwaarden en dezelfde ruimtebronnen in een andere volgorde geen onterechte wachtrij veroorzaken. Echte regel- en bronwijzigingen houden hun veilige grens.
+- Scheidt actuele afwasstatus van historische voltooiing. Onbereikbaar blijft onbekend; een ontbrekende rapporttijd wordt geen geldig UIT-bewijs.
+- Bewaart concrete afgewezen SG-hercontroles bij nieuwe stops. Oude generieke oorzaken blijven onbekend; expliciete contactonbereikbaarheid krijgt een passende categorie.
+- Markeert onvolledige PV-dekking in dagelijkse EMS-cijfers zonder ontbrekende productie als nulmeting te boeken of oude dekking te verzinnen.
+- Toont een ontbrekend berekend SG-doel met uitleg en directe instelroute. Geen automatische 115%-bevestiging of Panasonic-write.
+- Controleert actuele Aquarea- en SDK-bronnen en stabiele releases: geen nieuwe onverwerkte wijzigingen. Installatie/rollback: `docs/BETA95_INSTELLEN.md`; validatie: `docs/TESTRESULTATEN_BETA95.md`.
+
 ## 1.0.0-beta.94 — rusttijd voortzetten na herstart
 
 - Bewaart de bevestigde UIT-tijd met passende toestel-/bronkoppeling. Een herstart of herladen telt voortaan alleen de resterende minimale rusttijd; verstreken herstarttijd telt mee en herhaalde herstarts verlengen de oorspronkelijke deadline niet.

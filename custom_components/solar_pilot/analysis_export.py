@@ -350,23 +350,41 @@ def consumer_evidence(runtime, device_id, wall=None, now=None):
     """Read original feedback separately from controller accounting values."""
     wall = time.time() if wall is None else wall
     now = time.monotonic() if now is None else now
+
+    def report_timestamp(value):
+        # Zero is the adapters' missing-time sentinel, not an epoch report.
+        # Keep original old stateful reports, but reject corrupt/future times.
+        if (isinstance(value, bool) or not isinstance(value, (int, float))
+                or not 0 < value <= wall + 5 or not math.isfinite(value)):
+            return None
+        try:
+            datetime.fromtimestamp(value, timezone.utc)
+        except (ValueError, OverflowError, OSError):
+            return None
+        return value
+
     cfg, st = runtime.configs[device_id], runtime.states[device_id]
     entity_id = cfg.get("active_entity") if cfg.get("kind") == "script" else cfg.get("control_entity")
     if cfg.get("kind") == "dishwasher":
         entity_id = cfg.get("dishwasher_state_entity")
     obj = runtime.hass.states.get(entity_id) if entity_id else None
-    reported = runtime._reported_wall(obj)
+    reported = report_timestamp(runtime._reported_wall(obj))
     active = (obj.state == "on" if obj is not None and obj.state in ("on", "off")
               and reported is not None else None)
     if cfg.get("kind") == "dishwasher":
-        reading = runtime.dishwasher.readings.get(device_id)
-        active = reading.active if reading is not None else None
-        reported = getattr(reading, "stamp", None) if reading is not None else None
+        # The runtime reading may deliberately carry a one-shot historical
+        # End Of Cycle event. Export current physical proof from a separate
+        # read-only source check; never overlay the saved completion here.
+        from .dishwasher import read as read_dishwasher
+        reading = read_dishwasher(runtime.hass, cfg, wall)
+        active = reading.active if type(reading.active) is bool and reported is not None else None
     meter = cfg.get("power_entity")
     meter_obj = runtime.hass.states.get(meter) if meter else None
     watts, meter_reported = runtime._power(meter)
+    meter_reported = report_timestamp(meter_reported)
     valid_power = bool(meter and runtime._dedicated_meter(device_id)
-                       and watts is not None and watts >= 0)
+                       and meter_reported is not None and not isinstance(watts, bool)
+                       and isinstance(watts, (int, float)) and math.isfinite(watts) and watts >= 0)
     return {
         "observed": {
             "control": {"entity_id": entity_id, "raw_state": obj.state if obj is not None else None,
@@ -376,8 +394,8 @@ def consumer_evidence(runtime, device_id, wall=None, now=None):
             "power": {"entity_id": meter, "raw_state": meter_obj.state if meter_obj is not None else None,
                       "unit_of_measurement": meter_obj.attributes.get("unit_of_measurement") if meter_obj is not None else None,
                       "watts": watts if valid_power else None, "valid": valid_power,
-                      "reported_at_wall": meter_reported or None,
-                      "report_age_s": round(wall - meter_reported, 2) if meter_reported else None},
+                      "reported_at_wall": meter_reported,
+                      "report_age_s": round(wall - meter_reported, 2) if meter_reported is not None else None},
         },
         "planning": {"on": st.on, "owned": st.owned, "available": st.available,
                      "accounted_power_w": st.measured_w, "owned_target_w": st.target_w,

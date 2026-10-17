@@ -1301,9 +1301,8 @@ class SolarRuntime:
                 advice.append(f"Eerstvolgende geplande flexlast: {name} rond {when.strftime('%H:%M')}")
         holds = [c["name"] for i, c in self.configs.items() if self.states[i].planner_hold]
         early = [c["name"] for i, c in self.configs.items() if self.states[i].planner_grid_force]
-        stats = dict(self.ems_stats)
-        pv = stats.get("pv_kwh", 0.0) or 0.0
-        stats["self_consumption_pct"] = None if pv <= 0 else round(100 * (stats.get("pv_self_used_kwh", 0.0) or 0.0) / pv, 1)
+        from .ems import pv_accounting_overview
+        stats = pv_accounting_overview(self.ems_stats)
         try:
             value_day = datetime.now(ZoneInfo(getattr(getattr(self.hass, "config", None),
                                                      "time_zone", "Europe/Brussels"))).date().isoformat()
@@ -3071,18 +3070,57 @@ class SolarRuntime:
     def sg_dispatch_allowed(self, *, renewal=False, automatic=False, ignore_solar=False):
         """Recheck live electrical truth after asynchronous Shelly preflight."""
         from .sg_config import actuator_conflicts
+        from .sg_investigation import clean_dispatch_rejection
+        self._sg_dispatch_rejection = None
+        readings, reports = {}, {}
+
+        def rejected(code):
+            # Optional telemetry uses only readings already checked in this
+            # call. Evaluation time never replaces an original source time.
+            try:
+                self._sg_dispatch_rejection = clean_dispatch_rejection({
+                    "schema": 1, "code": code, "evaluated_at": time.time(),
+                    "renewal": renewal is True, "readings": readings, "source_reports": reports})
+            except Exception:
+                self._sg_dispatch_rejection = None
+            return False
+
         if (actuator_conflicts(self.sg_boost.settings, list(self.configs.values()))
                 or actuator_conflicts(self.sg_boost.settings, list(self.battery_fleet.configs.values()))):
-            return False
+            return rejected("actuator_conflict")
         if self.sg_boost.cooling_block_reason(live=True):
-            return False
+            return rejected("cooling_context")
         budget = sg_solar_budget(self)
-        if (self._closed or self.mode != "solar" or self.removal_requested
-                or self.restart_blocking or self.faults or self.pending or self.handover
-                or self.battery_fleet.busy or not budget["valid"]
-                or budget["discharge_w"] > self.settings.get("battery_discharge_tolerance_w", 50)
-                or not self.priority_board.sg_priority_allowed(time.monotonic())):
-            return False
+        readings.update({key: budget.get(key) for key in (
+            "grid_w", "pv_w", "discharge_w", "reserve_w", "available_w", "eligible_w")})
+        readings.update(budget_oldest_reported_at=budget.get("stamp"),
+            residual_oldest_reported_at=budget.get("residual_stamp"),
+            fixed_import_limit_w=self.settings["max_import_w"])
+        reports.update(site_grid={"watts": budget.get("grid_w"), "reported_at": budget.get("grid_reported_at")},
+            site_pv={"watts": budget.get("pv_w"), "reported_at": budget.get("pv_reported_at")})
+        # Preserve the existing short-circuit order and every control check.
+        if self._closed:
+            return rejected("runtime_closed")
+        if self.mode != "solar":
+            return rejected("runtime_mode")
+        if self.removal_requested:
+            return rejected("removal_requested")
+        if self.restart_blocking:
+            return rejected("restart_blocking")
+        if self.faults:
+            return rejected("runtime_fault")
+        if self.pending:
+            return rejected("pending_command")
+        if self.handover:
+            return rejected("handover")
+        if self.battery_fleet.busy:
+            return rejected("battery_busy")
+        if not budget["valid"]:
+            return rejected("site_source")
+        if budget["discharge_w"] > self.settings.get("battery_discharge_tolerance_w", 50):
+            return rejected("battery_discharge")
+        if not self.priority_board.sg_priority_allowed(time.monotonic()):
+            return rejected("priority")
         # Re-read the protected autonomous EV at the last asynchronous boundary.
         # Credited native HP consumption is never reclaimable Wallbox power.
         wallbox_cap = None
@@ -3090,45 +3128,57 @@ class SolarRuntime:
             current_wallbox = self._update_sg_wallbox_guard(time.monotonic(), self._wallbox_reading(),
                 budget["grid_w"], self.settings["reserve_w"], budget["discharge_w"])
             if current_wallbox.block_increase or current_wallbox.release_flexible:
-                return False
+                return rejected("wallbox_priority")
             wallbox_cap = current_wallbox.max_increase_w
+            readings["wallbox_headroom_w"] = wallbox_cap
         if (not renewal and not ignore_solar and (automatic or self.sg_boost.manual_mode != "on")
                 and budget.get("eligible_w", budget["available_w"]) < self.sg_boost.settings["threshold_w"]):
-            return False
+            return rejected("solar_threshold")
         if (not renewal and (budget["stamp"] <= self.last_issued_wall or
                 time.monotonic()-self.last_issued < self.settings["settle_s"])):
-            return False
+            return rejected("settle")
         increment = 0.0 if renewal else float(self.sg_boost.settings["expected_power_w"])
         envelope = increment+self.isolated_reserve_w
         envelope += sum(max(0, st.target_w-st.measured_w) for i,st in self.states.items()
                         if st.owned and st.on and i not in self.source_isolated_devices)
+        readings.update(extra_w=increment, envelope_w=envelope)
         if wallbox_cap is not None and envelope > wallbox_cap:
-            return False
+            return rejected("wallbox_headroom")
         projected = budget["grid_w"]+envelope
+        readings["projected_grid_w"] = projected
         if projected > self.settings["max_import_w"]:
-            return False
+            return rejected("net_limit")
         if renewal and (automatic or self.sg_boost.manual_mode != "on"):
             import_observation = self._sg_import_observation() or {}
+            reports["soft_import"] = {"watts": import_observation.get("watts"),
+                "reported_at": import_observation.get("stamp")}
             if not self.sg_boost.soft_import_renewal_allowed(
                     grid_import_w=import_observation.get("watts"),
                     grid_import_stamp=import_observation.get("stamp"),
                     grid_import_source=import_observation.get("source")):
-                return False
+                return rejected("soft_import_policy")
         if self.phase_settings.get("enabled") and self.phase_settings.get("control_starts"):
-            current_phase = phase_decision(tuple(self._power(self.phase_settings.get(key), self.phase_settings["stale_s"])[0]
-                for key in ("phase_1_entity", "phase_2_entity", "phase_3_entity")), self.phase_settings)
+            phase_readings = tuple(self._power(self.phase_settings.get(key), self.phase_settings["stale_s"])
+                for key in ("phase_1_entity", "phase_2_entity", "phase_3_entity"))
+            current_phase = phase_decision(tuple(value[0] for value in phase_readings), self.phase_settings)
+            reports.update({f"phase_{index}": {"watts": value[0], "reported_at": value[1]}
+                for index, value in enumerate(phase_readings, 1)})
+            readings["phase_headroom_w"] = current_phase.headroom_w
             if (not current_phase.valid or current_phase.block_increase or current_phase.release_flexible
                     or current_phase.headroom_w is None or current_phase.headroom_w < envelope):
-                return False
+                return rejected("phase_source" if not current_phase.valid else "phase_limit")
         if self.capacity_settings.get("enabled"):
-            avg = self._power(self.capacity_settings.get("average_demand_entity"),self.capacity_settings["stale_s"])[0]
-            peak = self._power(self.capacity_settings.get("monthly_peak_entity"),max(3600,self.capacity_settings["stale_s"]))[0]
+            avg, avg_stamp = self._power(self.capacity_settings.get("average_demand_entity"),self.capacity_settings["stale_s"])
+            peak, peak_stamp = self._power(self.capacity_settings.get("monthly_peak_entity"),max(3600,self.capacity_settings["stale_s"]))
+            reports.update(quarter_average={"watts": avg, "reported_at": avg_stamp},
+                quarter_peak={"watts": peak, "reported_at": peak_stamp})
             current_capacity = capacity_decision(self._local_now(),avg,peak,budget["grid_w"],self.capacity_settings)
             limit = current_capacity.allowed_grid_w
             if limit is None:
                 limit = max(0.0,current_capacity.effective_target_w-self.capacity_settings["margin_w"])
+            readings["quarter_limit_w"] = limit
             if not current_capacity.valid or projected > limit:
-                return False
+                return rejected("capacity_source" if not current_capacity.valid else "capacity_limit")
         return True
 
     def sg_start_wait_kind(self):

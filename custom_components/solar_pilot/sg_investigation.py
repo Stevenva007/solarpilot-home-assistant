@@ -29,6 +29,44 @@ POLICY_KEYS = ("import_threshold_w", "stop_delay_s", "min_session_s", "max_sessi
 _NET_STOP = re.compile(r"^Netgrens overschreden: ([0-9]+(?:\.[0-9]+)?) W afname > ([0-9]+(?:\.[0-9]+)?) W$")
 _RELEASE = re.compile(r"^\d+\.\d+\.\d+(?:-beta\.\d+)?$")
 _IDENTITY = re.compile(r"^[0-9a-f]{32,64}$")
+_MAX_REPORT_WALL = 4102444800.0
+# Fixed diagnostic vocabulary. A rejected boundary does not grant permission
+# and is not classified from a generic 'voorwaarden gewijzigd' message.
+DISPATCH_REJECTION_REASONS = {
+    "actuator_conflict": ("De SG-uitgang heeft een conflicterende toewijzing", "manual_or_configuration"),
+    "cooling_context": ("De actuele koelcontext geeft geen SG-vrijgave", "unknown"),
+    "runtime_closed": ("De regeling is afgesloten", "manual_or_configuration"),
+    "runtime_mode": ("De actuele regelmodus geeft geen SG-vrijgave", "manual_or_configuration"),
+    "removal_requested": ("Verwijdering van de regeling is aangevraagd", "manual_or_configuration"),
+    "restart_blocking": ("Een opdrachtuitkomst na herstart is nog onzeker", "unknown"),
+    "runtime_fault": ("Een actuele regelingsfout blokkeert SG", "unknown"),
+    "pending_command": ("Een andere opdracht wacht op bevestiging", "unknown"),
+    "handover": ("Een vermogensoverdracht is nog bezig", "unknown"),
+    "battery_busy": ("De batterijregeling heeft een lopende opdracht", "unknown"),
+    "site_source": ("De actuele zonne- en netmetingen zijn niet bruikbaar", "source_or_contact_fault"),
+    "battery_discharge": ("De actuele batterijontlading overschrijdt de grens", "electrical_limit"),
+    "priority": ("De actuele toestelvoorrang geeft geen SG-vrijgave", "unknown"),
+    "wallbox_priority": ("De actuele Wallbox-voorrang vraagt vrijgave", "unknown"),
+    "solar_threshold": ("Het actuele zonnebudget ligt onder de startdrempel", "unknown"),
+    "settle": ("De actuele meet- of bezinktijd is nog niet vrijgegeven", "unknown"),
+    "wallbox_headroom": ("De beschikbare ruimte naast de Wallbox is te klein", "electrical_limit"),
+    "net_limit": ("De berekende netafname overschrijdt de vaste netgrens", "electrical_limit"),
+    "soft_import_policy": ("De actuele zachte netafnamecontrole geeft geen SG-vrijgave", "unknown"),
+    "phase_source": ("De actuele fasemetingen zijn niet bruikbaar", "source_or_contact_fault"),
+    "phase_limit": ("De actuele fasegrens geeft geen SG-vrijgave", "electrical_limit"),
+    "capacity_source": ("De actuele kwartiermeting is niet bruikbaar", "source_or_contact_fault"),
+    "capacity_limit": ("De berekende netafname overschrijdt het kwartierbudget", "electrical_limit"),
+    "permission_changed": ("De actuele SG-toestemming of configuratie is ingetrokken", "unknown"),
+    "lease_unconfirmed": ("De bestaande SG-toestemming is niet actueel bevestigd", "source_or_contact_fault"),
+    "dispatch_callback_error": ("De finale SG-controle kon niet worden afgerond", "unknown"),
+    "dispatch_unexplained": ("De finale SG-controle wees af zonder specifieke oorzaak", "unknown"),
+    "session_deadline": ("De begrensde SG-sessietijd laat geen nieuwe lokale termijn toe", "session_limit"),
+    "manual_deadline": ("De tijdelijke handmatige SG-keuze laat geen nieuwe lokale termijn toe", "manual_or_configuration"),
+}
+DISPATCH_READING_KEYS = frozenset({"grid_w", "pv_w", "discharge_w", "reserve_w", "available_w", "eligible_w",
+    "budget_oldest_reported_at", "residual_oldest_reported_at", "extra_w", "envelope_w", "projected_grid_w",
+    "fixed_import_limit_w", "wallbox_headroom_w", "phase_headroom_w", "quarter_limit_w"})
+DISPATCH_SOURCE_KEYS = ("site_grid", "site_pv", "soft_import", "phase_1", "phase_2", "phase_3", "quarter_average", "quarter_peak")
 
 
 def _number(value):
@@ -56,6 +94,29 @@ def _text(value, limit=240):
 
 def _release(value):
     return value if isinstance(value, str) and len(value) <= 40 and _RELEASE.fullmatch(value) else None
+
+
+def clean_dispatch_rejection(value):
+    """Bounded source-time evidence, never reconstructed from present sources."""
+    value = _map(value)
+    code = value.get("code")
+    stamp = _number(value.get("evaluated_at"))
+    if (type(value.get("schema")) is not int or value.get("schema") != 1
+            or not isinstance(code, str) or code not in DISPATCH_REJECTION_REASONS
+            or stamp is None or not 0 < stamp <= _MAX_REPORT_WALL or type(value.get("renewal")) is not bool):
+        return None
+    readings = _map(value.get("readings"))
+    sources = _map(value.get("source_reports"))
+    def source_stamp(raw):
+        stamp = _number(raw)
+        return stamp if stamp is not None and 0 < stamp <= _MAX_REPORT_WALL else None
+    return {"schema": 1, "code": code, "reason": DISPATCH_REJECTION_REASONS[code][0],
+        "evaluated_at": stamp, "renewal": value["renewal"],
+        "readings": {key: source_stamp(readings[key]) if key.endswith("_reported_at") else _number(readings[key])
+            for key in DISPATCH_READING_KEYS if key in readings},
+        "source_reports": {key: {"watts": _number(_map(sources[key]).get("watts")),
+            "reported_at": source_stamp(_map(sources[key]).get("reported_at"))}
+            for key in DISPATCH_SOURCE_KEYS if key in sources}}
 
 
 def effective_session_policy(config, effective_minimum_s, fixed_import_limit_w=None):
@@ -165,15 +226,23 @@ def _controller_stop(record, last, now=None):
             or (lower is not None and ended - duration < lower - 30)
             or (now is not None and ended > now + 5)):
         return None
+    evidence = clean_dispatch_rejection(last.get("stop_evidence"))
+    if evidence is not None and not lower-30 <= evidence["evaluated_at"] <= ended+5:
+        evidence = None
     result = {"ended_at": ended, "duration_s": duration, "reason": _text(last.get("reason")),
-              "category": _category(last.get("reason"))}
+              "category": _category(last.get("reason"), evidence)}
+    if evidence is not None:
+        result["stop_evidence"] = evidence
     if original is not None:
         result["command_identity"] = original["command_identity"]
     return result
 
 
-def _category(reason):
+def _category(reason, stop_evidence=None):
     """Classify recorded controller reasons, without inferring unknown causes."""
+    evidence = clean_dispatch_rejection(stop_evidence)
+    if evidence is not None:
+        return DISPATCH_REJECTION_REASONS[evidence["code"]][1]
     reason = _text(reason)
     if _NET_STOP.fullmatch(reason):
         return "hard_net_limit"
@@ -181,12 +250,16 @@ def _category(reason):
         return "electrical_limit"
     if reason == "Aanhoudende netafname; extra SG-aanvraag vrijgegeven":
         return "soft_cloud_import"
-    if any(word in reason.casefold() for word in ("netmeting niet actueel", "betrouwbare actuele", "kwartierpiekmeting", "uitgangstatus", "niet bevestigd")):
+    if any(word in reason.casefold() for word in ("netmeting niet actueel", "betrouwbare actuele", "kwartierpiekmeting", "uitgangstatus", "niet bevestigd", "sg-uitgang niet bereikbaar")):
         return "source_or_contact_fault"
     if reason == "Bevestigde boost voltooid of geen extra opname":
         return "native_completion"
     if reason == "Begrensde SG-sessieduur bereikt":
         return "session_limit"
+    if reason.startswith("SG-voorwaarden gewijzigd;"):
+        # This legacy message also represented source/electrical/priority
+        # rejection. Its actual historical gate cannot be reconstructed.
+        return "unknown"
     if any(word in reason.casefold() for word in ("handmatig", "uitgeschakeld", "afsluiten", "herstart", "gewijzigd")):
         return "manual_or_configuration"
     return "unknown"
@@ -339,7 +412,11 @@ class SGSessionResearch:
             for key in ("grid_reports", "pv_reports", "contact_reports", "gaps"):
                 number = _number(record.get(key))
                 cleaned[key] = min(1000000, max(0, int(number))) if number is not None else 0
-            cleaned["stop_category"] = _category(cleaned["reason"])
+            cleaned["stop_evidence"] = clean_dispatch_rejection(record.get("stop_evidence"))
+            if (cleaned["stop_evidence"] is not None and (started is None or ended is None
+                    or not started-30 <= cleaned["stop_evidence"]["evaluated_at"] <= ended+5)):
+                cleaned["stop_evidence"] = None
+            cleaned["stop_category"] = _category(cleaned["reason"], cleaned["stop_evidence"])
             cleaned["last_observed_at"] = observed
             cleaned["interrupted"] = interrupted
             cleaned["interruption"] = ("restart" if checkpoint_record else record.get("interruption")) if interrupted else None
@@ -499,11 +576,12 @@ class SGSessionResearch:
                     and start_lower - 30 <= ended - duration <= active["started_at"] + 5)
                 active.update(ended_at=ended if ended is not None else now, duration_s=duration if duration is not None else max(0.0, now-active["started_at"]),
                               reason=_text(last.get("reason")), end_matched=matched,
-                              stop_category=_category(last.get("reason")))
+                              stop_category=_category(last.get("reason"), last.get("stop_evidence")))
                 stop = _controller_stop(active, last, now)
                 if active.get("session_provenance") is not None and stop is None:
                     active.update(reason="", stop_category="unknown", end_matched=False)
                 active.update(controller_stop=stop, contact_end=_contact(sg, now),
+                    stop_evidence=stop.get("stop_evidence") if stop is not None else None,
                     transport=_transport(last.get("transport")) if stop is not None else None)
                 active["consistency"] = self._consistency(active)
                 active["comparable"] = active["consistency"] in ("consistent_observation", "review_timing")
@@ -527,7 +605,7 @@ def assessment(runtime, now, sg=None, research=None):
     observed_last = next((record for record in reversed(records)
         if _number(last.get("ended_at")) is not None and record.get("ended_at") == last.get("ended_at")
         and record.get("duration_s") == last.get("duration_s") and record.get("reason") == last.get("reason")), None)
-    category = _category(last.get("reason"))
+    category = _category(last.get("reason"), last.get("stop_evidence"))
     release = _release(observed_last.get("release")) if observed_last is not None else _release(last.get("release"))
     last_metrics = {"release": release, "duration_s": _number(last.get("duration_s")),
                     "ended_at": _number(last.get("ended_at")), "stop_category": category,
@@ -536,6 +614,7 @@ def assessment(runtime, now, sg=None, research=None):
                     "policy_hash": last.get("policy_hash") if isinstance(last.get("policy_hash"), str) else None,
                     "command_identity": last.get("command_identity") if isinstance(last.get("command_identity"), str) else None,
                     "transport": _transport(last.get("transport")), "reason": _text(last.get("reason"))}
+    last_metrics["stop_evidence"] = clean_dispatch_rejection(last.get("stop_evidence"))
     item = {"id": "sg_policy", "title": "SG-duur en stopredenen", "status": "collecting",
         "summary": "Nieuwe SG-sessies worden onderzocht; de huidige timers zijn nog niet met een complete sessie beoordeeld.",
         "next_action": "Volg een nieuwe, normaal toegelaten SG-sessie met actuele net-, zonne- en contactmetingen.",

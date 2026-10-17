@@ -9,6 +9,8 @@ from copy import deepcopy
 from datetime import datetime
 import math
 
+from .ems import pv_coverage_details
+
 
 def finite(value):
     if isinstance(value, bool):
@@ -45,7 +47,8 @@ class DailyElectricityCost:
     @classmethod
     def _new(cls, day):
         return {"date": day, **{k: 0.0 for k in cls.numeric}, "storage_seen": False,
-                "legacy_price_estimate": False, "first_sample": None, "last_sample": None}
+                "legacy_price_estimate": False, "legacy_pv_coverage_unknown": False,
+                "first_sample": None, "last_sample": None}
 
     def snapshot(self):
         if self._unsupported_snapshot is not None:
@@ -70,7 +73,7 @@ class DailyElectricityCost:
             v = finite(d.get(k))
             if v is not None:
                 self.data[k] = v if k.endswith("_eur") else max(0.0, v)
-        for k in ("storage_seen", "legacy_price_estimate"):
+        for k in ("storage_seen", "legacy_price_estimate", "legacy_pv_coverage_unknown"):
             self.data[k] = d.get(k) is True
         for k in ("first_sample", "last_sample"):
             self.data[k] = finite(d.get(k))
@@ -97,9 +100,12 @@ class DailyElectricityCost:
             self.data["pv_avoided_cost_eur"] = self.data["direct_pv_kwh"] * imp
             self.data["priced_s"] = self.data["coverage_s"]
             self.data["legacy_price_estimate"] = self.data["coverage_s"] > 0
-        # Historical PV availability cannot be recovered from these old counters.
-        if self.data["pv_kwh"] > 0:
-            self.data["pv_coverage_s"] = self.data["coverage_s"]
+        # Energy totals alone cannot establish the earlier PV sampling time.
+        # Preserve those subtotals and their price estimate without inventing
+        # full coverage; new EMS proof distinguishes measured/missing/unknown.
+        proof = pv_coverage_details(stats)
+        self.data["pv_coverage_s"] = proof["measured_s"] if proof is not None else 0.0
+        self.data["legacy_pv_coverage_unknown"] = proof is None or proof["legacy_unknown_s"] > 0
         if self.data["coverage_s"]:
             self.data["first_sample"] = max(now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp(), now.timestamp()-self.data["coverage_s"])
             self.data["last_sample"] = now.timestamp()
@@ -179,21 +185,23 @@ class DailyElectricityCost:
         coverage = min(elapsed, d["coverage_s"])
         enough = d["coverage_s"] > 0
         priced = enough and d["priced_s"] >= d["coverage_s"]-.01
-        direct_known = d["pv_coverage_s"] > 0 and not d["storage_seen"]
+        pv_known = d["pv_coverage_s"] > 0 or d["legacy_pv_coverage_unknown"] and d["pv_kwh"] > 0
+        direct_known = pv_known and not d["storage_seen"]
         partial = elapsed > coverage+120
         result = {"date": d["date"], "reset_timestamp": now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp(), "basis": "gemeten tot nu toe", "partial": partial,
                   "coverage_s": round(coverage, 1), "coverage_pct": round(100*coverage/elapsed, 1) if elapsed else 0.0,
                   "first_sample": d["first_sample"], "last_sample": d["last_sample"],
                   "import_kwh": round(d["import_kwh"], 6) if enough else None,
                   "export_kwh": round(d["export_kwh"], 6) if enough else None,
-                  "pv_kwh": round(d["pv_kwh"], 6) if d["pv_coverage_s"] else None,
+                  "pv_kwh": round(d["pv_kwh"], 6) if pv_known else None,
                   "direct_pv_kwh": round(d["direct_pv_kwh"], 6) if direct_known else None,
                   "import_cost_eur": round(d["import_cost_eur"], 6) if priced else None,
                   "export_revenue_eur": round(d["export_revenue_eur"], 6) if priced else None,
                   "net_cost_eur": round(d["import_cost_eur"]-d["export_revenue_eur"], 6) if priced else None,
                   "pv_avoided_cost_eur": round(d["pv_avoided_cost_eur"], 6) if priced and direct_known else None,
                   "legacy_price_estimate": d["legacy_price_estimate"], "storage_present": d["storage_seen"],
-                  "pv_partial": d["pv_coverage_s"] < d["coverage_s"]-.01,
+                  "legacy_pv_coverage_unknown": d["legacy_pv_coverage_unknown"],
+                  "pv_partial": d["legacy_pv_coverage_unknown"] or d["pv_coverage_s"] < d["coverage_s"]-.01,
                   "note": "Netafnamekost min injectievergoeding; eigen zon niet nogmaals aftrekken. Exclusief vaste kosten en capaciteitstarief."}
         result["coverage_note"] = ("Nog geen bruikbare meetperiode" if not enough else
                                    f"Meetdekking {result['coverage_pct']:.1f}% van vandaag; ontbrekende perioden niet geschat" if partial else
@@ -202,6 +210,8 @@ class DailyElectricityCost:
             result["storage_warning"] = "Opgeslagen kostenversie niet ondersteund; oorspronkelijke opslag blijft ongewijzigd bewaard"
         if d["storage_seen"]:
             result["solar_note"] = "Met thuisbatterij is rechtstreeks zonneverbruik niet apart bewezen; netkost blijft op P1 gebaseerd."
+        elif d["legacy_pv_coverage_unknown"]:
+            result["solar_note"] = "Historische PV-totalen behouden; eerdere PV-meetdekking onbekend."
         elif result["pv_partial"]:
             result["solar_note"] = "Rechtstreekse zon alleen over perioden met bruikbare PV-metingen."
         else:
