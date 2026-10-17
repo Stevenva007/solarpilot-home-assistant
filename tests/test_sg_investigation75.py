@@ -115,7 +115,7 @@ def test_complete_early_soft_release_proposes_trace_not_setting_mutation():
     ("Netmeting niet actueel; extra SG-aanvraag vrijgegeven", "source_or_contact_fault"),
     ("Bevestigde boost voltooid of geen extra opname", "native_completion"),
     ("Eigen SG-aanvraag vrijgegeven voor afsluiten", "manual_or_configuration"),
-    ("SG-voorwaarden gewijzigd; eigen aanvraag vrijgegeven", "manual_or_configuration"),
+    ("SG-voorwaarden gewijzigd; eigen aanvraag vrijgegeven", "unknown"),
     ("Begrensde SG-sessieduur bereikt", "session_limit"),
     ("Een andere, niet herkende reden", "unknown"),
 ])

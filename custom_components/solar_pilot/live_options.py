@@ -7,10 +7,12 @@ same lock as dispatch; the dishwasher event listener remains installed.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from copy import deepcopy
 import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import re
 import time
 from uuid import uuid4
 
@@ -20,7 +22,8 @@ from .const import DEVICE_DEFAULTS
 from .dishwasher import normalize_config
 from .dishwasher_app import deadline_time
 from .engine import State
-from .sg_config import DISPLAY_ONLY_KEYS, actuator_conflicts, validate_config as validate_sg
+from .sg_config import (DISPLAY_ONLY_KEYS, actuator_conflicts, normalize_config as normalize_sg,
+                        validate_config as validate_sg)
 
 PENDING = "_live_pending"
 ARCHIVED = "_archived_devices"
@@ -77,6 +80,48 @@ def pending_rows(value):
 
 def changed_keys(a, b):
     return {k for k in set(a) | set(b) if a.get(k) != b.get(k)}
+
+
+def _zone_members(value):
+    """Only a valid, duplicate-free source list has unordered membership."""
+    if (not isinstance(value, list)
+            or any(not isinstance(item, str) or re.fullmatch(r"climate\.[a-z0-9_]+", item) is None for item in value)
+            or len(set(value)) != len(value)):
+        return None
+    return frozenset(value)
+
+
+def _sg_changed_keys(old, new):
+    """Compare runtime meaning without changing the transaction's raw leaves."""
+    if any(value is not None and not isinstance(value, Mapping) for value in (old, new)):
+        return {"invalid_sg_configuration"}
+    before, after = normalize_sg(old), normalize_sg(new)
+    keys = changed_keys(before, after)
+    # Invalid booleans cannot disappear through Python's True == 1 equality.
+    keys.update(key for key in before
+                if (type(before[key]) is bool or type(after[key]) is bool)
+                and type(before[key]) is not type(after[key]))
+    # Keep unknown historical fields intact and conservative. Normalization
+    # must not turn an unsupported edited field into a display-only update.
+    old, new = old or {}, new or {}
+    keys.update(changed_keys({key: value for key, value in old.items() if key not in before},
+                             {key: value for key, value in new.items() if key not in after}))
+    previous, proposed = _zone_members(before["zone_entities"]), _zone_members(after["zone_entities"])
+    if previous is not None and previous == proposed:
+        keys.discard("zone_entities")
+    return keys
+
+
+def _preserve_sg_zone_order(old, new):
+    """A selector reorder must not change the active or saved SG identity."""
+    if not isinstance(old, Mapping) or not isinstance(new, Mapping):
+        return new
+    before, after = normalize_sg(old), normalize_sg(new)
+    previous, proposed = _zone_members(before["zone_entities"]), _zone_members(after["zone_entities"])
+    if previous is not None and previous == proposed and after["zone_entities"] != before["zone_entities"]:
+        new = deepcopy(dict(new))
+        new["zone_entities"] = deepcopy(before["zone_entities"])
+    return new
 
 
 def merge_three(base, desired, current, path=""):
@@ -181,7 +226,8 @@ class LiveOptions:
 
     def group_block(self, group, old, new):
         r = self.r
-        keys = changed_keys(old if isinstance(old, dict) else {}, new if isinstance(new, dict) else {})
+        keys = (_sg_changed_keys(old, new) if group == "sg_boost" else
+                changed_keys(old if isinstance(old, dict) else {}, new if isinstance(new, dict) else {}))
         if group in DISPLAY_GROUPS:
             return ""
         if group == "sg_boost" and keys <= DISPLAY_ONLY_KEYS:
@@ -207,6 +253,8 @@ class LiveOptions:
     def prepare(self, base, desired):
         current = deepcopy(dict(self.r.entry.options))
         target = merge_three(base, desired, current)
+        if "sg_boost" in target:
+            target["sg_boost"] = _preserve_sg_zone_order(current.get("sg_boost"), target["sg_boost"])
         self._validate_sg_boundary(target)
         out = deepcopy(current)
         queue = pending_rows(current.get(PENDING, {}))
@@ -615,10 +663,12 @@ class LiveOptions:
                 group=item["group"]
                 if options.get(group) != item.get("old"):
                     item["reason"]="Actieve instellingen gewijzigd; voorstel eerst herzien";continue
-                block=self.group_block(group,item.get("old"),item.get("new"))
+                proposed = (_preserve_sg_zone_order(item.get("old"), item.get("new"))
+                            if group == "sg_boost" else item.get("new"))
+                block=self.group_block(group,item.get("old"),proposed)
                 if block:item["reason"]=block;continue
-                if item.get("new") is None:options.pop(group,None)
-                else:options[group]=item["new"]
+                if proposed is None:options.pop(group,None)
+                else:options[group]=proposed
             queue.pop(key,None);changed=True
         if changed:
             options[PENDING]=queue

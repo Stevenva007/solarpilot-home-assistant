@@ -1,5 +1,5 @@
-/* SolarPilot 1.0.0-beta.94. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
-const SP_CARD_VERSION = '1.0.0-beta.94';
+/* SolarPilot 1.0.0-beta.95. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+const SP_CARD_VERSION = '1.0.0-beta.95';
 const SP_DIALOG_RELEASE = SP_CARD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g,'-');
 const SP_ANALYSIS_DIALOG_TAG = `solar-pilot-analysis-dialog-${SP_DIALOG_RELEASE}`;
 const SP_QUALITY_DIALOG_TAG = `solar-pilot-learning-dialog-${SP_DIALOG_RELEASE}`;
@@ -1111,7 +1111,7 @@ class SolarPilotCard extends HTMLElement {
         ${this._tile('Lokale PV-voorspelling',localPv.enabled?(localPv.corrected_power_w==null?'—':spPower(localPv.corrected_power_w)):'uit',localPv.enabled?`${Math.round(Number(localPv.confidence||0)*100)}% · ${localPv.reason||''}`:'')}
       </div></details>
       <div class="kpis">
-        ${this._tile('Zelfconsumptie vandaag',today.self_consumption_pct==null?'—':spPct(today.self_consumption_pct),'indicatieve toerekening')}
+        ${this._tile('Zelfconsumptie vandaag',today.self_consumption_pct==null?'—':spPct(today.self_consumption_pct),today.pv_coverage_note||'PV-meetdekking onbekend; indicatieve toerekening')}
         ${this._tile('Op zon geregeld',`${Number(today.managed_solar_kwh||0).toLocaleString('nl-BE',{maximumFractionDigits:2})} kWh`,today.managed_kwh!=null?`van ${Number(today.managed_kwh||0).toLocaleString('nl-BE',{maximumFractionDigits:2})} kWh geregeld`:'' )}
         ${this._tile('Elektriciteitskost vandaag',spEuro(c.electricityToday?.net_cost_eur),'netafname min injectie · tot nu toe')}
       </div>
@@ -1489,7 +1489,13 @@ class SolarPilotCard extends HTMLElement {
   _heatpumpTankSummary(c){
     const goal=this._heatpumpCalculatedGoal(c),rows=[['Boilertemperatuur',spTemp(this._heatpumpTankValue(c,'temperature_c'))],['Ingesteld boilerdoel',spTemp(this._heatpumpTankValue(c,'target_c'))]];
     if(goal)rows.push([goal.label,spTemp(goal.value)]);
-    return `<div class="heatpump-tank-summary" data-boiler-temperatures>${this._reasonFacts(rows)}${!goal&&c.panasonic?.sg_tank_goal?.read_only===true?'<button type="button" class="mini" data-action="configure" data-config-step="sg_sources">SG-doel voor weergave instellen</button>':''}</div>`;
+    return `<div class="heatpump-tank-summary" data-boiler-temperatures>${this._reasonFacts(rows)}${this._heatpumpGoalSetup(c)}</div>`;
+  }
+  _heatpumpGoalSetup(c){
+    const row=c.panasonic?.sg_tank_goal;
+    if(row?.read_only!==true||this._heatpumpCalculatedGoal(c))return '';
+    const reason=({profile_unconfirmed:'Tapwaterpercentage en tankbron nog bevestigen.',profile_source_unbound:'Kies de tankbron die bij het bevestigde percentage hoort.',profile_invalid:'Controleer het ingestelde tapwaterpercentage.',profile_confirmation_invalid:'Bevestig het tapwaterpercentage opnieuw.',normal_target_unavailable:'Het normale boilerdoel ontbreekt of is niet actueel.',calculated_target_out_of_range:'Het berekende doel valt buiten het weergavebereik.'})[row.reason]||'Er is geen actueel berekend SG-doel beschikbaar.';
+    return `<div data-sg-goal-setup><p class="note"><b>SG-doel:</b> ${spEscape(reason)} De getoonde ingestelde waarde is het normale Panasonic-doel.</p><button type="button" class="mini" data-action="configure" data-config-step="sg_sources">SG-doel voor weergave instellen</button></div>`;
   }
   _heatpumpCalculatedGoal(c,{diagnostic=false}={}){
     const p=c.panasonic||{},row=p.sg_tank_goal,tank=p.display_tank,goal=spCalculatedTankGoal(row,{stale:p.source_stale_s??120});
@@ -1740,7 +1746,7 @@ class SolarPilotCard extends HTMLElement {
     const s=c.sgBoost||{},p=c.panasonic||{},operation=this._heatpumpPresentation(c);
     const switchEntity=s.enabled_entity,ready=!!switchEntity&&!this._busy;
     const manual=s.manual_hold===true||s.state==='manual_hold';
-    return `<section class="heatpump-sg is-${operation.state}" data-activity="${operation.active?'active':operation.known?'inactive':'unknown'}"><div class="sectionhead"><div><h2>Warmtepomp — Panasonic-regeling / SG-zonneboost</h2></div><button type="button" role="switch" aria-checked="${s.enabled===true}" aria-label="Automatische zonneboost" class="toggle ${s.enabled===true?'active':''}" data-action="sg_boost_enabled" ${ready?'':'disabled'}>${s.enabled===true?'Aan':'Uit'}</button></div>${this._heatpumpGraphic(c)}${this._heatpumpBusiness(c)}${this._sgStatusStrip(c)}<div class="heatpump-readings">${this._tile('Boilertemperatuur',spTemp(this._heatpumpTankValue(c,'temperature_c')),'Panasonic-meting')}${this._tile('Ingesteld boilerdoel',spTemp(this._heatpumpTankValue(c,'target_c')),'Gemeld tankdoel')}${this._heatpumpCalculatedGoal(c)?this._tile(this._heatpumpCalculatedGoal(c).label,spTemp(this._heatpumpCalculatedGoal(c).value),'Lokaal bevestigd SG-percentage'):''}${this._heatpumpPower(c)}</div><p><b>${spEscape(this._plainReason(this._heatpumpReason(c)))}</b></p>${this._wallboxPriorityControl(c,'dhw_extra',{label:'extra SG-zonneboost',compact:true})}${this._heatpumpHistoryButton(c)}${manual?`<p class="note">Handmatige bediening blijft behouden.</p><button type="button" class="mini" data-action="sg_boost_resume" ${!s.resume_entity||this._busy?'disabled':''}>Automatische zonneboost hervatten</button>`:''}<details data-ui-key="sg:${spEscape(scope)}:details"><summary>Details en voorwaarden</summary>${this._sgDetails(c,scope)}<button type="button" class="mini" data-action="configure" data-config-step="sg_boost">Zonneboost instellen</button></details></section>`;
+    return `<section class="heatpump-sg is-${operation.state}" data-activity="${operation.active?'active':operation.known?'inactive':'unknown'}"><div class="sectionhead"><div><h2>Warmtepomp — Panasonic-regeling / SG-zonneboost</h2></div><button type="button" role="switch" aria-checked="${s.enabled===true}" aria-label="Automatische zonneboost" class="toggle ${s.enabled===true?'active':''}" data-action="sg_boost_enabled" ${ready?'':'disabled'}>${s.enabled===true?'Aan':'Uit'}</button></div>${this._heatpumpGraphic(c)}${this._heatpumpBusiness(c)}${this._sgStatusStrip(c)}<div class="heatpump-readings">${this._tile('Boilertemperatuur',spTemp(this._heatpumpTankValue(c,'temperature_c')),'Panasonic-meting')}${this._tile('Ingesteld boilerdoel',spTemp(this._heatpumpTankValue(c,'target_c')),'Gemeld tankdoel')}${this._heatpumpCalculatedGoal(c)?this._tile(this._heatpumpCalculatedGoal(c).label,spTemp(this._heatpumpCalculatedGoal(c).value),'Lokaal bevestigd SG-percentage'):''}${this._heatpumpPower(c)}</div>${this._heatpumpGoalSetup(c)}<p><b>${spEscape(this._plainReason(this._heatpumpReason(c)))}</b></p>${this._wallboxPriorityControl(c,'dhw_extra',{label:'extra SG-zonneboost',compact:true})}${this._heatpumpHistoryButton(c)}${manual?`<p class="note">Handmatige bediening blijft behouden.</p><button type="button" class="mini" data-action="sg_boost_resume" ${!s.resume_entity||this._busy?'disabled':''}>Automatische zonneboost hervatten</button>`:''}<details data-ui-key="sg:${spEscape(scope)}:details"><summary>Details en voorwaarden</summary>${this._sgDetails(c,scope)}<button type="button" class="mini" data-action="configure" data-config-step="sg_boost">Zonneboost instellen</button></details></section>`;
   }
   _comfort(c){return `<section class="view">${this._heatpump(c)}</section>`;}
   _plannerSettingControl(item){

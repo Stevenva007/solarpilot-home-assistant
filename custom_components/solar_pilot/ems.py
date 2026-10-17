@@ -275,7 +275,64 @@ def fresh_daily_stats(day=""):
         "managed_unattributed_kwh": 0.0,
         "estimated_value_eur": 0.0,
         "samples_s": 0.0,
+        "pv_coverage": {"version": 1, "measured_s": 0.0, "missing_s": 0.0,
+                        "legacy_unknown_s": 0.0},
     }
+
+
+def pv_coverage_details(stats):
+    """Read the additive proof without promoting old totals to measured time.
+
+    Missing legacy proof means its earlier EMS sampling time is unknown. An
+    unsupported or malformed extension stays opaque in the original stats.
+    """
+    if not isinstance(stats, dict):
+        return None
+    total = finite(stats.get("samples_s"))
+    if total is None or total < 0:
+        return None
+    if "pv_coverage" not in stats:
+        return {"version": 1, "measured_s": 0.0, "missing_s": 0.0,
+                "legacy_unknown_s": total}
+    proof = stats["pv_coverage"]
+    if not isinstance(proof, dict) or type(proof.get("version")) is not int or proof["version"] != 1:
+        return None
+    values = {key: finite(proof.get(key)) for key in ("measured_s", "missing_s", "legacy_unknown_s")}
+    if (any(value is None or value < 0 for value in values.values())
+            or not math.isclose(sum(values.values()), total, rel_tol=1e-9, abs_tol=1e-6)):
+        return None
+    return {"version": 1, **values}
+
+
+def pv_accounting_overview(stats):
+    """Public daily subtotals and quality, never opaque future storage fields."""
+    stats = stats if isinstance(stats, dict) else {}
+    result = {key: stats[key] for key in fresh_daily_stats() if key != "pv_coverage" and key in stats}
+    pv, own = finite(stats.get("pv_kwh")), finite(stats.get("pv_self_used_kwh"))
+    result["self_consumption_pct"] = (round(100 * own / pv, 1)
+        if pv is not None and pv > 0 and own is not None and 0 <= own <= pv else None)
+    total = finite(stats.get("samples_s"))
+    proof = pv_coverage_details(stats)
+    status = "unknown"
+    note = "PV-meetdekking onbekend; indicatieve toerekening"
+    pct = None
+    if proof is not None:
+        pct = (round(100 * proof["measured_s"] / total, 1)
+               if total and proof["legacy_unknown_s"] == 0 else None)
+        if not total:
+            status, note = "no_samples", "Nog geen geregistreerde EMS-meetperiode"
+        elif proof["legacy_unknown_s"] > 0:
+            status, note = "legacy_unknown", "PV-dekking van eerdere EMS-meetperioden onbekend; indicatieve toerekening"
+        elif proof["missing_s"] > 0:
+            status, note = "partial", f"Onvolledige PV-meetdekking: {pct:.1f}% van geregistreerde EMS-meetperioden"
+        else:
+            status, note = "complete", "Indicatieve toerekening; PV-dekking van alle geregistreerde EMS-meetperioden"
+    result.update(pv_coverage_status=status, pv_partial=status != "complete", pv_coverage_pct=pct,
+                  pv_coverage_s=proof["measured_s"] if proof is not None else None,
+                  pv_missing_s=proof["missing_s"] if proof is not None else None,
+                  pv_legacy_unknown_s=proof["legacy_unknown_s"] if proof is not None else None,
+                  pv_coverage_note=note)
+    return result
 
 
 def accounting_step(stats, *, day, dt_s, grid_w, pv_w, managed_w,
@@ -295,20 +352,25 @@ def accounting_step(stats, *, day, dt_s, grid_w, pv_w, managed_w,
         return out
     hours = dt / 3_600_000.0  # W*s -> kWh multiplier
     imp_w, exp_w = max(0.0, grid), max(0.0, -grid)
-    pv = max(0.0, finite(pv_w) or 0.0)
+    pv = finite(pv_w)
+    if pv is not None and pv < 0:
+        pv = None
+    proof = pv_coverage_details(out)
     batt = max(0.0, finite(battery_discharge_w) or 0.0)
     managed = max(0.0, managed)
     out["site_import_kwh"] += imp_w * hours
     out["site_export_kwh"] += exp_w * hours
-    out["pv_kwh"] += pv * hours
-    out["pv_self_used_kwh"] += min(pv, max(0.0, pv - exp_w)) * hours
+    if pv is not None:
+        out["pv_kwh"] += pv * hours
+        out["pv_self_used_kwh"] += min(pv, max(0.0, pv - exp_w)) * hours
     out["managed_kwh"] += managed * hours
     # Conservatively assign visible import and battery discharge to managed load
     # before claiming the rest as PV-supported.
     managed_grid_w = min(managed, imp_w)
     remaining = max(0.0, managed - managed_grid_w)
     managed_batt_w = min(remaining, batt)
-    managed_solar_w = min(max(0.0, remaining - managed_batt_w), max(0.0, pv - exp_w))
+    managed_solar_w = (min(max(0.0, remaining - managed_batt_w), max(0.0, pv - exp_w))
+                       if pv is not None else 0.0)
     out["managed_grid_kwh"] += managed_grid_w * hours
     out["managed_battery_kwh"] += managed_batt_w * hours
     out["managed_solar_kwh"] += managed_solar_w * hours
@@ -317,4 +379,9 @@ def accounting_step(stats, *, day, dt_s, grid_w, pv_w, managed_w,
     spread = (finite(import_price_eur_kwh) or 0.0) - (finite(export_price_eur_kwh) or 0.0)
     out["estimated_value_eur"] += managed_solar_w * hours * spread
     out["samples_s"] += dt
+    if proof is not None:
+        # Preserve unknown neighboring fields privately and never mutate input.
+        stored = out.get("pv_coverage")
+        out["pv_coverage"] = {**(stored if isinstance(stored, dict) else {}), **proof}
+        out["pv_coverage"]["measured_s" if pv is not None else "missing_s"] += dt
     return out

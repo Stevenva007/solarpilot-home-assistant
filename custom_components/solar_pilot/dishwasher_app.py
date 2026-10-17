@@ -440,7 +440,13 @@ class DishwasherApp:
             e = d["end_pending"]
             return Reading(active=False, finished=True, raw=e["state"], phase="End Of Cycle",
                            stamp=e["ended_at"], program=e.get("program", ""), reason="Afwasprogramma bevestigd voltooid")
-        if norm(reading.raw) == "off" and d.get("completion") and d.get("cycle", {}).get("status") == "completed":
+        # A retained completion explains a currently confirmed OFF; it cannot
+        # replace an unknown read after the appliance heartbeat was lost. The
+        # one-shot end_pending event above still closes history at its original
+        # event time, independently of later connectivity.
+        if (reading.active is False and reading.gates.get("connection") is True
+                and norm(reading.raw) == "off" and d.get("completion")
+                and d.get("cycle", {}).get("status") == "completed"):
             return replace(reading, active=False, finished=True, reason="Afwasprogramma voltooid; toestel uit")
         return reading
 

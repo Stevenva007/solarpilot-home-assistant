@@ -1,9 +1,9 @@
 <!-- solarpilot-handoff-schema: 1 -->
-<!-- solarpilot-handoff-version: 1.0.0-beta.94 -->
+<!-- solarpilot-handoff-version: 1.0.0-beta.95 -->
 
 # OVERDRACHT — SolarPilot
 
-Laatst bijgewerkt: **16 oktober 2026**. Actuele bron: **v1.0.0-beta.94**. Beta.94 bewaart de bevestigde UIT-tijd van gewone verbruikers, zodat een HA-herstart of integratieherlaad alleen de resterende minimale rusttijd telt. Herstarttijd telt mee; herhaalde herstarts verschuiven de oorspronkelijke deadline niet. Alleen passende huidige toestel-/broncontrole kan het checkpoint gebruiken. Zonder betrouwbaar oud bewijs geldt de volledige bescherming. Bewijs: `docs/TESTRESULTATEN_BETA94.md`; installatie/rollback: `docs/BETA94_INSTELLEN.md`.
+Laatst bijgewerkt: **17 oktober 2026**. Actuele bron: **v1.0.0-beta.95**. Beta.95 herstelt effectieve visuele SG-configuratie, actuele offline afwasstatus, concrete SG-stopdiagnose en gedeeltelijke PV-dekking van dagelijkse EMS-cijfers. Zij behoudt alle bestaande regelgrenzen, modellen, historie en toestelrechten. Bouwbasis: gepubliceerde beta.94 `913cd2ae98466576ad2a017d356199c13fffcedf`. Installatie/rollback: `docs/BETA95_INSTELLEN.md`; tests: `docs/TESTRESULTATEN_BETA95.md`.
 
 ## 1. Projectdoel in gewone taal
 
@@ -11,7 +11,7 @@ SolarPilot verdeelt beschikbare zonnestroom tussen flexibele verbruikers, een be
 
 ## 2. Actuele basis
 
-Bouwbasis: gepubliceerde beta.93-commit `0ff89ed72a982e1b16e84885cb977cf28a1e23dc`. Beta.94 corrigeert uitsluitend de onterechte herstart van de minimale rusttijd van gewone verbruikers. Actuele validatie/publicatie: `docs/TESTRESULTATEN_BETA94.md`; eerdere releaseresultaten zijn historische herkomst.
+Bouwbasis: gepubliceerde beta.94-commit `913cd2ae98466576ad2a017d356199c13fffcedf`. De minimale rusttijd na herstart, rustige meldingen, taakcontinuïteit en Wallbox-onafhankelijke restinjectie blijven behouden. Actuele validatie/publicatie: `docs/TESTRESULTATEN_BETA95.md`; eerdere releaseresultaten zijn historische herkomst.
 
 De canonieke gebruikersuitleg blijft `custom_components/solar_pilot/current_guide.py`; `docs/ACTUELE_WERKING.md`, de ingebedde mirror en optiehulp worden gegenereerd. Dit dossier beschrijft actuele waarheid. Immutable/geneste HA-opties, SG-profiel/reassessment, read-only bronnen/interface, analyse-/antwoordrapport en lokaal bron-/SG-onderzoek blijven behouden. Het vertrouwde implementatieregister koppelt uitsluitend generieke softwarevoorstellen aan exacte inhoud en geïnstalleerde release. Een import kan die status niet zelf creëren. Warmtepompgeschiedenis gebruikt aparte versie-1-opslag en is geen migratie of vervanging van bestaande verbruikerhistorie, analysedata of modellen.
 
@@ -67,6 +67,8 @@ De canonieke gebruikersuitleg blijft `custom_components/solar_pilot/current_guid
 - Softwaretests/publicatie zijn geen live hardwareacceptatie. Fysiek proefdraaien gebeurt uitsluitend na expliciete toestemming, zonder metingen in geopende elektrische apparatuur.
 
 ## 4. Actuele werking
+
+**Beta.95 — instellingen en bewijs.** Vergelijk SG-wijzigingen na dezelfde normalisatie als de runtime; dezelfde zonebindingset in een andere volgorde is geen nieuwe koppeling. Alleen de bestaande visuele velden mogen tijdens een actieve aanvraag direct worden toegepast; echte bron-/regel-/toestemmingswijzigingen en gemengde voorstellen houden hun veilige wachtroute. Een oude afwasvoltooiing blijft historische eindregistratie, geen actuele beschikbaarheid of UIT-bewijs. Nieuwe SG-stops bewaren een daadwerkelijk afgewezen hercontrole met oorspronkelijke beschikbare bronwaarden; generieke oude tekst bewijst geen handmatige oorzaak. Dagelijkse EMS-statistiek houdt aparte PV-dekking en gedeeltelijke kwaliteit; legacy krijgt geen verzonnen meettijd. De zichtbare instelroute voor een ontbrekend berekend SG-doel verleent geen bevestiging of native schrijfbevoegdheid.
 
 **Beta.93-taakcontinuïteit.** Een statische bronmetadatahercontrole veroorzaakt geen periodiek onbekend segment wanneer dezelfde geladen module/semantiek, echte verse poll, bronbinding en passende metingen intact blijven. De bestaande harde actualiteitsgrenzen en alle regelings-/leerclassificaties veranderen niet. Eerdere onbekende geschiedenis wordt niet herschreven.
 
@@ -269,6 +271,8 @@ Geheimen komen uitsluitend uit bestaande HA-koppelingen/lokale configuratie; gee
 
 ## 9. Testprocedure + actuele teststatus
 
+Actueel beta.95-bewijs staat in `docs/TESTRESULTATEN_BETA95.md`: volledige lokale suite 7.178 passed in 141,61 seconden; gerichte nieuwe regressies en onafhankelijke review geslaagd. De vijf CI-gates blijven vereist op de definitieve bron vóór publicatie. De onderstaande oudere aantallen zijn historische herkomst.
+
 Actuele release: beta.94. Zie `docs/TESTRESULTATEN_BETA94.md` voor brongebonden tests en publicatie. De timerbug is onafhankelijk gereproduceerd voor een verstreken en gedeeltelijke rusttijd. De 17 nieuwe functionele regressies en 36 onafhankelijke grenscontroles slagen. De brede gerichte route behaalde 461 geslaagde tests; de groepen overlappen. Alleen echte verificatie wijzigt de checkpointwatermark; read-only snapshots blijven stabiel en de nieuwe autosave wacht op geladen opslag. De volledige suite en vijf CI-gates draaien op de definitieve bron. Beide actuele releasedocumenten hebben een bytegelijke componentmirror. De beta.93-suite behaalde 6986 geslaagde tests en alle vijf PR-/main-gates plus vier-assets-downloadverificatie; dat is uitsluitend historische herkomst en geen beta.94-testbewijs.
 
 De eerste exacte beta.91-PR-run 38759077795 gaf 6.739 geslaagde tests en één echte timestampregressie. Die afrondingsfout is gericht hersteld met zeven deterministische gevallen en 145 gerichte tests. HACS, Hassfest en echte Core waren groen; de browsergate vroeg aanpassing aan de bewuste nieuwe voorwaardelijke SG-doelweergave, die daarna lokaal is geslaagd. Deze eerste run is geen bewijs voor de latere capability-/melding-/upstreamuitbreiding. De definitieve PR-head moet alle vijf gates opnieuw doorstaan. De lokale executor viel tijdens de afronding uit; verdere bronwijzigingen zijn via de GitHub-API opgebouwd en worden vóór merge door dezelfde CI gecontroleerd.
@@ -319,7 +323,7 @@ De eerder waargenomen `via_device`-deprecatiewaarschuwing met grens Home Assista
 
 Voor beta.94: volg `docs/BETA94_INSTELLEN.md`, behoud entry/opslag/userfiles, herstart HA volledig. Beta.93 bewaarde geen UIT-tijd: de eerste upgrade kan eenmaal volledige rust vragen, daarna blijft de bevestigde tijd over herstarts behouden. Een onbekende bron of opdracht mag niet worden vrijgegeven door een verstreken checkpoint. Rollback naar beta.93 kan de timerreset opnieuw veroorzaken. Onderstaande uitgebreide beta.91-aanwijzingen blijven achtergrond.
 
-Volledige privé HA-back-up vóór update, inclusief instellingen, eigen opslag, PV-factoren, modellen, tickets, bestaande geschiedenis en userfiles. Geef een eigen SG-aanvraag vrij vóór codevervanging; onderbreek geen beschermde cyclus. Update via HACS naar exact beta.91 na geslaagde releasegates en publicatie, volledige HA-herstart en volledige browser/app-herlading. Controleer backend-/kaartversie apart. Lokaal uitsluitend `custom_components/solar_pilot` vervangen met behoud van userfiles en opslag; entry niet verwijderen/hermaken. Bestaande geldige SG-/profiel-/split-/koelbevestigingen blijven staan; nieuwe wijzigingen houden hun bestaande voorwaarden. Geen nieuwe verplichte entiteiten, handmatig geïnstalleerde dependency, reset of leervragen.
+Volledige privé HA-back-up vóór update, inclusief instellingen, eigen opslag, PV-factoren, modellen, tickets, bestaande geschiedenis en userfiles. Geef een eigen SG-aanvraag vrij vóór codevervanging; onderbreek geen beschermde cyclus. Update via HACS naar exact beta.95 na geslaagde releasegates en publicatie, volledige HA-herstart en volledige browser/app-herlading. Controleer backend-/kaartversie apart. Lokaal uitsluitend `custom_components/solar_pilot` vervangen met behoud van userfiles en opslag; entry niet verwijderen/hermaken. Bestaande geldige SG-/profiel-/split-/koelbevestigingen blijven staan; nieuwe wijzigingen houden hun bestaande voorwaarden. Geen nieuwe verplichte entiteiten, handmatig geïnstalleerde dependency, reset of leervragen.
 
 Controleer eerst de AEG-aanvraag met haar oorspronkelijke geplande dag/deadline, concrete uitvoeringsreden, verbruikte context bij native bedrijf en gerichte meldingverwijdering. Controleer daarnaast PV-diagnose voor 15:00–18:00, lokale factor-/bewijsdagen, Planning, Automatisch onderzoek en bestaande historie/dekking/SG-lagen. Alleen bestaande ingeschakelde kalibratie mag leren; uitgeschakelde functies en expliciete waarden blijven staan. De volledige gecorrigeerde curve gaat naar de bestaande plannerhorizon. Gezamenlijke planning, batterijadvies en executorbeveiliging blijven behouden. De importbuffer 600 W/300 s, zonne-resetgrens 300 W en minimum 20 min/maximum blijven staan. Alle net-/fase-/vermogensgrenzen blijven ongewijzigd. De globale `max_import_w` blijft de bestaande softwarematige totale netafnamegrens, default 3500 W met behoud van expliciete gebruikerswaarden; dit is geen fysieke beveiliging of SG-startdrempel. Native percentages/koelwaarden blijven staan; SolarPilot schrijft ze niet.
 
@@ -369,6 +373,8 @@ Rollback naar beta.90: geef de eigen SG-aanvraag veilig vrij waar betrouwbaar mo
 9. Scheid releasecontrole, geladen HA/backend/kaart en fysieke AEG-/Shelly-/Panasonicproef. Een echte deadline-/apparaatproef is afzonderlijk bewijs; herarm daarvoor nooit een onzekere of verbruikte aanvraag.
 
 ## 15. AI-handoff
+
+Beta.95: vier bron-/instellingen-/diagnosecorrecties uit de nieuwe analyse. Bewaar echte onbekende waarnemingen en ontbrekende PV als onbekend, evenals specifieke oorzaken van oudere generieke SG-stops. Een weergavewijziging moet zonder nieuwe actuatoractie kunnen worden toegepast; de bron-/regelgrens mag geen normalisatie-bypass krijgen. Geen automatische 115%-waarde of lokale bevestiging. De conservatieve leerclassificatie blijft intact; de waargenomen schaarste aan basislastleren vraagt een afzonderlijk onderbouwde route, geen brede omzetting van onbekend naar normaal. Publieke regressies gebruiken fictieve waarden, geen privé-export.
 
 Vaste gebruikersafspraken 15 oktober: bij iedere update actuele Aquarea- en SDK-main/release controleren en broncheckpoint bijwerken; relevante verschillen met tests verwerken, CI-upstreamgate niet omzeilen. De bestaande woensdagse onderhoudstaak is uitgebreid met zelfstandige geteste herstelpublicatie en melding. Runtime gebruikt geladen parser-/actiebetekenis zonder versielijsten en een aparte gededupliceerde melding bij bewezen semantiekwijziging. Geen onbegrensde toekomstcompatibiliteitsgarantie, automatische HA-installatie of ontvangst van lokale meldingen door een externe taak claimen. Een oud pre-opdrachtrapport dat door datetime-afronding tot één microseconde later lijkt, mag geen opdrachtverzoening bewijzen.
 

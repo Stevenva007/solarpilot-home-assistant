@@ -152,6 +152,7 @@ def run():
         sources.click()
         assert page.evaluate("analysisSettingsRoutes") == ["sg_sources"]
         assert "57,5 °C" not in card.locator("[data-boiler-temperatures]").inner_text()
+        assert "Tapwaterpercentage en tankbron nog bevestigen" in card.locator("[data-boiler-temperatures]").inner_text()
 
         # Compatible future integration/SDK versions use loaded semantic
         # evidence. A mismatched marker preserves activity without inventing a
@@ -171,6 +172,8 @@ def run():
               observed_at:now,valid_until:now+120}};
           c._view='comfort';publishAnalysis();} """)
         assert panel.locator("[data-heatpump-task] strong").inner_text() == "Verwarmen"
+        assert "Tapwaterpercentage en tankbron nog bevestigen" in panel.locator("[data-sg-goal-setup]").inner_text()
+        assert "normale Panasonic-doel" in panel.locator("[data-sg-goal-setup]").inner_text()
         page.evaluate("""() => {const contract=analysisAttributes.panasonic.source_contract;
           contract.compatibility.verified=false;contract.status='unknown';
           contract.reason_code='provider_semantics_changed';

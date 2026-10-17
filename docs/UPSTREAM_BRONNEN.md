@@ -1,6 +1,6 @@
 # Openbaar upstream-bronregister
 
-Laatst gecontroleerd: **16 oktober 2026**. Dit register beschrijft openbare broncontracten die voor SolarPilot relevant zijn. Een upstream-release is geen bewijs dat die versie lokaal is geïnstalleerd; een open pull request is geen gepubliceerde correctie. Gegevens uit privé-installaties, exports en automatiseringsidentiteiten horen niet in dit register.
+Laatst gecontroleerd: **17 oktober 2026**. Dit register beschrijft openbare broncontracten die voor SolarPilot relevant zijn. Een upstream-release is geen bewijs dat die versie lokaal is geïnstalleerd; een open pull request is geen gepubliceerde correctie. Gegevens uit privé-installaties, exports en automatiseringsidentiteiten horen niet in dit register.
 
 ## Gepinde bronnen
 
@@ -78,3 +78,7 @@ Op 16 oktober 2026 zijn beide actuele defaultbranch-HEADs en laatste stabiele re
 ## Broncontrole voor beta.94
 
 Op 16 oktober 2026 zijn beide actuele defaultbranch-HEADs en de laatste stabiele releasecommits opnieuw online gecontroleerd. Aquarea 1.5.4 en aioaquarea-ng 1.3.1 zijn ongewijzigd tegenover het beoordeelde checkpoint. Er zijn geen nieuwe upstreamverschillen te verwerken. Beta.94 bewaart uitsluitend de bevestigde UIT-tijd van gewone verbruikers voor rusttijdherstel na een herstart. Deze tijd geeft geen actuatorrecht of bronactualiteit en verandert geen Aquarea-semantiek, native bediening of SG-bevoegdheid.
+
+## Controle voor beta.95
+
+Op 17 oktober 2026 om 13:49:03 UTC zijn beide actuele defaultbranch-HEADs en laatste stabiele releasetags opnieuw gecontroleerd en opgelost naar de bovenstaande commits. Beide vergelijkingen bevatten nul nieuwe commits of bestanden. SDK PR12 blijft open, niet gemerged en ongewijzigd; er is geen nieuwe gepubliceerde implementatie over te nemen. De verplichte publicatiegate controleert dit checkpoint opnieuw. De vier SolarPilot-correcties veranderen geen parser-/taaksemantiek of native schrijfrecht.
