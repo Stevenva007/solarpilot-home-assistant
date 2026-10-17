@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.96 — snellere presentatie en actuele HA-apparaatkoppelingen
+
+- De vijf Panasonic-sensoren en het Panasonic-detail van de algemene status delen een presentatie per publicatie. Waarde en attributen herhalen dezelfde zware berekening niet; oorspronkelijke rapporttijden blijven staan. Directe controllerlezingen en SG-contactwaarnemingen blijven actueel.
+- Registreert de bestaande virtuele hub vóór koppeling via `via_device_id`. Apparaatopzoeking is op moderne Home Assistant-versies beperkt tot de eigen configuratie-entry; oudere ondersteunde Core-versies houden hun terugvalroute. Bestaande apparaat- en entiteitsidentiteiten blijven behouden.
+- Beoordeelt de actuele Aquarea 1.6.0-bronwijziging: vroegere dagsensoren zijn nu intervaldelta's. Een regressie borgt dat deze geen dagperiodebewijs krijgen. De werkelijk gepubliceerde SDK blijft 1.3.1; open PR12 wordt niet als geïnstalleerd beschouwd.
+- Legt de eerder lokale integratiecorrecties vast in dezelfde versiegebonden GitHub-/HACS-releaseprocedure. Privé Home Assistant-configuratie hoort niet in deze repository.
+- Installatie/rollback: `docs/BETA96_INSTELLEN.md`; brongebonden validatie: `docs/TESTRESULTATEN_BETA96.md`.
+
 ## 1.0.0-beta.95 — actuele status en concrete diagnose
 
 - Vergelijkt visuele SG-voorstellen met effectieve instellingen, zodat oude standaardwaarden en dezelfde ruimtebronnen in een andere volgorde geen onterechte wachtrij veroorzaken. Echte regel- en bronwijzigingen houden hun veilige grens.

@@ -1,5 +1,5 @@
-/* SolarPilot 1.0.0-beta.95. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
-const SP_CARD_VERSION = '1.0.0-beta.95';
+/* SolarPilot 1.0.0-beta.96. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+const SP_CARD_VERSION = '1.0.0-beta.96';
 const SP_DIALOG_RELEASE = SP_CARD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g,'-');
 const SP_ANALYSIS_DIALOG_TAG = `solar-pilot-analysis-dialog-${SP_DIALOG_RELEASE}`;
 const SP_QUALITY_DIALOG_TAG = `solar-pilot-learning-dialog-${SP_DIALOG_RELEASE}`;

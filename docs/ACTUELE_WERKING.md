@@ -1,10 +1,10 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.95
+**Versie:** 1.0.0-beta.96
 **Bijgewerkt:** 2026-10-17
-**Regel-hash:** `d14d83b9ffc8a816`
+**Regel-hash:** `9c8d60ee9bf054f2`
 
-Beta.95 herstelt het direct toepassen van uitsluitend visuele SG-instellingen, de actuele beschikbaarheid van een offline afwasmachine, concrete SG-stopdiagnose en de meetdekking van dagelijkse PV-cijfers. Oude voltooiingen blijven geschiedenis en ontbrekende PV blijft onbekend. Het normale boilerdoel en het lokaal bevestigde berekende SG-doel staan apart; een ontbrekend percentage krijgt een zichtbare instelroute. Alle bestaande regelgrenzen, toestelrechten, modellen en historie blijven behouden.
+Beta.96 vermindert herhaalde Panasonic-presentatieberekeningen en gebruikt geregistreerde, entry-gebonden Home Assistant-apparaatkoppelingen. De presentatiecache bewaart de oorspronkelijke brontijden en levert geen regelings- of leerbewijs. De gewijzigde Aquarea 1.6.0-intervalenergie wordt niet als dagverbruik aangemerkt. Alle beta.95-correcties, bestaande instellingen, modellen, historie en toestelrechten blijven behouden.
 
 ## 1. Basisprincipe en modi
 

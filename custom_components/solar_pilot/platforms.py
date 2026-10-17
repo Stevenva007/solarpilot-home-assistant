@@ -18,10 +18,30 @@ class LivePlatforms:
         return entity._attr_unique_id
 
     def register(self, platform, add, factory):
+        self.prepare_hub()
         self.registrations[platform] = (add, factory)
         rows = factory()
         self.entities[platform] = {self.uid(e): e for e in rows}
         add(rows)
+
+    def prepare_hub(self):
+        """Register our existing virtual hub before entities refer to its HA id."""
+        if getattr(self.r, "hub_device_id", None):
+            return
+        try:
+            from homeassistant.helpers import device_registry as dr
+        except ImportError:
+            return
+        registry = dr.async_get(self.r.hass)
+        if not callable(getattr(registry, "async_get_device_by_identifier", None)):
+            return  # Older supported HA uses the legacy via_device link.
+        from .const import DOMAIN, NAME, VERSION
+        hub = registry.async_get_or_create(
+            config_entry_id=self.r.entry.entry_id,
+            identifiers={(DOMAIN, self.r.entry.entry_id)}, name=NAME,
+            manufacturer=NAME, model="Lokale overschotregelaar", sw_version=VERSION,
+        )
+        self.r.hub_device_id = hub.id
 
     def retire_registry(self, entity):
         """Purge only retired virtual consumer entries, preserving hub settings."""
@@ -76,7 +96,10 @@ class LivePlatforms:
             registry=dr.async_get(self.r.hass)
             from .const import DOMAIN
             for i,c in self.r.configs.items():
-                device=registry.async_get_device(identifiers={(DOMAIN,f"{self.r.entry.entry_id}_{i}")})
+                lookup = getattr(registry, "async_get_device_by_identifier", None)
+                identifier = (DOMAIN, f"{self.r.entry.entry_id}_{i}")
+                device = (lookup(identifier, self.r.entry.entry_id) if callable(lookup)
+                          else registry.async_get_device(identifiers={identifier}))
                 if device:
                     registry.async_update_device(device.id,name=c["name"])
         except (ImportError, AttributeError):

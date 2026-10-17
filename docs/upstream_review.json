@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "reviewed_at": "2026-10-17T13:49:03Z",
+  "reviewed_at": "2026-10-17T21:01:46Z",
   "assessment": {
     "status": "complete_no_unprocessed_changes",
-    "summary": "Beta.95 rechecked both public default-branch HEADs, stable release tags/commits and the open SDK PR12. Aquarea 1.5.4 and aioaquarea-ng 1.3.1 pins are unchanged; PR12 remains open and unreleased. This release corrects display-only option staging, current dishwasher observations, SG stop evidence and partial PV accounting. It adds no native device authority and changes no SG timing, control gates or learning classification.",
+    "summary": "Beta.96 source review: Aquarea 1.5.4 to 1.6.0 changes the four daily energy entities into per-fetch deltas without ENERGY device class or period_being_processed, retains monthly accumulated sensors, and changes the default/minimum consumption interval to 15 minutes. SolarPilot already rejects these changed daily sensors as period evidence; an explicit regression verifies that no interval delta becomes a daily total. Typed device polling, climate/tank and SDK semantics are unchanged. SDK 1.3.1 remains pinned and unchanged. Display caching and HA device registry migration do not grant fresh source evidence or actuator authority.",
     "compatibility_claim": false,
     "evidence_document": "docs/UPSTREAM_BRONNEN.md"
   },
@@ -11,16 +11,16 @@
     {
       "repository": "wpatrik14/home-assistant-aquarea",
       "default_branch": "main",
-      "head_commit": "4b5f7f3d2ad8c284fae5ff8c165707f69443a0fa",
+      "head_commit": "f127489774c61c1e97ee5eb5097257748d55d510",
       "latest_release": {
-        "tag": "v1.5.4",
-        "commit": "4b5f7f3d2ad8c284fae5ff8c165707f69443a0fa",
+        "tag": "v1.6.0",
+        "commit": "f127489774c61c1e97ee5eb5097257748d55d510",
         "target_commitish": "main",
-        "published_at": "2026-10-15T09:52:26Z",
+        "published_at": "2026-10-17T19:29:31Z",
         "selection": "github_latest_published_stable"
       },
       "reviewed_base_commit": "4b5f7f3d2ad8c284fae5ff8c165707f69443a0fa",
-      "review_result": "no_additional_changes"
+      "review_result": "relevant_changes_processed"
     },
     {
       "repository": "wpatrik14/aioaquarea",
