@@ -3,13 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.96'
-GUIDE_UPDATED = '2026-10-17'
+GUIDE_VERSION = '1.0.0-beta.97'
+GUIDE_UPDATED = '2026-10-18'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.96',
- 'updated': '2026-10-17',
- 'intro': 'Beta.96 vermindert herhaalde Panasonic-presentatieberekeningen en gebruikt geregistreerde, entry-gebonden Home Assistant-apparaatkoppelingen. De presentatiecache bewaart de oorspronkelijke brontijden en levert geen regelings- of leerbewijs. De gewijzigde Aquarea 1.6.0-intervalenergie wordt niet als dagverbruik aangemerkt. Alle beta.95-correcties, bestaande instellingen, modellen, historie en toestelrechten blijven behouden.',
+ 'version': '1.0.0-beta.97',
+ 'updated': '2026-10-18',
+ 'intro': 'Beta.97 voorkomt onnodig lang wachten na een aantoonbaar eigen beëindigde algemene SG-aanvraag met onbekend effect. Vijf minuten nieuw werkelijk restoverschot kunnen de resterende SG-herhaalwacht vervangen zodra het contact opnieuw betrouwbaar UIT is en alle actuele voorwaarden passen. De gewone startvertraging blijft gelden. Aquarea 1.7.0 is gecontroleerd; de nieuwe AUTO-richting is geen bewijs van actief bedrijf. Bestaande instellingen, modellen, historie en toestelrechten blijven behouden.',
  'sections': [{'title': '1. Basisprincipe en modi',
                'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele '
                               'net- en PV-metingen, echte toestelvoorwaarden en elektrische grenzen gaan '
@@ -210,7 +210,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'terug, dan hoeft de hele startvertraging niet opnieuw. Een langere onderbreking, bekende '
                               'harde blokkering, Pauze of gewijzigde binding reset de opbouw. Dit verruimt geen '
                               'bronactualiteit en geeft geen AAN op oude data.',
-                              'Standaardvertraging voor starten blijft 120 seconden, met 900 seconden rust tussen sessies en '
+                              'Standaardvertraging voor starten blijft 120 seconden, met 900 seconden SG-herhaalwacht als terugval en '
                               'maximaal 3600 seconden per sessie. De standaard wolkenbuffer is nu 600 W netafname met 300 '
                               'seconden aaneengesloten tekortbevestiging. De minimale SG-aanvraagduur blijft standaard 1200 '
                               'seconden, twintig minuten. Het minimum beschermt tegen gewone zachte tekortvrijgave en de nieuwe tijdelijke Wallbox-voorkeursvrijgave, '
@@ -257,17 +257,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'is geen voltooiingsbewijs. De bewaarde beleidswachtstand staat los van echte handmatige, '
                               'communicatie- en veiligheidsblokkeringen. Alleen het verlopen van rust, dezelfde samples '
                               'opnieuw lezen of Home Assistant herstarten geeft geen nieuwe aanleiding.',
-                              'Alleen binnen het lokaal bevestigde algemene SG-profiel en bij de wachtreden Onbekende reactie kan voldoende werkelijk resterende '
-                              'zonnestroom een nieuwe beoordeling dragen. Eerst verstrijkt de bestaande rusttijd, standaard '
-                              '900 seconden. Daarna zijn gedurende 300 seconden minstens twee nieuwe oorspronkelijke '
-                              'bruikbare rapporten nodig met resterend overschot vanaf de hoogste waarde van de ingestelde '
-                              'SG-startdrempel en conservatieve extra-vraagraming. Warmtepompcredit telt niet voor dit '
-                              'bewijs. Alleen dan begint de gewone startvertraging, standaard 120 seconden, onder alle '
-                              'actuele voorwaarden. De technische bewijsnaam is fresh_residual_surplus. Een tekort, oud of '
-                              'ontbrekend noodzakelijk rapport of wijziging van de relevante binding verbreekt dit nieuwe '
-                              'bevestigingsbewijs. Dezelfde oude rapporten, rust of herstart alleen geven geen startrecht. '
-                              'Deze route bewijst beschikbare zon, geen volle tank, warmteopname, compressorbedrijf of extra '
-                              'SG-kWh.',
+                              'Binnen het lokaal bevestigde algemene SG-profiel kan bij Onbekende reactie vijf minuten nieuw werkelijk restoverschot de resterende SG-herhaalwacht vervangen. Dit geldt uitsluitend na een aantoonbaar eigen beëindigde aanvraag met dezelfde huidige uitgang en passend bewaard opdrachtbewijs. De vijfminutencontrole kan direct tijdens die wacht beginnen. Minstens twee nieuwe oorspronkelijke actuele rapporten moeten over 300 seconden voldoende restoverschot bevestigen vanaf de hoogste waarde van de ingestelde startdrempel en conservatieve extra-vraagraming. Het contact moet opnieuw betrouwbaar UIT zijn en alle actuele bron-, koel-, voorrangs- en elektrische voorwaarden moeten passen. Warmtepompcredit telt niet mee. Daarna volgt de gewone startvertraging, standaard 120 seconden; vijftien minuten vooraf wachten is voor deze bewezen route niet nodig. De bewijsnaam blijft fresh_residual_surplus. Een tekort, ontbrekend of oud rapport, gewijzigde binding, onzekere contactstand of harde blokkering geeft geen verkorting. Oude of niet passende opdrachtgegevens houden de gewone rust als terugval. Nieuwe rapporten blijven nodig na reload; verstreken tijd of herstart alleen geeft geen startrecht. Dit bewijst beschikbare zon, geen compressorstart, warmteopname of extra SG-kWh.',
                               'Deze aanvullende route geldt uitsluitend voor het lokaal bevestigde algemene SG-profiel bij onbekende eerdere reactie; Uitsluitend tapwater krijgt geen uitbreiding. Bewezen geen extra '
                               'opname, native voltooiing, het harde sessiemaximum, gewijzigd profiel en echte handmatige, '
                               'communicatie- of veiligheidsblokkeringen behouden hun bestaande aparte voorwaarden. Er komt '
@@ -290,16 +280,16 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'wachtstand staan.',
                               'Voor het lokaal bevestigde algemene profiel is een warme, onveranderde of niet gemeten tank '
                               'op zichzelf geen permanente blokkering. Na iedere beëindigde of onderbroken algemene sessie '
-                              'vereist herbeoordeling na rust betekenisvol nieuw bewijs, telkens met minstens twee nieuwe '
+                              'vereist herbeoordeling betekenisvol nieuw bewijs, telkens met minstens twee nieuwe '
                               'echte rapporten over vijf minuten: een gewijzigde betrouwbare relevante native '
                               'bedrijfscontext, of een nieuwe relevante actieve native episode na eveneens bevestigde rust. '
                               'Een aantoonbaar nieuwe zonneperiode kan ook gelden: eerst minstens vijf minuten restoverschot '
                               'hoogstens de afzonderlijke zonne-resetgrens, standaard 300 W, daarna minstens vijf minuten '
                               'restoverschot vanaf de startdrempel. De 600 W-wolkenbuffer voor netafname verandert dit '
-                              'zonne-resetbewijs niet. Constante zon, ongewijzigde context, tijd of reload geeft geen '
+                              'zonne-resetbewijs niet. Buiten de beschreven route voor onbekende reactie geven constante zon, ongewijzigde context, tijd of reload geen '
                               'herstartlus. Vastgelegde bewijslagen blijven bij reload staan, lopende bevestigingsvensters '
                               'beginnen met nieuwe rapporten. De volledige gewone startvertraging en alle actuele guards '
-                              'gelden daarna opnieuw. Bewust Automatisering hervatten laat een nieuwe actuele beoordeling '
+                              'gelden daarna opnieuw. Behalve de beschreven vervangende overschotroute blijft de ingestelde SG-herhaalwacht gelden. Bewust Automatisering hervatten laat een nieuwe actuele beoordeling '
                               'toe, geen ongecontroleerde AAN.',
                               'Extra koeling heeft een afzonderlijke vrijgavevoorwaarde. De bewuste algemene profielkeuze '
                               'bewijst geen condensveiligheid. Bevestig lokaal bestaande geschikte '
@@ -1083,7 +1073,7 @@ CURRENT_GUIDE["sections"][7]["paragraphs"].append("Een terugkerend eerder eigen 
 CURRENT_GUIDE["sections"][9]["paragraphs"].append("Vanaf beta.91 wordt naast de oude gemengde vooruitvergelijking een nieuwe afzonderlijke reeks per 5–60 minuten, 1–3 uur en 3–12 uur aangelegd. Per doelmoment, bronbinding en termijn geldt vooraf de eerste geldige lokaal waargenomen voorspelling; latere varianten vervangen haar niet. Banden delen dezelfde oorspronkelijke doelmeting. Unieke doelen, oorspronkelijke rapporten, daglichtdoelen, verschillende dagen en afhankelijkheid blijven zichtbaar. Oude gegevens worden niet teruggevuld, de provideruitgiftetijd blijft onbekend en de nieuwe score past geen correctiefactor toe.")
 CURRENT_GUIDE["sections"][13]["paragraphs"].append("De twee minuten na inschakeling of bronherstel zijn een informatieve tijdelijke leerwacht, met begin, einde en resterende duur waar bekend. Een opdracht die op terugmelding wacht heeft geen verzonnen eindtijd. De laatste broncontrole staat apart van de telling van leerpogingen per kwartier. Langdurige uitsluiting door onbekende warmtepompcontext staat afzonderlijk; ontbrekende perioden worden nooit als nul geleerd.")
 CURRENT_GUIDE["sections"][16]["paragraphs"].append("Nieuwe exports scheiden observed.control en observed.power van planning en eigendom. Hersteltijd en de minimumlooptijd zijn expliciete bewijsvelden. Dekking wordt daarnaast per werkelijk verzamelende release en bron verdeeld; een interval over een releasewissel of meetgat wordt niet overbrugd. Bij een geverifieerde Aquarea-cloudenergiesensor staan provider, bronsoort, werkelijk uitgelezen aggregatiebegin, exclusief periode-einde en UTC-tijdzone apart. Dag-/maandtotalen zijn pas vergelijkbaar bij dezelfde uren, scope en dekking; een HA-rapporttijd is geen aggregatiebegin. Ontbrekende native periodegegevens blijven onbekend. Een bekende aggregatieperiode is geen bewijs van actualiteit of volledige meetdekking.")
-CURRENT_GUIDE["sections"][19]["paragraphs"][-1] = "Rollback naar beta.92 behoudt rustige meldingen en de bestaande regeling, maar kan opnieuw korte onbekende taken en startblokkering door ontbrekende Wallbox-gegevens veroorzaken. Bewaar een actuele privéback-up en behoud entry, opslag en userfiles. Herstart Home Assistant volledig na codevervanging. Zie BETA93_INSTELLEN.md."
+CURRENT_GUIDE["sections"][19]["paragraphs"][-1] = 'Rollback naar beta.96 herstelt de langere SG-herhaalwacht. Bewaar een actuele volledige privéback-up en behoud entry, opslag en userfiles. Geef een eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk; onderbreek geen beschermde cyclus. Herstart Home Assistant volledig en herlaad de app/browser. Het opslagschema en de ingestelde rustwaarde blijven behouden; nieuwe bevestigingsvensters worden na iedere reload opnieuw uit actuele rapporten opgebouwd. Zie BETA97_INSTELLEN.md.'
 
 CURRENT_GUIDE["sections"][20]["paragraphs"].append("Elke SolarPilot-update controleert de laatste Aquarea-defaultbranch, gepubliceerde release en werkelijk gebruikte bibliotheek tegen het publieke bronreviewcheckpoint. Nieuwe relevante wijzigingen worden beoordeeld en met regressietests verwerkt in dezelfde update; ongewijzigde of irrelevante code wordt als zodanig vastgelegd. De CI-gate blokkeert publicatie bij onbeoordeelde upstreamwijzigingen of een niet-uitvoerbare broncontrole. De bestaande onderhoudstaak kan zelfstandig een geteste SolarPilot-herstelrelease op GitHub publiceren en daarover berichten. Dit is geen automatische installatie op Home Assistant en geen live verbinding met lokale meldingen. Installeer de release via HACS; instellingen en fysieke apparaten worden niet op afstand aangepast.")
 

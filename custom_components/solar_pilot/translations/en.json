@@ -707,7 +707,7 @@
           "stop_delay_s": "Continuous grid-import confirmation (s)",
           "import_threshold_w": "Grid-import limit before stop delay (W)",
           "hysteresis_w": "Residual-surplus threshold for a new solar period (W)",
-          "rest_s": "Rest after a boost (s)",
+          "rest_s": "SG request repeat wait (s)",
           "min_session_s": "Minimum SG request duration (s)",
           "max_session_s": "Maximum boost session (s)",
           "lease_s": "Local permission expires after (s)",
@@ -719,7 +719,8 @@
           "min_session_s": "Minimum duration of the SG request, default 1200 seconds; hard guards and the session maximum take precedence. This is not compressor runtime.",
           "import_threshold_w": "Ordinary grid-import cloud buffer, default 600 W; values at or below the limit reset the continuous shortage timer.",
           "hysteresis_w": "Independent solar-reset evidence threshold, default 300 W residual surplus; this is separate from the cloud buffer.",
-          "stop_delay_s": "Grid import must stay continuously above the cloud buffer for this duration, default 300 seconds; this timer overlaps the minimum request duration."
+          "stop_delay_s": "Grid import must stay continuously above the cloud buffer for this duration, default 300 seconds; this timer overlaps the minimum request duration.",
+          "rest_s": "Default fallback: 900 seconds. For a proven own ended general SG request with unknown response, five minutes of fresh sufficient actual residual surplus can replace this wait, with newly confirmed OFF contact and all current conditions. Normal start delay still applies. This is not compressor rest."
         }
       }
     },

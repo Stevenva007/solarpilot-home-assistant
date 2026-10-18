@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.96",
+  "version": "1.0.0-beta.97",
   "language": "nl",
   "steps": {
     "init": {
@@ -1052,7 +1052,7 @@
         "stop_delay_s": "Netafname moet continu aanhouden (s)",
         "import_threshold_w": "Toegestane netafname vóór stopvertraging (W)",
         "hysteresis_w": "Grens restoverschot voor een nieuwe zonneperiode (W)",
-        "rest_s": "Rusttijd na een boost (s)",
+        "rest_s": "SG-herhaalwacht na een aanvraag (s)",
         "min_session_s": "Minimale SG-aanvraagduur (s)",
         "max_session_s": "Maximale boostsessie (s)",
         "lease_s": "Lokale toestemming geldig voor (s)",
@@ -4051,7 +4051,7 @@
       ]
     },
     "sg_advanced.rest_s": {
-      "title": "Rusttijd na een boost (s)",
+      "title": "SG-herhaalwacht na een aanvraag (s)",
       "short": "Na een boost volgt standaard 900 seconden rust.",
       "paragraphs": [
         "Na een boost volgt standaard 900 seconden rust. Daarna blijven de gewone profielregels leidend. Alleen binnen het lokaal bevestigde algemene SG-profiel bij onbekende eerdere reactie kan vijf minuten voldoende werkelijk resterende zonnestroom met minstens twee nieuwe oorspronkelijke rapporten een aanvullende beoordeling dragen. Vereist overschot is minstens de hoogste waarde van startdrempel en conservatieve extra-vraagraming; warmtepompcredit telt niet mee. Daarna geldt nog de gewone startvertraging. Bewezen geen extra opname, native voltooiing, hard sessiemaximum, gewijzigd profiel en echte handmatige of veiligheidsblokkeringen behouden hun eigen voorwaarden. Ontbrekende warmtepompwatts geven geen credit maar de volledige extra-raming blijft gereserveerd; essentiële net/PV/batterij/fase/koel/contact/timerbronnen blijven nodig. Tijd, herstart of oude samples alleen reset de wachtstand niet.",

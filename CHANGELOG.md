@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.97 — minder onnodige SG-herhaalwacht
+
+- Vijf minuten nieuwe voldoende werkelijke restinjectie kunnen de resterende SG-herhaalwacht vervangen na een aantoonbaar eigen beëindigde algemene aanvraag met onbekend effect. De vorige opdracht moet bij de huidige uitgang passen; opnieuw bevestigd UIT-contact en alle actuele voorwaarden blijven vereist. De gewone startvertraging volgt daarna.
+- Houdt andere voltooiingsredenen, het sessiemaximum, Uitsluitend tapwater, handmatige overname en onzekere herkomst op hun bestaande afzonderlijke route. Bewaart instellingen, opslag, modellen en historie; reload levert geen nieuw bewijs of schakelrecht.
+- Benoemt de wachttijd als SG-herhaalwacht en verduidelijkt wanneer nieuwe overschotbevestiging die kan vervangen. SG-toestemming wordt geen compressorstart of technische compressorrust.
+- Controleert de nieuwe Aquarea 1.7.0 en werkelijke SDK 1.3.1. Zes regressies voorkomen dat het toegevoegde `auto_mode`-attribuut actief bedrijf, actualiteit of vrijgave suggereert.
+- Installatie/rollback: `docs/BETA97_INSTELLEN.md`; brongebonden validatie: `docs/TESTRESULTATEN_BETA97.md`.
+
 ## 1.0.0-beta.96 — snellere presentatie en actuele HA-apparaatkoppelingen
 
 - De vijf Panasonic-sensoren en het Panasonic-detail van de algemene status delen een presentatie per publicatie. Waarde en attributen herhalen dezelfde zware berekening niet; oorspronkelijke rapporttijden blijven staan. Directe controllerlezingen en SG-contactwaarnemingen blijven actueel.
