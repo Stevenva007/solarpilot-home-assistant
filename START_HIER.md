@@ -1,18 +1,18 @@
-# SolarPilot beta.98 — schuiven door de warmtepompgeschiedenis
+# SolarPilot beta.99 — leesbare warmtepompsessies
 
-Versie: **1.0.0-beta.98** · 18 oktober 2026
+Versie: **1.0.0-beta.99** · 18 oktober 2026
 
-Open bij Warmtepomp **Geschiedenis** en schuif horizontaal over een tijdsbalk. De gezamenlijke markering springt naar beschikbare meetpunten en toont de werkelijke tijd met vermogen, boilertemperatuur, doelen, taak en SG-contact. Op een computer kun je de muis of het toetsenbord gebruiken. Ontbrekende meetwaarden blijven onbekend; de huidige boilerwaarden worden niet op oude uren geplakt.
+Open Geschiedenis bij het gewenste toestel. Tijdlijnen, sessies en gebeurtenissen zijn aanklikbaar. Bronhistorie opent de bewaarde metingen van een toegestane gekoppelde bron in Home Assistant; beschikbaarheid en bewaartermijn volgen de eigen Recorder. Bij de warmtepomp: Lange sessies tonen eerst de geregistreerde duur per taak en bewijsniveau. Klap de taakperioden open voor de oorspronkelijke chronologie met seconden en korte duur. Onbekende perioden blijven herkenbaar. Een los meetpunt is geen bewezen looptijd.
 
-Nieuwe meetpunten bewaren een gevalideerde totale W-meting. Oudere punten kunnen afzonderlijke voedingen tonen zonder een bewezen totaal. Het dagelijkse gemeten kWh-verbruik blijft apart staan. De registratie blijft begrensd en er wordt geen geschiedenis achteraf aangevuld.
-
-Deze versie verwerkt ook de nieuwe Aquarea 1.8.0 en SDK 1.4.0. De nieuwe statusbetekenis staat los van oudere historische contracten. Cachegegevens worden niet door een nieuwe poll als LIVE aangemerkt. De bestaande SG-regels en Panasonic-bevoegdheden blijven behouden.
+De aanraakbare tijdmarkering blijft vermogen, temperaturen, doelen, taak en SG-contact op echte meetpunten tonen. Er wordt geen oude historie ingevuld of kWh aan een taak toegeschreven. Een bronvolgordecorrectie voorkomt dat een tussentijdse Aquarea-uitlezing een geldig nieuw bericht mist. Cachedata en echte ongeldige bronnen blijven onbekend.
 
 ## Bijwerken
 
-1. Bewaar een actuele volledige privé Home Assistant-back-up.
-2. Werk SolarPilot via HACS bij naar beta.98 zodra controles en publicatie geslaagd zijn. Behoud entry, instellingen, modellen, historie, opslag en userfiles.
-3. Herstart Home Assistant volledig en herlaad de browser/app. Controleer backend- en kaartversie afzonderlijk.
-4. Open Geschiedenis en controleer schuiven, een ontbrekend meetpunt en een oudere dag. De tijdmarkering leest alleen en schakelt niets.
+1. Bewaar een volledige privé Home Assistant-back-up.
+2. Werk via HACS bij naar beta.99 na geslaagde controles en publicatie. Behoud entry, instellingen, modellen, historie, opslag en userfiles.
+3. Herstart Home Assistant volledig en herlaad de app/browser. Controleer backend- en kaartversie apart.
+4. Controleer een lange sessie, de uitgeklapte korte perioden en schuiven over de balken. Alleen bekijken schakelt niets.
 
-[Installatie, controle en rollback](docs/BETA98_INSTELLEN.md) · [Actuele werking](docs/ACTUELE_WERKING.md) · [Testverslag](docs/TESTRESULTATEN_BETA98.md) · [Overdracht](OVERDRACHT.md)
+Aquarea 1.8.0 en SDK 1.4.0 zijn opnieuw gecontroleerd en ongewijzigd. SG-regels, Panasonic-bevoegdheden en oorspronkelijke gegevens blijven behouden.
+
+[Installatie en rollback](docs/BETA99_INSTELLEN.md) · [Actuele werking](docs/ACTUELE_WERKING.md) · [Testverslag](docs/TESTRESULTATEN_BETA99.md) · [Overdracht](OVERDRACHT.md)

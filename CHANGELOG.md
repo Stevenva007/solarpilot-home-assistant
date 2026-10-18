@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta.99 — klikbare geschiedenis en nieuw bronbericht behouden
+
+- Opent met een tik op de huidige boilertemperatuur of het ingestelde doel direct de bijbehorende Home Assistant-bronhistorie; de bron volgt de werkelijk getoonde waarde.
+- Maakt gewone en gearchiveerde toestelgeschiedenis en Wallbox-laadperioden aanklikbaar. Aanvullende gekoppelde metingen en sturingen openen hun eigen Home Assistant-bronhistorie met bestaande bronrechten; geen nieuwe recorder, ongefilterd analysearchief of historische terugval op actuele waarden.
+- Toont lange warmtepompsessies met een compacte samenvatting en alle oorspronkelijke taakperioden uitklapbaar. Details tonen seconden en duur; een los meetpunt krijgt geen fictieve looptijd. Onbekende perioden, aparte elektrische ondersteuning en gemeten dagenergie blijven behouden.
+- Verhindert dat een tussentijdse uitlezing een nog te bevestigen geldig Aquarea-bronbericht al verbruikt. Cachedata, in-place wijzigingen, mislukte polls en bronwissels geven geen nieuw bewijs; een werkelijk nieuw passend LIVE-bericht herstelt de waarneming.
+- Controleert opnieuw Aquarea 1.8.0 en SDK 1.4.0: geen nieuwe upstreamwijzigingen sinds beta.98. De geladen-codecontrole en bestaande Panasonic-/SG-bevoegdheden blijven gelijk.
+- Installatie/rollback: `docs/BETA99_INSTELLEN.md`; uitvoeringsbewijs: `docs/TESTRESULTATEN_BETA99.md`.
+
 ## 1.0.0-beta.98 — aanraakbare warmtepompgeschiedenis en nieuwe Aquarea-bron
 
 - Maakt de historische tijdsbalken bereikbaar voor horizontaal schuiven, muis en toetsenbord. Een gezamenlijke markering toont het werkelijke geselecteerde meetpunt met beschikbare temperatuur, doelen, vermogen, taak en SG-stand. Meetgaten, oude ontbrekende totaalwatts en onvolledige bronnen blijven herkenbaar.

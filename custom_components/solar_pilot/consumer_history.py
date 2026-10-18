@@ -329,6 +329,7 @@ class ConsumerHistory:
                 "timezone": self.timezone_name, "date": day, "today": today, "first_date": first.isoformat(),
                 "retention_days": self.retention_days, "generated_at": _iso(stamp),
                 "recording_since": _iso(row["since"]), "last_observation": _iso(row["last_seen"]) if row["last_seen"] is not None else None,
+                "day_start": start, "day_end": end,
                 "day_seconds": end-start, "on_s": round(max(0, agg.get("on_s", 0)), 1),
                 "known_s": round(known, 1), "unobserved_s": round(max(0,expected-known), 1),
                 "partial": expected-known > 15, "has_data": day in row["days"],

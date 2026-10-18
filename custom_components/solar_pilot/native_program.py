@@ -291,19 +291,21 @@ class NativeClimateProgram:
             if (coordinator is None or device is None or getattr(device, "device_id", None) != native_id
                     or getattr(info, "device_id", None) != native_id):
                 return False
-            key = entry_id, native_id
-            status = getattr(device, "_status", None)
-            if not _native_status_live(device):
-                self._source_quality_rejected[key] = device, status
-                return False
-            rejected = self._source_quality_rejected.get(key)
-            if rejected is not None and rejected[0] is device and rejected[1] is status:
-                # An attribute edit is not a replacement provider generation.
-                return False
-            self._source_quality_rejected.pop(key, None)
-            return True
+            return self._source_status_live(entry_id, native_id, device)
         except (ImportError, AttributeError, KeyError, TypeError, ValueError, RuntimeError):
             return not native
+
+    def _source_status_live(self, entry_id, native_id, device):
+        """A rejected status cannot gain LIVE proof through another wrapper."""
+        key = entry_id, native_id
+        status = getattr(device, "_status", None)
+        if not _native_status_live(device):
+            self._source_quality_rejected[key] = device, status
+            return False
+        rejected = self._source_quality_rejected.get(key)
+        # Keep the bounded per-binding rejection through reads. Only a real
+        # listener accepting another valid generation may clear this barrier.
+        return rejected is None or rejected[1] is not status
 
     def display_sources(self, anchors=()):
         """Find read-only siblings on one exact registered Aquarea device.
@@ -420,7 +422,7 @@ class NativeClimateProgram:
                 result.update(status_data_mode=_native_status_data_mode(device),
                     device_operation_status=_native_enum_name(getattr(device, "operation_status", None),
                         "OperationStatus", {"ON": 1, "OFF": 0, "UNKNOWN": 2}))
-            if not _native_status_live(device):
+            if not self._source_status_live(entry_id, identity[2], device):
                 return {**result, "reason_code": "native_status_not_live"}
             # A reloaded SDK can coexist briefly with a coordinator retaining
             # an older same-named class. Its old getters cannot borrow new proof.
@@ -526,7 +528,7 @@ class NativeClimateProgram:
         except (ImportError, AttributeError, KeyError, TypeError, ValueError, RuntimeError):
             return {**result, "reason_code": "native_source_mapping_unverified"}
 
-    def _display_snapshot(self, coordinator, entry):
+    def _display_snapshot(self, coordinator, entry, entry_id):
         """Immutable current capability-checked status values for display only.
 
         Its coordinator refreshes the status twice and leaves zone objects
@@ -546,8 +548,6 @@ class NativeClimateProgram:
             return None, "native_display_device_type_unverified"
         info, own = getattr(coordinator, "_device_info", None), getattr(device, "_info", None)
         status = getattr(device, "_status", None)
-        if not _native_status_live(device):
-            return None, "native_status_not_live"
         if any(type(value).__module__ != "aioaquarea.data" or type(value).__name__ != name
                or not is_dataclass(value) or isinstance(value, type)
                for value, name in ((info, "DeviceInfo"), (own, "DeviceInfo"), (status, "DeviceStatus"))):
@@ -572,6 +572,8 @@ class NativeClimateProgram:
                 or getattr(own, "long_id", None) != long_id or getattr(device, "long_id", None) != long_id
                 or getattr(status, "long_id", None) != long_id):
             return None, "native_display_identity_unverified"
+        if not self._source_status_live(entry_id, native_id, device):
+            return None, "native_status_not_live"
         zone_sets = []
         for owner, name in ((info, "DeviceZoneInfo"), (own, "DeviceZoneInfo"), (status, "DeviceZoneStatus")):
             rows = getattr(owner, "zones", None)
@@ -648,31 +650,39 @@ class NativeClimateProgram:
             if watch is not None:
                 watch.update(snapshot=None, observed=None, observed_at=None, baseline=None, baseline_ids=identity)
             return {"fresh": False, "reason_code": "native_display_binding_changed", "observed_at": None}
+        rejected = watch.get("rejected_status") if watch is not None else None
+        if rejected is not None and rejected is getattr(device, "_status", None):
+            return {"fresh": False, "reason_code": "native_display_snapshot_changed", "observed_at": None}
         try:
-            snapshot, reason = self._display_snapshot(coordinator, entry)
+            snapshot, reason = self._display_snapshot(coordinator, entry, entry_id)
         except (AttributeError, KeyError, TypeError, ValueError, RuntimeError):
             snapshot, reason = None, "native_display_status_shape_unverified"
         if snapshot is None:
             if watch is not None:
-                watch.update(snapshot=None, observed=None, observed_at=None, baseline=None, baseline_ids=identity)
+                watch.update(snapshot=None, observed=None, observed_at=None, baseline=None, baseline_ids=identity,
+                             rejected_status=getattr(device, "_status", None))
             return {"fresh": False, "reason_code": reason, "observed_at": None}
         if watch is None:
             add_listener = getattr(coordinator, "async_add_listener", None)
             if not callable(add_listener):
                 return {"fresh": False, "reason_code": "native_display_listener_unavailable", "observed_at": None}
             watch = {"coordinator": coordinator, "entry_id": entry_id, "baseline": snapshot["generation"], "baseline_ids": identity,
-                     "snapshot": None, "observed": None, "observed_at": None, "unsubscribe": None}
+                     "snapshot": None, "observed": None, "observed_at": None, "unsubscribe": None, "rejected_status": None}
             def updated():
                 current_device = getattr(coordinator, "device", None)
                 current_ids = (id(current_device), id(getattr(current_device, "_status", None)))
                 try:
-                    current, _reason = self._display_snapshot(coordinator, entry)
+                    rejected = watch.get("rejected_status")
+                    current, _reason = (None, "native_display_snapshot_changed") if (rejected is not None
+                        and rejected is getattr(current_device, "_status", None)) else self._display_snapshot(coordinator, entry, entry_id)
                 except (AttributeError, KeyError, TypeError, ValueError, RuntimeError):
                     current = None
                 if (self.runtime.hass.config_entries.async_get_entry(entry_id) is not entry
                         or getattr(coordinator, "last_update_success", None) is not True or current is None):
                     watch.update(snapshot=None, observed=None, observed_at=None,
-                                 baseline=current["generation"] if current else None, baseline_ids=current_ids)
+                                 baseline=current["generation"] if current else None, baseline_ids=current_ids,
+                                 rejected_status=(getattr(current_device, "_status", None) if current is None
+                                                  else watch.get("rejected_status")))
                     return
                 # An unchanged listener event or in-place mutation is not a
                 # new network response. The device or typed status must change.
@@ -683,22 +693,33 @@ class NativeClimateProgram:
                         watch.update(snapshot=None, observed=None, observed_at=None, baseline=generation, baseline_ids=current_ids)
                     return
                 watch.update(baseline=generation, baseline_ids=current_ids, snapshot=current,
-                             observed=time.monotonic(), observed_at=time.time())
+                             observed=time.monotonic(), observed_at=time.time(), rejected_status=None)
+                self._source_quality_rejected.pop((entry_id, current_device.device_id), None)
             try:
                 watch["unsubscribe"] = add_listener(updated)
             except (AttributeError, KeyError, TypeError, ValueError, RuntimeError):
                 return {"fresh": False, "reason_code": "native_display_listener_unavailable", "observed_at": None}
             self._display_contract_watches[key] = watch
         if getattr(coordinator, "last_update_success", None) is not True:
-            watch.update(snapshot=None, observed=None, observed_at=None, baseline=snapshot["generation"], baseline_ids=identity)
+            # The flag may still describe the previous failed request while
+            # this valid generation awaits its own callback. Only a failure
+            # callback consumes that request; the read only revokes proof.
+            watch.update(snapshot=None, observed=None, observed_at=None)
             return {"fresh": False, "reason_code": "native_poll_unavailable", "observed_at": None}
         accepted = watch["snapshot"]
         if accepted is not None and accepted["generation"] != snapshot["generation"]:
-            watch.update(snapshot=None, observed=None, observed_at=None, baseline=snapshot["generation"], baseline_ids=identity)
+            # A coherent new provider generation can be visible before its
+            # listener notification. Revoke the old proof immediately, while
+            # leaving that generation for the real listener to consume. Same
+            # object/status mutations still fail its unchanged-ID guard.
+            watch.update(snapshot=None, observed=None, observed_at=None)
             return {"fresh": False, "reason_code": "native_display_snapshot_changed", "observed_at": None}
         age = time.monotonic()-watch["observed"] if watch["observed"] is not None else None
         if accepted is None or age is None or not math.isfinite(age) or not 0 <= age <= self._stale_s():
-            watch.update(snapshot=None, observed=None, baseline=snapshot["generation"], baseline_ids=identity)
+            # Repeated reads cannot consume a pending valid generation or
+            # create freshness. Failed/cached/invalid reads above deliberately
+            # keep their conservative rejected-generation baseline instead.
+            watch.update(snapshot=None, observed=None)
             return {"fresh": False, "reason_code": "native_poll_not_current", "observed_at": watch["observed_at"]}
         return {"fresh": True, "reason_code": "", "observed_at": watch["observed_at"],
                 "generation": accepted["generation"], "values": dict(accepted["values"])}
@@ -1018,8 +1039,8 @@ class NativeClimateProgram:
             # its typed status; modern coordinators replace the whole Device.
             device = getattr(coordinator, "device", None)
             status = self._current_legacy_status(coordinator, entry_id) if watch["legacy"] else None
-            if (getattr(coordinator, "last_update_success", None) is not True
-                    or not _native_status_live(device)):
+            live = self._source_status_live(entry_id, getattr(device, "device_id", None), device)
+            if getattr(coordinator, "last_update_success", None) is not True or not live:
                 watch.update(baseline=device, status_baseline=status,
                              status_snapshot=None, status_inputs=None)
                 watch.update(snapshot=None, mode=None, observed=None, observed_at=None)
@@ -1044,6 +1065,8 @@ class NativeClimateProgram:
                          action_inputs=inputs if action else None,
                          action_observed=time.monotonic() if action else None,
                          action_observed_at=time.time() if action else None)
+            if mode or action:
+                self._source_quality_rejected.pop((entry_id, device.device_id), None)
 
         try:
             watch["unsubscribe"] = add_listener(updated)
@@ -1076,21 +1099,27 @@ class NativeClimateProgram:
         watch = self._watch(coordinator, entry_id, watches=self._tank_watches)
         if watch is None:
             return result
-        if (getattr(coordinator, "last_update_success", None) is not True
-                or not _native_status_live(getattr(coordinator, "device", None))):
-            watch.update(baseline=getattr(coordinator, "device", None),
-                         status_baseline=self._current_legacy_status(coordinator, entry_id))
+        device = getattr(coordinator, "device", None)
+        live = self._source_status_live(entry_id, getattr(device, "device_id", None), device)
+        if getattr(coordinator, "last_update_success", None) is not True or not live:
+            if watch["legacy"]:
+                watch.update(baseline=device, status_baseline=self._current_legacy_status(coordinator, entry_id))
             watch.update(action_snapshot=None, action=None, action_inputs=None,
                          action_observed=None, action_observed_at=None)
             return result
         if watch["action_observed"] is None:
             return result
-        device = getattr(coordinator, "device", None)
         if (device is not watch["action_snapshot"] or _native_action(device) != watch["action"]
                 or _action_inputs(device) != watch["action_inputs"]
                 or watch["legacy"] and (self._current_legacy_status(coordinator, entry_id) is not watch["status_snapshot"]
                                         or _status_inputs(watch["status_snapshot"]) != watch["status_inputs"])):
-            watch.update(baseline=device, status_baseline=self._current_legacy_status(coordinator, entry_id))
+            # A read leaves a modern whole-Device replacement for its listener
+            # while immediately revoking the previous action proof.
+            if watch["legacy"]:
+                # This provider retains Device and permits local status-only
+                # replacement. An already observed optimistic legacy change
+                # must not become a poll merely through a later notification.
+                watch.update(baseline=device, status_baseline=self._current_legacy_status(coordinator, entry_id))
             watch.update(action_snapshot=None, action=None, action_inputs=None,
                          action_observed=None, action_observed_at=None)
             return result
@@ -1159,10 +1188,11 @@ class NativeClimateProgram:
             result["reason_code"] = "listener_unavailable"
             result["reason"] = "De gekozen warmtepomp levert geen controleerbare programmaterugmelding"
             return result
-        if (getattr(coordinator, "last_update_success", None) is not True
-                or not _native_status_live(getattr(coordinator, "device", None))):
-            watch.update(baseline=getattr(coordinator, "device", None),
-                         status_baseline=self._current_legacy_status(coordinator, entry_id))
+        device = getattr(coordinator, "device", None)
+        live = self._source_status_live(entry_id, getattr(device, "device_id", None), device)
+        if getattr(coordinator, "last_update_success", None) is not True or not live:
+            if watch["legacy"]:
+                watch.update(baseline=device, status_baseline=self._current_legacy_status(coordinator, entry_id))
             watch.update(snapshot=None, mode=None, observed=None, observed_at=None)
             result["reason"] = "De programmaterugmelding van de warmtepomp is tijdelijk niet beschikbaar"
             result["reason_code"] = "poll_unavailable"
@@ -1171,12 +1201,17 @@ class NativeClimateProgram:
             result["reason"] = "Wacht op een nieuwe terugmelding van het gekozen warmtepompprogramma"
             result["reason_code"] = "awaiting_poll"
             return result
-        device = getattr(coordinator, "device", None)
         mode = _native_mode(device)
         if (device is not watch["snapshot"] or mode != watch["mode"]
                 or watch["legacy"] and (self._current_legacy_status(coordinator, entry_id) is not watch["status_snapshot"]
                                         or _status_inputs(watch["status_snapshot"]) != watch["status_inputs"])):
-            watch.update(baseline=device, status_baseline=self._current_legacy_status(coordinator, entry_id))
+            # Modern whole-Device poll generations belong to the listener;
+            # repeated reads only keep the old programme proof unavailable.
+            if watch["legacy"]:
+                # Retain the legacy status-only optimistic-change barrier;
+                # unlike modern whole-Device replacement, it is not new poll
+                # evidence once a read has already rejected that status.
+                watch.update(baseline=device, status_baseline=self._current_legacy_status(coordinator, entry_id))
             watch.update(snapshot=None, mode=None, observed=None, observed_at=None)
             result["reason"] = "Het warmtepompprogramma is gewijzigd; wacht op bevestigde terugmelding"
             result["reason_code"] = "unconfirmed_change"

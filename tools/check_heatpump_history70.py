@@ -209,6 +209,91 @@ def check_scrub(page, host, dialog):
     page.set_viewport_size({"width": 390, "height": 844})
 
 
+def fragmented_fixture():
+    """Many short unknown periods are observations, not compressor cycles."""
+    data = fixture(TODAY)
+    parent = session(TODAY, '08:18', '11:55')
+    parent['id'] = 500
+    beginning = datetime.fromisoformat(f'{TODAY}T08:18:00+02:00')
+    rows = []
+    for index in range(43):
+        start = beginning + timedelta(minutes=5 * index)
+        finish = start + timedelta(minutes=4, seconds=30)
+        unknown_end = finish if index % 3 == 0 else finish + timedelta(seconds=25)
+        known = dict(segment_start=start.isoformat(), segment_end=finish.isoformat(),
+                     duration_s=270, left_pct=(start-beginning).total_seconds()/864+34.583333,
+                     width_pct=270/864, task='tapwater_heating' if index % 2 == 0 else 'space_heating',
+                     tier='derived', label='Boiler opwarmen' if index % 2 == 0 else 'Verwarmen')
+        unknown = dict(segment_start=finish.isoformat(), segment_end=unknown_end.isoformat(),
+                       duration_s=(unknown_end-finish).total_seconds(),
+                       left_pct=known['left_pct']+known['width_pct'],
+                       width_pct=(unknown_end-finish).total_seconds()/864,
+                       task='heatpump_unknown', tier='unknown', label='Taak onbekend')
+        rows.extend((known, unknown))
+    data.update(sessions=[parent], task_sessions=rows, on_s=parent['duration_s'], starts=1, stops=1)
+    data['task_totals'] = [dict(task=key, label=label, tier=tier,
+        on_s=sum(row['duration_s'] for row in rows if row['task'] == key))
+        for key, label, tier in [('tapwater_heating', 'Boiler opwarmen', 'derived'),
+                                 ('space_heating', 'Verwarmen', 'derived'),
+                                 ('heatpump_unknown', 'Taak onbekend', 'unknown')]]
+    data['support_sessions'] = [session(TODAY, '10:40', '10:45')]
+    data['support_totals'] = [{'label': 'Elektrische ondersteuning', 'on_s': 300}]
+    data['sg_contact_overlay']['segments'] = [dict(session(TODAY, '08:18', '11:55'), state='off', reported_at=None)]
+    data['sg']['request']['sessions'] = [session(TODAY, '10:40', '10:50')]
+    data['sg']['contact']['sessions'] = []
+    time_keys = {'captured_at', 'reported_at', 'temperature_reported_at', 'ordinary_target_reported_at',
+                 'normal_target_reported_at', 'contact_reported_at', 'contact_valid_until', 'valid_until',
+                 'profile_confirmed_at'}
+    def shift(value):
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if key in time_keys and isinstance(item, (int, float)):
+                    value[key] -= 7200
+                else:
+                    shift(item)
+        elif isinstance(value, list):
+            for item in value:
+                shift(item)
+    shift(data['native_evidence'])
+    shift(data['tank_temperature'])
+    return data
+
+
+def check_period_summaries(page, host, dialog):
+    page.evaluate("""async data=>{window.hpOriginalFixture=structuredClone(hpFixtures['2026-10-12']);
+      hpFixtures['2026-10-12']=data;await c._heatpumpHistoryDialog._fetch(true);}""", fragmented_fixture())
+    compact = host.locator('[data-session-task-summary]')
+    details = host.locator('details.session-task-details')
+    assert compact.count() == 1 and details.count() == 1
+    assert 'Taak onbekend' in compact.inner_text() and '43 waarnemingen' in compact.inner_text()
+    assert '15 meetpunten zonder vastgestelde duur' in compact.inner_text()
+    assert details.get_attribute('open') is None, 'many observations start compact, all original periods remain accessible'
+    assert details.locator('[data-session-task-period]').count() == 86
+    assert not details.locator('[data-session-task-period]').first.is_visible(), '86 rows must not flood the default session card'
+    assert 'Elektrische ondersteuning' not in compact.inner_text(), 'support remains an independent adjunct'
+    for width in (320, 390):
+        page.set_viewport_size({'width': width, 'height': 1000})
+        page.evaluate("()=>{const d=c._heatpumpHistoryDialog;d._setScrub(d._data.native_evidence.points[0].captured_at);}")
+        compact.evaluate("el=>{const d=c._heatpumpHistoryDialog,r=d._body.querySelector('[data-history-readout]');d._scroll.scrollTop+=el.getBoundingClientRect().top-r.getBoundingClientRect().bottom-12;}")
+        assert 'Meetpunt 10:40:00 GMT+2' in host.locator('[data-history-readout]').inner_text(), 'scrub retains recorded sample alongside compact session'
+        assert compact.is_visible() and dialog.evaluate('d=>d.scrollWidth<=d.clientWidth+1'), (width, 'compact periods mobile layout')
+        page.screenshot(path=str(OUT / f'SolarPilot-warmtepompgeschiedenis99-periods-scrub-{width}.png'))
+    details.locator('summary').click()
+    assert details.locator('[data-session-task-period]').count() == 86
+    unknown = details.locator('[data-session-task-period]').filter(has_text='Taak onbekend')
+    assert 'Meetpunt 08:22:30' in unknown.first.inner_text() and 'duur niet vastgesteld' in unknown.first.inner_text()
+    assert '08:27:30 – 08:27:55' in unknown.nth(1).inner_text() and '25 s' in unknown.nth(1).inner_text()
+    assert unknown.first.inner_text().count('Taak onbekend') == 1
+    details.locator('summary').focus()
+    key = details.get_attribute('data-history-key')
+    page.evaluate('()=>{const d=c._heatpumpHistoryDialog;for(let n=0;n<3;n++)d._renderData();}')
+    assert details.get_attribute('open') is not None and details.get_attribute('data-history-key') == key, 'original chronological details stay open through rerenders'
+    assert page.evaluate("c._heatpumpHistoryDialog.shadowRoot.activeElement?.tagName==='SUMMARY'"), 'keyboard focus survives historical refresh'
+    assert page.evaluate("c._heatpumpHistoryDialog._data.task_sessions.length===86 && c._heatpumpHistoryDialog._data.energy_kwh===1.76"), 'summary does not mutate retained evidence or energy'
+    page.evaluate("async()=>{hpFixtures['2026-10-12']=hpOriginalFixture;await c._heatpumpHistoryDialog._fetch(true);}")
+    page.set_viewport_size({'width': 390, 'height': 844})
+
+
 with sync_playwright() as playwright:
     executable = os.environ.get("SOLARPILOT_CHROMIUM_PATH") or shutil.which("chromium")
     browser = playwright.chromium.launch(**({"executable_path": executable} if executable else {}),
@@ -288,6 +373,7 @@ with sync_playwright() as playwright:
     # telemetry renders. Opaque recording metadata refreshes the live fragment
     # without exposing retained-history totals before its authorized API query.
     check_scrub(page, host, dialog)
+    check_period_summaries(page, host, dialog)
     page.evaluate("""()=>{const d=c._heatpumpHistoryDialog;window.hpDialogNode=d._dialog;
       d._scroll.scrollTop=240;window.hpSavedScroll=d._scroll.scrollTop;window.hpReadsBefore=hpReads.length;
       for(let n=0;n<80;n++){const a=structuredClone(c._last.attributes);a.grid_w=-500-n;
