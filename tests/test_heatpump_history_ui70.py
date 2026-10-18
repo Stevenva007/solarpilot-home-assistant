@@ -114,7 +114,7 @@ def test_timeline_clamps_percentages_and_uses_ha_timezone_for_clock():
     rendered = render_history(data)["html"]
     assert 'left:0%;width:100%' in rendered
     # CI and local Node normally run UTC; displayed wall clocks must use HA time.
-    assert "06:00 – 07:00" in Markup(rendered).root.text()
+    assert "06:00:00 – 07:00:00" in Markup(rendered).root.text()
 
 
 def test_repeated_dst_hour_is_distinguished_with_timezone_offsets():

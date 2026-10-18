@@ -478,6 +478,7 @@ class PanasonicMonitor:
         snapshot = {"configured": self.configured, "read_only": True, "temperature_c": temp,
             "history": history,
             "temperature_entity": c["tank_temperature_entity"],
+            "target_entity": c["tank_target_entity"],
             "temperature_stamp": self._reported_stamp(tank) if temp is not None else None,
             "target_c": target_c, "power_w": power["watts"], "power_stamp": power["measured_wall"],
             "target_stamp": self._reported_stamp(target) if target_c is not None else None,

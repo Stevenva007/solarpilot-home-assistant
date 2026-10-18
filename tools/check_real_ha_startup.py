@@ -182,6 +182,99 @@ def verify_heatpump_history(hass, runtime, entry, commands, *, metered):
     return {"history": deepcopy(recorder.model.snapshot()), "access_sources": set(recorder.access_sources)}
 
 
+async def verify_source_history(hass, runtime, entry, commands):
+    """Use Core's registered schema and real user policies for source links."""
+    from homeassistant.auth.const import GROUP_ID_ADMIN, GROUP_ID_USER
+    from homeassistant.auth.models import Group
+    from homeassistant.auth.permissions.const import POLICY_READ
+    from homeassistant.components import websocket_api
+
+    from custom_components.solar_pilot import source_history_api
+
+    class Connection:
+        def __init__(self, user):
+            self.user = user
+            self.results, self.errors = [], []
+
+        def send_result(self, message_id, result):
+            self.results.append(result)
+
+        def send_error(self, message_id, code, message):
+            self.errors.append(code)
+
+    assert len(commands) == 1
+    handler, schema = hass.data[websocket_api.DOMAIN][source_history_api.COMMAND]
+    assert handler is commands[0] is source_history_api.websocket_source_history
+    message = {"id": 71, "type": source_history_api.COMMAND,
+               "config_entry_id": entry.entry_id, "kind": "consumer", "item_id": "synthetic_load"}
+    baseline = (deepcopy(dict(entry.options)), deepcopy(runtime.sg_boost.snapshot()))
+    administrator = await hass.auth.async_create_user(
+        "Synthetic source administrator", group_ids=[GROUP_ID_ADMIN])
+    reader = await hass.auth.async_create_user(
+        "Synthetic source reader", group_ids=[GROUP_ID_USER])
+    reader.groups = [Group(name="Synthetic source READ", policy={"entities": {
+        "entity_ids": {"switch.synthetic_load": {"read": True}}}})]
+    assert administrator.is_admin and not reader.is_admin
+    assert reader.permissions.check_entity("switch.synthetic_load", POLICY_READ)
+    assert not reader.permissions.check_entity("sensor.synthetic_grid", POLICY_READ)
+    admin, ordinary = Connection(administrator), Connection(reader)
+    for connection in (admin, ordinary):
+        handler(hass, connection, schema(message))
+        assert not connection.errors and len(connection.results) == 1
+        result = connection.results[0]
+        assert result["schema"] == 1 and result["read_only"] is True
+        assert result["scope"] == "current_configured_sources"
+        assert result["sources"] == [{"role": "control_entity", "label": "Aan-/uitstand",
+                                      "entity_id": "switch.synthetic_load"}]
+        assert "access_sources" not in result
+    reader.groups = []  # Actual Core invalidates its cached permission object.
+    assert not reader.permissions.check_entity("switch.synthetic_load", POLICY_READ)
+    denied, anonymous = Connection(reader), Connection(None)
+    for connection in (denied, anonymous):
+        handler(hass, connection, schema(message))
+        assert connection.errors == ["unauthorized"] and not connection.results
+    injected = {**message, "entity_id": "sensor.synthetic_grid"}
+    try:
+        schema(injected)
+    except source_history_api.vol.Invalid:
+        pass
+    else:
+        raise AssertionError("Core source-history schema accepted an arbitrary entity query")
+    invalid = Connection(administrator)
+    handler(hass, invalid, injected)
+    assert invalid.errors == ["invalid_format"] and not invalid.results
+    unknown = Connection(administrator)
+    handler(hass, unknown, schema({**message, "item_id": "switch.synthetic_load"}))
+    assert unknown.errors == ["not_found"] and not unknown.results
+    tank_message = {"id": 72, "type": source_history_api.COMMAND,
+                    "config_entry_id": entry.entry_id, "kind": "heatpump", "source": "configured"}
+    tank_sources = {role: runtime.panasonic.settings[role]
+                    for role in ("tank_temperature_entity", "tank_target_entity")}
+    assert tank_sources == {"tank_temperature_entity": "sensor.synthetic_tank",
+                            "tank_target_entity": "water_heater.synthetic_tank"}
+    tank_admin = Connection(administrator)
+    handler(hass, tank_admin, schema(tank_message))
+    assert not tank_admin.errors
+    assert {row["role"]: row["entity_id"] for row in tank_admin.results[0]["sources"]} == tank_sources
+    reader.groups = [Group(name="Synthetic tank READ", policy={"entities": {
+        "entity_ids": {"sensor.synthetic_tank": {"read": True}}}})]
+    tank_reader = Connection(reader)
+    handler(hass, tank_reader, schema(tank_message))
+    assert not tank_reader.errors
+    assert tank_reader.results[0]["sources"] == [{"role": "tank_temperature_entity",
+        "label": "Boilertemperatuur", "entity_id": "sensor.synthetic_tank"}]
+    displayed_tank = Connection(administrator)
+    handler(hass, displayed_tank, schema({**tank_message, "source": "display_tank"}))
+    assert not displayed_tank.errors
+    assert {row["role"]: row["entity_id"] for row in displayed_tank.results[0]["sources"]} == {
+        role: "water_heater.synthetic_tank" for role in tank_sources}
+    invalid_tank = Connection(administrator)
+    handler(hass, invalid_tank, schema({**tank_message, "source": "calculated_sg_goal"}))
+    assert invalid_tank.errors == ["invalid_format"] and not invalid_tank.results
+    assert (dict(entry.options), runtime.sg_boost.snapshot()) == baseline
+    return {"handler": handler, "message": schema(message), "connection": admin}
+
+
 def assert_heatpump_checkpoint(data, baseline, *, restored=None):
     """A reload/unload retains earlier evidence and closes its unknown boundary."""
     assert data["version"] == 1 and data["access_sources_complete"] is True
@@ -546,13 +639,15 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                 physical_calls.append(dict(event.data))
 
         remove_watch = hass.bus.async_listen("call_service", watch)
-        history_commands = []
+        history_commands, source_commands = [], []
         register_command = websocket_api.async_register_command
 
         def observe_registration(hass, handler, *args, **kwargs):
             result = register_command(hass, handler, *args, **kwargs)
             if getattr(handler, "__name__", "") == "websocket_heatpump_history":
                 history_commands.append(handler)
+            if getattr(handler, "__name__", "") == "websocket_source_history":
+                source_commands.append(handler)
             return result
         evidence = FailureEvidence()
         logging.getLogger().addHandler(evidence)
@@ -791,6 +886,7 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
             from check_source_contract81 import verify_source_contract
             source_contract81 = await verify_source_contract(hass)
             heatpump_baseline = verify_heatpump_history(hass, runtime, entry, history_commands, metered=current_sg)
+            source_history = await verify_source_history(hass, runtime, entry, source_commands)
             feedback_report = await verify_analysis_feedback(hass, runtime, entry)
             registry = er.async_get(hass)
             rows = er.async_entries_for_config_entry(registry, entry.entry_id)
@@ -821,6 +917,11 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                                       restored=entry.runtime_data.heatpump_history)
             assert entry.runtime_data.heatpump_history is not runtime.heatpump_history
             assert len(history_commands) == 1
+            assert len(source_commands) == 1
+            source_connection = source_history["connection"]
+            source_connection.results.clear()
+            source_history["handler"](hass, source_connection, source_history["message"])
+            assert not source_connection.errors and len(source_connection.results) == 1
             assert entry.runtime_data.panasonic_archive == archive
             assert entry.options["devices"] == expected_options["devices"]
             feedback_status = entry.runtime_data.analysis_feedback.status()
@@ -842,6 +943,9 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
             assert await hass.config_entries.async_unload(entry.entry_id)
             await hass.async_block_till_done()
             assert_heatpump_checkpoint(await heatpump_store.async_load(), before_unload)
+            source_connection.results.clear()
+            source_history["handler"](hass, source_connection, source_history["message"])
+            assert source_connection.errors == ["not_loaded"] and not source_connection.results
             assert not evidence.failures, evidence.failures
             assert not physical_calls, physical_calls
             if current_sg:
@@ -875,6 +979,7 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                     "configuration_preserved": True, "physical_service_calls": 0,
                     "analysis_export_feedback_admin_storage_reload_read_only": True,
                     "heatpump_history_registered_read_only_acl_store_reload_unload": True,
+                    "source_history_registered_current_read_only_acl": True,
                     "template_source_contract81": source_contract81,
                     "sg_manual_control84": {**manual_control84["proof"],
                         "retired_entity_and_unloaded_runtime_rejected": True,

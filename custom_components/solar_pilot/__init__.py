@@ -13,6 +13,7 @@ from homeassistant.helpers.storage import Store
 from .frontend import async_register_frontend, async_unregister_frontend
 from .consumer_history_api import async_register_history_api
 from .heatpump_history_api import async_register_heatpump_history_api
+from .source_history_api import async_register_source_history_api
 from .analysis_api import async_register_analysis_api
 from .learning_api import async_register_learning_api
 from .pv_forecast_api import async_register_pv_api
@@ -123,6 +124,7 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await runtime.dishwasher_recovery_retry.start()
     async_register_history_api(hass)
     async_register_heatpump_history_api(hass)
+    async_register_source_history_api(hass)
     async_register_analysis_api(hass)
     async_register_learning_api(hass)
     async_register_pv_api(hass)

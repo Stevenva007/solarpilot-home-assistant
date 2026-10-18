@@ -2,7 +2,7 @@
 
 Laatst gecontroleerd: **18 oktober 2026**. Dit register beschrijft openbare broncontracten die voor SolarPilot relevant zijn. Een upstream-release is geen bewijs dat die versie lokaal is geïnstalleerd; een open pull request is geen gepubliceerde correctie. Gegevens uit privé-installaties, exports en automatiseringsidentiteiten horen niet in dit register.
 
-Actueel: Aquarea **1.8.0** en SDK **1.4.0** worden inhoudelijk verwerkt in beta.98. SDK PR12 is op 18 oktober 2026 gesloten zonder merge; de relevante statuscorrectie is via PR16 gepubliceerd. Onderstaande oudere bronpins en releasebeoordelingen behouden hun historische betekenis.
+Actueel: Aquarea **1.8.0** en SDK **1.4.0** zijn inhoudelijk verwerkt in beta.98 en bij de broncontrole voor beta.99 ongewijzigd bevestigd. SDK PR12 is op 18 oktober 2026 gesloten zonder merge; de relevante statuscorrectie is via PR16 gepubliceerd. Onderstaande oudere bronpins en releasebeoordelingen behouden hun historische betekenis.
 
 ## Gepinde bronnen
 
@@ -108,3 +108,9 @@ SolarPilot gebruikt een afzonderlijke capture-time capability `aquarea_operation
 De getypeerde `DeviceStatus.data_mode` moet LIVE zijn. Een geslaagde coordinatorpoll met CACHED-data kan geen programma-, actie-, broncontract- of gekoppeld tankbewijs vernieuwen. Onafhankelijke daadwerkelijke vermogens- of generieke temperatuurbronnen blijven onder hun eigen gewone voorwaarden beschikbaar. Dit verruimt geen SG-/koelvoorwaarde en creëert geen native Panasonic-write.
 
 Aquarea's EnergyConsumptionSensor (intervaldelta), EnergyAccumulatedConsumptionSensor, oorspronkelijke UTC-periode, metadata en maandfetch blijven in deze vergelijking gelijk. De SDK behoudt de Consumption-lijst als bestaande terugkeerwaarde via het nieuwe rijke rapport. SolarPilot leest uitsluitend de geregistreerde passende HA-bron en neemt nieuwe rapportmetadata, diagnostiek of zonesensoren niet automatisch over als extra bewijs of instelling. Zie de [volledige bronbeoordeling](https://github.com/Stevenva007/solarpilot-home-assistant/blob/main/docs/AQUAREA_UPSTREAM_REVIEW_BETA98.md) en `upstream_review.json`.
+
+## Broncontrole voor beta.99 — 18 oktober 2026
+
+Om **18:42:20 UTC** zijn via de officiële GitHub-bronnen alle acht checkpointgegevens opnieuw gecontroleerd: de defaultbranch, actuele HEAD, laatste gepubliceerde stabiele release en opgeloste releasetag van beide repositories. Aquarea blijft **1.8.0**, met `main` en tag op `8722cf22e5a5752406aea1ba79b2cf48d4deedf3`; de SDK blijft **1.4.0**, met `main` en tag op `893065a81c014cb9aa1d3350446d61c01bccf3b9`. Er zijn geen nieuwe upstreamverschillen sinds de inhoudelijke verwerking in beta.98. Het bijgewerkte checkpoint gebruikt daarom voor beide bronnen `reviewed_base_commit = head_commit` en `review_result = no_additional_changes`.
+
+De bestaande afzonderlijke statuscontracten, LIVE/CACHED-controle, bronbinding en oorspronkelijke rapporttijden blijven gelden. De historische [beta.98-bronbeoordeling](https://github.com/Stevenva007/solarpilot-home-assistant/blob/main/docs/AQUAREA_UPSTREAM_REVIEW_BETA98.md) blijft behouden. Deze controle verandert geen provider, apparaatinstelling of actuatorrecht; de publicatiegate controleert de upstreamstand opnieuw vóór een release.

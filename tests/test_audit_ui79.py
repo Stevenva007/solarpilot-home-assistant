@@ -267,8 +267,9 @@ def test_queued_native_close_event_does_not_cancel_reopened_dialog(class_name, o
     execute("""
 const callbacks=new Map(),dialog={open:true,addEventListener:(type,fn)=>callbacks.set(type,fn)};
 const node={addEventListener(){},textContent:'',innerHTML:''};
+document.createElement=()=>({textContent:''});
 HTMLElement.prototype.attachShadow=function(){this.shadowRoot={innerHTML:'',addEventListener(){},
-  querySelector:key=>key==='dialog'?dialog:node};};
+  append(){},querySelector:key=>key==='dialog'?dialog:node};};
 HTMLElement.prototype.dispatchEvent=()=>{};
 document.removeEventListener=()=>{};globalThis.CustomEvent=class {};
 const popup=new %s();popup.%s=true;popup._seq=7;
