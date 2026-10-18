@@ -44,6 +44,65 @@ def enum(value, allowed):
     return value if isinstance(value, str) and value in allowed else None
 
 
+def captured_power(p, stamp, validated_watts):
+    """Describe only the whole-pump meter already validated by the model."""
+    stale = number(p.get("source_stale_s", 120))
+    stale = stale if stale is not None and 0 < stale <= 600 else None
+    original = report(p.get("power_observed_at", p.get("power_stamp")))
+    scope = enum(p.get("power_scope"), {"total", "split"})
+    kind = enum(p.get("power_kind"), {"measured"})
+    watts = number(validated_watts)
+    valid = (watts is not None and 0 <= watts <= 100000 and kind == "measured"
+             and scope is not None and p.get("power_complete") is True and fresh(original, stamp, stale))
+    times = [original]
+    if scope == "split" or any(p.get(f"power_supply{n}_entity") for n in (1, 2)):
+        times += [report(p.get(f"power_supply{n}_observed_at")) for n in (1, 2)]
+    valid = bool(valid and all(fresh(value, stamp, stale) for value in times))
+    # The total cannot be newer than its oldest actual contributing report.
+    original = min(times) if valid else original
+    expiry = report(original+stale) if valid else None
+    valid = valid and expiry is not None
+    return {"schema": 1, "total_w": watts if valid else None, "reported_at": original,
+            "valid_until": expiry if valid else None, "stale_s": stale,
+            "source_scope": scope, "complete": bool(valid), "kind": kind}
+
+
+def retained_power(value, stamp, supplies, source_stale_s):
+    """Validate optional recorded power without inventing legacy meter data."""
+    if (not isinstance(value, dict) or type(value.get("schema")) is not int or value["schema"] != 1
+            or type(value.get("complete")) is not bool
+            or value.get("source_scope") not in (None, "total", "split")
+            or value.get("kind") not in (None, "measured")):
+        raise ValueError("Warmtepomphistoriek bevat ongeldig vermogensbewijs")
+    clean = {"schema": 1, "complete": value["complete"],
+             "source_scope": value.get("source_scope"), "kind": value.get("kind")}
+    for key in ("total_w", "reported_at", "valid_until", "stale_s"):
+        raw = value.get(key)
+        normalized = report(raw) if key in ("reported_at", "valid_until") else number(raw)
+        if raw is not None and normalized is None:
+            raise ValueError("Warmtepomphistoriek bevat ongeldige vermogenswaarden")
+        clean[key] = normalized
+    watts, stale, original, expiry = (clean[key] for key in ("total_w", "stale_s", "reported_at", "valid_until"))
+    expected_stale = source_stale_s if source_stale_s is not None and 0 < source_stale_s <= 600 else None
+    if (stale != expected_stale or stale is not None and not 0 < stale <= 600
+            or watts is not None and not 0 <= watts <= 100000
+            or clean["complete"] != (watts is not None)
+            or not clean["complete"] and expiry is not None):
+        raise ValueError("Warmtepomphistoriek bevat tegenstrijdig vermogensbewijs")
+    if clean["complete"]:
+        if (clean["kind"] != "measured" or clean["source_scope"] is None
+                or not fresh(original, stamp, stale) or expiry is None
+                or not stamp <= expiry <= original+stale):
+            raise ValueError("Warmtepomphistoriek bevat verlopen vermogensbewijs")
+        if clean["source_scope"] == "split":
+            if (not all(row["valid"] for row in supplies)
+                    or abs(sum(row["watts"] for row in supplies)-watts) > max(0.1, watts*0.00001)
+                    or any(original > row["reported_at"] for row in supplies)
+                    or any(expiry > row["reported_at"]+stale for row in supplies)):
+                raise ValueError("Warmtepomphistoriek bevat tegenstrijdige vermogensvoedingen")
+    return clean
+
+
 class NativeProgrammeEvidence:
     def __init__(self, zone):
         self.zone = zone
@@ -56,7 +115,7 @@ class NativeProgrammeEvidence:
     def pause(self):
         self._last = self._fingerprint = None
 
-    def observe(self, p, stamp, evidence, *, sg=None, max_gap_s=30):
+    def observe(self, p, stamp, evidence, *, sg=None, max_gap_s=30, power_w=None):
         native = p.get("native_task") if isinstance(p.get("native_task"), dict) else {}
         stale = number(p.get("source_stale_s", 120))
         native_stale = number(native.get("stale_s", stale))
@@ -116,7 +175,8 @@ class NativeProgrammeEvidence:
                  "sg_goal": goal,
                  "source_contract": source_contract,
                  "effective_target": {"temperature_c": None, "reported_at": None, "status": "unknown"},
-                 "completion": {"state": "unknown", "reported_at": None}, "supplies": supplies}
+                 "completion": {"state": "unknown", "reported_at": None}, "supplies": supplies,
+                 "power": captured_power(p, stamp, power_w)}
         fingerprint = (point["selected_program"], function, confirmed, bool(inactive), bool(global_off),
                        temp, target, tuple(row["valid"] for row in supplies),
                        goal.get("profile_percent") if goal else None,
@@ -295,6 +355,8 @@ class NativeProgrammeEvidence:
                             "source_contract": source_contract,
                             "effective_target": {"temperature_c": None, "reported_at": None, "status": "unknown"},
                             "completion": {"state": "unknown", "reported_at": None}})
+            if "power" in row:
+                cleaned[-1]["power"] = retained_power(row["power"], at, supplies, stale)
             previous = at
         trimmed = data.get("trimmed_before")
         if trimmed is not None and (number(trimmed) is None or not 0 < trimmed <= stamp+60

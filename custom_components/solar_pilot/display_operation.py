@@ -10,7 +10,7 @@ import math
 import time
 
 from .heatpump_learning import ACTIVE_CONTEXTS
-from .operation_source_evidence import CONTRACT_ID, special_status_contract
+from .operation_source_evidence import OPERATION_CONTRACT_ID, known_source_contract
 
 LABELS = {"space_heating": "Verwarmen", "space_cooling": "Koelen",
           "tapwater_heating": "Boiler opwarmen", "sterilization": "Sterilisatie",
@@ -142,10 +142,8 @@ def classify_display_operation(snapshot, *, now_wall=None):
         known = (type(contract.get("schema")) is int and contract["schema"] == 1
                  and contract.get("read_only") is True and contract.get("status") == "verified"
                  and contract.get("provider_loaded") is True
-                 and contract.get("contract_id") == CONTRACT_ID
-                 and contract.get("action_semantics") == "special_status"
                  and provider.get("integration_domain") == "aquarea"
-                 and special_status_contract(contract))
+                 and known_source_contract(contract))
         def unknown(code, reason, action, *, skew=None, measurement_skew=None):
             return {**result, "reason_code": code, "reason": reason, "action": action,
                     "source_contract_id": contract.get("contract_id"), "context_report_skew_s": skew,
@@ -154,6 +152,10 @@ def classify_display_operation(snapshot, *, now_wall=None):
             return unknown(contract.get("reason_code", "provider_contract_unverified"),
                            "De betekenis of bronbinding van de geladen native bron is niet bevestigd.",
                            "Controleer de bron- en providergegevens in deze diagnose.")
+        split = contract["contract_id"] == OPERATION_CONTRACT_ID
+        if split and contract.get("status_data_mode") != "LIVE":
+            return unknown("native_status_not_live", "De Panasonic-status is geen bevestigde actuele live-terugmelding.",
+                           "Wacht op een nieuwe geslaagde live-poll; cloudcache krijgt geen nieuwe meettijd.")
         if current(native.get("observed_at"), native.get("stale_s", stale)) and native.get("conflict") is True:
             return unknown("native_source_value_conflict", "De actuele native taakbronnen spreken elkaar tegen.",
                            "Controleer de oorspronkelijke bronwaarden; een tegenstrijdige melding wordt niet automatisch gekozen.")
@@ -171,6 +173,10 @@ def classify_display_operation(snapshot, *, now_wall=None):
         if pump.get("state") != "on":
             return unknown("pump_not_on", "De waterpomp is niet actueel AAN gemeld; de gekozen stand bewijst geen uitvoering.",
                            "Wacht op actuele pomp- en meetgegevens tijdens de volgende werkelijke activiteit.")
+        if split and (contract.get("device_operation_status") != "ON"
+                      or contract.get("raw_device_action") not in ("HEATING", "COOLING", "HEATING_WATER")):
+            return unknown("native_source_value_conflict", "De hoofdstatus of native taak bevestigt de actieve pompcontext niet.",
+                           "Controleer de oorspronkelijke taak-, zone- en tankstatus; een afgeleide UIT-status bewijst geen fysieke stilstand.")
         originals = [contract["observed_at"], pump["observed_at"], direction["observed_at"], selected["observed_at"]]
         limits = [contract.get("stale_s", stale)]*len(originals)
         function, feeds = None, []
@@ -214,6 +220,9 @@ def classify_display_operation(snapshot, *, now_wall=None):
         else:
             return unknown("native_route_idle_or_unknown", "Er is geen actuele passende WATER- of PUMP-route.",
                            "Wacht op een eenduidig oorspronkelijk routerapport.")
+        if split and contract.get("raw_device_action") != {"tapwater_heating": "HEATING_WATER", "space_heating": "HEATING", "space_cooling": "COOLING"}[function]:
+            return unknown("native_source_value_conflict", "De native taak en de actuele pomp-, route- of zonecontext spreken elkaar tegen.",
+                           "Wacht op een samenhangende live-terugmelding van hetzelfde apparaat.")
         if not feeds:
             return unknown("assigned_active_feed_missing", "De passende toegewezen voeding is niet actueel als actief gemeten.",
                            "Controleer de toegewezen voedingsmeting; een ontbrekend totaal blijft onbekend.")

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0-beta.98 — aanraakbare warmtepompgeschiedenis en nieuwe Aquarea-bron
+
+- Maakt de historische tijdsbalken bereikbaar voor horizontaal schuiven, muis en toetsenbord. Een gezamenlijke markering toont het werkelijke geselecteerde meetpunt met beschikbare temperatuur, doelen, vermogen, taak en SG-stand. Meetgaten, oude ontbrekende totaalwatts en onvolledige bronnen blijven herkenbaar.
+- Bewaart aanvullend gevalideerd totaalvermogen op nieuwe bestaande vergelijkingspunten. Geen achteraf opgetelde deelmetingen, historische aanvulling, extra continue opname of energie per taak. Dagverbruik en meetdekking blijven apart. Bronrechten en tijdzone-/daggrenzen blijven behouden.
+- Verwerkt Aquarea 1.8.0 en SDK 1.4.0 met een eigen gecontroleerde parser-/statusbetekenis naast het historische specialStatus-contract. Alleen werkelijk LIVE-getypeerde status mag nieuwe actualiteit leveren; een geslaagde cachepoll volstaat niet. Native Panasonic-bediening en SG-rechten worden niet uitgebreid.
+- Behoudt de SG-herhaalwachtcorrectie van beta.97, overige regelgrenzen, huidige bronkoppelingen, modellen en geschiedenis. Installatie/rollback: `docs/BETA98_INSTELLEN.md`; validatie: `docs/TESTRESULTATEN_BETA98.md`.
+
 ## 1.0.0-beta.97 — minder onnodige SG-herhaalwacht
 
 - Vijf minuten nieuwe voldoende werkelijke restinjectie kunnen de resterende SG-herhaalwacht vervangen na een aantoonbaar eigen beëindigde algemene aanvraag met onbekend effect. De vorige opdracht moet bij de huidige uitgang passen; opnieuw bevestigd UIT-contact en alle actuele voorwaarden blijven vereist. De gewone startvertraging volgt daarna.

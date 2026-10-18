@@ -1,10 +1,10 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.97
+**Versie:** 1.0.0-beta.98
 **Bijgewerkt:** 2026-10-18
-**Regel-hash:** `9c210ad44de214c1`
+**Regel-hash:** `64c25300547e1490`
 
-Beta.97 voorkomt onnodig lang wachten na een aantoonbaar eigen beëindigde algemene SG-aanvraag met onbekend effect. Vijf minuten nieuw werkelijk restoverschot kunnen de resterende SG-herhaalwacht vervangen zodra het contact opnieuw betrouwbaar UIT is en alle actuele voorwaarden passen. De gewone startvertraging blijft gelden. Aquarea 1.7.0 is gecontroleerd; de nieuwe AUTO-richting is geen bewijs van actief bedrijf. Bestaande instellingen, modellen, historie en toestelrechten blijven behouden.
+Beta.98 maakt de warmtepompgeschiedenis aanraakbaar. Schuif over een tijdsbalk om vastgelegde meetpunten met vermogen, boilertemperatuur, doelen, taak en SG-contact te bekijken. De markering en getoonde tijd volgen het werkelijke meetpunt; meetgaten en ontbrekende oude waarden blijven herkenbaar. Aquarea 1.8.0 en de werkelijk geladen SDK 1.4.0 krijgen een afzonderlijk gecontroleerd broncontract met bescherming tegen als actueel aangeboden cachedata. Eerdere instellingen, SG-regels, modellen en historie blijven behouden.
 
 ## 1. Basisprincipe en modi
 
@@ -69,6 +69,8 @@ Een Aquarea DeviceAction OFF kan het uitgeschakelde ruimtebedrijf weergeven terw
 Beta.74 houdt de bedrijfsweergave bij het bewezen bereik. Native ruimte- of zone-UIT bewijst geen gehele warmtepomp-UIT. Bij een onvolledig totaal en een UIT-melding zonder bewezen globaal bereik blijft bedrijf onbekend; een geldige nul van één voeding maakt het onbekende totaal niet nul. Verse taakmelding, elektrische activiteit en expliciet bewezen globale UIT houden hun afzonderlijke betekenis. Deze correctie wijzigt geen SG-vrijgave of fysieke regeling.
 
 Aquarea en zijn bibliotheek worden beoordeeld op de daadwerkelijk geladen parser- en statusbetekenis, bronbinding en getypeerde gegevens. Versienummers zijn diagnosegegevens en geen toelatingslijst. Een toekomstige compatibele versie blijft dezelfde presentatieroute gebruiken. Een aantoonbaar gewijzigd contract geeft een afzonderlijke gededupliceerde compatibiliteitsmelding; gewone offline of ontbrekende actuele data blijven bronwacht. Na bevestigd compatibel herstel verdwijnt de melding. Originele rapporttijden, maximale tijdsafstand en conflicten blijven bepalend; conservatief leren en SG-koelvrijgave worden niet verruimd.
+
+De daadwerkelijk geladen SDK 1.4-statusvorm krijgt een eigen gecontroleerde betekenis naast het behouden oudere specialStatus-contract. Oude historische bewijzen worden niet hernoemd of met nieuw bewijs verrijkt. Alleen broncode en actuele getypeerde velden die met het bijbehorende contract overeenkomen mogen actueel worden gelezen. De nieuwe LIVE/CACHED-status moet echt LIVE zijn; een geslaagde cloudpoll met cachedata maakt die gegevens niet vers. Dit geeft geen nieuwe Panasonic-write of extra SG-vrijgave. Versienummers alleen geven geen bewijs.
 
 ## 4. SG-zonneboost warmtepomp: lokaal toepassingsbereik en rustige herbeoordeling
 
@@ -318,6 +320,10 @@ Resterende fouten waarvoor jouw controle nodig is verschijnen in Home Assistant 
 Een SG-koppelings- of terugvalprobleem blokkeert de betrokken SG-functie en noemt de ingebruiknamecontrole. Een oude gearchiveerde tank-/klimaatopdrachtfout wordt niet als actuele fysieke storing opgelost verklaard. Echte onbekende fouten, batterij- of fysieke toestelfouten, expliciete gebruikerskeuzes en verwijderverzoeken blijven beschermd. Controle afronden repareert geen verkeerde bronconfiguratie of onbereikbaar apparaat. Automatische herbeoordeling verruimt geen SG-, batterij-, native Panasonic- of Wallbox-bevoegdheid. Verouderde browserantwoorden mogen geen later geopend configuratievenster wijzigen of ontgrendelen. De actuele kaart gebruikt releasegebonden popupcode, ook wanneer oude aliassen nog in de browser aanwezig zijn.
 
 Gewone analysebevindingen, nieuwe bevindingrevisies, meer gegevens nodig en tijdelijke onbereikbaarheid veroorzaken geen algemene melding Analyse nodig, ook niet bij een eerder ingeschakelde analysemeldingsvoorkeur. Bevindingen en onderzoek blijven bij Meetkwaliteit en Export. Een bestaande algemene analysemelding wordt bij de eerste geslaagde controle opgeruimd. Dringende regelingsfouten blijven gericht zichtbaar, worden bij inhoudelijke wijziging bijgewerkt en verdwijnen na herstel. Een bewezen Aquarea-contractbreuk houdt haar afzonderlijke compatibiliteitsmelding. Het opruimen raakt geen andere melding of apparaat.
+
+De balken in Warmtepompgeschiedenis delen een aanraakbare tijdmarkering. Schuif horizontaal, gebruik de muis of bedien de markering met het toetsenbord. Binnen de begrensde afstand springt zij naar een werkelijk vastgelegd meetpunt; het tijdlabel en alle taak-/SG-informatie volgen die exacte tijd. Vorig/volgend meetpunt maakt de bewaarde punten apart bereikbaar. Een leeg of ver verwijderd meetpunt geeft geen verzonnen numerieke waarden. Vermogen is een W-meting op dat punt, geen verbruik per taak of per SG-sessie. Dagverbruik blijft apart als kWh met gemeten dekking. Temperatuur, normaal doel en berekend SG-doel houden hun eigen oorspronkelijke bronnen en tijden. De actuele boilerkaart bovenaan staat los van de geselecteerde historische waarden. Alleen bekijken stuurt geen apparaatopdracht en wijzigt geen instelling.
+
+Nieuwe historische vergelijkingspunten bewaren aanvullend alleen een gevalideerd volledig warmtepompvermogen met oorspronkelijke rapporttijd en geldigheid. Eerdere punten zonder dit bewijs krijgen geen achteraf opgeteld totaal uit deelvoedingen. Het bestaande opname-interval, de detailcaps en de dertig lokale kalenderdagen blijven behouden; een vermogenverandering alleen vult het archief niet met extra punten. Lokale UTC-daggrenzen laten de markering ook op dagen van 23 of 25 uur op de juiste tijd wijzen. Gedupliceerde lokale uren houden hun tijdzoneverschil.
 
 ## 16. Apparaat- en warmtepompgeschiedenis
 

@@ -1,12 +1,13 @@
 """Closed retained source semantics, without device identities or task claims.
 
-The known SDK's DeviceAction describes specialStatus, including its OFF value.
-Retaining that contract explains a raw historical field; it never rewrites the
-old field, proves global OFF, proves compressor operation or grants control.
+The original SDK's DeviceAction describes specialStatus, including its OFF
+value. The split mapping has a distinct capture-time contract. Neither proof
+rewrites historical values, proves physical global OFF or grants control.
 """
 from __future__ import annotations
 
 import ast
+import builtins
 import hashlib
 import inspect
 import math
@@ -20,6 +21,8 @@ CONTRACT_ID = "aioaquarea_ng_1_3_1_special_status"
 # old historical format; they never admit a current loaded provider.
 _LEGACY_SPECIAL_STATUS_VERSIONS = frozenset({"1.5.2", "1.5.3", "1.5.4"})
 SEMANTIC_CONTRACT_ID = "aquarea_special_status_action_v1"
+OPERATION_CONTRACT_ID = "aioaquarea_ng_split_operation_status_v1"
+OPERATION_SEMANTIC_CONTRACT_ID = "aquarea_operation_status_action_v1"
 MAX_ZONES = 2
 MAX_TIME = 4102444800
 ACTIONS = frozenset({"OFF", "IDLE", "HEATING", "COOLING", "HEATING_WATER"})
@@ -29,7 +32,12 @@ REASONS = frozenset({"provider_contract_unverified", "native_source_mapping_unve
                     "native_typed_snapshot_unverified", "native_poll_not_current",
                     "native_typed_value_unverified", "native_source_not_current",
                     "native_source_value_conflict", "known_special_status_action_mapping",
-                    "provider_semantics_unavailable", "provider_semantics_changed"})
+                    "provider_semantics_unavailable", "provider_semantics_changed",
+                    "known_operation_status_action_mapping", "native_status_not_live"})
+
+# Python 3.13 changed ast.dump's presentation default to hide empty lists.
+# Keep the complete previous canonical form without depending on that default.
+_AST_DUMP_OPTIONS = {"show_empty": True} if "show_empty" in inspect.signature(ast.dump).parameters else {}
 
 
 
@@ -37,7 +45,7 @@ def valid_semantic_contract(value):
     """Closed capture-time capability proof; release numbers are diagnostic."""
     return (isinstance(value, dict) and set(value) == {"schema", "contract", "verified", "basis", "fingerprint"}
             and type(value.get("schema")) is int and value["schema"] == 1
-            and value.get("contract") == SEMANTIC_CONTRACT_ID and value.get("verified") is True
+            and value.get("contract") in (SEMANTIC_CONTRACT_ID, OPERATION_SEMANTIC_CONTRACT_ID) and value.get("verified") is True
             and value.get("basis") == "loaded_source" and isinstance(value.get("fingerprint"), str)
             and re.fullmatch(r"[0-9a-f]{64}", value["fingerprint"]) is not None)
 
@@ -47,12 +55,28 @@ def special_status_contract(raw):
     if not isinstance(raw, dict):
         return False
     if "compatibility" in raw:
-        return valid_semantic_contract(raw["compatibility"])
+        return (valid_semantic_contract(raw["compatibility"])
+                and raw["compatibility"]["contract"] == SEMANTIC_CONTRACT_ID)
     provider = raw.get("provider") if isinstance(raw.get("provider"), dict) else {}
     version = provider.get("integration_version")
     return (provider.get("integration_domain") == "aquarea" and isinstance(version, str)
             and version in _LEGACY_SPECIAL_STATUS_VERSIONS
             and provider.get("library_distribution") == "aioaquarea-ng" and provider.get("library_version") == "1.3.1")
+
+
+def operation_status_contract(raw):
+    """The split status mapping is a separate, capture-time capability."""
+    return (isinstance(raw, dict) and valid_semantic_contract(raw.get("compatibility"))
+            and raw["compatibility"]["contract"] == OPERATION_SEMANTIC_CONTRACT_ID)
+
+
+def known_source_contract(raw):
+    """Bind original labels to their original proof; never relabel history."""
+    return (isinstance(raw, dict) and (
+        raw.get("contract_id") == CONTRACT_ID and raw.get("action_semantics") == "special_status"
+        and special_status_contract(raw)
+        or raw.get("contract_id") == OPERATION_CONTRACT_ID and raw.get("action_semantics") == "operation_status"
+        and operation_status_contract(raw)))
 
 
 def _constant(value):
@@ -67,7 +91,12 @@ def _constant(value):
 
 def _code_signature(code):
     """Ignore source locations while retaining actual executable semantics."""
-    return (code.co_code, tuple(_constant(value) for value in code.co_consts), code.co_names,
+    constants = list(code.co_consts)
+    # Dedenting a class method changes indentation inside its docstring. This
+    # text is not executable; preserve the code/other constants exactly.
+    if constants and isinstance(constants[0], str):
+        constants[0] = inspect.cleandoc(constants[0])
+    return (code.co_code, tuple(_constant(value) for value in constants), code.co_names,
             code.co_varnames, code.co_freevars, code.co_cellvars, code.co_argcount,
             code.co_posonlyargcount, code.co_kwonlyargcount, code.co_flags & 0xFFF,
             code.co_stacksize, getattr(code, "co_exceptiontable", b""))
@@ -88,11 +117,15 @@ def _function_tree(function):
     return node
 
 
+def _semantic_dump(node):
+    return ast.dump(node, include_attributes=False, **_AST_DUMP_OPTIONS)
+
+
 def _body(node):
     body = node.body
     if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
         body = body[1:]
-    return ast.dump(ast.Module(body=body, type_ignores=[]), include_attributes=False)
+    return _semantic_dump(ast.Module(body=body, type_ignores=[]))
 
 
 def _bound_method(function, arguments, data, critical=()):
@@ -115,10 +148,10 @@ def loaded_semantic_identity():
     """Cheap cache key, with no source read or native property execution."""
     identities = []
     for module_name, class_name, names in (
-            ("aioaquarea.data", "Device", ("current_action", "operation_status")),
+            ("aioaquarea.data", "Device", ("current_action", "operation_status", "status_data_mode", "__build_zones__")),
             ("aioaquarea.device_manager", "DeviceManager", ("get_device_status",)),
-            ("aioaquarea.entities", "DeviceImpl", ("current_action", "operation_status")),
-            ("aioaquarea.core", "DeviceImpl", ("current_action", "operation_status"))):
+            ("aioaquarea.entities", "DeviceImpl", ("current_action", "operation_status", "status_data_mode", "__build_zones__")),
+            ("aioaquarea.core", "DeviceImpl", ("current_action", "operation_status", "status_data_mode", "__build_zones__"))):
         module = sys.modules.get(module_name)
         cls = getattr(module, class_name, None)
         identities.extend((id(module), id(cls)))
@@ -128,10 +161,85 @@ def loaded_semantic_identity():
                 function = value.fget if isinstance(value, property) else value
                 identities.extend((id(value), id(getattr(function, "__code__", None))))
                 namespace = getattr(function, "__globals__", {})
-                identities.extend(id(namespace.get(key)) for key in ("DeviceStatus", "OperationStatus", "DeviceAction", "DeviceDirection", "ExtendedOperationMode"))
+                identities.extend(id(namespace.get(key)) for key in ("DeviceStatus", "OperationStatus", "DeviceAction", "DeviceDirection", "ExtendedOperationMode", "StatusDataMode", "parse_device_status", "merge_zone_infos", "DeviceZone"))
             except (AttributeError, TypeError):
                 identities.extend((None, None))
+    for module_name, names in (("aioaquarea.device_manager", ("parse_device_status", "_device_operation_status", "_parse_zone_status", "_optional_bool")),
+                               ("aioaquarea.data", ("parse_special_status", "merge_zone_infos"))):
+        module = sys.modules.get(module_name)
+        for name in names:
+            function = getattr(module, name, None)
+            identities.extend((id(function), id(getattr(function, "__code__", None))))
+            namespace = getattr(function, "__globals__", {})
+            code = getattr(function, "__code__", None)
+            identities.extend((key, id(namespace.get(key))) for key in getattr(code, "co_names", ()))
     return tuple(identities)
+
+
+# Canonical executable body fingerprints reviewed from the primary SDK source,
+# wpatrik14/aioaquarea@893065a81c014cb9aa1d3350446d61c01bccf3b9.
+# These identify loaded semantics, not a release/version allowlist. Comments,
+# docstrings, source locations and annotations do not affect this comparison.
+_SPLIT_BODIES = {
+    "get_device_status": "2a5e0ff076d2d15b6bef5ba05c97ea998d836c2231eb92c25e10a0d74522a3a4",
+    "parse_device_status": "7d4310c34dcde3da2c5ae760d2690c22aa5448cba950b1e6506d94c60eae99fb",
+    "_device_operation_status": "e4555d30a2a88032285a940d8215587721b925fbf74001027f2e99bca040f08c",
+    "_parse_zone_status": "3a450aa3847100780cdf81000c9bce6914bfa82874e165f8806f13d4884e5305",
+    "_optional_bool": "bedbf4ed826b44ba67c38610483e594ad9b0ac5622013829a450ba298bd7e35c",
+    "parse_special_status": "1f8ac584aba5a6b38671513704c00e4d018586768e3ecd93e99ab2ed48e96668",
+    "__build_zones__": "ed21eaa402941b46e66ddb52633957476cdfe8465528f7296c8a3039cc6caab2",
+    "merge_zone_infos": "bceb3af7dea006c4f90f79a815f83caf5d0ba69cb7a8d53b21e4f9ac99352b3d",
+    "status_data_mode": "ffb13aaba3d93e416fc231d204ecfaf735ac30c2c5876b193b190f6f1228396f",
+}
+
+
+def _split_semantics(data, manager, implementation, parser_function):
+    """Check the actual manager delegate, helpers, quality and zone rebuild."""
+    device = data.Device
+    quality = inspect.getattr_static(device, "status_data_mode")
+    builder = inspect.getattr_static(device, "__build_zones__")
+    if (not isinstance(quality, property)
+            or inspect.getattr_static(implementation, "status_data_mode") is not quality
+            or inspect.getattr_static(implementation, "__build_zones__") is not builder):
+        return None
+    status_mode = data.StatusDataMode
+    if (set(status_mode.__members__) != {"LIVE", "CACHED"}
+            or any(type(status_mode[name].value) is not int or status_mode[name].value != value
+                   for name, value in (("LIVE", 0), ("CACHED", 1)))):
+        return None
+    functions = (
+        (parser_function, ("self", "device_info"), (), {"parse_device_status": manager.parse_device_status, "StatusDataMode": status_mode}),
+        (manager.parse_device_status, ("long_id", "json_response", "data_mode"), (status_mode.LIVE,),
+         {**{name: getattr(data, name) for name in ("DeviceStatus", "DeviceModeStatus", "ExtendedOperationMode", "FaultError", "DeviceDirection", "PumpDuty", "TankStatus", "OperationStatus", "QuietMode", "ForceDHW", "ForceHeater", "HolidayTimer", "PowerfulTime", "StatusDataMode", "parse_special_status")},
+          **{name: getattr(manager, name) for name in ("_device_operation_status", "_parse_zone_status", "_optional_bool")}}),
+        (manager._device_operation_status, ("device", "zones", "tank"), (), {"OperationStatus": data.OperationStatus}),
+        (manager._parse_zone_status, ("zone_status",), (), {"OperationStatus": data.OperationStatus, "DeviceZoneStatus": data.DeviceZoneStatus}),
+        (manager._optional_bool, ("value",), (), {}),
+        (data.parse_special_status, ("value",), (), {"SpecialStatus": data.SpecialStatus}),
+        (builder, ("self", "zones_info"), (), {"merge_zone_infos": data.merge_zone_infos, "DeviceZone": data.DeviceZone}),
+        (data.merge_zone_infos, ("info_zones", "status"), (), {name: getattr(data, name) for name in ("DeviceZoneInfo", "ZoneSensor", "ZoneType", "SensorMode", "ZONE_SENSOR_IDS")}),
+        (quality.fget, ("self",), (), {}),
+    )
+    fingerprints = []
+    for function, arguments, defaults, bindings in functions:
+        code = getattr(function, "__code__", None)
+        if (not isinstance(code, CodeType) or code.co_argcount != len(arguments)
+                or code.co_varnames[:len(arguments)] != arguments or code.co_kwonlyargcount
+                or code.co_flags & (inspect.CO_VARARGS | inspect.CO_VARKEYWORDS) or code.co_freevars
+                or (getattr(function, "__defaults__", None) or ()) != defaults
+                or getattr(function, "__kwdefaults__", None)
+                or any(function.__globals__.get(name) is not value for name, value in bindings.items())):
+            return None
+        tree = _function_tree(function)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and hasattr(builtins, node.id):
+                if function.__globals__.get(node.id, getattr(builtins, node.id)) is not getattr(builtins, node.id):
+                    return None
+        fingerprint = hashlib.sha256(_body(tree).encode()).hexdigest()
+        if fingerprint != _SPLIT_BODIES.get(function.__name__):
+            return None
+        fingerprints.append(fingerprint)
+    return fingerprints
 
 
 def _returned_status_calls(parser):
@@ -165,9 +273,9 @@ def _returned_status_calls(parser):
     # Keep the mapping bound to the actual unmodified response status dict.
     device_assignments = [node for node in ast.walk(parser) if isinstance(node, ast.Assign)
                           and any(isinstance(target, ast.Name) and target.id == "device" for target in node.targets)]
-    expected_device = ast.dump(ast.parse('json_response.get("status")', mode="eval").body, include_attributes=False)
+    expected_device = _semantic_dump(ast.parse('json_response.get("status")', mode="eval").body)
     if (len(device_assignments) != 1 or len(device_assignments[0].targets) != 1
-            or ast.dump(device_assignments[0].value, include_attributes=False) != expected_device):
+            or _semantic_dump(device_assignments[0].value) != expected_device):
         return None
     approved_target = device_assignments[0].targets[0]
     parents = {id(child): parent for parent in ast.walk(parser) for child in ast.iter_child_nodes(parent)}
@@ -217,19 +325,23 @@ def inspect_loaded_aquarea_semantics():
         if (not isinstance(action, property) or not isinstance(operation, property)
                 or inspect.getattr_static(implementation, "current_action") is not action
                 or inspect.getattr_static(implementation, "operation_status") is not operation
-                or not _bound_method(parser_function, ("self", "device_info"), data, ("DeviceStatus", "OperationStatus"))
                 or not _bound_method(action.fget, ("self",), data, ("DeviceAction", "DeviceDirection", "ExtendedOperationMode", "OperationStatus"))
                 or not _bound_method(operation.fget, ("self",), data)):
             return unknown
+        split = "parse_device_status" in getattr(getattr(parser_function, "__code__", None), "co_names", ())
+        split_fingerprints = _split_semantics(data, manager, implementation, parser_function) if split else None
+        if split and not split_fingerprints:
+            return {**unknown, "compatibility_state": "incompatible", "reason_code": "provider_semantics_changed",
+                    "compatibility_detail": "split_status_or_quality_mapping_changed"}
         parser = _function_tree(parser_function)
-        calls = _returned_status_calls(parser)
-        if not calls:
+        calls = [] if split else _returned_status_calls(parser)
+        if not split and (not _bound_method(parser_function, ("self", "device_info"), data, ("DeviceStatus", "OperationStatus")) or not calls):
             return unknown
         fields = [next((field.value for field in call.keywords if field.arg == "operation_status"), None) for call in calls]
-        expected_field = ast.dump(ast.parse('OperationStatus(device.get("specialStatus"))', mode="eval").body, include_attributes=False)
-        field_dumps = [ast.dump(field, include_attributes=False) if field is not None else None for field in fields]
+        expected_field = _semantic_dump(ast.parse('OperationStatus(device.get("specialStatus"))', mode="eval").body)
+        field_dumps = [_semantic_dump(field) if field is not None else None for field in fields]
         if any(value != expected_field for value in field_dumps):
-            global_field = ast.dump(ast.parse('OperationStatus(device.get("operationStatus"))', mode="eval").body, include_attributes=False)
+            global_field = _semantic_dump(ast.parse('OperationStatus(device.get("operationStatus"))', mode="eval").body)
             if any(value == global_field for value in field_dumps):
                 return {**unknown, "compatibility_state": "incompatible", "reason_code": "provider_semantics_changed",
                         "compatibility_detail": "operation_status_no_longer_special_status"}
@@ -253,11 +365,14 @@ def inspect_loaded_aquarea_semantics():
         if _body(action_tree) != _body(expected_action) or _body(operation_tree) != _body(expected_operation):
             return {**unknown, "compatibility_state": "incompatible", "reason_code": "provider_semantics_changed",
                     "compatibility_detail": "action_or_status_getter_semantics_changed"}
-        fingerprint = hashlib.sha256((ast.dump(parser, include_attributes=False) + _body(action_tree) + _body(operation_tree)).encode()).hexdigest()
-        proof = {"schema": 1, "contract": SEMANTIC_CONTRACT_ID, "verified": True,
+        fingerprint = hashlib.sha256((_semantic_dump(parser) + _body(action_tree) + _body(operation_tree)
+                                      + "".join(split_fingerprints or [])).encode()).hexdigest()
+        proof = {"schema": 1, "contract": OPERATION_SEMANTIC_CONTRACT_ID if split else SEMANTIC_CONTRACT_ID, "verified": True,
                  "basis": "loaded_source", "fingerprint": fingerprint}
-        return {"compatibility": proof, "compatibility_state": "compatible", "reason_code": "known_special_status_action_mapping",
-                "compatibility_detail": "loaded_special_status_action_semantics", "_loaded_device_class": implementation}
+        return {"compatibility": proof, "compatibility_state": "compatible",
+                "reason_code": "known_operation_status_action_mapping" if split else "known_special_status_action_mapping",
+                "compatibility_detail": "loaded_split_operation_status_action_semantics" if split else "loaded_special_status_action_semantics",
+                "_loaded_device_class": implementation}
     except (AttributeError, TypeError, ValueError, OSError, SyntaxError, RuntimeError):
         return unknown
 
@@ -310,8 +425,8 @@ def _project(raw, captured_at, stale_s, *, retained=False):
                 "library_version":_version(provider_raw.get("library_version"))}
     provider_loaded = raw.get("provider_loaded") is True
     known = (type(raw.get("schema")) is int and raw["schema"] == 1 and raw.get("read_only") is True and provider_loaded
-             and raw.get("contract_id") == CONTRACT_ID and raw.get("action_semantics") == "special_status"
-             and provider["integration_domain"] == "aquarea" and special_status_contract(raw))
+             and provider["integration_domain"] == "aquarea" and known_source_contract(raw))
+    split = known and raw.get("contract_id") == OPERATION_CONTRACT_ID
     pump_raw, direction_raw, program_raw, tank_raw = (_dict(raw.get(key)) for key in ("pump","direction","program","tank"))
     pump = {"state":_enum(pump_raw.get("state"), {"on","off"}, "unknown"), **observed(pump_raw)}
     direction = {"state":_enum(direction_raw.get("state"), {"IDLE","PUMP","WATER"}), **observed(direction_raw)}
@@ -339,12 +454,14 @@ def _project(raw, captured_at, stale_s, *, retained=False):
                                       for row in zones_raw)
     all_rows = [pump_raw,direction_raw,program_raw,tank_raw,*zones_raw] if valid_zones else []
     verified = bool(known and claimed and provider_loaded and registered and fresh(original)
+                    and (not split or raw.get("status_data_mode") == "LIVE"
+                         and raw.get("device_operation_status") in ("ON", "OFF", "UNKNOWN"))
                     and pump["state"] != "unknown" and direction["state"] is not None and program["state"] is not None
                     and mode is not None and MODES[mode] == program["state"] and valid_zones and typed_rows
                     and all(valid_optional(row) for row in all_rows)
                     and all(row["fresh"] for row in (pump,direction,program,tank,*zones)))
     result = {"schema":1, "read_only":True, "provider":provider,
-            "contract_id":CONTRACT_ID if known else None, "action_semantics":"special_status" if known else "unknown",
+            "contract_id":raw["contract_id"] if known else None, "action_semantics":raw["action_semantics"] if known else "unknown",
             "verified":verified, "provider_loaded":provider_loaded, "native_device_registered":registered,
             "observed_at":original, "stale_s":stale, "fresh":fresh(original),
             "raw_device_action":_enum(raw.get("raw_device_action"), ACTIONS),
@@ -352,6 +469,9 @@ def _project(raw, captured_at, stale_s, *, retained=False):
             "pump":pump, "direction":direction, "program":program, "tank":tank, "zones":zones}
     if "compatibility" in raw:
         result["compatibility"] = dict(raw["compatibility"]) if valid_semantic_contract(raw["compatibility"]) else None
+    if split:
+        result["device_operation_status"] = _enum(raw.get("device_operation_status"), {"ON", "OFF", "UNKNOWN"})
+        result["status_data_mode"] = _enum(raw.get("status_data_mode"), {"LIVE", "CACHED"})
     return result
 
 
