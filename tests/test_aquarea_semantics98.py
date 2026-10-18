@@ -21,6 +21,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 from copy import deepcopy
+import ast
 from dataclasses import fields
 from enum import Enum
 from pathlib import Path
@@ -38,6 +39,7 @@ from custom_components.solar_pilot.operation_source_evidence import (
 from test_aquarea_display_snapshot86 import modern_setup, record
 from test_display_operation83 import NOW, contract_snapshot, display
 from custom_components.solar_pilot.power_activity import task_observations
+import custom_components.solar_pilot.operation_source_evidence as source_evidence
 
 
 # Pinned upstream bodies; placeholder types deliberately cannot call the API.
@@ -411,6 +413,23 @@ def test_actual_loaded_split_parser_helper_chain_and_inherited_getters_are_a_new
     assert result["reason_code"] == "known_operation_status_action_mapping"
     assert valid_semantic_contract(result["compatibility"])
     # The placeholder enums and absent client cannot execute provider methods.
+
+
+def test_canonical_semantics_keep_empty_fields_when_ast_dump_default_hides_them(monkeypatch):
+    tree = ast.parse("def status_data_mode(self):\n    return self._status.data_mode").body[0]
+    expected = source_evidence._body(tree)
+    assert expected.endswith("type_ignores=[])")
+    original_dump = ast.dump
+    original_options = dict(source_evidence._AST_DUMP_OPTIONS)
+    calls = []
+    def changed_default_dump(node, *, include_attributes=False, show_empty=False):
+        calls.append(show_empty)
+        complete = original_dump(node, include_attributes=include_attributes, **original_options)
+        return complete if show_empty else complete.replace(", type_ignores=[]", "")
+    monkeypatch.setattr(ast, "dump", changed_default_dump)
+    monkeypatch.setattr(source_evidence, "_AST_DUMP_OPTIONS", {"show_empty": True})
+    assert source_evidence._body(tree) == expected
+    assert calls == [True]
 
 
 @pytest.mark.parametrize("change", ["special_status", "helper", "delegate", "quality", "zones", "getter", "shadow", "source"])

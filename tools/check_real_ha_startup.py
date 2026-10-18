@@ -20,7 +20,7 @@ import shutil
 import sys
 import tempfile
 import time
-from types import MappingProxyType
+from types import MappingProxyType, SimpleNamespace
 from unittest.mock import patch
 
 
@@ -705,8 +705,9 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                     "hvac_action": "idle", "temperature": 20, "current_temperature": 20,
                     "temperature_unit": "°C"})
                 # Exercise automatic discovery against real Core registries.
-                # Only the native identity is installed; no Aquarea component,
-                # coordinator or cloud connection is loaded for this fixture.
+                # Registry identities alone are not a loaded native source.
+                # The bound legacy coordinator below is offline synthetic
+                # data; no Aquarea component or cloud connection is loaded.
                 from homeassistant.helpers import device_registry as dr
                 from custom_components.solar_pilot.panasonic_monitor import PanasonicMonitor
                 native_entry = ConfigEntry(
@@ -737,6 +738,19 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                     "tank_target_entity": "", "zone_entities": []})
                 automatic_before = deepcopy(automatic.settings)
                 inherited_control = deepcopy(runtime.panasonic.overview())
+                orphan = automatic.overview()
+                assert orphan["display_sources"]["tank_entity"] == native_entities["tank"]
+                assert orphan["display_tank"]["temperature_c"] is None
+                assert orphan["display_tank"]["target_c"] is None
+                assert orphan["display_tank"]["available"] is False
+                assert orphan["native_task"]["function"] is None
+                assert orphan["context_reliable"] is False and orphan["cooling_possible"] is True
+                # Match the real provider's entry/device/coordinator ownership.
+                # An older status has no data_mode; it retains that explicit
+                # legacy contract without inventing typed LIVE/poll evidence.
+                native_entry.runtime_data = {"synthetic_native": SimpleNamespace(
+                    device_info=SimpleNamespace(device_id="synthetic_native"),
+                    device=SimpleNamespace(device_id="synthetic_native", _status=SimpleNamespace()))}
                 discovered = automatic.overview()
                 assert discovered["display_sources"]["tank_entity"] == native_entities["tank"]
                 assert discovered["display_sources"]["zone_entities"] == [native_entities["climate_1"]]

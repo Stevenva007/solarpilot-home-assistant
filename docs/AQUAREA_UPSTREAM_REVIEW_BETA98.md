@@ -39,7 +39,7 @@ Voor taakpresentatie blijven eigen bronbinding, oorspronkelijke rapporttijden, b
 
 ## Lokale controle van de verwerking
 
-De negen canonieke functiebody-fingerprints zijn onafhankelijk opnieuw berekend uit de werkelijk opgehaalde vaste SDK-bron, met nul afwijkingen. De oorspronkelijke bron wordt ook met daadwerkelijk geladen bytecode vergeleken; globale functies en getypeerde waarden moeten bij dezelfde geladen modules horen. Versienummers zijn daarbij alleen diagnosegegevens.
+De negen canonieke functiebody-fingerprints zijn onafhankelijk opnieuw berekend uit de werkelijk opgehaalde vaste SDK-bron, met nul afwijkingen. De oorspronkelijke bron wordt ook met daadwerkelijk geladen bytecode vergeleken; globale functies en getypeerde waarden moeten bij dezelfde geladen modules horen. Versienummers zijn daarbij alleen diagnosegegevens. De canonieke AST-vorm bewaart expliciet ook lege velden; de gewijzigde Python 3.13-standaardweergave verandert daardoor geen van de negen vaste bronhashes. De werkelijke geïnstalleerde SDK 1.4.0 is met dezelfde contractvingerafdruk aanvaard op Python 3.12.14, 3.13.16 en 3.14.2.
 
 `tests/test_aquarea_semantics98.py` dekt de nieuwe keten, gewijzigde of verwisselde helpers, bron-/geladen-codeverschillen, behoud van oude opgeslagen records en de scheiding tussen beide contracttypen. De exacte LIVE-voorwaarde geldt in programme-, actie- en displaylezingen: een geslaagde cache-update, ongekwalificeerde waarde of latere wijziging van CACHED naar LIVE zonder nieuwe poll vernieuwt geen bewijs. Gewone cache-/offline-onzekerheid maakt het providercontract zelf niet incompatibel.
 

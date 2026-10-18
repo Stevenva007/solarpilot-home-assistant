@@ -22,16 +22,18 @@ Uitgevoerde gerichte controles op de beta.98-bron:
 
 - 76 nieuwe en behouden UI-regressies; daarnaast 44 onafhankelijke geschiedenis-, opslag-, API-, UI- en cachegrensgevallen. De groepen overlappen met bredere suites en worden niet bij elkaar opgeteld.
 - Volledige Chromium-geschiedeniscontrole op vier schermbreedtes, inclusief 320/390 px, horizontale vingerbediening, behouden verticale scroll, stabiele balkpositie onder de vinger, pointercapture tijdens hertekenen, alle zes balken, toetsenbord, vernieuwen/dagwissels, meetgaten en nul stuuracties. De actieve mobiele detailweergaven zijn visueel gecontroleerd.
-- De daadwerkelijke geïnstalleerde PyPI-SDK `aioaquarea-ng==1.4.0` is rechtstreeks door de meegeleverde geladen-code-inspector geaccepteerd onder `aquarea_operation_status_action_v1`; de vingerafdruk is `118e26322d23606c3c5343fcf751a5a7ada96d430592b744b9d5340f0b7b6deb`.
-- 30 nieuwe SDK-statusgevallen en 13 afzonderlijke native-monitorgevallen; de laatste gecombineerde gerichte bronrun behaalde 476 geslaagde tests.
+- De daadwerkelijke geïnstalleerde PyPI-SDK `aioaquarea-ng==1.4.0` is onder Python 3.12.14, 3.13.16 en 3.14.2 rechtstreeks door de meegeleverde geladen-code-inspector geaccepteerd onder `aquarea_operation_status_action_v1`; de vingerafdruk is `118e26322d23606c3c5343fcf751a5a7ada96d430592b744b9d5340f0b7b6deb`.
+- 31 nieuwe SDK-statusgevallen en 13 afzonderlijke native-monitorgevallen; de laatste gecombineerde gerichte bronrun behaalde 476 geslaagde tests.
 - Alle negen canonieke bronfuncties onafhankelijk met de officiële vastgepinde SDK vergeleken; energie-/sensorroute en alle acht actuele upstreamrecords gecontroleerd.
 - Actuele uitleg, overdracht, publieke repositorystructuur en Panasonic-/SG-commandogrens geslaagd.
 
-De volledige lokale suite op de definitieve productiebron is geslaagd: **7395 tests**, zonder mislukte of overgeslagen gevallen, in 150,99 seconden. JavaScript-syntax en alle 93 Python-bronbestanden zijn gecontroleerd. De definitieve GitHub-gates en pakketverificatie blijven afzonderlijke publicatievoorwaarden; hun brongebonden resultaat staat bij de workflowrun en release. Oudere releases leveren geen testresultaten voor beta.98.
+De volledige lokale suite op de definitieve productiebron is geslaagd: **7396 tests** onder Python 3.13.16, zonder mislukte of overgeslagen gevallen, in 152,44 seconden. JavaScript-syntax en alle 93 Python-bronbestanden zijn gecontroleerd. De definitieve GitHub-gates en pakketverificatie blijven afzonderlijke publicatievoorwaarden; hun brongebonden resultaat staat bij de workflowrun en release. Oudere releases leveren geen testresultaten voor beta.98.
 
 De regressies moeten selectie, actuele versus historische waarden, oude ontbrekende totalen, onvolledige splitmeters, meetgaten, grenzen/tijdwissels, navigatie, vernieuwen, pointercapture, sluiten en late antwoorden toetsen. De browsertests voeren de daadwerkelijk meegeleverde kaart uit met fictieve gegevens en controleren mobiele bediening en uitsluitend leesbare aanvragen.
 
 De nieuwe SDK-regressies moeten de daadwerkelijk gecontroleerde parser-/actiebetekenis, LIVE/CACHED, gewijzigde geladen code, oorspronkelijke pollgeneratie, bronconflict, oudere contracten, oorspronkelijke historie en ongewijzigde actuatorgrenzen afdekken.
+
+De eerste GitHub-run wees twee concrete verschillen aan: Python 3.13 veranderde de standaardweergave van lege AST-velden, en de oude Core-discoveryfixture bevatte wel native registraties maar geen coordinator. De bronvergelijking gebruikt nu expliciet dezelfde volledige canonieke vorm op alle drie Python-versies; alle negen oorspronkelijke hashes blijven gelijk en gewijzigde code blijft geweigerd. De Core-fixture toetst eerst het afwijzen van losse native registraties, voegt daarna een exact gekoppelde offline legacy-coordinator toe en behoudt de bestaande controles. De herziene fixture is met echte Core 2026.10.0 / Python 3.14.2 geslaagd voor setup, reload, unload, geschiedenis en rechten, met nul fysieke serviceaanroepen.
 
 ## Publicatievoorwaarden
 

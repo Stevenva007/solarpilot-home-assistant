@@ -35,6 +35,10 @@ REASONS = frozenset({"provider_contract_unverified", "native_source_mapping_unve
                     "provider_semantics_unavailable", "provider_semantics_changed",
                     "known_operation_status_action_mapping", "native_status_not_live"})
 
+# Python 3.13 changed ast.dump's presentation default to hide empty lists.
+# Keep the complete previous canonical form without depending on that default.
+_AST_DUMP_OPTIONS = {"show_empty": True} if "show_empty" in inspect.signature(ast.dump).parameters else {}
+
 
 
 def valid_semantic_contract(value):
@@ -113,11 +117,15 @@ def _function_tree(function):
     return node
 
 
+def _semantic_dump(node):
+    return ast.dump(node, include_attributes=False, **_AST_DUMP_OPTIONS)
+
+
 def _body(node):
     body = node.body
     if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
         body = body[1:]
-    return ast.dump(ast.Module(body=body, type_ignores=[]), include_attributes=False)
+    return _semantic_dump(ast.Module(body=body, type_ignores=[]))
 
 
 def _bound_method(function, arguments, data, critical=()):
@@ -265,9 +273,9 @@ def _returned_status_calls(parser):
     # Keep the mapping bound to the actual unmodified response status dict.
     device_assignments = [node for node in ast.walk(parser) if isinstance(node, ast.Assign)
                           and any(isinstance(target, ast.Name) and target.id == "device" for target in node.targets)]
-    expected_device = ast.dump(ast.parse('json_response.get("status")', mode="eval").body, include_attributes=False)
+    expected_device = _semantic_dump(ast.parse('json_response.get("status")', mode="eval").body)
     if (len(device_assignments) != 1 or len(device_assignments[0].targets) != 1
-            or ast.dump(device_assignments[0].value, include_attributes=False) != expected_device):
+            or _semantic_dump(device_assignments[0].value) != expected_device):
         return None
     approved_target = device_assignments[0].targets[0]
     parents = {id(child): parent for parent in ast.walk(parser) for child in ast.iter_child_nodes(parent)}
@@ -330,10 +338,10 @@ def inspect_loaded_aquarea_semantics():
         if not split and (not _bound_method(parser_function, ("self", "device_info"), data, ("DeviceStatus", "OperationStatus")) or not calls):
             return unknown
         fields = [next((field.value for field in call.keywords if field.arg == "operation_status"), None) for call in calls]
-        expected_field = ast.dump(ast.parse('OperationStatus(device.get("specialStatus"))', mode="eval").body, include_attributes=False)
-        field_dumps = [ast.dump(field, include_attributes=False) if field is not None else None for field in fields]
+        expected_field = _semantic_dump(ast.parse('OperationStatus(device.get("specialStatus"))', mode="eval").body)
+        field_dumps = [_semantic_dump(field) if field is not None else None for field in fields]
         if any(value != expected_field for value in field_dumps):
-            global_field = ast.dump(ast.parse('OperationStatus(device.get("operationStatus"))', mode="eval").body, include_attributes=False)
+            global_field = _semantic_dump(ast.parse('OperationStatus(device.get("operationStatus"))', mode="eval").body)
             if any(value == global_field for value in field_dumps):
                 return {**unknown, "compatibility_state": "incompatible", "reason_code": "provider_semantics_changed",
                         "compatibility_detail": "operation_status_no_longer_special_status"}
@@ -357,7 +365,7 @@ def inspect_loaded_aquarea_semantics():
         if _body(action_tree) != _body(expected_action) or _body(operation_tree) != _body(expected_operation):
             return {**unknown, "compatibility_state": "incompatible", "reason_code": "provider_semantics_changed",
                     "compatibility_detail": "action_or_status_getter_semantics_changed"}
-        fingerprint = hashlib.sha256((ast.dump(parser, include_attributes=False) + _body(action_tree) + _body(operation_tree)
+        fingerprint = hashlib.sha256((_semantic_dump(parser) + _body(action_tree) + _body(operation_tree)
                                       + "".join(split_fingerprints or [])).encode()).hexdigest()
         proof = {"schema": 1, "contract": OPERATION_SEMANTIC_CONTRACT_ID if split else SEMANTIC_CONTRACT_ID, "verified": True,
                  "basis": "loaded_source", "fingerprint": fingerprint}
