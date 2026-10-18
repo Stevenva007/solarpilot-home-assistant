@@ -62,6 +62,8 @@ class SGBoostManager:
         self.relay_confirmed = False
         self._relay_observed_at = None
         self._relay_valid_until = None
+        self._relay_binding_identity = None
+        self._request_rest_off_current = False
         self.panasonic_confirmed = None
         self.manual_hold = False
         self.completion_hold = False
@@ -84,6 +86,7 @@ class SGBoostManager:
         self._session_finishing = False
         self._rest_until = 0.0
         self._rest_until_wall = None
+        self._request_rest_policy = None
         self._suppress_saves = False
         self._last_renewed = None
         self._lease_expiry = None
@@ -139,13 +142,32 @@ class SGBoostManager:
     def auto_enabled(self):
         return self.settings.get("enabled") is True
 
-    def _control_identity(self):
-        value = {key: value for key, value in self.settings.items() if key not in DISPLAY_ONLY_KEYS}
+    def _control_identity(self, settings=None):
+        source = self.settings if settings is None else settings
+        value = {key: value for key, value in source.items() if key not in DISPLAY_ONLY_KEYS}
         try:
             return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"),
                                              allow_nan=False).encode()).hexdigest()
         except (TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _historical_provenance(value):
+        """Preserve an optional original identity; never fill an older record."""
+        cleaned = clean_session_provenance(value)
+        if cleaned is None:
+            return None
+        binding = value.get("binding_identity") if isinstance(value, dict) else None
+        if binding is not None and (not isinstance(binding, str) or len(binding) != 64
+                or any(char not in "0123456789abcdef" for char in binding)):
+            return None
+        if isinstance(value, dict) and "control_identity" in value:
+            identity = value["control_identity"]
+            if (not isinstance(identity, str) or len(identity) != 64
+                    or any(char not in "0123456789abcdef" for char in identity)):
+                return None
+            cleaned["control_identity"] = identity
+        return cleaned
 
     @property
     def manual_mode(self):
@@ -219,6 +241,8 @@ class SGBoostManager:
                 self.relay_confirmed = False
                 self._relay_observed_at = None
                 self._relay_valid_until = None
+                self._relay_binding_identity = None
+                self._request_rest_off_current = False
                 self._lease_expiry = self._lease_deadline = None
                 self._commissioned_fingerprint = self._observed_fingerprint = None
         if (updated.get("tank_temperature_entity") != old_tank_entity
@@ -260,6 +284,7 @@ class SGBoostManager:
                 "manual_hold": self.manual_hold, "completion_hold": self.completion_hold,
                 "session_finishing": self._session_finishing,
                 "rest_until_wall": self._rest_until_wall,
+                "request_rest_policy": self._request_rest_policy,
                 "fault_code": self.fault_code, "last_session": deepcopy(self._last_session),
                 "commissioned_fingerprint": deepcopy(self._commissioned_fingerprint),
                 "need_reference": deepcopy(self._need_reference),
@@ -352,18 +377,20 @@ class SGBoostManager:
             remaining = max(0.0, min(float(self.settings["rest_s"]), rest - self._wall_clock()))
             self._rest_until = self._clock() + remaining
             self._rest_until_wall = rest
+        rest_policy = stored.get("request_rest_policy")
+        self._request_rest_policy = rest_policy if rest_policy in ("request", "protected") else None
         last = stored.get("last_session")
         self._last_session = deepcopy(last) if isinstance(last, dict) else None
         # Evidence never grants ownership or supplies restart permission. In
         # particular, a pre-provenance journal stays historically unknown.
-        self._session_provenance = clean_session_provenance(stored.get("session_provenance"))
+        self._session_provenance = self._historical_provenance(stored.get("session_provenance"))
         if self._restart_resume is not None:
-            self._session_provenance = clean_session_provenance(self._restart_resume.get("session_provenance"))
+            self._session_provenance = self._historical_provenance(self._restart_resume.get("session_provenance"))
         origin = stored.get("hold_origin")
         self._hold_origin = ({"hold_reason": origin.get("hold_reason") if isinstance(origin.get("hold_reason"), str) else None,
             "stop_reason": origin.get("stop_reason")[:240] if isinstance(origin.get("stop_reason"), str) else None,
             "ended_at": finite(origin.get("ended_at")),
-            "session_provenance": clean_session_provenance(origin.get("session_provenance"))}
+            "session_provenance": self._historical_provenance(origin.get("session_provenance"))}
             if isinstance(origin, dict) else None)
         fingerprint = stored.get("commissioned_fingerprint")
         self._commissioned_fingerprint = deepcopy(fingerprint) if isinstance(fingerprint, dict) else None
@@ -417,7 +444,7 @@ class SGBoostManager:
 
     def _capture_session_provenance(self, *, identity, settings, issued_at, source_reports,
                                     fixed_import_limit_w, request_mode):
-        """Freeze the actual command's observations; this has no control role."""
+        """Freeze the actual command's observations, separate from ON authority."""
         try:
             configured_minimum = finite(settings.get("min_session_s"))
             maximum = finite(settings.get("max_session_s"))
@@ -435,8 +462,9 @@ class SGBoostManager:
                 "command_issued_at": self._wall_clock()-(self._clock()-issued_at),
                 "request_mode": request_mode,
                 "binding_identity": self._binding_identity,
+                "control_identity": self._control_identity(settings),
                 "source_reports": source_reports}
-            self._session_provenance = clean_session_provenance(value)
+            self._session_provenance = self._historical_provenance(value)
         except (Exception, asyncio.CancelledError):
             # Failure to collect optional evidence cannot change native safety.
             self._session_provenance = None
@@ -468,7 +496,9 @@ class SGBoostManager:
         origin = self._hold_origin if isinstance(self._hold_origin, dict) else {}
         provenance = origin.get("session_provenance")
         if self.settings.get("profile") == "general":
-            condition = ("Na rust vijf minuten werkelijk restoverschot of nieuwe betrouwbare toestelcontext bevestigen"
+            condition = ("Vijf minuten werkelijk restoverschot en actuele UIT bevestigen; daarna gewone startvertraging"
+                if self._hold_reason == "response_unknown" and self._request_rest_proven() else
+                "Na rust vijf minuten werkelijk restoverschot of nieuwe betrouwbare toestelcontext bevestigen"
                 if self._hold_reason == "response_unknown" else
                 "Na rust een nieuwe zonneperiode of betrouwbare gewijzigde toestelcontext bevestigen")
         else:
@@ -479,6 +509,8 @@ class SGBoostManager:
             "original_ended_at": origin.get("ended_at"),
             "command_identity": provenance.get("command_identity") if isinstance(provenance, dict) else None,
             "provenance_status": "recorded_at_start" if isinstance(provenance, dict) else "unknown_legacy",
+            "request_rest_remaining_s": math.ceil(max(0.0, self._rest_until-self._clock())),
+            "request_rest_replaceable": self._clock() < self._rest_until and self._request_rest_proven(),
             "current_condition": condition}
 
     def _effective_minimum_s(self):
@@ -663,13 +695,18 @@ class SGBoostManager:
         if callable(note):
             note(text)
 
-    def _begin_rest(self):
+    def _begin_rest(self, *, request_reassessment=False):
         now = self._clock()
         seconds = float(self.settings["rest_s"])
         deadline = now + seconds
+        if not request_reassessment:
+            # An explicit/manual or uncertain later rest cannot borrow the
+            # previous automatic request's early-reassessment evidence.
+            self._request_rest_policy = "protected"
         if deadline > self._rest_until:
             self._rest_until = deadline
             self._rest_until_wall = self._wall_clock() + seconds
+            self._request_rest_policy = "request" if request_reassessment else "protected"
 
     def _command_clock(self):
         self.runtime.last_issued = self._clock()
@@ -686,6 +723,7 @@ class SGBoostManager:
         # A live readback is source evidence. Rendering the overview must never
         # refresh this timestamp or turn an expired cached contact into proof.
         self._relay_observed_at = self._wall_clock()
+        self._relay_binding_identity = raw.get("binding_identity")
         remaining = finite(raw.get("lease_remaining_s"))
         self._relay_valid_until = (self._relay_observed_at + remaining
                                   if raw["output"] and remaining is not None and 0 < remaining <= 600 else None)
@@ -1296,6 +1334,7 @@ class SGBoostManager:
         self._stable_since = self._import_since = None
         self._import_observation = self._import_policy = None
         had_authority = self.owned or self._possibly_owned
+        release_confirmed = False
         if (policy_hold and self.settings.get("profile") == "general"
                 and self._session_started is not None and not self.completion_hold):
             self.completion_hold = True
@@ -1345,6 +1384,7 @@ class SGBoostManager:
                                                         float(self.settings["ack_timeout_s"])))
                 if raw["output"] is not False:
                     raise ValueError("off_not_confirmed")
+                release_confirmed = True
                 self._transport_confirmed("off")
                 self.owned = self._possibly_owned = False
                 self._lease_expiry = self._lease_deadline = None
@@ -1367,7 +1407,11 @@ class SGBoostManager:
                         and getattr(adapter, "before_off_status", None) is off_callback):
                     adapter.before_off_status = None
         if rest:
-            self._begin_rest()
+            self._begin_rest(request_reassessment=bool(policy_hold and release_confirmed
+                and self.settings.get("profile") == "general" and self._hold_reason == "response_unknown"
+                and self._session_started is not None and self.manual_mode == "auto"
+                and not self.manual_hold and self.auto_enabled
+                and getattr(self.runtime, "mode", "observe") == "solar"))
         if self._session_started is not None:
             self._record_session_end(reason, transport=(self._transport_evidence
                 if isinstance(self._transport_evidence, dict)
@@ -1390,6 +1434,7 @@ class SGBoostManager:
         now = self._clock()
         ours = self.owned or self._possibly_owned
         if ours and raw["output"] is False:
+            ending_session = self._session_started is not None
             expired = self._lease_deadline is not None and now >= self._lease_deadline - 1
             limit_reached = (self._session_started is not None and
                 now-self._session_started >= float(self.settings["max_session_s"]))
@@ -1408,7 +1453,10 @@ class SGBoostManager:
             self._lease_expiry = self._lease_deadline = None
             self._session_started = self._last_renewed = None
             self._minimum_started = None
-            self._begin_rest()
+            self._begin_rest(request_reassessment=bool(ending_session and (expired or releasing)
+                and self.settings.get("profile") == "general" and self._hold_reason == "response_unknown"
+                and self.manual_mode == "auto" and not self.manual_hold and self.auto_enabled
+                and getattr(self.runtime, "mode", "observe") == "solar"))
             self._stable_since = self._import_since = None
             if expired or releasing:
                 if self.fault_code in {"off_failed", "unavailable_read"}:
@@ -1570,6 +1618,76 @@ class SGBoostManager:
         except (TypeError, ValueError):
             return None
 
+    def _request_rest_proven(self):
+        """Only a known ended automatic request can replace request-only rest.
+
+        This never infers a compressor start/non-start. Panasonic still owns
+        compressor protection; the evidence only bounds another SG request.
+        """
+        if (self.settings.get("profile") != "general" or not self.completion_hold
+                or self._hold_reason != "response_unknown" or self._request_rest_policy != "request"
+                or self._closed or getattr(self.runtime, "_closed", False)
+                or (hasattr(self.runtime.entry, "runtime_data") and self.runtime.entry.runtime_data is not self.runtime)
+                or not self._request_rest_off_current or not self.relay_confirmed or self.relay_on is not False
+                or self.owned or self._possibly_owned or self.desired_on or self._in_flight
+                or self._restart_release or self._restart_resume is not None
+                or self.manual_hold or self.manual_mode != "auto" or self.fault
+                or getattr(self.runtime, "pending", None) or getattr(self.runtime, "handover", None)
+                or getattr(self.runtime, "removal_requested", False)
+                or getattr(self.runtime, "restart_blocking", False)):
+            return False
+        origin = self._hold_origin if isinstance(self._hold_origin, dict) else {}
+        last = self._last_session if isinstance(self._last_session, dict) else {}
+        old = self._historical_provenance(origin.get("session_provenance"))
+        ended = self._historical_provenance(last.get("session_provenance"))
+        wall = self._wall_clock()
+        end_stamp, origin_stamp = finite(last.get("ended_at")), finite(origin.get("ended_at"))
+        contact_stamp, rest_stamp = finite(self._relay_observed_at), finite(self._rest_until_wall)
+        if (old is None or ended is None or old != ended or old.get("request_mode") != "automatic"
+                or last.get("provenance_status") != "recorded_at_start"
+                or origin.get("hold_reason") != "response_unknown"
+                or not isinstance(last.get("reason"), str) or last["reason"] != origin.get("stop_reason")
+                or type(last.get("ended_at")) not in (int, float)
+                or type(origin.get("ended_at")) not in (int, float)
+                or end_stamp is None or origin_stamp != end_stamp or not 0 < end_stamp <= wall
+                or old.get("command_issued_at") is None
+                or not 0 < old["started_at"] <= old["command_issued_at"] <= end_stamp
+                or contact_stamp is None or not end_stamp < contact_stamp <= wall
+                or wall-contact_stamp > float(self.settings["stale_s"])
+                or rest_stamp is None or abs(rest_stamp-end_stamp-float(self.settings["rest_s"])) > 5):
+            return False
+        binding = old.get("binding_identity")
+        if (not isinstance(binding, str) or len(binding) != 64
+                or binding != self._relay_binding_identity):
+            return False
+        identity = old.get("control_identity")
+        if identity is None or identity != self._control_identity():
+            return False
+        # Older sessions without a full original control hash keep the normal
+        # rest fallback. No historical identity is inferred from current options.
+        runtime_settings = getattr(self.runtime, "settings", {})
+        current = effective_session_policy(self.settings, old["policy"]["effective_min_session_s"],
+            runtime_settings.get("max_import_w") if isinstance(runtime_settings, dict) else None)
+        return session_policy_hash(current) == old["policy_hash"]
+
+    def _request_rest_live_allowed(self):
+        """Read the existing automatic boundary without creating stop evidence."""
+        gate = getattr(self.runtime, "sg_dispatch_allowed", None)
+        if not callable(gate):
+            return self._injected_adapter
+        owner = getattr(gate, "__self__", self.runtime)
+        existed = hasattr(owner, "_sg_dispatch_rejection")
+        previous = getattr(owner, "_sg_dispatch_rejection", None)
+        try:
+            return gate(renewal=False, automatic=True) is True
+        except Exception:
+            return False
+        finally:
+            if existed:
+                owner._sg_dispatch_rejection = previous
+            elif hasattr(owner, "_sg_dispatch_rejection"):
+                del owner._sg_dispatch_rejection
+
     def _general_reassessment(self, *, residual_allowed=False):
         if (self.settings.get("profile") != "general" or not self.completion_hold
                 or self.settings.get("profile_confirmed") is not True):
@@ -1606,11 +1724,19 @@ class SGBoostManager:
                 self._general_reset_candidate = None
         else:
             self._general_reset_candidate = None
-        if now < self._rest_until:
+        residual_ready = (self._hold_reason == "response_unknown" and residual_allowed is True
+            and solar_new and self._residual_reassessment_threshold() is not None
+            and solar["watts"] >= self._residual_reassessment_threshold()
+            and isinstance(solar.get("source_signature"), str))
+        early_residual = (now < self._rest_until and residual_ready and self._request_rest_proven()
+            and solar["stamp"] > self._hold_origin["ended_at"] and self._request_rest_live_allowed())
+        if now < self._rest_until and not early_residual:
             self._general_candidate = None
             return False
         kind = None
-        if (native_new and native["context"] in RELEVANT_NATIVE_CONTEXTS
+        if early_residual:
+            kind, signature, stamp = "fresh_residual_surplus", solar["source_signature"], solar["stamp"]
+        elif (native_new and native["context"] in RELEVANT_NATIVE_CONTEXTS
                 and (reference.get("profile_transition") is True
                      or (reference.get("signature") is not None
                          and native["signature"] != reference["signature"])
@@ -1621,10 +1747,7 @@ class SGBoostManager:
                 and finite(reference.get("solar_reset_stamp")) is not None
                 and solar["stamp"] > reference["solar_reset_stamp"]):
             kind, signature, stamp = "new_solar_period", "qualified_surplus", solar["stamp"]
-        elif (self._hold_reason == "response_unknown" and residual_allowed is True
-                and solar_new and self._residual_reassessment_threshold() is not None
-                and solar["watts"] >= self._residual_reassessment_threshold()
-                and isinstance(solar.get("source_signature"), str)):
+        elif residual_ready:
             kind, signature, stamp = "fresh_residual_surplus", solar["source_signature"], solar["stamp"]
         if kind is None:
             self._general_candidate = None
@@ -1643,6 +1766,11 @@ class SGBoostManager:
         if not confirmed:
             return False
         self._last_rearm = {"kind": kind, "at": self._wall_clock()}
+        if early_residual:
+            self._last_rearm["request_rest_replaced_s"] = max(0.0, self._rest_until-now)
+            self._rest_until = now
+            self._rest_until_wall = self._wall_clock()
+            self._request_rest_policy = None
         self.completion_hold = False
         self._hold_reason = ""
         self._hold_origin = None
@@ -1695,6 +1823,8 @@ class SGBoostManager:
 
     def _completion_reason(self):
         if self.settings.get("profile") == "general":
+            if self._hold_reason == "response_unknown" and self._request_rest_proven():
+                return "Vorige SG-aanvraag beëindigd; bevestig vijf minuten werkelijk restoverschot en actuele UIT; daarna gewone startvertraging"
             prefix = {"native_completed": "Native voltooiing bevestigd",
                       "no_uptake": "Geen extra opname bevestigd",
                       "response_unknown": "Vorige SG-aanvraag beëindigd; wacht na rust op vijf minuten werkelijk restoverschot of nieuwe toestelcontext",
@@ -1769,6 +1899,7 @@ class SGBoostManager:
             await self.start()
         async with self._lock:
             self.sent_this_tick = self.renewed_this_tick = False
+            self._request_rest_off_current = False
             now = self._clock()
             if (self._stable_since is not None and self._start_last_evaluated is not None
                     and now-self._start_last_evaluated > 300):
@@ -1831,13 +1962,6 @@ class SGBoostManager:
                 self._stable_since = None
             if self._new_storage_available():
                 await self._save()
-            previous_reference = deepcopy(self._general_reference)
-            residual_allowed = not self._gates(data_fresh=data_fresh, phase_allowed=phase_allowed,
-                priority_allowed=priority_allowed, hard_limit=hard_limit,
-                electrical_reason=electrical_reason, include_completion_hold=False)
-            rearmed = self._general_reassessment(residual_allowed=residual_allowed)
-            if rearmed or previous_reference != self._general_reference:
-                await self._save()
             raw = await self._read() if self.configured and not self._closed else None
             if self._restart_release and self._restart_resume is None and raw is not None:
                 await self._reconcile_restart(raw)
@@ -1848,6 +1972,8 @@ class SGBoostManager:
                         self._session_started, self.fault_code)
             if self._restart_resume is None:
                 self._observe_contact(raw)
+            self._request_rest_off_current = bool(raw is not None and raw.get("output") is False
+                and self.relay_confirmed and self.relay_on is False)
             if observed != (self.owned, self._possibly_owned, self.manual_hold, self.completion_hold,
                             self._session_started, self.fault_code):
                 await self._save()
@@ -1860,6 +1986,16 @@ class SGBoostManager:
             now = self._clock()
             if import_stamp is not None and not -5 <= self._wall_clock() - import_stamp < float(self.settings["stale_s"]):
                 data_fresh = False
+            if stamp is not None and not -5 <= self._wall_clock()-stamp <= float(self.settings["stale_s"]):
+                data_fresh = False
+                self._solar_observation = None
+            previous_reference = deepcopy(self._general_reference)
+            residual_allowed = not self._gates(data_fresh=data_fresh, phase_allowed=phase_allowed,
+                priority_allowed=priority_allowed, hard_limit=hard_limit,
+                electrical_reason=electrical_reason, include_completion_hold=False)
+            rearmed = self._general_reassessment(residual_allowed=residual_allowed)
+            if rearmed or previous_reference != self._general_reference:
+                await self._save()
             gates = self._gates(data_fresh=data_fresh, phase_allowed=phase_allowed,
                                  priority_allowed=priority_allowed, hard_limit=hard_limit,
                                  electrical_reason=electrical_reason)
@@ -2196,7 +2332,8 @@ class SGBoostManager:
                     # their bookkeeping is not another user waiting period.
                     if reset and kind in {"solar", "native"} and finite(reference.get(kind + "_reset_stamp")) is not None:
                         continue
-                    if not checks.get(kind) or not reset and now < self._rest_until:
+                    if (not checks.get(kind) or not reset and now < self._rest_until
+                            and not (kind == "fresh_residual_surplus" and self._request_rest_proven())):
                         continue
                     observation = solar if kind in {"fresh_residual_surplus", "new_solar_period", "solar"} else native
                     signature = (solar["source_signature"] if kind == "fresh_residual_surplus"

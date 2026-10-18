@@ -32,7 +32,7 @@ def test_rearm300_and_ordinary120_are_distinct_even_when_rest_ready(view):
     assert 'herbevestiging' in wait
     assert 'Nieuw zonneoverschot: nog 4 min 10 s van 5 min' in wait
     assert 'Ingestelde startvertraging 2 min' in details
-    assert 'Rusttijd gereed' in details
+    assert 'SG-herhaalwacht gereed' in details
     assert 'gereed' not in wait
 
 

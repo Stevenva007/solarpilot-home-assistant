@@ -128,7 +128,7 @@ def test_residual_rearm_300s_is_distinct_from_ordinary_start_and_actual_contact(
     assert "restoverschot herbevestigen" in wait
     assert "Actueel restoverschot: nog 4 min 10 s van 5 min" in wait
     assert "Restoverschot 5 kW · nodig 3,2 kW" in wait
-    assert "Ingestelde startvertraging 2 min" in details and "Rusttijd gereed" in details
+    assert "Ingestelde startvertraging 2 min" in details and "SG-herhaalwacht gereed" in details
     assert "SG-contact Open" in details
     assert "gereed" not in wait and "contact actief" not in wait.lower()
 

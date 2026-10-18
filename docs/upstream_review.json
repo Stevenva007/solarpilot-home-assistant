@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "reviewed_at": "2026-10-17T21:01:46Z",
+  "reviewed_at": "2026-10-18T13:09:46Z",
   "assessment": {
     "status": "complete_no_unprocessed_changes",
-    "summary": "Beta.96 source review: Aquarea 1.5.4 to 1.6.0 changes the four daily energy entities into per-fetch deltas without ENERGY device class or period_being_processed, retains monthly accumulated sensors, and changes the default/minimum consumption interval to 15 minutes. SolarPilot already rejects these changed daily sensors as period evidence; an explicit regression verifies that no interval delta becomes a daily total. Typed device polling, climate/tank and SDK semantics are unchanged. SDK 1.3.1 remains pinned and unchanged. Display caching and HA device registry migration do not grant fresh source evidence or actuator authority.",
+    "summary": "Beta.97 source review: Aquarea 1.6.0 to 1.7.0 adds only the zone climate auto_mode attribute (heat/cool while AUTO, otherwise null), documentation, tests and the version bump. The attribute also exists while idle and is selected-side information, never independent running, compressor, learning or SG safety evidence. SolarPilot already resolves AUTO_HEAT/AUTO_COOL from the current bound typed device.mode; no attribute fallback or runtime change is needed. Device polling, status/action mapping, writes, tank behavior, energy sensors and the SDK requirement are unchanged. SDK main and latest stable 1.3.1 remain identical to the prior pin; PR12 remains open and unmerged. The detailed assessment and bounded read-only regressions are recorded in docs/AQUAREA_UPSTREAM_REVIEW_BETA97.md.",
     "compatibility_claim": false,
     "evidence_document": "docs/UPSTREAM_BRONNEN.md"
   },
@@ -11,15 +11,15 @@
     {
       "repository": "wpatrik14/home-assistant-aquarea",
       "default_branch": "main",
-      "head_commit": "f127489774c61c1e97ee5eb5097257748d55d510",
+      "head_commit": "3151d7f196e45b671f3136c9220244fb8c10f2df",
       "latest_release": {
-        "tag": "v1.6.0",
-        "commit": "f127489774c61c1e97ee5eb5097257748d55d510",
+        "tag": "v1.7.0",
+        "commit": "3151d7f196e45b671f3136c9220244fb8c10f2df",
         "target_commitish": "main",
-        "published_at": "2026-10-17T19:29:31Z",
+        "published_at": "2026-10-18T09:49:22Z",
         "selection": "github_latest_published_stable"
       },
-      "reviewed_base_commit": "4b5f7f3d2ad8c284fae5ff8c165707f69443a0fa",
+      "reviewed_base_commit": "f127489774c61c1e97ee5eb5097257748d55d510",
       "review_result": "relevant_changes_processed"
     },
     {

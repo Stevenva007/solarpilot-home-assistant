@@ -611,9 +611,22 @@ with sync_playwright() as playwright:
         if details.get_attribute('open') is None:
             details.locator(':scope > summary').click()
         facts = panel.locator('.start-facts>span')
-        for label, expected in (('Rusttijd', 'gereed'), ('Ingestelde startvertraging', '2 min'), ('Vereiste herbevestiging', '5 min')):
+        for label, expected in (('SG-herhaalwacht', 'gereed'), ('Ingestelde startvertraging', '2 min'), ('Vereiste herbevestiging', '5 min')):
             actual = facts.filter(has_text=label).locator('b').inner_text()
             assert actual == expected, (view, label, f'expected {expected!r}, got {actual!r}')
+
+        # beta97: request rest may overlap proven residual reassessment. The
+        # conditional label comes from the backend, never from elapsed time.
+        page.evaluate("""qaWait({rest_remaining_s:900,policy_hold_reason:'response_unknown',
+          desired_on:false,relay_on:false,relay_confirmed:true,relay_observed_at:Date.now()/1000,
+          reassessment_kind:'fresh_residual_surplus',reassessment_state:'confirming_fresh_residual_surplus',
+          rearm_wait:{request_rest_remaining_s:900,request_rest_replaceable:true}})""")
+        actual = wait.inner_text()
+        assert 'SG-herhaalwacht: nog 15 min' in actual and 'Kan eerder vervallen na 5 min' in actual, (view, 'conditional overlapping request wait', actual)
+        assert 'Daarna geldt de gewone startvertraging' in actual, (view, 'ordinary start delay remains separate', actual)
+        assert panel.locator('[data-sg-stage=relay] strong').inner_text() == 'Open', (view, 'request reassessment never implies active contact')
+        page.evaluate("""()=>{c._last.attributes.sg_boost.rearm_wait.request_rest_replaceable=false;c._render();}""")
+        assert 'Kan eerder vervallen' not in wait.inner_text(), (view, 'missing backend approval cannot promise early replacement')
 
         page.evaluate('qaWait({reassessment_remaining_s:1})')
         page.evaluate('''()=>{window.qaWaitState=c._last;qaClockMs+=2000;c._refreshObservationDisplay();}''')

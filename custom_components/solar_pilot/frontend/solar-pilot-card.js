@@ -1,5 +1,5 @@
-/* SolarPilot 1.0.0-beta.96. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
-const SP_CARD_VERSION = '1.0.0-beta.96';
+/* SolarPilot 1.0.0-beta.97. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+const SP_CARD_VERSION = '1.0.0-beta.97';
 const SP_DIALOG_RELEASE = SP_CARD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g,'-');
 const SP_ANALYSIS_DIALOG_TAG = `solar-pilot-analysis-dialog-${SP_DIALOG_RELEASE}`;
 const SP_QUALITY_DIALOG_TAG = `solar-pilot-learning-dialog-${SP_DIALOG_RELEASE}`;
@@ -1569,6 +1569,14 @@ class SolarPilotCard extends HTMLElement {
     if(typeof value!=='number'||!Number.isFinite(value)||value<0||typeof until!=='number'||!Number.isFinite(until)||Date.now()/1000>until||!this._freshObservation(s.observed_at,s.relay_stale_s??120))return null;
     return Math.ceil(Math.max(0,value-Math.max(0,Date.now()/1000-s.observed_at)));
   }
+  _sgRequestRest(c){
+    const s=c.sgBoost||{},rearm=s.rearm_wait||{},raw=rearm.request_rest_remaining_s;
+    const reported=Number.isInteger(raw)&&raw>=0?raw:s.rest_remaining_s;
+    const fresh=this._freshObservation(s.observed_at,s.relay_stale_s??120)&&c.a?.restored!==true;
+    const remaining=fresh&&typeof reported==='number'&&Number.isFinite(reported)&&reported>=0?Math.ceil(Math.max(0,reported-Math.max(0,Date.now()/1000-s.observed_at))):null;
+    const replaceable=fresh&&remaining>0&&Number.isInteger(raw)&&raw>0&&rearm.request_rest_replaceable===true&&s.profile==='general'&&s.completion_hold===true&&s.policy_hold_reason==='response_unknown'&&s.desired_on===false&&s.manual_hold!==true&&!s.fault&&this._sgDisplayStates(c).relay.state==='inactive';
+    return {remaining,replaceable,label:replaceable?`SG-herhaalwacht: nog ${this._sgWaitTime(remaining)}. Kan eerder vervallen na 5 min verse echte restinjectie, een bevestigd open SG-contact en alle actuele voorwaarden. Daarna geldt de gewone startvertraging.`:''};
+  }
   _sgWaitProgress(c){
     const manual=this._sgManualState(c);if(['on','off'].includes(manual.mode)&&manual.remaining!==0)return null;
     const s=c.sgBoost||{},fresh=this._freshObservation(s.observed_at,s.relay_stale_s??120);
@@ -1580,8 +1588,9 @@ class SolarPilotCard extends HTMLElement {
       const waitingNew=fresh&&s.reassessment_state==='waiting_new_evidence'&&s.reassessment_source_current===true;
       const residual=s.reassessment_kind==='fresh_residual_surplus',number=value=>typeof value==='number'&&Number.isFinite(value)&&value>=0;
       const residualProof=valid&&remaining!=null&&number(s.real_residual_surplus_w)&&number(s.residual_reassessment_threshold_w)?` Restoverschot ${spPower(s.real_residual_surplus_w)} · nodig ${spPower(s.residual_reassessment_threshold_w)}.`:'';
+      const requestRest=this._sgRequestRest(c),restNote=requestRest.replaceable?' '+requestRest.label:'';
       return{phase:'reassessment',title:residual?'Nieuwe SG-sessie · restoverschot herbevestigen':'Nieuwe SG-sessie · herbevestiging',remaining,required:typeof required==='number'&&Number.isFinite(required)&&required>0?required:null,
-        label:(remaining!=null?(remaining===0||s.reassessment_final_report_required===true?`${kind}: tijd verstreken · wacht op verse bevestiging.`:`${kind}: nog ${this._sgWaitTime(remaining)} van ${this._sgWaitTime(required)}.`):waitingNew?(s.residual_reassessment_available===true?'Wacht op voldoende actueel restoverschot, een nieuwe zonneperiode of gewijzigde Panasonic-context.':'Wacht op nieuwe zonneperiode of gewijzigde Panasonic-context.'):'Herbevestiging onbekend · wacht op actuele brongegevens.')+residualProof};
+        label:(remaining!=null?(remaining===0||s.reassessment_final_report_required===true?`${kind}: tijd verstreken · wacht op verse bevestiging.`:`${kind}: nog ${this._sgWaitTime(remaining)} van ${this._sgWaitTime(required)}.`):waitingNew?(s.residual_reassessment_available===true?'Wacht op voldoende actueel restoverschot, een nieuwe zonneperiode of gewijzigde Panasonic-context.':'Wacht op nieuwe zonneperiode of gewijzigde Panasonic-context.'):'Herbevestiging onbekend · wacht op actuele brongegevens.')+residualProof+restNote};
     }
     if((s.state==='waiting_surplus'||s.start_cloud_active===true)&&s.completion_hold!==true){
       const required=s.start_required_s,valid=typeof required==='number'&&Number.isFinite(required)&&required>=0&&typeof s.start_remaining_s==='number'&&Number.isFinite(s.start_remaining_s)&&s.start_remaining_s>=0&&s.start_remaining_s<=required;
@@ -1718,7 +1727,7 @@ class SolarPilotCard extends HTMLElement {
     const profile=({general:'Algemene SG-boost',dhw_only:'Uitsluitend tapwater'})[s.profile]||'Niet bekend';
     const context=p.context_reliable===true&&this._panasonicSourceFresh(p,'context')?p.status||'Betrouwbare bedrijfscontext beschikbaar':'Bedrijfscontext onbekend of verouderd';
     const cooling=s.profile==='dhw_only'?(s.profile_confirmed===true?'Niet vereist voor bevestigd tapwaterprofiel':'Tapwaterprofiel nog niet bevestigd'):s.profile==='general'?(s.cooling_protection_confirmed===true?'Lokaal bevestigd':'Niet bevestigd · geen extra SG in koelbedrijf of onzekere koelcontext'):'SG-profiel onbekend';
-    const facts=[['Toepassingsbereik',profile],['Profiel lokaal bevestigd',s.profile_confirmed===true?'Ja':'Nee'],['Extra-koelbeveiliging',cooling],['Tanktemperatuur',spTemp(this._heatpumpTankValue(c,'temperature_c'))],['Gemeld tankdoel',spTemp(this._heatpumpTankValue(c,'target_c'))],['Startdrempel',spPower(s.start_threshold_w)],['Voorlopige vermogensraming',spPower(s.estimated_power_w)],['Resterende sessie',this._remainingTime(this._sgCountdown(s,'remaining_s'))],['Rusttijd',this._remainingTime(this._sgCountdown(s,'rest_remaining_s'))]];
+    const facts=[['Toepassingsbereik',profile],['Profiel lokaal bevestigd',s.profile_confirmed===true?'Ja':'Nee'],['Extra-koelbeveiliging',cooling],['Tanktemperatuur',spTemp(this._heatpumpTankValue(c,'temperature_c'))],['Gemeld tankdoel',spTemp(this._heatpumpTankValue(c,'target_c'))],['Startdrempel',spPower(s.start_threshold_w)],['Voorlopige vermogensraming',spPower(s.estimated_power_w)],['Resterende sessie',this._remainingTime(this._sgCountdown(s,'remaining_s'))],['SG-herhaalwacht',this._remainingTime(this._sgRequestRest(c).remaining)]];
     const provenance=s.active_session_provenance||s.last_session?.session_provenance;
     if(provenance?.schema===1)facts.push(['Vastgelegde sessieversie',provenance.release||'Onbekend'],['Sessieregels',typeof provenance.policy_hash==='string'?provenance.policy_hash.slice(0,16):'Onbekend']);
     const rearm=s.rearm_wait;

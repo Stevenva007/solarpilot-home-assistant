@@ -1090,7 +1090,7 @@
           "stop_delay_s": "Netafname moet continu aanhouden (s)",
           "import_threshold_w": "Toegestane netafname vóór stopvertraging (W)",
           "hysteresis_w": "Grens restoverschot voor een nieuwe zonneperiode (W)",
-          "rest_s": "Rusttijd na een boost (s)",
+          "rest_s": "SG-herhaalwacht na een aanvraag (s)",
           "min_session_s": "Minimale SG-aanvraagduur (s)",
           "max_session_s": "Maximale boostsessie (s)",
           "lease_s": "Lokale toestemming geldig voor (s)",

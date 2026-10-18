@@ -1,11 +1,13 @@
 # Openbaar upstream-bronregister
 
-Laatst gecontroleerd: **15 oktober 2026**. Dit register beschrijft openbare broncontracten die voor SolarPilot relevant zijn. Een upstream-release is geen bewijs dat die versie lokaal is geïnstalleerd; een open pull request is geen gepubliceerde correctie. Gegevens uit privé-installaties, exports en automatiseringsidentiteiten horen niet in dit register.
+Laatst gecontroleerd: **18 oktober 2026**. Dit register beschrijft openbare broncontracten die voor SolarPilot relevant zijn. Een upstream-release is geen bewijs dat die versie lokaal is geïnstalleerd; een open pull request is geen gepubliceerde correctie. Gegevens uit privé-installaties, exports en automatiseringsidentiteiten horen niet in dit register.
 
 ## Gepinde bronnen
 
 | Bron | Gecontroleerde versie en commit | Betekenis voor SolarPilot |
 |---|---|---|
+| [Aquarea Smart Cloud](https://github.com/wpatrik14/home-assistant-aquarea/releases/tag/v1.7.0) | v1.7.0, gepubliceerd **18 oktober 2026 09:49:22 UTC**; commit `3151d7f196e45b671f3136c9220244fb8c10f2df` | Additief `auto_mode`-attribuut met de gekozen AUTO-richting, ook tijdens stilstand. Geen nieuwe actieve taak, native poll, compressor- of SG-vrijgave. Status-/actiemapping, consumptieroute en SDK blijven gelijk aan het vorige checkpoint. |
+| [Aquarea Smart Cloud](https://github.com/wpatrik14/home-assistant-aquarea/releases/tag/v1.6.0) | v1.6.0, gepubliceerd **17 oktober 2026 19:29:31 UTC**; commit `f127489774c61c1e97ee5eb5097257748d55d510` | De vroegere dagsensoren zijn intervaldelta’s sinds de vorige uurgegevensfetch, zonder ENERGY-deviceclass of native dagperiode. Deze vormen geen dagelijks energie- of periodebewijs. Maandmeters, getypeerde statuspoll en `aioaquarea-ng>=1.3.1` blijven behouden; consumptie-interval standaard/minimaal 15 minuten. |
 | [Aquarea Smart Cloud](https://github.com/wpatrik14/home-assistant-aquarea/releases/tag/v1.5.4) | v1.5.4, gepubliceerd **15 oktober 2026 09:52:26 UTC**; commit `4b5f7f3d2ad8c284fae5ff8c165707f69443a0fa` | Dag-/maandenergie volgt de UTC-cloudgrens. De getypeerde statuspoll, klimaat-/tankentiteiten en dependency `aioaquarea-ng>=1.3.1` houden hun bestaande taaksemantiek. SolarPilot controleert afzonderlijk de werkelijk geladen SDK 1.3.1 en de oorspronkelijke bronnen. |
 | [Aquarea Smart Cloud](https://github.com/wpatrik14/home-assistant-aquarea/releases/tag/v1.5.3) | v1.5.3, gepubliceerd **14 oktober 2026 11:12:02 UTC**; commit `8a61af19e2efa94f8df74188759b9fa58280b5c0` | De native tankentiteit combineert waterrichting met pompstatus. Het manifest gebruikt nog `aioaquarea-ng>=1.3.1`; deze release corrigeert niet automatisch de library-mapping van globale bedrijfstoestand. |
 | [Aquarea-basis vóór deze tankcorrectie](https://github.com/wpatrik14/home-assistant-aquarea/releases/tag/v1.5.2) | v1.5.2; commit `88abea3b6b42b30ec9b9f4f2d1eb4a5ff9eb2baa` van **10 oktober 2026** | Oudere tankweergave kan alleen waterrichting als opwarmcontext gebruiken. Vergelijk beide vaste bronversies; behandel een lokaal geselecteerd programma niet als nieuw actie- of compressorbewijs. |
@@ -66,3 +68,29 @@ Iedere nieuwe SolarPilot-update controleert de actuele Aquarea-defaultbranch, la
 Op 15 oktober 2026 zijn beide actuele defaultbranch-heads en laatste stabiele releasetags opnieuw gecontroleerd: Aquarea `4b5f7f3d2ad8c284fae5ff8c165707f69443a0fa` / v1.5.4; aioaquarea `d859f3727556c8a07964affd61a038edfd2d353a` / v1.3.1. Er zijn geen nieuwe onbeoordeelde commits ten opzichte van deze pins. SDK PR12 blijft open en is geen geïnstalleerde correctie. Het machineleesbare checkpoint is `docs/upstream_review.json`.
 
 Runtimecompatibiliteit gebruikt een begrensde inspectie van daadwerkelijk geladen parser-/gettersemantiek, geen vaste versie-allowlist. Een gelijkblijvend bewezen contract blijft bij toekomstige versies bruikbaar. Een gewijzigd contract wordt gericht gemeld en via de normale geteste herstelprocedure bijgewerkt; onvoorzienbare toekomstige wijzigingen kunnen niet vooraf worden gegarandeerd. Historisch opgeslagen exact-versiebewijs wordt niet met huidige metadata opgewaardeerd. De bestaande onderhoudstaak is uitgebreid met deze vaste releasevoorwaarde en zelfstandige herstelpublicatie; zij installeert geen software op Home Assistant en ontvangt geen lokale meldingen.
+
+## Broncontrole voor beta.92
+
+De online bronreviewgate is op 15 oktober 2026 opnieuw uitgevoerd. Beide actuele defaultbranch-HEADs en laatste gepubliceerde stabiele releasetags/commits komen exact overeen met het bestaande checkpoint: Aquarea 1.5.4 en aioaquarea-ng 1.3.1. Er zijn geen nieuwe relevante verschillen te verwerken. Beta.92 wijzigt uitsluitend algemene analysemeldingen en hun uitleg; geladen semantiek, bronactualiteit en bedieningsgrenzen blijven gelijk. Het bijbehorende reviewtijdstip staat in `upstream_review.json`.
+
+## Broncontrole voor beta.93
+
+Op 16 oktober 2026 zijn beide actuele defaultbranch-HEADs en laatste stabiele releasecommits opnieuw online gecontroleerd. Aquarea 1.5.4 en aioaquarea-ng 1.3.1 zijn ongewijzigd tegenover het beoordeelde checkpoint. Er zijn geen nieuwe upstreamverschillen te verwerken. Beta.93 corrigeert de kortstondige metadata-invalidatie tijdens de periodieke achtergrondinspectie en isoleert ontbrekende Wallbox-telemetrie van werkelijk gemeten P1-restinjectie voor andere lasten. Echte polls, bronactualiteit, geladen semantische identiteit en actuator-/leerrechten blijven gescheiden; onbekende EV-data creëert geen vermogenskrediet.
+
+## Broncontrole voor beta.94
+
+Op 16 oktober 2026 zijn beide actuele defaultbranch-HEADs en de laatste stabiele releasecommits opnieuw online gecontroleerd. Aquarea 1.5.4 en aioaquarea-ng 1.3.1 zijn ongewijzigd tegenover het beoordeelde checkpoint. Er zijn geen nieuwe upstreamverschillen te verwerken. Beta.94 bewaart uitsluitend de bevestigde UIT-tijd van gewone verbruikers voor rusttijdherstel na een herstart. Deze tijd geeft geen actuatorrecht of bronactualiteit en verandert geen Aquarea-semantiek, native bediening of SG-bevoegdheid.
+
+## Controle voor beta.95
+
+Op 17 oktober 2026 om 13:49:03 UTC zijn beide actuele defaultbranch-HEADs en laatste stabiele releasetags opnieuw gecontroleerd en opgelost naar de bovenstaande commits. Beide vergelijkingen bevatten nul nieuwe commits of bestanden. SDK PR12 blijft open, niet gemerged en ongewijzigd; er is geen nieuwe gepubliceerde implementatie over te nemen. De verplichte publicatiegate controleert dit checkpoint opnieuw. De vier SolarPilot-correcties veranderen geen parser-/taaksemantiek of native schrijfrecht.
+
+## Broncontrole voor beta.96 — 17 oktober 2026
+
+Aquarea v1.6.0 (`f127489774c61c1e97ee5eb5097257748d55d510`, gepubliceerd 19:29:31 UTC) is vergeleken met v1.5.4. De vier vroegere dagsensoren worden intervallen sinds de vorige cloudfetch, zonder ENERGY-deviceclass of period_being_processed. Maandmeters blijven bestaan; het standaard/minimale consumptie-interval wordt 15 minuten. De getypeerde statuspoll en klimaat-/tanksemantiek veranderen niet. De werkelijk gepubliceerde SDK blijft v1.3.1. SolarPilot weigert de gewijzigde intervallen al als dagperiodebewijs; `test_aquarea_160_interval_delta_is_not_relabelled_as_daily_energy` borgt dit. Dit is geen geïnstalleerde providerupdate en geen claim van hardwareacceptatie.
+
+Beta.96 deelt uitsluitend presentatieberekeningen per publicatie en gebruikt geregistreerde HA-hub-id's op moderne Core-versies. Directe regelingslezingen, oorspronkelijke tijden, apparaatidentiteiten en de oude HA-terugval blijven behouden. De publicatie volgt uitsluitend na alle vijf brongebonden CI-gates; dit is geen automatische providerupdate.
+
+## Broncontrole voor beta.97 — 18 oktober 2026
+
+De actuele Aquarea-defaultbranch en stabiele v1.7.0 zijn gecontroleerd op `3151d7f196e45b671f3136c9220244fb8c10f2df`. De daadwerkelijke diff sinds beta.96 voegt uitsluitend `auto_mode` voor AUTO_HEAT/AUTO_COOL toe, met documentatie, tests en versie. `hvac_mode`, `hvac_action`, coordinatorpoll, energie en SDK-afhankelijkheid veranderen niet. De SDK-main en stabiele v1.3.1 blijven `d859f3727556c8a07964affd61a038edfd2d353a`; PR12 is nog open. Zes gerichte regressies bewaken dat het additieve attribuut compatibel blijft en geen getypeerde poll, geladen semantiek, werkelijk actief bedrijf of SG-recht vervangt. Zie [vaste bronvergelijking en beoordeling](AQUAREA_UPSTREAM_REVIEW_BETA97.md) en `upstream_review.json`. Dit wijzigt geen provider of fysieke instelling.
