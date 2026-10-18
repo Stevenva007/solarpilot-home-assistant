@@ -63,7 +63,10 @@ def fixture(day):
                 today=TODAY, first_date="2026-09-13", timezone="Europe/Brussels",
                 generated_at=f"{TODAY}T13:30:00+02:00", recording_since="2026-10-11",
                 current_status="Panasonic regelt zelfstandig · fictieve gegevens", retention_days=30,
-                day_seconds=86400, has_data=registered, on_s=6300 if registered else 0,
+                day_seconds=86400,
+                day_start=datetime.fromisoformat(f"{day}T00:00:00+02:00").timestamp(),
+                day_end=datetime.fromisoformat(f"{day}T00:00:00+02:00").timestamp()+86400,
+                has_data=registered, on_s=6300 if registered else 0,
                 known_s=36000 if registered else 0, unobserved_s=12600 if registered else 48600,
                 partial=True, starts=2 if registered else 0, stops=1 if registered else 0,
                 energy_kwh=1.76 if registered else None, energy_known_s=10000 if registered else 0,
@@ -84,6 +87,10 @@ def fixture(day):
                 support_totals=[{"label": "Elektrische ondersteuning", "on_s": 300}] if registered else [],
                 native_evidence={"schema": 1, "read_only": True, "points": [{
                     "captured_at": datetime.fromisoformat(f"{day}T12:40:00+02:00").timestamp(), "continuity": True,
+                    "source_stale_s": 120,
+                    "power": {"schema": 1, "total_w": 0, "complete": True, "kind": "measured", "source_scope": "total", "stale_s": 120,
+                              "reported_at": datetime.fromisoformat(f"{day}T12:39:58+02:00").timestamp(),
+                              "valid_until": datetime.fromisoformat(f"{day}T12:41:58+02:00").timestamp()},
                     "sg_goal": goal_fixture(day),
                     "native": {"confirmed": False, "inactive_reported": True, "inactive_scope": "space_circuit",
                                "reported_at": datetime.fromisoformat(f"{day}T12:39:55+02:00").timestamp(), "fresh": True},
@@ -110,6 +117,96 @@ def visible_text(locator, expected, context):
     assert locator.is_visible(), (context, "element should be visible")
     actual = locator.inner_text()
     assert actual == expected, (context, f"expected {expected!r}, got {actual!r}")
+
+
+def check_scrub(page, host, dialog):
+    """Actual mouse, keyboard and CDP touch events on the shipped modal."""
+    client = page.context.new_cdp_session(page)
+    lane = host.locator('[data-history-scrub=task]')
+    readout = host.locator('[data-history-readout]')
+    for width in (320, 390):
+        page.set_viewport_size({"width": width, "height": 844})
+        page.evaluate("()=>{const d=c._heatpumpHistoryDialog;d._resetScrub();d._renderData();}")
+        # Leave the touch surface below its sticky readout.
+        lane.evaluate("el=>{const s=c._heatpumpHistoryDialog._scroll;s.scrollTop+=el.getBoundingClientRect().bottom-s.getBoundingClientRect().bottom+50;}")
+        box = lane.bounding_box()
+        assert box and box['width'] > 200
+        x = box['x'] + box['width'] * (12 * 3600 + 40 * 60) / 86400
+        y = box['y'] + box['height'] / 2
+        page.mouse.move(0, 0)
+        page.mouse.move(x, y)
+        assert 'Meetpunt 12:40:00 GMT+2' in readout.inner_text(), (width, 'mouse actual sample', box, readout.bounding_box(), page.evaluate('c._heatpumpHistoryDialog._scrubState()'), readout.inner_text())
+        assert 'Totaal vermogen\n0 W' in readout.inner_text() and '57 °C' in readout.inner_text()
+        assert page.evaluate("()=>{const a=[...c._heatpumpHistoryDialog._body.querySelectorAll('[data-history-crosshair]')];return a.length===6&&a.every(e=>!e.hidden&&e.style.left===a[0].style.left)}"), 'all bars share exact sample marker'
+        assert readout.is_visible(), (width, 'readout remains outside touching finger')
+        active_box = lane.bounding_box()
+        assert active_box and abs(active_box['y']-box['y']) < 2, (width, 'selection must preserve timeline under pointer', box, active_box)
+        assert readout.bounding_box()['y']+readout.bounding_box()['height'] <= active_box['y'], (width, 'sticky readout must not obscure touched timeline')
+        assert dialog.evaluate('d=>d.scrollWidth<=d.clientWidth+1'), (width, 'scrub no horizontal overflow')
+        page.screenshot(path=str(OUT / f'SolarPilot-warmtepompgeschiedenis98-scrub-{width}.png'))
+        lane.focus()
+        page.keyboard.press('Home')
+        assert 'Gekozen tijd 00:00:00 GMT+2' in readout.inner_text() and 'Geen vastgelegd meetpunt' in readout.inner_text()
+        page.keyboard.press('ArrowRight')
+        assert 'Gekozen tijd 00:01:00 GMT+2' in readout.inner_text()
+        page.keyboard.press('End')
+        assert 'Gekozen tijd 23:59:59 GMT+2' in readout.inner_text()
+        # Start horizontal touch after resetting the readout to a stable size.
+        page.evaluate("()=>{const d=c._heatpumpHistoryDialog;d._resetScrub();d._syncScrub();}")
+        lane.evaluate("el=>{const s=c._heatpumpHistoryDialog._scroll;s.scrollTop+=el.getBoundingClientRect().bottom-s.getBoundingClientRect().bottom+50;}")
+        box = lane.bounding_box()
+        x = box['x'] + box['width'] * (12 * 3600 + 40 * 60) / 86400
+        y = box['y'] + box['height'] / 2
+        client.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [{'x': x-24, 'y': y, 'id': 1}]})
+        client.send('Input.dispatchTouchEvent', {'type': 'touchMove', 'touchPoints': [{'x': x, 'y': y, 'id': 1}]})
+        assert page.evaluate('!!c._heatpumpHistoryDialog._scrubPointer?.drag'), (width, 'touch horizontal gesture captured')
+        assert 'Meetpunt 12:40:00 GMT+2' in readout.inner_text(), (width, 'touch snap to actual capture')
+        # A full body replacement keeps capture on the stable content element.
+        page.evaluate('c._heatpumpHistoryDialog._renderData()')
+        assert page.evaluate('d=>d._body.hasPointerCapture(d._scrubPointer.id)', page.evaluate_handle('c._heatpumpHistoryDialog'))
+        client.send('Input.dispatchTouchEvent', {'type': 'touchMove', 'touchPoints': [{'x': x+18, 'y': y, 'id': 1}]})
+        page.wait_for_function('c._heatpumpHistoryDialog._scrubState()?.point===null')
+        assert 'Gekozen tijd' in readout.inner_text() and 'Geen vastgelegd meetpunt' in readout.inner_text(), (width, readout.inner_text())
+        client.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
+        assert page.evaluate('c._heatpumpHistoryDialog._scrubPointer===null'), 'pointerup releases capture'
+        # Vertical movement retains normal scroll and does not select a time.
+        page.evaluate("()=>{const d=c._heatpumpHistoryDialog;d._resetScrub();d._syncScrub();d._scroll.scrollTop=500;}")
+        lane.evaluate("el=>{const s=c._heatpumpHistoryDialog._scroll;s.scrollTop+=el.getBoundingClientRect().bottom-s.getBoundingClientRect().bottom+50;}")
+        box = lane.bounding_box()
+        x, y = box['x'] + box['width'] / 2, box['y'] + box['height'] / 2
+        before = page.evaluate('c._heatpumpHistoryDialog._scroll.scrollTop')
+        client.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [{'x': x, 'y': y, 'id': 2}]})
+        client.send('Input.dispatchTouchEvent', {'type': 'touchMove', 'touchPoints': [{'x': x+1, 'y': y-70, 'id': 2}]})
+        client.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
+        page.wait_for_timeout(80)
+        assert page.evaluate('c._heatpumpHistoryDialog._scrubState()===null && c._heatpumpHistoryDialog._scrubPointer===null'), 'vertical scroll does not scrub'
+        assert page.evaluate('c._heatpumpHistoryDialog._scroll.scrollTop') > before, (width, 'normal vertical touch scroll')
+        page.evaluate('window.hpScrollProbe=null')
+        page.wait_for_function("""()=>{const top=c._heatpumpHistoryDialog._scroll.scrollTop,now=performance.now();
+          if(!window.hpScrollProbe||Math.abs(hpScrollProbe.top-top)>.1){window.hpScrollProbe={top,at:now};return false;}
+          return now-hpScrollProbe.at>200;}""")
+        page.evaluate("()=>{const d=c._heatpumpHistoryDialog;d._setScrub(d._data.native_evidence.points[0].captured_at);}")
+        # Refresh reuses exact selection; day navigation clears it immediately.
+        page.evaluate('async()=>{await c._heatpumpHistoryDialog._fetch(true)}')
+        assert 'Meetpunt 12:40:00 GMT+2' in readout.inner_text(), 'same-day refresh retains exact selected sample'
+        host.locator('[data-action=prev]').click()
+        page.wait_for_function("c._heatpumpHistoryDialog._data.date==='2026-10-11'")
+        assert page.evaluate('c._heatpumpHistoryDialog._scrubState()===null'), 'date switch clears historical selection'
+        host.locator('[data-action=today]').click()
+        page.wait_for_function("c._heatpumpHistoryDialog._data.date==='2026-10-12'")
+    for key in ('contact', 'support', 'sg-request', 'sg-contact', 'sg-received'):
+        surface = host.locator(f'[data-history-scrub={key}]')
+        page.evaluate("()=>{const d=c._heatpumpHistoryDialog;d._resetScrub();d._syncScrub();}")
+        surface.evaluate("el=>{const s=c._heatpumpHistoryDialog._scroll;s.scrollTop+=el.getBoundingClientRect().bottom-s.getBoundingClientRect().bottom+50;}")
+        box = surface.bounding_box()
+        assert box, (key, 'all timeline lanes remain touchable')
+        x = box['x'] + box['width'] * (12 * 3600 + 40 * 60) / 86400
+        y = box['y'] + box['height'] / 2
+        client.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [{'x': x, 'y': y, 'id': 3}]})
+        client.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
+        assert 'Meetpunt 12:40:00 GMT+2' in readout.inner_text(), (key, 'tap on every lane selects actual historical capture')
+    client.detach()
+    page.set_viewport_size({"width": 390, "height": 844})
 
 
 with sync_playwright() as playwright:
@@ -190,6 +287,7 @@ with sync_playwright() as playwright:
     # The actual dialog node, scroll and open explanations survive 80 complete
     # telemetry renders. Opaque recording metadata refreshes the live fragment
     # without exposing retained-history totals before its authorized API query.
+    check_scrub(page, host, dialog)
     page.evaluate("""()=>{const d=c._heatpumpHistoryDialog;window.hpDialogNode=d._dialog;
       d._scroll.scrollTop=240;window.hpSavedScroll=d._scroll.scrollTop;window.hpReadsBefore=hpReads.length;
       for(let n=0;n<80;n++){const a=structuredClone(c._last.attributes);a.grid_w=-500-n;
@@ -315,7 +413,7 @@ with sync_playwright() as playwright:
     page.evaluate("fixtures=>{window.hpFixtures=fixtures;}", fixtures)
     page.keyboard.press("Escape")
     page.wait_for_timeout(70)
-    assert not dialog.is_visible() and page.evaluate("c._heatpumpHistoryDialog._timer===null && c._heatpumpHistoryDialog._readingTimer===null"), "Escape closes dialog and polling"
+    assert not dialog.is_visible() and page.evaluate("c._heatpumpHistoryDialog._timer===null && c._heatpumpHistoryDialog._readingTimer===null && c._heatpumpHistoryDialog._scrubState()===null && c._heatpumpHistoryDialog._scrubPointer===null"), "Escape closes dialog, scrub and polling"
     assert page.evaluate("c.shadowRoot.activeElement?.dataset?.action==='heatpump_history'"), "Escape returns focus to current live entry"
 
     # Render and inspect every entry view at all four requested widths.
@@ -355,4 +453,4 @@ with sync_playwright() as playwright:
     assert not errors, ("browser errors", errors)
     browser.close()
 
-print("Heatpump history browser checks passed: native popup; 80 renders; date/scroll/Details; 7/30 days; racing responses; separate tasks/SG/whole-HP energy; unknown gaps; three views at 320/390/768/1280; XSS; Escape/close/unload; no writes. All data are fictitious.")
+print("Heatpump history browser checks passed: native popup; all timeline lanes touchable; mouse/keyboard/horizontal drag and native vertical scrolling at 320/390; synchronized actual-sample cursor; capture survives rerender; 80 renders; date/scroll/Details; 7/30 days; racing responses; separate tasks/SG/whole-HP energy; unknown gaps; three views at 320/390/768/1280; XSS; Escape/close/unload; no writes. All data are fictitious.")

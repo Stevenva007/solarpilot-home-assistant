@@ -17,7 +17,8 @@ import math
 import time
 import sys
 
-from .operation_source_evidence import CONTRACT_ID, inspect_loaded_aquarea_semantics, loaded_semantic_identity, valid_semantic_contract
+from .operation_source_evidence import (CONTRACT_ID, OPERATION_CONTRACT_ID, OPERATION_SEMANTIC_CONTRACT_ID,
+    inspect_loaded_aquarea_semantics, loaded_semantic_identity, valid_semantic_contract)
 
 
 _PROGRAMMES = {
@@ -76,6 +77,35 @@ def _native_enum_name(value, kind_name, allowed):
     return value.name
 
 
+def _native_status_data_mode(device):
+    """Return only the actual loaded SDK's typed final fetch quality."""
+    value = getattr(getattr(device, "_status", None), "data_mode", None)
+    kind = type(value)
+    if (isinstance(value, Enum) and kind.__module__ == "aioaquarea.data"
+            and kind.__name__ == "StatusDataMode"
+            and getattr(sys.modules.get("aioaquarea.data"), "StatusDataMode", None) is kind
+            and type(value.value) is int and {"LIVE": 0, "CACHED": 1}.get(value.name) == value.value):
+        return value.name
+    return None
+
+
+def _native_status_live(device):
+    """A successful cached fallback is not a new live observation.
+
+    Older typed statuses have no data_mode field. Keep that legacy contract;
+    when the actual status exposes quality, only the loaded exact LIVE enum
+    can renew programme/action/display evidence. DeviceInfo is not this proof.
+    """
+    try:
+        status = getattr(device, "_status", None)
+        declared = is_dataclass(status) and not isinstance(status, type) and any(field.name == "data_mode" for field in fields(status))
+        if not declared and not hasattr(status, "data_mode"):
+            return True
+        return _native_status_data_mode(device) == "LIVE"
+    except (AttributeError, KeyError, TypeError, ValueError, RuntimeError):
+        return False
+
+
 def _action_inputs(device):
     """Freeze mutable inputs so optimistic valve/mode changes lose poll proof."""
     def frozen(value):
@@ -88,7 +118,7 @@ def _action_inputs(device):
             getattr(device, "current_direction", None), getattr(device, "mode", None),
             getattr(device, "operation_status", None), getattr(device, "has_tank", None),
             getattr(device, "device_mode_status", None), getattr(device, "mode_status", None),
-            getattr(tank, "operation_status", None)))
+            getattr(tank, "operation_status", None), getattr(getattr(device, "_status", None), "data_mode", None)))
     except (AttributeError, KeyError, TypeError, ValueError, RuntimeError):
         return None
 
@@ -127,6 +157,7 @@ class NativeClimateProgram:
         # DeviceZone objects. This display-only journal observes the current
         # typed status, never the older zone object's status or control proof.
         self._display_contract_watches = {}
+        self._source_quality_rejected = {}
         self._display_metadata = {}
         self._display_metadata_module = None
         self._display_semantic_identity = loaded_semantic_identity()
@@ -198,6 +229,7 @@ class NativeClimateProgram:
                    **{("display_contract", key): value for key, value in self._display_contract_watches.items()}}
         self._watches, self._tank_watches = {}, {}
         self._display_contract_watches = {}
+        self._source_quality_rejected = {}
         self._display_closed = True
         if self._display_metadata_task is not None:
             self._display_metadata_task.cancel()
@@ -227,6 +259,51 @@ class NativeClimateProgram:
         if len(matches) != 1:
             return None
         return entry_id, getattr(row, "device_id", None), matches[0], uid
+
+    def source_is_live(self, entity_id):
+        """Veto cached native siblings, without granting observation freshness.
+
+        Independent sources retain their normal timestamp/quality checks. A
+        registered Aquarea sensor, zone or tank must resolve its own provider
+        entry and device before its final status quality is considered. This
+        method never polls, subscribes, changes a mapping or grants control.
+        """
+        native = False
+        try:
+            from homeassistant.helpers import entity_registry as er
+            row = er.async_get(self.runtime.hass).async_get(entity_id)
+            if row is None or getattr(row, "platform", None) != "aquarea":
+                return True
+            native = True
+            identity = self._display_identity(row)
+            if identity is None:
+                return False
+            entry_id, _registry_id, native_id, uid = identity
+            if not uid.startswith(f"{native_id}_"):
+                return False
+            entry = self.runtime.hass.config_entries.async_get_entry(entry_id)
+            coordinators = getattr(entry, "runtime_data", None)
+            if not isinstance(coordinators, dict):
+                coordinators = self._legacy_coordinators(entry_id)
+            coordinator = coordinators.get(native_id) if isinstance(coordinators, dict) else None
+            device = getattr(coordinator, "device", None)
+            info = getattr(coordinator, "device_info", None) or getattr(coordinator, "_device_info", None)
+            if (coordinator is None or device is None or getattr(device, "device_id", None) != native_id
+                    or getattr(info, "device_id", None) != native_id):
+                return False
+            key = entry_id, native_id
+            status = getattr(device, "_status", None)
+            if not _native_status_live(device):
+                self._source_quality_rejected[key] = device, status
+                return False
+            rejected = self._source_quality_rejected.get(key)
+            if rejected is not None and rejected[0] is device and rejected[1] is status:
+                # An attribute edit is not a replacement provider generation.
+                return False
+            self._source_quality_rejected.pop(key, None)
+            return True
+        except (ImportError, AttributeError, KeyError, TypeError, ValueError, RuntimeError):
+            return not native
 
     def display_sources(self, anchors=()):
         """Find read-only siblings on one exact registered Aquarea device.
@@ -277,7 +354,7 @@ class NativeClimateProgram:
             return result
 
     def read_source_contract(self, sources):
-        """Separate read-only evidence for the verified specialStatus mapping.
+        """Separate read-only evidence for a verified loaded status mapping.
 
         The registered pump_status role and typed PumpDuty agree on the same
         native device. Its ON value is water-pump duty, never compressor proof.
@@ -288,14 +365,16 @@ class NativeClimateProgram:
         provider = {key: metadata.get(key) for key in ("integration_domain", "integration_version", "library_distribution", "library_version")}
         known = (metadata.get("integration_loaded") is True and provider["integration_domain"] == "aquarea"
                  and valid_semantic_contract(metadata.get("compatibility")))
+        split = known and metadata["compatibility"]["contract"] == OPERATION_SEMANTIC_CONTRACT_ID
+        reason_code = "known_operation_status_action_mapping" if split else "known_special_status_action_mapping"
         result = {"schema": 1, "read_only": True, "status": "unknown", "provider": provider,
-                  "contract_id": CONTRACT_ID if known else None,
-                  "action_semantics": "special_status" if known else "unknown", "source": "aquarea_contract",
+                  "contract_id": (OPERATION_CONTRACT_ID if split else CONTRACT_ID) if known else None,
+                  "action_semantics": ("operation_status" if split else "special_status") if known else "unknown", "source": "aquarea_contract",
                   "provider_loaded": metadata.get("integration_loaded") is True, "native_device_registered": False,
                   "compatibility": dict(metadata["compatibility"]) if known else None,
                   "compatibility_state": "compatible" if known else metadata.get("compatibility_state", "unknown"),
                   "compatibility_detail": metadata.get("compatibility_detail"),
-                  "reason_code": metadata.get("reason_code", "provider_semantics_unavailable") if not known else "known_special_status_action_mapping",
+                  "reason_code": metadata.get("reason_code", "provider_semantics_unavailable") if not known else reason_code,
                   "stale_s": self._stale_s(),
                   "reason": ("De betekenis of opbouw van de geladen Aquarea-statusbron is gewijzigd."
                              if metadata.get("reason_code") == "provider_semantics_changed" else
@@ -306,6 +385,8 @@ class NativeClimateProgram:
                   "observed_at": None, "raw_device_action": None,
                   "pump": {"state": "unknown", "observed_at": None}, "direction": {"state": None, "observed_at": None},
                   "program": {"state": None, "observed_at": None}, "tank": {"enabled": None, "observed_at": None}, "zones": []}
+        if split:
+            result.update(device_operation_status=None, status_data_mode=None)
         try:
             from homeassistant.helpers import entity_registry as er
             if not isinstance(sources, dict):
@@ -335,6 +416,12 @@ class NativeClimateProgram:
             coordinator, _, entry_id = resolved
             entry = self.runtime.hass.config_entries.async_get_entry(entry_id)
             device = coordinator.device
+            if split:
+                result.update(status_data_mode=_native_status_data_mode(device),
+                    device_operation_status=_native_enum_name(getattr(device, "operation_status", None),
+                        "OperationStatus", {"ON": 1, "OFF": 0, "UNKNOWN": 2}))
+            if not _native_status_live(device):
+                return {**result, "reason_code": "native_status_not_live"}
             # A reloaded SDK can coexist briefly with a coordinator retaining
             # an older same-named class. Its old getters cannot borrow new proof.
             if metadata.get("_loaded_device_class") is not type(device):
@@ -345,10 +432,9 @@ class NativeClimateProgram:
                 return _native_enum_name(value, name, values) if type(value).__module__ == "aioaquarea.data" else None
             modern = isinstance(getattr(entry, "runtime_data", None), dict)
             if modern:
-                # The upstream coordinator fetches status A in get_device(),
-                # then refreshes to B. DeviceZone._status still references A.
-                # Read only the exact device's current typed B generation;
-                # do not relax the shared legacy/control programme adapter.
+                # Older SDK zone objects retain status A after the provider
+                # refreshes to B; the split SDK rebuilds owned zone objects.
+                # Both display contracts read the current typed generation.
                 coordinators = entry.runtime_data
                 self._prune_entry(entry_id, coordinators.values(), watches=self._display_contract_watches)
                 proof = self._read_display_snapshot(coordinator, entry, entry_id)
@@ -360,6 +446,8 @@ class NativeClimateProgram:
                 pump, direction, mode = snapshot["pump"], snapshot["direction"], snapshot["mode"]
                 tank_enabled, enabled_zones = snapshot["tank_enabled"], dict(snapshot["zones"])
                 raw_action = snapshot["raw_action"]
+                if split:
+                    result.update(device_operation_status=snapshot["device_operation_status"], status_data_mode="LIVE")
             else:
                 status = self._legacy_status(coordinator, entry)
                 if status is None:
@@ -426,24 +514,26 @@ class NativeClimateProgram:
                 latest_proof = self._read_display_snapshot(coordinator, entry, entry_id)
                 if latest_proof.get("fresh") is not True or latest_proof.get("generation") != proof["generation"]:
                     return {**result, "reason_code": latest_proof.get("reason_code") or "native_display_snapshot_changed", "observed_at": original}
-            return {**result, "status": "verified", "reason_code": "known_special_status_action_mapping",
+            return {**result, "status": "verified", "reason_code": reason_code,
                     "observed_at": original, "raw_device_action": raw_action,
                     "pump": {"state": pump_state, "entity_id": pump_id, "observed_at": pump_time, "native_observed_at": original},
                     "direction": {"state": direction, "entity_id": direction_id, "observed_at": direction_time, "native_observed_at": original},
                     "program": {"state": mode[1], "raw_mode": mode[0], "observed_at": original},
                     "tank": {"enabled": True if tank_enabled == "ON" else False if tank_enabled == "OFF" else None,
                              "entity_id": tank_id, "observed_at": original}, "zones": zone_rows,
-                    "note": "Deze SDK leidt DeviceAction af via specialStatus; geen onafhankelijke hoofd-AAN/UIT-meting. PumpDuty is waterpompbedrijf."}
+                    "note": ("Deze SDK houdt eco/comfort los van operation_status; de hoofdstatus kan uit zone- of tanktoestemming zijn afgeleid. PumpDuty is waterpompbedrijf."
+                             if split else "Deze SDK leidt DeviceAction af via specialStatus; geen onafhankelijke hoofd-AAN/UIT-meting. PumpDuty is waterpompbedrijf.")}
         except (ImportError, AttributeError, KeyError, TypeError, ValueError, RuntimeError):
             return {**result, "reason_code": "native_source_mapping_unverified"}
 
     def _display_snapshot(self, coordinator, entry):
-        """Immutable current ng 1.3.1 status values for display only.
+        """Immutable current capability-checked status values for display only.
 
         Its coordinator refreshes the status twice and leaves zone objects
         referencing the first response. Their own info still proves device
         ownership; all displayed zone values come from the second response.
-        The stricter legacy/control verifier deliberately stays unchanged.
+        The split mapping rebuilds instance-owned zones using current rows.
+        This does not relax the legacy/control verifier's binding checks.
         """
         kind = type(coordinator)
         if (kind.__module__ != "custom_components.aquarea.coordinator"
@@ -456,6 +546,8 @@ class NativeClimateProgram:
             return None, "native_display_device_type_unverified"
         info, own = getattr(coordinator, "_device_info", None), getattr(device, "_info", None)
         status = getattr(device, "_status", None)
+        if not _native_status_live(device):
+            return None, "native_status_not_live"
         if any(type(value).__module__ != "aioaquarea.data" or type(value).__name__ != name
                or not is_dataclass(value) or isinstance(value, type)
                for value, name in ((info, "DeviceInfo"), (own, "DeviceInfo"), (status, "DeviceStatus"))):
@@ -463,6 +555,12 @@ class NativeClimateProgram:
         expected_fields = {"long_id", "operation_status", "device_status", "temperature_outdoor", "operation_mode",
                            "fault_status", "direction", "pump_duty", "tank_status", "zones", "quiet_mode", "force_dhw",
                            "force_heater", "holiday_timer", "powerful_time", "special_status", "water_pressure"}
+        proof = self._display_metadata.get("compatibility") if isinstance(self._display_metadata, dict) else None
+        split = valid_semantic_contract(proof) and proof["contract"] == OPERATION_SEMANTIC_CONTRACT_ID
+        if split:
+            expected_fields |= {"data_mode", "cool_mode", "tank_flag", "bivalent", "bivalent_actual", "external_heater",
+                                "electric_anode", "control_box", "uncontrollable", "service_type", "multi_od_connection",
+                                "model_series_selection", "stand_alone"}
         frozen = _status_inputs(status)
         if {field.name for field in fields(status)} != expected_fields or frozen is None:
             return None, "native_display_status_shape_unverified"
@@ -486,14 +584,21 @@ class NativeClimateProgram:
                 return None, "native_display_zone_binding_unverified"
             zone_sets.append({row.zone_id for row in rows})
         objects = getattr(device, "zones", None)
-        if (zone_sets[0] != zone_sets[1] or zone_sets[0] != zone_sets[2] or not isinstance(objects, dict)
+        if (zone_sets[0] != zone_sets[1] or not split and zone_sets[0] != zone_sets[2] or not isinstance(objects, dict)
                 or any(isinstance(key, bool) or not isinstance(key, int) for key in objects)
-                or set(objects) != zone_sets[0]):
+                or set(objects) != zone_sets[2 if split else 0]
+                or split and getattr(device, "__dict__", {}).get("_zones") is not objects):
             return None, "native_display_zone_binding_unverified"
         for number, zone in objects.items():
-            owner_info = next(row for row in own.zones if row.zone_id == number)
+            owner_info = next((row for row in own.zones if row.zone_id == number), None)
+            zone_info = getattr(zone, "_info", None)
+            status_row = next(row for row in status.zones if row.zone_id == number)
             if (type(zone).__module__ != "aioaquarea.data" or type(zone).__name__ != "DeviceZone"
-                    or getattr(zone, "zone_id", None) != number or getattr(zone, "_info", None) is not owner_info):
+                    or getattr(zone, "zone_id", None) != number
+                    or (not split and zone_info is not owner_info)
+                    or (split and (type(zone_info).__module__ != "aioaquarea.data" or type(zone_info).__name__ != "DeviceZoneInfo"
+                                   or not is_dataclass(zone_info) or zone_info.zone_id != number
+                                   or getattr(zone, "_status", None) is not status_row))):
                 # The old library uses a shared zone dictionary. A neighbor's
                 # zone object cannot establish even a display device binding.
                 return None, "native_display_zone_binding_unverified"
@@ -524,6 +629,11 @@ class NativeClimateProgram:
             return None, "native_display_values_unverified"
         values = {"pump": pump, "direction": direction, "mode": mode, "tank_enabled": tank_enabled,
                   "zones": zones, "raw_action": action[0]}
+        if split:
+            operation = exact(status.operation_status, "OperationStatus", {"OFF": 0, "ON": 1, "UNKNOWN": 2})
+            if operation is None:
+                return None, "native_display_values_unverified"
+            values["device_operation_status"] = operation
         generation = (id(device), id(status), id(info), id(own), native_id, long_id, frozen,
                       tuple((number, id(zone), id(zone._info)) for number, zone in sorted(objects.items())), id(tank))
         return {"generation": generation, "values": values}, ""
@@ -908,7 +1018,8 @@ class NativeClimateProgram:
             # its typed status; modern coordinators replace the whole Device.
             device = getattr(coordinator, "device", None)
             status = self._current_legacy_status(coordinator, entry_id) if watch["legacy"] else None
-            if getattr(coordinator, "last_update_success", None) is not True:
+            if (getattr(coordinator, "last_update_success", None) is not True
+                    or not _native_status_live(device)):
                 watch.update(baseline=device, status_baseline=status,
                              status_snapshot=None, status_inputs=None)
                 watch.update(snapshot=None, mode=None, observed=None, observed_at=None)
@@ -965,7 +1076,8 @@ class NativeClimateProgram:
         watch = self._watch(coordinator, entry_id, watches=self._tank_watches)
         if watch is None:
             return result
-        if getattr(coordinator, "last_update_success", None) is not True:
+        if (getattr(coordinator, "last_update_success", None) is not True
+                or not _native_status_live(getattr(coordinator, "device", None))):
             watch.update(baseline=getattr(coordinator, "device", None),
                          status_baseline=self._current_legacy_status(coordinator, entry_id))
             watch.update(action_snapshot=None, action=None, action_inputs=None,
@@ -993,6 +1105,15 @@ class NativeClimateProgram:
         # These use the display watcher and never amend programme/SG evidence.
         result["operation_status"] = _native_enum_name(getattr(device, "operation_status", None),
             "OperationStatus", {"OFF": 0, "ON": 1, "UNKNOWN": 2})
+        metadata = self._contract_metadata()
+        capability = metadata.get("compatibility") if isinstance(metadata, dict) else None
+        if valid_semantic_contract(capability) and capability["contract"] == OPERATION_SEMANTIC_CONTRACT_ID:
+            # The SDK can derive OFF from UNKNOWN/missing zone permissions.
+            # Keep the raw field intact; this is not physical global OFF proof.
+            result["operation_status_scope"] = "device_enablement"
+        elif not valid_semantic_contract(capability) and hasattr(getattr(device, "_status", None), "data_mode"):
+            # A pending/rejected review cannot restore the legacy OFF claim.
+            result["operation_status_scope"] = "unverified"
         result["direction"] = _native_enum_name(getattr(device, "current_direction", None),
             "DeviceDirection", {"IDLE": 0, "PUMP": 1, "WATER": 2})
         has_tank = getattr(device, "has_tank", None)
@@ -1038,7 +1159,8 @@ class NativeClimateProgram:
             result["reason_code"] = "listener_unavailable"
             result["reason"] = "De gekozen warmtepomp levert geen controleerbare programmaterugmelding"
             return result
-        if getattr(coordinator, "last_update_success", None) is not True:
+        if (getattr(coordinator, "last_update_success", None) is not True
+                or not _native_status_live(getattr(coordinator, "device", None))):
             watch.update(baseline=getattr(coordinator, "device", None),
                          status_baseline=self._current_legacy_status(coordinator, entry_id))
             watch.update(snapshot=None, mode=None, observed=None, observed_at=None)

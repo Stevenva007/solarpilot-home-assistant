@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "reviewed_at": "2026-10-18T13:09:46Z",
+  "reviewed_at": "2026-10-18T18:07:58Z",
   "assessment": {
     "status": "complete_no_unprocessed_changes",
-    "summary": "Beta.97 source review: Aquarea 1.6.0 to 1.7.0 adds only the zone climate auto_mode attribute (heat/cool while AUTO, otherwise null), documentation, tests and the version bump. The attribute also exists while idle and is selected-side information, never independent running, compressor, learning or SG safety evidence. SolarPilot already resolves AUTO_HEAT/AUTO_COOL from the current bound typed device.mode; no attribute fallback or runtime change is needed. Device polling, status/action mapping, writes, tank behavior, energy sensors and the SDK requirement are unchanged. SDK main and latest stable 1.3.1 remain identical to the prior pin; PR12 remains open and unmerged. The detailed assessment and bounded read-only regressions are recorded in docs/AQUAREA_UPSTREAM_REVIEW_BETA97.md.",
+    "summary": "Beta.98 source review: Aquarea 1.8.0 requires SDK 1.4.0, whose parser separates eco/comfort from operation_status, rebuilds real per-device zones and reports actual LIVE/CACHED status. SolarPilot processes this as a distinct loaded-source capability, binding the actual manager/parser/helper/getter chain and final typed LIVE status. Cached successful updates cannot renew programme, action or display evidence. Existing specialStatus records keep their original labels and shape; no historical unknown is promoted. Independent context, meter, timestamp and actuator boundaries remain. The SDK consumption-report wrapper retains the old bucket API and timezone payload; Aquarea HA energy entities and native UTC period evidence remain unchanged. SDK PR12 is closed unmerged; the related correction is released through PR16. Local source/native/display/retained-evidence and energy regressions pass; actual nine canonical function-body fingerprints match the pinned primary SDK source. Details and release-validation limits are recorded in docs/AQUAREA_UPSTREAM_REVIEW_BETA98.md.",
     "compatibility_claim": false,
     "evidence_document": "docs/UPSTREAM_BRONNEN.md"
   },
@@ -11,30 +11,30 @@
     {
       "repository": "wpatrik14/home-assistant-aquarea",
       "default_branch": "main",
-      "head_commit": "3151d7f196e45b671f3136c9220244fb8c10f2df",
+      "head_commit": "8722cf22e5a5752406aea1ba79b2cf48d4deedf3",
       "latest_release": {
-        "tag": "v1.7.0",
-        "commit": "3151d7f196e45b671f3136c9220244fb8c10f2df",
+        "tag": "v1.8.0",
+        "commit": "8722cf22e5a5752406aea1ba79b2cf48d4deedf3",
         "target_commitish": "main",
-        "published_at": "2026-10-18T09:49:22Z",
+        "published_at": "2026-10-18T17:05:16Z",
         "selection": "github_latest_published_stable"
       },
-      "reviewed_base_commit": "f127489774c61c1e97ee5eb5097257748d55d510",
+      "reviewed_base_commit": "3151d7f196e45b671f3136c9220244fb8c10f2df",
       "review_result": "relevant_changes_processed"
     },
     {
       "repository": "wpatrik14/aioaquarea",
       "default_branch": "main",
-      "head_commit": "d859f3727556c8a07964affd61a038edfd2d353a",
+      "head_commit": "893065a81c014cb9aa1d3350446d61c01bccf3b9",
       "latest_release": {
-        "tag": "v1.3.1",
-        "commit": "d859f3727556c8a07964affd61a038edfd2d353a",
+        "tag": "v1.4.0",
+        "commit": "893065a81c014cb9aa1d3350446d61c01bccf3b9",
         "target_commitish": "main",
-        "published_at": "2026-10-10T11:49:16Z",
+        "published_at": "2026-10-18T13:41:20Z",
         "selection": "github_latest_published_stable"
       },
       "reviewed_base_commit": "d859f3727556c8a07964affd61a038edfd2d353a",
-      "review_result": "no_additional_changes"
+      "review_result": "relevant_changes_processed"
     }
   ]
 }

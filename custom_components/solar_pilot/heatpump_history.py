@@ -261,7 +261,7 @@ class HeatpumpHistory:
         self.electrical.observe("electrical_activity", self._config("Gemeten elektrische activiteit"), electrical_active, when, max_gap_s=MAX_GAP_S)
         self._describe(self.electrical, "electrical_activity", "Gemeten elektrische activiteit", electrical_active, stamp)
         self._expiries["electrical_activity"] = self._source_expiry(p.get("power_observed_at", p.get("power_stamp")), stamp, p.get("source_stale_s", 120))
-        self.native_evidence.observe(p, stamp, evidence, sg=sg, max_gap_s=MAX_GAP_S)
+        self.native_evidence.observe(p, stamp, evidence, sg=sg, max_gap_s=MAX_GAP_S, power_w=watts)
         request, contact, received = self._sg(p, sg, stamp)
         self.contact_evidence.observe(contact, stamp, sg.get("relay_observed_at"),
                                       self._expiries["sg_contact"], stale_s=sg.get("relay_stale_s", 120), max_gap_s=MAX_GAP_S)
@@ -350,6 +350,7 @@ class HeatpumpHistory:
         stamp = self.lanes._stamp(when)
         self._prune(stamp)
         result = self._nullable_detail(self.lanes.detail("heatpump", day, when), stamp)
+        result["day_start"], result["day_end"] = self.lanes._bounds(result["date"])
         result.update(self._energy(result["date"]))
         for row in result["days"]:
             row.update(self._energy(row["date"]))

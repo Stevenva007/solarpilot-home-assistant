@@ -37,7 +37,16 @@ class PanasonicMonitor:
         if (obj is None or str(obj.state).strip().casefold() in ("unknown", "unavailable", "")
                 or any(obj.attributes.get(key) for key in ("restored", "estimated", "is_estimated"))):
             return None
-        return obj if self._reported_stamp(obj) is not None else None
+        if self._reported_stamp(obj) is None:
+            return None
+        source_is_live = getattr(self.native_program, "source_is_live", None)
+        if callable(source_is_live):
+            try:
+                if source_is_live(entity_id) is not True:
+                    return None
+            except Exception:
+                return None
+        return obj
 
     def _reported_stamp(self, obj):
         if obj is None:

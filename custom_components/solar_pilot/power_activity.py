@@ -77,6 +77,8 @@ def _inactive_scope(proof):
     """
     if proof.get("action") == "idle":
         return "device_idle"
+    if proof.get("operation_status_scope") is not None:
+        return "unknown"
     if proof.get("operation_status") != "OFF":
         return "unknown"
     if proof.get("has_tank") is False or (proof.get("has_tank") is True
@@ -135,6 +137,8 @@ def task_observations(config, *, tank=None, tank_entity="", tank_stamp=None, tan
             "operation_status": proof.get("operation_status"), "has_tank": proof.get("has_tank"),
             "tank_operation_status": proof.get("tank_operation_status"), "direction": proof.get("direction"),
             "inactive_scope": scope})
+        if "operation_status_scope" in proof:
+            raw_evidence[-1]["operation_status_scope"] = proof["operation_status_scope"]
         if action in _TASK_LABELS:
             tasks.append((action, used_stamp, "aquarea_poll"))
         else:
