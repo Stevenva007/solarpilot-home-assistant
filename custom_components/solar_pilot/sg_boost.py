@@ -187,6 +187,10 @@ class SGBoostManager:
                 "expires_at": value.get("expires_at"), "remaining_s": math.ceil(remaining),
                 "active": mode != "auto", "returns_to": "auto"}
 
+    def manual_control_overview(self):
+        """Read the current timed preference without heat-pump diagnostics."""
+        return self._manual_overview()
+
     def _session_checkpoint(self):
         if self._restart_resume is not None:
             return deepcopy(self._restart_resume)

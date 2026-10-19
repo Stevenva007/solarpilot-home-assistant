@@ -1,10 +1,10 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.99
-**Bijgewerkt:** 2026-10-18
-**Regel-hash:** `038485ea5df510d9`
+**Versie:** 1.0.0-beta.100
+**Bijgewerkt:** 2026-10-19
+**Regel-hash:** `36baa24f6491dc89`
 
-Beta.99 maakt de geschiedenis van toestellen en sturingen aanklikbaar met bewaarde sessiedetails en aanvullende bronhistorie uit Home Assistant. Lange warmtepompsessies worden leesbaar met een compacte taaksamenvatting en alle oorspronkelijke perioden uitklapbaar. Korte perioden tonen seconden en duur; een los meetpunt krijgt geen veronderstelde looptijd. De verwerking van een nieuw Aquarea-bericht voorkomt een onnodige extra wachtronde na een tussentijdse uitlezing, met behoud van alle grenzen voor cachedata en echte bronactualiteit. De aanraakbare meetpunten, Aquarea 1.8.0/SDK 1.4.0, bestaande SG-regels, instellingen, modellen en geschiedenis blijven behouden.
+Beta.100 maakt het uitlezen van de tijdelijke SG-bediening lichter. Beschikbaarheid, gekozen stand en resterende duur vragen daarvoor geen volledige SG- en Panasonic-beoordeling meer. De bestaande keuze Aan of Uit voor 30/60 minuten, oorspronkelijke eindtijd, actuele regelvoorwaarden en fysieke terugmelding behouden hun eigen betekenis. De klikbare toestelgeschiedenis, directe boilerbronhistorie, compacte taakperioden en betrouwbare verwerking van nieuwe Aquarea-berichten uit beta.99 blijven beschikbaar. Instellingen, modellen, bronrechten en bestaande geschiedenis blijven behouden.
 
 ## 1. Basisprincipe en modi
 
@@ -117,6 +117,8 @@ De kaart en Details tonen de lopende herbeoordeling afzonderlijk van de gewone s
 Nieuwe SG-sessies bewaren bij de eerste opdracht hun SolarPilot-versie, effectieve regels met hash, eigenaarschap, opdrachtidentiteit en oorspronkelijke bronrapporten. Stopreden en transportuitkomst blijven afzonderlijk; een natuurlijke lokale timerafloop of externe overname krijgt ook een eigen einde zonder verzonnen UIT-opdracht. Herbevestigingswacht toont zowel de oorspronkelijke stopreden als de actuele voorwaarde. Oude sessies krijgen geen huidige policy achteraf.
 
 Nieuwe SG-stopregistraties bewaren bij de laatste hercontrole welke concrete voorwaarde de aanvraag afwees, met de oorspronkelijke beschikbare bronwaarden. Een algemene melding dat voorwaarden gewijzigd zijn bewijst geen handmatige ingreep. Oudere generieke stops blijven qua specifieke oorzaak onbekend. Een expliciet geregistreerde onbereikbare SG-uitgang krijgt een bron-/contactcategorie. Stopbesluit, verzenduitkomst en werkelijk gemelde contactstand blijven afzonderlijke bewijzen; dit verandert geen vijfminutenbuffer, minimale sessieduur of lokale Shelly-timer.
+
+De tijdelijke SG-bediening leest vanaf beta.100 uitsluitend de geconfigureerde beschikbaarheid en de bestaande handmatige keuze met haar oorspronkelijke eindtijd. Daardoor herhaalt het tonen van die bediening geen volledige SG- en Panasonic-beoordeling. De resterende duur volgt nog steeds de huidige klok; het openen of verversen van de bediening verlengt de keuze niet. Automatisch en Aan/Uit voor 30/60 minuten behouden hun betekenis. Een keuze is geen gemelde contactstand of nieuwe schakeltoestemming; de gewone uitvoering beoordeelt haar actuele bronnen, rechten, voorrang en grenzen afzonderlijk.
 
 - Essentieel: volledige actuele net-/PV-begroting, eventuele batterijbron en ingeschakelde fasen. Onbekend of onbruikbaar geeft geen SG-vrijgave.
 - Essentieel: lokale SG-ingebruikname, toepassingsprofiel, vereiste koelcontext/beveiliging en werkelijk contact-/kortlopend timerbewijs. Een optionele wattmeter vervangt deze controles niet.
@@ -419,7 +421,7 @@ Een privéprofiel blijft optioneel en uitsluitend lokaal. Importeren kan lege ge
 
 Voor verwijderen kies je Verwijderen voorbereiden en wacht je op de gerichte veilige vrijgave. Een onzekere SG-uitgang blijft eerlijk onbekend; de gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, AEG- of Shelly-integratie.
 
-Rollback naar beta.98 behoudt de aanraakbare geschiedenis, Aquarea 1.8.0/SDK 1.4.0 en bestaande SG-regels, maar kan de lange afgeronde periodenlijst en de bronverwerkingsfout opnieuw tonen. Behoud entry, opslag, modellen, historie en userfiles; herstart Home Assistant volledig en herlaad de app/browser. Geef een eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk en onderbreek geen beschermde cyclus. Er is geen opslagmigratie of reset nodig. Zie BETA99_INSTELLEN.md.
+Rollback naar beta.99 behoudt de klikbare toestelgeschiedenis, directe boilerbronhistorie, compacte warmtepompperioden, Aquarea-bronverwerking en bestaande SG-regels. Het uitlezen van de SG-bediening kan dan opnieuw de volledige SG- en Panasonic-beoordeling herhalen. Behoud entry, opslag, modellen, historie en userfiles; herstart Home Assistant volledig en herlaad de app/browser. Geef een eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk en onderbreek geen beschermde cyclus. Er is geen opslagmigratie of reset nodig. Zie BETA100_INSTELLEN.md.
 
 ## 21. Release- en documentatieregel
 
