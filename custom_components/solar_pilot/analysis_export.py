@@ -47,7 +47,7 @@ ATTRS.update({"estimated", "is_estimated", "temperature_unit"})
 # names. A consumer called "auto", "W" or "temperature" must not rewrite them.
 MACHINE_VALUE_FIELDS = {
     "schema", "schema_version", "release", "version", "type", "domain", "kind",
-    "unit_of_measurement", "device_class", "state_class", "media_type", "service",
+    "unit_of_measurement", "unit", "source_unit", "device_class", "state_class", "media_type", "service",
     "platform", "manufacturer", "model", "software_version", "hardware_version",
     "state", "raw_state", "mode", "action", "hvac_action", "hvac_modes", "operation_mode",
     "operation_list", "preset_mode", "preset_modes", "stage", "cycle_phase",
@@ -885,6 +885,12 @@ class AnalysisRecorder:
         heatpump_history = getattr(r, "heatpump_history", None)
         if callable(getattr(heatpump_history, "export", None)):
             calls["heatpump_history"] = lambda: heatpump_history.export(
+                hours=hours, when=datetime.fromtimestamp(wall, timezone.utc))
+        water = getattr(r, "water", None)
+        if callable(getattr(water, "overview", None)):
+            calls["water"] = water.overview
+        if callable(getattr(water, "export", None)):
+            calls["water_history"] = lambda: water.export(
                 hours=hours, when=datetime.fromtimestamp(wall, timezone.utc))
         if callable(getattr(feedback, "status", None)):
             calls["analysis_feedback"] = feedback.status

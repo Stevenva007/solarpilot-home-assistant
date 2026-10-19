@@ -13,6 +13,7 @@ from homeassistant.helpers.storage import Store
 from .frontend import async_register_frontend, async_unregister_frontend
 from .consumer_history_api import async_register_history_api
 from .heatpump_history_api import async_register_heatpump_history_api
+from .water_api import async_register_water_history_api
 from .source_history_api import async_register_source_history_api
 from .analysis_api import async_register_analysis_api
 from .learning_api import async_register_learning_api
@@ -24,6 +25,7 @@ from .analysis_export import storage_key as analysis_storage_key
 from .feedback_store import storage_key as feedback_storage_key
 from .consumer_history_runtime import history_storage_key
 from .heatpump_history_runtime import heatpump_history_storage_key
+from .water_runtime import water_storage_key
 from .private_bundle import build_private_import, delete_private_files_if_requested, load_private_bundle
 from .historical import load_bundled_seed
 from .dishwasher_recovery import LegacyDishwasherRecoveryRetry, recover_legacy_dishwasher
@@ -124,6 +126,7 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await runtime.dishwasher_recovery_retry.start()
     async_register_history_api(hass)
     async_register_heatpump_history_api(hass)
+    async_register_water_history_api(hass)
     async_register_source_history_api(hass)
     async_register_analysis_api(hass)
     async_register_learning_api(hass)
@@ -200,6 +203,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     await Store(hass, 1, f"{DOMAIN}.{entry.entry_id}").async_remove()
     await Store(hass, 1, history_storage_key(entry.entry_id)).async_remove()
     await Store(hass, 1, heatpump_history_storage_key(entry.entry_id)).async_remove()
+    await Store(hass, 1, water_storage_key(entry.entry_id)).async_remove()
     await Store(hass, 1, analysis_storage_key(entry.entry_id)).async_remove()
     await Store(hass, 1, feedback_storage_key(entry.entry_id)).async_remove()
     # Remove SolarPilot-owned optional private profile/bootstrap when the private
@@ -207,7 +211,8 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     # devices are never touched.
     await hass.async_add_executor_job(delete_private_files_if_requested)
     if hass.services.has_service("persistent_notification", "dismiss"):
-        for notification_id in (f"{DOMAIN}_{entry.entry_id}", f"{DOMAIN}_{entry.entry_id}_action_required"):
+        for notification_id in (f"{DOMAIN}_{entry.entry_id}", f"{DOMAIN}_{entry.entry_id}_action_required",
+                                f"{DOMAIN}_{entry.entry_id}_water_advisory"):
             await hass.services.async_call(
                 "persistent_notification", "dismiss",
                 {"notification_id": notification_id}, blocking=False,

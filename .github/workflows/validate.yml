@@ -131,6 +131,8 @@ jobs:
         env:
           SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests
         run: python tools/check_cooling_ui80.py
+      - name: Validate read-only water history, source links and mobile gestures
+        run: python tools/check_water_ui101.py "${{ runner.temp }}/solarpilot-browser-tests"
       - name: Retain fictitious browser validation screenshots
         if: always()
         uses: actions/upload-artifact@v4

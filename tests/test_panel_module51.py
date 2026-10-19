@@ -25,6 +25,7 @@ EXPECTED_CONSTRUCTOR_TAGS = [
     ) for tag in (stable, stable + "-" + RELEASE)],
     "solar-pilot-heatpump-history-dialog-" + RELEASE,
     "solar-pilot-source-history-dialog-" + RELEASE,
+    "solar-pilot-water-history-dialog-" + RELEASE,
     "solar-pilot-wallbox-priority-dialog-" + RELEASE,
 ]
 
@@ -42,6 +43,7 @@ class NodeDouble {
   append(node) { this.children.push(node); }
   addEventListener() {}
   removeEventListener() {}
+  setAttribute() {}
   querySelectorAll() { return []; }
   querySelector() { return null; }
 }
@@ -133,12 +135,19 @@ async function run() {
     return this.shadowRoot;
   };
   const actualSourceDialog = sandbox.document.createElement(input.sourceHistoryTag);
+  const actualWaterDialog = sandbox.document.createElement(input.waterHistoryTag);
   ElementDouble.prototype.attachShadow = originalAttachShadow;
   assert.equal(actualSourceDialog.constructor, sourceConstructor,
     'Construct the actual module-registered source dialog, not a replacement helper');
   assert.equal(actualSourceDialog._isOpen, false);
   assert.equal(actualSourceDialog._data, null);
   assert(actualSourceDialog.shadowRoot.innerHTML.includes('Bronhistorie in Home Assistant'));
+  assert.equal(actualWaterDialog.constructor, definitions.get(input.waterHistoryTag),
+    'Construct the actual current release water dialog from its registered class');
+  assert.equal(actualWaterDialog.constructor.solarPilotRelease, input.cardVersion);
+  assert.equal(actualWaterDialog._isOpen, false);
+  assert.equal(actualWaterDialog._data, null);
+  assert(actualWaterDialog.shadowRoot.querySelector('#history-title').textContent.includes('Watergeschiedenis'));
   assert.equal(writes, 0, 'Registration and construction never issue a device command');
   if (['existing_old_stable_class', 'existing_old_helper_classes'].includes(input.scenario)) {
     assert.equal(definitions.get('solar-pilot-card'), LegacySolarPilotCard,
@@ -162,7 +171,8 @@ async function run() {
   helperCard._openLearning();
   helperCard._openHeatpumpHistory();
   helperCard._openSourceHistory('consumer', 'synthetic_consumer');
-  assert.deepEqual(createdDialogs, [input.analysisTag, input.qualityTag, input.heatpumpHistoryTag, input.sourceHistoryTag], 'Factories must use the current release-bound helpers');
+  helperCard._openWaterHistory();
+  assert.deepEqual(createdDialogs, [input.analysisTag, input.qualityTag, input.heatpumpHistoryTag, input.sourceHistoryTag, input.waterHistoryTag], 'Factories must use the current release-bound helpers');
   sandbox.document.createElement = originalCreateElement;
   assert.equal(sandbox.window.customCards, catalog, 'Preserve the shared catalog array');
   for (const type of ['solar-pilot-card', 'solar-pilot-guide-card']) {
@@ -224,6 +234,7 @@ def run_module_probe(scenario, *, dirty_catalog=False):
                           "qualityTag": "solar-pilot-learning-dialog-" + re.sub(r"[^a-z0-9]+", "-", VERSION.lower()).strip("-"),
                           "heatpumpHistoryTag": "solar-pilot-heatpump-history-dialog-" + re.sub(r"[^a-z0-9]+", "-", VERSION.lower()).strip("-"),
                           "sourceHistoryTag": "solar-pilot-source-history-dialog-" + RELEASE,
+                          "waterHistoryTag": "solar-pilot-water-history-dialog-" + RELEASE,
                           "cardVersion": VERSION, "backendVersion": "99.0.0-beta.1"}),
         text=True, capture_output=True,
     )

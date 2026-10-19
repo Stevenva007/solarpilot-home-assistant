@@ -1,5 +1,6 @@
 """UI-only configuration; adding/editing devices never enables them implicitly."""
 from __future__ import annotations
+from collections.abc import Mapping
 from copy import deepcopy
 import math
 from uuid import uuid4
@@ -25,6 +26,7 @@ from .battery_analysis import BATTERY_ANALYSIS_DEFAULTS
 from .battery_fleet import BATTERY_DEFAULTS, BATTERY_FLEET_DEFAULTS
 from .first_install import apply_first_install_suggestions
 from .private_bundle import build_private_import, private_bundle_overview, load_private_bundle, bundle_historical_seed
+from .water import WATER_DEFAULTS, normalize_config as normalize_water, source_errors as water_errors
 
 
 def entity(domains):
@@ -194,7 +196,7 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
         self._base_options()
         return self.async_show_menu(step_id="init", menu_options=[
             "overview", "energy_hub", "loads_hub", "comfort_hub",
-            "storage_hub", "intelligence_hub", "advanced_hub"
+            "storage_hub", "water", "intelligence_hub", "advanced_hub"
         ])
 
     async def async_step_overview(self, user_input=None):
@@ -236,6 +238,30 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
 
     async def async_step_advanced_hub(self, user_input=None):
         return self.async_show_menu(step_id="advanced_hub", menu_options=["timing", "phase_learning", "wallbox_advanced", "analysis", "private_bundle", "system_info", "pending_changes"])
+
+    async def async_step_water(self, user_input=None):
+        """Configure explicit read-only sources without changing device control."""
+        raw = self._base_options().get("water", {})
+        current = {**WATER_DEFAULTS, **(dict(raw) if isinstance(raw, Mapping) else {}), **normalize_water(raw)}
+        candidate = {**current, **({key: "" for key in
+            ("volume_entity", "flow_entity", "leak_entity")} if user_input is not None else {}),
+            **(user_input or {})}
+        errors = water_errors(self.hass, candidate) if user_input is not None else {}
+        if user_input is not None and not errors:
+            opts = deepcopy(dict(self._base_options()))
+            opts["water"] = candidate
+            return await self._save(opts)
+        schema = vol.Schema({
+            vol.Required("enabled", default=candidate["enabled"]): selector.BooleanSelector(),
+            optional("volume_entity", candidate): entity(["sensor"]),
+            optional("flow_entity", candidate): entity(["sensor"]),
+            optional("leak_entity", candidate): entity(["binary_sensor"]),
+            vol.Required("source_stale_s", default=candidate["source_stale_s"]): num(15, 86400),
+            vol.Required("continuous_flow_l_min", default=candidate["continuous_flow_l_min"]): num(0.01, 1000, 0.01),
+            vol.Required("continuous_flow_minutes", default=candidate["continuous_flow_minutes"]): num(1, 1440),
+            vol.Required("notifications", default=candidate["notifications"]): selector.BooleanSelector(),
+        })
+        return self.async_show_form(step_id="water", data_schema=schema, errors=errors)
 
     async def async_step_private_bundle(self, user_input=None):
         """Apply/reload a private profile + historical bootstrap from userfiles."""

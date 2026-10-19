@@ -274,7 +274,7 @@ def test_registry_cleanup_preserves_current_switches_and_readonly_monitor_ids():
 
 
 @pytest.mark.asyncio
-async def test_entry_removal_clears_both_software_notifications_without_equipment_calls():
+async def test_entry_removal_clears_owned_software_notifications_without_equipment_calls():
     source = ROOT / "custom_components/solar_pilot/__init__.py"
     function = next(n for n in ast.parse(source.read_text()).body
                     if isinstance(n, ast.AsyncFunctionDef) and n.name == "async_remove_entry")
@@ -295,6 +295,7 @@ async def test_entry_removal_clears_both_software_notifications_without_equipmen
     namespace = {"DOMAIN": "solar_pilot", "Store": Store,
         "history_storage_key": lambda entry: f"history.{entry}",
         "heatpump_history_storage_key": lambda entry: f"solar_pilot.{entry}.heatpump_history",
+        "water_storage_key": lambda entry: f"solar_pilot.{entry}.water_history",
         "analysis_storage_key": lambda entry: f"analysis.{entry}",
         "feedback_storage_key": lambda entry: f"feedback.{entry}",
         "delete_private_files_if_requested": lambda: None,
@@ -307,9 +308,10 @@ async def test_entry_removal_clears_both_software_notifications_without_equipmen
                  str(source), "exec"), namespace)
     await namespace["async_remove_entry"](hass, SimpleNamespace(entry_id="entry"))
     assert calls == [("persistent_notification", "dismiss", {"notification_id": "solar_pilot_entry"}),
-                     ("persistent_notification", "dismiss", {"notification_id": "solar_pilot_entry_action_required"})]
+                     ("persistent_notification", "dismiss", {"notification_id": "solar_pilot_entry_action_required"}),
+                     ("persistent_notification", "dismiss", {"notification_id": "solar_pilot_entry_water_advisory"})]
     assert set(removed) == {"solar_pilot.entry", "history.entry", "solar_pilot.entry.heatpump_history",
-                            "analysis.entry", "feedback.entry"}
+                            "solar_pilot.entry.water_history", "analysis.entry", "feedback.entry"}
     assert frontend == [{"final": True}]
     assert removed_services == [("solar_pilot", "set_planner_setting"),
                                 ("solar_pilot", "sg_manual_control"),
