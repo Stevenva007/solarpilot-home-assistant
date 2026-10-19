@@ -1,8 +1,8 @@
 # Openbaar upstream-bronregister
 
-Laatst gecontroleerd: **18 oktober 2026**. Dit register beschrijft openbare broncontracten die voor SolarPilot relevant zijn. Een upstream-release is geen bewijs dat die versie lokaal is geïnstalleerd; een open pull request is geen gepubliceerde correctie. Gegevens uit privé-installaties, exports en automatiseringsidentiteiten horen niet in dit register.
+Laatst gecontroleerd: **18 oktober 2026 om 23:31:17 UTC**. Dit register beschrijft openbare broncontracten die voor SolarPilot relevant zijn. Een upstream-release is geen bewijs dat die versie lokaal is geïnstalleerd; een open pull request is geen gepubliceerde correctie. Gegevens uit privé-installaties, exports en automatiseringsidentiteiten horen niet in dit register.
 
-Actueel: Aquarea **1.8.0** en SDK **1.4.0** zijn inhoudelijk verwerkt in beta.98 en bij de broncontrole voor beta.99 ongewijzigd bevestigd. SDK PR12 is op 18 oktober 2026 gesloten zonder merge; de relevante statuscorrectie is via PR16 gepubliceerd. Onderstaande oudere bronpins en releasebeoordelingen behouden hun historische betekenis.
+Actueel: Aquarea **1.8.0** en SDK **1.4.0** zijn inhoudelijk verwerkt in beta.98 en bij de broncontroles voor beta.99 en beta.100 ongewijzigd bevestigd. SDK PR12 is op 18 oktober 2026 gesloten zonder merge; de relevante statuscorrectie is via PR16 gepubliceerd. Onderstaande oudere bronpins en releasebeoordelingen behouden hun historische betekenis.
 
 ## Gepinde bronnen
 
@@ -114,3 +114,14 @@ Aquarea's EnergyConsumptionSensor (intervaldelta), EnergyAccumulatedConsumptionS
 Om **18:42:20 UTC** zijn via de officiële GitHub-bronnen alle acht checkpointgegevens opnieuw gecontroleerd: de defaultbranch, actuele HEAD, laatste gepubliceerde stabiele release en opgeloste releasetag van beide repositories. Aquarea blijft **1.8.0**, met `main` en tag op `8722cf22e5a5752406aea1ba79b2cf48d4deedf3`; de SDK blijft **1.4.0**, met `main` en tag op `893065a81c014cb9aa1d3350446d61c01bccf3b9`. Er zijn geen nieuwe upstreamverschillen sinds de inhoudelijke verwerking in beta.98. Het bijgewerkte checkpoint gebruikt daarom voor beide bronnen `reviewed_base_commit = head_commit` en `review_result = no_additional_changes`.
 
 De bestaande afzonderlijke statuscontracten, LIVE/CACHED-controle, bronbinding en oorspronkelijke rapporttijden blijven gelden. De historische [beta.98-bronbeoordeling](https://github.com/Stevenva007/solarpilot-home-assistant/blob/main/docs/AQUAREA_UPSTREAM_REVIEW_BETA98.md) blijft behouden. Deze controle verandert geen provider, apparaatinstelling of actuatorrecht; de publicatiegate controleert de upstreamstand opnieuw vóór een release.
+
+## Broncontrole voor beta.100 — 18 oktober 2026
+
+Om **23:31:17 UTC** zijn via de GitHubconnector de acht officiële API-bronnen opnieuw gecontroleerd: repositorymetadata, actuele defaultbranch-HEAD, laatste gepubliceerde stabiele release en de opgeloste releasetag van beide repositories. Beide publieke repositories hebben nog `main` als defaultbranch. Beide releases hebben `draft=false`, `prerelease=false` en `target_commitish=main`; de tagverwijzingen wijzen rechtstreeks naar een commit.
+
+| Bron | Actuele HEAD en opgeloste tagcommit | Laatste gepubliceerde stabiele release |
+|---|---|---|
+| [Aquarea main](https://api.github.com/repos/wpatrik14/home-assistant-aquarea/branches/main) | `8722cf22e5a5752406aea1ba79b2cf48d4deedf3`; [tagreferentie](https://api.github.com/repos/wpatrik14/home-assistant-aquarea/git/ref/tags/v1.8.0) | [v1.8.0](https://github.com/wpatrik14/home-assistant-aquarea/releases/tag/v1.8.0), gepubliceerd 18 oktober 2026 om 17:05:16 UTC |
+| [SDK main](https://api.github.com/repos/wpatrik14/aioaquarea/branches/main) | `893065a81c014cb9aa1d3350446d61c01bccf3b9`; [tagreferentie](https://api.github.com/repos/wpatrik14/aioaquarea/git/ref/tags/v1.4.0) | [v1.4.0](https://github.com/wpatrik14/aioaquarea/releases/tag/v1.4.0), gepubliceerd 18 oktober 2026 om 13:41:20 UTC |
+
+Alle checkpointvelden komen exact overeen met beta.99; er zijn geen nieuwe upstreamverschillen sinds de inhoudelijke verwerking in beta.98. Daarom blijven `reviewed_base_commit = head_commit`, `review_result = no_additional_changes` en `compatibility_claim = false` behouden. De afzonderlijke statuscontracten, LIVE/CACHED-controle, bronbinding en oorspronkelijke historische betekenis worden niet aangepast. Dit bronbewijs bevestigt de actualiteit van de beoordeelde publieke bronnen; het certificeert geen lokaal geladen provider, runtimecompatibiliteit of fysieke installatie. De publicatiegate controleert de upstreamstand opnieuw vóór een release.

@@ -188,7 +188,8 @@ async def test_native_select_rejects_unreviewed_option_before_any_call(option):
 ])
 def test_native_select_reports_backend_mode_without_inventing_auto_or_duration(manual, expected):
     runtime, _, _, _ = context()
-    runtime.sg_boost.overview = lambda: {"configured": True, "manual_control": manual}
+    runtime.sg_boost.configured = True
+    runtime.sg_boost.manual_control_overview = lambda: manual
     entity = select_class()(runtime)
     assert entity.current_option == expected
     assert entity.available

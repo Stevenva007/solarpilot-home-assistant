@@ -89,11 +89,11 @@ class SGManualControl(SolarEntity, SelectEntity):
     @property
     def available(self):
         return bool(not self._inactive() and self.runtime.data_loaded
-                    and self.runtime.sg_boost.overview().get("configured"))
+                    and self.runtime.sg_boost.configured)
 
     @property
     def current_option(self):
-        manual = self.runtime.sg_boost.overview().get("manual_control", {})
+        manual = self.runtime.sg_boost.manual_control_overview()
         mode, duration = manual.get("mode"), manual.get("duration_s")
         if mode == "auto":
             return "auto"
@@ -103,7 +103,7 @@ class SGManualControl(SolarEntity, SelectEntity):
 
     @property
     def extra_state_attributes(self):
-        manual = self.runtime.sg_boost.overview().get("manual_control", {})
+        manual = self.runtime.sg_boost.manual_control_overview()
         return {key: manual.get(key) for key in ("expires_at", "remaining_s", "active", "reason")}
 
     async def async_select_option(self, option):

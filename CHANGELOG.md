@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.100 — lichtere uitlezing van de SG-bediening
+
+- Leest de beschikbaarheid van de tijdelijke SG-bediening rechtstreeks uit haar bestaande configuratie en stand/duur/afloop via het lichte handmatige overzicht. Elk van de drie getters vermijdt zo de vroegere aanroep van het volledige SG-/Panasonic-overzicht.
+- Hergebruikt de bestaande handmatige projectie met de actuele klok: Automatisch, Aan/Uit voor 30/60 minuten, oorspronkelijke absolute eindtijd en automatische afloop behouden hun betekenis. Er komt geen SG- of controllercache en de echte uitvoeringsroute behoudt alle actuele controles.
+- Behoudt beta.99: klikbare toestel-/sturingsgeschiedenis, directe boilerbronhistorie, compacte warmtepompperioden, bronrechten en verwerking van nieuwe Aquarea-berichten. Instellingen, timers, modellen, historie en userfiles blijven behouden.
+- Beperkt de prestatieclaim tot de vermeden berekeningen in deze bediening. Andere statussensorvertragingen, externe integratiefouten en live installatietijden zijn hiermee niet als opgelost bewezen.
+- Installatie/rollback: `docs/BETA100_INSTELLEN.md`; uitgevoerde en nog openstaande validatie: `docs/TESTRESULTATEN_BETA100.md`. De bestaande actuele upstreamcontrole en alle vijf releasegates blijven vereist.
+
 ## 1.0.0-beta.99 — klikbare geschiedenis en nieuw bronbericht behouden
 
 - Opent met een tik op de huidige boilertemperatuur of het ingestelde doel direct de bijbehorende Home Assistant-bronhistorie; de bron volgt de werkelijk getoonde waarde.

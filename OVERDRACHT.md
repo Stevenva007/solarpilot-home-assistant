@@ -1,9 +1,9 @@
 <!-- solarpilot-handoff-schema: 1 -->
-<!-- solarpilot-handoff-version: 1.0.0-beta.99 -->
+<!-- solarpilot-handoff-version: 1.0.0-beta.100 -->
 
 # OVERDRACHT — SolarPilot
 
-Laatst bijgewerkt: **18 oktober 2026**. Actuele bron: **v1.0.0-beta.99**. Beta.99 maakt andere toestel-/sturingsgeschiedenis aanklikbaar, ontsluit toegestane huidige HA-bronhistorie en maakt lange warmtepompsessies leesbaar met compacte taakduur, uitklapbare oorspronkelijke perioden en nauwkeurige korte duur. Zij herstelt de reproduceerbare bronvolgordefout waarbij een tussentijdse uitlezing een geldig nieuw Aquarea-bericht kon verbruiken. Bouwbasis: gepubliceerde beta.98 `b79d06bbe7950538a317ccf060828c5fb65111bb`. Installatie/rollback: `docs/BETA99_INSTELLEN.md`; tests/publicatie: `docs/TESTRESULTATEN_BETA99.md`.
+Laatst bijgewerkt: **19 oktober 2026**. Actuele bron: **v1.0.0-beta.100**. Beta.100 verwijdert de onnodige volledige SG-overzichtsaanroep uit elk van de drie getters voor de tijdelijke SG-bediening. Zij leest de bestaande geconfigureerde beschikbaarheid en handmatige projectie, zonder SG-/controllercache of nieuwe uitvoeringsbevoegdheid. Alle beta.99-functies blijven behouden. Bouwbasis: gepubliceerde beta.99 `7d68ca9e15632ed41701a8806fd016c060687b0b`. Installatie/rollback: `docs/BETA100_INSTELLEN.md`; tests/publicatie: `docs/TESTRESULTATEN_BETA100.md`.
 
 ## 1. Projectdoel in gewone taal
 
@@ -11,11 +11,13 @@ SolarPilot verdeelt beschikbare zonnestroom tussen flexibele verbruikers, een be
 
 ## 2. Actuele basis
 
-Bouwbasis: gepubliceerde beta.98 `b79d06bbe7950538a317ccf060828c5fb65111bb`. De aanraakbare geschiedenis, Aquarea 1.8.0/SDK 1.4.0, bestaande instellingen, modellen en SG-regels blijven behouden. Actueel brongebonden bewijs: `docs/TESTRESULTATEN_BETA99.md`; eerdere resultaten blijven historische herkomst.
+Bouwbasis: gepubliceerde beta.99 `7d68ca9e15632ed41701a8806fd016c060687b0b`, tree `caeea7ce6362f051e7eacfc99848e31dc2b6f542`. Klikbare toestel-/sturingsgeschiedenis, directe boilerbronhistorie, compacte warmtepompperioden, Aquarea 1.8.0/SDK 1.4.0, bronvolgordecorrectie, instellingen, modellen en SG-regels blijven behouden. Actueel brongebonden bewijs: `docs/TESTRESULTATEN_BETA100.md`; eerdere resultaten blijven historische herkomst.
 
 De canonieke gebruikersuitleg blijft `custom_components/solar_pilot/current_guide.py`; `docs/ACTUELE_WERKING.md`, de ingebedde mirror en optiehulp worden gegenereerd. Dit dossier beschrijft actuele waarheid. Immutable/geneste HA-opties, SG-profiel/reassessment, read-only bronnen/interface, analyse-/antwoordrapport en lokaal bron-/SG-onderzoek blijven behouden. Het vertrouwde implementatieregister koppelt uitsluitend generieke softwarevoorstellen aan exacte inhoud en geïnstalleerde release. Een import kan die status niet zelf creëren. Warmtepompgeschiedenis gebruikt aparte versie-1-opslag en is geen migratie of vervanging van bestaande verbruikerhistorie, analysedata of modellen.
 
 ## 3. Absolute ontwerpregels
+
+- De getters van `SGManualControl` gebruiken uitsluitend de bestaande `configured`-eigenschap en `SGBoostManager.manual_control_overview()`. De lichte helper hergebruikt `_manual_overview()` met de huidige klok; geen volledige `overview()`, Panasonic-/bron-/contactlezing, controllercache, opslagwrite of actie. De oorspronkelijke deadline en de aparte expiry-/uitvoeringsroute houden hun betekenis. Een goedkope presentatie geeft geen nieuw bron-, lease- of actuatorrecht.
 
 - Een tussentijdse bronuitlezing mag een nog onbevestigde geldige nieuwe provider-generatie niet als reeds verwerkt registreren. De echte callback bezit de verwerkingsbaseline. Ongeldige intrinsieke status, CACHED, afgekeurde statusobjecten, mislukte callbacks en gewijzigde bindingen behouden hun afwijzing; dezelfde status in-place bewerken of in een nieuwe wrapper stoppen is geen nieuw bericht. Read-only lezen geeft geen nieuwe polltijd of bevoegdheid.
 
@@ -69,6 +71,8 @@ De canonieke gebruikersuitleg blijft `custom_components/solar_pilot/current_guid
 - Softwaretests/publicatie zijn geen live hardwareacceptatie. Fysiek proefdraaien gebeurt uitsluitend na expliciete toestemming, zonder metingen in geopende elektrische apparatuur.
 
 ## 4. Actuele werking
+
+**Lichte SG-bediening beta.100.** `SGManualControl.available` leest `configured` rechtstreeks. Stand en attributen lezen `SGBoostManager.manual_control_overview()`, een lichte publieke projectie van het bestaande `_manual_overview()`. Elk van deze drie getters roept het volledige SG-overzicht met zijn Panasonic-berekening niet meer aan. Het aantal getteraanroepen per werkelijke HA-publicatie is niet gemeten. De actuele klok, oorspronkelijke UTC-eindtijd, vaste 1800/3600-secondenkeuzes, ongeldig/onbekend-gedrag en afzonderlijke expiry behouden hun semantiek. Geen controllercache of beleidswijziging. De zware algemene statussensor wordt hiermee niet als versneld bewezen; timing op een gebruikersinstallatie vraagt afzonderlijk bewijs.
 
 **Algemene klikdetails beta.99.** Gewone/gearchiveerde ConsumerHistory-sessies en gebeurtenissen blijven onder de bestaande actuele+historische bron-ACL. Tijdselectie gebruikt numerieke UTC-daggrenzen en oorspronkelijke sessievelden; leeg is geen bewezen UIT, actuele waarden zijn geen historische terugval. Wallbox-bewaarde laadperioden krijgen afzonderlijke details. Een aparte alleen-lezen broncatalogus geeft uitsluitend toegestane huidige bronkoppelingen met per-bron READ-recht terug, ook bij een gearchiveerde laatste configuratie; geen private access_sources, archiefdata of historische roltoewijzing. De HA-historyweergave toont die bron met haar eigen recorderdekking en controleert de bronrechten opnieuw. Een actuele koppeling is geen bewijs dat de entiteit altijd hetzelfde toestel vertegenwoordigde. Geen extra registratie of actuatoropdracht.
 
@@ -287,7 +291,7 @@ Geheimen komen uitsluitend uit bestaande HA-koppelingen/lokale configuratie; gee
 
 ## 9. Testprocedure + actuele teststatus
 
-Actueel beta.99-bewijs staat in `docs/TESTRESULTATEN_BETA99.md`: **7737 tests geslaagd in 169,66 seconden** op Python 3.13.16; beide Chromium-gates groen, inclusief mobiel bereikbare balk en directe boilerbronhistorie. Echte Core 2026.10.0/Python 3.14.2 normale en actuele-SG-fixture slagen met echte broncatalogus-/READ-controle en nul fysieke serviceaanroepen. Gids `038485ea5df510d9`; syntaxis, privacy, uitleg, overdracht, SG-grenzen en diffcontrole slagen. Alle vijf PR-/main-CI-gates blijven publicatievoorwaarde; bestaande beta.98-resultaten zijn geen beta.99-bewijs.
+Actueel beta.100-bewijs staat in `docs/TESTRESULTATEN_BETA100.md`. De gerichte codecontrole en 180 regressies slagen, waaronder 19 nieuwe tests. Ook privacy/structuur, SG-grenzen, de actuele online-upstreamcontrole, syntaxis van 94 componentbestanden, release-identiteit, gegenereerde gids-/optiehulp-/mirrors en handoffcontrole slagen; actuele gidshash `36baa24f6491dc89`, beide nieuwe documentmirrors bytegelijk en `git diff --check` schoon. De volledige lokale Python 3.12.14-run is zonder eindresultaat onderbroken en telt niet als geslaagde suite. De ongewijzigde Validate-workflow levert de volledige Python 3.13-suite, PowerShell, echte Core 2026.10.0/Python 3.14.2, Chromium, HACS en Hassfest op de definitieve bron. Raadpleeg de gekoppelde PR-/main-runs voor die aanvullende resultaten, de annotated tag en vier assetcontroles; dit vooraf opgeslagen dossier loopt daarop niet vooruit. De beta.99-resultaten zijn uitsluitend historische herkomst. Een live HA-update blijft afzonderlijke verificatie.
 
 Historisch beta.94-bewijs: zie `docs/TESTRESULTATEN_BETA94.md` voor brongebonden tests en publicatie. De timerbug is onafhankelijk gereproduceerd voor een verstreken en gedeeltelijke rusttijd. De 17 nieuwe functionele regressies en 36 onafhankelijke grenscontroles slagen. De brede gerichte route behaalde 461 geslaagde tests; de groepen overlappen. Alleen echte verificatie wijzigt de checkpointwatermark; read-only snapshots blijven stabiel en de nieuwe autosave wacht op geladen opslag. De volledige suite en vijf CI-gates draaien op de definitieve bron. Beide actuele releasedocumenten hebben een bytegelijke componentmirror. De beta.93-suite behaalde 6986 geslaagde tests en alle vijf PR-/main-gates plus vier-assets-downloadverificatie; dat is uitsluitend historische herkomst en geen beta.94-testbewijs.
 
@@ -302,6 +306,8 @@ De definitieve bron moet alle vijf CI-gates doorstaan: volledige repository/test
 Alle behouden bron-/doel-/PV-/AEG-/Wallbox-/batterij-/SG-/model-/historie-/ACL-regressies blijven vereist. Herstel bewaakt volledige minimumlooptijd, juiste stop, passend nieuw post-pogingbewijs en geen herhaalde START. Source-isolatie krijgt geen extra hypothetische reserve of fictief eigen krediet. Huidige vraag, buffers, eigendomswisseling, modus en bron-/ruimtewijziging tijdens await blijven leidend. Publieke fixtures zijn fictief; privé-export, woningwaarden en bronidentiteiten worden niet toegevoegd. Softwaretests en pakketten bewijzen geen fysieke bereikbaarheid of besparing.
 
 ## 10. Bekende problemen / beperkingen
+
+Beta.100 beperkt zich tot herhaalde berekeningen bij het uitlezen van de SG-bediening. Zij bewijst geen oplossing voor de algemene statussensor, externe integratiefouten, netwerkvertraging of fysieke apparaatreactie. De vermeden volledige overzichtsaanroepen in deze drie getters bewijzen geen vast aantal bespaarde berekeningen per HA-publicatie of gemeten tijdwinst op een live installatie.
 
 De vijfminutenklok is een volgend beoordelingsmoment, geen gegarandeerde fysieke poging of herstel. Onbekende terugmelding bewijst geen nulverbruik of UIT; tijdelijk geïsoleerde toestellen krijgen op expliciet gebruikersbeleid geen extra hypothetische verbruiksreserve. Daardoor wordt op de werkelijk gemeten P1-balans en actuele harde grenzen gestuurd, zonder zekerheid over een toekomstige toestelsprong. Werkelijk actuele beschermde afwaspiek en specifieke SG-reserves blijven afzonderlijk. Onzekere al verzonden opdrachten blijven geblokkeerd tot passend nieuw bewijs; een terugkerende oude waarde is niet automatisch nieuw bewijs.
 
@@ -323,6 +329,8 @@ Nieuwe algemene beoordeling vereist betekenisvol nieuw zon-/native bewijs; dezel
 
 ## 11. Concrete openstaande ontwikkeling
 
+Beta.100: leg de regressie- en volledige gate-uitvoer vast voor exact de uiteindelijke bron. Rond daarna PR-/main-gates, immutable tag en de vier teruggedownloade bytegelijke assets af. Meet resterende presentatievertragingen afzonderlijk voordat een bredere prestatiecorrectie wordt ontworpen; introduceer hiervoor geen SG-/controllercache of ruimere actualiteitsgrenzen.
+
 Historisch beta.91-criterium: validatie en publicatie werden uitsluitend afgerond verklaard op grond van werkelijk uitgevoerde brongebonden checks: volledige suite/documentatie/privacy, vijf CI-gates op dezelfde commit, annotated tag en vier teruggedownloade bytegelijke assets. Zie `docs/TESTRESULTATEN_BETA91.md`. Niet uitgevoerde gates blijven open. De gepubliceerde beta.90 is de bouwbasis; een geïmporteerd advies creëert geen geïmplementeerde status of configuratiebevestiging.
 
 Een fysieke AEG-deadlineproef vraagt een werkelijk nieuwe geldige APP-belading, actuele complete bron-/dispatchstatus en aparte startbevestiging. Geen test in deze bronwerkronde geeft dat hardwarebewijs; een latere analyse moet de daadwerkelijke blokkering en communicatievertraging op de deadline afzonderlijk kunnen volgen. Bestaande onzekere of verbruikte aanvragen mogen daarvoor niet worden herarmd.
@@ -337,17 +345,19 @@ Beta.96 vervangt het verouderde `via_device`-pad op moderne Core door de vooraf 
 
 ## 12. Installatie/upgrade en rollback
 
-Actueel: volg `docs/BETA99_INSTELLEN.md`. Vervang integratiecode met behoud van entry, opslag en userfiles. Rollback naar beta.98 behoudt de aanraakbare geschiedenis en Aquarea 1.8.0/SDK 1.4.0 maar mist de compacte periodeweergave en bronvolgordecorrectie; geen opslagmigratie of terugvullen van onbekende historie.
+Actueel: volg `docs/BETA100_INSTELLEN.md`. Vervang integratiecode met behoud van entry, opslag en userfiles. Rollback naar beta.99 behoudt alle geschiedenis-, bronrechten- en Aquarea-bronverwerkingsfuncties, maar brengt de volledige SG-/Panasonic-overzichtsaanroepen in deze drie getters terug. Er is geen opslagmigratie, timerreset of terugvullen van onbekende historie.
 
 Voor beta.94: volg `docs/BETA94_INSTELLEN.md`, behoud entry/opslag/userfiles, herstart HA volledig. Beta.93 bewaarde geen UIT-tijd: de eerste upgrade kan eenmaal volledige rust vragen, daarna blijft de bevestigde tijd over herstarts behouden. Een onbekende bron of opdracht mag niet worden vrijgegeven door een verstreken checkpoint. Rollback naar beta.93 kan de timerreset opnieuw veroorzaken. Onderstaande uitgebreide beta.91-aanwijzingen blijven achtergrond.
 
-Volledige privé HA-back-up vóór update, inclusief instellingen, eigen opslag, PV-factoren, modellen, tickets, bestaande geschiedenis en userfiles. Geef een eigen SG-aanvraag vrij vóór codevervanging; onderbreek geen beschermde cyclus. Update via HACS naar exact beta.99 na geslaagde releasegates en publicatie, volledige HA-herstart en volledige browser/app-herlading. Controleer backend-/kaartversie apart. Lokaal uitsluitend `custom_components/solar_pilot` vervangen met behoud van userfiles en opslag; entry niet verwijderen/hermaken. Bestaande geldige SG-/profiel-/split-/koelbevestigingen blijven staan; nieuwe wijzigingen houden hun bestaande voorwaarden. Geen nieuwe verplichte entiteiten, handmatig geïnstalleerde dependency, reset of leervragen.
+Volledige privé HA-back-up vóór update, inclusief instellingen, eigen opslag, PV-factoren, modellen, tickets, bestaande geschiedenis en userfiles. Geef een eigen SG-aanvraag vrij vóór codevervanging; onderbreek geen beschermde cyclus. Update via HACS naar exact beta.100 na geslaagde releasegates en publicatie, volledige HA-herstart en volledige browser/app-herlading. Controleer backend-/kaartversie apart. Lokaal uitsluitend `custom_components/solar_pilot` vervangen met behoud van userfiles en opslag; entry niet verwijderen/hermaken. Bestaande geldige SG-/profiel-/split-/koelbevestigingen blijven staan; nieuwe wijzigingen houden hun bestaande voorwaarden. Geen nieuwe verplichte entiteiten, handmatig geïnstalleerde dependency, reset of leervragen.
 
 Controleer eerst de AEG-aanvraag met haar oorspronkelijke geplande dag/deadline, concrete uitvoeringsreden, verbruikte context bij native bedrijf en gerichte meldingverwijdering. Controleer daarnaast PV-diagnose voor 15:00–18:00, lokale factor-/bewijsdagen, Planning, Automatisch onderzoek en bestaande historie/dekking/SG-lagen. Alleen bestaande ingeschakelde kalibratie mag leren; uitgeschakelde functies en expliciete waarden blijven staan. De volledige gecorrigeerde curve gaat naar de bestaande plannerhorizon. Gezamenlijke planning, batterijadvies en executorbeveiliging blijven behouden. De importbuffer 600 W/300 s, zonne-resetgrens 300 W en minimum 20 min/maximum blijven staan. Alle net-/fase-/vermogensgrenzen blijven ongewijzigd. De globale `max_import_w` blijft de bestaande softwarematige totale netafnamegrens, default 3500 W met behoud van expliciete gebruikerswaarden; dit is geen fysieke beveiliging of SG-startdrempel. Native percentages/koelwaarden blijven staan; SolarPilot schrijft ze niet.
 
 Rollback naar beta.90: geef de eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk en controleer contact/lokale afloop. Bewaar een actuele volledige privéback-up, stop beta.91 en herstel gecontroleerde beta.90-code met behoud van entry, opslag en userfiles. De toestelherstelroute, restzonverdeling en Wallbox-voorkeuren blijven ondersteund; de nieuwe Aquarea-, bewijs- en number-herstelverbeteringen vervallen. Oudere code kan nieuwe bewijsuitbreidingen niet tonen of bij nieuwe opslag behouden; exact herstel vraagt passende code én volledige privéback-up. Geen tweede START, blinde retry, oude ON-replay, twee runtimes tegelijk of entryverwijdering. Zie `docs/BETA91_INSTELLEN.md`.
 
 ## 13. Belangrijkste bestanden
+
+- `select.py`, `sg_boost.py`: gerichte lichte projectie voor SG-handmatige keuze; geen wijziging aan de actie- of controllerroute. `docs/TESTRESULTATEN_BETA100.md` legt het actuele bewijs vast.
 
 - `minimum_rest.py`, `runtime.py`: privé UIT-tijdcheckpoint met toestel-/bronbinding, herstarttijd en oorspronkelijke deadline; uitsluitend rusttijdherstel na passende huidige UIT-controle.
 
@@ -391,6 +401,8 @@ Rollback naar beta.90: geef de eigen SG-aanvraag veilig vrij waar betrouwbaar mo
 9. Scheid releasecontrole, geladen HA/backend/kaart en fysieke AEG-/Shelly-/Panasonicproef. Een echte deadline-/apparaatproef is afzonderlijk bewijs; herarm daarvoor nooit een onzekere of verbruikte aanvraag.
 
 ## 15. AI-handoff
+
+Beta.100: houd de prestatiecorrectie beperkt tot `SGManualControl` en de lichte bestaande handmatige projectie. De availability-getter gebruikt `configured`; stand/duur/afloop gebruiken `manual_control_overview()`. Geen volledige SG-/Panasonic-/contactlezing bij deze getters, geen cache met beslisinvoer en geen wijziging aan actuele actiecontroles. Bewijs oorspronkelijke deadline, tijdverloop/afloop, ongeldige keuzes, detach/unload en nul fysieke acties met fictieve fixtures. Bewaar beta.99-geschiedenis, bron-ACL en bronvolgordecorrectie. Rapporteer bronvalidatie, publicatie en live installatie afzonderlijk; tel oude suites niet als nieuw testbewijs.
 
 Beta.96: deze correcties begonnen als lokale onderhoudspatch. Laat generieke SolarPilot-code voortaan in dezelfde werkronde via een eigen GitHub-branch, versie, overdracht, regressies, alle vijf gates en de bestaande publicatiejob lopen. Geef expliciet aan wanneer iets uitsluitend lokaal of nog ongepubliceerd is. Home Assistant-mappen synchroniseren niet automatisch naar GitHub; upload geen privéconfiguratie of logs om dit proces te omzeilen. GitHub maakt alleen na geslaagde gates op `main` de nieuwe tag en vier gecontroleerde assets. Bron, gepubliceerde release en daadwerkelijk geïnstalleerde HA-versie blijven afzonderlijk bewijs. Houd presentatiecache buiten regelbesluiten en laat SG-contacttijden rechtstreeks actueel.
 
