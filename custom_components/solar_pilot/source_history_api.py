@@ -20,6 +20,9 @@ COMMAND = "solar_pilot/source_history"
 _REGISTERED = f"{DOMAIN}_source_history_api"
 _ENTITY = re.compile(r"^[a-z_]+\.[a-z0-9_]+$")
 _ROLES = {
+    "water": (("volume_entity", "Totale watermeterstand"),
+              ("flow_entity", "Gemelde waterstroom"),
+              ("leak_entity", "Gemelde lekdetectie")),
     "heatpump": (("tank_temperature_entity", "Boilertemperatuur"),
                  ("tank_target_entity", "Ingesteld boilerdoel")),
     "consumer": (
@@ -48,7 +51,7 @@ def _runtime(hass, entry_id):
     if state is not None and getattr(state, "value", state) != "loaded":
         return None
     runtime = getattr(entry, "runtime_data", None)
-    if (runtime is None or getattr(runtime, "_closed", True)
+    if (runtime is None or getattr(runtime, "_closed", True) is not False
             or getattr(runtime, "entry", None) is not entry
             or getattr(entry, "entry_id", None) != entry_id):
         return None
@@ -96,7 +99,9 @@ def _heatpump_sources(runtime, source):
 def _configured_sources(runtime, kind, item_id, source=None):
     """Exact subject and closed roles; never discover through retained ACLs."""
     archived = False
-    if kind == "heatpump":
+    if kind == "water":
+        config = getattr(getattr(runtime, "water", None), "settings", None)
+    elif kind == "heatpump":
         config = _heatpump_sources(runtime, source)
     elif kind == "consumer":
         active = getattr(runtime, "configs", {})
@@ -114,7 +119,8 @@ def _configured_sources(runtime, kind, item_id, source=None):
         config = getattr(runtime, "wallbox_settings", None)
     if not isinstance(config, Mapping):
         return None
-    fallback = {"consumer": "Toestel", "battery": "Batterij", "wallbox": "Wallbox", "heatpump": "Warmtepomp"}[kind]
+    fallback = {"consumer": "Toestel", "battery": "Batterij", "wallbox": "Wallbox",
+                "heatpump": "Warmtepomp", "water": "Watermeter"}[kind]
     name = config.get("name")
     name = name[:120] if isinstance(name, str) and name else fallback
     rows, seen = [], set()
@@ -122,6 +128,8 @@ def _configured_sources(runtime, kind, item_id, source=None):
         entity = config.get(role)
         if (not isinstance(entity, str) or len(entity) > 256
                 or not _ENTITY.fullmatch(entity) or kind != "heatpump" and entity in seen):
+            continue
+        if kind == "water" and not entity.startswith("binary_sensor." if role == "leak_entity" else "sensor."):
             continue
         seen.add(entity)
         rows.append((role, label, entity))
@@ -147,7 +155,7 @@ def websocket_source_history(hass, connection, msg):
             or msg.get("type") != COMMAND
             or type(msg.get("config_entry_id")) is not str or not 0 < len(msg["config_entry_id"]) <= 200
             or type(msg.get("kind")) is not str or msg["kind"] not in _ROLES
-            or (msg["kind"] in ("wallbox", "heatpump") and "item_id" in msg)
+            or (msg["kind"] in ("wallbox", "heatpump", "water") and "item_id" in msg)
             or (msg["kind"] in ("consumer", "battery") and (type(msg.get("item_id")) is not str
                 or not 0 < len(msg["item_id"]) <= 200))
             or (msg["kind"] == "heatpump" and (type(msg.get("source")) is not str

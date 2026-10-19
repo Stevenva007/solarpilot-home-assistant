@@ -1,8 +1,8 @@
 # Openbaar upstream-bronregister
 
-Laatst gecontroleerd: **18 oktober 2026 om 23:31:17 UTC**. Dit register beschrijft openbare broncontracten die voor SolarPilot relevant zijn. Een upstream-release is geen bewijs dat die versie lokaal is geïnstalleerd; een open pull request is geen gepubliceerde correctie. Gegevens uit privé-installaties, exports en automatiseringsidentiteiten horen niet in dit register.
+Laatst gecontroleerd: **19 oktober 2026 om 18:30:51 UTC**. Dit register beschrijft openbare broncontracten die voor SolarPilot relevant zijn. Een upstream-release is geen bewijs dat die versie lokaal is geïnstalleerd; een open pull request is geen gepubliceerde correctie. Gegevens uit privé-installaties, exports en automatiseringsidentiteiten horen niet in dit register.
 
-Actueel: Aquarea **1.8.0** en SDK **1.4.0** zijn inhoudelijk verwerkt in beta.98 en bij de broncontroles voor beta.99 en beta.100 ongewijzigd bevestigd. SDK PR12 is op 18 oktober 2026 gesloten zonder merge; de relevante statuscorrectie is via PR16 gepubliceerd. Onderstaande oudere bronpins en releasebeoordelingen behouden hun historische betekenis.
+Actueel: Aquarea **1.8.0** en SDK **1.4.0** zijn inhoudelijk verwerkt in beta.98 en bij de broncontroles tot en met beta.101 ongewijzigd bevestigd. SDK PR12 is op 18 oktober 2026 gesloten zonder merge; de relevante statuscorrectie is via PR16 gepubliceerd. Onderstaande oudere bronpins en releasebeoordelingen behouden hun historische betekenis.
 
 ## Gepinde bronnen
 
@@ -125,3 +125,9 @@ Om **23:31:17 UTC** zijn via de GitHubconnector de acht officiële API-bronnen o
 | [SDK main](https://api.github.com/repos/wpatrik14/aioaquarea/branches/main) | `893065a81c014cb9aa1d3350446d61c01bccf3b9`; [tagreferentie](https://api.github.com/repos/wpatrik14/aioaquarea/git/ref/tags/v1.4.0) | [v1.4.0](https://github.com/wpatrik14/aioaquarea/releases/tag/v1.4.0), gepubliceerd 18 oktober 2026 om 13:41:20 UTC |
 
 Alle checkpointvelden komen exact overeen met beta.99; er zijn geen nieuwe upstreamverschillen sinds de inhoudelijke verwerking in beta.98. Daarom blijven `reviewed_base_commit = head_commit`, `review_result = no_additional_changes` en `compatibility_claim = false` behouden. De afzonderlijke statuscontracten, LIVE/CACHED-controle, bronbinding en oorspronkelijke historische betekenis worden niet aangepast. Dit bronbewijs bevestigt de actualiteit van de beoordeelde publieke bronnen; het certificeert geen lokaal geladen provider, runtimecompatibiliteit of fysieke installatie. De publicatiegate controleert de upstreamstand opnieuw vóór een release.
+
+## Broncontrole voor beta.101 — 19 oktober 2026
+
+Om **18:30:51 UTC** zijn de acht officiële GitHub-records opnieuw vergeleken met het beta.100-checkpoint: repositorymetadata, actuele defaultbranch-HEAD, nieuwste gepubliceerde stabiele release en opgeloste releasetag van beide bronnen. Aquarea blijft **v1.8.0**, met `main` en tag op `8722cf22e5a5752406aea1ba79b2cf48d4deedf3`; de SDK blijft **v1.4.0**, met `main` en tag op `893065a81c014cb9aa1d3350446d61c01bccf3b9`. Beide publicatietijden, publieke repository-identiteiten, `main`-defaultbranches en stabiele releasestatus komen exact overeen. Er zijn geen aanvullende upstreamverschillen te verwerken; beide records behouden `reviewed_base_commit = head_commit` en `review_result = no_additional_changes`.
+
+De bestaande Aquarea-statuscontracten, LIVE/CACHED-controle, oorspronkelijke tijden en actuatorgrenzen blijven behouden. De aanvullende uitsluitend uitlezende waterfunctie gebruikt bestaande gekozen HA-bronnen. De generieke officiële onderbouwing voor meterstand, debiet, lekindicatie en MQTT-actualiteit staat in [Waterbronnen beta.101](https://github.com/Stevenva007/solarpilot-home-assistant/blob/main/docs/WATER_BRONNEN_BETA101.md). Bronlabels of nominale publicatiecadans bewijzen geen oorspronkelijke fysieke meettijd en een lekindicatie is geen opdracht voor een waterklep. Dit brononderzoek bevat geen privébronidentiteiten en certificeert geen lokale installatie. De publicatiegate vergelijkt het checkpoint opnieuw vóór publicatie.

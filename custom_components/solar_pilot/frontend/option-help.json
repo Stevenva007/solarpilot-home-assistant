@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.100",
+  "version": "1.0.0-beta.101",
   "language": "nl",
   "steps": {
     "init": {
@@ -11,6 +11,7 @@
         "loads_hub": "Toestellen",
         "comfort_hub": "Warmtepomp — Panasonic-regeling",
         "storage_hub": "Auto & batterij",
+        "water": "Watermeter",
         "intelligence_hub": "Voorspellen & leren",
         "advanced_hub": "Instellingen & systeem"
       }
@@ -366,6 +367,30 @@
         "recovery_delta": "Benodigde stijging van het correctieprofiel om herstel na schaduw te herkennen.",
         "horizon_min": "Aantal minuten dat het lokale zonne-/schaduwmodel vooruit projecteert.",
         "projection_step_min": "Tijdstap van de zonneprojectie, in minuten."
+      }
+    },
+    "water": {
+      "title": "Watermeter",
+      "description": "Koppel zelf de bestaande waterbronnen. SolarPilot leest de meterstand, het actuele debiet en een optioneel leksignaal. Ontbrekende metingen blijven onbekend; SolarPilot bedient geen waterkraan of ander toestel.",
+      "data": {
+        "enabled": "Watermonitor inschakelen",
+        "volume_entity": "Cumulatieve watermeterstand",
+        "flow_entity": "Actueel waterdebiet",
+        "leak_entity": "Bestaand waterleksignaal",
+        "source_stale_s": "Maximale ouderdom bronrapport (s)",
+        "continuous_flow_l_min": "Drempel voor aanhoudend debiet (L/min)",
+        "continuous_flow_minutes": "Duur aanhoudend debiet (minuten)",
+        "notifications": "Waterwaarschuwingen in Home Assistant"
+      },
+      "data_description": {
+        "enabled": "Activeert uitsluitend het uitlezen en lokaal bijhouden van de bewust gekozen waterbronnen.",
+        "volume_entity": "Kies de cumulatieve watermeterstand van de bestaande meter, met passende volume-eenheid en tellerkenmerken.",
+        "flow_entity": "Kies het werkelijk gemeten actuele waterdebiet van de bedoelde meter, met een ondersteunde volume-per-tijd-eenheid.",
+        "leak_entity": "Kies een bestaande waterleksensor met de passende binaire bronbetekenis.",
+        "source_stale_s": "Maximale ouderdom van een werkelijk ontvangen waterbronrapport, in seconden.",
+        "continuous_flow_l_min": "Ondergrens voor het apart signaleren van aanhoudend gemeten waterdebiet, in liter per minuut.",
+        "continuous_flow_minutes": "Zolang moet het actuele gemeten debiet onafgebroken boven de ingestelde drempel blijven voordat SolarPilot aanhoudend watergebruik signaleert.",
+        "notifications": "Sta de afzonderlijke blijvende Home Assistant-waarschuwing voor een actueel gemeld mogelijk waterlek of voldoende bewezen aanhoudend watergebruik toe."
       }
     },
     "battery_analysis": {
@@ -1128,7 +1153,12 @@
     "sg_frequency_unit": "Kies een werkelijke compressorfrequentiebron in Hz.",
     "sg_status_source": "Kies een onafhankelijke bron voor werkelijk ontvangen SG, geen relaisstand of programma-/klepstand.",
     "sg_supply_role_review": "De deelmeter is gewijzigd. Kies de functie van de nieuwe voeding opnieuw na controle; de eerdere functie geldt voor de oude meter.",
-    "sg_target_binding": "Selecteer het exacte native water_heater- of climate-tankdoel met geregistreerde apparaatidentiteit voordat je het tapwaterpercentage bevestigt."
+    "sg_target_binding": "Selecteer het exacte native water_heater- of climate-tankdoel met geregistreerde apparaatidentiteit voordat je het tapwaterpercentage bevestigt.",
+    "invalid_water_setting": "Ongeldige waterinstelling: controleer type, bronkeuze en bereik.",
+    "water_source_required": "Kies minstens één bestaande waterbron voordat je de watermonitor inschakelt.",
+    "water_volume_source": "Kies een cumulatieve volumesensor met passende volume-eenheid en tellerkenmerken, geen debiet of elektriciteitsmeter.",
+    "water_flow_source": "Kies een actuele debietsensor met een ondersteunde volume-per-tijd-eenheid, geen cumulatieve meterstand.",
+    "water_leak_source": "Kies een bestaande binary_sensor voor waterlekkage met apparaatklasse moisture."
   },
   "abort": {
     "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",
@@ -2254,6 +2284,78 @@
       "paragraphs": [
         "Tijdstap van de zonneprojectie, in minuten. Kleinere stappen geven meer rekenpunten, niet noodzakelijk nauwkeurigere onderliggende voorspellingen.",
         "Forecast en leren zijn onzeker en geven nooit toestemming om actuele P1/PV, comfort of toestelbeveiligingen te negeren.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "water.enabled": {
+      "title": "Watermonitor inschakelen",
+      "short": "Activeert uitsluitend het uitlezen en lokaal bijhouden van de bewust gekozen waterbronnen.",
+      "paragraphs": [
+        "Activeert uitsluitend het uitlezen en lokaal bijhouden van de bewust gekozen waterbronnen. Minstens één waterbron is nodig. UIT beëindigt de actuele meetcontext zonder opgeslagen historie te wissen; opnieuw inschakelen vraagt nieuwe actuele metingen. SolarPilot opent of sluit geen waterkraan en verandert de energie- of toestelregeling niet.",
+        "De watermonitor leest uitsluitend de geselecteerde bronnen. Meterstanden, debiet en leksignalen behouden hun eigen betekenis en meetdekking. Historische perioden worden niet met actuele waarden aangevuld.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "water.volume_entity": {
+      "title": "Cumulatieve watermeterstand",
+      "short": "Kies de cumulatieve watermeterstand van de bestaande meter, met passende volume-eenheid en tellerkenmerken.",
+      "paragraphs": [
+        "Kies de cumulatieve watermeterstand van de bestaande meter, met passende volume-eenheid en tellerkenmerken. SolarPilot gebruikt alleen bevestigde verschillen tussen passende metingen. Een tellerreset, nieuwe bron of meetonderbreking krijgt een nieuwe baseline; ontbrekende liters worden niet geschat of uit actueel debiet aangevuld. De eerste meting is een beginpunt en geen dagverbruik.",
+        "De watermonitor leest uitsluitend de geselecteerde bronnen. Meterstanden, debiet en leksignalen behouden hun eigen betekenis en meetdekking. Historische perioden worden niet met actuele waarden aangevuld.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "water.flow_entity": {
+      "title": "Actueel waterdebiet",
+      "short": "Kies het werkelijk gemeten actuele waterdebiet van de bedoelde meter, met een ondersteunde volume-per-tijd-eenheid.",
+      "paragraphs": [
+        "Kies het werkelijk gemeten actuele waterdebiet van de bedoelde meter, met een ondersteunde volume-per-tijd-eenheid. SolarPilot rekent de waarde om naar liter per minuut. Een verse gemeten nul is geldig; een ontbrekend, oud of ongeldig rapport wordt geen nul. Het debiet wordt niet opgeteld bij de cumulatieve watermeterstand en vormt geen bewijs van een specifieke kraan of gebruiker.",
+        "De watermonitor leest uitsluitend de geselecteerde bronnen. Meterstanden, debiet en leksignalen behouden hun eigen betekenis en meetdekking. Historische perioden worden niet met actuele waarden aangevuld.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "water.leak_entity": {
+      "title": "Bestaand waterleksignaal",
+      "short": "Kies een bestaande waterleksensor met de passende binaire bronbetekenis.",
+      "paragraphs": [
+        "Kies een bestaande waterleksensor met de passende binaire bronbetekenis. Een actueel AAN-signaal betekent dat de bron een mogelijk lek meldt; UIT is alleen de gemelde toestand van die bron. Onbekend of onbeschikbaar wordt niet als droog bevestigd. SolarPilot maakt geen fysiek lekbewijs uit een hoge watermeterstand en geeft nooit een afsluitopdracht.",
+        "De watermonitor leest uitsluitend de geselecteerde bronnen. Meterstanden, debiet en leksignalen behouden hun eigen betekenis en meetdekking. Historische perioden worden niet met actuele waarden aangevuld.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "water.source_stale_s": {
+      "title": "Maximale ouderdom bronrapport (s)",
+      "short": "Maximale ouderdom van een werkelijk ontvangen waterbronrapport, in seconden.",
+      "paragraphs": [
+        "Maximale ouderdom van een werkelijk ontvangen waterbronrapport, in seconden. Een betrouwbare nieuwe ontvangst kan ook een ongewijzigde waarde actueel houden; alleen het veranderen van de waarde is niet vereist. Oudere, herstelde of ongeldige waarnemingen blijven onbekend en onderbreken het bewijs voor doorlopend watergebruik. Dit versnelt de bron zelf niet.",
+        "De watermonitor leest uitsluitend de geselecteerde bronnen. Meterstanden, debiet en leksignalen behouden hun eigen betekenis en meetdekking. Historische perioden worden niet met actuele waarden aangevuld.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "water.continuous_flow_l_min": {
+      "title": "Drempel voor aanhoudend debiet (L/min)",
+      "short": "Ondergrens voor het apart signaleren van aanhoudend gemeten waterdebiet, in liter per minuut.",
+      "paragraphs": [
+        "Ondergrens voor het apart signaleren van aanhoudend gemeten waterdebiet, in liter per minuut. Alleen actuele geldige debietrapporten boven deze drempel tellen mee. Lager ziet kleinere aanhoudende stromen maar kan ook normaal verbruik aanduiden; hoger mist kleinere stromen. Het signaal zegt aanhoudend watergebruik en stelt de oorzaak of een fysiek lek niet vast.",
+        "De watermonitor leest uitsluitend de geselecteerde bronnen. Meterstanden, debiet en leksignalen behouden hun eigen betekenis en meetdekking. Historische perioden worden niet met actuele waarden aangevuld.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "water.continuous_flow_minutes": {
+      "title": "Duur aanhoudend debiet (minuten)",
+      "short": "Zolang moet het actuele gemeten debiet onafgebroken boven de ingestelde drempel blijven voordat SolarPilot aanhoudend watergebruik signaleert.",
+      "paragraphs": [
+        "Zolang moet het actuele gemeten debiet onafgebroken boven de ingestelde drempel blijven voordat SolarPilot aanhoudend watergebruik signaleert. Ontbrekende of oude rapporten, een bronwissel en een onderbreking geven geen doorlopende bevestiging. Een lagere waarde reageert eerder; een hogere waarde wacht langer. Een herstart of opgeslagen periode verleent geen nieuw actueel bewijs.",
+        "De watermonitor leest uitsluitend de geselecteerde bronnen. Meterstanden, debiet en leksignalen behouden hun eigen betekenis en meetdekking. Historische perioden worden niet met actuele waarden aangevuld.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "water.notifications": {
+      "title": "Waterwaarschuwingen in Home Assistant",
+      "short": "Sta de afzonderlijke blijvende Home Assistant-waarschuwing voor een actueel gemeld mogelijk waterlek of voldoende bewezen aanhoudend watergebruik toe.",
+      "paragraphs": [
+        "Sta de afzonderlijke blijvende Home Assistant-waarschuwing voor een actueel gemeld mogelijk waterlek of voldoende bewezen aanhoudend watergebruik toe. Dit geldt alleen zolang de watermonitor is ingeschakeld. Uitschakelen trekt deze toestemming in zonder historie te wissen. Deze optie verstuurt geen mobiele melding en bedient geen afsluiter; ontbrekende brondata krijgt geen bevestiging dat er geen lek is.",
+        "De watermonitor leest uitsluitend de geselecteerde bronnen. Meterstanden, debiet en leksignalen behouden hun eigen betekenis en meetdekking. Historische perioden worden niet met actuele waarden aangevuld.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },

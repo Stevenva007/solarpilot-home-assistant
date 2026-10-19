@@ -79,6 +79,16 @@ async def verify_analysis_feedback(hass, runtime, entry):
     assert abs(sum(row["window_overlap_s"] for row in heatpump["days"])-168*3600) < 1e-5
     assert heatpump["aggregate_scope"] == "full_local_calendar_day"
     assert "access_sources" not in heatpump and "binding" not in heatpump
+    water = exported["components"]["water_history"]
+    assert water["schema"] == 1 and water["read_only"] is True
+    assert water["requested_hours"] == 168 and water["retention_days"] == 30
+    assert water["window_end"] == exported["created_at"]
+    assert datetime.fromisoformat(water["window_start"]).timestamp() == cutoff
+    assert water["aggregate_scope"] == "full_local_calendar_day"
+    assert water["timezone"] == runtime.water.model.timezone_name
+    assert "water" in exported["components"]
+    assert "access_sources" not in water and "configured_sources" not in water
+    assert "sensor.synthetic_water" not in json.dumps(exported["components"]["water_history"])
     assert exported["analysis_request"]["schema"] == "solarpilot.analysis_request"
     assert exported["export_provenance"]["export_sha256"] == export_digest(exported)
     source = {key: exported["export_provenance"][key] for key in SOURCE_FIELDS}
@@ -273,6 +283,137 @@ async def verify_source_history(hass, runtime, entry, commands):
     assert invalid_tank.errors == ["invalid_format"] and not invalid_tank.results
     assert (dict(entry.options), runtime.sg_boost.snapshot()) == baseline
     return {"handler": handler, "message": schema(message), "connection": admin}
+
+
+async def verify_water_history(hass, runtime, entry, commands):
+    """Real Core schemas, source READ policies and synthetic water heartbeats."""
+    from homeassistant.auth.const import GROUP_ID_ADMIN, GROUP_ID_USER
+    from homeassistant.auth.models import Group
+    from homeassistant.auth.permissions.const import POLICY_READ
+    from homeassistant.components import websocket_api
+    from custom_components.solar_pilot import source_history_api, water_api
+
+    class Connection:
+        def __init__(self, user):
+            self.user, self.results, self.errors = user, [], []
+
+        def send_result(self, message_id, result):
+            self.results.append(result)
+
+        def send_error(self, message_id, code, message):
+            self.errors.append(code)
+
+    assert len(commands) == 1
+    handler, schema = hass.data[websocket_api.DOMAIN][water_api.COMMAND]
+    assert handler is commands[0] is water_api.websocket_water_history
+    recorder = runtime.water
+    assert recorder.loaded and not recorder._closed and recorder._writable
+    baseline = (deepcopy(dict(entry.options)), deepcopy(runtime.sg_boost.snapshot()))
+    # Only recorder-local synthetic configuration changes. Immutable entry
+    # options, production constructors and all actuator transports stay real.
+    settings = {**recorder.settings, "enabled": True, "notifications": False,
+                "volume_entity": "sensor.synthetic_water_total", "flow_entity": "sensor.synthetic_water_flow",
+                "leak_entity": "binary_sensor.synthetic_water_leak"}
+    recorder.update_config(settings)
+    hass.states.async_set(settings["volume_entity"], "1000", {"unit_of_measurement": "L"})
+    hass.states.async_set(settings["flow_entity"], "0", {"unit_of_measurement": "L/min"})
+    hass.states.async_set(settings["leak_entity"], "off", {"device_class": "moisture"})
+    hass.states.async_set("sensor.synthetic_water_context", "1", {"unit_of_measurement": "W"})
+    now = recorder.now()
+    recorder.observe(now, context_sources={"sensor.synthetic_water_context"})
+    detail = recorder.detail()
+    assert detail["schema"] == 1 and detail["read_only"] is True and detail["points"]
+    point = detail["points"][-1]
+    assert point["volume"]["value"] == 1000 and point["volume"]["unit"] == "L"
+    assert point["flow"]["value"] == 0 and point["flow"]["unit"] == "L/min"
+    assert point["native_leak"]["value"] is False
+    for role, entity in (("volume", settings["volume_entity"]), ("flow", settings["flow_entity"]),
+                         ("native_leak", settings["leak_entity"])):
+        assert point[role]["fresh"] is True
+        assert point[role]["reported_at"] == hass.states.get(entity).last_reported.timestamp()
+    assert recorder.access_sources_complete is True
+    administrator = await hass.auth.async_create_user("Synthetic water administrator", group_ids=[GROUP_ID_ADMIN])
+    reader = await hass.auth.async_create_user("Synthetic water reader", group_ids=[GROUP_ID_USER])
+    sources = recorder.configured_sources() | recorder.access_sources
+
+    def policy(entities):
+        reader.groups = [Group(name="Synthetic water READ", policy={"entities": {
+            "entity_ids": {entity: {"read": True} for entity in entities}}})]
+
+    message = schema({"id": 101, "type": water_api.COMMAND, "config_entry_id": entry.entry_id})
+    policy(sources)
+    assert all(reader.permissions.check_entity(entity, POLICY_READ) for entity in sources)
+    revision = recorder.model.revision
+    for user in (administrator, reader):
+        connection = Connection(user)
+        handler(hass, connection, message)
+        assert not connection.errors and len(connection.results) == 1
+        assert connection.results[0]["date"] == detail["date"]
+    assert recorder.model.revision == revision
+    for user in (None,):
+        denied = Connection(user)
+        handler(hass, denied, message)
+        assert denied.errors == ["unauthorized"] and not denied.results
+    policy(sources - {"sensor.synthetic_water_context"})
+    denied = Connection(reader)
+    handler(hass, denied, message)
+    assert denied.errors == ["unauthorized"] and not denied.results
+    for extra in ({"entity_id": settings["volume_entity"]}, {"item_id": "arbitrary"}, {"date": True}):
+        try:
+            schema({**message, **extra})
+        except water_api.vol.Invalid:
+            pass
+        else:
+            raise AssertionError("Core water-history schema accepted a malformed query")
+    bad_date = Connection(administrator)
+    handler(hass, bad_date, schema({**message, "date": "2026-02-30"}))
+    assert bad_date.errors == ["invalid_date"] and not bad_date.results
+    invalid = Connection(administrator)
+    handler(hass, invalid, {**message, "source": "arbitrary"})
+    assert invalid.errors == ["invalid_format"] and not invalid.results
+    # Rebinding keeps earlier source READ requirements. Neither current-only
+    # permission nor a current source catalogue exposes retained provenance.
+    rebound = "sensor.synthetic_water_rebound"
+    hass.states.async_set(rebound, "2000", {"unit_of_measurement": "L"})
+    recorder.update_config({**settings, "volume_entity": rebound})
+    recorder.observe(recorder.now(), context_sources={"sensor.synthetic_water_context"})
+    assert settings["volume_entity"] in recorder.access_sources
+    assert rebound in recorder.configured_sources()
+    policy((recorder.configured_sources() | recorder.access_sources) - {settings["volume_entity"]})
+    denied = Connection(reader)
+    handler(hass, denied, message)
+    assert denied.errors == ["unauthorized"] and not denied.results
+    policy(recorder.configured_sources() | recorder.access_sources)
+    allowed = Connection(reader)
+    handler(hass, allowed, message)
+    assert not allowed.errors and len(allowed.results) == 1
+    recorder.access_sources_complete = False
+    denied, admin = Connection(reader), Connection(administrator)
+    handler(hass, denied, message)
+    handler(hass, admin, message)
+    assert denied.errors == ["unauthorized"] and not denied.results
+    assert not admin.errors and len(admin.results) == 1
+    recorder.access_sources_complete = True
+    source_handler, source_schema = hass.data[websocket_api.DOMAIN][source_history_api.COMMAND]
+    source_message = source_schema({"id": 102, "type": source_history_api.COMMAND,
+                                   "config_entry_id": entry.entry_id, "kind": "water"})
+    links = Connection(administrator)
+    source_handler(hass, links, source_message)
+    assert not links.errors and {row["entity_id"] for row in links.results[0]["sources"]} == {
+        rebound, settings["flow_entity"], settings["leak_entity"]}
+    assert "access_sources" not in links.results[0] and "points" not in links.results[0]
+    assert settings["volume_entity"] not in json.dumps(links.results[0])
+    assert "sensor.synthetic_water_context" not in json.dumps(links.results[0])
+    for extra in ({"item_id": "water"}, {"source": "volume_entity"}):
+        invalid = Connection(administrator)
+        source_handler(hass, invalid, {**source_message, **extra})
+        assert invalid.errors == ["invalid_format"] and not invalid.results
+    await runtime.platforms.refresh()
+    await hass.async_block_till_done()
+    assert (dict(entry.options), runtime.sg_boost.snapshot()) == baseline
+    return {"handler": handler, "message": message, "connection": Connection(administrator),
+            "points": deepcopy(recorder.model.snapshot()["points"]),
+            "access_sources": set(recorder.access_sources)}
 
 
 def assert_heatpump_checkpoint(data, baseline, *, restored=None):
@@ -639,7 +780,7 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                 physical_calls.append(dict(event.data))
 
         remove_watch = hass.bus.async_listen("call_service", watch)
-        history_commands, source_commands = [], []
+        history_commands, source_commands, water_commands = [], [], []
         register_command = websocket_api.async_register_command
 
         def observe_registration(hass, handler, *args, **kwargs):
@@ -648,6 +789,8 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                 history_commands.append(handler)
             if getattr(handler, "__name__", "") == "websocket_source_history":
                 source_commands.append(handler)
+            if getattr(handler, "__name__", "") == "websocket_water_history":
+                water_commands.append(handler)
             return result
         evidence = FailureEvidence()
         logging.getLogger().addHandler(evidence)
@@ -887,12 +1030,25 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
             source_contract81 = await verify_source_contract(hass)
             heatpump_baseline = verify_heatpump_history(hass, runtime, entry, history_commands, metered=current_sg)
             source_history = await verify_source_history(hass, runtime, entry, source_commands)
+            water_history = await verify_water_history(hass, runtime, entry, water_commands)
             feedback_report = await verify_analysis_feedback(hass, runtime, entry)
             registry = er.async_get(hass)
             rows = er.async_entries_for_config_entry(registry, entry.entry_id)
             domains = {row.entity_id.split(".", 1)[0] for row in rows}
             assert domains == {"sensor", "binary_sensor", "select", "number", "button", "switch"}, domains
             assert all(hass.states.get(row.entity_id) is not None for row in rows)
+            water_entities = {suffix: next((row.entity_id for row in rows
+                if row.unique_id.endswith("_" + suffix)), None)
+                for suffix in ("water_status", "water_flow", "water_today", "water_leak_warning")}
+            assert all(water_entities.values()), water_entities
+            flow_state = hass.states.get(water_entities["water_flow"])
+            assert flow_state.attributes.get("device_class") == "volume_flow_rate"
+            assert flow_state.attributes.get("state_class") == "measurement"
+            assert flow_state.attributes.get("unit_of_measurement") == "L/min"
+            today_state = hass.states.get(water_entities["water_today"])
+            assert today_state.attributes.get("unit_of_measurement") == "L"
+            assert today_state.attributes.get("state_class") is None
+            assert water_entities["water_leak_warning"].startswith("binary_sensor.")
             manual_control84 = await verify_sg_manual_control(hass, runtime, entry)
             assert not physical_calls, physical_calls
             assert await hass.config_entries.async_reload(entry.entry_id)
@@ -901,6 +1057,7 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
             assert entry.runtime_data is not runtime
             assert runtime._closed
             assert runtime.heatpump_history._closed
+            assert runtime.water._closed
             # A retained native entity from the earlier entry epoch cannot
             # dispatch to its retired controller after a real Core reload.
             from homeassistant.exceptions import HomeAssistantError
@@ -918,6 +1075,20 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
             assert entry.runtime_data.heatpump_history is not runtime.heatpump_history
             assert len(history_commands) == 1
             assert len(source_commands) == 1
+            assert len(water_commands) == 1
+            water_restored = entry.runtime_data.water
+            assert water_restored is not runtime.water and water_restored.loaded
+            assert water_history["points"] == water_restored.model.snapshot()["points"][:len(water_history["points"])]
+            assert water_history["access_sources"] <= water_restored.access_sources
+            from custom_components.solar_pilot.water_runtime import water_storage_key
+            water_store = Store(hass, 1, water_storage_key(entry.entry_id))
+            water_saved = await water_store.async_load()
+            assert water_saved["version"] == 1 and water_saved["access_sources_complete"] is True
+            assert water_history["points"] == water_saved["history"]["points"][:len(water_history["points"])]
+            assert water_history["access_sources"] <= set(water_saved["access_sources"])
+            water_connection = water_history["connection"]
+            water_history["handler"](hass, water_connection, water_history["message"])
+            assert not water_connection.errors and len(water_connection.results) == 1
             source_connection = source_history["connection"]
             source_connection.results.clear()
             source_history["handler"](hass, source_connection, source_history["message"])
@@ -940,9 +1111,19 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
             assert not physical_calls, physical_calls
             before_unload = {"history": deepcopy(entry.runtime_data.heatpump_history.model.snapshot()),
                              "access_sources": set(entry.runtime_data.heatpump_history.access_sources)}
+            water_before_unload = deepcopy(entry.runtime_data.water.model.snapshot())
+            water_sources_before_unload = set(entry.runtime_data.water.access_sources)
             assert await hass.config_entries.async_unload(entry.entry_id)
             await hass.async_block_till_done()
             assert_heatpump_checkpoint(await heatpump_store.async_load(), before_unload)
+            water_saved = await water_store.async_load()
+            assert water_saved["history"]["points"] == water_before_unload["points"]
+            assert water_sources_before_unload <= set(water_saved["access_sources"])
+            assert water_restored._closed
+            assert getattr(entry, "runtime_data", None) is None
+            water_connection.results.clear()
+            water_history["handler"](hass, water_connection, water_history["message"])
+            assert water_connection.errors == ["not_loaded"] and not water_connection.results
             source_connection.results.clear()
             source_history["handler"](hass, source_connection, source_history["message"])
             assert source_connection.errors == ["not_loaded"] and not source_connection.results
@@ -967,9 +1148,24 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                 pass
             else:
                 raise AssertionError("Unloaded SolarPilot entry accepted an SG command")
+            # Removal clears only this entry's own advisory, including a notice
+            # retained after unload; unrelated HA notifications stay present.
+            from homeassistant.components import persistent_notification
+            from homeassistant.setup import async_setup_component
+            assert await async_setup_component(hass, "persistent_notification", {})
+            own_notice = f"solar_pilot_{entry.entry_id}_water_advisory"
+            unrelated_notice = "synthetic_unrelated_water_notice"
+            for notice in (own_notice, unrelated_notice):
+                await hass.services.async_call("persistent_notification", "create", {
+                    "notification_id": notice, "message": "Synthetic cleanup evidence"}, blocking=True)
+            assert own_notice in hass.data[persistent_notification.DOMAIN]
+            assert unrelated_notice in hass.data[persistent_notification.DOMAIN]
             await hass.config_entries.async_remove(entry.entry_id)
             await hass.async_block_till_done()
             assert hass.config_entries.async_get_entry(entry.entry_id) is None
+            assert await water_store.async_load() is None
+            assert own_notice not in hass.data[persistent_notification.DOMAIN]
+            assert unrelated_notice in hass.data[persistent_notification.DOMAIN]
             assert not hass.services.has_service(DOMAIN, SERVICE_SG_MANUAL_CONTROL)
             assert not evidence.failures, evidence.failures
             assert not physical_calls, physical_calls
@@ -980,6 +1176,8 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                     "analysis_export_feedback_admin_storage_reload_read_only": True,
                     "heatpump_history_registered_read_only_acl_store_reload_unload": True,
                     "source_history_registered_current_read_only_acl": True,
+                    "water_registered_read_only_acl_store_reload_unload": True,
+                    "water_owned_notice_removed_on_entry_removal": True,
                     "template_source_contract81": source_contract81,
                     "sg_manual_control84": {**manual_control84["proof"],
                         "retired_entity_and_unloaded_runtime_rejected": True,

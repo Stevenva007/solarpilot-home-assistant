@@ -49,6 +49,7 @@
           "loads_hub": "Toestellen",
           "comfort_hub": "Warmtepomp — Panasonic-regeling",
           "storage_hub": "Auto & batterij",
+          "water": "Watermeter",
           "intelligence_hub": "Voorspellen & leren",
           "advanced_hub": "Instellingen & systeem"
         }
@@ -404,6 +405,30 @@
           "recovery_delta": "Benodigde stijging van het correctieprofiel om herstel na schaduw te herkennen.",
           "horizon_min": "Aantal minuten dat het lokale zonne-/schaduwmodel vooruit projecteert.",
           "projection_step_min": "Tijdstap van de zonneprojectie, in minuten."
+        }
+      },
+      "water": {
+        "title": "Watermeter",
+        "description": "Koppel zelf de bestaande waterbronnen. SolarPilot leest de meterstand, het actuele debiet en een optioneel leksignaal. Ontbrekende metingen blijven onbekend; SolarPilot bedient geen waterkraan of ander toestel.",
+        "data": {
+          "enabled": "Watermonitor inschakelen",
+          "volume_entity": "Cumulatieve watermeterstand",
+          "flow_entity": "Actueel waterdebiet",
+          "leak_entity": "Bestaand waterleksignaal",
+          "source_stale_s": "Maximale ouderdom bronrapport (s)",
+          "continuous_flow_l_min": "Drempel voor aanhoudend debiet (L/min)",
+          "continuous_flow_minutes": "Duur aanhoudend debiet (minuten)",
+          "notifications": "Waterwaarschuwingen in Home Assistant"
+        },
+        "data_description": {
+          "enabled": "Activeert uitsluitend het uitlezen en lokaal bijhouden van de bewust gekozen waterbronnen.",
+          "volume_entity": "Kies de cumulatieve watermeterstand van de bestaande meter, met passende volume-eenheid en tellerkenmerken.",
+          "flow_entity": "Kies het werkelijk gemeten actuele waterdebiet van de bedoelde meter, met een ondersteunde volume-per-tijd-eenheid.",
+          "leak_entity": "Kies een bestaande waterleksensor met de passende binaire bronbetekenis.",
+          "source_stale_s": "Maximale ouderdom van een werkelijk ontvangen waterbronrapport, in seconden.",
+          "continuous_flow_l_min": "Ondergrens voor het apart signaleren van aanhoudend gemeten waterdebiet, in liter per minuut.",
+          "continuous_flow_minutes": "Zolang moet het actuele gemeten debiet onafgebroken boven de ingestelde drempel blijven voordat SolarPilot aanhoudend watergebruik signaleert.",
+          "notifications": "Sta de afzonderlijke blijvende Home Assistant-waarschuwing voor een actueel gemeld mogelijk waterlek of voldoende bewezen aanhoudend watergebruik toe."
         }
       },
       "battery_analysis": {
@@ -1166,7 +1191,12 @@
       "sg_frequency_unit": "Kies een werkelijke compressorfrequentiebron in Hz.",
       "sg_status_source": "Kies een onafhankelijke bron voor werkelijk ontvangen SG, geen relaisstand of programma-/klepstand.",
       "sg_supply_role_review": "De deelmeter is gewijzigd. Kies de functie van de nieuwe voeding opnieuw na controle; de eerdere functie geldt voor de oude meter.",
-      "sg_target_binding": "Selecteer het exacte native water_heater- of climate-tankdoel met geregistreerde apparaatidentiteit voordat je het tapwaterpercentage bevestigt."
+      "sg_target_binding": "Selecteer het exacte native water_heater- of climate-tankdoel met geregistreerde apparaatidentiteit voordat je het tapwaterpercentage bevestigt.",
+      "invalid_water_setting": "Ongeldige waterinstelling: controleer type, bronkeuze en bereik.",
+      "water_source_required": "Kies minstens één bestaande waterbron voordat je de watermonitor inschakelt.",
+      "water_volume_source": "Kies een cumulatieve volumesensor met passende volume-eenheid en tellerkenmerken, geen debiet of elektriciteitsmeter.",
+      "water_flow_source": "Kies een actuele debietsensor met een ondersteunde volume-per-tijd-eenheid, geen cumulatieve meterstand.",
+      "water_leak_source": "Kies een bestaande binary_sensor voor waterlekkage met apparaatklasse moisture."
     },
     "abort": {
       "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",

@@ -32,6 +32,9 @@ from .savings import SavingsHistory
 from .wallbox_activity import WallboxActivityHistory, classify_native_status
 from .consumer_history_runtime import ConsumerHistoryRecorder
 from .heatpump_history_runtime import HeatpumpHistoryRecorder, configured_history_sources, history_binding
+from .water_runtime import WaterRecorder
+from .water_context import capture_water_context
+from .water_notifications import WaterNotifications
 from .dishwasher_app import DishwasherApp
 from .dishwasher_priority import DishwasherPriority, enabled as dishwasher_has_priority
 from .dishwasher import DishwasherControl, read as read_dishwasher, normalize_config as normalize_dishwasher
@@ -130,6 +133,8 @@ class SolarRuntime:
         self.minimum_rest = MinimumRestJournal(self)
         self.consumer_history = ConsumerHistoryRecorder(hass, entry, {**keyed(entry.options.get(ARCHIVED)), **self.configs}, self.settings["interval_s"])
         self.heatpump_history = HeatpumpHistoryRecorder(hass, entry, self.settings["interval_s"])
+        self.water = WaterRecorder(hass, entry, entry.options.get("water", {}), self.settings["interval_s"])
+        self._water_panasonic_sample = None
         self.mode = "observe"
         self.auto_resume_after_restart = True
         self.pause_cause = ""
@@ -177,6 +182,7 @@ class SolarRuntime:
         self.analysis_feedback = AnalysisFeedbackStore(self)
         self.action_notifications = ActionRequiredNotifications(self)
         self.compatibility_notifications = CompatibilityNotifications(self)
+        self.water_notifications = WaterNotifications(self)
         self.learning_hub = LearningHub(self)
         self.live_options = LiveOptions(self)
         self.platforms = LivePlatforms(self)
@@ -462,6 +468,7 @@ class SolarRuntime:
             "learning_hub": self.learning_hub.snapshot(),
             "action_notifications": self.action_notifications.snapshot(),
             "compatibility_notifications": self.compatibility_notifications.snapshot(),
+            "water_notifications": self.water_notifications.snapshot(),
             "dishwasher": self.dishwasher.snapshot(),
             "dishwasher_app": self.dishwasher_app.snapshot(),
             "dishwasher_priority": self.dishwasher_priority.snapshot(),
@@ -521,6 +528,7 @@ class SolarRuntime:
         self.live_options.restore(data.get("live_options", {}))
         await self.consumer_history.start()
         await self.heatpump_history.start()
+        await self.water.start()
         await self.analysis.start()
         await self.analysis_feedback.start()
         self.dishwasher.restore(data.get("dishwasher", {}))
@@ -543,6 +551,7 @@ class SolarRuntime:
         self.learning_hub.restore(data.get("learning_hub", {}))
         self.action_notifications.restore(data.get("action_notifications", {}))
         self.compatibility_notifications.restore(data.get("compatibility_notifications", {}))
+        self.water_notifications.restore(data.get("water_notifications", {}))
         self.cycle_learning.restore(data.get("cycle_learning", {}))
         self.reclaim_blocks = {i: str(reason) for i, reason in data.get("reclaim_blocks", {}).items() if i in self.configs}
         self.priorities = {i: p for i, p in data.get("priorities", {}).items() if i in self.configs}
@@ -934,6 +943,7 @@ class SolarRuntime:
         # Independent optional telemetry cleanup must survive actuator/core
         # cleanup failures, and never flush a partly restored failed setup.
         await self.heatpump_history.close(persist=persist)
+        await self.water.close(persist=persist)
         self.dishwasher_app.close()
         self.panasonic.native_program.close()
         await self.sg_boost.close(persist=persist)
@@ -2455,10 +2465,33 @@ class SolarRuntime:
                 self.analysis.capture((perf_counter()-started)*1000)
             except Exception as err:
                 self.analysis.error = "Analysemeting onvolledig: " + type(err).__name__
+            self._water_panasonic_sample = None
             self._capture_heatpump_history()
+            self._capture_water_history()
             await self.action_notifications.sync()
             await self.compatibility_notifications.sync()
+            await self.water_notifications.sync()
             self.publish()
+
+    def _capture_water_history(self):
+        """Optional household telemetry never grants appliance authority."""
+        recorder = getattr(self, "water", None)
+        if recorder is None or not recorder.loaded or recorder._closed or not recorder.settings["enabled"]:
+            return
+        now = None
+        try:
+            now = recorder.now()
+            context, sources, binding = capture_water_context(
+                self, self._water_panasonic_sample, now=now.timestamp())
+            recorder.observe(now, context=context, context_sources=sources, context_binding=binding)
+        except Exception:
+            if not recorder.error:
+                _LOGGER.exception("SolarPilot waterregistratie overgeslagen; regeling blijft ongewijzigd")
+            recorder.error = "Waterregistratie onvolledig; eerdere opslag blijft behouden"
+            try:
+                recorder.model.interrupt("observation_failed", now)
+            except Exception:
+                _LOGGER.debug("SolarPilot watermeetgat kon niet worden gemarkeerd", exc_info=True)
 
     def _capture_heatpump_history(self):
         """One coherent read-only sample, independent of analysis or Auto mode."""
@@ -2468,6 +2501,7 @@ class SolarRuntime:
         captured = False
         try:
             panasonic, sg = self.panasonic.overview(), self.sg_boost.overview()
+            self._water_panasonic_sample = panasonic
             stamp = recorder.now()
             binding = history_binding(self, panasonic, sg)
             captured = True

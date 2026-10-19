@@ -91,6 +91,11 @@ def _entities(r):
     if r.wallbox_settings["enabled"]:
         entities += [SolarSensor(r, "wallbox_status", "Wallbox samenspel"),
                      SolarSensor(r, "wallbox_power", "Wallbox laadvermogen")]
+    water = getattr(r, "water", None)
+    if water is not None and water.settings.get("enabled"):
+        entities += [WaterSensor(r, "water_status", "Waterstatus"),
+                     WaterSensor(r, "water_flow", "Waterdebiet"),
+                     WaterSensor(r, "water_today", "Geregistreerd water vandaag")]
     entities += [SolarSensor(r, "sg_boost_status", "Zonneboost status"),
                  SolarSensor(r, "panasonic_status", "Panasonic regeling"),
                  SolarSensor(r, "panasonic_power", "Warmtepomp vermogen"),
@@ -114,7 +119,7 @@ class SolarSensor(SolarEntity, SensorEntity):
         "observed_at", "relay_observed_at", "relay_valid_until", "target_stamp", "target_observed_at",
         "power_observed_at", "power_supply1_observed_at", "power_supply2_observed_at",
         "power_source_quality", "history", "operation_display", "sg_tank_goal", "source_contract",
-        "compressor_frequency_observed_at", "sg_status_observed_at",
+        "compressor_frequency_observed_at", "sg_status_observed_at", "water",
     })
 
     def __init__(self, runtime, suffix, name, device_id=None):
@@ -315,6 +320,7 @@ class SolarSensor(SolarEntity, SensorEntity):
                         for device_id, details in getattr(r, "source_isolated_devices", {}).items()]
             return {"solar_pilot": True, "mode": r.mode, "problem": r.problem,
                     "energy_display": energy_display(r),
+                    "water": r.water.overview() if hasattr(r, "water") else {},
                     "problem_kind": r.problem_kind,
                     "auto_resume_after_restart": r.auto_resume_after_restart,
                     "auto_resume_after_restart_entity": r.entity_id("switch", "auto_resume_after_restart"),
@@ -346,6 +352,62 @@ class SolarSensor(SolarEntity, SensorEntity):
             return {"description": "Verbruik tijdens regeling; omvat ook netstroom/boost. Geen besparing of gegarandeerde zonnestroommeting.",
                     "current_estimate": r.energy_estimated}
         return {}
+
+
+class WaterSensor(SolarEntity, SensorEntity):
+    """Small read-only projections; no sampling or derived energy statistics."""
+    _unrecorded_attributes = frozenset({"water"})
+
+    def __init__(self, runtime, suffix, name):
+        super().__init__(runtime, suffix, name)
+        self._attr_icon = "mdi:water"
+        if suffix == "water_flow":
+            self._attr_native_unit_of_measurement = "L/min"
+            self._attr_device_class = SensorDeviceClass.VOLUME_FLOW_RATE
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+        elif suffix == "water_today":
+            self._attr_native_unit_of_measurement = "L"
+            self._attr_device_class = SensorDeviceClass.WATER
+            # This is partial local-day evidence, not a continuous energy/
+            # water statistic. The original meter remains the HA utility source.
+
+    @property
+    def available(self):
+        return bool(self.runtime.water.settings.get("enabled"))
+
+    @property
+    def native_value(self):
+        view = self.runtime.water.overview()
+        if self.suffix == "water_flow":
+            flow = view.get("flow", {})
+            return flow.get("value") if flow.get("fresh") is True else None
+        if self.suffix == "water_today":
+            return view.get("today", {}).get("volume_l")
+        alert = view.get("alert", {})
+        if alert.get("active") is True:
+            if alert.get("evidence_current") is not True:
+                return "Eerdere waterwaarschuwing nog niet opgehelderd"
+            return ("Watermeter meldt mogelijk lek" if alert.get("cause") == "native_leak" else
+                    "Watermeter meldt lek en langdurige stroming" if alert.get("cause") == "both" else
+                    "Vermoeden van aanhoudend watergebruik")
+        if view.get("suspicion", {}).get("state") == "pending":
+            return "Waterstroming waargenomen"
+        if view.get("suspicion", {}).get("state") == "clear" or view.get("native_leak", {}).get("fresh") is True:
+            return "Geen lopende waterwaarschuwing"
+        return "Waterbron onbekend of niet actueel"
+
+    @property
+    def extra_state_attributes(self):
+        view = self.runtime.water.overview()
+        if self.suffix == "water_today":
+            today = view.get("today", {})
+            return {"date": today.get("date"), "partial": True,
+                    "covered_s": today.get("volume_covered_s"),
+                    "description": "Alleen geregistreerde tellerdelta's; geen volledig dagverbruik of toesteltoerekening."}
+        if self.suffix == "water_flow":
+            row = view.get("flow", {})
+            return {key: row.get(key) for key in ("reported_at", "valid_until", "fresh", "reason")}
+        return {"water": view, "read_only": True}
 
 
 class PVForecastSensor(SolarEntity, SensorEntity):

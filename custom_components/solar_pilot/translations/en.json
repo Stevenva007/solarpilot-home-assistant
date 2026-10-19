@@ -49,6 +49,7 @@
           "loads_hub": "Devices",
           "comfort_hub": "Heat pump — Panasonic control",
           "storage_hub": "EV & battery",
+          "water": "Water meter",
           "intelligence_hub": "Forecast & learning",
           "advanced_hub": "Advanced & system"
         }
@@ -256,6 +257,30 @@
           "recovery_delta": "Minimum factor rise for recovery warning",
           "horizon_min": "Shade/recovery projection horizon (min)",
           "projection_step_min": "Projection step (min)"
+        }
+      },
+      "water": {
+        "title": "Water meter",
+        "description": "Explicitly select existing water sources. SolarPilot reads the meter total, current flow and an optional leak signal. Missing readings remain unknown; SolarPilot does not operate a water valve or any other device.",
+        "data": {
+          "enabled": "Enable water monitoring",
+          "volume_entity": "Cumulative water meter total",
+          "flow_entity": "Current water flow",
+          "leak_entity": "Existing water leak signal",
+          "source_stale_s": "Maximum source report age (s)",
+          "continuous_flow_l_min": "Continuous flow threshold (L/min)",
+          "continuous_flow_minutes": "Continuous flow duration (minutes)",
+          "notifications": "Water warnings in Home Assistant"
+        },
+        "data_description": {
+          "enabled": "Read-only monitoring; no valve operation or device control.",
+          "volume_entity": "A water total in L or m³. Resets and gaps remain visible.",
+          "flow_entity": "An actual volume-flow sensor, not a meter total or inferred demand.",
+          "leak_entity": "A water leak binary sensor; unknown is not a confirmed dry state.",
+          "source_stale_s": "Use the last actual source report, including unchanged values.",
+          "continuous_flow_l_min": "Measured flow must continuously exceed this threshold.",
+          "continuous_flow_minutes": "Gaps or stale readings interrupt continuous-flow proof.",
+          "notifications": "Dedicated persistent Home Assistant warnings only; no mobile message."
         }
       },
       "battery_analysis": {
@@ -776,7 +801,12 @@
       "sg_frequency_unit": "Choose an actual compressor frequency source in Hz.",
       "sg_status_source": "Choose an independent source for actual received SG, not relay feedback or program/valve state.",
       "sg_supply_role_review": "The partial meter changed. Review and select the new supply function again; the previous function belongs to the old meter.",
-      "sg_target_binding": "Select the exact native water_heater or climate tank target with a registered device identity before confirming the DHW percentage."
+      "sg_target_binding": "Select the exact native water_heater or climate tank target with a registered device identity before confirming the DHW percentage.",
+      "invalid_water_setting": "Invalid water setting: check its type, source selection and range.",
+      "water_source_required": "Select at least one existing water source before enabling water monitoring.",
+      "water_volume_source": "Select a cumulative volume sensor with supported volume units and counter metadata, not flow or an electricity meter.",
+      "water_flow_source": "Select a current flow sensor with supported volume-per-time units, not a cumulative meter total.",
+      "water_leak_source": "Select an existing water leak binary_sensor with device class moisture."
     },
     "abort": {
       "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",

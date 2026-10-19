@@ -1,10 +1,10 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.100
+**Versie:** 1.0.0-beta.101
 **Bijgewerkt:** 2026-10-19
-**Regel-hash:** `36baa24f6491dc89`
+**Regel-hash:** `c0e6d2a9c60f0933`
 
-Beta.100 maakt het uitlezen van de tijdelijke SG-bediening lichter. Beschikbaarheid, gekozen stand en resterende duur vragen daarvoor geen volledige SG- en Panasonic-beoordeling meer. De bestaande keuze Aan of Uit voor 30/60 minuten, oorspronkelijke eindtijd, actuele regelvoorwaarden en fysieke terugmelding behouden hun eigen betekenis. De klikbare toestelgeschiedenis, directe boilerbronhistorie, compacte taakperioden en betrouwbare verwerking van nieuwe Aquarea-berichten uit beta.99 blijven beschikbaar. Instellingen, modellen, bronrechten en bestaande geschiedenis blijven behouden.
+Beta.101 voegt een optionele watermonitor toe: cumulatieve liters, actueel debiet en de bestaande lekmelding. De aanklikbare waterhistoriek zet werkelijk vastgelegde watermetingen naast boilertemperatuur en afwasstatus. Een aparte waarschuwing signaleert langdurig gemeten stroming. De gedeelde huishoudmeter bewijst geen warmwatertap, afwasverbruik of fysiek lek. Bronselectie gebeurt bewust bij Water instellen. Bestaande instellingen, modellen, historie, SG-regels en de lichte SG-bediening uit beta.100 blijven behouden.
 
 ## 1. Basisprincipe en modi
 
@@ -421,7 +421,7 @@ Een privéprofiel blijft optioneel en uitsluitend lokaal. Importeren kan lege ge
 
 Voor verwijderen kies je Verwijderen voorbereiden en wacht je op de gerichte veilige vrijgave. Een onzekere SG-uitgang blijft eerlijk onbekend; de gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, AEG- of Shelly-integratie.
 
-Rollback naar beta.99 behoudt de klikbare toestelgeschiedenis, directe boilerbronhistorie, compacte warmtepompperioden, Aquarea-bronverwerking en bestaande SG-regels. Het uitlezen van de SG-bediening kan dan opnieuw de volledige SG- en Panasonic-beoordeling herhalen. Behoud entry, opslag, modellen, historie en userfiles; herstart Home Assistant volledig en herlaad de app/browser. Geef een eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk en onderbreek geen beschermde cyclus. Er is geen opslagmigratie of reset nodig. Zie BETA100_INSTELLEN.md.
+Rollback naar beta.100 behoudt de bestaande energie-, SG- en toestelgeschiedenisfuncties en de lichte SG-bediening. Waterregistratie en waterwaarschuwingen worden dan niet meer bijgewerkt; bewaarde wateropslag blijft staan en wordt niet achteraf aangevuld. Behoud entry, opslag, modellen, historie en userfiles; herstart Home Assistant volledig en herlaad de app/browser. Geef een eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk en onderbreek geen beschermde cyclus. Verwijder de entry niet. Zie BETA101_INSTELLEN.md.
 
 ## 21. Release- en documentatieregel
 
@@ -430,6 +430,26 @@ Dit is de enige volledige actuele regelbeschrijving. current_guide.py genereert 
 Softwaretests en geverifieerde publicatiepakketten bewijzen geen live HA-installatie, echt Shelly-timergedrag of fysieke Panasonic-reactie. Die bewijssoorten worden apart gerapporteerd. Publieke voorbeelden zijn fictief; persoonlijke installatiegegevens, ruwe exports en geheimen blijven lokaal.
 
 Elke SolarPilot-update controleert de laatste Aquarea-defaultbranch, gepubliceerde release en werkelijk gebruikte bibliotheek tegen het publieke bronreviewcheckpoint. Nieuwe relevante wijzigingen worden beoordeeld en met regressietests verwerkt in dezelfde update; ongewijzigde of irrelevante code wordt als zodanig vastgelegd. De CI-gate blokkeert publicatie bij onbeoordeelde upstreamwijzigingen of een niet-uitvoerbare broncontrole. De bestaande onderhoudstaak kan zelfstandig een geteste SolarPilot-herstelrelease op GitHub publiceren en daarover berichten. Dit is geen automatische installatie op Home Assistant en geen live verbinding met lokale meldingen. Installeer de release via HACS; instellingen en fysieke apparaten worden niet op afstand aangepast.
+
+## 22. Watermeter, boilercontext en mogelijke lekken
+
+Open Water → Water instellen en schakel de monitor bewust in. Kies de bestaande cumulatieve waterstand, het actuele debiet en de binaire lekmelding van dezelfde bedoelde meter. Minstens één bron is nodig; alle drie geven het volledigste beeld. Er is geen automatische bronkoppeling. Standaard staat de monitor Uit, bronouderdom op 300 seconden, de drempel op 0,1 L/min en de bevestigingsduur op 60 minuten. Meldingen staan bij inschakelen standaard Aan. Dit zijn instelbare adviesgrenzen en geen gekalibreerde lekdiagnose.
+
+Het overzicht toont liters per minuut, cumulatieve liters, geregistreerde dagliters en de afzonderlijke bronmelding. Alleen passende eindige niet-negatieve waarden en bruikbare oorspronkelijke HA-rapporttijden tellen mee. Een echte nul is geldig; onbekend is geen nul. HA-ontvangsttijd bewijst geen fysieke meettijd: gereplayde of door de leverancier gecachete metingen kunnen niet altijd worden herkend. Verlaag de bronouderdom niet onder het werkelijk betrouwbare rapportinterval.
+
+Dagliters komen uitsluitend uit passende opeenvolgende tellerstanden. De eerste stand is een beginpunt. Tellerdaling, bronwissel, herstart en meetgaten hebben hun eigen grenzen. Een stijging over een meetgat of lokale middernacht wordt niet naar rato aan een dag toegewezen. Debiet wordt niet in liters geïntegreerd of bovenop de teller opgeteld. De weergegeven daghoeveelheid is een gedeeltelijke registratie vanaf inschakeling, geen bewezen volledig dagtotaal of waterfactuur.
+
+Watergeschiedenis bewaart maximaal dertig lokale kalenderdagen met begrensde aantallen meetpunten, tellerintervallen en gebeurtenissen. Schuif over de vier balken of gebruik het toetsenbord voor het werkelijk opgeslagen meetpunt, debiet, meterstand, boilertemperatuur/doel, afwasstatus en bronkwaliteit. De tijdmarkering en details volgen hetzelfde punt. Meetgaten blijven onbekend; huidige waarden vullen het verleden niet aan. Vorig/volgend meetpunt maakt de bewaarde punten afzonderlijk bereikbaar. Bronhistorie opent de toegestane huidige waterentiteit in Home Assistant.
+
+Een geregistreerde boilerafkoeling van minstens 2 °C tussen twee opeenvolgende bruikbare temperatuurberichten kan met de volledig binnen dat venster gemeten huishoudelijke tellerstijging worden vergeleken. De temperatuurberichten mogen maximaal dertig minuten uiteenliggen en moeten bij dezelfde broncontext horen. Ontbrekende context, reset, herstart of bronwissel onderbreekt de vergelijking. Het toont samenloop, geen bewezen warmwatertap, thermisch verlies of oorzaak; een totaalmeter onderscheidt warm en koud water niet.
+
+Voor de afwasmachine toont Water de werkelijk bekende actieve status naast het huishoudelijke watergebruik. Alleen passende opeenvolgende actieve waarnemingen binnen vijf minuten leveren een begrensd vergelijkingsvenster. De liters blijven huishoudelijke deelmetingen: andere kranen en apparaten kunnen tegelijk water gebruiken. De monitor bepaalt geen afwasfase, eigen literverbruik of start-/stoptoestemming en wijzigt geen START-opdracht, ticket, planning of beschermde cyclus.
+
+De eigen lekmelding van de watermeter blijft apart van SolarPilot: langdurige stroming. Alleen nieuwe bruikbare debietberichten op of boven de drempel kunnen de ingestelde duur bevestigen. Oude of ontbrekende berichten, herstart en bronwissel maken geen doorlopend bewijs. Een getoonde verdenking is een controleadvies en kan normaal verbruik zijn. Een uitgeschakelde of ontbrekende detector geeft geen bewijs dat de installatie lekvrij is.
+
+Bij een nieuw actueel bewezen waarschuwingsincident verschijnt desgewenst één blijvende Home Assistant-melding. De melding is geen mobiele push. Herstart, heropenen, herhaald meten of opnieuw inschakelen bezorgt hetzelfde reeds gemelde incident niet opnieuw. Oude berichten kunnen een nieuwer incident niet bevestigen of wissen. Bij ontbrekende actuele gegevens blijft een eerder actief incident onopgelost herkenbaar; een andere bron kan het niet als hersteld afmelden. Bewust de watermonitor of haar meldingen uitschakelen ruimt alleen de eigen melding op en bewaart historie.
+
+Alle waterfuncties lezen uitsluitend. SolarPilot opent of sluit geen afsluiter en gebruikt waterdata niet voor SG, boilerdoel, afwasopdrachten of de energieplanner. De aparte opslag behoudt huidige en oudere bronrechten. Niet-beheerders hebben leesrechten op alle betrokken huidige en historische bronnen nodig; ontbrekende herkomst geeft hun geen toegang. Analyse-export neemt het werkelijk beschikbare wateroverzicht en de begrensde historie op met bestaande privacyfilters. Deel gebruikspatronen niet ongecontroleerd.
 
 ---
 

@@ -38,7 +38,7 @@ REFERENCE_KEYS = frozenset({"control_entity", "active_entity", "number_entity", 
     "dishwasher_state_entity", "dishwasher_remote_entity", "dishwasher_door_entity",
     "dishwasher_connection_entity", "dishwasher_phase_entity", "dishwasher_alert_entity",
     "cycle_program_entity", "dishwasher_delay_entity"})
-DISPLAY_GROUPS = {"priority_board", "economy", "forecast", "planner", "local_pv", "pv_forecast", "analysis", "battery_analysis"}
+DISPLAY_GROUPS = {"priority_board", "economy", "forecast", "planner", "local_pv", "pv_forecast", "analysis", "battery_analysis", "water"}
 SENSITIVE_GROUPS = {"settings", "capacity", "phase", "wallbox", "sg_boost", "batteries", "battery_fleet", "_private_bundle"}
 
 
@@ -618,6 +618,8 @@ class LiveOptions:
             elif was_enabled and not is_enabled and r.analysis.log_handler is not None:
                 logging.getLogger("custom_components.solar_pilot").removeHandler(r.analysis.log_handler)
                 r.analysis.log_handler = None
+        elif group == "water":
+            r.water.update_config(value)
         elif group == "wallbox":
             from .wallbox import WALLBOX_DEFAULTS
             from .house_first import HOUSE_DEFAULTS

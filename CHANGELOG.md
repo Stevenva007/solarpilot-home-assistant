@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0-beta.101 — watermonitor en gedeelde waterhistorie
+
+- Voegt een standaard uitgeschakelde watermonitor toe met bewust gekozen bestaande meterstand-, debiet- en/of lekbronnen. De actuele weergave en bronhistorie zijn alleen-lezen en behouden HA-bronrechten.
+- Scheidt cumulatieve meterstand, bruikbare tellerdelta's, direct debiet en native lekindicatie. Het eigen vermoeden van langdurige stroming vraagt standaard 0,1 L/min gedurende zestig minuten met nieuwe passende rapporten; dit stelt geen fysiek lek vast.
+- Bewaart gedeeltelijke lokale dagsommen en werkelijke meetpunten binnen dertig lokale dagen, met vaste punt-/interval-/gebeurtenisgrenzen. Reset, bronwissel, herstart en meetgaten maken geen negatieve of verzonnen liters, volledig dagtotaal of nieuwe bevestigingstijd. Echte nul blijft nul.
+- Vergelijkt vastgelegde waterwaarnemingen met passende boiler-/afwascontext zonder huishoudelijke liters aan die toestellen toe te schrijven. Ontbrekende context en oude bronidentiteiten worden niet ingevuld; historische leesrechten blijven behouden.
+- Houdt eigen HA-waarschuwingen per episode bij, met herstartbestendige ontvangstbewaring en passende nieuwe rapporten voor vrijgave. Oude of onder dezelfde rapporttijd gewijzigde gegevens kunnen geen waarschuwing wissen of opnieuw activeren; een vervangen bron levert geen vrijgave voor de oude episode.
+- Behoudt de lichte SG-bediening uit beta.100 en bestaande Panasonic-/SG-grenzen, afwasbescherming, overige apparaten, instellingen, timers, modellen, historie en userfiles. Water bedient geen afsluiter of toestel en wijzigt geen gatewayfirmware.
+- Installatie/instellingen/rollback: `docs/BETA101_INSTELLEN.md`; bewijs en nog openstaande definitieve suite-/browser-/publicatiecontroles: `docs/TESTRESULTATEN_BETA101.md`. De actuele upstreamcontrole en vijf afzonderlijke PR- én main-gates blijven vereist.
+
 ## 1.0.0-beta.100 — lichtere uitlezing van de SG-bediening
 
 - Leest de beschikbaarheid van de tijdelijke SG-bediening rechtstreeks uit haar bestaande configuratie en stand/duur/afloop via het lichte handmatige overzicht. Elk van de drie getters vermijdt zo de vroegere aanroep van het volledige SG-/Panasonic-overzicht.
