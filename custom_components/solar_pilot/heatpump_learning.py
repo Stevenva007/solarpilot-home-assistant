@@ -14,6 +14,10 @@ import math
 import statistics
 import time
 
+from .operation_source_evidence import (
+    OPERATION_CONTRACT_ID, OPERATION_SEMANTIC_CONTRACT_ID, contract_evidence,
+)
+
 
 CONTEXT_NORMAL = "normal"
 CONTEXT_HEATING = "space_heating"
@@ -23,6 +27,55 @@ CONTEXT_HYGIENE = "sterilization"
 CONTEXT_UNKNOWN = "heatpump_unknown"
 
 ACTIVE_CONTEXTS = {CONTEXT_HEATING, CONTEXT_COOLING, CONTEXT_DHW, CONTEXT_HYGIENE}
+
+
+def _operation_enablement(observed, native):
+    """Identify declared split semantics even when their proof is incomplete."""
+    contract = observed.get("source_contract")
+    contract = contract if isinstance(contract, dict) else {}
+    capability = contract.get("compatibility")
+    capability = capability if isinstance(capability, dict) else {}
+    rows = native.get("raw_evidence")
+    return (contract.get("contract_id") == OPERATION_CONTRACT_ID
+            or contract.get("action_semantics") == "operation_status"
+            or capability.get("contract") == OPERATION_SEMANTIC_CONTRACT_ID
+            or "operation_status_scope" in native
+            or isinstance(rows, list) and any(isinstance(row, dict)
+                and "operation_status_scope" in row for row in rows))
+
+
+def _complete_operation_meter(observed, power, now, stale):
+    """Retain learning's complete-meter boundary for a diagnostic inference."""
+    def number(value):
+        return _finite(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+    meter_stale = number(power.get("stale_s", stale))
+    def current(value):
+        stamp = number(value)
+        return (stamp is not None and stamp > 0 and meter_stale is not None and 0 < meter_stale <= 600
+                and -5 <= now-stamp <= min(stale, meter_stale))
+    total, reported_total = number(observed.get("power_w")), number(power.get("total_w"))
+    rows = power.get("supplies")
+    if (observed.get("power_kind") != "measured" or observed.get("power_scope") not in ("total", "split")
+            or observed.get("power_complete") is not True or power.get("complete") is not True
+            or total is None or not 0 <= total <= 100000 or reported_total != total
+            or not current(observed.get("power_observed_at", observed.get("power_stamp")))
+            or not current(power.get("observed_at")) or not isinstance(rows, list) or not rows):
+        return False
+    numbers = [row.get("number") for row in rows if isinstance(row, dict)]
+    if (len(numbers) != len(rows) or any(type(value) is not int or value not in (1, 2) for value in numbers)
+            or len(set(numbers)) != len(numbers)
+            or observed["power_scope"] == "split" and set(numbers) != {1, 2}):
+        return False
+    if any(row.get("valid") is not True or number(row.get("watts")) is None
+           or not 0 <= number(row["watts"]) <= 100000 or not current(row.get("observed_at")) for row in rows):
+        return False
+    for row in rows:
+        prefix = f"power_supply{row['number']}"
+        if (prefix+"_w" in observed and number(observed[prefix+"_w"]) != number(row["watts"])
+                or prefix+"_observed_at" in observed and number(observed[prefix+"_observed_at"]) != number(row["observed_at"])
+                or prefix+"_valid" in observed and observed[prefix+"_valid"] is not True):
+            return False
+    return abs(sum(number(row["watts"]) for row in rows)-total) <= max(.1, total*.00001)
 
 
 def _finite(value):
@@ -107,6 +160,36 @@ def classify_heatpump_observation(observed, *, now_wall=None):
     if ((native.get("conflict") and native_fresh)
             or (defrost.get("state") == "active" and fresh(defrost.get("observed_at"), defrost.get("stale_s", stale)))):
         return {**result, "reason": native.get("note") or "Ontdooien of tegenstrijdige native taken; geen eenduidige leercontext"}
+    if _operation_enablement(observed, native):
+        # This SDK derives positive actions from device/zone/tank enablement.
+        # Never let an incomplete new contract fall through to legacy native
+        # confirmation or ordinary household learning. Recompute from original
+        # evidence; a cached operation_display label grants no model authority.
+        unknown = {**result, "reason": "De SDK meldt bedrijfsstand of toestemming; actuele uitvoering is niet afzonderlijk bevestigd.",
+                   "reason_code": "operation_status_enablement_only"}
+        original_stale = observed.get("source_stale_s", 120)
+        if (isinstance(original_stale, bool) or not isinstance(original_stale, (int, float))
+                or _finite(original_stale) is None or not 0 < original_stale <= 600):
+            return unknown
+        proof = contract_evidence(observed.get("source_contract"), now, stale)
+        if (not proof or proof.get("verified") is not True or proof.get("contract_id") != OPERATION_CONTRACT_ID
+                or not native_fresh or native.get("source") != "aquarea_poll"
+                or native.get("inactive") is True or native.get("verified_global_off") is True
+                or not _complete_operation_meter(observed, power, now, stale)):
+            return unknown
+        # Import locally: the existing pure evidence validator imports the
+        # shared context constants. Its inference only downgrades this SDK's
+        # former confirmed path; it cannot create confirmed learning examples.
+        from .display_operation import classify_display_operation
+        inferred = classify_display_operation(observed, now_wall=now)
+        if (inferred.get("tier") == "derived" and inferred.get("kind") == "coherent_native_context"
+                and inferred.get("source") == "aquarea_contract" and inferred.get("active") is True
+                and inferred.get("function") in ACTIVE_CONTEXTS
+                and native.get("function") == inferred["function"]):
+            return {**result, "context": inferred["function"], "reason": inferred["reason"],
+                    "reason_code": "operation_status_execution_derived", "tier": "derived",
+                    "source": inferred["source"], "kind": inferred["kind"], "observed_at": inferred["observed_at"]}
+        return {**unknown, "reason": inferred.get("reason") or unknown["reason"]}
     native_function = native.get("function")
     if (native_function in ACTIVE_CONTEXTS and native_fresh
             and native.get("inactive") is not True and native.get("verified_global_off") is not True

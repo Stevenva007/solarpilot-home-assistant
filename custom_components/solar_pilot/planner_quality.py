@@ -213,8 +213,12 @@ class PlanQualityTracker:
         if seven["samples"] < 12:
             findings.append("Nog te weinig planreplay-data voor een betrouwbare kwaliteitsbeoordeling.")
         else:
-            if seven["pv_mae_w"] is not None and seven["pv_mae_w"] > 700:
-                findings.append("De PV-voorspelling wijkt recent vaak af; laat lokale schaduwcorrectie verder leren of verhoog tijdelijk de PV-reserve.")
+            # Match the learning hub's daytime warning. Night-time zeroes may
+            # dilute the all-hours MAE, but cannot validate a daytime forecast.
+            if seven["pv_daylight_samples"] < 12 or seven["pv_daylight_mae_w"] is None:
+                findings.append("Nog te weinig daglichtvergelijkingen voor een betrouwbare PV-beoordeling.")
+            elif seven["pv_daylight_mae_w"] > 700:
+                findings.append("De PV-voorspelling wijkt overdag recent vaak af. Vergelijk voorspelling en gemeten productie bij daglicht; deze afwijking bewijst geen oorzaak.")
             if seven["base_mae_w"] is not None and seven["base_mae_w"] > 400:
                 findings.append("De basislastvoorspelling wijkt af. Bekijk Leren & vragen: bruikbare dagen, afgewezen metingen en bijzondere lasten; alleen wachten is niet altijd voldoende.")
             if seven["execution_match_pct"] is not None and seven["execution_match_pct"] < 80:

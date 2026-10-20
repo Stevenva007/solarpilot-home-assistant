@@ -47,7 +47,7 @@ ATTRS.update({"estimated", "is_estimated", "temperature_unit"})
 # names. A consumer called "auto", "W" or "temperature" must not rewrite them.
 MACHINE_VALUE_FIELDS = {
     "schema", "schema_version", "release", "version", "type", "domain", "kind",
-    "unit_of_measurement", "unit", "source_unit", "device_class", "state_class", "media_type", "service",
+    "unit_of_measurement", "unit", "source_unit", "source_role", "device_class", "state_class", "media_type", "service",
     "platform", "manufacturer", "model", "software_version", "hardware_version",
     "state", "raw_state", "mode", "action", "hvac_action", "hvac_modes", "operation_mode",
     "operation_list", "preset_mode", "preset_modes", "stage", "cycle_phase",
@@ -887,6 +887,9 @@ class AnalysisRecorder:
             calls["heatpump_history"] = lambda: heatpump_history.export(
                 hours=hours, when=datetime.fromtimestamp(wall, timezone.utc))
         water = getattr(r, "water", None)
+        water_settings = getattr(water, "settings", {})
+        if not isinstance(water_settings, Mapping):
+            water_settings = {}
         if callable(getattr(water, "overview", None)):
             calls["water"] = water.overview
         if callable(getattr(water, "export", None)):
@@ -916,14 +919,15 @@ class AnalysisRecorder:
         payload = {"schema": "solarpilot.analysis", "schema_version": SCHEMA_VERSION, "release": VERSION,
                    "export_provenance": {"export_id": "export_" + secrets.token_hex(16), "export_sha256": None,
                        "release": VERSION, "created_at": iso(wall)},
-                   "module_status": {"dishwasher": any(c.get("kind") == "dishwasher" for c in r.configs.values()), "panasonic_monitor": bool(r.panasonic.overview().get("configured")), "sg_boost": bool(r.sg_boost.config.get("entity_id")), "battery": r.battery_fleet.configured, "wallbox": r.wallbox_settings.get("enabled", False)},
+                   "module_status": {"dishwasher": any(c.get("kind") == "dishwasher" for c in r.configs.values()), "panasonic_monitor": bool(r.panasonic.overview().get("configured")), "sg_boost": bool(r.sg_boost.config.get("entity_id")), "battery": r.battery_fleet.configured, "wallbox": r.wallbox_settings.get("enabled", False), "water": water_settings.get("enabled") is True},
                    "created_at": iso(wall), "requested_hours": hours,
                    "units": {"power": "W", "energy": "kWh", "temperature": "degC", "time": "UTC ISO8601 or unix seconds", "currency": "EUR"},
                    "time_zone": getattr(getattr(r.hass, "config", None), "time_zone", "Europe/Brussels"),
                    "system": {"home_assistant": ha_version, "python": sys.version.split()[0]},
                    "configuration": safe({"site": r.entry.data, "options": {k:v for k,v in r.entry.options.items() if k != "_private_bundle"}}),
                    "effective_configuration": safe({"settings": r.settings, "devices": r.configs, "sg_boost": r.sg_boost.config,
-                                                      "wallbox": r.wallbox_settings, "pv_forecast": r.pv_forecast.settings, "analysis": self.settings}),
+                                                      "wallbox": r.wallbox_settings, "pv_forecast": r.pv_forecast.settings, "analysis": self.settings,
+                                                      "water": water_settings}),
                    "entities": current, "source_metadata": source_metadata(r.hass, refs), "components": components, "recent_decisions": safe(list(r.logs)),
                    "current_faults": safe({"problem": r.problem, "faults": r.faults, "recovery": r.recovery}),
                    "telemetry": windows,

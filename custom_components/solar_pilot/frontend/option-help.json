@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.101",
+  "version": "1.0.0-beta.102",
   "language": "nl",
   "steps": {
     "init": {
@@ -2327,7 +2327,7 @@
       "title": "Maximale ouderdom bronrapport (s)",
       "short": "Maximale ouderdom van een werkelijk ontvangen waterbronrapport, in seconden.",
       "paragraphs": [
-        "Maximale ouderdom van een werkelijk ontvangen waterbronrapport, in seconden. Een betrouwbare nieuwe ontvangst kan ook een ongewijzigde waarde actueel houden; alleen het veranderen van de waarde is niet vereist. Oudere, herstelde of ongeldige waarnemingen blijven onbekend en onderbreken het bewijs voor doorlopend watergebruik. Dit versnelt de bron zelf niet.",
+        "Maximale ouderdom van een werkelijk ontvangen waterbronrapport, in seconden. Een betrouwbare nieuwe ontvangst kan ook een ongewijzigde waarde actueel houden; alleen het veranderen van de waarde is niet vereist. Oudere, herstelde of ongeldige waarnemingen blijven onbekend en onderbreken het bewijs voor doorlopend watergebruik. Bij MQTT kunnen identieke waarden zonder force_update een oude HA-rapporttijd houden. Controleer de afzonderlijke publicatie, beschikbaarheid en bronconfiguratie; een verse totaalteller maakt debiet of lekmelding niet actueel. Bronouderdom blind verhogen herstelt dat bewijs niet. Dit versnelt de bron zelf niet.",
         "De watermonitor leest uitsluitend de geselecteerde bronnen. Meterstanden, debiet en leksignalen behouden hun eigen betekenis en meetdekking. Historische perioden worden niet met actuele waarden aangevuld.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]

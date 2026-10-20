@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0-beta.102 — analysecorrecties en waterbronactualiteit
+
+- Gebruikt voor de PV-kwaliteitswaarschuwing dezelfde daglicht-MAE, minstens twaalf vergelijkingen en strikt meer dan 700 W als de leervraag. Ontbrekend bewijs blijft onbekend; cijfers, kwaliteitsscore, reserves en plannerbeleid veranderen niet.
+- Voorkomt dat het bekende Aquarea operation_status-enablementcontract actuele taak of bevestigd leerbewijs suggereert. Oorspronkelijke bron- en meterinformatie begrenzen een afleiding tot model_eligible=False; oude onafhankelijke contracten en opgeslagen modellen blijven behouden. Geen wijziging van SG- of Panasonic-bevoegdheden.
+- Herkent boilerdalingen vanaf 2 °C over kleine stappen binnen dertig minuten, zonder overlappende tellerintervallen of liters. Nieuwe watermeetgaten houden hun gesloten bronrol; generieke of ongeldige rollen, herstart, reset en echte teller-/temperatuurgaten blijven grenzen. Geen toesteltoerekening of geschatte warmwaterliters.
+- Toont afzonderlijke actualiteit van gekoppelde debiet- en lekbronnen, ook na veroudering in de frontend. Een totaalteller verleent geen actualiteit aan andere kanalen. Geen nieuwe periodieke melding, foutpauze, MQTT-/force_update-aanpassing of kraanbediening.
+- Voegt waterinschakeling, effectieve instellingen en bronkwaliteitsdiagnose toe aan de export. De implementatiecatalogus bevestigt uitsluitend drie generieke voorstellen op exacte inhoud en geladen versie; een importclaim bewijst geen installatie.
+- Behoudt instellingen, timers, opslag, modellen, historie en userfiles. Beta.101 kan waterschema 1 lezen, maar laat de nieuwe optionele source_role bij een volgende opslag weg; een volledige privéback-up bewaart deze aanvullende herkomst voor terugkeer naar beta.102.
+- Installatie/rollback: `docs/BETA102_INSTELLEN.md`; lokale validatie met **8443 geslaagde tests**, beide echte Core-fixtures en vier Chromiumgates, plus nog vereiste brongebonden CI/tag-/assetcontroles: `docs/TESTRESULTATEN_BETA102.md`.
+
 ## 1.0.0-beta.101 — watermonitor en gedeelde waterhistorie
 
 - Voegt een standaard uitgeschakelde watermonitor toe met bewust gekozen bestaande meterstand-, debiet- en/of lekbronnen. De actuele weergave en bronhistorie zijn alleen-lezen en behouden HA-bronrechten.

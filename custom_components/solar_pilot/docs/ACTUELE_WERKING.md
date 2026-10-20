@@ -1,10 +1,10 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.101
-**Bijgewerkt:** 2026-10-19
-**Regel-hash:** `c0e6d2a9c60f0933`
+**Versie:** 1.0.0-beta.102
+**Bijgewerkt:** 2026-10-20
+**Regel-hash:** `40d9fcedbdaa6010`
 
-Beta.101 voegt een optionele watermonitor toe: cumulatieve liters, actueel debiet en de bestaande lekmelding. De aanklikbare waterhistoriek zet werkelijk vastgelegde watermetingen naast boilertemperatuur en afwasstatus. Een aparte waarschuwing signaleert langdurig gemeten stroming. De gedeelde huishoudmeter bewijst geen warmwatertap, afwasverbruik of fysiek lek. Bronselectie gebeurt bewust bij Water instellen. Bestaande instellingen, modellen, historie, SG-regels en de lichte SG-bediening uit beta.100 blijven behouden.
+Beta.102 corrigeert de daglichtwaarschuwing voor PV en voorkomt dat een ingeschakelde Aquarea-verwarmingsstand zelfstandig als bevestigde uitgevoerde leertaak geldt. Watergeschiedenis kan opeenvolgende kleine boilerdalingen binnen dertig minuten samen vergelijken. Nieuwe bronrolinformatie onderscheidt een debietgat van een onderbreking in teller of boilertemperatuur. Water toont apart welke gekoppelde bewakingsbronnen actuele bruikbare rapporten leveren. Oude bronwaarden blijven oud; bronkoppelingen, instellingen, modellen en historie blijven behouden. Deze wijzigingen geven geen nieuwe apparaatbediening.
 
 ## 1. Basisprincipe en modi
 
@@ -257,6 +257,8 @@ PV-diagnose toont ruwe/gecorrigeerde/werkelijke W, dekking, fouten, geweigerde k
 
 Vanaf beta.91 wordt naast de oude gemengde vooruitvergelijking een nieuwe afzonderlijke reeks per 5–60 minuten, 1–3 uur en 3–12 uur aangelegd. Per doelmoment, bronbinding en termijn geldt vooraf de eerste geldige lokaal waargenomen voorspelling; latere varianten vervangen haar niet. Banden delen dezelfde oorspronkelijke doelmeting. Unieke doelen, oorspronkelijke rapporten, daglichtdoelen, verschillende dagen en afhankelijkheid blijven zichtbaar. Oude gegevens worden niet teruggevuld, de provideruitgiftetijd blijft onbekend en de nieuwe score past geen correctiefactor toe.
 
+De korte kwaliteitsuitleg en de PV-vraag gebruiken dezelfde daglicht-MAE: minstens twaalf passende daglichtvergelijkingen en een fout groter dan 700 W. Nachtelijke nulmetingen maken een slechte daglichtvoorspelling niet goed. Zonder voldoende daglichtbewijs blijft die beoordeling onbekend. De gemengde en daglichtcijfers, basislastwaarschuwingen en bestaande kwaliteitsscore blijven zichtbaar; er wordt geen correctiefactor, planning of reserve door deze uitleg aangepast.
+
 ## 11. Fasebewaking en fysieke grenzen
 
 L1, L2 en L3 blijven afzonderlijk bewaakt wanneer geconfigureerd en bewust vrijgegeven. Netto-export over drie fasen bewijst niet dat iedere fase vrije stroomruimte heeft. Een ontbrekende vereiste fasekoppeling geeft geen algemene startvrijgave.
@@ -310,6 +312,8 @@ Nieuwe SG-onderzoeksmetingen bereiken vanaf beta.81 de werkelijke onderzoeksfunc
 Gekozen programma, verse native taak, afgeleide taak en de bestaande SG-veiligheidscontext blijven afzonderlijk. Afgeleide warmte-/koeltaken krijgen begrensde diagnostische voorbeelden en tellingen, zonder planningsgewicht in het bevestigde warmtepompmodel. Alleen nieuwe voldoende stabiele overgangen met verse bevestigde native taak-/rustbewijzen kunnen gevalideerde modellen opbouwen. Oude voorbeelden en dagen blijven exact bewaard; voorbeelden zonder bewijsherkomst tellen niet stil als bevestigd. Leren verandert nooit realtime netruimte. Er worden geen ontbrekende historische taken aangevuld.
 
 De twee minuten na inschakeling of bronherstel zijn een informatieve tijdelijke leerwacht, met begin, einde en resterende duur waar bekend. Een opdracht die op terugmelding wacht heeft geen verzonnen eindtijd. De laatste broncontrole staat apart van de telling van leerpogingen per kwartier. Langdurige uitsluiting door onbekende warmtepompcontext staat afzonderlijk; ontbrekende perioden worden nooit als nul geleerd.
+
+Bij het geladen Aquarea-contract met afzonderlijke operation_status betekent een ingeschakelde verwarmingsstand niet zelfstandig bewezen uitvoering. De leerclassificatie kan met passend gebonden LIVE-, pomp-, route- en volledig meterbewijs hoogstens een afgeleide taak gebruiken; zij maakt dit geen bevestigde modelmeting. Zonder dat bewijs blijft de leercontext onbekend. De uitleesweergave wordt opnieuw uit de bronwaarden beoordeeld; een oud label of berekende weergave verleent geen leerrecht. Pomp UIT of 0 W alleen maakt nog geen gevalideerde normale huishoudbasislast. Oude modellen en historische classificaties worden niet herschreven; onafhankelijke oudere native contracten behouden hun betekenis.
 
 ## 15. Overzicht, uitleg en meldingen
 
@@ -421,7 +425,7 @@ Een privéprofiel blijft optioneel en uitsluitend lokaal. Importeren kan lege ge
 
 Voor verwijderen kies je Verwijderen voorbereiden en wacht je op de gerichte veilige vrijgave. Een onzekere SG-uitgang blijft eerlijk onbekend; de gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, AEG- of Shelly-integratie.
 
-Rollback naar beta.100 behoudt de bestaande energie-, SG- en toestelgeschiedenisfuncties en de lichte SG-bediening. Waterregistratie en waterwaarschuwingen worden dan niet meer bijgewerkt; bewaarde wateropslag blijft staan en wordt niet achteraf aangevuld. Behoud entry, opslag, modellen, historie en userfiles; herstart Home Assistant volledig en herlaad de app/browser. Geef een eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk en onderbreek geen beschermde cyclus. Verwijder de entry niet. Zie BETA101_INSTELLEN.md.
+Rollback naar beta.101 behoudt de waterregistratie, bestaande opslag en lichte SG-bediening. De oudere PV-samenvatting en warmtepompleerclassificatie keren terug, evenals de vergelijking die alleen een voldoende grote opeenvolgende temperatuursprong herkent en meetgaten generiek behandelt. Beta.101 kan de versie-1-wateropslag lezen en behandelt de meetgaten conservatief, maar laat de nieuwe optionele bronrol bij een volgende opslag weg. Bewaar daarom de volledige back-up om die aanvullende herkomst bij terugkeer naar beta.102 te behouden. Bewaar entry, opslag, modellen, historie en userfiles; herstart Home Assistant volledig en herlaad de app/browser. Verwijder de entry niet. Zie BETA102_INSTELLEN.md.
 
 ## 21. Release- en documentatieregel
 
@@ -441,7 +445,7 @@ Dagliters komen uitsluitend uit passende opeenvolgende tellerstanden. De eerste 
 
 Watergeschiedenis bewaart maximaal dertig lokale kalenderdagen met begrensde aantallen meetpunten, tellerintervallen en gebeurtenissen. Schuif over de vier balken of gebruik het toetsenbord voor het werkelijk opgeslagen meetpunt, debiet, meterstand, boilertemperatuur/doel, afwasstatus en bronkwaliteit. De tijdmarkering en details volgen hetzelfde punt. Meetgaten blijven onbekend; huidige waarden vullen het verleden niet aan. Vorig/volgend meetpunt maakt de bewaarde punten afzonderlijk bereikbaar. Bronhistorie opent de toegestane huidige waterentiteit in Home Assistant.
 
-Een geregistreerde boilerafkoeling van minstens 2 °C tussen twee opeenvolgende bruikbare temperatuurberichten kan met de volledig binnen dat venster gemeten huishoudelijke tellerstijging worden vergeleken. De temperatuurberichten mogen maximaal dertig minuten uiteenliggen en moeten bij dezelfde broncontext horen. Ontbrekende context, reset, herstart of bronwissel onderbreekt de vergelijking. Het toont samenloop, geen bewezen warmwatertap, thermisch verlies of oorzaak; een totaalmeter onderscheidt warm en koud water niet.
+Een geregistreerde boilerafkoeling vanaf 2 °C kan ook uit meerdere opeenvolgende kleine dalingen binnen maximaal dertig minuten worden herkend. De vergelijking gebruikt de hoogste passende eerdere temperatuur, bij gelijke waarden de oudste, en sluit bij de eerste voldoende daling een venster af. Vensters delen hoogstens hun eind-/beginpunt; liters worden niet dubbel geteld. Alle temperatuurberichten moeten geldig zijn en bij dezelfde broncontext horen. Ontbrekende temperatuurcontext, een relevante telleronderbreking, reset, herstart of bronwissel onderbreekt de vergelijking. Alleen een nieuw expliciet als debietprobleem vastgelegd meetgat blokkeert een bruikbare teller-/boilervergelijking niet. Oudere generieke meetgaten blijven conservatief een grens. Het toont samenloop, geen bewezen warmwatertap, thermisch verlies of oorzaak; een totaalmeter onderscheidt warm en koud water niet.
 
 Voor de afwasmachine toont Water de werkelijk bekende actieve status naast het huishoudelijke watergebruik. Alleen passende opeenvolgende actieve waarnemingen binnen vijf minuten leveren een begrensd vergelijkingsvenster. De liters blijven huishoudelijke deelmetingen: andere kranen en apparaten kunnen tegelijk water gebruiken. De monitor bepaalt geen afwasfase, eigen literverbruik of start-/stoptoestemming en wijzigt geen START-opdracht, ticket, planning of beschermde cyclus.
 
@@ -450,6 +454,10 @@ De eigen lekmelding van de watermeter blijft apart van SolarPilot: langdurige st
 Bij een nieuw actueel bewezen waarschuwingsincident verschijnt desgewenst één blijvende Home Assistant-melding. De melding is geen mobiele push. Herstart, heropenen, herhaald meten of opnieuw inschakelen bezorgt hetzelfde reeds gemelde incident niet opnieuw. Oude berichten kunnen een nieuwer incident niet bevestigen of wissen. Bij ontbrekende actuele gegevens blijft een eerder actief incident onopgelost herkenbaar; een andere bron kan het niet als hersteld afmelden. Bewust de watermonitor of haar meldingen uitschakelen ruimt alleen de eigen melding op en bewaart historie.
 
 Alle waterfuncties lezen uitsluitend. SolarPilot opent of sluit geen afsluiter en gebruikt waterdata niet voor SG, boilerdoel, afwasopdrachten of de energieplanner. De aparte opslag behoudt huidige en oudere bronrechten. Niet-beheerders hebben leesrechten op alle betrokken huidige en historische bronnen nodig; ontbrekende herkomst geeft hun geen toegang. Analyse-export neemt het werkelijk beschikbare wateroverzicht en de begrensde historie op met bestaande privacyfilters. Deel gebruikspatronen niet ongecontroleerd.
+
+Water toont voor stromingsbewaking en de eigen metermelding afzonderlijk of de bewust gekoppelde bron een actueel bruikbaar rapport heeft. Een ontbrekende optionele detector is herkenbaar als niet gekoppeld; een wel gekoppelde oude bron maakt de bewaking onvolledig of niet beschikbaar. Actuele bronnen betekent niet dat de zestig minuten zijn voltooid of dat de installatie lekvrij is. Een eerdere onopgeloste waarschuwing blijft staan. Deze bronuitleg is informatief en veroorzaakt geen nieuwe periodieke melding of energie-regelingsfoutpauze.
+
+Bij MQTT kunnen identieke waarden zonder force_update in Home Assistant een oude last_reported houden. Controleer bij oude debiet- of lekmeldingen de afzonderlijke publicatie, beschikbaarheid en bronconfiguratie. De update verandert die MQTT-instellingen niet en leent geen actualiteit van de totaalteller. force_update kan de ontvangstregistratie verbeteren wanneer werkelijke nieuwe berichten binnenkomen; het bewijst geen fysieke meettijd. De bronouderdom blind verlengen maakt ontbrekend bewijs niet betrouwbaar. Analyse-export bevat nu ook de effectieve waterinstellingen, module-inschakeling en bronkwaliteitsdiagnose.
 
 ---
 

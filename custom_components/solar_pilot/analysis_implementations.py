@@ -136,6 +136,17 @@ IMPLEMENTED_PROPOSALS = {'sp.hp.task-presentation.v1': {'proposal_sha256': '4c47
                                          'title': 'Negatief warmtepompverbruik als nul met bronbewijs'}}
 # Generic software capabilities; installed settings remain independently validated.
 IMPLEMENTED_PROPOSALS.update({'aquarea.provider_contract_154_131': {'proposal_sha256': '5629957ac6d8dca1b1c9cea49cdad462b16df33d967bdab2c2219d03c4e4d0d4', 'introduced_release': '1.0.0-beta.91', 'title': 'Gecontroleerd Aquarea 1.5.4-presentatiecontract'}, 'analysis.source_period_timezone': {'proposal_sha256': '7b54c86a93ae0d49b309dcf7a3956abcf78a8d2381049b446519e8cdce24a0a8', 'introduced_release': '1.0.0-beta.91', 'title': 'Bronvaste UTC-cloudenergieperioden'}, 'learning.transient_settling_status': {'proposal_sha256': 'b39d9368def47964261fdca6f713192f46559b8e11b2437a756a12ca1d9dab56', 'introduced_release': '1.0.0-beta.91', 'title': 'Tijdelijke leerstabilisatie met eigen tijdvenster'}, 'pv.ahead_evidence_per_lead_band': {'proposal_sha256': '53ae89c860072f1f31b0d03d68a1e38dc1f428ffc25612e1987046723f1df89c', 'introduced_release': '1.0.0-beta.91', 'title': 'Vooraf vastgelegde PV-reeksen per termijn'}, 'sg.session_immutable_policy_provenance': {'proposal_sha256': 'c941a4227fe9b77ffbfbe2bd49953e74e79d1c6b47e92f3ed29f9d7deb25c810', 'introduced_release': '1.0.0-beta.91', 'title': 'Oorspronkelijke SG-sessieregels en stopherkomst'}, 'sg.calculated_tank_goal_profile115': {'proposal_sha256': '2925741ea3cd463690d87de8812246921d153b489f7c4a309fd041725710e1b6', 'introduced_release': '1.0.0-beta.91', 'title': 'Berekend SG-doel onafhankelijk van contactbewijs'}, 'export.observed_vs_planning_recovery': {'proposal_sha256': 'f4825a52bc9f8e3cc9dfe683c420e1637ec0954cd0ddcf2886d3c4aac1212387', 'introduced_release': '1.0.0-beta.91', 'title': 'Waarneming, planning, herstel en releasedekking apart'}})
+# Generic changes tested and shipped in beta.102; no private export identities.
+IMPLEMENTED_PROPOSALS.update({'heatpump.learning_enablement_contract': {'introduced_release': '1.0.0-beta.102',
+                                           'proposal_sha256': '84dbb3f68212a4d055b5e307b2a7b193f3f6e9e9be35ae5e0fb81a4b379f98a9',
+                                           'title': 'Aquarea-bedrijfstoestemming zonder bevestigd leerbewijs'},
+ 'planner.pv_daylight_summary_consistency': {'introduced_release': '1.0.0-beta.102',
+                                             'proposal_sha256': '93ce20ca89b407da7aa465b7f66048c78bdb8d6f1bc018ef27b6a9f18813d472',
+                                             'title': 'PV-samenvatting met dezelfde daglichtgrens'},
+ 'water.boiler_window_source_roles': {'introduced_release': '1.0.0-beta.102',
+                                      'proposal_sha256': '01af9c0533d75a86ff5f838049f486cefcfd4be4290bb11217f3e51e7b045fb1',
+                                      'title': 'Kleine boilerdalingen en brongebonden watermeetgaten'}})
+
 _PART = r"(?:0|[1-9][0-9]*)"
 _RELEASE = re.compile(rf"({_PART})\.({_PART})\.({_PART})(?:-beta\.({_PART}))?\Z")
 _PROPOSAL_ID = re.compile(r"[a-z0-9][a-z0-9._:-]{0,119}\Z")

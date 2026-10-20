@@ -14,6 +14,7 @@ from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN
 from .water import WATER_DEFAULTS, WaterModel, normalize_config, source_reading
+from .water_diagnostics import water_monitor_diagnostic
 
 _LOGGER = logging.getLogger(__name__)
 _ENTITY = re.compile(r"^[a-z_]+\.[a-z0-9_]+$")
@@ -146,6 +147,7 @@ class WaterRecorder:
 
     def overview(self):
         result = self.model.overview(self.now())
+        result["diagnostic"] = water_monitor_diagnostic(result, self.settings)
         result.update(recording=self.loaded and not self._closed and self.settings["enabled"],
                       storage_available=self._writable, recording_error=self.error)
         return result
