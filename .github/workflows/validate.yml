@@ -133,6 +133,8 @@ jobs:
         run: python tools/check_cooling_ui80.py
       - name: Validate read-only water history, source links and mobile gestures
         run: python tools/check_water_ui101.py "${{ runner.temp }}/solarpilot-browser-tests"
+      - name: Validate water detector coverage and rolling boiler comparisons
+        run: python tools/check_water_ui102.py "${{ runner.temp }}/solarpilot-browser-tests"
       - name: Retain fictitious browser validation screenshots
         if: always()
         uses: actions/upload-artifact@v4

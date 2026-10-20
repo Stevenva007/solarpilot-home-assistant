@@ -331,6 +331,21 @@ async def verify_water_history(hass, runtime, entry, commands):
                          ("native_leak", settings["leak_entity"])):
         assert point[role]["fresh"] is True
         assert point[role]["reported_at"] == hass.states.get(entity).last_reported.timestamp()
+    model_before_diagnostic = deepcopy(recorder.model.snapshot())
+    view = recorder.overview()
+    diagnostic = view["diagnostic"]
+    assert diagnostic["read_only"] is True and diagnostic["code"] == "detector_sources_current"
+    assert diagnostic["continuous_flow_ready"] is True and diagnostic["native_leak_ready"] is True
+    from custom_components.solar_pilot.water_diagnostics import water_monitor_diagnostic
+    detached = deepcopy(view)
+    for role in ("flow", "native_leak"):
+        detached[role].update(fresh=False, value=None, reason="stale",
+                              reported_at=view["observed_at"]-600, valid_until=view["observed_at"]-1)
+    expired = water_monitor_diagnostic(detached, settings)
+    assert detached["volume"]["fresh"] is True
+    assert expired["code"] == "detector_sources_unavailable"
+    assert expired["continuous_flow_ready"] is False and expired["native_leak_ready"] is False
+    assert recorder.model.snapshot() == model_before_diagnostic
     assert recorder.access_sources_complete is True
     administrator = await hass.auth.async_create_user("Synthetic water administrator", group_ids=[GROUP_ID_ADMIN])
     reader = await hass.auth.async_create_user("Synthetic water reader", group_ids=[GROUP_ID_USER])
@@ -414,6 +429,25 @@ async def verify_water_history(hass, runtime, entry, commands):
     return {"handler": handler, "message": message, "connection": Connection(administrator),
             "points": deepcopy(recorder.model.snapshot()["points"]),
             "access_sources": set(recorder.access_sources)}
+
+
+def verify_learning_enablement(runtime):
+    """Pure new-SDK provenance refusal, without learning or source refresh."""
+    from custom_components.solar_pilot.heatpump_learning import classify_heatpump_observation
+    now = time.time()
+    view = {"configured": True, "source_stale_s": 120, "program": "heating",
+        "context": "normal", "context_reliable": True, "context_stamp": now-1,
+        "native_task": {"function": "space_heating", "source": "aquarea_poll", "observed_at": now-1,
+                        "inactive": False, "raw_evidence": [{"operation_status_scope": "device_enablement"}]},
+        "power_activity": {"complete": True, "active": False, "state": "off", "total_w": 0,
+                           "observed_at": now-1},
+        "operation_display": {"context": "space_heating", "tier": "confirmed", "model_eligible": True}}
+    original = deepcopy(view)
+    before = deepcopy(runtime.heatpump_learning.snapshot())
+    classified = classify_heatpump_observation(view, now_wall=now)
+    assert classified["context"] == "heatpump_unknown" and classified["tier"] == "unknown"
+    assert classified["model_eligible"] is False
+    assert view == original and runtime.heatpump_learning.snapshot() == before
 
 
 def assert_heatpump_checkpoint(data, baseline, *, restored=None):
@@ -1031,6 +1065,7 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
             heatpump_baseline = verify_heatpump_history(hass, runtime, entry, history_commands, metered=current_sg)
             source_history = await verify_source_history(hass, runtime, entry, source_commands)
             water_history = await verify_water_history(hass, runtime, entry, water_commands)
+            verify_learning_enablement(runtime)
             feedback_report = await verify_analysis_feedback(hass, runtime, entry)
             registry = er.async_get(hass)
             rows = er.async_entries_for_config_entry(registry, entry.entry_id)
@@ -1178,6 +1213,8 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                     "source_history_registered_current_read_only_acl": True,
                     "water_registered_read_only_acl_store_reload_unload": True,
                     "water_owned_notice_removed_on_entry_removal": True,
+                    "water_channel_diagnostic_read_only": True,
+                    "learning_enablement_remains_model_ineligible": True,
                     "template_source_contract81": source_contract81,
                     "sg_manual_control84": {**manual_control84["proof"],
                         "retired_entity_and_unloaded_runtime_rejected": True,

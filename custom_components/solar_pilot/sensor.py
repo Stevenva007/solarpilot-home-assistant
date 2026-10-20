@@ -388,8 +388,12 @@ class WaterSensor(SolarEntity, SensorEntity):
             if alert.get("evidence_current") is not True:
                 return "Eerdere waterwaarschuwing nog niet opgehelderd"
             return ("Watermeter meldt mogelijk lek" if alert.get("cause") == "native_leak" else
-                    "Watermeter meldt lek en langdurige stroming" if alert.get("cause") == "both" else
+                    "Watermeter meldt mogelijk lek en langdurige stroming" if alert.get("cause") == "both" else
                     "Vermoeden van aanhoudend watergebruik")
+        if view.get("diagnostic", {}).get("state") in ("incomplete", "unavailable"):
+            return "Waterbewaking mist actuele brongegevens"
+        if view.get("diagnostic", {}).get("state") == "not_configured":
+            return "Geen waterbewakingsbron gekoppeld"
         if view.get("suspicion", {}).get("state") == "pending":
             return "Waterstroming waargenomen"
         if view.get("suspicion", {}).get("state") == "clear" or view.get("native_leak", {}).get("fresh") is True:

@@ -96,49 +96,95 @@ def correlate_water_history(detail):
     flow_times.sort()
     events = detail.get("events", [])
     events = events if isinstance(events, list) else []
-    breaks = sorted(stamp for event in events[:512] if isinstance(event, Mapping)
-                    and event.get("kind") in _BREAKS and (stamp := _number(event.get("at"))) is not None)
+    breaks, wash_breaks = [], []
+    for event in events[:512]:
+        if not isinstance(event, Mapping) or event.get("kind") not in _BREAKS:
+            continue
+        stamp = _number(event.get("at"))
+        if stamp is None:
+            continue
+        role = event.get("source_role") if event["kind"] == "source_gap" else None
+        # Only explicit new provenance narrows a gap. Old/unrecognized gap
+        # evidence stays a barrier; it is never relabelled from today's setup.
+        if role != "flow":
+            breaks.append(stamp)
+        if role not in ("flow", "boiler_temperature"):
+            wash_breaks.append(stamp)
+    breaks.sort()
+    wash_breaks.sort()
 
-    def broken(start, end):
-        index = bisect_right(breaks, start)
-        return index < len(breaks) and breaks[index] <= end
+    def broken(start, end, source_breaks):
+        index = bisect_right(source_breaks, start)
+        return index < len(source_breaks) and source_breaks[index] <= end
 
     drops, washing, count = deque(maxlen=_MAX_RESULTS), deque(maxlen=_MAX_RESULTS), 0
-    previous_temp, previous_wash = None, None
+    # A monotonic deque keeps the highest fresh reference in the rolling
+    # thirty-minute segment, with the earliest timestamp on equal peaks.
+    # Each reference enters/leaves once; capture density cannot make this an
+    # unbounded pair search on HA's event loop.
+    temperatures = deque()
+    temp_binding, last_temp, previous_wash = None, None, None
+    temp_fence, last_temp_capture, last_break = 0, 0, 0
     for point in points:
         captured, binding = point["captured_at"], point.get("context_binding")
         if not isinstance(binding, str) or not _BINDING.fullmatch(binding):
-            previous_temp = previous_wash = None
+            temperatures.clear()
+            temp_fence = max(temp_fence, captured)
+            temp_binding = last_temp = previous_wash = None
+            last_temp_capture = captured
             continue
+        if temp_binding is not None and temp_binding != binding:
+            temperatures.clear()
+            temp_fence = max(temp_fence, last_temp_capture)
+            last_temp = None
+        temp_binding = binding
+        last_temp_capture = captured
+        event_index = bisect_right(breaks, captured)
+        relevant_break = breaks[event_index-1] if event_index else 0
+        if relevant_break > last_break:
+            temperatures.clear()
+            last_temp = None
+            temp_fence = max(temp_fence, relevant_break)
+            last_break = relevant_break
         context = point.get("context")
         context = context if isinstance(context, Mapping) else {}
         boiler = context.get("boiler")
         boiler = boiler if isinstance(boiler, Mapping) else {}
         temperature = _observation(boiler.get("temperature"), captured)
         if temperature is None:
-            previous_temp = None
+            temperatures.clear()
+            last_temp = None
+            temp_fence = max(temp_fence, captured)
         else:
             value, stamp = temperature
-            advance = True
-            if previous_temp is not None:
-                old_binding, old_value, old_stamp = previous_temp
-                if binding == old_binding and 0 < stamp-old_stamp <= 1800 and not broken(old_stamp, stamp):
-                    if old_value-value >= 2:
-                        volume = volume_between(old_stamp, stamp)
-                        at = bisect_left(flow_times, old_stamp)
-                        flow_seen = at < len(flow_times) and flow_times[at] <= stamp
-                        drops.append({"start": old_stamp, "end": stamp,
-                                      "temperature_start_c": old_value, "temperature_end_c": value,
-                                      "drop_c": old_value-value, "observed_volume_l": volume,
-                                      "volume_partial": True, "water_observed": True if flow_seen or volume and volume > 0 else None,
-                                      "flow_observed": flow_seen})
-                        count += 1
-                elif stamp <= old_stamp and binding == old_binding:
-                    advance = False
-                    if stamp != old_stamp or value != old_value:
-                        previous_temp = None
-            if advance:
-                previous_temp = binding, value, stamp
+            if last_temp is not None and (stamp < last_temp[0] or stamp == last_temp[0] and value != last_temp[1]):
+                temperatures.clear()
+                temp_fence = max(temp_fence, last_temp[0])
+                last_temp = None
+            elif stamp <= temp_fence:
+                temperatures.clear()
+                last_temp = None
+            elif last_temp is None or stamp > last_temp[0]:
+                while temperatures and temperatures[0][0] < stamp-1800:
+                    temperatures.popleft()
+                if temperatures and temperatures[0][1]-value >= 2:
+                    old_stamp, old_value = temperatures[0]
+                    volume = volume_between(old_stamp, stamp)
+                    at = bisect_left(flow_times, old_stamp)
+                    flow_seen = at < len(flow_times) and flow_times[at] <= stamp
+                    drops.append({"start": old_stamp, "end": stamp,
+                                  "temperature_start_c": old_value, "temperature_end_c": value,
+                                  "drop_c": old_value-value, "observed_volume_l": volume,
+                                  "volume_partial": True, "water_observed": True if flow_seen or volume and volume > 0 else None,
+                                  "flow_observed": flow_seen})
+                    count += 1
+                    # The endpoint may anchor the next decline. Everything
+                    # before it is consumed, so output windows never overlap.
+                    temperatures.clear()
+                while temperatures and temperatures[-1][1] < value:
+                    temperatures.pop()
+                temperatures.append((stamp, value))
+                last_temp = stamp, value
         dish = _observation(context.get("dishwasher"), captured, boolean=True)
         if dish is None or dish[0] is not True:
             previous_wash = None
@@ -146,7 +192,7 @@ def correlate_water_history(detail):
             stamp = dish[1]
             if previous_wash is not None:
                 old_binding, old_stamp = previous_wash
-                if binding == old_binding and 0 < stamp-old_stamp <= 300 and not broken(old_stamp, stamp):
+                if binding == old_binding and 0 < stamp-old_stamp <= 300 and not broken(old_stamp, stamp, wash_breaks):
                     volume = volume_between(old_stamp, stamp)
                     if volume is not None and volume > 0:
                         washing.append({"start": old_stamp, "end": stamp, "observed_volume_l": volume,

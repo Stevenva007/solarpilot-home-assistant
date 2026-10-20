@@ -192,6 +192,7 @@ class WaterModel:
         self._suspicion = self._unknown_suspicion("collecting")
         self._last_point = None
         self._last_fingerprint = None
+        self._context_quality = None
 
     def _unknown_suspicion(self, reason):
         return {"state": "unknown", "elapsed_s": 0, "required_s": self.settings["continuous_flow_minutes"]*60,
@@ -227,6 +228,7 @@ class WaterModel:
         self._suspicion = self._unknown_suspicion(reason)
         self.alert["evidence_current"] = False
         self._last_point = self._last_fingerprint = None
+        self._context_quality = None
 
     def update_config(self, config, now=None):
         clean = normalize_config(config)
@@ -251,7 +253,7 @@ class WaterModel:
     def _observe_volume(self, reading, now):
         if not reading.get("fresh") or reading.get("value") is None:
             if self._volume is not None and not self._volume_gap:
-                self._event("source_gap", now)
+                self._event("source_gap", now, source_role="volume")
             self._volume_gap = self._volume is not None
             return
         stamp, value = reading["reported_at"], reading["value"]
@@ -295,7 +297,7 @@ class WaterModel:
     def _observe_flow(self, reading, now):
         if not reading.get("fresh") or reading.get("value") is None:
             if self._flow is not None:
-                self._event("source_gap", now)
+                self._event("source_gap", now, source_role="flow")
             self._flow = self._flow_since = None
             self._suspicion = self._unknown_suspicion(reading.get("reason", "unknown"))
             return
@@ -411,15 +413,23 @@ class WaterModel:
             self._event("flow_state", now, state=self._suspicion["state"])
         self._observe_alert(readings, now)
         self._latest = deepcopy(readings)
+        clean_context = _clean_context(context, now)
+        context_identity = context_binding if isinstance(context_binding, str) and re.fullmatch(r"[a-f0-9]{64}", context_binding) else None
+        context_quality = (context_identity, clean_context["boiler"]["temperature"]["value"] is not None,
+                           clean_context["boiler"]["target"]["value"] is not None,
+                           clean_context["dishwasher"]["value"])
+        if (self._context_quality is not None and self._context_quality[1]
+                and (not context_quality[1] or self._context_quality[0] != context_identity)):
+            self._event("source_gap", now, source_role="boiler_temperature")
+        self._context_quality = context_quality
         fingerprint = (readings["volume"]["fresh"], readings["flow"]["fresh"],
-                       readings["native_leak"]["fresh"], readings["native_leak"]["value"], self._suspicion["state"])
+                       readings["native_leak"]["fresh"], readings["native_leak"]["value"], self._suspicion["state"], context_quality)
         important = fingerprint != self._last_fingerprint
         elapsed = now-self._last_point if self._last_point is not None else math.inf
         changed_value = bool(self.points and any(readings[key]["value"] != self.points[-1][key]["value"]
                                                for key in ("volume", "flow")))
         if important or elapsed >= 300 or changed_value and elapsed >= 60:
-            context_identity = context_binding if isinstance(context_binding, str) and re.fullmatch(r"[a-f0-9]{64}", context_binding) else None
-            self.points.append({"captured_at": now, **deepcopy(readings), "context": _clean_context(context, now),
+            self.points.append({"captured_at": now, **deepcopy(readings), "context": clean_context,
                                 "context_binding": context_identity,
                                 "suspicion": deepcopy(self._suspicion)})
             self._last_point, self._last_fingerprint = now, fingerprint
@@ -590,6 +600,9 @@ class WaterModel:
                            "restart", "source_gap", "clock_reversal", "disabled"}
             for event in data["events"]:
                 if (event.get("kind") not in event_kinds
+                        or "source_role" in event and (event["kind"] != "source_gap"
+                        or type(event["source_role"]) is not str
+                        or event["source_role"] not in ("volume", "flow", "boiler_temperature"))
                         or event.get("state") is not None and event["state"] not in ("unknown", "clear", "pending", "suspected")
                         or event.get("cause") is not None and event["cause"] not in ("native_leak", "continuous_flow", "both")
                         or event.get("episode_id") is not None and (not isinstance(event["episode_id"], str)
@@ -603,7 +616,7 @@ class WaterModel:
             if type(revision) is not int or not 0 <= revision <= 10**12:
                 return False
             self.points, self.intervals = points, intervals
-            self.events = [{key: deepcopy(row.get(key)) for key in ("at", "kind", "state", "cause", "episode_id") if key in row}
+            self.events = [{key: deepcopy(row.get(key)) for key in ("at", "kind", "state", "cause", "episode_id", "source_role") if key in row}
                            for row in data["events"]]
             self.days = {day: {key: row[key] for key in ("volume_l", "volume_covered_s", "volume_intervals")}
                          for day, row in days.items()}
