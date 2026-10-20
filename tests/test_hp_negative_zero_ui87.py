@@ -41,6 +41,9 @@ def test_valid_normalized_zero_appears_as_zero_and_raw_source_stays_in_details(v
 def test_normalization_does_not_refresh_its_original_source_time():
     data = normalized_feed()
     p = data["panasonic"]
+    # Whole seconds survive the Node milliseconds round-trip exactly.
+    # Fractional wall time can otherwise floor 120.99999976 to 120.
+    data["_test_clock"] = int(data["_test_clock"])
     old = data["_test_clock"]-121
     p.update(power_observed_at=old, power_supply1_observed_at=old, power_supply2_observed_at=old)
     p["power_activity"].update(observed_at=old)
@@ -52,7 +55,7 @@ def test_normalization_does_not_refresh_its_original_source_time():
     assert "Vermogen nog niet bekend" in root.text()
     assert "Bron -12 W → toegepast 0 W · bron niet actueel" in details(root).text()
     age = re.search(r"(\d+) s geleden · last_reported", details(root).text())
-    assert age and int(age.group(1)) >= 121
+    assert age and int(age.group(1)) == 121
 
 
 @pytest.mark.parametrize("code,raw", [("missing", None), ("invalid_value", "unavailable"), ("stale", "-12")])
