@@ -34,6 +34,8 @@ De upstreambronnen blijven Aquarea **1.8.0**, commit `8722cf22e5a5752406aea1ba79
 
 De nul fysieke serviceaanroepen in Core en browserproeven is geen live hardwareacceptatie. Er is geen lek opgewekt, kraan of toestel bediend, MQTT-configuratie gewijzigd of Panasonic-/Shelly-proef uitgevoerd. PV-scores bewijzen geen schaduwoorzaak; watervergelijkingen bewijzen geen warmwaterliters, fysiek lek of oorzaak.
 
+De eerste main-herhaling na PR #42 vond één bestaande tijdsafhankelijke fixturefout: een fractionele testklok kon na de seconden/millisecondenconversie 120,99999976 seconden geven, waarna de leeftijd correct naar 120 werd afgerond. De bron bleef wel als verouderd afgewezen; geen productiebron werd vernieuwd. De betrokken test gebruikt nu een exact representeerbare hele-secondenklok en eist exact 121 seconden, met behoud van alle onbekend-/nul-/bronherkomstasserties. De gecorrigeerde fixture en bestaande warmtepomp-/SG-bronregressies behalen lokaal **173 geslaagde tests in 18,13 s**. De gecorrigeerde testbron moet opnieuw alle vereiste gates doorlopen.
+
 ## Opslag en rollback
 
 Bestaande instellingen, modellen, PV-factoren, tickets, opnamepunten, teller-/dagsommen, geschiedenis en userfiles blijven behouden. Het nieuwe optionele meetgatveld `source_role` houdt waterschema **1**. Beta.101 kan de opslag lezen, maar projecteert dat extra veld weg bij een volgende opslag. Alleen de volledige privéback-up bewaart deze aanvullende herkomst voor terugkeer naar beta.102. Oude generieke meetgaten blijven conservatieve barrières; ontbrekende historische herkomst wordt niet verzonnen.
