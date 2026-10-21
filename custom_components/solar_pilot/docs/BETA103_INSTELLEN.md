@@ -12,6 +12,8 @@ Een afgeleide taak blijft **Afgeleid**. Nieuwe ontbrekende of oude brongegevens 
 
 De backend leverde deze samenhangende afleiding al. Backendregels, leren, SG- en andere controllers, instellingen, timers, modellen en geschiedenis blijven behouden. De update verandert uitsluitend de weergave en de releasegebonden documentatie-/implementatieregistratie; zij voegt geen toestelopdracht of extra bronrecht toe.
 
+Aquarea **1.8.1** is eveneens inhoudelijk gecontroleerd. Deze versie verbetert de cloudenergieverwerking bij een UTC-maandwissel. SolarPilot behoudt de oorspronkelijk gerapporteerde sensorperiode, ook wanneer de vorige maand pas later wordt afgerond. De SDK en taaksemantiek blijven gelijk. Dit is geen automatische installatie van Aquarea op Home Assistant.
+
 ## Bijwerken
 
 1. Maak een volledige privé Home Assistant-back-up, inclusief instellingen, opslag, modellen, historie en userfiles. Behoud de bestaande integratie-entry.

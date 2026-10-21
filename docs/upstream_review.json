@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "reviewed_at": "2026-10-21T08:07:03Z",
+  "reviewed_at": "2026-10-21T12:44:56Z",
   "assessment": {
     "status": "complete_no_unprocessed_changes",
-    "summary": "Beta.103 source review: eight fresh official GitHub API responses match the beta.102 checkpoint: both public repository identities, main default branches, current HEADs, latest published stable releases and directly resolved tag commits are unchanged. Aquarea remains 1.8.0 and SDK remains 1.4.0, with unchanged publication times and target branches. There are no additional upstream differences to process. The beta.103 frontend status-rendering correction adds no provider permission. The separate operation-status capability, LIVE/CACHED checks, source binding and original historical semantics remain applicable. Earlier source assessments retain their historical meaning. Identical source pins establish public source freshness only; they do not guarantee runtime compatibility, physical sensor freshness, local installation acceptance or actuator authority.",
+    "summary": "Beta.103 follow-up review: eight fresh official GitHub API responses identify Aquarea 1.8.1 at 6717d82ccfb14708abb4a66f494b97418ad80863. The complete comparison from reviewed 1.8.0 contains three commits and fourteen files. Relevant monthly consumption changes finish the old cloud month before fetching the new month, retain the actual displayed month as the native sensor period, and match the later recorded reset against cloud hours since the new UTC period start. SolarPilot already projects the observed native period_being_processed rather than the capture month; an old period remains old, may exclude capture time and does not establish complete measurement coverage. Dedicated rollover regressions are part of the beta.103 review without a test-outcome claim here. SDK 1.4.0 and Aquarea status, climate/tank and typed polling semantics are unchanged. The changes are processed without additional provider or actuator authority. Public source freshness does not guarantee runtime compatibility, physical sensor freshness or local installation acceptance.",
     "compatibility_claim": false,
     "evidence_document": "docs/UPSTREAM_BRONNEN.md"
   },
@@ -11,16 +11,16 @@
     {
       "repository": "wpatrik14/home-assistant-aquarea",
       "default_branch": "main",
-      "head_commit": "8722cf22e5a5752406aea1ba79b2cf48d4deedf3",
+      "head_commit": "6717d82ccfb14708abb4a66f494b97418ad80863",
       "latest_release": {
-        "tag": "v1.8.0",
-        "commit": "8722cf22e5a5752406aea1ba79b2cf48d4deedf3",
+        "tag": "v1.8.1",
+        "commit": "6717d82ccfb14708abb4a66f494b97418ad80863",
         "target_commitish": "main",
-        "published_at": "2026-10-18T17:05:16Z",
+        "published_at": "2026-10-21T08:38:43Z",
         "selection": "github_latest_published_stable"
       },
       "reviewed_base_commit": "8722cf22e5a5752406aea1ba79b2cf48d4deedf3",
-      "review_result": "no_additional_changes"
+      "review_result": "relevant_changes_processed"
     },
     {
       "repository": "wpatrik14/aioaquarea",
