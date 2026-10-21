@@ -147,6 +147,15 @@ IMPLEMENTED_PROPOSALS.update({'heatpump.learning_enablement_contract': {'introdu
                                       'proposal_sha256': '01af9c0533d75a86ff5f838049f486cefcfd4be4290bb11217f3e51e7b045fb1',
                                       'title': 'Kleine boilerdalingen en brongebonden watermeetgaten'}})
 
+# Generic display correction; no private export identities or settings.
+IMPLEMENTED_PROPOSALS.update({
+    'heatpump.display_operation_contract_alignment': {
+        'introduced_release': '1.0.0-beta.103',
+        'proposal_sha256': '3dd5ae084e4b1b34a3d4bdced8854b4629065ff547c91198b25a1683a43f196e',
+        'title': 'Warmtepompkaart volgt het gevalideerde broncontract',
+    },
+})
+
 _PART = r"(?:0|[1-9][0-9]*)"
 _RELEASE = re.compile(rf"({_PART})\.({_PART})\.({_PART})(?:-beta\.({_PART}))?\Z")
 _PROPOSAL_ID = re.compile(r"[a-z0-9][a-z0-9._:-]{0,119}\Z")

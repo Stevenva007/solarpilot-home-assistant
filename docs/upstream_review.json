@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "reviewed_at": "2026-10-20T13:19:24Z",
+  "reviewed_at": "2026-10-21T08:07:03Z",
   "assessment": {
     "status": "complete_no_unprocessed_changes",
-    "summary": "Beta.102 source review: eight fresh official GitHub API responses match the beta.101 checkpoint: both public repository identities and main default branches, current default-branch HEADs, latest published stable releases and directly resolved release-tag commits are unchanged. Aquarea remains 1.8.0 and SDK remains 1.4.0, with unchanged publication times and target branches. There are no additional upstream differences to process. The separate operation-status capability, LIVE/CACHED checks, source binding and original historical semantics remain applicable. The processed beta.98 assessment and generic beta.101 water-source evidence remain historical records. This checkpoint establishes public source freshness only; it grants no runtime compatibility, physical sensor freshness, installation acceptance or actuator authority.",
+    "summary": "Beta.103 source review: eight fresh official GitHub API responses match the beta.102 checkpoint: both public repository identities, main default branches, current HEADs, latest published stable releases and directly resolved tag commits are unchanged. Aquarea remains 1.8.0 and SDK remains 1.4.0, with unchanged publication times and target branches. There are no additional upstream differences to process. The beta.103 frontend status-rendering correction adds no provider permission. The separate operation-status capability, LIVE/CACHED checks, source binding and original historical semantics remain applicable. Earlier source assessments retain their historical meaning. Identical source pins establish public source freshness only; they do not guarantee runtime compatibility, physical sensor freshness, local installation acceptance or actuator authority.",
     "compatibility_claim": false,
     "evidence_document": "docs/UPSTREAM_BRONNEN.md"
   },

@@ -35,6 +35,7 @@ def test_shipped_catalog_only_contains_release_bound_generic_proposals():
               "sg.session_immutable_policy_provenance", "sg.calculated_tank_goal_profile115",
               "export.observed_vs_planning_recovery"}
     beta102 = {'water.boiler_window_source_roles', 'heatpump.learning_enablement_contract', 'planner.pv_daylight_summary_consistency'}
+    beta103 = {'heatpump.display_operation_contract_alignment'}
     assert set(implementations.IMPLEMENTED_PROPOSALS) == {
         "sp.hp.task-presentation.v1", "sp.hp.context-and-learning.v1",
         "sp.meters.source-quality-evidence.v1", "sp.electrical.budget-versus-limits.v1",
@@ -42,10 +43,10 @@ def test_shipped_catalog_only_contains_release_bound_generic_proposals():
         "sp.sg.minimum-request-duration.v1", "sp.sg.cloud-import-buffer.v1",
         "sp.sg.confirmed-reset-display.v1", "sp.wallbox.session-source-diagnostics.v1",
         "sp.hp.inactive-scope-display.v1", "sp.learning.local-investigation.v1",
-        "sp.sg.session-evidence.v1", "sp.analysis.recommendation-kind.v1"} | beta81 | beta83 | beta85 | beta86 | beta87 | beta91 | beta102
+        "sp.sg.session-evidence.v1", "sp.analysis.recommendation-kind.v1"} | beta81 | beta83 | beta85 | beta86 | beta87 | beta91 | beta102 | beta103
     for identifier, row in implementations.IMPLEMENTED_PROPOSALS.items():
         assert set(row) == {"introduced_release", "title", "proposal_sha256"}
-        assert row["introduced_release"] == ("1.0.0-beta.102" if identifier in beta102 else "1.0.0-beta.91" if identifier in beta91 else "1.0.0-beta.87" if identifier in beta87 else "1.0.0-beta.86" if identifier in beta86 else "1.0.0-beta.85" if identifier in beta85 else "1.0.0-beta.83" if identifier in beta83 else "1.0.0-beta.81" if identifier in beta81 else "1.0.0-beta.75" if identifier in {
+        assert row["introduced_release"] == ("1.0.0-beta.103" if identifier in beta103 else "1.0.0-beta.102" if identifier in beta102 else "1.0.0-beta.91" if identifier in beta91 else "1.0.0-beta.87" if identifier in beta87 else "1.0.0-beta.86" if identifier in beta86 else "1.0.0-beta.85" if identifier in beta85 else "1.0.0-beta.83" if identifier in beta83 else "1.0.0-beta.81" if identifier in beta81 else "1.0.0-beta.75" if identifier in {
             "sp.learning.local-investigation.v1", "sp.sg.session-evidence.v1",
             "sp.analysis.recommendation-kind.v1"} else "1.0.0-beta.74" if identifier in {
             "sp.sg.confirmed-reset-display.v1", "sp.wallbox.session-source-diagnostics.v1",

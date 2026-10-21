@@ -1,10 +1,10 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.102
-**Bijgewerkt:** 2026-10-20
-**Regel-hash:** `40d9fcedbdaa6010`
+**Versie:** 1.0.0-beta.103
+**Bijgewerkt:** 2026-10-21
+**Regel-hash:** `24b193266d1804d6`
 
-Beta.102 corrigeert de daglichtwaarschuwing voor PV en voorkomt dat een ingeschakelde Aquarea-verwarmingsstand zelfstandig als bevestigde uitgevoerde leertaak geldt. Watergeschiedenis kan opeenvolgende kleine boilerdalingen binnen dertig minuten samen vergelijken. Nieuwe bronrolinformatie onderscheidt een debietgat van een onderbreking in teller of boilertemperatuur. Water toont apart welke gekoppelde bewakingsbronnen actuele bruikbare rapporten leveren. Oude bronwaarden blijven oud; bronkoppelingen, instellingen, modellen en historie blijven behouden. Deze wijzigingen geven geen nieuwe apparaatbediening.
+Beta.103 herstelt de aansluiting tussen de actuele warmtepompherkenning en de kaart. Een door de backend met passende actuele brongegevens afgeleide verwarmings-, koel- of boilertaak blijft ook bij het gesplitste Aquarea-statuscontract zichtbaar als afgeleid. De bronuitleg onderscheidt de twee ondersteunde betekenissen. Een gekozen stand, kamertemperatuur of ingeschakelde zone alleen wordt geen bewijs van werkelijke uitvoering. Instellingen, historie, modellen en alle regelingsgrenzen blijven behouden.
 
 ## 1. Basisprincipe en modi
 
@@ -39,6 +39,8 @@ Batterijadvies volgt de tijdvolgorde: alleen de echte beginlading en reeds voors
 Resterend kwartierbudget is een theoretische energiegrens voor de resterende seconden. Details/Energie tonen daarnaast de daadwerkelijk begrensde instantane ruimte na vaste import-, fase- en kwartiergrenzen. Een zeer hoog theoretisch kwartiergetal verruimt nooit de vaste elektrische grenzen, broncontrole, prioriteiten of zonnevoorwaarden. Een geblokkeerde SG-aanvraag benoemt de beperkende grens en benodigde extra raming.
 
 ## 3. Warmtepomp — Panasonic-regeling / SG-zonneboost voor warm water, verwarmen en koelen
+
+De warmtepompkaart gebruikt dezelfde ondersteunde broncontracten als de backend. Een met oorspronkelijke actuele pomp-, route-, zone-/tank- en toegewezen voedingsmeting afgeleide taak verschijnt als Verwarmen, Koelen of Boiler opwarmen met het label Afgeleid. Verlopen bronnen, cache, tegenstrijdige routes en onvolledig bewijs blijven onbekend. Hoofdtoestemming, gekozen programma en een ruimte op haar doeltemperatuur bewijzen op zichzelf geen thermische uitvoering. Deze schermcorrectie verleent geen leer- of regelrecht en herschrijft geen historische taak.
 
 Panasonic regelt zelfstandig normaal warm water, tankhysterese, kamerthermostaten en zones, stooklijnen, verwarmen/koelen, omschakeling, compressor, pompen, kleppen, ontdooien, elektrische ondersteuning en sterilisatie. Dit blijft zo wanneer SolarPilot of Home Assistant uitvalt.
 
@@ -425,7 +427,7 @@ Een privéprofiel blijft optioneel en uitsluitend lokaal. Importeren kan lege ge
 
 Voor verwijderen kies je Verwijderen voorbereiden en wacht je op de gerichte veilige vrijgave. Een onzekere SG-uitgang blijft eerlijk onbekend; de gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, AEG- of Shelly-integratie.
 
-Rollback naar beta.101 behoudt de waterregistratie, bestaande opslag en lichte SG-bediening. De oudere PV-samenvatting en warmtepompleerclassificatie keren terug, evenals de vergelijking die alleen een voldoende grote opeenvolgende temperatuursprong herkent en meetgaten generiek behandelt. Beta.101 kan de versie-1-wateropslag lezen en behandelt de meetgaten conservatief, maar laat de nieuwe optionele bronrol bij een volgende opslag weg. Bewaar daarom de volledige back-up om die aanvullende herkomst bij terugkeer naar beta.102 te behouden. Bewaar entry, opslag, modellen, historie en userfiles; herstart Home Assistant volledig en herlaad de app/browser. Verwijder de entry niet. Zie BETA102_INSTELLEN.md.
+Rollback naar beta.102 behoudt dezelfde instellingen, opslag, modellen, historie, waterregistratie en SG-bediening. De kaart kan bij het gesplitste Aquarea-statuscontract weer een onbekende taak tonen terwijl de backend al een taak afleidt; de oude bronbenaming keert terug. Er is geen opslagmigratie. Bewaar vóór terugzetten een volledige privéback-up, behoud de entry en userfiles, herstart Home Assistant volledig en herlaad de app/browser. Verder teruggaan naar beta.101 kan de aanvullende watermeetgatrol bij een volgende opslag verliezen. Zie BETA103_INSTELLEN.md.
 
 ## 21. Release- en documentatieregel
 

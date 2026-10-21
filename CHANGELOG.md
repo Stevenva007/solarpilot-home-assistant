@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0-beta.103 — afgeleide warmtepompstatus op de kaart
+
+- Herstelt het oude special_status-only frontendfilter: beide bestaande exacte broncontracten kunnen de al geldige backendafleiding tonen. Provider, binding, actualiteit, cache- en metergrenzen blijven vereist.
+- Behoudt het label Afgeleid en laat Details en historische bronbijschriften aansluiten op de werkelijke semantiek. De split operation_status-route krijgt geen oude special-status- of globale-UIT-uitleg.
+- Verandert geen backendregels, leren, SG/controllers, timers, instellingen, opslag of historische meetgegevens. Rollback naar beta.102 gebruikt dezelfde gegevens en brengt de oude frontendfout terug; geen migratie.
+- Installatie/rollback: `docs/BETA103_INSTELLEN.md`; uitgevoerde gerichte tests en nog openstaande definitieve suite-, Core-, browser- en publicatiecontroles: `docs/TESTRESULTATEN_BETA103.md`.
+
 ## 1.0.0-beta.102 — analysecorrecties en waterbronactualiteit
 
 - Gebruikt voor de PV-kwaliteitswaarschuwing dezelfde daglicht-MAE, minstens twaalf vergelijkingen en strikt meer dan 700 W als de leervraag. Ontbrekend bewijs blijft onbekend; cijfers, kwaliteitsscore, reserves en plannerbeleid veranderen niet.
