@@ -2,7 +2,7 @@
 
 **Versie:** 1.0.0-beta.103
 **Bijgewerkt:** 2026-10-21
-**Regel-hash:** `24b193266d1804d6`
+**Regel-hash:** `9f9084e8b1cc6b2f`
 
 Beta.103 herstelt de aansluiting tussen de actuele warmtepompherkenning en de kaart. Een door de backend met passende actuele brongegevens afgeleide verwarmings-, koel- of boilertaak blijft ook bij het gesplitste Aquarea-statuscontract zichtbaar als afgeleid. De bronuitleg onderscheidt de twee ondersteunde betekenissen. Een gekozen stand, kamertemperatuur of ingeschakelde zone alleen wordt geen bewijs van werkelijke uitvoering. Instellingen, historie, modellen en alle regelingsgrenzen blijven behouden.
 
@@ -394,6 +394,8 @@ Een logische verbetersuggestie kan een stabiele proposal_id bevatten. De status 
 Warmtepompgeschiedenis wordt maximaal dertig lokale kalenderdagen bewaard. Die bewaartermijn staat apart van het gekozen rollende exportvenster van 1, 24 of 168 uur en het aantal werkelijk opgenomen datums. Het warmtepompdeel neemt elke lokale kalenderdag op die met dat venster overlapt; 168 uur kan daardoor acht datums omvatten, en rond een tijdwissel soms negen. Dagtotalen, taakperioden en SG-lagen blijven de volledige werkelijk geregistreerde lokale kalenderdag beschrijven. Gedeeltelijke grensdatums worden expliciet gemarkeerd, naast de afzonderlijke meetdekking. Gegevens op zo een grensdag kunnen buiten het rollende venster liggen; energie wordt niet naar rato geschat of kunstmatig afgeknipt. Alle onderdelen gebruiken hetzelfde exporteindtijdstip. Dit verandert geen opslagretentie, registratie, apparaatinstelling of ontbrekende historie.
 
 Nieuwe exports scheiden observed.control en observed.power van planning en eigendom. Hersteltijd en de minimumlooptijd zijn expliciete bewijsvelden. Dekking wordt daarnaast per werkelijk verzamelende release en bron verdeeld; een interval over een releasewissel of meetgat wordt niet overbrugd. Bij een geverifieerde Aquarea-cloudenergiesensor staan provider, bronsoort, werkelijk uitgelezen aggregatiebegin, exclusief periode-einde en UTC-tijdzone apart. Dag-/maandtotalen zijn pas vergelijkbaar bij dezelfde uren, scope en dekking; een HA-rapporttijd is geen aggregatiebegin. Ontbrekende native periodegegevens blijven onbekend. Een bekende aggregatieperiode is geen bewijs van actualiteit of volledige meetdekking.
+
+Aquarea 1.8.1 houdt de vorige UTC-cloudmaand vast tot de laatste energiegegevens zijn opgehaald en schuift daarna door naar de nieuwe maand. SolarPilot blijft de werkelijk door de native sensor gerapporteerde periode uitlezen. Een nieuwe exportdatum maakt een behouden oude maand niet tot de huidige maand; periodegrenzen bewijzen geen meetdekking of actualiteit. De status-/actiesemantiek en SDK zijn bij deze bronwijziging ongewijzigd. De aanvullende bronreview en regressies verruimen geen taak-, leer- of regelrecht.
 
 ## 18. Live configuratie en één eigenaar
 

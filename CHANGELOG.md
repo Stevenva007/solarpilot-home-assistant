@@ -2,6 +2,7 @@
 
 ## 1.0.0-beta.103 — afgeleide warmtepompstatus op de kaart
 
+- Verwerkt de actuele Aquarea 1.8.1-bronreview en toetst de bestaande uitlezing van oorspronkelijke UTC-energieperioden bij de uitgestelde maandrollover. SDK-/taakbetekenis, meetdekking en regelingsrechten blijven gelijk.
 - Herstelt het oude special_status-only frontendfilter: beide bestaande exacte broncontracten kunnen de al geldige backendafleiding tonen. Provider, binding, actualiteit, cache- en metergrenzen blijven vereist.
 - Behoudt het label Afgeleid en laat Details en historische bronbijschriften aansluiten op de werkelijke semantiek. De split operation_status-route krijgt geen oude special-status- of globale-UIT-uitleg.
 - Verandert geen backendregels, leren, SG/controllers, timers, instellingen, opslag of historische meetgegevens. Rollback naar beta.102 gebruikt dezelfde gegevens en brengt de oude frontendfout terug; geen migratie.
