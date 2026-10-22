@@ -1,0 +1,19 @@
+name: Recovery source snapshot
+on:
+  push:
+    branches: [fix/device-isolated-recovery-beta104]
+    paths: [.github/workflows/recovery-source-snapshot.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Archive tracked public source only
+        run: git archive --format=zip --output=source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: recovery-source-snapshot
+          path: source.zip
+          retention-days: 1
