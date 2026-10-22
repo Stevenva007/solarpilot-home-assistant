@@ -3,13 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.103'
-GUIDE_UPDATED = '2026-10-21'
+GUIDE_VERSION = '1.0.0-beta.104'
+GUIDE_UPDATED = '2026-10-22'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.103',
- 'updated': '2026-10-21',
- 'intro': 'Beta.103 herstelt de aansluiting tussen de actuele warmtepompherkenning en de kaart. Een door de backend met passende actuele brongegevens afgeleide verwarmings-, koel- of boilertaak blijft ook bij het gesplitste Aquarea-statuscontract zichtbaar als afgeleid. De bronuitleg onderscheidt de twee ondersteunde betekenissen. Een gekozen stand, kamertemperatuur of ingeschakelde zone alleen wordt geen bewijs van werkelijke uitvoering. Instellingen, historie, modellen en alle regelingsgrenzen blijven behouden.',
+ 'version': '1.0.0-beta.104',
+ 'updated': '2026-10-22',
+ 'intro': 'Beta.104 scheidt gewone tijdelijke onbereikbaarheid van echte opdrachtfouten. Controle afronden vraagt geen UIT-bevestiging meer aan een niet-betrokken offline toestel en wist diens herstelgegevens niet. Een ontbrekende Wallbox-uitlezing wordt informatief getoond zonder nutteloze resetknop. Andere toestellen blijven actuele P1-restzon gebruiken volgens hun eigen voorwaarden. Onzekere verzonden opdrachten, harde elektrische grenzen, instellingen en historie blijven beschermd.',
  'sections': [{'title': '1. Basisprincipe en modi',
                'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele '
                               'net- en PV-metingen, echte toestelvoorwaarden en elektrische grenzen gaan '
@@ -1138,6 +1138,19 @@ GUIDE_HASH = hashlib.sha256(
     json.dumps(CURRENT_GUIDE, sort_keys=True, ensure_ascii=False).encode("utf-8")
 ).hexdigest()
 
+
+# Release-specific recovery boundary: no global OFF prerequisite for source waits.
+CURRENT_GUIDE['sections'][0]['paragraphs'].append(
+    'Controle afronden beoordeelt echte fouten, niet gewone tijdelijke onbereikbaarheid. '
+    'Een offline afwasmachine of andere bronwachter hoeft niet eerst UIT te bevestigen '
+    'om een onafhankelijke fout af te ronden. De eigen wachttijd, onbekende toestand, '
+    'lease en eenmalige aanvraag blijven bewaard. Een verouderde knop zonder echte '
+    'fout doet niets en verstuurt geen toestelopdracht. Onzekere verzonden opdrachten '
+    'vereisen passende nieuwe terugmelding; een oude of restored UIT is geen bewijs. '
+    'Wallbox-telemetriewacht wordt informatief getoond zonder foutkleur of resetknop. '
+    'Een dubbele koppeling blijft een zichtbare configuratiemelding. Actuele '
+    'P1-restzon en alle bestaande toestel-, net-, fase- en kwartiergrenzen blijven leidend.'
+)
 
 def render_markdown() -> str:
     """Render the canonical guide as the bundled Markdown document."""

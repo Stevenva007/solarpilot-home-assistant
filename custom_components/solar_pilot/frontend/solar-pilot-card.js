@@ -1,5 +1,5 @@
-/* SolarPilot 1.0.0-beta.103. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
-const SP_CARD_VERSION = '1.0.0-beta.103';
+/* SolarPilot 1.0.0-beta.104. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+const SP_CARD_VERSION = '1.0.0-beta.104';
 const SP_DIALOG_RELEASE = SP_CARD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g,'-');
 const SP_ANALYSIS_DIALOG_TAG = `solar-pilot-analysis-dialog-${SP_DIALOG_RELEASE}`;
 const SP_QUALITY_DIALOG_TAG = `solar-pilot-learning-dialog-${SP_DIALOG_RELEASE}`;
@@ -1385,14 +1385,16 @@ class SolarPilotCard extends HTMLElement {
     const automaticRestart=a.restart_recovery_pending===true;
     const sourceWait=!automaticRestart&&a.problem_kind==='source_wait';
     const sourceConfiguration=!automaticRestart&&a.problem_kind==='source_configuration';
+    const wallboxWait=!automaticRestart&&a.problem_kind==='wallbox_wait';
+    const wallboxConfiguration=!automaticRestart&&a.problem_kind==='wallbox_configuration';
     const recoveryNames=Array.isArray(a.restart_recovery_devices)?a.restart_recovery_devices:[];
     const problem=a.problem||(automaticRestart?`Wacht op betrouwbare toestelstatus${recoveryNames.length?': '+recoveryNames.join(' · '):''}; SolarPilot controleert automatisch opnieuw.`:'');
-    const title=automaticRestart?'Automatische herstartcontrole':sourceWait?'Automatische broncontrole':sourceConfiguration?'Toestelgegevens controleren':'Aandacht nodig';
-    const sourceNote=sourceWait?'SolarPilot controleert automatisch opnieuw zodra actuele gegevens beschikbaar zijn.':sourceConfiguration?'Controleer de gekoppelde bronnen en instellingen van dit toestel.':'';
-    const canReset=!automaticRestart&&!sourceWait&&!sourceConfiguration&&a.reset_entity;
+    const title=automaticRestart?'Automatische herstartcontrole':sourceWait?'Automatische broncontrole':sourceConfiguration?'Toestelgegevens controleren':wallboxWait?'Wallbox tijdelijk niet bereikbaar':wallboxConfiguration?'Wallboxkoppeling controleren':'Aandacht nodig';
+    const sourceNote=sourceWait?'SolarPilot controleert automatisch opnieuw zodra actuele gegevens beschikbaar zijn.':sourceConfiguration?'Controleer de gekoppelde bronnen en instellingen van dit toestel.':wallboxWait?'Dit blokkeert andere toestellen niet. Zij mogen actueel gemeten netoverschot gebruiken zodra hun eigen voorwaarden zijn gehaald. SolarPilot controleert de Wallbox automatisch opnieuw; onbekend laadvermogen wordt niet als vrij vermogen gerekend.':wallboxConfiguration?'Controleer de Wallboxkoppelingen. Controle afronden herstelt deze koppeling niet.':'';
+    const canReset=!automaticRestart&&!sourceWait&&!sourceConfiguration&&!wallboxWait&&!wallboxConfiguration&&a.reset_entity;
     const isolatedNotice=isolated.length?this._notice(`<strong>${isolated.length===1?'Toestel tijdelijk apart gehouden':'Toestellen tijdelijk apart gehouden'}</strong><br>${isolated.map(d=>`${spEscape(d.name)}: ${spEscape(d.reason||'betrouwbare toestelgegevens ontbreken')}`).join('<br>')}<br>Deze toestellen worden tijdelijk niet bediend. SolarPilot controleert automatisch opnieuw.${a.mode==='solar'?'<br>Andere beschikbare toestellen kunnen automatisch verder zodra hun eigen voorwaarden zijn gehaald.':''}${Number(a.isolated_reserve_w)>0?`<br>Veiligheidsreserve voor mogelijk verbruik: ${spPower(a.isolated_reserve_w)}. Dit is geen gemeten verbruik.`:''}`):'';
     const isolatedWait=isolated.length&&(sourceWait||automaticRestart&&a.problem_kind==='restart_wait'&&a.restart_blocking!==true);
-    return `${!this._last?this._notice('Geen SolarPilot-status gevonden. Voeg eerst de integratie toe.',true):''}${this._versionWarning(a)}${problem&&!isolatedWait?this._notice(`<strong>${title}</strong><br>${spEscape(problem)}${sourceNote?'<br>'+sourceNote:''}${canReset?'<br><button data-action="reset" class="mini">Controle afronden</button>':''}`,!automaticRestart&&!sourceWait):''}${isolatedNotice}${this._error?`<div role="alert" class="error">${spEscape(this._error)}</div>`:''}${this._feedback?`<div role="status" class="notice">${spEscape(this._feedback)}</div>`:''}${ems.legacy_conflicts?.length?this._notice(`<strong>Dubbele regeling geblokkeerd</strong><br>${ems.legacy_conflicts.map(x=>spEscape(x.name)).join(' · ')}<br>Automatisch regelen blijft geblokkeerd tot deze vervangen regelaars uit staan.`,true):''}`;
+    return `${!this._last?this._notice('Geen SolarPilot-status gevonden. Voeg eerst de integratie toe.',true):''}${this._versionWarning(a)}${problem&&!isolatedWait?this._notice(`<strong>${title}</strong><br>${spEscape(problem)}${sourceNote?'<br>'+sourceNote:''}${canReset?'<br><button data-action="reset" class="mini">Controle afronden</button>':''}`,!automaticRestart&&!sourceWait&&!wallboxWait):''}${isolatedNotice}${this._error?`<div role="alert" class="error">${spEscape(this._error)}</div>`:''}${this._feedback?`<div role="status" class="notice">${spEscape(this._feedback)}</div>`:''}${ems.legacy_conflicts?.length?this._notice(`<strong>Dubbele regeling geblokkeerd</strong><br>${ems.legacy_conflicts.map(x=>spEscape(x.name)).join(' · ')}<br>Automatisch regelen blijft geblokkeerd tot deze vervangen regelaars uit staan.`,true):''}`;
   }
   _versionWarning(a){
     const version=String(a.integration_version||'');

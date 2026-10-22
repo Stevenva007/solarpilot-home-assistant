@@ -3011,6 +3011,11 @@ class SolarRuntime:
             if not self.problem and not valid:
                 self.problem = "Net- of batterijmeting ontbreekt, is te oud of heeft een verkeerde eenheid"
         if not self.problem and wb.state == "unavailable":
+            # Read-only charger telemetry is not a consumer command fault.
+            # It must never offer a site-wide verified-OFF reset.
+            self.problem_kind = ("wallbox_configuration" if conflicting_devices(
+                self.hass, self.wallbox_settings, list(self.configs.values()))
+                else "wallbox_wait")
             self.problem = wb.reason
         if not self.problem and self.reclaim_blocks:
             self.problem = "Vermogensovername geblokkeerd: controleer het betrokken toestel en rond de foutcontrole af"
@@ -4203,18 +4208,42 @@ class SolarRuntime:
         await self.tick()
 
     async def reset(self):
+        """Review actual faults, without consuming unrelated automatic waits.
+
+        Missing telemetry is not evidence of ON or OFF and needs no manual
+        shutdown. Its journal, lease and one-shot tickets stay with their own
+        read-only reconciliation route. Uncertain sent commands remain guarded.
+        """
         async with self._lock:
-            if self.pending:
+            if self.pending or self.battery_fleet.state.pending:
                 raise HomeAssistantError("Wacht eerst op de lopende opdracht")
-            ids = set(self.recovery) | set(self.faults) | set(self.device_retry.records) | set(self.reclaim_blocks) | set(self.dishwasher_priority.ev_blocks)
-            if not ids and self.problem_kind in ("source_wait", "source_configuration"):
-                # A stale page or direct button call must not claim all devices
-                # were verified OFF when only a derived source guard exists.
-                raise HomeAssistantError(self.problem)
-            not_off = [self.configs[i]["name"] if i in self.configs else i for i in ids
-                       if i not in self.configs or self._active(self.configs[i]) is not False]
+            ids = (set(self.faults) | set(self._restart_faults)
+                   | set(self.reclaim_blocks) | set(self.dishwasher_priority.ev_blocks))
+            # Only a possibly dispatched command belongs in the OFF review.
+            # Ordinary source_wait records must neither veto nor be erased by it.
+            ids.update(i for i, item in self.device_retry.records.items()
+                       if item.get("state") != "source_wait")
+            # Source-only restart leases reconcile automatically. A verified-OFF
+            # lease may still be reviewed, but an unknown one cannot block peers.
+            ids.update(i for i in self.recovery if i in self.configs
+                       and self._restart_active(self.configs[i]) is False)
+            reviewed_pause = self.pause_cause in ("internal_fault", "command_fault")
+            if not ids and not self.battery_fleet.state.faults and not reviewed_pause:
+                # Idempotent stale-page/direct call: no fake OFF claim, no cleared
+                # wait or request, no persistence and no dispatch from this call.
+                return
+            not_off = []
+            for i in ids:
+                cfg = self.configs.get(i)
+                item = self.device_retry.records.get(i, {})
+                if (cfg is None or self._restart_active(cfg) is not False
+                        or (item and item.get("state") != "source_wait"
+                            and (item.get("state") != "command_wait"
+                                 or not self.device_retry._post_command_report(
+                                     cfg, item.get("issued_wall"))))):
+                    not_off.append(cfg["name"] if cfg else i)
             if not_off:
-                raise HomeAssistantError("Controleer en schakel eerst veilig uit: " + ", ".join(not_off))
+                raise HomeAssistantError("Controleer en schakel eerst veilig uit: " + ", ".join(sorted(not_off)))
             for i in ids:
                 if i in self.states:
                     self.states[i].owned = False
@@ -4226,23 +4255,21 @@ class SolarRuntime:
                     if self.configs[i].get("kind") == "dishwasher":
                         self.dishwasher.review(i)
                         self.states[i].cycle_armed = False
-            self.faults.clear()
-            self.device_retry.records.clear()
-            self.recovery.clear()
-            self._restart_faults.clear()
-            self.reclaim_blocks.clear()
-            self.dishwasher_priority.ev_blocks.clear()
-            self.dishwasher_priority.watches = {i:v for i,v in self.dishwasher_priority.watches.items()
-                if v.get("status") != "attention"}
+                self.faults.pop(i, None)
+                self.device_retry.records.pop(i, None)
+                self.recovery.pop(i, None)
+                self._restart_faults.pop(i, None)
+                self.reclaim_blocks.pop(i, None)
+                self.dishwasher_priority.ev_blocks.pop(i, None)
+            self.dishwasher_priority.watches = {i: v for i, v in self.dishwasher_priority.watches.items()
+                if i not in ids or v.get("status") != "attention"}
             self.battery_fleet.state.faults.clear()
-            self.battery_fleet.state.pending = None
-            reviewed_pause = self.pause_cause in ("internal_fault", "command_fault")
             if reviewed_pause:
                 self.pause_cause = "user"
             await self.store.async_save(self._snapshot())
             self.note("Foutpauze gecontroleerd. Kies Automatisch regelen om nu te hervatten; bestaande toestelbeveiligingen blijven gelden."
                       if reviewed_pause else
-                      "Herstart- en foutcontrole afgerond. Alle betrokken toestellen zijn als uit bevestigd.")
+                      "Foutcontrole afgerond voor bevestigde UIT-toestellen. Tijdelijk onbereikbare toestellen blijven onder automatische hercontrole.")
         await self.tick()
 
     def entity_id(self, kind, suffix, device_id=None):
