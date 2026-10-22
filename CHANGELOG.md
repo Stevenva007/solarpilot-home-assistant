@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta.104 — niet-blokkerende bronwachttijden en gerichte foutcontrole
+
+- Gewone offline bronwachters en onbekende source-only herstartleases zijn geen algemene UIT-voorwaarde voor Controle afronden. Hun status, eigendom, wachttijden en tickets blijven bewaard.
+- Alleen betrokken echte fouten worden afgewikkeld. Een onzekere verzonden opdracht vereist actuele niet-restored UIT-terugmelding na de opdracht; lopende batterijopdrachten worden niet gewist.
+- Verouderde of directe reset zonder echte fout is een no-op, zonder foutmelding, opslag of toestelopdracht.
+- Ontbrekende Wallbox-telemetrie is een informatieve wachtstatus zonder foutkleur of resetknop; dubbele koppeling blijft zichtbaar als configuratieprobleem.
+- Behoudt gewone P1-restzonverdeling, harde net-/fase-/kwartiergrenzen, beschermde cycli en alle gegevens. Geen nulaanname voor onbekend vermogen.
+- Zestien nieuwe synthetische regressies; installatie/rollback en bewijsgrenzen staan in `docs/BETA104_INSTELLEN.md` en `docs/TESTRESULTATEN_BETA104.md`.
+
 ## 1.0.0-beta.103 — afgeleide warmtepompstatus op de kaart
 
 - Verwerkt de actuele Aquarea 1.8.1-bronreview en toetst de bestaande uitlezing van oorspronkelijke UTC-energieperioden bij de uitgestelde maandrollover. SDK-/taakbetekenis, meetdekking en regelingsrechten blijven gelijk.

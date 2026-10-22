@@ -1,9 +1,9 @@
 <!-- solarpilot-handoff-schema: 1 -->
-<!-- solarpilot-handoff-version: 1.0.0-beta.103 -->
+<!-- solarpilot-handoff-version: 1.0.0-beta.104 -->
 
 # OVERDRACHT — SolarPilot
 
-Laatst bijgewerkt: **21 oktober 2026**. Actuele bron: **v1.0.0-beta.103**. De kaart volgt nu beide al ondersteunde Aquarea-broncontracten voor een passende actuele afgeleide warmtepomptaak. De bronuitleg onderscheidt special_status en split operation_status. De backendclassificatie, oorspronkelijke bronverlooptijden, leerbevoegdheid, regelingsgrenzen, instellingen en historie blijven intact. Bouwbasis: gepubliceerde beta.102 `637032107a71798b3a181076e531d5eeb76c238f`. Installatie/rollback: `docs/BETA103_INSTELLEN.md`; tests/publicatie: `docs/TESTRESULTATEN_BETA103.md`.
+Laatst bijgewerkt: **22 oktober 2026**. Actuele bron: **v1.0.0-beta.104**. Gewone bronwachters blokkeren geen onafhankelijke foutcontrole meer. Wallbox-telemetriewacht krijgt geen algemene resetknop. Echte onzekere opdrachten blijven beschermd. Bouwbasis: gepubliceerde beta.103 `8a81fc0ab5134d99d56da9941cbc5cfe0a8b7ecd`. Installatie/rollback: `docs/BETA104_INSTELLEN.md`; tests/publicatie: `docs/TESTRESULTATEN_BETA104.md`.
 
 ## 1. Projectdoel in gewone taal
 
@@ -11,11 +11,13 @@ SolarPilot verdeelt beschikbare zonnestroom tussen flexibele verbruikers, een be
 
 ## 2. Actuele basis
 
-Bouwbasis: gepubliceerde beta.102 `637032107a71798b3a181076e531d5eeb76c238f`, tree `7d27bd7d346031aebecb3cd8d567f239da8571c0`. Alle beta.102-water-, PV- en leerverbeteringen en de deterministische bronleeftijdstest blijven behouden. Aquarea 1.8.1/SDK 1.4.0 zijn opnieuw inhoudelijk gecontroleerd; maandrollover wijzigt geen taaksemantiek en de native energieperiode blijft de bron. Geen opslag- of instellingenmigratie. Actueel bewijs: `docs/TESTRESULTATEN_BETA103.md`; oudere resultaten zijn uitsluitend historische herkomst.
+Bouwbasis: gepubliceerde beta.103 `8a81fc0ab5134d99d56da9941cbc5cfe0a8b7ecd`. Beta.104 wijzigt alleen foutcontrole en de typering/presentatie van Wallbox-onbereikbaarheid. De bestaande gewone P1-restzonverdeling is behouden en opnieuw getoetst met gelijktijdig offline Wallbox en afwasmachine. Geen opslag- of instellingenmigratie. Aquarea- en SDK-bronpins zijn ongewijzigd; de online releasegate blijft vereist. Actueel bewijs: `docs/TESTRESULTATEN_BETA104.md`; oudere resultaten zijn historische herkomst.
 
 De canonieke gebruikersuitleg blijft `custom_components/solar_pilot/current_guide.py`; `docs/ACTUELE_WERKING.md`, de ingebedde mirror en optiehulp worden gegenereerd. Dit dossier beschrijft actuele waarheid. Immutable/geneste HA-opties, SG-profiel/reassessment, read-only bronnen/interface, analyse-/antwoordrapport en lokaal bron-/SG-onderzoek blijven behouden. Het vertrouwde implementatieregister koppelt uitsluitend generieke softwarevoorstellen aan exacte inhoud en geïnstalleerde release. Een import kan die status niet zelf creëren. Warmtepompgeschiedenis gebruikt aparte versie-1-opslag en is geen migratie of vervanging van bestaande verbruikerhistorie, analysedata of modellen.
 
 ## 3. Absolute ontwerpregels
+
+- `source_wait` is geen UIT-reviewvoorwaarde: nooit een onafhankelijk toestel laten wachten of een bronwachter wissen bij `reset()`. Onbekende source-only herstartleases blijven afzonderlijk onder reconciliatie. Alleen betrokken bewezen UIT-fouten worden afgehandeld. Een onzekere verzonden opdracht vraagt echte terugmelding na de opdracht; restored/oud UIT volstaat niet. Een lopende batterijopdracht mag door deze knop niet worden gewist. Zonder echte fout is een oude/directe resetaanroep een idempotente no-op zonder opslag of dispatch. Wallbox-telemetriewacht is `wallbox_wait`, dubbele koppeling `wallbox_configuration`; geen algemene resetknop voor beide. Dit verruimt geen elektrische of fysieke bevoegdheden.
 
 - De actuele kaart accepteert uitsluitend dezelfde twee exacte Aquarea-contracttriples als de backend, met geverifieerde geladen bronsemantiek en oorspronkelijke actuele bewijstijden. Split operation_status vraagt passende LIVE/ON-context; de afgeleide taak blijft afgeleid en model_eligible=False. Bronbenamingen volgen de contractsemantiek. De weergave geeft geen SG-/controllerrecht en herschrijft geen oudere geschiedenis.
 

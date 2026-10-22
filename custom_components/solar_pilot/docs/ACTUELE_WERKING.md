@@ -1,10 +1,10 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.103
-**Bijgewerkt:** 2026-10-21
-**Regel-hash:** `9f9084e8b1cc6b2f`
+**Versie:** 1.0.0-beta.104
+**Bijgewerkt:** 2026-10-22
+**Regel-hash:** `216829ae60415dd8`
 
-Beta.103 herstelt de aansluiting tussen de actuele warmtepompherkenning en de kaart. Een door de backend met passende actuele brongegevens afgeleide verwarmings-, koel- of boilertaak blijft ook bij het gesplitste Aquarea-statuscontract zichtbaar als afgeleid. De bronuitleg onderscheidt de twee ondersteunde betekenissen. Een gekozen stand, kamertemperatuur of ingeschakelde zone alleen wordt geen bewijs van werkelijke uitvoering. Instellingen, historie, modellen en alle regelingsgrenzen blijven behouden.
+Beta.104 scheidt gewone tijdelijke onbereikbaarheid van echte opdrachtfouten. Controle afronden vraagt geen UIT-bevestiging meer aan een niet-betrokken offline toestel en wist diens herstelgegevens niet. Een ontbrekende Wallbox-uitlezing wordt informatief getoond zonder nutteloze resetknop. Andere toestellen blijven actuele P1-restzon gebruiken volgens hun eigen voorwaarden. Onzekere verzonden opdrachten, harde elektrische grenzen, instellingen en historie blijven beschermd.
 
 ## 1. Basisprincipe en modi
 
@@ -17,6 +17,8 @@ Na herstart automatisch hervatten staat standaard Aan. Een gewone opgeslagen Pau
 Bij een al opgeslagen interne foutpauze blijft automatisch hervatten beschermd. Na een update en volledige Home Assistant-herstart controleer je de concrete melding, kies je Controle afronden en daarna bewust Automatisch regelen wanneer de actuele controles dit toelaten. Herhalen zonder de fout op te lossen, opslag wissen of een native warmtepompopdracht geven is geen herstelroute.
 
 Na een herstart leest SolarPilot echte toestelstatussen. Een tijdelijk onbereikbaar eerder beheerd toestel wacht afzonderlijk op bronherstel. Automatisch regelen is als globale modus kiesbaar; die keuze is geen toestemming om een onbereikbaar toestel te bedienen. Voor dat geïsoleerde offline toestel wordt geen extra geschatte verbruiksreserve van het gemeten P1-overschot afgehouden. Gezonde overige lasten kunnen verder zodra hun eigen voorwaarden en de gedeelde net-, fase- en veiligheidsmetingen betrouwbaar zijn en de actuele ruimte voldoende is. Elke vijf minuten wordt de herstelwacht opnieuw beoordeeld. Een onzekere fysieke opdracht wordt pas na passend nieuw oorspronkelijk terugmeldbewijs verzoend en niet blind herhaald.
+
+Controle afronden beoordeelt echte fouten, niet gewone tijdelijke onbereikbaarheid. Een offline afwasmachine of andere bronwachter hoeft niet eerst UIT te bevestigen om een onafhankelijke fout af te ronden. De eigen wachttijd, onbekende toestand, lease en eenmalige aanvraag blijven bewaard. Een verouderde knop zonder echte fout doet niets en verstuurt geen toestelopdracht. Onzekere verzonden opdrachten vereisen passende nieuwe terugmelding; een oude of restored UIT is geen bewijs. Wallbox-telemetriewacht wordt informatief getoond zonder foutkleur of resetknop. Een dubbele koppeling blijft een zichtbare configuratiemelding. Actuele P1-restzon en alle bestaande toestel-, net-, fase- en kwartiergrenzen blijven leidend.
 
 ## 2. Overschot, centrale voorrang en planner
 
