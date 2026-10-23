@@ -1,40 +1,40 @@
 {
   "schema": 1,
-  "reviewed_at": "2026-10-21T12:44:56Z",
+  "reviewed_at": "2026-10-23T17:34:00Z",
   "assessment": {
     "status": "complete_no_unprocessed_changes",
-    "summary": "Beta.103 follow-up review: eight fresh official GitHub API responses identify Aquarea 1.8.1 at 6717d82ccfb14708abb4a66f494b97418ad80863. The complete comparison from reviewed 1.8.0 contains three commits and fourteen files. Relevant monthly consumption changes finish the old cloud month before fetching the new month, retain the actual displayed month as the native sensor period, and match the later recorded reset against cloud hours since the new UTC period start. SolarPilot already projects the observed native period_being_processed rather than the capture month; an old period remains old, may exclude capture time and does not establish complete measurement coverage. Dedicated rollover regressions are part of the beta.103 review without a test-outcome claim here. SDK 1.4.0 and Aquarea status, climate/tank and typed polling semantics are unchanged. The changes are processed without additional provider or actuator authority. Public source freshness does not guarantee runtime compatibility, physical sensor freshness or local installation acceptance.",
+    "summary": "Beta.105 source-impact review: official releases, tag refs and five-commit comparisons identify Aquarea 1.9.0 at d3867f4143f7e2c15b84ed67c6e7ace2561f5f96 and aioaquarea-ng 1.5.0 at 55da9428ddf43ed26f2386d79c43d50cf4d9da0c. Integration setup/config/coordinator now distinguish app-version rejection, create a repair and retry instead of wrong-password reauthentication; failed polls remain UpdateFailed. SDK auth probes and caches accepted app versions, bounds the rejected-login retry and adds a specific AuthenticationError subtype, safe error-code logging and a credential-free canary. Examined changes do not alter the device/zone/tank/status parsers consumed by SolarPilot. SolarPilot performs no provider login or probe and already rejects failed coordinator updates and stale/unknown contract evidence. No additional production change is needed; do not suppress repairs or convert cached values to fresh physical evidence or OFF. Previous monthly-period and typed status review remains applicable. Source freshness is not runtime compatibility, installation acceptance or physical sensor validation. All exact-commit regression, browser, startup and publication gates remain required, with no claimed outcome in this record.",
     "compatibility_claim": false,
-    "evidence_document": "docs/UPSTREAM_BRONNEN.md"
+    "evidence_document": "docs/UPSTREAM_BETA105.md"
   },
   "repositories": [
     {
       "repository": "wpatrik14/home-assistant-aquarea",
       "default_branch": "main",
-      "head_commit": "6717d82ccfb14708abb4a66f494b97418ad80863",
+      "head_commit": "d3867f4143f7e2c15b84ed67c6e7ace2561f5f96",
       "latest_release": {
-        "tag": "v1.8.1",
-        "commit": "6717d82ccfb14708abb4a66f494b97418ad80863",
+        "tag": "v1.9.0",
+        "commit": "d3867f4143f7e2c15b84ed67c6e7ace2561f5f96",
         "target_commitish": "main",
-        "published_at": "2026-10-21T08:38:43Z",
+        "published_at": "2026-10-23T15:12:05Z",
         "selection": "github_latest_published_stable"
       },
-      "reviewed_base_commit": "8722cf22e5a5752406aea1ba79b2cf48d4deedf3",
+      "reviewed_base_commit": "6717d82ccfb14708abb4a66f494b97418ad80863",
       "review_result": "relevant_changes_processed"
     },
     {
       "repository": "wpatrik14/aioaquarea",
       "default_branch": "main",
-      "head_commit": "893065a81c014cb9aa1d3350446d61c01bccf3b9",
+      "head_commit": "55da9428ddf43ed26f2386d79c43d50cf4d9da0c",
       "latest_release": {
-        "tag": "v1.4.0",
-        "commit": "893065a81c014cb9aa1d3350446d61c01bccf3b9",
+        "tag": "v1.5.0",
+        "commit": "55da9428ddf43ed26f2386d79c43d50cf4d9da0c",
         "target_commitish": "main",
-        "published_at": "2026-10-18T13:41:20Z",
+        "published_at": "2026-10-23T15:00:23Z",
         "selection": "github_latest_published_stable"
       },
       "reviewed_base_commit": "893065a81c014cb9aa1d3350446d61c01bccf3b9",
-      "review_result": "no_additional_changes"
+      "review_result": "relevant_changes_processed"
     }
   ]
 }
