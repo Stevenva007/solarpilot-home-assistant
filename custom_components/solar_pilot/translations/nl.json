@@ -32,7 +32,8 @@
       "sg_duplicate": "Deze SG-uitgang is al gekoppeld als gewoon toestel; één uitgang krijgt één eigenaar.",
       "sg_pv_required": "Koppel eerst het werkelijk gemeten zonnepanelenvermogen.",
       "panasonic_read_only": "Panasonic-entiteiten zijn alleen uitleesbaar; gebruik uitsluitend de toegewezen SG-uitgang.",
-      "sg_reopen": "SG-koppeling of ingebruiknamebewijs is intussen veranderd. Controleer de nieuwe waarden en bevestig opnieuw na de lokale proef."
+      "sg_reopen": "SG-koppeling of ingebruiknamebewijs is intussen veranderd. Controleer de nieuwe waarden en bevestig opnieuw na de lokale proef.",
+      "dishwasher_energy_meter": "Kies een cumulatieve Wh/kWh-sensor met state_class total of total_increasing."
     },
     "abort": {
       "already_configured": "Er is al een SolarPilot-regelaar. Voeg toestellen toe via Configureren."
@@ -856,7 +857,8 @@
           "power_entity": "Optioneel: exclusieve vermogensmeter (Shelly, W/kW)",
           "dishwasher_alert_entity": "Optioneel: alarmstatus afwasmachine",
           "dishwasher_delay_entity": "Optioneel: eigen uitgestelde-starttijd afwasmachine",
-          "dishwasher_phase_entity": "Programmafase (optioneel; voorwas, wassen, drogen, AirDry)"
+          "dishwasher_phase_entity": "Programmafase (optioneel; voorwas, wassen, drogen, AirDry)",
+          "energy_entity": "Eigen energieteller afwasmachine (Wh/kWh)"
         },
         "data_description": {
           "start_button": "De actuele START-knop van de afwasmachine-integratie.",
@@ -865,10 +867,11 @@
           "dishwasher_remote_entity": "Expliciete toestand die START op afstand toestaat.",
           "dishwasher_door_entity": "Echte deurstatus van de afwasmachine.",
           "cycle_program_entity": "Het reeds gekozen afwasprogramma, alleen uitlezen.",
-          "power_entity": "Optionele exclusieve W/kW-sensor van de afwasmachine, bijvoorbeeld een Shelly.",
+          "power_entity": "Exclusieve fysieke vermogensmeter van deze afwasmachine in W/kW.",
           "dishwasher_alert_entity": "Optionele alarmbron.",
           "dishwasher_delay_entity": "Optionele oorspronkelijke uitgestelde-starttijd.",
-          "dishwasher_phase_entity": "Aanvullende oorspronkelijke Cycle phase-sensor van dezelfde machine."
+          "dishwasher_phase_entity": "Aanvullende oorspronkelijke Cycle phase-sensor van dezelfde machine.",
+          "energy_entity": "Optionele cumulatieve energieteller van dezelfde afwasmachine in Wh/kWh met state_class total of total_increasing."
         }
       },
       "dishwasher_states": {
@@ -893,7 +896,12 @@
           "dishwasher_deadline_grace_min": "Nog proberen na geblokkeerde deadline (minuten)",
           "dishwasher_alert_mode": "Herkenning van storingen en verbruiksmateriaal",
           "dishwasher_priority_enabled": "Afwasvoorkeur behouden vóór Wallbox en lagere zonnevragen",
-          "dishwasher_ev_solar_priority": "Zonnevermogen vóór Wallbox benutten — tijdelijke netafname tijdens reactie mogelijk"
+          "dishwasher_ev_solar_priority": "Zonnevermogen vóór Wallbox benutten — tijdelijke netafname tijdens reactie mogelijk",
+          "dishwasher_meter_start_w": "Activiteitsdrempel eigen meter (W)",
+          "dishwasher_meter_idle_w": "Rustdrempel eigen meter (W)",
+          "dishwasher_meter_start_s": "Activiteit bevestigen na (seconden)",
+          "dishwasher_meter_end_s": "Lage opname afwachten (seconden)",
+          "dishwasher_meter_stale_s": "Maximale ouderdom meterbericht (seconden)"
         },
         "data_description": {
           "dishwasher_ready_states": "Puntkomma-gescheiden ruwe toestanden waarin nog geen cyclus loopt en een start mogelijk is, bijvoorbeeld Ready of Idle alleen na verificatie.",
@@ -914,7 +922,12 @@
           "dishwasher_deadline_grace_min": "Begrensd herstelvenster na de startdeadline, standaard 120 minuten.",
           "dishwasher_alert_mode": "Toestand gebruikt de bestaande expliciete lijst veilige alarmwaarden.",
           "dishwasher_priority_enabled": "Het bestaande AEG-voorkeursprofiel blijft behouden.",
-          "dishwasher_ev_solar_priority": "Standaard AAN voor deze update."
+          "dishwasher_ev_solar_priority": "Standaard AAN voor deze update.",
+          "dishwasher_meter_start_w": "Minimaal gemeten vermogen voor een afgeleide activiteitsstart.",
+          "dishwasher_meter_idle_w": "Bovengrens voor een stille elektrische fase; voorlopig 5 W en altijd lager dan de startdrempel.",
+          "dishwasher_meter_start_s": "Benodigde tijd boven de startdrempel; voorlopig 60 seconden.",
+          "dishwasher_meter_end_s": "Benodigde stille duur om afgeleide activiteit af te sluiten; voorlopig 900 seconden.",
+          "dishwasher_meter_stale_s": "Maximale ouderdom en afstand van opeenvolgende meterberichten; voorlopig 120 seconden."
         }
       },
       "analysis": {
@@ -1196,7 +1209,8 @@
       "water_source_required": "Kies minstens één bestaande waterbron voordat je de watermonitor inschakelt.",
       "water_volume_source": "Kies een cumulatieve volumesensor met passende volume-eenheid en tellerkenmerken, geen debiet of elektriciteitsmeter.",
       "water_flow_source": "Kies een actuele debietsensor met een ondersteunde volume-per-tijd-eenheid, geen cumulatieve meterstand.",
-      "water_leak_source": "Kies een bestaande binary_sensor voor waterlekkage met apparaatklasse moisture."
+      "water_leak_source": "Kies een bestaande binary_sensor voor waterlekkage met apparaatklasse moisture.",
+      "dishwasher_energy_meter": "Kies een cumulatieve Wh/kWh-sensor met state_class total of total_increasing."
     },
     "abort": {
       "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",

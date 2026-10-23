@@ -32,7 +32,8 @@
       "sg_duplicate": "This SG output is already linked as an ordinary load; one output has one owner.",
       "sg_pv_required": "First link measured solar production.",
       "panasonic_read_only": "Panasonic entities are read-only; use the assigned SG output only.",
-      "sg_reopen": "The SG binding or commissioning proof changed while this form was open. Review the current values and confirm again after the local test."
+      "sg_reopen": "The SG binding or commissioning proof changed while this form was open. Review the current values and confirm again after the local test.",
+      "dishwasher_energy_meter": "Select a cumulative Wh/kWh sensor with state_class total or total_increasing."
     },
     "abort": {
       "already_configured": "Er is al een SolarPilot-regelaar. Voeg toestellen toe via Configureren."
@@ -570,7 +571,8 @@
           "power_entity": "Optional: exclusive power meter (Shelly, W/kW)",
           "dishwasher_alert_entity": "Optional: dishwasher alert status",
           "dishwasher_delay_entity": "Optional: native delayed-start time",
-          "dishwasher_phase_entity": "Programmafase (optioneel; voorwas, wassen, drogen, AirDry)"
+          "dishwasher_phase_entity": "Programmafase (optioneel; voorwas, wassen, drogen, AirDry)",
+          "energy_entity": "Dedicated dishwasher cumulative energy meter (Wh/kWh)"
         }
       },
       "dishwasher_states": {
@@ -595,7 +597,12 @@
           "dishwasher_deadline_grace_min": "Nog proberen na geblokkeerde deadline (minuten)",
           "dishwasher_alert_mode": "Herkenning van storingen en verbruiksmateriaal",
           "dishwasher_priority_enabled": "Keep dishwasher preference ahead of Wallbox and lower solar requests",
-          "dishwasher_ev_solar_priority": "Prefer dishwasher over current solar EV power — temporary grid use is possible"
+          "dishwasher_ev_solar_priority": "Prefer dishwasher over current solar EV power — temporary grid use is possible",
+          "dishwasher_meter_start_w": "Meter activity threshold (W)",
+          "dishwasher_meter_idle_w": "Meter idle threshold (W)",
+          "dishwasher_meter_start_s": "Confirm activity after (seconds)",
+          "dishwasher_meter_end_s": "Low-power hold (seconds)",
+          "dishwasher_meter_stale_s": "Maximum original meter report age (seconds)"
         },
         "data_description": {
           "dishwasher_monday_start_deadline": "Optional separate Monday START deadline; leave empty to use the ordinary latest start time on Mondays too.",
@@ -806,7 +813,8 @@
       "water_source_required": "Select at least one existing water source before enabling water monitoring.",
       "water_volume_source": "Select a cumulative volume sensor with supported volume units and counter metadata, not flow or an electricity meter.",
       "water_flow_source": "Select a current flow sensor with supported volume-per-time units, not a cumulative meter total.",
-      "water_leak_source": "Select an existing water leak binary_sensor with device class moisture."
+      "water_leak_source": "Select an existing water leak binary_sensor with device class moisture.",
+      "dishwasher_energy_meter": "Select a cumulative Wh/kWh sensor with state_class total or total_increasing."
     },
     "abort": {
       "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",

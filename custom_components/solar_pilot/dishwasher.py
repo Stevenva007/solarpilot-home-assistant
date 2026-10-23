@@ -112,6 +112,13 @@ def config_errors(hass, cfg):
             errors[key] = "invalid_selection"
     if c["dishwasher_arming_mode"] == "app" and str(c["dishwasher_remote_states"]) != "Enabled":
         errors["dishwasher_remote_states"] = "dishwasher_exact_remote"
+    if c.get("energy_entity"):
+        energy = hass.states.get(c["energy_entity"])
+        if (energy is None or energy.attributes.get("unit_of_measurement") not in ("Wh", "kWh")
+                or energy.attributes.get("state_class") not in ("total", "total_increasing")):
+            errors["energy_entity"] = "dishwasher_energy_meter"
+    from .dishwasher_meter import config_errors as meter_errors
+    errors.update(meter_errors(c))
     return errors
 
 

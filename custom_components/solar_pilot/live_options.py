@@ -34,7 +34,7 @@ SCHEDULE_KEYS = frozenset({"dishwasher_start_deadline", "dishwasher_monday_start
 # Only display identity and relative future allocation can change in place.
 RUNNING_LIVE_KEYS = frozenset({"name", "priority", "appliance_type"})
 REFERENCE_KEYS = frozenset({"control_entity", "active_entity", "number_entity", "start_script",
-    "stop_script", "power_entity", "condition_entity", "interlock_entity", "start_button",
+    "stop_script", "power_entity", "energy_entity", "condition_entity", "interlock_entity", "start_button",
     "dishwasher_state_entity", "dishwasher_remote_entity", "dishwasher_door_entity",
     "dishwasher_connection_entity", "dishwasher_phase_entity", "dishwasher_alert_entity",
     "cycle_program_entity", "dishwasher_delay_entity"})
