@@ -1,0 +1,67 @@
+name: Finish isolated meter105 regression migration
+on:
+  push:
+    branches: [feat/dishwasher-meter-beta105-20261023]
+    paths: [.github/workflows/finish-meter105.yml]
+permissions:
+  contents: write
+jobs:
+  finish:
+    if: github.repository == 'Stevenva007/solarpilot-home-assistant' && github.ref == 'refs/heads/feat/dishwasher-meter-beta105-20261023'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Apply exact observer-spy interface migration without weakening assertions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, subprocess
+          subprocess.run(['git','merge-base','--is-ancestor','a40282a5dc8f958757597050637a39f49453ef48','HEAD'],check=True)
+          edits = {
+            'tests/test_dishwasher_app31.py': ('3234ac65c05662a5260421b4da4196b71cdd3935', [('lambda i,active,dt:seen.append((i,active,dt.timestamp()))', 'lambda i,active,dt,**kwargs:seen.append((i,active,dt.timestamp()))')]),
+            'tests/test_dishwasher_current_evidence95.py': ('bffc0e43abc4fb8674abaa3f254f174913dcf951', [('def observe(device_id, active, local_now):', 'def observe(device_id, active, local_now, **kwargs):'), ('return original_observe(device_id, active, local_now)', 'return original_observe(device_id, active, local_now, **kwargs)')])
+          }
+          for name, (expected, changes) in edits.items():
+              p=Path(name); raw=p.read_bytes()
+              assert hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()==expected
+              original=raw.decode(); text=original
+              for before, after in changes:
+                  assert text.count(before)==1, (name,before)
+                  text=text.replace(before,after,1)
+              assert [s for s in original.splitlines() if 'assert ' in s] == [s for s in text.splitlines() if 'assert ' in s]
+              p.write_text(text)
+          for name in ['docs/TESTRESULTATEN_BETA105.md','custom_components/solar_pilot/docs/TESTRESULTATEN_BETA105.md','OVERDRACHT.md']:
+              p=Path(name); text=p.read_text(); assert '53 nieuwe gerichte' in text
+              p.write_text(text.replace('53 nieuwe gerichte','55 nieuwe gerichte'))
+          p=Path('docs/UPSTREAM_BRONNEN.md'); text=p.read_text(); title='# Openbaar upstream-bronregister\n'
+          assert text.startswith(title)
+          text=text.replace(title,title+'\n## Actuele aanvullende broncontrole beta.105 — 23 oktober 2026\n\nAquarea **1.9.0** op `d3867f4143f7e2c15b84ed67c6e7ace2561f5f96` en SDK **1.5.0** op `55da9428ddf43ed26f2386d79c43d50cf4d9da0c` zijn inhoudelijk beoordeeld vanaf de hieronder bewaarde beta.103-bronnen. De wijzigingen betreffen authenticatie/appversieherstel; mislukte polls blijven ongeldige waarnemingen. De actuele pinned bronstand staat in `upstream_review.json`; vergelijking, impact en bewijsgrenzen staan in [de aanvullende bronbeoordeling](UPSTREAM_BETA105.md). Geen nieuw actuatorrecht of claim van lokale installatiecompatibiliteit.\n\n## Historisch register tot en met beta.103\n',1)
+          p.write_text(text)
+          Path('custom_components/solar_pilot/docs/UPSTREAM_BRONNEN.md').write_text(text)
+          Path('custom_components/solar_pilot/docs/UPSTREAM_BETA105.md').write_text(Path('docs/UPSTREAM_BETA105.md').read_text())
+          subprocess.run(['git','diff','--check'],check=True)
+          PY
+          python tools/check_public_repository.py
+          python tools/check_current_explanation.py
+          python tools/check_handoff.py
+      - name: Test exact changed observer spies and new meter regressions
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pytest -q -p no:cacheprovider tests/test_dishwasher_app31.py::test_retained_end_uses_exact_event_time_in_history tests/test_dishwasher_current_evidence95.py::test_original_end_processed_once_then_restart_offline_and_reconnect_never_replay_start tests/test_dishwasher_meter105.py tests/test_dishwasher_meter_recorder105.py tests/test_dishwasher_meter_ui105.py tests/test_dishwasher_meter_midnight105.py
+      - name: Commit only reviewed test and documentation changes to the same feature branch
+        run: |
+          git add -- tests/test_dishwasher_app31.py tests/test_dishwasher_current_evidence95.py docs/TESTRESULTATEN_BETA105.md custom_components/solar_pilot/docs/TESTRESULTATEN_BETA105.md OVERDRACHT.md docs/UPSTREAM_BRONNEN.md custom_components/solar_pilot/docs/UPSTREAM_BRONNEN.md custom_components/solar_pilot/docs/UPSTREAM_BETA105.md
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Keep legacy history spy assertions with optional native completion metadata; record 55 meter regressions'
+          git push origin HEAD:refs/heads/feat/dishwasher-meter-beta105-20261023
