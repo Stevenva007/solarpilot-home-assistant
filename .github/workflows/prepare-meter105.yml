@@ -10,6 +10,8 @@ jobs:
     if: github.repository == 'Stevenva007/solarpilot-home-assistant' && github.ref == 'refs/heads/feat/dishwasher-meter-beta105-20261023'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - uses: actions/checkout@v5
         with:
