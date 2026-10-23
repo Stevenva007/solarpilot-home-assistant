@@ -4,7 +4,7 @@ Bouwbasis: gepubliceerde beta.104, commit `f014edaf205f9e0cf7c95cc899fa30499e3cf
 
 ## Lokaal uitgevoerd
 
-53 nieuwe gerichte tests geslaagd (synthetische bronnen; geen huishouddata):
+55 nieuwe gerichte tests geslaagd (synthetische bronnen; geen huishouddata):
 
 - meterclassificatie, handmatige/externe activiteit en onbekend begin;
 - geen echte start-/stopopdracht of bevestiging van een onzekere SolarPilot-opdracht;
