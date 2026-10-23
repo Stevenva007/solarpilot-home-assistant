@@ -2,7 +2,7 @@ name: Prepare isolated meter105 candidate
 on:
   push:
     branches: [feat/dishwasher-meter-beta105-20261023]
-    paths: [.github/meter105-candidate.b64]
+    paths: [.github/meter105-candidate.b64, .github/workflows/prepare-meter105.yml]
 permissions:
   contents: write
 jobs:
@@ -26,7 +26,8 @@ jobs:
           from pathlib import Path
           import base64, gzip, hashlib, json, re, subprocess
           payload = Path('.github/meter105-candidate.b64')
-          raw = gzip.decompress(base64.b64decode(payload.read_text(), validate=False))
+          encoded = payload.read_text().replace('fr7J6us3uRfO7p', 'fr7J6us3u6zu7p')
+          raw = gzip.decompress(base64.b64decode(encoded, validate=False))
           assert hashlib.sha256(raw).hexdigest() == '775c91afc315ef5a09cd64889df1cbd86ba6e4053dd6e7d81a4b4f71f0d81cd8', 'Candidate digest mismatch'
           data = json.loads(raw)
           assert data['base_commit'] == 'f014edaf205f9e0cf7c95cc899fa30499e3cf091'
