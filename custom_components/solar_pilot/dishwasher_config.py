@@ -4,6 +4,7 @@ import voluptuous as vol
 from homeassistant.helpers import selector
 from .dishwasher import DISHWASHER_DEFAULTS, REFERENCE_KEYS, config_errors, normalize_config
 from .analysis_export import ANALYSIS_DEFAULTS, SAFE_DOMAINS
+from .dishwasher_meter import METER_DEFAULTS, config_errors as meter_config_errors
 
 
 def _entity(domains):
@@ -29,7 +30,7 @@ class DishwasherOptionsMixin:
         d = normalize_config(self._device)
         errors = {}
         if user_input is not None:
-            for key in ("power_entity", "dishwasher_alert_entity", "dishwasher_delay_entity", "dishwasher_phase_entity"):
+            for key in ("power_entity", "energy_entity", "dishwasher_alert_entity", "dishwasher_delay_entity", "dishwasher_phase_entity"):
                 d.pop(key, None)
             d.update(user_input)
             errors = config_errors(self.hass, {**d, "dishwasher_mapping_confirmed": False})
@@ -47,6 +48,16 @@ class DishwasherOptionsMixin:
                 reserved.add(self._base_options().get("wallbox", {}).get("power_entity"))
                 if d["power_entity"] in reserved:
                     errors["power_entity"] = "dedicated_meter"
+            if d.get("energy_entity"):
+                obj = self.hass.states.get(d["energy_entity"])
+                if (obj is None or obj.attributes.get("unit_of_measurement") not in ("Wh", "kWh")
+                        or obj.attributes.get("state_class") not in ("total", "total_increasing")):
+                    errors["energy_entity"] = "dishwasher_energy_meter"
+                if not d.get("power_entity"):
+                    errors["power_entity"] = "entity_missing"
+                if any(x.get("energy_entity") == d["energy_entity"] for x in self._base_options().get("devices", [])
+                        if x["id"] not in (d["id"], d.get("replaces_device_id"))):
+                    errors["energy_entity"] = "dedicated_meter"
             if not errors:
                 self._device = d
                 return await self.async_step_dishwasher_states()
@@ -55,6 +66,7 @@ class DishwasherOptionsMixin:
             domains = ["button"] if key == "start_button" else ["sensor", "select"] if key == "cycle_program_entity" else ["sensor", "binary_sensor"]
             schema[vol.Required(key, description={"suggested_value": d.get(key, "")})] = _entity(domains)
         schema[_optional("power_entity", d)] = _entity(["sensor"])
+        schema[_optional("energy_entity", d)] = _entity(["sensor"])
         schema[_optional("dishwasher_alert_entity", d)] = _entity(["sensor", "binary_sensor"])
         schema[_optional("dishwasher_phase_entity", d)] = _entity(["sensor"])
         schema[_optional("dishwasher_delay_entity", d)] = _entity(["sensor", "number"])
@@ -71,6 +83,7 @@ class DishwasherOptionsMixin:
             if not d.get("dishwasher_monday_start_deadline"):
                 d.pop("dishwasher_monday_start_deadline", None)
             errors = config_errors(self.hass, d)
+            errors.update(meter_config_errors(d))
             if not errors:
                 self._device = d
                 return await self.async_step_device_behavior()
@@ -78,6 +91,9 @@ class DishwasherOptionsMixin:
         for key in ("dishwasher_ready_states", "dishwasher_running_states", "dishwasher_finished_states", "dishwasher_connected_states", "dishwasher_remote_states", "dishwasher_closed_states", "dishwasher_safe_states"):
             schema[vol.Required(key, default=d[key])] = selector.TextSelector()
         schema[vol.Required("dishwasher_stale_s", default=d["dishwasher_stale_s"])] = _number(60, 1800, 30)
+        for key, default in METER_DEFAULTS.items():
+            low, high = ((0, 5000) if key.endswith("_w") else (1, 3600))
+            schema[vol.Optional(key, default=d.get(key, default))] = _number(low, high)
         schema[vol.Required("dishwasher_ticket_hours", default=d["dishwasher_ticket_hours"])] = _number(1, 48)
         schema[vol.Required("dishwasher_arming_mode", default=d["dishwasher_arming_mode"])] = selector.SelectSelector({"options": [
             {"value": "app", "label": "Fysieke Delay Start / APP-knop — geen extra klaarzetten"},

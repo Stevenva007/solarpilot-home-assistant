@@ -1,9 +1,9 @@
 <!-- solarpilot-handoff-schema: 1 -->
-<!-- solarpilot-handoff-version: 1.0.0-beta.104 -->
+<!-- solarpilot-handoff-version: 1.0.0-beta.105 -->
 
 # OVERDRACHT — SolarPilot
 
-Laatst bijgewerkt: **22 oktober 2026**. Actuele bron: **v1.0.0-beta.104**. Gewone bronwachters blokkeren geen onafhankelijke foutcontrole meer. Wallbox-telemetriewacht krijgt geen algemene resetknop. Echte onzekere opdrachten blijven beschermd. Bouwbasis: gepubliceerde beta.103 `8a81fc0ab5134d99d56da9941cbc5cfe0a8b7ecd`. Installatie/rollback: `docs/BETA104_INSTELLEN.md`; tests/publicatie: `docs/TESTRESULTATEN_BETA104.md`.
+Laatst bijgewerkt: **23 oktober 2026**. Actuele bron: **v1.0.0-beta.105**. Eigen afwasmachinemeters leveren onafhankelijke read-only activiteit en geregistreerde cumulatieve deelenergie, ook zonder cloudbediening. Native start-, voltooiings-, ticket- en veiligheidsrechten blijven gescheiden. Bouwbasis: gepubliceerde beta.104 `f014edaf205f9e0cf7c95cc899fa30499e3cf091`. Installatie/rollback: `docs/BETA105_INSTELLEN.md`; bewijsgrenzen: `docs/TESTRESULTATEN_BETA105.md`.
 
 ## 1. Projectdoel in gewone taal
 
@@ -11,11 +11,13 @@ SolarPilot verdeelt beschikbare zonnestroom tussen flexibele verbruikers, een be
 
 ## 2. Actuele basis
 
-Bouwbasis: gepubliceerde beta.103 `8a81fc0ab5134d99d56da9941cbc5cfe0a8b7ecd`. Beta.104 wijzigt alleen foutcontrole en de typering/presentatie van Wallbox-onbereikbaarheid. De bestaande gewone P1-restzonverdeling is behouden en opnieuw getoetst met gelijktijdig offline Wallbox en afwasmachine. Geen opslag- of instellingenmigratie. Aquarea- en SDK-bronpins zijn ongewijzigd; de online releasegate blijft vereist. Actueel bewijs: `docs/TESTRESULTATEN_BETA104.md`; oudere resultaten zijn historische herkomst.
+Bouwbasis: gepubliceerde beta.104 `f014edaf205f9e0cf7c95cc899fa30499e3cf091`. Beta.105 voegt optionele exclusieve afwasmeterwaarneming toe zonder actuator- of native cyclusrechten. Bestaande bronisolatie, regeling, historie en ACL-bronherkomst blijven behouden. Nieuwe meter-dagsommen staan aanvullend in de versie-1-consumer_history-opslag; een oudere versie kan die aanvullende velden bij opslag verliezen. Geen actuele activiteit of tellerbaseline wordt na herstart hergebruikt. De bestaande online upstream- en volledige releasecontroles blijven verplicht.
 
 De canonieke gebruikersuitleg blijft `custom_components/solar_pilot/current_guide.py`; `docs/ACTUELE_WERKING.md`, de ingebedde mirror en optiehulp worden gegenereerd. Dit dossier beschrijft actuele waarheid. Immutable/geneste HA-opties, SG-profiel/reassessment, read-only bronnen/interface, analyse-/antwoordrapport en lokaal bron-/SG-onderzoek blijven behouden. Het vertrouwde implementatieregister koppelt uitsluitend generieke softwarevoorstellen aan exacte inhoud en geïnstalleerde release. Een import kan die status niet zelf creëren. Warmtepompgeschiedenis gebruikt aparte versie-1-opslag en is geen migratie of vervanging van bestaande verbruikerhistorie, analysedata of modellen.
 
 ## 3. Absolute ontwerpregels
+
+Meterafleiding is uitsluitend historiek/presentatie: geen START-confirmatie, startticket, programma-einde, volledige cyclusleerdata of bedieningsrecht. Native lopend/gepauzeerd gaat boven een stille meterfase; metergaten worden onbekend, nooit nul. Tellerstappen worden niet over reset, herstart, bronwissel, meetgat of middernacht geïnterpoleerd. Bronrechten blijven gekoppeld aan huidige en historische bronnen.
 
 - `source_wait` is geen UIT-reviewvoorwaarde: nooit een onafhankelijk toestel laten wachten of een bronwachter wissen bij `reset()`. Onbekende source-only herstartleases blijven afzonderlijk onder reconciliatie. Alleen betrokken bewezen UIT-fouten worden afgehandeld. Een onzekere verzonden opdracht vraagt echte terugmelding na de opdracht; restored/oud UIT volstaat niet. Een lopende batterijopdracht mag door deze knop niet worden gewist. Zonder echte fout is een oude/directe resetaanroep een idempotente no-op zonder opslag of dispatch. Wallbox-telemetriewacht is `wallbox_wait`, dubbele koppeling `wallbox_configuration`; geen algemene resetknop voor beide. Dit verruimt geen elektrische of fysieke bevoegdheden.
 
@@ -319,6 +321,8 @@ Geheimen komen uitsluitend uit bestaande HA-koppelingen/lokale configuratie; gee
 
 ## 9. Testprocedure + actuele teststatus
 
+Beta.105: lokaal 55 nieuwe gerichte tests geslaagd, plus Python- en Node-syntax. De volledige repository-, HACS-, Hassfest-, browser-, upstream- en echte Home Assistant-controles moeten nog voor de exacte kandidaatcommit worden bevestigd door de bestaande Validate-workflow. Geen live installatie of praktijkkalibratie uitgevoerd. Details: `docs/TESTRESULTATEN_BETA105.md`. Oudere hieronder genoemde resultaten blijven alleen baselinebewijs.
+
 Actueel beta.103-bewijs staat in `docs/TESTRESULTATEN_BETA103.md`. De gerichte kaart- en onafhankelijke contract-/bron-/leer-/historiegrenzen slagen: 507 overlappende tests, waaronder 65 nieuwe kaartgevallen en 41 onafhankelijke adversarialgevallen. De catalogusgroep behaalt 41 tests, waaronder vijf nieuwe beta.103-gevallen. PR #44 en zijn oude upstreamcheckpoint slaagden. De eerste main-run blokkeerde terecht nadat Aquarea 1.8.1 verscheen. De nieuwe bronreview en rolloverregressies moeten de onlinegate en alle vijf PR-/main-gates opnieuw doorlopen. De definitieve Python 3.13.16-suite behaalde 8567 geslaagde tests in 210,50 s. Beide echte Core 2026.10.0/Python 3.14.2-fixtures slagen met 67 entiteiten en nul fysieke serviceaanroepen. De nieuwe Chromium 153-statusgate slaagt op 320/390 px voor drie taken, drie schermen, beide contracten, bron-details en bewaarde historie; screenshots zijn visueel gecontroleerd. Canonieke gids-hash: `9f9084e8b1cc6b2f`. De aanvullende maandrollovergroep behaalt 155 tests, waaronder 13 nieuwe gevallen; deze zijn ook in de uitgebreide volledige suite opgenomen. Alle vijf PR- en herhaalde main-gates zijn vereist vóór de immutable annotated tag en vier vooraf/teruggedownload gecontroleerde assets. Dit vooraf opgeslagen verslag claimt geen toekomstige publicatie; softwaretests bewijzen geen fysieke thermische uitvoering of live-installatie.
 
 Historisch beta.94-bewijs: zie `docs/TESTRESULTATEN_BETA94.md` voor brongebonden tests en publicatie. De timerbug is onafhankelijk gereproduceerd voor een verstreken en gedeeltelijke rusttijd. De 17 nieuwe functionele regressies en 36 onafhankelijke grenscontroles slagen. De brede gerichte route behaalde 461 geslaagde tests; de groepen overlappen. Alleen echte verificatie wijzigt de checkpointwatermark; read-only snapshots blijven stabiel en de nieuwe autosave wacht op geladen opslag. De volledige suite en vijf CI-gates draaien op de definitieve bron. Beide actuele releasedocumenten hebben een bytegelijke componentmirror. De beta.93-suite behaalde 6986 geslaagde tests en alle vijf PR-/main-gates plus vier-assets-downloadverificatie; dat is uitsluitend historische herkomst en geen beta.94-testbewijs.
@@ -334,6 +338,8 @@ De definitieve bron moet alle vijf CI-gates doorstaan: volledige repository/test
 Alle behouden bron-/doel-/PV-/AEG-/Wallbox-/batterij-/SG-/model-/historie-/ACL-regressies blijven vereist. Herstel bewaakt volledige minimumlooptijd, juiste stop, passend nieuw post-pogingbewijs en geen herhaalde START. Source-isolatie krijgt geen extra hypothetische reserve of fictief eigen krediet. Huidige vraag, buffers, eigendomswisseling, modus en bron-/ruimtewijziging tijdens await blijven leidend. Publieke fixtures zijn fictief; privé-export, woningwaarden en bronidentiteiten worden niet toegevoegd. Softwaretests en pakketten bewijzen geen fysieke bereikbaarheid of besparing.
 
 ## 10. Bekende problemen / beperkingen
+
+Beta.105: 10 W/60 s, 5 W/900 s en 120 s rapportouderdom zijn voorlopige instelbare waarden, geen bewezen kalibratie van een bepaald toestel. Een eigen meter bewijst geen programmafase of succesvol einde. Energie blijft geregistreerde deelenergie. Oudere gemiste beurten worden niet aangevuld. Lokale entiteitskoppeling moet bewust in de bestaande afwasmachinewizard worden opgeslagen.
 
 Beta.100 beperkt zich tot herhaalde berekeningen bij het uitlezen van de SG-bediening. Zij bewijst geen oplossing voor de algemene statussensor, externe integratiefouten, netwerkvertraging of fysieke apparaatreactie. De vermeden volledige overzichtsaanroepen in deze drie getters bewijzen geen vast aantal bespaarde berekeningen per HA-publicatie of gemeten tijdwinst op een live installatie.
 
@@ -372,6 +378,8 @@ De echte optionele ontvangen-SG-bron is niet aangeleverd; ontvangen blijft zonde
 Beta.96 vervangt het verouderde `via_device`-pad op moderne Core door de vooraf geregistreerde hub-id en beperkt identifiers tot de eigen entry. Dit verhelpt uitsluitend SolarPilot-registratie; waarschuwingen van andere integraties zijn geen SolarPilot-correctie.
 
 ## 12. Installatie/upgrade en rollback
+
+Beta.105: volg `docs/BETA105_INSTELLEN.md`. Maak een volledige privéback-up; koppel de eigen W/kW- en optionele cumulatieve Wh/kWh-sensor aan het bestaande afwasmachinetoestel. Behoud alle native START-/veiligheidsbronnen. Herstart Home Assistant na een vrijgegeven update. Een oudere versie kan aanvullende meterhistorie niet behouden; bewaar die privé vóór rollback.
 
 Actueel: volg `docs/BETA103_INSTELLEN.md`. Rollback naar beta.102 gebruikt dezelfde opslag en instellingen en kan de oude kaartfout terugbrengen. Geen migratie of reset. Bewaar de volledige privéback-up, entry, historie, modellen en userfiles en herstart HA en app volledig. Verder teruggaan naar beta.101 behoudt niet de aanvullende watermeetgatrol na een volgende opslag; zie de oudere beta.102-aanwijzingen. Geen twee runtimes tegelijk.
 

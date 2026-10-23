@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta.105 — eigen afwasmachinemeter zonder cloudafhankelijkheid
+
+- Optionele exclusieve vermogens- en cumulatieve energiemeter bij de bestaande afwasmachinekoppeling.
+- Read-only activiteit met instelbare start-/stildrempels, originele rapporttijden en onbekende meetgaten; handmatige/externe sessies kunnen ook zonder cloudstatus zichtbaar worden.
+- Geregistreerde dag-/sessie-deelenergie uit tellerstappen, zonder reset-, gat-, herstart- of middernachtinterpolatie.
+- Meterwaarneming bevestigt geen START, verbruikt geen ticket, bewijst geen programma-einde en verleent geen actuator- of volledige cyclusleerrechten.
+- Onafhankelijke meting op kaart en historiek; bronrechten en bestaande beta.104-isolatie blijven behouden.
+- 53 gerichte lokale regressies; volledige commitgebonden releasegates blijven verplicht. Zie `docs/BETA105_INSTELLEN.md` en `docs/TESTRESULTATEN_BETA105.md`.
+
 ## 1.0.0-beta.104 — niet-blokkerende bronwachttijden en gerichte foutcontrole
 
 - Gewone offline bronwachters en onbekende source-only herstartleases zijn geen algemene UIT-voorwaarde voor Controle afronden. Hun status, eigendom, wachttijden en tickets blijven bewaard.

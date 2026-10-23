@@ -63,9 +63,9 @@ async def test_original_end_processed_once_then_restart_offline_and_reconnect_ne
     seen = []
     original_observe = r.consumer_history.observe
 
-    def observe(device_id, active, local_now):
+    def observe(device_id, active, local_now, **kwargs):
         seen.append((device_id, active, local_now.timestamp()))
-        return original_observe(device_id, active, local_now)
+        return original_observe(device_id, active, local_now, **kwargs)
 
     r.consumer_history.observe = observe
     wall[0] += 200

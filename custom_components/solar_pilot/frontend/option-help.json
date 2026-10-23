@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.104",
+  "version": "1.0.0-beta.105",
   "language": "nl",
   "steps": {
     "init": {
@@ -818,7 +818,8 @@
         "power_entity": "Optioneel: exclusieve vermogensmeter (Shelly, W/kW)",
         "dishwasher_alert_entity": "Optioneel: alarmstatus afwasmachine",
         "dishwasher_delay_entity": "Optioneel: eigen uitgestelde-starttijd afwasmachine",
-        "dishwasher_phase_entity": "Programmafase (optioneel; voorwas, wassen, drogen, AirDry)"
+        "dishwasher_phase_entity": "Programmafase (optioneel; voorwas, wassen, drogen, AirDry)",
+        "energy_entity": "Eigen energieteller afwasmachine (Wh/kWh)"
       },
       "data_description": {
         "start_button": "De actuele START-knop van de afwasmachine-integratie.",
@@ -827,10 +828,11 @@
         "dishwasher_remote_entity": "Expliciete toestand die START op afstand toestaat.",
         "dishwasher_door_entity": "Echte deurstatus van de afwasmachine.",
         "cycle_program_entity": "Het reeds gekozen afwasprogramma, alleen uitlezen.",
-        "power_entity": "Optionele exclusieve W/kW-sensor van de afwasmachine, bijvoorbeeld een Shelly.",
+        "power_entity": "Exclusieve fysieke vermogensmeter van deze afwasmachine in W/kW.",
         "dishwasher_alert_entity": "Optionele alarmbron.",
         "dishwasher_delay_entity": "Optionele oorspronkelijke uitgestelde-starttijd.",
-        "dishwasher_phase_entity": "Aanvullende oorspronkelijke Cycle phase-sensor van dezelfde machine."
+        "dishwasher_phase_entity": "Aanvullende oorspronkelijke Cycle phase-sensor van dezelfde machine.",
+        "energy_entity": "Optionele cumulatieve energieteller van dezelfde afwasmachine in Wh/kWh met state_class total of total_increasing."
       }
     },
     "dishwasher_states": {
@@ -855,7 +857,12 @@
         "dishwasher_deadline_grace_min": "Nog proberen na geblokkeerde deadline (minuten)",
         "dishwasher_alert_mode": "Herkenning van storingen en verbruiksmateriaal",
         "dishwasher_priority_enabled": "Afwasvoorkeur behouden vóór Wallbox en lagere zonnevragen",
-        "dishwasher_ev_solar_priority": "Zonnevermogen vóór Wallbox benutten — tijdelijke netafname tijdens reactie mogelijk"
+        "dishwasher_ev_solar_priority": "Zonnevermogen vóór Wallbox benutten — tijdelijke netafname tijdens reactie mogelijk",
+        "dishwasher_meter_start_w": "Activiteitsdrempel eigen meter (W)",
+        "dishwasher_meter_idle_w": "Rustdrempel eigen meter (W)",
+        "dishwasher_meter_start_s": "Activiteit bevestigen na (seconden)",
+        "dishwasher_meter_end_s": "Lage opname afwachten (seconden)",
+        "dishwasher_meter_stale_s": "Maximale ouderdom meterbericht (seconden)"
       },
       "data_description": {
         "dishwasher_ready_states": "Puntkomma-gescheiden ruwe toestanden waarin nog geen cyclus loopt en een start mogelijk is, bijvoorbeeld Ready of Idle alleen na verificatie.",
@@ -876,7 +883,12 @@
         "dishwasher_deadline_grace_min": "Begrensd herstelvenster na de startdeadline, standaard 120 minuten.",
         "dishwasher_alert_mode": "Toestand gebruikt de bestaande expliciete lijst veilige alarmwaarden.",
         "dishwasher_priority_enabled": "Het bestaande AEG-voorkeursprofiel blijft behouden.",
-        "dishwasher_ev_solar_priority": "Standaard AAN voor deze update."
+        "dishwasher_ev_solar_priority": "Standaard AAN voor deze update.",
+        "dishwasher_meter_start_w": "Minimaal gemeten vermogen voor een afgeleide activiteitsstart.",
+        "dishwasher_meter_idle_w": "Bovengrens voor een stille elektrische fase; voorlopig 5 W en altijd lager dan de startdrempel.",
+        "dishwasher_meter_start_s": "Benodigde tijd boven de startdrempel; voorlopig 60 seconden.",
+        "dishwasher_meter_end_s": "Benodigde stille duur om afgeleide activiteit af te sluiten; voorlopig 900 seconden.",
+        "dishwasher_meter_stale_s": "Maximale ouderdom en afstand van opeenvolgende meterberichten; voorlopig 120 seconden."
       }
     },
     "analysis": {
@@ -1158,7 +1170,8 @@
     "water_source_required": "Kies minstens één bestaande waterbron voordat je de watermonitor inschakelt.",
     "water_volume_source": "Kies een cumulatieve volumesensor met passende volume-eenheid en tellerkenmerken, geen debiet of elektriciteitsmeter.",
     "water_flow_source": "Kies een actuele debietsensor met een ondersteunde volume-per-tijd-eenheid, geen cumulatieve meterstand.",
-    "water_leak_source": "Kies een bestaande binary_sensor voor waterlekkage met apparaatklasse moisture."
+    "water_leak_source": "Kies een bestaande binary_sensor voor waterlekkage met apparaatklasse moisture.",
+    "dishwasher_energy_meter": "Kies een cumulatieve Wh/kWh-sensor met state_class total of total_increasing."
   },
   "abort": {
     "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",
@@ -3408,9 +3421,9 @@
     },
     "dishwasher_connection.power_entity": {
       "title": "Optioneel: exclusieve vermogensmeter (Shelly, W/kW)",
-      "short": "Optionele exclusieve W/kW-sensor van de afwasmachine, bijvoorbeeld een Shelly.",
+      "short": "Exclusieve fysieke vermogensmeter van deze afwasmachine in W/kW.",
       "paragraphs": [
-        "Optionele exclusieve W/kW-sensor van de afwasmachine, bijvoorbeeld een Shelly. Het relais van de plug wordt nooit bediend. Zonder meter gebruikt planning een duidelijk geschatte conservatieve last; het stageprofiel wordt niet uit totale woningafname verzonnen. Gedeelde net/PV/Wallbox/boilermeters zijn ongeschikt. Een betrouwbare actieve afwasstatus zonder gekoppelde meter laat gewone onderbreekbare lasten wel werkelijk resterende zon benutten; de volledige toekomstige afwaspiek blijft in de totale elektrische ruimte gereserveerd. Een gekoppelde maar onbruikbare meter geeft deze versoepeling niet. Een piekraming is geen gemeten actueel verbruik of faseprofiel.",
+        "Exclusieve fysieke vermogensmeter van deze afwasmachine in W/kW. Naast bestaand verbruik voor regeling maakt deze bron elektrische activiteit zichtbaar wanneer de cloudstatus ontbreekt. De schakelaar wordt nooit bediend door deze waarneming. Een gedeelde, geschatte of oude bron wordt niet als bewijs gebruikt.",
         "Een gestart afwasprogramma blijft beschermd: geen stop/pauze/reset of stroomonderbreking voor energiesturing. Begin met gecontroleerde bronwaarden en één geschikte geladen afwasbeurt.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -3438,6 +3451,15 @@
       "short": "Aanvullende oorspronkelijke Cycle phase-sensor van dezelfde machine.",
       "paragraphs": [
         "Aanvullende oorspronkelijke Cycle phase-sensor van dezelfde machine. Toont bijvoorbeeld Prewash, Drying of Ado Drying en wordt gebruikt voor het gemeten faseprofiel. Appliance state blijft de bron voor gereed, werkelijk gestart en voltooid. Unavailable bij Ready To Start is bij deze AEG een normale wachtfase, geen reden om starten te blokkeren. Zonder deze bron blijven fasen onbekend; er worden geen nulvermogens verzonnen.",
+        "Een gestart afwasprogramma blijft beschermd: geen stop/pauze/reset of stroomonderbreking voor energiesturing. Begin met gecontroleerde bronwaarden en één geschikte geladen afwasbeurt.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "dishwasher_connection.energy_entity": {
+      "title": "Eigen energieteller afwasmachine (Wh/kWh)",
+      "short": "Optionele cumulatieve energieteller van dezelfde afwasmachine in Wh/kWh met state_class total of total_increasing.",
+      "paragraphs": [
+        "Optionele cumulatieve energieteller van dezelfde afwasmachine in Wh/kWh met state_class total of total_increasing. Alleen geldige opeenvolgende tellerstappen tellen als geregistreerde deelenergie. De totale tellerstand is geen dagverbruik; gaten, reset en middernacht worden niet ingevuld. Koppel ook de exclusieve vermogensmeter.",
         "Een gestart afwasprogramma blijft beschermd: geen stop/pauze/reset of stroomonderbreking voor energiesturing. Begin met gecontroleerde bronwaarden en één geschikte geladen afwasbeurt.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -3609,6 +3631,51 @@
       "short": "Standaard AAN voor deze update.",
       "paragraphs": [
         "Standaard AAN voor deze update. Bij actuele bevestigde Full Solar, werkelijk gemeten zonneproductie en stabiele net-/Wallboxmetingen mag de ene afwasbeurt beginnen met zonnevermogen dat de auto nu verbruikt. SolarPilot verstuurt geen Wallbox-opdracht: de laadpaal moet zelf terugregelen. Voor het starten moet de afwasmachine volledig binnen de actuele net-, kwartierpiek- en fasegrenzen passen ALSOF de laadpaal nog niets terugregelt. EV-vermogen is nooit extra elektrische capaciteit. Tijdelijke netafname tijdens de reactie en latere netstroom bij bewolking zijn mogelijk. Omdat afwassen niet mag worden afgebroken, is dit GEEN terugneembare stekkerovername. Na 15 minuten zonder bevestigde netto balans volgt een melding en worden volgende starts op EV-vermogen geblokkeerd tot Herstart- en foutcontrole; de lopende beurt blijft afwerken. Zonder Shelly is de meter van het hele huis een balanscontrole, geen exact gemeten faseprofiel. UIT: vóór de deadline alleen werkelijk resterende injectie; de 13:00-nettoestemming blijft apart.",
+        "Een gestart afwasprogramma blijft beschermd: geen stop/pauze/reset of stroomonderbreking voor energiesturing. Begin met gecontroleerde bronwaarden en één geschikte geladen afwasbeurt.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "dishwasher_states.dishwasher_meter_start_w": {
+      "title": "Activiteitsdrempel eigen meter (W)",
+      "short": "Minimaal gemeten vermogen voor een afgeleide activiteitsstart.",
+      "paragraphs": [
+        "Minimaal gemeten vermogen voor een afgeleide activiteitsstart. Voorlopig 10 W, nog te toetsen aan een echte afwasbeurt. Lager kan stand-by of deurverlichting meetellen; hoger kan kleine pompfasen missen. Geen START-opdracht of starttoestemming.",
+        "Een gestart afwasprogramma blijft beschermd: geen stop/pauze/reset of stroomonderbreking voor energiesturing. Begin met gecontroleerde bronwaarden en één geschikte geladen afwasbeurt.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "dishwasher_states.dishwasher_meter_idle_w": {
+      "title": "Rustdrempel eigen meter (W)",
+      "short": "Bovengrens voor een stille elektrische fase; voorlopig 5 W en altijd lager dan de startdrempel.",
+      "paragraphs": [
+        "Bovengrens voor een stille elektrische fase; voorlopig 5 W en altijd lager dan de startdrempel. Pas na de ingestelde stille duur stopt de afgeleide activiteit. Laag vermogen betekent niet dat het afwasprogramma klaar is.",
+        "Een gestart afwasprogramma blijft beschermd: geen stop/pauze/reset of stroomonderbreking voor energiesturing. Begin met gecontroleerde bronwaarden en één geschikte geladen afwasbeurt.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "dishwasher_states.dishwasher_meter_start_s": {
+      "title": "Activiteit bevestigen na (seconden)",
+      "short": "Benodigde tijd boven de startdrempel; voorlopig 60 seconden.",
+      "paragraphs": [
+        "Benodigde tijd boven de startdrempel; voorlopig 60 seconden. Alleen opeenvolgende verse oorspronkelijke meterberichten tellen. Korter ziet ook korte pieken; langer vertraagt de registratie. Herstart en meetgaten beginnen opnieuw zonder een begin in het verleden te verzinnen.",
+        "Een gestart afwasprogramma blijft beschermd: geen stop/pauze/reset of stroomonderbreking voor energiesturing. Begin met gecontroleerde bronwaarden en één geschikte geladen afwasbeurt.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "dishwasher_states.dishwasher_meter_end_s": {
+      "title": "Lage opname afwachten (seconden)",
+      "short": "Benodigde stille duur om afgeleide activiteit af te sluiten; voorlopig 900 seconden.",
+      "paragraphs": [
+        "Benodigde stille duur om afgeleide activiteit af te sluiten; voorlopig 900 seconden. Korte stille fasen blijven hierdoor één waargenomen sessie. Een native actieve of gepauzeerde status blijft leidend. Ook na deze duur is succesvol programma-einde niet bewezen.",
+        "Een gestart afwasprogramma blijft beschermd: geen stop/pauze/reset of stroomonderbreking voor energiesturing. Begin met gecontroleerde bronwaarden en één geschikte geladen afwasbeurt.",
+        "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
+      ]
+    },
+    "dishwasher_states.dishwasher_meter_stale_s": {
+      "title": "Maximale ouderdom meterbericht (seconden)",
+      "short": "Maximale ouderdom en afstand van opeenvolgende meterberichten; voorlopig 120 seconden.",
+      "paragraphs": [
+        "Maximale ouderdom en afstand van opeenvolgende meterberichten; voorlopig 120 seconden. Oude of ontbrekende berichten worden onbekend, niet 0 W. Verlengen maakt een bron niet betrouwbaarder. Het scherm verversen vernieuwt geen oorspronkelijke rapporttijd.",
         "Een gestart afwasprogramma blijft beschermd: geen stop/pauze/reset of stroomonderbreking voor energiesturing. Begin met gecontroleerde bronwaarden en één geschikte geladen afwasbeurt.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]

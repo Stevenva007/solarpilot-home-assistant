@@ -2291,6 +2291,13 @@ class SolarRuntime:
         changed = False
         for i, cfg in self.configs.items():
             s = self.states[i]
+            # Observe a dedicated meter even while control reconciliation waits.
+            # This writes only telemetry, never controller state or permissions.
+            if (cfg.get("kind") == "dishwasher" and cfg.get("power_entity")
+                    and (self.device_retry.command_waiting(i) or i in self.recovery)):
+                native = read_dishwasher(self.hass, cfg)
+                self.consumer_history.observe(i, native.active,
+                    local_now or datetime.now(timezone.utc), native_finished=native.finished)
             authority_error = self._profile_authority_error(cfg)
             if authority_error:
                 s.available = False
@@ -2402,7 +2409,8 @@ class SolarRuntime:
             # This read-only path also includes external/manual activity in Observatie.
             completion = self.dishwasher_app.data.get(i, {}).get("end_pending") if cfg.get("kind") == "dishwasher" else None
             observed_time = datetime.fromtimestamp(completion["ended_at"], timezone.utc) if completion else (local_now or datetime.now(timezone.utc))
-            self.consumer_history.observe(i, active, observed_time)
+            self.consumer_history.observe(i, active, observed_time,
+                native_finished=(self.dishwasher.readings[i].finished if cfg.get("kind") == "dishwasher" else False))
             if cfg.get("kind") == "dishwasher":
                 measured, _ = self._power(cfg.get("power_entity"))
                 if not self._dedicated_meter(i):

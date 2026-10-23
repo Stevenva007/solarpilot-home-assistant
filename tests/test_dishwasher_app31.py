@@ -401,7 +401,7 @@ async def test_listener_installed_for_target_entities_and_removed(monkeypatch):
 async def test_retained_end_uses_exact_event_time_in_history(monkeypatch):
     r,h,c,w=configured(monkeypatch);await r.tick()
     event(r,h,c,w,'dishwasher_state_entity','Running');await r.tick()
-    seen=[];r.consumer_history.observe=lambda i,active,dt:seen.append((i,active,dt.timestamp()))
+    seen=[];r.consumer_history.observe=lambda i,active,dt,**kwargs:seen.append((i,active,dt.timestamp()))
     w[0]+=100;event(r,h,c,w,'dishwasher_state_entity','End Of Cycle');end=w[0]
     w[0]+=4;event(r,h,c,w,'dishwasher_state_entity','Off');await r.tick()
     assert ('a',False,end) in seen

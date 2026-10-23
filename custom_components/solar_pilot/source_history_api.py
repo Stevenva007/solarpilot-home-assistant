@@ -29,7 +29,7 @@ _ROLES = {
         ("power_entity", "Gemeten vermogen"), ("control_entity", "Aan-/uitstand"),
         ("active_entity", "Actieve toestand"), ("number_entity", "Ingestelde waarde"),
         ("condition_entity", "Toestelvoorwaarde"), ("interlock_entity", "Veiligheidsvoorwaarde"),
-        ("dishwasher_state_entity", "Toestelstatus"), ("cycle_program_entity", "Gekozen programma"),
+        ("energy_entity", "Cumulatieve energie"), ("dishwasher_state_entity", "Toestelstatus"), ("cycle_program_entity", "Gekozen programma"),
         ("start_button", "Startknop"), ("start_script", "Startscript"), ("stop_script", "Stopscript")),
     "battery": (
         ("soc_entity", "Laadniveau"), ("power_entity", "Gemeten batterijvermogen"),

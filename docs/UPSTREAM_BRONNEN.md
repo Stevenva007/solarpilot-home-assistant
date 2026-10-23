@@ -1,5 +1,11 @@
 # Openbaar upstream-bronregister
 
+## Actuele aanvullende broncontrole beta.105 — 23 oktober 2026
+
+Aquarea **1.9.0** op `d3867f4143f7e2c15b84ed67c6e7ace2561f5f96` en SDK **1.5.0** op `55da9428ddf43ed26f2386d79c43d50cf4d9da0c` zijn inhoudelijk beoordeeld vanaf de hieronder bewaarde beta.103-bronnen. De wijzigingen betreffen authenticatie/appversieherstel; mislukte polls blijven ongeldige waarnemingen. De actuele pinned bronstand staat in `upstream_review.json`; vergelijking, impact en bewijsgrenzen staan in [de aanvullende bronbeoordeling](UPSTREAM_BETA105.md). Geen nieuw actuatorrecht of claim van lokale installatiecompatibiliteit.
+
+## Historisch register tot en met beta.103
+
 Laatst gecontroleerd: **21 oktober 2026 om 12:44:56 UTC**. Dit register beschrijft openbare broncontracten die voor SolarPilot relevant zijn. Een upstream-release is geen bewijs dat die versie lokaal is geïnstalleerd; een open pull request is geen gepubliceerde correctie. Gegevens uit privé-installaties, exports en automatiseringsidentiteiten horen niet in dit register.
 
 Actueel: Aquarea **1.8.1** is in de aanvullende broncontrole voor beta.103 beoordeeld op zijn gewijzigde maandwissel. De SDK blijft **1.4.0**; de in beta.98 verwerkte status-/pollcontracten blijven afzonderlijk gelden. De controle van 21 oktober om 08:07:03 UTC beschrijft de toenmalige stand vóór publicatie van Aquarea 1.8.1 om 08:38:43 UTC. SDK PR12 is op 18 oktober 2026 gesloten zonder merge; de relevante statuscorrectie is via PR16 gepubliceerd. Onderstaande oudere bronpins en releasebeoordelingen behouden hun historische betekenis.

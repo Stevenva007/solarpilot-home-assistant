@@ -1,10 +1,10 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.104
-**Bijgewerkt:** 2026-10-22
-**Regel-hash:** `216829ae60415dd8`
+**Versie:** 1.0.0-beta.105
+**Bijgewerkt:** 2026-10-23
+**Regel-hash:** `699d9abaa2cc4fbb`
 
-Beta.104 scheidt gewone tijdelijke onbereikbaarheid van echte opdrachtfouten. Controle afronden vraagt geen UIT-bevestiging meer aan een niet-betrokken offline toestel en wist diens herstelgegevens niet. Een ontbrekende Wallbox-uitlezing wordt informatief getoond zonder nutteloze resetknop. Andere toestellen blijven actuele P1-restzon gebruiken volgens hun eigen voorwaarden. Onzekere verzonden opdrachten, harde elektrische grenzen, instellingen en historie blijven beschermd.
+Beta.105 voegt onafhankelijke uitlezing van een exclusieve afwasmachinemeter toe. Vermogen in W/kW kan ook een handmatig begonnen elektrische activiteit zichtbaar maken wanneer cloudbediening niet beschikbaar is. Een afzonderlijke cumulatieve teller in Wh/kWh levert geregistreerde deelenergie. Meterwaarneming is uitsluitend historiek en presentatie: geen bevestiging van een START-opdracht, programma-einde, volledig cyclusprofiel of nieuwe bedieningsrechten. De beta.104-bronisolatie en alle fysieke veiligheidsgrenzen blijven behouden.
 
 ## 1. Basisprincipe en modi
 
@@ -431,7 +431,7 @@ Een privéprofiel blijft optioneel en uitsluitend lokaal. Importeren kan lege ge
 
 Voor verwijderen kies je Verwijderen voorbereiden en wacht je op de gerichte veilige vrijgave. Een onzekere SG-uitgang blijft eerlijk onbekend; de gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, AEG- of Shelly-integratie.
 
-Rollback naar beta.102 behoudt dezelfde instellingen, opslag, modellen, historie, waterregistratie en SG-bediening. De kaart kan bij het gesplitste Aquarea-statuscontract weer een onbekende taak tonen terwijl de backend al een taak afleidt; de oude bronbenaming keert terug. Er is geen opslagmigratie. Bewaar vóór terugzetten een volledige privéback-up, behoud de entry en userfiles, herstart Home Assistant volledig en herlaad de app/browser. Verder teruggaan naar beta.101 kan de aanvullende watermeetgatrol bij een volgende opslag verliezen. Zie BETA103_INSTELLEN.md.
+Rollback naar beta.104 herstelt de vorige afwasregistratie en verwijdert deze onafhankelijke meterweergave. Een oudere versie kan de nieuwe aanvullende meterhistoriek bij een volgende opslag niet behouden. Maak daarom vóór de update en vóór rollback een volledige privéback-up, inclusief de SolarPilot-consumer_history-opslag; verwijder de integratie niet. Zie BETA105_INSTELLEN.md.
 
 ## 21. Release- en documentatieregel
 
@@ -464,6 +464,18 @@ Alle waterfuncties lezen uitsluitend. SolarPilot opent of sluit geen afsluiter e
 Water toont voor stromingsbewaking en de eigen metermelding afzonderlijk of de bewust gekoppelde bron een actueel bruikbaar rapport heeft. Een ontbrekende optionele detector is herkenbaar als niet gekoppeld; een wel gekoppelde oude bron maakt de bewaking onvolledig of niet beschikbaar. Actuele bronnen betekent niet dat de zestig minuten zijn voltooid of dat de installatie lekvrij is. Een eerdere onopgeloste waarschuwing blijft staan. Deze bronuitleg is informatief en veroorzaakt geen nieuwe periodieke melding of energie-regelingsfoutpauze.
 
 Bij MQTT kunnen identieke waarden zonder force_update in Home Assistant een oude last_reported houden. Controleer bij oude debiet- of lekmeldingen de afzonderlijke publicatie, beschikbaarheid en bronconfiguratie. De update verandert die MQTT-instellingen niet en leent geen actualiteit van de totaalteller. force_update kan de ontvangstregistratie verbeteren wanneer werkelijke nieuwe berichten binnenkomen; het bewijst geen fysieke meettijd. De bronouderdom blind verlengen maakt ontbrekend bewijs niet betrouwbaar. Analyse-export bevat nu ook de effectieve waterinstellingen, module-inschakeling en bronkwaliteitsdiagnose.
+
+## 23. Eigen afwasmachinemeter: waarnemen zonder cloudbediening
+
+Koppel bij het bestaande afwasmachinetoestel een exclusieve vermogenssensor in W/kW en optioneel de bijbehorende cumulatieve energieteller in Wh/kWh (total of total_increasing). De meter wordt uitsluitend gelezen; de voedingsschakelaar wordt niet als actuator toegevoegd. Bestaande native START-, deur-, remote-, programma- en verbindingsbronnen blijven nodig voor bediening, maar niet voor metergestuurde historiek.
+
+De voorlopige startinstelling is minstens 10 W gedurende 60 seconden aan opeenvolgende geldige rapporten. Tot 5 W gedurende 15 minuten sluit de afgeleide activiteit af, niet een bewezen succesvol programma. Korte stille fasen blijven in de waargenomen activiteit; een betrouwbare native draaiende of gepauzeerde status houdt die actief. Deze instelbare drempels zijn geen gekalibreerd toestelprofiel. Controleer ze aan een volledige echte afwasbeurt; deurverlichting of een uitzonderlijk lange stille fase kan de afleiding beïnvloeden.
+
+Zonder bevestigde SolarPilot-start hoort een nieuwe waargenomen activiteit bij Extern gestart of, wanneer de beginwaarneming ontbreekt, Begin onbekend. Oudere niet-geregistreerde beurten worden niet ingevuld. Onbekende, restored, geschatte, ongeldige of oude meterwaarden worden geen 0 W. Alleen nieuwe oorspronkelijke rapporttijden tellen mee voor de bevestigingsduur; een scherm verversen maakt een oude meting niet nieuw. De maximale rapportouderdom is voorlopig 120 seconden en is afzonderlijk instelbaar.
+
+Dag- en sessie-energie omvat alleen geldige opeenvolgende cumulatieve tellerstappen. Tellerresets, onmogelijke sprongen, onderbrekingen, herstart of een middernachtgrens worden niet geïnterpoleerd. De geregistreerde kWh blijven expliciet een deelmeting; zonder bruikbaar tellerpaar blijft het onbekend. De cumulatieve tellerstand is geen dagverbruik. Een nieuwe meter of gewijzigde drempel erft geen oude activiteitsduur of tellerbaseline. Eerdere historie en bronrechten blijven bewaard; per meter worden maximaal dertig lokale dagen bijgehouden.
+
+Een meterstart verleent nooit starttoestemming, verbruikt geen eenmalig startticket en bevestigt geen verzonden opdracht. Laag vermogen bewijst geen programma-einde. Deze afgeleide sessies worden geen volledige geleerde cyclus en maken geen fictieve zonne-energie of besparing. Andere verbruikers blijven hun eigen actuele voorwaarden gebruiken. Een live cloudprobleem kan dus naast een geldige lokale meterwaarneming blijven staan.
 
 ---
 

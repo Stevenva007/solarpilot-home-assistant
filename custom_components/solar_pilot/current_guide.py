@@ -3,13 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.104'
-GUIDE_UPDATED = '2026-10-22'
+GUIDE_VERSION = '1.0.0-beta.105'
+GUIDE_UPDATED = '2026-10-23'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.104',
- 'updated': '2026-10-22',
- 'intro': 'Beta.104 scheidt gewone tijdelijke onbereikbaarheid van echte opdrachtfouten. Controle afronden vraagt geen UIT-bevestiging meer aan een niet-betrokken offline toestel en wist diens herstelgegevens niet. Een ontbrekende Wallbox-uitlezing wordt informatief getoond zonder nutteloze resetknop. Andere toestellen blijven actuele P1-restzon gebruiken volgens hun eigen voorwaarden. Onzekere verzonden opdrachten, harde elektrische grenzen, instellingen en historie blijven beschermd.',
+ 'version': '1.0.0-beta.105',
+ 'updated': '2026-10-23',
+ 'intro': 'Beta.105 voegt onafhankelijke uitlezing van een exclusieve afwasmachinemeter toe. Vermogen in W/kW kan ook een handmatig begonnen elektrische activiteit zichtbaar maken wanneer cloudbediening niet beschikbaar is. Een afzonderlijke cumulatieve teller in Wh/kWh levert geregistreerde deelenergie. Meterwaarneming is uitsluitend historiek en presentatie: geen bevestiging van een START-opdracht, programma-einde, volledig cyclusprofiel of nieuwe bedieningsrechten. De beta.104-bronisolatie en alle fysieke veiligheidsgrenzen blijven behouden.',
  'sections': [{'title': '1. Basisprincipe en modi',
                'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele '
                               'net- en PV-metingen, echte toestelvoorwaarden en elektrische grenzen gaan '
@@ -1134,9 +1134,7 @@ CURRENT_GUIDE["sections"][19]["paragraphs"][-1] = 'Rollback naar beta.102 behoud
 
 CURRENT_GUIDE["sections"][16]["paragraphs"].append("Aquarea 1.8.1 houdt de vorige UTC-cloudmaand vast tot de laatste energiegegevens zijn opgehaald en schuift daarna door naar de nieuwe maand. SolarPilot blijft de werkelijk door de native sensor gerapporteerde periode uitlezen. Een nieuwe exportdatum maakt een behouden oude maand niet tot de huidige maand; periodegrenzen bewijzen geen meetdekking of actualiteit. De status-/actiesemantiek en SDK zijn bij deze bronwijziging ongewijzigd. De aanvullende bronreview en regressies verruimen geen taak-, leer- of regelrecht.")
 
-GUIDE_HASH = hashlib.sha256(
-    json.dumps(CURRENT_GUIDE, sort_keys=True, ensure_ascii=False).encode("utf-8")
-).hexdigest()
+
 
 
 # Release-specific recovery boundary: no global OFF prerequisite for source waits.
@@ -1151,6 +1149,21 @@ CURRENT_GUIDE['sections'][0]['paragraphs'].append(
     'Een dubbele koppeling blijft een zichtbare configuratiemelding. Actuele '
     'P1-restzon en alle bestaande toestel-, net-, fase- en kwartiergrenzen blijven leidend.'
 )
+
+# Meter observation has no path into command eligibility or cycle learning.
+CURRENT_GUIDE["sections"].append({
+    "title": "23. Eigen afwasmachinemeter: waarnemen zonder cloudbediening",
+    "paragraphs": [
+        "Koppel bij het bestaande afwasmachinetoestel een exclusieve vermogenssensor in W/kW en optioneel de bijbehorende cumulatieve energieteller in Wh/kWh (total of total_increasing). De meter wordt uitsluitend gelezen; de voedingsschakelaar wordt niet als actuator toegevoegd. Bestaande native START-, deur-, remote-, programma- en verbindingsbronnen blijven nodig voor bediening, maar niet voor metergestuurde historiek.",
+        "De voorlopige startinstelling is minstens 10 W gedurende 60 seconden aan opeenvolgende geldige rapporten. Tot 5 W gedurende 15 minuten sluit de afgeleide activiteit af, niet een bewezen succesvol programma. Korte stille fasen blijven in de waargenomen activiteit; een betrouwbare native draaiende of gepauzeerde status houdt die actief. Deze instelbare drempels zijn geen gekalibreerd toestelprofiel. Controleer ze aan een volledige echte afwasbeurt; deurverlichting of een uitzonderlijk lange stille fase kan de afleiding beïnvloeden.",
+        "Zonder bevestigde SolarPilot-start hoort een nieuwe waargenomen activiteit bij Extern gestart of, wanneer de beginwaarneming ontbreekt, Begin onbekend. Oudere niet-geregistreerde beurten worden niet ingevuld. Onbekende, restored, geschatte, ongeldige of oude meterwaarden worden geen 0 W. Alleen nieuwe oorspronkelijke rapporttijden tellen mee voor de bevestigingsduur; een scherm verversen maakt een oude meting niet nieuw. De maximale rapportouderdom is voorlopig 120 seconden en is afzonderlijk instelbaar.",
+        "Dag- en sessie-energie omvat alleen geldige opeenvolgende cumulatieve tellerstappen. Tellerresets, onmogelijke sprongen, onderbrekingen, herstart of een middernachtgrens worden niet geïnterpoleerd. De geregistreerde kWh blijven expliciet een deelmeting; zonder bruikbaar tellerpaar blijft het onbekend. De cumulatieve tellerstand is geen dagverbruik. Een nieuwe meter of gewijzigde drempel erft geen oude activiteitsduur of tellerbaseline. Eerdere historie en bronrechten blijven bewaard; per meter worden maximaal dertig lokale dagen bijgehouden.",
+        "Een meterstart verleent nooit starttoestemming, verbruikt geen eenmalig startticket en bevestigt geen verzonden opdracht. Laag vermogen bewijst geen programma-einde. Deze afgeleide sessies worden geen volledige geleerde cyclus en maken geen fictieve zonne-energie of besparing. Andere verbruikers blijven hun eigen actuele voorwaarden gebruiken. Een live cloudprobleem kan dus naast een geldige lokale meterwaarneming blijven staan."
+    ], "bullets": []})
+CURRENT_GUIDE["sections"][19]["paragraphs"][-1] = "Rollback naar beta.104 herstelt de vorige afwasregistratie en verwijdert deze onafhankelijke meterweergave. Een oudere versie kan de nieuwe aanvullende meterhistoriek bij een volgende opslag niet behouden. Maak daarom vóór de update en vóór rollback een volledige privéback-up, inclusief de SolarPilot-consumer_history-opslag; verwijder de integratie niet. Zie BETA105_INSTELLEN.md."
+GUIDE_HASH = hashlib.sha256(
+    json.dumps(CURRENT_GUIDE, sort_keys=True, ensure_ascii=False).encode("utf-8")
+).hexdigest()
 
 def render_markdown() -> str:
     """Render the canonical guide as the bundled Markdown document."""
