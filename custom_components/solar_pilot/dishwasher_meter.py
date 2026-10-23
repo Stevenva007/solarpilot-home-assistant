@@ -108,6 +108,10 @@ class DishwasherMeter:
         day = when.date().isoformat()
         power = read_sample(hass, self.binding[0], {"W": 1., "kW": 1000.}, wall, stale)
         energy = read_sample(hass, self.binding[1], {"Wh": .001, "kWh": 1.}, wall, stale)
+        # A fresh-but-delayed report can still belong to yesterday. Never
+        # assign that counter interval to today's capture date.
+        if energy.valid and datetime.fromtimestamp(energy.stamp, tz=when.tzinfo).date() != when.date():
+            energy = Sample(reason="date_boundary")
         energy_obj = hass.states.get(self.binding[1]) if self.binding[1] else None
         if energy.valid and (getattr(energy_obj, "attributes", {}).get("state_class") not in ("total", "total_increasing")
                 or getattr(energy_obj, "attributes", {}).get("device_class") not in (None, "energy")):
