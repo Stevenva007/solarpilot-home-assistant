@@ -1,0 +1,90 @@
+name: Prepare isolated meter105 candidate
+on:
+  push:
+    branches: [feat/dishwasher-meter-beta105-20261023]
+    paths: [.github/meter105-candidate.b64]
+permissions:
+  contents: write
+jobs:
+  prepare:
+    if: github.repository == 'Stevenva007/solarpilot-home-assistant' && github.ref == 'refs/heads/feat/dishwasher-meter-beta105-20261023'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Verify exact baseline and materialize reviewed candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import base64, gzip, hashlib, json, re, subprocess
+          payload = Path('.github/meter105-candidate.b64')
+          raw = gzip.decompress(base64.b64decode(payload.read_text(), validate=False))
+          assert hashlib.sha256(raw).hexdigest() == '775c91afc315ef5a09cd64889df1cbd86ba6e4053dd6e7d81a4b4f71f0d81cd8', 'Candidate digest mismatch'
+          data = json.loads(raw)
+          assert data['base_commit'] == 'f014edaf205f9e0cf7c95cc899fa30499e3cf091'
+          subprocess.run(['git','merge-base','--is-ancestor',data['base_commit'],'HEAD'],check=True)
+          outputs = {}
+          for name, change in data['files'].items():
+              p = Path(name)
+              assert not p.is_absolute() and '..' not in p.parts
+              assert name.startswith(('custom_components/solar_pilot/','docs/','tests/'))
+              if change['before'] is None:
+                  assert not p.exists(), f'New path already exists: {name}'
+                  text = ''
+              else:
+                  assert hashlib.sha256(p.read_bytes()).hexdigest() == change['before'], f'Baseline differs: {name}'
+                  text = p.read_text(encoding='utf-8')
+              previous = len(text) + 1
+              for start, end, replacement in reversed(change['edits']):
+                  assert 0 <= start <= end < previous
+                  text = text[:start] + replacement + text[end:]
+                  previous = start + 1
+              assert hashlib.sha256(text.encode('utf-8')).hexdigest() == change['after'], f'Output differs: {name}'
+              outputs[p] = text
+          for p, text in outputs.items():
+              p.parent.mkdir(parents=True, exist_ok=True)
+              p.write_text(text, encoding='utf-8')
+          handoff = Path('OVERDRACHT.md')
+          text = handoff.read_text(encoding='utf-8')
+          assert '<!-- solarpilot-handoff-version: 1.0.0-beta.104 -->' in text
+          text = text.replace('<!-- solarpilot-handoff-version: 1.0.0-beta.104 -->','<!-- solarpilot-handoff-version: 1.0.0-beta.105 -->',1)
+          text, count = re.subn(r'Laatst bijgewerkt: .*?\n\n', 'Laatst bijgewerkt: **23 oktober 2026**. Actuele bron: **v1.0.0-beta.105**. Eigen afwasmachinemeters leveren onafhankelijke read-only activiteit en geregistreerde cumulatieve deelenergie, ook zonder cloudbediening. Native start-, voltooiings-, ticket- en veiligheidsrechten blijven gescheiden. Bouwbasis: gepubliceerde beta.104 `f014edaf205f9e0cf7c95cc899fa30499e3cf091`. Installatie/rollback: `docs/BETA105_INSTELLEN.md`; bewijsgrenzen: `docs/TESTRESULTATEN_BETA105.md`.\n\n', text, count=1)
+          assert count == 1
+          text, count = re.subn(r'(## 2\. Actuele basis\n\n).*?(\n\nDe canonieke gebruikersuitleg)', r'\1Bouwbasis: gepubliceerde beta.104 `f014edaf205f9e0cf7c95cc899fa30499e3cf091`. Beta.105 voegt optionele exclusieve afwasmeterwaarneming toe zonder actuator- of native cyclusrechten. Bestaande bronisolatie, regeling, historie en ACL-bronherkomst blijven behouden. Nieuwe meter-dagsommen staan aanvullend in de versie-1-consumer_history-opslag; een oudere versie kan die aanvullende velden bij opslag verliezen. Geen actuele activiteit of tellerbaseline wordt na herstart hergebruikt. De bestaande online upstream- en volledige releasecontroles blijven verplicht.\2',text,count=1,flags=re.S)
+          assert count == 1
+          insertions = {
+              '## 3. Absolute ontwerpregels': 'Meterafleiding is uitsluitend historiek/presentatie: geen START-confirmatie, startticket, programma-einde, volledige cyclusleerdata of bedieningsrecht. Native lopend/gepauzeerd gaat boven een stille meterfase; metergaten worden onbekend, nooit nul. Tellerstappen worden niet over reset, herstart, bronwissel, meetgat of middernacht geïnterpoleerd. Bronrechten blijven gekoppeld aan huidige en historische bronnen.',
+              '## 9. Testprocedure + actuele teststatus': 'Beta.105: lokaal 53 nieuwe gerichte tests geslaagd, plus Python- en Node-syntax. De volledige repository-, HACS-, Hassfest-, browser-, upstream- en echte Home Assistant-controles moeten nog voor de exacte kandidaatcommit worden bevestigd door de bestaande Validate-workflow. Geen live installatie of praktijkkalibratie uitgevoerd. Details: `docs/TESTRESULTATEN_BETA105.md`. Oudere hieronder genoemde resultaten blijven alleen baselinebewijs.',
+              '## 10. Bekende problemen / beperkingen': 'Beta.105: 10 W/60 s, 5 W/900 s en 120 s rapportouderdom zijn voorlopige instelbare waarden, geen bewezen kalibratie van een bepaald toestel. Een eigen meter bewijst geen programmafase of succesvol einde. Energie blijft geregistreerde deelenergie. Oudere gemiste beurten worden niet aangevuld. Lokale entiteitskoppeling moet bewust in de bestaande afwasmachinewizard worden opgeslagen.',
+              '## 12. Installatie/upgrade en rollback': 'Beta.105: volg `docs/BETA105_INSTELLEN.md`. Maak een volledige privéback-up; koppel de eigen W/kW- en optionele cumulatieve Wh/kWh-sensor aan het bestaande afwasmachinetoestel. Behoud alle native START-/veiligheidsbronnen. Herstart Home Assistant na een vrijgegeven update. Een oudere versie kan aanvullende meterhistorie niet behouden; bewaar die privé vóór rollback.'
+          }
+          for heading, paragraph in insertions.items():
+              assert heading in text
+              text = text.replace(heading,heading+'\n\n'+paragraph,1)
+          handoff.write_text(text,encoding='utf-8')
+          changelog = Path('CHANGELOG.md')
+          text = changelog.read_text(encoding='utf-8')
+          assert text.startswith('# Changelog\n')
+          entry = '\n## 1.0.0-beta.105 — eigen afwasmachinemeter zonder cloudafhankelijkheid\n\n- Optionele exclusieve vermogens- en cumulatieve energiemeter bij de bestaande afwasmachinekoppeling.\n- Read-only activiteit met instelbare start-/stildrempels, originele rapporttijden en onbekende meetgaten; handmatige/externe sessies kunnen ook zonder cloudstatus zichtbaar worden.\n- Geregistreerde dag-/sessie-deelenergie uit tellerstappen, zonder reset-, gat-, herstart- of middernachtinterpolatie.\n- Meterwaarneming bevestigt geen START, verbruikt geen ticket, bewijst geen programma-einde en verleent geen actuator- of volledige cyclusleerrechten.\n- Onafhankelijke meting op kaart en historiek; bronrechten en bestaande beta.104-isolatie blijven behouden.\n- 53 gerichte lokale regressies; volledige commitgebonden releasegates blijven verplicht. Zie `docs/BETA105_INSTELLEN.md` en `docs/TESTRESULTATEN_BETA105.md`.\n'
+          changelog.write_text(text.replace('# Changelog\n','# Changelog\n'+entry,1),encoding='utf-8')
+          payload.unlink()
+          subprocess.run(['git','add','--',*data['files'].keys(),'OVERDRACHT.md','CHANGELOG.md',str(payload)],check=True)
+          PY
+          python tools/check_current_explanation.py
+          python tools/check_handoff.py
+          python tools/check_public_repository.py
+          python -m compileall -q custom_components/solar_pilot
+          node --check custom_components/solar_pilot/frontend/solar-pilot-card.js
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Implement beta.105 read-only dishwasher power and energy observation'
+          git push origin HEAD:refs/heads/feat/dishwasher-meter-beta105-20261023
