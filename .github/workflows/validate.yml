@@ -101,6 +101,10 @@ jobs:
         env:
           SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests
         run: python tools/check_sg_ui.py
+      - name: Validate central priority movement and external SG takeover countdown
+        env:
+          SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests
+        run: python tools/check_priority_external_ui106.py
       - name: Validate timed Wallbox priority, individual overrides and countdowns
         env:
           SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests

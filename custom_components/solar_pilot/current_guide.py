@@ -1,1166 +1,1382 @@
-"""Single release-bound guide; regenerate bundled documentation after changes."""
+"""One complete release guide; no layered mutations from older releases."""
 from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.105'
-GUIDE_UPDATED = '2026-10-23'
+GUIDE_VERSION = '1.0.0-beta.106'
+GUIDE_UPDATED = '2026-10-24'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.105',
- 'updated': '2026-10-23',
- 'intro': 'Beta.105 voegt onafhankelijke uitlezing van een exclusieve afwasmachinemeter toe. Vermogen in W/kW kan ook een handmatig begonnen elektrische activiteit zichtbaar maken wanneer cloudbediening niet beschikbaar is. Een afzonderlijke cumulatieve teller in Wh/kWh levert geregistreerde deelenergie. Meterwaarneming is uitsluitend historiek en presentatie: geen bevestiging van een START-opdracht, programma-einde, volledig cyclusprofiel of nieuwe bedieningsrechten. De beta.104-bronisolatie en alle fysieke veiligheidsgrenzen blijven behouden.',
+ 'version': '1.0.0-beta.106',
+ 'updated': '2026-10-24',
+ 'intro': 'SolarPilot verdeelt beschikbare zonnestroom volgens één instelbare volgorde. De Wallbox staat standaard achteraan en regelt zelf het '
+          'resterende zonneoverschot. Een extern handmatig ingeschakeld SG-contact wordt zichtbaar overgenomen en na vijftien minuten '
+          'automatisch herbeoordeeld. Je bewaart je toestellen, metingen en historiek. Panasonic blijft de warmtepomp zelfstandig regelen.',
  'sections': [{'title': '1. Basisprincipe en modi',
-               'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele '
-                              'net- en PV-metingen, echte toestelvoorwaarden en elektrische grenzen gaan '
-                              'altijd vóór een voorspelling of geleerd patroon. Eén uitgang heeft één '
-                              'eigenaar. Een regeling vervangt geen elektrische beveiliging.',
-                              'Alleen bekijken berekent en registreert zonder nieuwe flexibele toestellen te '
-                              'starten. Automatisch regelen voert uitsluitend de toegestane apparaatbediening '
-                              'uit. Pauze start niets nieuws en geeft eigen onderbreekbare lasten veilig vrij, '
-                              'met behoud van minimumlooptijden en beschermde cycli. Een eigen SG-zonneboost '
-                              'wordt ingetrokken; de warmtepomp zelf blijft onder Panasonic-regie. Eigen '
-                              'bevestigde numerieke batterijdoelen behouden hun afzonderlijke veilige '
-                              'vrijgaveroute.',
-                              'Na herstart automatisch hervatten staat standaard Aan. Een gewone opgeslagen '
-                              'Pauze vraagt na Home Assistant-start of herladen weer Automatisch regelen via '
-                              'de bestaande controles. Alleen bekijken, eerste installatie, echte interne '
-                              'fout- en verwijderpauzes blijven beschermd. De voorkeur wijzigen verandert de '
-                              'huidige modus niet. Opnieuw Pauze kiezen annuleert een wachtende hervatting. '
-                              'SG-ingebruikname en een oude boost krijgen hierdoor geen automatische '
-                              'bevestiging.',
-                              'Bij een al opgeslagen interne foutpauze blijft automatisch hervatten beschermd. Na een update en volledige Home Assistant-herstart controleer je de concrete melding, kies je Controle afronden en daarna bewust Automatisch regelen wanneer de actuele controles dit toelaten. Herhalen zonder de fout op te lossen, opslag wissen of een native warmtepompopdracht geven is geen herstelroute.',
-                              'De minimale rusttijd na UIT loopt bij een herstart verder vanaf de bewaarde bevestigde UIT-tijd. Bij 30 minuten rust, 10 minuten reeds verstreken en 2 minuten herstart blijven 18 minuten over. Een opnieuw bevestigd UIT-toestel krijgt geen nieuwe volle rusttijd alleen door de herstart. Een echte nieuwe AAN-naar-UIT-overgang begint wel een nieuwe rusttijd. Een gewijzigde bronkoppeling, onzekere opdracht of ontbrekend betrouwbaar bewijs geeft geen verkorting. Oudere versies bewaarden deze tijd niet: bij de eerste upgrade kan daarom nog eenmaal de volle rusttijd nodig zijn. De afzonderlijke wachttijd voor stabiel zonneoverschot wordt opnieuw op actuele metingen beoordeeld.',
-                              'Na een herstart leest SolarPilot echte toestelstatussen. Een tijdelijk '
-                              'onbereikbaar eerder beheerd toestel wordt afzonderlijk opzijgezet; onbekend '
-                              'verbruik wordt niet als nul gerekend. De overige lasten kunnen verder zodra hun '
-                              'eigen voorwaarden en globale net- en veiligheidsmetingen betrouwbaar zijn. Het '
-                              'ontbrekende toestel wordt opnieuw beoordeeld zodra bruikbare brongegevens '
-                              'terugkeren. Onzekere fysieke opdrachten worden niet blind herhaald.'],
+               'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele net- en PV-metingen, echte '
+                              'toestelvoorwaarden en elektrische grenzen gaan altijd vóór een voorspelling of geleerd patroon. Eén uitgang '
+                              'heeft één eigenaar. Een regeling vervangt geen elektrische beveiliging.',
+                              'Alleen bekijken berekent en registreert zonder nieuwe flexibele toestellen te starten. Automatisch regelen voert '
+                              'uitsluitend de toegestane apparaatbediening uit. Pauze start niets nieuws en geeft eigen onderbreekbare lasten '
+                              'veilig vrij, met behoud van minimumlooptijden en beschermde cycli. Een eigen SG-zonneboost wordt ingetrokken; de '
+                              'warmtepomp zelf blijft onder Panasonic-regie. Eigen bevestigde numerieke batterijdoelen behouden hun '
+                              'afzonderlijke veilige vrijgaveroute.',
+                              'Na herstart automatisch hervatten staat standaard Aan. Een gewone opgeslagen Pauze vraagt na Home '
+                              'Assistant-start of herladen weer Automatisch regelen via de bestaande controles. Alleen bekijken, eerste '
+                              'installatie, echte interne fout- en verwijderpauzes blijven beschermd. De voorkeur wijzigen verandert de huidige '
+                              'modus niet. Opnieuw Pauze kiezen annuleert een wachtende hervatting. SG-ingebruikname en een oude boost krijgen '
+                              'hierdoor geen automatische bevestiging.',
+                              'Bij een al opgeslagen interne foutpauze blijft automatisch hervatten beschermd. Na een update en volledige Home '
+                              'Assistant-herstart controleer je de concrete melding, kies je Controle afronden en daarna bewust Automatisch '
+                              'regelen wanneer de actuele controles dit toelaten. Herhalen zonder de fout op te lossen, opslag wissen of een '
+                              'native warmtepompopdracht geven is geen herstelroute.',
+                              'Na een herstart leest SolarPilot echte toestelstatussen. Een tijdelijk onbereikbaar eerder beheerd toestel wacht '
+                              'afzonderlijk op bronherstel. Automatisch regelen is als globale modus kiesbaar; die keuze is geen toestemming om '
+                              'een onbereikbaar toestel te bedienen. Voor dat geïsoleerde offline toestel wordt geen extra geschatte '
+                              'verbruiksreserve van het gemeten P1-overschot afgehouden. Gezonde overige lasten kunnen verder zodra hun eigen '
+                              'voorwaarden en de gedeelde net-, fase- en veiligheidsmetingen betrouwbaar zijn en de actuele ruimte voldoende '
+                              'is. Elke vijf minuten wordt de herstelwacht opnieuw beoordeeld. Een onzekere fysieke opdracht wordt pas na '
+                              'passend nieuw oorspronkelijk terugmeldbewijs verzoend en niet blind herhaald.',
+                              'Controle afronden beoordeelt echte fouten, niet gewone tijdelijke onbereikbaarheid. Een offline afwasmachine of '
+                              'andere bronwachter hoeft niet eerst UIT te bevestigen om een onafhankelijke fout af te ronden. De eigen '
+                              'wachttijd, onbekende toestand, lease en eenmalige aanvraag blijven bewaard. Een verouderde knop zonder echte '
+                              'fout doet niets en verstuurt geen toestelopdracht. Onzekere verzonden opdrachten vereisen passende nieuwe '
+                              'terugmelding; een oude of restored UIT is geen bewijs. Wallbox-telemetriewacht wordt informatief getoond zonder '
+                              'foutkleur of resetknop. Een dubbele koppeling blijft een zichtbare configuratiemelding. Actuele P1-restzon en '
+                              'alle bestaande toestel-, net-, fase- en kwartiergrenzen blijven leidend.'],
                'bullets': []},
               {'title': '2. Overschot, centrale voorrang en planner',
-               'paragraphs': ['De volledige netmeter bepaalt werkelijke afname en injectie. W en kW worden '
-                              'naar hetzelfde vermogen omgerekend; een kWh-teller is geen actuele '
-                              'vermogensbron. De tekenafspraak wordt bewust gekozen. Restored, ontbrekende, '
-                              'toekomstige, niet-eindige of verkeerd gevormde waarden geven geen vrijgave. Een '
-                              'onveranderde waarde kan actueel zijn wanneer haar echte ontvangst of bruikbare '
-                              'heartbeat dat bewijst.',
-                              'Voorrang is de enige flexibele rangorde. De opgeslagen gebruikersvolgorde '
-                              'blijft bij deze update staan; een oude rangordemigratie wordt niet opnieuw '
-                              'toegepast. De rij voor extra warmwaterproductie vertegenwoordigt voortaan '
-                              'SG-zonneboost warmtepomp. Zij mag geen Wallbox-vermogen, beschermde afwascyclus '
-                              'of noodzakelijk Panasonic-comfort afnemen. Nieuwe gewone toestellen komen '
-                              'onderaan totdat je ze verplaatst.',
-                              'Wallbox voorrang geven is een tijdelijke uitzondering op die opgeslagen volgorde. Automatisch gebruikt opnieuw de huidige opgeslagen rangorde; de schakelaar herschrijft haar niet. De algemene keuze geldt alleen voor op dat moment aanwezige ondersteunde flexibele SolarPilot-toestellen en de beschikbare optionele SG-zonneboost. Native warmtepompcomfort, read-only apparatuur en batterijen krijgen hierdoor geen extra bediening. De afwasmachine is uitgesloten van deze nieuwe keuze.',
-                              'Start- en stopvertragingen, minimum aan/uit-tijden, dagdoelen, tijdvensters en '
-                              'beschermde programma’s blijven gelden. Een hoger toestel dat niet past hoeft '
-                              'een kleiner passend toestel niet te blokkeren. Lager geplaatste, werkelijk '
-                              'eigen en veilig onderbreekbare lasten kunnen alleen volgens de bestaande '
-                              'overdrachtvoorwaarden wijken. Eerst bevestigde UIT en nieuwe net-/PV-metingen; '
-                              'een stopverzoek is nog geen vrij vermogen.',
-                              'Gewone onderbreekbare switch-, number- en gecontroleerde scriptlasten mogen sinds beta.89 werkelijk resterende zon benutten wanneer een afwasmachine zonder gekoppelde vermogensmeter betrouwbaar actueel actief is. Alleen de bij die afwasmachine horende toekomstige piekreserve vervalt voor hun zachte zonnepot. De volledige piekraming blijft in de totale elektrische net-/kwartierberekening gereserveerd; bestaande fasecontroles blijven gelijk en leveren geen gemeten toekomstig faseprofiel. Het meest voorzichtige actuele/gefilterde overschot na huisreserve en batterijontlading moet de last inclusief startmarge nog dekken. Andere comfort-/isolatie-/onbevestigde SG-reserves blijven staan. Onbekende, oude of geïsoleerde afwasstatus en een gekoppelde maar onbruikbare meter geven geen versoepeling. Niet-onderbreekbare lasten en de afzonderlijke SG-route behouden hun volledige reservering. Bestaande vraag, interlocks, eigenaarschap, voorrang, minimumtijden en start-/stopbuffers blijven gelden; status en ruimte worden na wachtende opdrachtopslag opnieuw beoordeeld. Een latere afwaspiek kan tijdelijk netafname veroorzaken terwijl een minimumtijd of stopbuffer loopt; de update garandeert geen nulimport.',
-                              'De ingebouwde gezamenlijke toestelplanner vergelijkt ook combinaties en ruilt planblokken tussen toestellen. Hij behoudt de geplande energie per toestel, bestaande toestemmingen en lopende beschermde cycli. Alleen een opnieuw gevalideerde betere voorspelde combinatie vervangt de basisplanning. De zoektijd is begrensd; beste gevonden is geen bewezen wereldwijd optimum. Geen EMHASS-add-on, tweede regelaar of extra installatie is nodig. Hij gebruikt PV, basislast, tarieven, kwartierpiek en batterijruimte. Hij kan alleen expliciet vrijgegeven flexibele lasten plannen. Het huidige blok kan de gewone realtime regeling ondersteunen, maar nooit te weinig werkelijk overschot overstemmen. Er is geen actieve warmtepomp-, tanktemperatuur- of klimaatplanning meer. Beide planners gebruiken uitsluitend volledige blokken binnen het toegestane venster. Prijsoptimalisatie Uit blijft ook voor beschermde cycli gelden; nettoestemming en reeds geplande hogere lasten worden bij de verdeling meegenomen.',
-                              'Een dagdoel in kWh gebruikt werkelijk gemeten toestelenergie waar een '
-                              'exclusieve meter bestaat, anders een herkenbare schatting. Een beschermde '
-                              'cyclus wordt als aaneengesloten taak gepland. Zonder betrouwbaar duurprofiel '
-                              'wordt geen optimistische duur uit piekvermogen gegokt. Een lopende beschermde '
-                              'cyclus wordt niet gestopt wegens een nieuw plan. Goedkope netfallback blijft '
-                              'afzonderlijke dubbele toestemming en standaard uit.',
-                              'Batterijadvies volgt de tijdvolgorde: alleen de echte beginlading en reeds voorspeld geladen energie kunnen een later blok voeden. Laden en ontladen respecteren aparte grenzen en het bestaande ingestelde round-trip rendement, standaard 80%. Het blijft adviserend en wordt na de toestelplanning berekend; batterij en toestellen worden niet samen wiskundig geoptimaliseerd. Ontbrekende voorspelling geeft geen batterijactie. De piekvermijdingsstraf in de planner is geen berekening van de werkelijke capaciteitstarieffactuur. '
-                              'Plannerkwaliteit toont meetdekking, voorspellingsfout en uitvoering '
-                              'afzonderlijk. Een historische replay is richtinggevend en reconstrueert niet '
-                              'iedere vroegere startvoorwaarde. Een volledige lokale dag heeft normaal 96 '
-                              'kwartieren, bij de zomer-/wintertijdwissel 92 of 100; gaten worden geen '
-                              'volledige prestatie.',
-                              ('Resterend kwartierbudget is een theoretische energiegrens voor de '
-                               'resterende seconden. Details/Energie tonen daarnaast de daadwerkelijk '
-                               'begrensde instantane ruimte na vaste import-, fase- en kwartiergrenzen. '
-                               'Een zeer hoog theoretisch kwartiergetal verruimt nooit de vaste '
-                               'elektrische grenzen, broncontrole, prioriteiten of zonnevoorwaarden. Een '
-                               'geblokkeerde SG-aanvraag benoemt de beperkende grens en benodigde extra '
-                               'raming.')],
+               'paragraphs': ['De volledige netmeter bepaalt werkelijke afname en injectie. W en kW worden naar hetzelfde vermogen omgerekend; '
+                              'een kWh-teller is geen actuele vermogensbron. De tekenafspraak wordt bewust gekozen. Restored, ontbrekende, '
+                              'toekomstige, niet-eindige of verkeerd gevormde waarden geven geen vrijgave. Een onveranderde waarde kan actueel '
+                              'zijn wanneer haar echte ontvangst of bruikbare heartbeat dat bewijst.',
+                              'Voorrang is de centrale flexibele rangorde. Verplaats rijen met de pijltjes of door te slepen en sla je keuze '
+                              'op. Auto laden staat standaard achteraan. De update verplaatst alleen een vroeger automatisch gegenereerde '
+                              'standaard; een bewust opgeslagen eigen volgorde blijft staan. Nieuwe gewone toestellen komen vóór een laatst '
+                              'geplaatste Wallbox. De afwasmachine behoudt haar beschermde plaats vóór de optionele SG-zonneboost; veiligheid '
+                              'en noodzakelijk Panasonic-comfort staan buiten deze lijst.',
+                              'Wallbox voorrang geven is een tijdelijke uitzondering op die opgeslagen volgorde. Automatisch gebruikt opnieuw '
+                              'de huidige opgeslagen rangorde; de schakelaar herschrijft haar niet. De algemene keuze geldt alleen voor op dat '
+                              'moment aanwezige ondersteunde flexibele SolarPilot-toestellen en de beschikbare optionele SG-zonneboost. Native '
+                              'warmtepompcomfort, read-only apparatuur en batterijen krijgen hierdoor geen extra bediening. De afwasmachine is '
+                              'uitgesloten van deze nieuwe keuze.',
+                              'Start- en stopvertragingen, minimum aan/uit-tijden, dagdoelen, tijdvensters en beschermde programma’s blijven '
+                              'gelden. Een hoger toestel dat niet past hoeft een kleiner passend toestel niet te blokkeren. Lager geplaatste, '
+                              'werkelijk eigen en veilig onderbreekbare lasten kunnen alleen volgens de bestaande overdrachtvoorwaarden wijken. '
+                              'Eerst bevestigde UIT en nieuwe net-/PV-metingen; een stopverzoek is nog geen vrij vermogen.',
+                              'Gewone onderbreekbare switch-, number- en gecontroleerde scriptlasten mogen sinds beta.89 werkelijk resterende '
+                              'zon benutten wanneer een afwasmachine zonder gekoppelde vermogensmeter betrouwbaar actueel actief is. Alleen de '
+                              'bij die afwasmachine horende toekomstige piekreserve vervalt voor hun zachte zonnepot. De volledige piekraming '
+                              'blijft in de totale elektrische net-/kwartierberekening gereserveerd; bestaande fasecontroles blijven gelijk en '
+                              'leveren geen gemeten toekomstig faseprofiel. Het meest voorzichtige actuele/gefilterde overschot na huisreserve '
+                              'en batterijontlading moet de last inclusief startmarge nog dekken. Andere actuele comfort-/onbevestigde '
+                              'SG-reserves blijven staan. Vanaf beta.90 wordt voor tijdelijk offline geïsoleerde toestellen geen hypothetische '
+                              'extra verbruiksreserve afgehouden; een oude afwasstatus is evenmin bewijs van een actuele toekomstige afwaspiek. '
+                              'Onbekende, oude of geïsoleerde afwasstatus en een gekoppelde maar onbruikbare meter geven geen versoepeling. '
+                              'Niet-onderbreekbare lasten en de afzonderlijke SG-route behouden hun volledige reservering. Bestaande vraag, '
+                              'interlocks, eigenaarschap, voorrang, minimumtijden en start-/stopbuffers blijven gelden; status en ruimte worden '
+                              'na wachtende opdrachtopslag opnieuw beoordeeld. Een latere afwaspiek kan tijdelijk netafname veroorzaken terwijl '
+                              'een minimumtijd of stopbuffer loopt; de update garandeert geen nulimport.',
+                              'De ingebouwde gezamenlijke toestelplanner vergelijkt ook combinaties en ruilt planblokken tussen toestellen. Hij '
+                              'behoudt de geplande energie per toestel, bestaande toestemmingen en lopende beschermde cycli. Alleen een opnieuw '
+                              'gevalideerde betere voorspelde combinatie vervangt de basisplanning. De zoektijd is begrensd; beste gevonden is '
+                              'geen bewezen wereldwijd optimum. Geen EMHASS-add-on, tweede regelaar of extra installatie is nodig. Hij gebruikt '
+                              'PV, basislast, tarieven, kwartierpiek en batterijruimte. Hij kan alleen expliciet vrijgegeven flexibele lasten '
+                              'plannen. Het huidige blok kan de gewone realtime regeling ondersteunen, maar nooit te weinig werkelijk overschot '
+                              'overstemmen. Er is geen actieve warmtepomp-, tanktemperatuur- of klimaatplanning meer. Beide planners gebruiken '
+                              'uitsluitend volledige blokken binnen het toegestane venster. Prijsoptimalisatie Uit blijft ook voor beschermde '
+                              'cycli gelden; nettoestemming en reeds geplande hogere lasten worden bij de verdeling meegenomen.',
+                              'Een dagdoel in kWh gebruikt werkelijk gemeten toestelenergie waar een exclusieve meter bestaat, anders een '
+                              'herkenbare schatting. Een beschermde cyclus wordt als aaneengesloten taak gepland. Zonder betrouwbaar '
+                              'duurprofiel wordt geen optimistische duur uit piekvermogen gegokt. Een lopende beschermde cyclus wordt niet '
+                              'gestopt wegens een nieuw plan. Goedkope netfallback blijft afzonderlijke dubbele toestemming en standaard uit.',
+                              'Batterijadvies volgt de tijdvolgorde: alleen de echte beginlading en reeds voorspeld geladen energie kunnen een '
+                              'later blok voeden. Laden en ontladen respecteren aparte grenzen en het bestaande ingestelde round-trip '
+                              'rendement, standaard 80%. Het blijft adviserend en wordt na de toestelplanning berekend; batterij en toestellen '
+                              'worden niet samen wiskundig geoptimaliseerd. Ontbrekende voorspelling geeft geen batterijactie. De '
+                              'piekvermijdingsstraf in de planner is geen berekening van de werkelijke capaciteitstarieffactuur. '
+                              'Plannerkwaliteit toont meetdekking, voorspellingsfout en uitvoering afzonderlijk. Een historische replay is '
+                              'richtinggevend en reconstrueert niet iedere vroegere startvoorwaarde. Een volledige lokale dag heeft normaal 96 '
+                              'kwartieren, bij de zomer-/wintertijdwissel 92 of 100; gaten worden geen volledige prestatie.',
+                              'Resterend kwartierbudget is een theoretische energiegrens voor de resterende seconden. Details/Energie tonen '
+                              'daarnaast de daadwerkelijk begrensde instantane ruimte na vaste import-, fase- en kwartiergrenzen. Een zeer hoog '
+                              'theoretisch kwartiergetal verruimt nooit de vaste elektrische grenzen, broncontrole, prioriteiten of '
+                              'zonnevoorwaarden. Een geblokkeerde SG-aanvraag benoemt de beperkende grens en benodigde extra raming.'],
                'bullets': []},
-              {'title': '3. Warmtepomp — Panasonic-regeling / SG-zonneboost voor warm water, verwarmen en '
-                        'koelen',
-               'paragraphs': ['De warmtepompkaart gebruikt dezelfde ondersteunde broncontracten als de backend. Een met oorspronkelijke actuele pomp-, route-, zone-/tank- en toegewezen voedingsmeting afgeleide taak verschijnt als Verwarmen, Koelen of Boiler opwarmen met het label Afgeleid. Verlopen bronnen, cache, tegenstrijdige routes en onvolledig bewijs blijven onbekend. Hoofdtoestemming, gekozen programma en een ruimte op haar doeltemperatuur bewijzen op zichzelf geen thermische uitvoering. Deze schermcorrectie verleent geen leer- of regelrecht en herschrijft geen historische taak.',
-                              'Panasonic regelt zelfstandig normaal warm water, tankhysterese, '
-                              'kamerthermostaten en zones, stooklijnen, verwarmen/koelen, omschakeling, '
-                              'compressor, pompen, kleppen, ontdooien, elektrische ondersteuning en '
+              {'title': '3. Warmtepomp — Panasonic-regeling / SG-zonneboost voor warm water, verwarmen en koelen',
+               'paragraphs': ['De warmtepompkaart gebruikt dezelfde ondersteunde broncontracten als de backend. Een met oorspronkelijke actuele '
+                              'pomp-, route-, zone-/tank- en toegewezen voedingsmeting afgeleide taak verschijnt als Verwarmen, Koelen of '
+                              'Boiler opwarmen met het label Afgeleid. Verlopen bronnen, cache, tegenstrijdige routes en onvolledig bewijs '
+                              'blijven onbekend. Hoofdtoestemming, gekozen programma en een ruimte op haar doeltemperatuur bewijzen op zichzelf '
+                              'geen thermische uitvoering. Deze schermcorrectie verleent geen leer- of regelrecht en herschrijft geen '
+                              'historische taak.',
+                              'Panasonic regelt zelfstandig normaal warm water, tankhysterese, kamerthermostaten en zones, stooklijnen, '
+                              'verwarmen/koelen, omschakeling, compressor, pompen, kleppen, ontdooien, elektrische ondersteuning en '
                               'sterilisatie. Dit blijft zo wanneer SolarPilot of Home Assistant uitvalt.',
-                              'Voor de warmtepomp mag SolarPilot alleen de expliciet toegewezen bestaande '
-                              'Shelly-uitgang voor SG-zonneboost bedienen. Tank- en kamertemperaturen, '
-                              'native programma, activiteit, beschikbaarheid en vermogen zijn verder '
-                              'uitsluitend uitleesbaar. SolarPilot schrijft geen tankdoel, AUTO/UIT, '
-                              'HEAT/COOL, kamertemperatuur, Powerful, Force DHW, Force Heater, stooklijn of '
-                              'heater-toestemming.',
-                              'De oude eigen temperatuurfasen, nacht-/ochtend-/avondvoorraadregeling, '
-                              'klimaatpauzes, voorspellende voorverwarming/voorkoeling en hun '
-                              'opdrachtbevestiging/herstelbediening zijn verwijderd. Normale doelen en '
-                              'fabrikantprogramma’s worden op Panasonic ingesteld. De nieuwe regeling '
-                              'corrigeert geen mogelijk door een oudere versie achtergelaten native '
-                              'instelling: controleer die eenmalig bij ingebruikname.',
-                              'De warmtepomp staat in Overzicht en Toestellen tussen de andere blokken en '
-                              'heeft dezelfde actuele uitleg onder Warmtepomp. Vervallen boiler- en '
-                              'klimaatregeling wordt niet meer als ontbrekende configuratie getoond. Twee '
-                              'onderdelen tonen een vastgestelde Taak van de warmtepomp en Elektrische '
-                              'bijverwarming afzonderlijk; zonder bruikbare taak blijft het taakvak weg. '
-                              'daarnaast blijven tankinformatie, beide voedingsmetingen, totaal waar '
-                              'compleet, SG-lagen, beslisreden en Details beschikbaar. De kaart houdt '
-                              'taaklabels en statusinformatie compact; uitgebreide bronuitleg, '
-                              'profielaannamen en onzekerheden staan in Details en export. De korte '
-                              'taaklabels zijn Verwarmen, Koelen, Boiler opwarmen en Ontdooien; een '
-                              'afgeleide taak krijgt de korte aanduiding Afgeleid.',
-                              "De hoofdtaak gebruikt een verse passende werkelijke native taakmelding en benoemt haar als Panasonic meldt. De exacte Aquarea-binding leest HEATING, COOLING en HEATING_WATER uitsluitend uit bestaande geslaagde providerpolls. Bij de gecontroleerde Aquarea 1.5.2/1.5.3/1.5.4 met aioaquarea-ng 1.3.1 kan een globale OFF echter uit specialStatus ontstaan, een presetveld in plaats van echte globale UIT. Alleen voor dat daadwerkelijk geladen bekende contract houdt de displayroute deze oorspronkelijke melding apart en gebruikt zij verse getypeerde pompstatus, richting, ingeschakelde zones en tankstatus voor een passende expliciete afleiding. Een nieuw versienummer blokkeert geen gelijkblijvend aantoonbaar gegevenscontract. Onbekende of gewijzigde semantiek, ontbrekende velden, oude of gefaalde polls en lokale optimistische wijzigingen krijgen geen verzonnen betekenis. De broncorrectie is read-only: zij verandert geen providerobject, native programma, conservatief leermodel of SG-veiligheidscontext. Verse geverifieerde ontdooimelding houdt voorrang; temperatuur of watts alleen bewijst haar niet. Taakbewijs blijft onafhankelijk van een compleet vermogen, maar bewijst geen afzonderlijke compressorlooptijd, warmteproductie of extra SG-opname.",
-                              "Afgeleid elektrisch bedrijf en taakcontext blijven afzonderlijk herkenbaar. Verse geldige meterwaarden tonen actief verbruik vanaf de standaard weergavegrens van 200 W. De afzonderlijke read-only bedrijfsweergave gebruikt een verse passende native actie als taakbewijs; een geverifieerde verse ontdooimelding heeft voorrang. Voor een afleiding van Boiler opwarmen zijn een verse exact herkende Panasonic-tankroute en een verse actieve toegewezen hoofd- of ondersteuningsvoeding nodig. Voor Verwarmen of Koelen zijn een verse eenduidige gekozen ruimtestand, actieve toegewezen hoofdvoeding én een afzonderlijke verse expliciete tankrust nodig. Een gekozen stand alleen sluit tankbedrijf niet uit. Deze afleiding kan ook bij een onvolledig totaal zichtbaar zijn: de bruikbare deelmeting blijft een deelmeting, het totale vermogen en totale energie blijven onbekend. De afleiding blijft uitsluitend presentatie en geeft geen nieuw leerbewijs, SG-vrijgave of extra vermogen. Afgeleid staat compact bij de taak; Details/export houden de originele bronnen, tijden en onzekerheden. Expliciete globale UIT, onbekend bereik, echte actieconflicten, oude of ongeldige noodzakelijke bronnen geven geen afgeleide functie. Bij actieve watts zonder passende taak blijft Actief · taak onbekend zichtbaar; zonder actuele activiteit of taak blijft de toestand onbekend. Alleen complete actuele meterbedekking of passend geverifieerd globaal native bewijs kan inactiviteit bevestigen. Elektrische ondersteuning blijft apart en vervangt de warmtepomptaak niet.",
-                              'Wanneer de ondersteunde Aquarea-SDK na een nieuwe poll haar getypeerde status en tank vervangt terwijl bestaande zoneobjecten nog een eerdere momentopname vasthouden, gebruikt alleen de presentatiebron de actuele vastgelegde getypeerde providerpoll. De werkelijk geregistreerde bronnen moeten bij dezelfde binding passen en verse HA-waarden moeten ermee overeenkomen. Onbekende vormen, oude polls of tegenstrijdigheid blijven onbekend. SolarPilot wijzigt geen provider- of zoneobject, native uitlezing voor SG-koelcontrole, controller of eerdere historische taakperioden.',
-                              'Een gekozen koelprogramma met tankmogelijkheid is geen tegenstrijdige '
-                              'werkelijke taakmelding: verse werkelijke tankopwarming kan naast die keuze '
-                              'worden gemeld. Gelijktijdige tegenstrijdige werkelijke ruimte- en tankacties '
-                              'geven wel geen eenduidige functie. Een geverifieerde verse ontdooimelding '
-                              'houdt haar eigen betekenis en onderdrukt een gewone '
-                              'warmwater-/ruimtefunctie. Zij wordt niet uit watts, temperatuur of tijd '
-                              'gegokt en verandert geen native programma, koelvrijgave of SG-toestemming.',
-                              "De elektrische bijverwarming heeft een eigen voedingswaarde en activiteit. Zij is een bijkomend signaal naast Verwarmen, Koelen, Boiler opwarmen of Ontdooien en wordt niet als vervangende primaire taak weergegeven. Het bestaande paar verschillende gebonden sensoren gebruikt automatisch het Panasonic-profiel met de aanname in Details: voeding 1 voor warmtepomp inclusief regeling/pompen, voeding 2 voor elektrische bijverwarming. Dat is een presentatie-aanname en geen gecontroleerde bedrading of afzonderlijke heaterterugmelding. Eerder bewust gekozen afwijkende geldige rollen blijven staan. Verse hoge voeding-2-meting kan Bijverwarming aan · afgeleid tonen, nul Geen verbruik, laag positief Basisverbruik en ontbrekend of oud Geen actuele meting. Zonder gekoppelde heaterdeelmeting heet dit Geen heaterdeelmeting. Wattages onderscheiden geen interne backupheater en eventuele tapwaterbooster.",
-                              'Blauwe grafische activiteit en ventilatoranimatie tonen bevestigde '
-                              'activiteit of actueel elektrisch bedrijf van de hoofdvoeding. De ventilator '
-                              'mag daarom bij verse actieve hoofdmeting bewegen, ook als een afzonderlijke '
-                              'Hz-bron 0 Hz meldt; dit is geen bewering over echte compressor- of '
-                              'ventilatorbeweging. Bij alleen elektrische bijverwarming en een niet actieve '
-                              'hoofdvoeding blijft het ventilatorsymbool stil en beweegt het '
-                              'verwarmingssymbool. Bij oude of ongeldige betrokken bronnen verdwijnt hun '
-                              'activiteit. De systeemvoorkeur voor verminderde beweging onderdrukt '
-                              'animaties; tekst en activiteit blijven leesbaar.',
-                              'De echte actuele compressorfrequentie blijft afzonderlijk compressorbewijs. '
-                              'Alleen wanneer geen compressorbron is gekoppeld kan een verse passende '
-                              'native activiteitsmelding actief bedrijf bevestigen; rust/UIT vereist passend globaal bewijs. Een gekoppelde maar '
-                              'oude, onbeschikbare of ongeldige compressorbron blijft technisch onbekend; '
-                              'een verse meter of andere bron verbergt dit niet. Programma, '
-                              'WATER-/klepstand, alleen gemeten watts en een bewegend symbool bewijzen geen '
-                              'compressorbedrijf. De gekozen modus, native taak, elektrische activiteit en '
+                              'Voor de warmtepomp mag SolarPilot alleen de expliciet toegewezen bestaande Shelly-uitgang voor SG-zonneboost '
+                              'bedienen. Tank- en kamertemperaturen, native programma, activiteit, beschikbaarheid en vermogen zijn verder '
+                              'uitsluitend uitleesbaar. SolarPilot schrijft geen tankdoel, AUTO/UIT, HEAT/COOL, kamertemperatuur, Powerful, '
+                              'Force DHW, Force Heater, stooklijn of heater-toestemming.',
+                              'De oude eigen temperatuurfasen, nacht-/ochtend-/avondvoorraadregeling, klimaatpauzes, voorspellende '
+                              'voorverwarming/voorkoeling en hun opdrachtbevestiging/herstelbediening zijn verwijderd. Normale doelen en '
+                              'fabrikantprogramma’s worden op Panasonic ingesteld. De nieuwe regeling corrigeert geen mogelijk door een oudere '
+                              'versie achtergelaten native instelling: controleer die eenmalig bij ingebruikname.',
+                              'De warmtepomp staat in Overzicht en Toestellen tussen de andere blokken en heeft dezelfde actuele uitleg onder '
+                              'Warmtepomp. Vervallen boiler- en klimaatregeling wordt niet meer als ontbrekende configuratie getoond. Twee '
+                              'onderdelen tonen een vastgestelde Taak van de warmtepomp en Elektrische bijverwarming afzonderlijk; zonder '
+                              'bruikbare taak blijft het taakvak weg. daarnaast blijven tankinformatie, beide voedingsmetingen, totaal waar '
+                              'compleet, SG-lagen, beslisreden en Details beschikbaar. De kaart houdt taaklabels en statusinformatie compact; '
+                              'uitgebreide bronuitleg, profielaannamen en onzekerheden staan in Details en export. De korte taaklabels zijn '
+                              'Verwarmen, Koelen, Boiler opwarmen en Ontdooien; een afgeleide taak krijgt de korte aanduiding Afgeleid.',
+                              'De hoofdtaak gebruikt een verse passende werkelijke native taakmelding en benoemt haar als Panasonic meldt. De '
+                              'exacte Aquarea-binding leest HEATING, COOLING en HEATING_WATER uitsluitend uit bestaande geslaagde '
+                              'providerpolls. Bij de gecontroleerde Aquarea 1.5.2/1.5.3/1.5.4 met aioaquarea-ng 1.3.1 kan een globale OFF '
+                              'echter uit specialStatus ontstaan, een presetveld in plaats van echte globale UIT. Alleen voor dat daadwerkelijk '
+                              'geladen bekende contract houdt de displayroute deze oorspronkelijke melding apart en gebruikt zij verse '
+                              'getypeerde pompstatus, richting, ingeschakelde zones en tankstatus voor een passende expliciete afleiding. Een '
+                              'nieuw versienummer blokkeert geen gelijkblijvend aantoonbaar gegevenscontract. Onbekende of gewijzigde '
+                              'semantiek, ontbrekende velden, oude of gefaalde polls en lokale optimistische wijzigingen krijgen geen verzonnen '
+                              'betekenis. De broncorrectie is read-only: zij verandert geen providerobject, native programma, conservatief '
+                              'leermodel of SG-veiligheidscontext. Verse geverifieerde ontdooimelding houdt voorrang; temperatuur of watts '
+                              'alleen bewijst haar niet. Taakbewijs blijft onafhankelijk van een compleet vermogen, maar bewijst geen '
+                              'afzonderlijke compressorlooptijd, warmteproductie of extra SG-opname.',
+                              'Afgeleid elektrisch bedrijf en taakcontext blijven afzonderlijk herkenbaar. Verse geldige meterwaarden tonen '
+                              'actief verbruik vanaf de standaard weergavegrens van 200 W. De afzonderlijke read-only bedrijfsweergave gebruikt '
+                              'een verse passende native actie als taakbewijs; een geverifieerde verse ontdooimelding heeft voorrang. Voor een '
+                              'afleiding van Boiler opwarmen zijn een verse exact herkende Panasonic-tankroute en een verse actieve toegewezen '
+                              'hoofd- of ondersteuningsvoeding nodig. Voor Verwarmen of Koelen zijn een verse eenduidige gekozen ruimtestand, '
+                              'actieve toegewezen hoofdvoeding én een afzonderlijke verse expliciete tankrust nodig. Een gekozen stand alleen '
+                              'sluit tankbedrijf niet uit. Deze afleiding kan ook bij een onvolledig totaal zichtbaar zijn: de bruikbare '
+                              'deelmeting blijft een deelmeting, het totale vermogen en totale energie blijven onbekend. De afleiding blijft '
+                              'uitsluitend presentatie en geeft geen nieuw leerbewijs, SG-vrijgave of extra vermogen. Afgeleid staat compact '
+                              'bij de taak; Details/export houden de originele bronnen, tijden en onzekerheden. Expliciete globale UIT, '
+                              'onbekend bereik, echte actieconflicten, oude of ongeldige noodzakelijke bronnen geven geen afgeleide functie. '
+                              'Bij actieve watts zonder passende taak blijft Actief · taak onbekend zichtbaar; zonder actuele activiteit of '
+                              'taak blijft de toestand onbekend. Alleen complete actuele meterbedekking of passend geverifieerd globaal native '
+                              'bewijs kan inactiviteit bevestigen. Elektrische ondersteuning blijft apart en vervangt de warmtepomptaak niet.',
+                              'Wanneer de ondersteunde Aquarea-SDK na een nieuwe poll haar getypeerde status en tank vervangt terwijl bestaande '
+                              'zoneobjecten nog een eerdere momentopname vasthouden, gebruikt alleen de presentatiebron de actuele vastgelegde '
+                              'getypeerde providerpoll. De werkelijk geregistreerde bronnen moeten bij dezelfde binding passen en verse '
+                              'HA-waarden moeten ermee overeenkomen. Onbekende vormen, oude polls of tegenstrijdigheid blijven onbekend. '
+                              'SolarPilot wijzigt geen provider- of zoneobject, native uitlezing voor SG-koelcontrole, controller of eerdere '
+                              'historische taakperioden.',
+                              'Een gekozen koelprogramma met tankmogelijkheid is geen tegenstrijdige werkelijke taakmelding: verse werkelijke '
+                              'tankopwarming kan naast die keuze worden gemeld. Gelijktijdige tegenstrijdige werkelijke ruimte- en tankacties '
+                              'geven wel geen eenduidige functie. Een geverifieerde verse ontdooimelding houdt haar eigen betekenis en '
+                              'onderdrukt een gewone warmwater-/ruimtefunctie. Zij wordt niet uit watts, temperatuur of tijd gegokt en '
+                              'verandert geen native programma, koelvrijgave of SG-toestemming.',
+                              'De elektrische bijverwarming heeft een eigen voedingswaarde en activiteit. Zij is een bijkomend signaal naast '
+                              'Verwarmen, Koelen, Boiler opwarmen of Ontdooien en wordt niet als vervangende primaire taak weergegeven. Het '
+                              'bestaande paar verschillende gebonden sensoren gebruikt automatisch het Panasonic-profiel met de aanname in '
+                              'Details: voeding 1 voor warmtepomp inclusief regeling/pompen, voeding 2 voor elektrische bijverwarming. Dat is '
+                              'een presentatie-aanname en geen gecontroleerde bedrading of afzonderlijke heaterterugmelding. Eerder bewust '
+                              'gekozen afwijkende geldige rollen blijven staan. Verse hoge voeding-2-meting kan Bijverwarming aan · afgeleid '
+                              'tonen, nul Geen verbruik, laag positief Basisverbruik en ontbrekend of oud Geen actuele meting. Zonder '
+                              'gekoppelde heaterdeelmeting heet dit Geen heaterdeelmeting. Wattages onderscheiden geen interne backupheater en '
+                              'eventuele tapwaterbooster.',
+                              'Blauwe grafische activiteit en ventilatoranimatie tonen bevestigde activiteit of actueel elektrisch bedrijf van '
+                              'de hoofdvoeding. De ventilator mag daarom bij verse actieve hoofdmeting bewegen, ook als een afzonderlijke '
+                              'Hz-bron 0 Hz meldt; dit is geen bewering over echte compressor- of ventilatorbeweging. Bij alleen elektrische '
+                              'bijverwarming en een niet actieve hoofdvoeding blijft het ventilatorsymbool stil en beweegt het '
+                              'verwarmingssymbool. Bij oude of ongeldige betrokken bronnen verdwijnt hun activiteit. De systeemvoorkeur voor '
+                              'verminderde beweging onderdrukt animaties; tekst en activiteit blijven leesbaar.',
+                              'De echte actuele compressorfrequentie blijft afzonderlijk compressorbewijs. Alleen wanneer geen compressorbron '
+                              'is gekoppeld kan een verse passende native activiteitsmelding actief bedrijf bevestigen; rust/UIT vereist '
+                              'passend globaal bewijs. Een gekoppelde maar oude, onbeschikbare of ongeldige compressorbron blijft technisch '
+                              'onbekend; een verse meter of andere bron verbergt dit niet. Programma, WATER-/klepstand, alleen gemeten watts en '
+                              'een bewegend symbool bewijzen geen compressorbedrijf. De gekozen modus, native taak, elektrische activiteit en '
                               'werkelijk gemelde compressoractiviteit blijven apart.',
-                              'De gemelde SG-contactstand staat prominent op de kaart. SolarPilot-aanvraag, '
-                              'eigenaar en reden staan in Details en blijven afzonderlijk van wat Shelly '
-                              'terugmeldt. Een bekende afwijking tussen aanvraag en contact krijgt een '
-                              'duidelijke waarschuwing; zij wordt niet uit vermogen of taakmelding opgelost '
-                              'verklaard. Ontvangen SG wordt alleen zichtbaar als een echte passende '
-                              'actuele bron de ontvangen stand bevestigt. Zonder zo een bron verschijnt '
-                              'geen permanent onbekende ontvangen-SG-indicator; de onderliggende '
-                              'onzekerheid en broninformatie blijven beschikbaar in Details/export. '
-                              'SG-contact AAN is de gemelde uitgang, geen bewijs van werkelijk ontvangen '
-                              'SG. Ook een draaiende compressor, native taak, stijgende tanktemperatuur of '
-                              'animatie bewijst geen door SG veroorzaakte extra opname. De bevestigde '
-                              'lokale resterende toestemming houdt haar eigen betekenis. Oude bronwaarden '
-                              'geven geen actueel AAN/UIT- of ontvangenbewijs. Een gelijkblijvend '
-                              'app-tankdoel is geen relaisfout en geen bewijs over het effectieve SG-doel.',
-                              ('Een Aquarea DeviceAction OFF kan het uitgeschakelde ruimtebedrijf '
-                               'weergeven terwijl de afzonderlijke tank aan staat. Alleen wanneer dezelfde '
-                               'verse getypeerde providerpoll ruimtebedrijf OFF, aanwezige tank ON en '
-                               'richting WATER bevestigt, kan een passende verse tankroute met complete '
-                               'actieve hoofdmeting Boiler opwarmen afleiden. De oorspronkelijke '
-                               'OFF-melding en het bereik blijven in Details/export. Bevestigd globaal '
-                               'UIT, onbekend bereik, conflicten, ontdooien, onvolledige/oude meting en '
-                               'alleen heaterverbruik houden hun eigen grenzen. Deze uitleesinterpretatie '
-                               'verandert geen koel- of native SG-vrijgave.'),
-                              ('Beta.74 houdt de bedrijfsweergave bij het bewezen bereik. Native '
-                               'ruimte- of zone-UIT bewijst geen gehele warmtepomp-UIT. Bij een '
-                               'onvolledig totaal en een UIT-melding zonder bewezen globaal bereik '
-                               'blijft bedrijf onbekend; een geldige nul van één voeding maakt het '
-                               'onbekende totaal niet nul. Verse taakmelding, elektrische activiteit '
-                               'en expliciet bewezen globale UIT houden hun afzonderlijke betekenis. '
-                               'Deze correctie wijzigt geen SG-vrijgave of fysieke regeling.')],
+                              'De gemelde SG-contactstand staat prominent op de kaart. SolarPilot-aanvraag, eigenaar en reden staan in Details '
+                              'en blijven afzonderlijk van wat Shelly terugmeldt. Een bekende afwijking tussen aanvraag en contact krijgt een '
+                              'duidelijke waarschuwing; zij wordt niet uit vermogen of taakmelding opgelost verklaard. Ontvangen SG wordt '
+                              'alleen zichtbaar als een echte passende actuele bron de ontvangen stand bevestigt. Zonder zo een bron verschijnt '
+                              'geen permanent onbekende ontvangen-SG-indicator; de onderliggende onzekerheid en broninformatie blijven '
+                              'beschikbaar in Details/export. SG-contact AAN is de gemelde uitgang, geen bewijs van werkelijk ontvangen SG. Ook '
+                              'een draaiende compressor, native taak, stijgende tanktemperatuur of animatie bewijst geen door SG veroorzaakte '
+                              'extra opname. De bevestigde lokale resterende toestemming houdt haar eigen betekenis. Oude bronwaarden geven '
+                              'geen actueel AAN/UIT- of ontvangenbewijs. Een gelijkblijvend app-tankdoel is geen relaisfout en geen bewijs over '
+                              'het effectieve SG-doel.',
+                              'Een Aquarea DeviceAction OFF kan het uitgeschakelde ruimtebedrijf weergeven terwijl de afzonderlijke tank aan '
+                              'staat. Alleen wanneer dezelfde verse getypeerde providerpoll ruimtebedrijf OFF, aanwezige tank ON en richting '
+                              'WATER bevestigt, kan een passende verse tankroute met complete actieve hoofdmeting Boiler opwarmen afleiden. De '
+                              'oorspronkelijke OFF-melding en het bereik blijven in Details/export. Bevestigd globaal UIT, onbekend bereik, '
+                              'conflicten, ontdooien, onvolledige/oude meting en alleen heaterverbruik houden hun eigen grenzen. Deze '
+                              'uitleesinterpretatie verandert geen koel- of native SG-vrijgave.',
+                              'Beta.74 houdt de bedrijfsweergave bij het bewezen bereik. Native ruimte- of zone-UIT bewijst geen gehele '
+                              'warmtepomp-UIT. Bij een onvolledig totaal en een UIT-melding zonder bewezen globaal bereik blijft bedrijf '
+                              'onbekend; een geldige nul van één voeding maakt het onbekende totaal niet nul. Verse taakmelding, elektrische '
+                              'activiteit en expliciet bewezen globale UIT houden hun afzonderlijke betekenis. Deze correctie wijzigt geen '
+                              'SG-vrijgave of fysieke regeling.',
+                              'Aquarea en zijn bibliotheek worden beoordeeld op de daadwerkelijk geladen parser- en statusbetekenis, '
+                              'bronbinding en getypeerde gegevens. Versienummers zijn diagnosegegevens en geen toelatingslijst. Een toekomstige '
+                              'compatibele versie blijft dezelfde presentatieroute gebruiken. Een aantoonbaar gewijzigd contract geeft een '
+                              'afzonderlijke gededupliceerde compatibiliteitsmelding; gewone offline of ontbrekende actuele data blijven '
+                              'bronwacht. Na bevestigd compatibel herstel verdwijnt de melding. Originele rapporttijden, maximale tijdsafstand '
+                              'en conflicten blijven bepalend; conservatief leren en SG-koelvrijgave worden niet verruimd.',
+                              'De daadwerkelijk geladen SDK 1.4-statusvorm krijgt een eigen gecontroleerde betekenis naast het behouden oudere '
+                              'specialStatus-contract. Oude historische bewijzen worden niet hernoemd of met nieuw bewijs verrijkt. Alleen '
+                              'broncode en actuele getypeerde velden die met het bijbehorende contract overeenkomen mogen actueel worden '
+                              'gelezen. De nieuwe LIVE/CACHED-status moet echt LIVE zijn; een geslaagde cloudpoll met cachedata maakt die '
+                              'gegevens niet vers. Dit geeft geen nieuwe Panasonic-write of extra SG-vrijgave. Versienummers alleen geven geen '
+                              'bewijs.'],
                'bullets': []},
               {'title': '4. SG-zonneboost warmtepomp: lokaal toepassingsbereik en rustige herbeoordeling',
-               'paragraphs': ['Automatische zonneboost staat standaard Uit. Activeren vereist de juiste bestaande uitgang, '
-                              'bevestigde contactmapping, gecontroleerde Panasonic-reactie, uitsluiting van dubbele sturing '
-                              'en bewezen lokale terugval bij communicatieverlies. Een geopende instellingenpagina, '
-                              'geselecteerde entiteit of opgeslagen globale Auto-modus is geen ingebruiknamebewijs.',
-                              'Kies Uitsluitend tapwater of Algemene SG-boost volgens Panasonic-bedrijf en bevestig het '
-                              'toepassingsbereik lokaal. De algemene keuze staat extra tapwater, ruimteverwarming of koeling '
-                              'toe volgens de actuele native bedrijfsmodus en het lokaal gekozen SG-profiel. Eén contact '
-                              'vraagt geen gelijktijdige productie van tapwater en ruimtewarmte. SolarPilot schrijft geen '
-                              'Panasonic-percentages of temperaturen en berekent daaruit geen gegarandeerd extra vermogen. '
-                              'Een gewenste klimaatverhoging is geen configuratiefout. Een wijziging van toepassingsbereik '
-                              'vereist opnieuw bewuste lokale bevestiging; een upgrade bevestigt of activeert het algemene '
-                              'profiel niet. Afzonderlijk kan onder Warmtepomp — uitleesbronnen een bestaande geregistreerde '
-                              'native tankbron voor de berekende vergelijking worden gekozen en het bestaande Panasonic SG '
-                              'capaciteit 1 — tapwaterpercentage worden ingevuld en lokaal bevestigd. Dit is uitsluitend '
-                              'doelweergave en verandert de bestaande tankbron voor regelcontext niet. Een opaque koppeling '
-                              'met de echte geregistreerde bron voorkomt hergebruik van bevestiging bij onbekende, vervangen '
-                              'of niet-overeenkomende entiteit. Het standaardveld 100% is onbevestigd; het is geen '
-                              'aangetoonde lokale instelling. De berekening gebruikt een vers gewoon doel × bevestigd '
-                              'percentage / 100. Hiervoor is geen aparte native doelterugmelding nodig. Bij werkelijk gemeld '
-                              'actueel contact AAN heet zij SG-doel · berekend; bij UIT SG-doel bij AAN · berekend. Onbekend '
-                              'contact geeft geen compact actueel SG-doel. Ontvangen SG, effectief toegepast doel, native '
-                              'afronding/prioriteiten en hygiënestatus blijven afzonderlijke feiten. De vergelijking '
-                              'schrijft niets, wijzigt geen SG-recht of leermodel en wordt niet stil naar het gewone native '
+               'paragraphs': ['Automatische zonneboost staat standaard Uit. Activeren vereist de juiste bestaande uitgang, bevestigde '
+                              'contactmapping, gecontroleerde Panasonic-reactie, uitsluiting van dubbele sturing en bewezen lokale terugval bij '
+                              'communicatieverlies. Een geopende instellingenpagina, geselecteerde entiteit of opgeslagen globale Auto-modus is '
+                              'geen ingebruiknamebewijs.',
+                              'Kies Uitsluitend tapwater of Algemene SG-boost volgens Panasonic-bedrijf en bevestig het toepassingsbereik '
+                              'lokaal. De algemene keuze staat extra tapwater, ruimteverwarming of koeling toe volgens de actuele native '
+                              'bedrijfsmodus en het lokaal gekozen SG-profiel. Eén contact vraagt geen gelijktijdige productie van tapwater en '
+                              'ruimtewarmte. SolarPilot schrijft geen Panasonic-percentages of temperaturen en berekent daaruit geen '
+                              'gegarandeerd extra vermogen. Een gewenste klimaatverhoging is geen configuratiefout. Een wijziging van '
+                              'toepassingsbereik vereist opnieuw bewuste lokale bevestiging; een upgrade bevestigt of activeert het algemene '
+                              'profiel niet. Afzonderlijk kan onder Warmtepomp — uitleesbronnen een bestaande geregistreerde native tankbron '
+                              'voor de berekende vergelijking worden gekozen en het bestaande Panasonic SG capaciteit 1 — tapwaterpercentage '
+                              'worden ingevuld en lokaal bevestigd. Dit is uitsluitend doelweergave en verandert de bestaande tankbron voor '
+                              'regelcontext niet. Een opaque koppeling met de echte geregistreerde bron voorkomt hergebruik van bevestiging bij '
+                              'onbekende, vervangen of niet-overeenkomende entiteit. Het standaardveld 100% is onbevestigd; het is geen '
+                              'aangetoonde lokale instelling. De berekening gebruikt een vers gewoon doel × bevestigd percentage / 100. '
+                              'Hiervoor is geen aparte native doelterugmelding nodig. Bij werkelijk gemeld actueel contact AAN heet zij SG-doel '
+                              '· berekend; bij UIT SG-doel bij AAN · berekend. Onbekend contact geeft geen compact actueel SG-doel. Ontvangen '
+                              'SG, effectief toegepast doel, native afronding/prioriteiten en hygiënestatus blijven afzonderlijke feiten. De '
+                              'vergelijking schrijft niets, wijzigt geen SG-recht of leermodel en wordt niet stil naar het gewone native '
                               'min/max-doel geklemd.',
-                              'De regeling onderscheidt normaal, wachten op voldoende zonnebijdrage, boost aangevraagd, '
-                              'rusttijd en geblokkeerd. De SG-startdrempel gebruikt werkelijk restoverschot plus de extra '
-                              'meegetelde bijdrage uit een complete actuele bevestigde exclusieve warmtepompmeting. De '
-                              'gezamenlijke zonnebijdrage is begrensd door gemeten PV; actuele conservatieve netafname, '
-                              'batterijontlading en beschermde reserves worden afgetrokken. Dit is een afgeleide '
-                              'energiebegroting, geen afzonderlijk gemeten PV-aandeel van de warmtepomp. Bij '
-                              'oude/onvolledige/overlappende warmtepompmeting ontstaat geen extra credit. Standaard blijven '
-                              '3000 W startdrempel en 3200 W aparte conservatieve raming van mogelijke extra SG-vraag; je '
-                              'bestaande waarden blijven staan.',
-                              'De bestaande inschakelklok kan tijdens een korte zachte zondip of tijdelijk '
-                              'ontbrekende/verouderde meting maximaal vijf minuten blijven doorlopen. Een verstreken klok '
-                              'geeft dan alleen wachten op herstel: AAN volgt uitsluitend nadat nieuwe actuele betrouwbare '
-                              'bronnen opnieuw voldoende zonnebijdrage en alle harde voorwaarden bevestigen. Een ontbrekende '
-                              'meting wordt geen nul en bewijst geen wolk. Keert volledige verse vrijgave binnen dit venster '
-                              'terug, dan hoeft de hele startvertraging niet opnieuw. Een langere onderbreking, bekende '
-                              'harde blokkering, Pauze of gewijzigde binding reset de opbouw. Dit verruimt geen '
-                              'bronactualiteit en geeft geen AAN op oude data.',
-                              'Standaardvertraging voor starten blijft 120 seconden, met 900 seconden SG-herhaalwacht als terugval en '
-                              'maximaal 3600 seconden per sessie. De standaard wolkenbuffer is nu 600 W netafname met 300 '
-                              'seconden aaneengesloten tekortbevestiging. De minimale SG-aanvraagduur blijft standaard 1200 '
-                              'seconden, twintig minuten. Het minimum beschermt tegen gewone zachte tekortvrijgave en de nieuwe tijdelijke Wallbox-voorkeursvrijgave, '
-                              'niet tegen harde limieten, onbetrouwbare noodzakelijke bronnen, handmatige overname, '
-                              'geverifieerde native voltooiing of het harde sessiemaximum. Dit is geen gegarandeerde '
-                              'compressorlooptijd. Alleen een ontbrekende minimumoptie krijgt haar standaard; expliciete '
-                              'waarden inclusief nul en het behouden maximum blijven staan. Een korter maximum kan eerder '
+                              'De regeling onderscheidt normaal, wachten op voldoende zonnebijdrage, boost aangevraagd, rusttijd en '
+                              'geblokkeerd. De SG-startdrempel gebruikt werkelijk restoverschot plus de extra meegetelde bijdrage uit een '
+                              'complete actuele bevestigde exclusieve warmtepompmeting. De gezamenlijke zonnebijdrage is begrensd door gemeten '
+                              'PV; actuele conservatieve netafname, batterijontlading en beschermde reserves worden afgetrokken. Dit is een '
+                              'afgeleide energiebegroting, geen afzonderlijk gemeten PV-aandeel van de warmtepomp. Bij '
+                              'oude/onvolledige/overlappende warmtepompmeting ontstaat geen extra credit. Standaard blijven 3000 W startdrempel '
+                              'en 3200 W aparte conservatieve raming van mogelijke extra SG-vraag; je bestaande waarden blijven staan.',
+                              'De bestaande inschakelklok kan tijdens een korte zachte zondip of tijdelijk ontbrekende/verouderde meting '
+                              'maximaal vijf minuten blijven doorlopen. Een verstreken klok geeft dan alleen wachten op herstel: AAN volgt '
+                              'uitsluitend nadat nieuwe actuele betrouwbare bronnen opnieuw voldoende zonnebijdrage en alle harde voorwaarden '
+                              'bevestigen. Een ontbrekende meting wordt geen nul en bewijst geen wolk. Keert volledige verse vrijgave binnen '
+                              'dit venster terug, dan hoeft de hele startvertraging niet opnieuw. Een langere onderbreking, bekende harde '
+                              'blokkering, Pauze of gewijzigde binding reset de opbouw. Dit verruimt geen bronactualiteit en geeft geen AAN op '
+                              'oude data.',
+                              'Standaardvertraging voor starten blijft 120 seconden, met 900 seconden SG-herhaalwacht als terugval en maximaal '
+                              '3600 seconden per sessie. De standaard wolkenbuffer is nu 600 W netafname met 300 seconden aaneengesloten '
+                              'tekortbevestiging. De minimale SG-aanvraagduur blijft standaard 1200 seconden, twintig minuten. Het minimum '
+                              'beschermt tegen gewone zachte tekortvrijgave en de nieuwe tijdelijke Wallbox-voorkeursvrijgave, niet tegen harde '
+                              'limieten, onbetrouwbare noodzakelijke bronnen, handmatige overname, geverifieerde native voltooiing of het harde '
+                              'sessiemaximum. Dit is geen gegarandeerde compressorlooptijd. Alleen een ontbrekende minimumoptie krijgt haar '
+                              'standaard; expliciete waarden inclusief nul en het behouden maximum blijven staan. Een korter maximum kan eerder '
                               'beëindigen.',
-                              'Beta.73 gebruikt afzonderlijk import_threshold_w, standaard 600 W, voor de wolkenbuffer; '
-                              'hysteresis_w blijft de behouden zonne-resetgrens, standaard 300 W. Ontbreekt het nieuwe '
-                              'importveld bij de oude standaardcombinatie 300 W/60 s, dan gebruikt de runtime effectief 600 '
-                              'W/300 s. Andere oude expliciete beleidscombinaties behouden hun importgrens en '
-                              'tekortvertraging; een aanwezige nieuwe importwaarde blijft staan. Nieuwe configuratie '
-                              'gebruikt 600 W/300 s. Dit is uitsluitend normalisatie bij uitlezen, zonder automatische write '
-                              'naar opgeslagen opties of reset van bevestigingen, minimum, maximum of andere waarden.',
-                              'Na een toegelaten start hoeft de resterende injectie niet boven de startdrempel te blijven: '
-                              'de warmtepomp kan juist die zon gebruiken. Voor gewone tekortvrijgave moet de actueel gemeten '
-                              'netafname continu boven de ingestelde wolkenbuffer liggen, standaard 600 W gedurende vijf '
-                              'minuten. Bij 600 W of lager wordt de lopende tekorttimer gewist; een latere overschrijding '
-                              'begint opnieuw. Zowel het effectieve minimum als de volledige aaneengesloten tekortvertraging '
-                              'moeten zijn verstreken. Korte lokale toestemming kan veilig worden vernieuwd tijdens de '
-                              'geldige wolkenwachttijd, ook na het minimum. Harde guards blijven bij iedere beoordeling en '
-                              'vernieuwing leidend. Dit kan gewone netafname binnen die grenzen tijdelijk toestaan en '
-                              'garandeert geen nulimport. De wolkentimer gebruikt de actuele P1-netmeting. Resterende '
-                              'schermtijd blijft begrensd door de geldigheid vanaf de oorspronkelijke P1-rapportagetijd, de '
-                              'bevestigde lease en het harde maximum; een schermklok maakt oude brondata niet vers.',
-                              'De minimumduur begint pas na bevestigde contact-AAN. Leasevernieuwing reset haar niet; '
-                              'herstart of reload geeft geen nieuw minimum of nieuwe sessie. De tekorttimer loopt tijdens '
-                              'het minimum door. Begint netafname boven 600 W in minuut 18, dan zijn vijf continue minuten '
-                              'pas in minuut 23 voltooid en kan dan pas gewone vrijgave worden beoordeeld. Zijn vijf minuten '
-                              'al vóór minuut 20 voltooid en blijft het tekort aanhouden, dan kan de beoordeling bij het '
-                              'minimum meteen vrijgeven. Zonder tekort is het minimum geen verplichte stop. Het harde '
-                              'maximum loopt conservatief vanaf de oorspronkelijke verzending; de na bevestigde AAN '
-                              'resterende maximumtijd begrenst het effectieve minimum. Gecontroleerd native bewijs van '
-                              'voltooiing of geen extra opname, verlopen lease en transportfout behouden vroege beëindiging. '
-                              'Lage watts of onbekende reactie alleen zijn geen dergelijk beëindigingsbewijs. Bij een kort '
-                              'maximum houdt de lokale toestemming bevestigingsruimte en kan zij conservatief eerder '
-                              'aflopen. De absolute maximumgrens wordt vóór eerste AAN en vernieuwing opnieuw getoetst na '
-                              'opslag- en netwerkvoorcontrole.',
-                              'Een sessielimiet beëindigt de aanvraag, maar bewijst geen volle tank of voltooide native '
-                              'cyclus. Wachtredenen onderscheiden sessielimiet, werkelijk native voltooid, geen aangetoonde '
-                              'opname en onbekende reactie. De algemene wachtstand blijft ook na een onderbroken sessie '
-                              'gelden, zoals lokale timerafloop, bronverlies, netvrijgave of reload. Een onbekende reactie '
-                              'is geen voltooiingsbewijs. De bewaarde beleidswachtstand staat los van echte handmatige, '
-                              'communicatie- en veiligheidsblokkeringen. Alleen het verlopen van rust, dezelfde samples '
-                              'opnieuw lezen of Home Assistant herstarten geeft geen nieuwe aanleiding.',
-                              'Binnen het lokaal bevestigde algemene SG-profiel kan bij Onbekende reactie vijf minuten nieuw werkelijk restoverschot de resterende SG-herhaalwacht vervangen. Dit geldt uitsluitend na een aantoonbaar eigen beëindigde aanvraag met dezelfde huidige uitgang en passend bewaard opdrachtbewijs. De vijfminutencontrole kan direct tijdens die wacht beginnen. Minstens twee nieuwe oorspronkelijke actuele rapporten moeten over 300 seconden voldoende restoverschot bevestigen vanaf de hoogste waarde van de ingestelde startdrempel en conservatieve extra-vraagraming. Het contact moet opnieuw betrouwbaar UIT zijn en alle actuele bron-, koel-, voorrangs- en elektrische voorwaarden moeten passen. Warmtepompcredit telt niet mee. Daarna volgt de gewone startvertraging, standaard 120 seconden; vijftien minuten vooraf wachten is voor deze bewezen route niet nodig. De bewijsnaam blijft fresh_residual_surplus. Een tekort, ontbrekend of oud rapport, gewijzigde binding, onzekere contactstand of harde blokkering geeft geen verkorting. Oude of niet passende opdrachtgegevens houden de gewone rust als terugval. Nieuwe rapporten blijven nodig na reload; verstreken tijd of herstart alleen geeft geen startrecht. Dit bewijst beschikbare zon, geen compressorstart, warmteopname of extra SG-kWh.',
-                              'Deze aanvullende route geldt uitsluitend voor het lokaal bevestigde algemene SG-profiel bij onbekende eerdere reactie; Uitsluitend tapwater krijgt geen uitbreiding. Bewezen geen extra '
-                              'opname, native voltooiing, het harde sessiemaximum, gewijzigd profiel en echte handmatige, '
-                              'communicatie- of veiligheidsblokkeringen behouden hun bestaande aparte voorwaarden. Er komt '
-                              'geen nieuwe instelling, quota of algemene toestemming om een beëindigde sessie te herhalen.',
-                              'Voor SG zijn actuele betrouwbare net-/PV-/eventuele batterij- en ingeschakelde fasemetingen, '
-                              'relevante native koelcontext, profiel, contact-/timerbewijs en alle harde voorwaarden '
-                              'noodzakelijk. Warmtepompwatts zijn aanvullend voor zonnecredit, volledige '
-                              'meter-/energiedekking en diagnose. Ontbrekende, oude, onvolledige of anders onbruikbare '
-                              'warmtepompwatts geven geen credit, energie of nulwaarde. De SG-aanvraag kan toch worden '
-                              'beoordeeld uit voldoende werkelijk restoverschot, met de volledige behouden conservatieve '
-                              'extra-vraagraming binnen de actuele harde ruimte. Een terugkerende bron wordt vanaf haar '
-                              'nieuwe huidige geldige kwaliteit weer gebruikt; oude gaten worden niet ingevuld. Een verse '
-                              'negatieve warmtepompverbruiksmeting wordt alleen na volledige geldige broncontrole naar 0 W genormaliseerd; oorspronkelijke waarde en markering blijven beschikbaar. Dit keert geen teken om en bewijst geen correcte fysieke meting.',
-                              'Voor Uitsluitend tapwater blijft de bestaande anti-herhaalregel behouden: een verse '
-                              'betrouwbare tankmeting bij het sessie-einde is de referentie. Na rust kan minstens 2 °C '
-                              'afkoeling van dezelfde bron, met minstens twee nieuwe echte rapporten over vijf minuten, een '
-                              'nieuwe zonbeoordeling toestaan. Dit toont nieuwe opslagruimte, geen comfortvraag, bewezen '
-                              'eerdere SG-opwarming of effectief tankdoel. Na reload is een nieuwe vijfminutenbevestiging '
-                              'nodig. Zonder bruikbaar eindbewijs, na bronwisseling of bij onbetrouwbare data blijft deze '
-                              'wachtstand staan.',
-                              'Voor het lokaal bevestigde algemene profiel is een warme, onveranderde of niet gemeten tank '
-                              'op zichzelf geen permanente blokkering. Na iedere beëindigde of onderbroken algemene sessie '
-                              'vereist herbeoordeling betekenisvol nieuw bewijs, telkens met minstens twee nieuwe '
-                              'echte rapporten over vijf minuten: een gewijzigde betrouwbare relevante native '
-                              'bedrijfscontext, of een nieuwe relevante actieve native episode na eveneens bevestigde rust. '
-                              'Een aantoonbaar nieuwe zonneperiode kan ook gelden: eerst minstens vijf minuten restoverschot '
-                              'hoogstens de afzonderlijke zonne-resetgrens, standaard 300 W, daarna minstens vijf minuten '
-                              'restoverschot vanaf de startdrempel. De 600 W-wolkenbuffer voor netafname verandert dit '
-                              'zonne-resetbewijs niet. Buiten de beschreven route voor onbekende reactie geven constante zon, ongewijzigde context, tijd of reload geen '
-                              'herstartlus. Vastgelegde bewijslagen blijven bij reload staan, lopende bevestigingsvensters '
-                              'beginnen met nieuwe rapporten. De volledige gewone startvertraging en alle actuele guards '
-                              'gelden daarna opnieuw. Behalve de beschreven vervangende overschotroute blijft de ingestelde SG-herhaalwacht gelden. Bewust Automatisering hervatten laat een nieuwe actuele beoordeling '
-                              'toe, geen ongecontroleerde AAN.',
-                              'Extra koeling heeft een afzonderlijke vrijgavevoorwaarde. De bewuste algemene profielkeuze '
-                              'bewijst geen condensveiligheid. Bevestig lokaal bestaande geschikte '
-                              'condens-/dauwpuntbeveiliging vóór extra SG in koelbedrijf. Zonder die bevestiging laat het '
-                              'algemene profiel alleen extra SG toe als verse native context betrouwbaar uitsluit dat '
-                              'koeling mogelijk is. Werkelijke koeling, AUTO of onbekende context geeft geen stilzwijgende '
-                              'vrijgave. Normale Panasonic-koeling en de ingestelde SG-koelwaarde worden niet gewijzigd. Een '
-                              'vaste minimumtemperatuur of alleen een luchtvochtigheidssensor is geen volledige '
-                              'beveiligingsbevestiging. De SG-diagnose toont per reeds gekoppelde ruimtebron de actuele '
-                              'stand, native programma, rapporttijd en ontbrekend bewijs. SolarPilot leest de ondersteunde '
-                              'moderne en oudere Aquarea-integratie uit; alleen een werkelijk nieuwe geslaagde providerpoll '
-                              'maakt haar programma actueel. Opgeslagen gegevens bij opstarten, mislukte poll of '
-                              'optimistische lokale wijziging geeft geen nieuwe vrijgave. Tankopwarming, sterilisatie, watts '
-                              'en automatische displaybronnen vervangen die koelcontext niet. Geplande of actieve '
-                              'sterilisatie is geen afzonderlijk SG-veto. Bij vloerkoeling moet bestaande geschikte '
-                              'dauwpunt-/condensbeveiliging lokaal worden vastgesteld; SolarPilot bevestigt of verandert die '
-                              'instelling niet automatisch.',
-                              'Extra SG volgt de opgeslagen flexibele rangorde, zonder EV-vermogenskrediet. Een lager '
-                              'geplaatst eigen onderbreekbaar toestel mag alleen veilig wijken als minimumlooptijd, '
-                              'gebruikerskeuze en overige bescherming dat toelaten. Een afwascyclus, Wallbox en native '
-                              'noodzakelijk klimaat-/warmwaterverbruik worden daarvoor niet uitgezet.',
-                              'Bij bijvoorbeeld 2000 W volledig gemeten warmtepompverbruik en 1000 W bruikbaar restoverschot '
-                              'zonder netafname of batterijontlading kan 3000 W voor de startdrempel meetellen. De vaste '
-                              'importgrens, kwartiergrens, fasemarge en hogere apparaatprioriteiten moeten de volledige '
-                              'mogelijke extra SG-vraag nog toelaten. Bestaand warmtepompverbruik blijft in P1 en vergroot '
-                              'geen vrije elektrische ruimte. Een reeds actieve of gevraagde Full solar-laadsessie houdt '
-                              'zijn actuele extra-vermogensgrens; SG mag die ruimte niet afnemen. Gewone verbruikers blijven '
-                              'uitsluitend werkelijk restoverschot gebruiken.',
-                              'De startvertraging controleert de gezamenlijke zonnebijdrage. Na starten blijven werkelijke '
-                              'netafname, de bestaande tekortvertraging en het effectieve minimum voor gewone tekortvrijgave '
-                              'bepalend. Het minimum doet geen nieuwe start, tellerreset of verlaging van fysieke guards '
-                              'ontstaan. Nieuwe zonneperiode na een beëindigde algemene sessie blijft gebaseerd op echte '
-                              'restinjectie, niet op warmtepompcredit; dezelfde opname geeft dus geen herstartlus. Details '
-                              'tonen restoverschot, meegetelde warmtepompbijdrage, gezamenlijke startbijdrage, minimumduur '
+                              'Beta.73 gebruikt afzonderlijk import_threshold_w, standaard 600 W, voor de wolkenbuffer; hysteresis_w blijft de '
+                              'behouden zonne-resetgrens, standaard 300 W. Ontbreekt het nieuwe importveld bij de oude standaardcombinatie 300 '
+                              'W/60 s, dan gebruikt de runtime effectief 600 W/300 s. Andere oude expliciete beleidscombinaties behouden hun '
+                              'importgrens en tekortvertraging; een aanwezige nieuwe importwaarde blijft staan. Nieuwe configuratie gebruikt '
+                              '600 W/300 s. Dit is uitsluitend normalisatie bij uitlezen, zonder automatische write naar opgeslagen opties of '
+                              'reset van bevestigingen, minimum, maximum of andere waarden.',
+                              'Na een toegelaten start hoeft de resterende injectie niet boven de startdrempel te blijven: de warmtepomp kan '
+                              'juist die zon gebruiken. Voor gewone tekortvrijgave moet de actueel gemeten netafname continu boven de '
+                              'ingestelde wolkenbuffer liggen, standaard 600 W gedurende vijf minuten. Bij 600 W of lager wordt de lopende '
+                              'tekorttimer gewist; een latere overschrijding begint opnieuw. Zowel het effectieve minimum als de volledige '
+                              'aaneengesloten tekortvertraging moeten zijn verstreken. Korte lokale toestemming kan veilig worden vernieuwd '
+                              'tijdens de geldige wolkenwachttijd, ook na het minimum. Harde guards blijven bij iedere beoordeling en '
+                              'vernieuwing leidend. Dit kan gewone netafname binnen die grenzen tijdelijk toestaan en garandeert geen '
+                              'nulimport. De wolkentimer gebruikt de actuele P1-netmeting. Resterende schermtijd blijft begrensd door de '
+                              'geldigheid vanaf de oorspronkelijke P1-rapportagetijd, de bevestigde lease en het harde maximum; een schermklok '
+                              'maakt oude brondata niet vers.',
+                              'De minimumduur begint pas na bevestigde contact-AAN. Leasevernieuwing reset haar niet; herstart of reload geeft '
+                              'geen nieuw minimum of nieuwe sessie. De tekorttimer loopt tijdens het minimum door. Begint netafname boven 600 W '
+                              'in minuut 18, dan zijn vijf continue minuten pas in minuut 23 voltooid en kan dan pas gewone vrijgave worden '
+                              'beoordeeld. Zijn vijf minuten al vóór minuut 20 voltooid en blijft het tekort aanhouden, dan kan de beoordeling '
+                              'bij het minimum meteen vrijgeven. Zonder tekort is het minimum geen verplichte stop. Het harde maximum loopt '
+                              'conservatief vanaf de oorspronkelijke verzending; de na bevestigde AAN resterende maximumtijd begrenst het '
+                              'effectieve minimum. Gecontroleerd native bewijs van voltooiing of geen extra opname, verlopen lease en '
+                              'transportfout behouden vroege beëindiging. Lage watts of onbekende reactie alleen zijn geen dergelijk '
+                              'beëindigingsbewijs. Bij een kort maximum houdt de lokale toestemming bevestigingsruimte en kan zij conservatief '
+                              'eerder aflopen. De absolute maximumgrens wordt vóór eerste AAN en vernieuwing opnieuw getoetst na opslag- en '
+                              'netwerkvoorcontrole.',
+                              'Een sessielimiet beëindigt de aanvraag, maar bewijst geen volle tank of voltooide native cyclus. Wachtredenen '
+                              'onderscheiden sessielimiet, werkelijk native voltooid, geen aangetoonde opname en onbekende reactie. De algemene '
+                              'wachtstand blijft ook na een onderbroken sessie gelden, zoals lokale timerafloop, bronverlies, netvrijgave of '
+                              'reload. Een onbekende reactie is geen voltooiingsbewijs. De bewaarde beleidswachtstand staat los van echte '
+                              'handmatige, communicatie- en veiligheidsblokkeringen. Alleen het verlopen van rust, dezelfde samples opnieuw '
+                              'lezen of Home Assistant herstarten geeft geen nieuwe aanleiding.',
+                              'Binnen het lokaal bevestigde algemene SG-profiel kan bij Onbekende reactie vijf minuten nieuw werkelijk '
+                              'restoverschot de resterende SG-herhaalwacht vervangen. Dit geldt uitsluitend na een aantoonbaar eigen beëindigde '
+                              'aanvraag met dezelfde huidige uitgang en passend bewaard opdrachtbewijs. De vijfminutencontrole kan direct '
+                              'tijdens die wacht beginnen. Minstens twee nieuwe oorspronkelijke actuele rapporten moeten over 300 seconden '
+                              'voldoende restoverschot bevestigen vanaf de hoogste waarde van de ingestelde startdrempel en conservatieve '
+                              'extra-vraagraming. Het contact moet opnieuw betrouwbaar UIT zijn en alle actuele bron-, koel-, voorrangs- en '
+                              'elektrische voorwaarden moeten passen. Warmtepompcredit telt niet mee. Daarna volgt de gewone startvertraging, '
+                              'standaard 120 seconden; vijftien minuten vooraf wachten is voor deze bewezen route niet nodig. De bewijsnaam '
+                              'blijft fresh_residual_surplus. Een tekort, ontbrekend of oud rapport, gewijzigde binding, onzekere contactstand '
+                              'of harde blokkering geeft geen verkorting. Oude of niet passende opdrachtgegevens houden de gewone rust als '
+                              'terugval. Nieuwe rapporten blijven nodig na reload; verstreken tijd of herstart alleen geeft geen startrecht. '
+                              'Dit bewijst beschikbare zon, geen compressorstart, warmteopname of extra SG-kWh.',
+                              'Deze aanvullende route geldt uitsluitend voor het lokaal bevestigde algemene SG-profiel bij onbekende eerdere '
+                              'reactie; Uitsluitend tapwater krijgt geen uitbreiding. Bewezen geen extra opname, native voltooiing, het harde '
+                              'sessiemaximum, gewijzigd profiel en echte handmatige, communicatie- of veiligheidsblokkeringen behouden hun '
+                              'bestaande aparte voorwaarden. Er komt geen nieuwe instelling, quota of algemene toestemming om een beëindigde '
+                              'sessie te herhalen.',
+                              'Voor SG zijn actuele betrouwbare net-/PV-/eventuele batterij- en ingeschakelde fasemetingen, relevante native '
+                              'koelcontext, profiel, contact-/timerbewijs en alle harde voorwaarden noodzakelijk. Warmtepompwatts zijn '
+                              'aanvullend voor zonnecredit, volledige meter-/energiedekking en diagnose. Ontbrekende, oude, onvolledige of '
+                              'anders onbruikbare warmtepompwatts geven geen credit, energie of nulwaarde. De SG-aanvraag kan toch worden '
+                              'beoordeeld uit voldoende werkelijk restoverschot, met de volledige behouden conservatieve extra-vraagraming '
+                              'binnen de actuele harde ruimte. Een terugkerende bron wordt vanaf haar nieuwe huidige geldige kwaliteit weer '
+                              'gebruikt; oude gaten worden niet ingevuld. Een verse negatieve warmtepompverbruiksmeting wordt alleen na '
+                              'volledige geldige broncontrole naar 0 W genormaliseerd; oorspronkelijke waarde en markering blijven beschikbaar. '
+                              'Dit keert geen teken om en bewijst geen correcte fysieke meting.',
+                              'Voor Uitsluitend tapwater blijft de bestaande anti-herhaalregel behouden: een verse betrouwbare tankmeting bij '
+                              'het sessie-einde is de referentie. Na rust kan minstens 2 °C afkoeling van dezelfde bron, met minstens twee '
+                              'nieuwe echte rapporten over vijf minuten, een nieuwe zonbeoordeling toestaan. Dit toont nieuwe opslagruimte, '
+                              'geen comfortvraag, bewezen eerdere SG-opwarming of effectief tankdoel. Na reload is een nieuwe '
+                              'vijfminutenbevestiging nodig. Zonder bruikbaar eindbewijs, na bronwisseling of bij onbetrouwbare data blijft '
+                              'deze wachtstand staan.',
+                              'Voor het lokaal bevestigde algemene profiel is een warme, onveranderde of niet gemeten tank op zichzelf geen '
+                              'permanente blokkering. Na iedere beëindigde of onderbroken algemene sessie vereist herbeoordeling betekenisvol '
+                              'nieuw bewijs, telkens met minstens twee nieuwe echte rapporten over vijf minuten: een gewijzigde betrouwbare '
+                              'relevante native bedrijfscontext, of een nieuwe relevante actieve native episode na eveneens bevestigde rust. '
+                              'Een aantoonbaar nieuwe zonneperiode kan ook gelden: eerst minstens vijf minuten restoverschot hoogstens de '
+                              'afzonderlijke zonne-resetgrens, standaard 300 W, daarna minstens vijf minuten restoverschot vanaf de '
+                              'startdrempel. De 600 W-wolkenbuffer voor netafname verandert dit zonne-resetbewijs niet. Buiten de beschreven '
+                              'route voor onbekende reactie geven constante zon, ongewijzigde context, tijd of reload geen herstartlus. '
+                              'Vastgelegde bewijslagen blijven bij reload staan, lopende bevestigingsvensters beginnen met nieuwe rapporten. De '
+                              'volledige gewone startvertraging en alle actuele guards gelden daarna opnieuw. Behalve de beschreven vervangende '
+                              'overschotroute blijft de ingestelde SG-herhaalwacht gelden. Bewust Automatisering hervatten laat een nieuwe '
+                              'actuele beoordeling toe, geen ongecontroleerde AAN.',
+                              'Extra koeling heeft een afzonderlijke vrijgavevoorwaarde. De bewuste algemene profielkeuze bewijst geen '
+                              'condensveiligheid. Bevestig lokaal bestaande geschikte condens-/dauwpuntbeveiliging vóór extra SG in '
+                              'koelbedrijf. Zonder die bevestiging laat het algemene profiel alleen extra SG toe als verse native context '
+                              'betrouwbaar uitsluit dat koeling mogelijk is. Werkelijke koeling, AUTO of onbekende context geeft geen '
+                              'stilzwijgende vrijgave. Normale Panasonic-koeling en de ingestelde SG-koelwaarde worden niet gewijzigd. Een '
+                              'vaste minimumtemperatuur of alleen een luchtvochtigheidssensor is geen volledige beveiligingsbevestiging. De '
+                              'SG-diagnose toont per reeds gekoppelde ruimtebron de actuele stand, native programma, rapporttijd en ontbrekend '
+                              'bewijs. SolarPilot leest de ondersteunde moderne en oudere Aquarea-integratie uit; alleen een werkelijk nieuwe '
+                              'geslaagde providerpoll maakt haar programma actueel. Opgeslagen gegevens bij opstarten, mislukte poll of '
+                              'optimistische lokale wijziging geeft geen nieuwe vrijgave. Tankopwarming, sterilisatie, watts en automatische '
+                              'displaybronnen vervangen die koelcontext niet. Geplande of actieve sterilisatie is geen afzonderlijk SG-veto. '
+                              'Bij vloerkoeling moet bestaande geschikte dauwpunt-/condensbeveiliging lokaal worden vastgesteld; SolarPilot '
+                              'bevestigt of verandert die instelling niet automatisch.',
+                              'Extra SG volgt dezelfde centrale volgorde. Staat SG vóór Auto laden, dan mag actueel gemeten vermogen van een '
+                              'bevestigde autonome zonnelaadsessie voor de SG-start meetellen. Dat is voorwaardelijk overdraagbaar '
+                              'laadvermogen, geen werkelijk vrije injectie. Zonder geldige actuele zonnelaadgegevens telt alleen aantoonbare '
+                              'restzon en de afzonderlijk volledig gemeten warmtepompbijdrage mee. De Wallbox krijgt geen opdracht: zij regelt '
+                              'zelf terug. Een lagere eigen onderbreekbare last mag alleen wijken met behoud van minimumlooptijd en '
+                              'gebruikerskeuze; een afwasprogramma en native noodzakelijk comfort blijven beschermd.',
+                              'De startdrempel en de elektrische ruimte blijven afzonderlijk. Bijvoorbeeld 2000 W volledig gemeten '
+                              'warmtepompverbruik en 1000 W bruikbaar restoverschot kunnen 3000 W voor de startdrempel leveren. SG vóór een '
+                              'bevestigde zonneladende Wallbox kan daarnaast de begrensde actuele laadbijdrage gebruiken. De vaste importgrens, '
+                              'kwartiergrens, fasemarge en hogere apparaatprioriteiten moeten de volledige mogelijke extra SG-vraag nog '
+                              'toelaten. Bestaand warmtepompverbruik vergroot geen fysieke elektrische ruimte. Staat Auto laden hoger, dan '
+                              'blijft zijn actuele voorrang gelden. Een al toegelaten SG-aanvraag wordt beoordeeld op actuele netafname, '
+                              'minimumduur en wolkenbuffer, zonder opnieuw startvermogen te reserveren.',
+                              'De startvertraging controleert de gezamenlijke zonnebijdrage. Na starten blijven werkelijke netafname, de '
+                              'bestaande tekortvertraging en het effectieve minimum voor gewone tekortvrijgave bepalend. Het minimum doet geen '
+                              'nieuwe start, tellerreset of verlaging van fysieke guards ontstaan. Nieuwe zonneperiode na een beëindigde '
+                              'algemene sessie blijft gebaseerd op echte restinjectie, niet op warmtepompcredit; dezelfde opname geeft dus geen '
+                              'herstartlus. Details tonen restoverschot, meegetelde warmtepompbijdrage, gezamenlijke startbijdrage, minimumduur '
                               'en concrete elektrische beperkingen afzonderlijk.',
-                              'Na een al bevestigde lage zonnefase of rustige native resetfase toont beta.74 geen herhaalde '
-                              'resetcountdown. De uitleg benoemt dan wachten op nieuwe relevante context, teruggekeerd '
-                              'zonoverschot of de werkelijk lopende hoge bevestiging. De controller behoudt zijn bestaande '
-                              'rolling resetbewijs, echte bronrapporten en alle startvoorwaarden; de diagnose schrijft of '
-                              'reset niets.',
-                              'De kaart en Details tonen de lopende herbeoordeling afzonderlijk van de gewone '
-                              'startvertraging. Nieuwe zonneperiode bevestigen duurt binnen de bestaande policy 300 seconden '
-                              'met echte nieuwe bronrapporten; eventuele reset- of native bewijsfasen houden hun eigen '
-                              'betekenis. Daarna kan de ingestelde startvertraging beginnen, standaard 120 seconden, terwijl '
-                              'alle actuele voorwaarden blijven gelden. Nul resterende bevestigingsseconden is geen '
-                              'starttoestemming: een passend actueel eindrapport en de bestaande beoordelingen zijn nog '
-                              'nodig. Oude brondata verbergt de lopende teller. De uitleesweergave start geen sessie en '
-                              'verandert geen timer, guard, minimumtijd, rangorde of herstartbeleid.'],
-               'bullets': ['Essentieel: volledige actuele net-/PV-begroting, eventuele batterijbron en ingeschakelde fasen. '
-                           'Onbekend of onbruikbaar geeft geen SG-vrijgave.',
-                           'Essentieel: lokale SG-ingebruikname, toepassingsprofiel, vereiste koelcontext/beveiliging en '
-                           'werkelijk contact-/kortlopend timerbewijs. Een optionele wattmeter vervangt deze controles niet.',
-                           'Aanvullend: exclusieve warmtepompvermogensmeting. Ontbrekend betekent geen krediet of compleet '
-                           'verbruik; de volledige extra-vraagraming blijft gereserveerd.',
-                           'Aanvullend: diagnose-, taak- en compressorinformatie. Zij geeft geen causaal bewijs van extra '
-                           'SG-opname en verleent geen nieuw bedieningsrecht.']},
+                              'Na een al bevestigde lage zonnefase of rustige native resetfase toont beta.74 geen herhaalde resetcountdown. De '
+                              'uitleg benoemt dan wachten op nieuwe relevante context, teruggekeerd zonoverschot of de werkelijk lopende hoge '
+                              'bevestiging. De controller behoudt zijn bestaande rolling resetbewijs, echte bronrapporten en alle '
+                              'startvoorwaarden; de diagnose schrijft of reset niets.',
+                              'De kaart en Details tonen de lopende herbeoordeling afzonderlijk van de gewone startvertraging. Nieuwe '
+                              'zonneperiode bevestigen duurt binnen de bestaande policy 300 seconden met echte nieuwe bronrapporten; eventuele '
+                              'reset- of native bewijsfasen houden hun eigen betekenis. Daarna kan de ingestelde startvertraging beginnen, '
+                              'standaard 120 seconden, terwijl alle actuele voorwaarden blijven gelden. Nul resterende bevestigingsseconden is '
+                              'geen starttoestemming: een passend actueel eindrapport en de bestaande beoordelingen zijn nog nodig. Oude '
+                              'brondata verbergt de lopende teller. De uitleesweergave start geen sessie en verandert geen timer, guard, '
+                              'minimumtijd, rangorde of herstartbeleid.',
+                              'Nieuwe SG-sessies bewaren bij de eerste opdracht hun SolarPilot-versie, effectieve regels met hash, '
+                              'eigenaarschap, opdrachtidentiteit en oorspronkelijke bronrapporten. Stopreden en transportuitkomst blijven '
+                              'afzonderlijk; een natuurlijke lokale timerafloop of externe overname krijgt ook een eigen einde zonder verzonnen '
+                              'UIT-opdracht. Herbevestigingswacht toont zowel de oorspronkelijke stopreden als de actuele voorwaarde. Oude '
+                              'sessies krijgen geen huidige policy achteraf.',
+                              'Nieuwe SG-stopregistraties bewaren bij de laatste hercontrole welke concrete voorwaarde de aanvraag afwees, met '
+                              'de oorspronkelijke beschikbare bronwaarden. Een algemene melding dat voorwaarden gewijzigd zijn bewijst geen '
+                              'handmatige ingreep. Oudere generieke stops blijven qua specifieke oorzaak onbekend. Een expliciet geregistreerde '
+                              'onbereikbare SG-uitgang krijgt een bron-/contactcategorie. Stopbesluit, verzenduitkomst en werkelijk gemelde '
+                              'contactstand blijven afzonderlijke bewijzen; dit verandert geen vijfminutenbuffer, minimale sessieduur of lokale '
+                              'Shelly-timer.',
+                              'De tijdelijke SG-bediening leest vanaf beta.100 uitsluitend de geconfigureerde beschikbaarheid en de bestaande '
+                              'handmatige keuze met haar oorspronkelijke eindtijd. Daardoor herhaalt het tonen van die bediening geen volledige '
+                              'SG- en Panasonic-beoordeling. De resterende duur volgt nog steeds de huidige klok; het openen of verversen van '
+                              'de bediening verlengt de keuze niet. Automatisch en Aan/Uit voor 30/60 minuten behouden hun betekenis. Een keuze '
+                              'is geen gemelde contactstand of nieuwe schakeltoestemming; de gewone uitvoering beoordeelt haar actuele bronnen, '
+                              'rechten, voorrang en grenzen afzonderlijk.'],
+               'bullets': ['Essentieel: volledige actuele net-/PV-begroting, eventuele batterijbron en ingeschakelde fasen. Onbekend of '
+                           'onbruikbaar geeft geen SG-vrijgave.',
+                           'Essentieel: lokale SG-ingebruikname, toepassingsprofiel, vereiste koelcontext/beveiliging en werkelijk '
+                           'contact-/kortlopend timerbewijs. Een optionele wattmeter vervangt deze controles niet.',
+                           'Aanvullend: exclusieve warmtepompvermogensmeting. Ontbrekend betekent geen krediet of compleet verbruik; de '
+                           'volledige extra-vraagraming blijft gereserveerd.',
+                           'Aanvullend: diagnose-, taak- en compressorinformatie. Zij geeft geen causaal bewijs van extra SG-opname en verleent '
+                           'geen nieuw bedieningsrecht.']},
               {'title': '5. Lokale SG-terugval, tijdelijke bediening en herstart',
-               'paragraphs': ['Naast de SG-contactstand kies je Automatisch, Aan 30 min, Aan 1 uur, Uit 30 min of Uit 1 uur, '
-                              'in Overzicht of op het warmtepomptabblad. SolarPilot bewaart de keuze en haar absolute '
-                              'eindtijd vóór verdere bediening; herladen of herstarten begint de tijd niet opnieuw. De '
-                              'resterende tijd en eventuele blokkering blijven zichtbaar. De kaart wacht op echte '
-                              'backendstatus en verandert de gemelde contactstand niet alvast na een klik. Je kunt '
-                              'tussentijds Automatisch kiezen. Bij afloop wordt de keuze automatisch Automatisch en volgt '
-                              'een nieuwe actuele beoordeling. Tijdelijke Uit onderdrukt alleen de eigen SG-aanvraag: zij '
-                              'schakelt de warmtepomp of een Panasonic-cyclus niet uit.',
-                              'Tijdelijk Aan is een bewuste SG-vraag met mogelijke netafname. Zij vervangt '
-                              'zonne-startdrempel en startvertraging, gewone rust, de beleidswacht op een nieuwe aanleiding '
-                              'en de zachte importvrijgave. De echte ingestelde net-, fase-, kwartier- en overige '
-                              'elektrische grenzen, verse noodzakelijke bronnen, lokale timer, contactmapping, '
-                              'gecontroleerde ingebruikname, toepassingsprofiel, koelbeveiliging, voorrang, eigenaar, '
-                              'SG-enabled en globale regelmodus blijven gelden. Alleen bekijken, Pauze, echte fouten en '
-                              'handmatige overname kunnen niet door deze keuze worden omzeild. Een gekozen half uur of uur '
-                              'is de looptijd van de tijdelijke keuze, geen garantie dat het contact die hele periode '
-                              'gesloten is.',
-                              'Het bestaande harde sessiemaximum blijft ook bij tijdelijk Aan leidend. Het kiezen of '
-                              'wisselen van een tijdelijke stand verlengt een al actieve sessie niet en reset haar '
-                              'oorspronkelijke start, minimum of hardmaximum niet. Bij terugkeer naar Automatisch blijft een '
-                              'passend reeds AAN-contact aan als de actuele automatische voortzettingsvoorwaarden gelden; er '
-                              'volgt geen verplichte UIT/AAN-flank. Anders wordt de eigen aanvraag volgens de gewone '
-                              'voorwaarden veilig vrijgegeven. Na tijdelijk Uit kan Automatisch pas weer starten zodra de '
-                              'dan geldende verse voorwaarden en beleidswacht dit toelaten.',
-                              'Automatische en tijdelijke SG-aanvragen gebruiken dezelfde lokaal op de Shelly aflopende '
-                              'toestemming: standaard 300 seconden geldig, vernieuwd iedere 60 seconden zolang de aanvraag '
-                              'toegestaan blijft. Vernieuwing verlengt de timer zonder het relais uit/aan te schakelen. Zij '
-                              'blijft begrensd door de oorspronkelijke harde sessieduur en een eventueel eerder einde van de '
-                              'tijdelijke Aan-keuze. Er komt geen lokale timer van dertig of zestig minuten. Opstartstand '
-                              'UIT is geen wifi-/Home Assistant-uitvalbeveiliging; alleen gecontroleerde lokale afloop biedt '
-                              'de bestaande terugval.',
-                              'Bij een echte Home Assistant-herstart kan SolarPilot een nog AAN gemeld eigen contact '
-                              'voortzetten als de bestaande lokale timer niet verlopen is en nieuwe betrouwbare contact-, '
-                              'timer-, bron- en veiligheidsgegevens de oorspronkelijke sessie met dezelfde binding en policy '
-                              'bevestigen. Oorspronkelijke sessietijd, minimum, tekorttimer en eindgrenzen worden niet '
-                              'opnieuw gestart. Oude opgeslagen watts of een oude contactstand zijn geen nieuwe bevestiging. '
-                              'Eerst verse geldige voorwaarden controleren; geen blinde opgeslagen AAN opnieuw verzenden, '
-                              'nieuwe sessie verzinnen of de timer onbegrensd verlengen. Een externe contact- of '
-                              'timerwijziging houdt voorrang. Zijn opstartbronnen tijdelijk nog niet beschikbaar, dan kan '
-                              'uitsluitend de reeds vastgestelde korte lokale timer blijven lopen terwijl SolarPilot op '
-                              'verse gegevens wacht; zij wordt in die fase niet vernieuwd en onbekend bewijs krijgt geen '
-                              'eigendoms- of vrijgaveclaim. Een bekende harde blokkering vraagt veilige vrijgave.',
-                              'Voortzetting vereist een volledig bevestigd beta.84-sessiecheckpoint. Een oud beta.83-journal '
-                              'mist de vereiste oorspronkelijke sessie- en timerherkomst en krijgt alleen de bestaande '
-                              'veilige vrijgavesroute. Bij de eerste upgrade kan daarom één eigen aanvraag worden '
-                              'vrijgegeven. Een niet bevestigde, onzekere, verlopen of niet passende oude opdracht wordt '
-                              'niet hervat; een latere passende rapportage kan uitsluitend de veilige vrijgave ondersteunen. '
-                              'Is de lokale timer tijdens het herstarten al afgelopen, dan is dit geen behouden AAN en '
-                              'gelden opnieuw de gewone startvoorwaarden. Een nog niet verlopen bewaarde bewuste Aan-keuze '
-                              'met dezelfde binding blijft wel een gebruikersvraag. Na verlopen oude lokale toestemming mag '
-                              'die keuze een nieuwe huidige SG-beoordeling vragen wanneer volledige verse harde voorwaarden '
-                              'en veilige opdracht-/contactafhandeling dit toelaten. De oorspronkelijke maximale '
-                              'sessie-eindtijd blijft leidend. Dit herstelt geen verlopen eigendom en herhaalt geen onzekere '
-                              'oude opdracht.',
-                              'Gewoon integratie-unload, uitschakelen, gewijzigde koppeling en verwijderen trekken een eigen '
-                              'aanvraag veilig in en annuleren oude vernieuwingen. De route voor een echte HA-herstart stopt '
-                              'callbacks en bewaart uitsluitend de passende bestaande sessie tot verse herbeoordeling binnen '
-                              'haar korte lokale afloop. Pauze blijft een bewuste vrijgave, ook bij een tijdelijke '
-                              'Aan-keuze. Een geannuleerde of onzekere opdracht wordt niet blind herhaald; onbereikbaarheid '
-                              'blijft onbekend, zonder fictieve UIT-bevestiging.',
-                              'Een werkelijk buiten SolarPilot handmatig gewijzigd contact of timer wordt gerespecteerd. Zo '
-                              'een externe AAN krijgt niet automatisch bewezen SolarPilot-eigendom of een gecontroleerde '
-                              'lokale timer. Automatisering hervatten vraagt een afzonderlijke actuele beoordeling. Een '
-                              'eigen vertraagde terugmelding of lokale timerafloop wordt zonder passend bewijs niet als '
-                              'gebruikershandeling uitgelegd. De gekozen tijdelijke stand, werkelijk gemeld contact, '
-                              'aanvraag, resterende lokale toestemming en ontvangen SG blijven afzonderlijk zichtbaar.',
-                              'Langdurig laag gemeten vermogen geeft geen opdracht om de Shelly te pulsen, de warmtepomp te '
-                              'herstarten of Force-/heateropdrachten te sturen. De bestaande diagnose van nog niet '
-                              'aangetoonde extra warmteopname blijft in Details en op de tijdlijn. De regeling geeft geen '
-                              'compressorlooptijd, levensduurwinst of causale extra SG-kWh af uit alleen totale watts.',
-                              'De lokale timer vervangt geen elektrische beveiliging en biedt geen absolute garantie bij '
-                              'bijvoorbeeld een vastgelast contact. Deze release vraagt geen extra heaterrelais, broker, '
-                              'server, cloudregelaar, bedrading of DIP-wijziging. Panasonic regelt haar normale programma, '
-                              'comfort en beveiligingen zelfstandig.'],
+               'paragraphs': ['Naast de SG-contactstand kies je Automatisch, Aan 30 min, Aan 1 uur, Uit 30 min of Uit 1 uur, in Overzicht of op '
+                              'het warmtepomptabblad. SolarPilot bewaart de keuze en haar absolute eindtijd vóór verdere bediening; herladen of '
+                              'herstarten begint de tijd niet opnieuw. De resterende tijd en eventuele blokkering blijven zichtbaar. De kaart '
+                              'wacht op echte backendstatus en verandert de gemelde contactstand niet alvast na een klik. Je kunt tussentijds '
+                              'Automatisch kiezen. Bij afloop wordt de keuze automatisch Automatisch en volgt een nieuwe actuele beoordeling. '
+                              'Tijdelijke Uit onderdrukt alleen de eigen SG-aanvraag: zij schakelt de warmtepomp of een Panasonic-cyclus niet '
+                              'uit.',
+                              'Tijdelijk Aan is een bewuste SG-vraag met mogelijke netafname. Zij vervangt zonne-startdrempel en '
+                              'startvertraging, gewone rust, de beleidswacht op een nieuwe aanleiding en de zachte importvrijgave. De echte '
+                              'ingestelde net-, fase-, kwartier- en overige elektrische grenzen, verse noodzakelijke bronnen, lokale timer, '
+                              'contactmapping, gecontroleerde ingebruikname, toepassingsprofiel, koelbeveiliging, voorrang, eigenaar, '
+                              'SG-enabled en globale regelmodus blijven gelden. Alleen bekijken, Pauze, echte fouten en handmatige overname '
+                              'kunnen niet door deze keuze worden omzeild. Een gekozen half uur of uur is de looptijd van de tijdelijke keuze, '
+                              'geen garantie dat het contact die hele periode gesloten is.',
+                              'Het bestaande harde sessiemaximum blijft ook bij tijdelijk Aan leidend. Het kiezen of wisselen van een '
+                              'tijdelijke stand verlengt een al actieve sessie niet en reset haar oorspronkelijke start, minimum of hardmaximum '
+                              'niet. Bij terugkeer naar Automatisch blijft een passend reeds AAN-contact aan als de actuele automatische '
+                              'voortzettingsvoorwaarden gelden; er volgt geen verplichte UIT/AAN-flank. Anders wordt de eigen aanvraag volgens '
+                              'de gewone voorwaarden veilig vrijgegeven. Na tijdelijk Uit kan Automatisch pas weer starten zodra de dan '
+                              'geldende verse voorwaarden en beleidswacht dit toelaten.',
+                              'Automatische en tijdelijke SG-aanvragen gebruiken dezelfde lokaal op de Shelly aflopende toestemming: standaard '
+                              '300 seconden geldig, vernieuwd iedere 60 seconden zolang de aanvraag toegestaan blijft. Vernieuwing verlengt de '
+                              'timer zonder het relais uit/aan te schakelen. Zij blijft begrensd door de oorspronkelijke harde sessieduur en '
+                              'een eventueel eerder einde van de tijdelijke Aan-keuze. Er komt geen lokale timer van dertig of zestig minuten. '
+                              'Opstartstand UIT is geen wifi-/Home Assistant-uitvalbeveiliging; alleen gecontroleerde lokale afloop biedt de '
+                              'bestaande terugval.',
+                              'Bij een echte Home Assistant-herstart kan SolarPilot een nog AAN gemeld eigen contact voortzetten als de '
+                              'bestaande lokale timer niet verlopen is en nieuwe betrouwbare contact-, timer-, bron- en veiligheidsgegevens de '
+                              'oorspronkelijke sessie met dezelfde binding en policy bevestigen. Oorspronkelijke sessietijd, minimum, '
+                              'tekorttimer en eindgrenzen worden niet opnieuw gestart. Oude opgeslagen watts of een oude contactstand zijn geen '
+                              'nieuwe bevestiging. Eerst verse geldige voorwaarden controleren; geen blinde opgeslagen AAN opnieuw verzenden, '
+                              'nieuwe sessie verzinnen of de timer onbegrensd verlengen. Een externe contact- of timerwijziging houdt voorrang. '
+                              'Zijn opstartbronnen tijdelijk nog niet beschikbaar, dan kan uitsluitend de reeds vastgestelde korte lokale timer '
+                              'blijven lopen terwijl SolarPilot op verse gegevens wacht; zij wordt in die fase niet vernieuwd en onbekend '
+                              'bewijs krijgt geen eigendoms- of vrijgaveclaim. Een bekende harde blokkering vraagt veilige vrijgave.',
+                              'Voortzetting vereist een volledig bevestigd beta.84-sessiecheckpoint. Een oud beta.83-journal mist de vereiste '
+                              'oorspronkelijke sessie- en timerherkomst en krijgt alleen de bestaande veilige vrijgavesroute. Bij de eerste '
+                              'upgrade kan daarom één eigen aanvraag worden vrijgegeven. Een niet bevestigde, onzekere, verlopen of niet '
+                              'passende oude opdracht wordt niet hervat; een latere passende rapportage kan uitsluitend de veilige vrijgave '
+                              'ondersteunen. Is de lokale timer tijdens het herstarten al afgelopen, dan is dit geen behouden AAN en gelden '
+                              'opnieuw de gewone startvoorwaarden. Een nog niet verlopen bewaarde bewuste Aan-keuze met dezelfde binding blijft '
+                              'wel een gebruikersvraag. Na verlopen oude lokale toestemming mag die keuze een nieuwe huidige SG-beoordeling '
+                              'vragen wanneer volledige verse harde voorwaarden en veilige opdracht-/contactafhandeling dit toelaten. De '
+                              'oorspronkelijke maximale sessie-eindtijd blijft leidend. Dit herstelt geen verlopen eigendom en herhaalt geen '
+                              'onzekere oude opdracht.',
+                              'Gewoon integratie-unload, uitschakelen, gewijzigde koppeling en verwijderen trekken een eigen aanvraag veilig in '
+                              'en annuleren oude vernieuwingen. De route voor een echte HA-herstart stopt callbacks en bewaart uitsluitend de '
+                              'passende bestaande sessie tot verse herbeoordeling binnen haar korte lokale afloop. Pauze blijft een bewuste '
+                              'vrijgave, ook bij een tijdelijke Aan-keuze. Een geannuleerde of onzekere opdracht wordt niet blind herhaald; '
+                              'onbereikbaarheid blijft onbekend, zonder fictieve UIT-bevestiging.',
+                              'Een buiten SolarPilot handmatig ingeschakeld SG-contact verschijnt als Handmatig aan met een afteller van '
+                              'vijftien minuten. Tijdens die periode wordt geen AAN-opdracht herhaald en begint de afteller na herstart niet '
+                              'opnieuw. Na afloop houdt SolarPilot het contact alleen aan wanneer actuele bronnen, voorrang, koeling en '
+                              'elektrische grenzen dat toestaan en de netafname hoogstens de ingestelde SG-grens is. Voortzetting bevestigt een '
+                              'korte lokale aflooptimer zonder voorafgaande UIT-puls; anders wordt het contact vrijgegeven. Ontbrekende '
+                              'contactterugmelding geeft wachten op een nieuwe meting, zonder de eindtijd op te schuiven. Een echte harde grens '
+                              'kan eerder vrijgave vragen. Een handmatige UIT blijft gerespecteerd tot Hervatten; een bewuste tijdelijke '
+                              'Aan-keuze kan een actueel gecontroleerd extern AAN-contact direct overnemen.',
+                              'Langdurig laag gemeten vermogen geeft geen opdracht om de Shelly te pulsen, de warmtepomp te herstarten of '
+                              'Force-/heateropdrachten te sturen. De bestaande diagnose van nog niet aangetoonde extra warmteopname blijft in '
+                              'Details en op de tijdlijn. De regeling geeft geen compressorlooptijd, levensduurwinst of causale extra SG-kWh af '
+                              'uit alleen totale watts.',
+                              'De lokale timer vervangt geen elektrische beveiliging en biedt geen absolute garantie bij bijvoorbeeld een '
+                              'vastgelast contact. Deze release vraagt geen extra heaterrelais, broker, server, cloudregelaar, bedrading of '
+                              'DIP-wijziging. Panasonic regelt haar normale programma, comfort en beveiligingen zelfstandig.'],
                'bullets': []},
               {'title': '6. Warmtepompvermogen en elektrische ondersteuning',
-               'paragraphs': ['Vanaf beta.87 worden uitsluitend verse eindige negatieve W/kW-waarden van de toegewezen warmtepompverbruiksmeters binnen het bestaande plausibele bereik na alle gewone broncontroles als 0 W gebruikt. Dit geldt voor de exclusieve totaalmeter of toegewezen deelvoedingen; de oorspronkelijke gerapporteerde waarde, ruwe watts en normalisatiemarkering blijven inspecteerbaar. Ontbrekend, oud, toekomstig, geschat, hersteld, NaN/oneindig, verkeerde eenheid, overlap of onvolledige dekking wordt niet naar nul omgezet. Bij een onvolledig meterpaar blijft het totaal onbekend. P1/net, export, PV, batterij en fasen houden hun bestaande tekenbetekenis. De nul is een bewuste software-interpretatie, geen kalibratie- of aansluitbewijs en geen compressor-/warmteclaim. Oude historie en eerdere exports worden niet opnieuw geïnterpreteerd.',
-                              'Koppel één bestaande bevestigde totaalmeter, of twee lokaal bevestigde '
-                              'volledige niet-overlappende deelmeters voor voeding 1 en voeding 2. Beide '
-                              'routes lezen actuele W/kW, valideren eenheid, tekenrichting, plausibiliteit '
-                              'en echte rapportage/heartbeat. De bestaande geldige single-meterkeuze blijft '
-                              'bij upgrade behouden. Selecteer geen P1/PV, energieteller in kWh of interne '
-                              'Shelly-temperatuur als exclusieve warmtepompvermogensbron.',
-                              'Alleen twee complete actuele gevalideerde deelmetingen vormen samen het '
-                              'totaal: voeding 1 plus voeding 2. Een ontbrekende, oude of ongeldige '
-                              'deelmeter maakt het totaal onvolledig/onbekend; de wel bekende deelwaarde '
-                              'blijft zichtbaar. Een actuele 0 W is gemeten nul. Gelijke bronnen, totaal '
-                              'plus deelmeter en inspecteerbare template-overlap worden geweigerd; verborgen '
-                              'overlap vereist lokale bevestiging. Een al inbegrepen heater wordt niet '
-                              'nogmaals opgeteld.',
-                              'Bij twee verschillende bestaande gebonden vermogenssensoren gebruikt de '
-                              'weergave automatisch het Panasonic-voedingsprofiel: voeding 1 omvat de '
-                              'warmtepomp, regeling en pompen; voeding 2 wordt als elektrische bijverwarming '
-                              'uitgelegd. Details benoemen dit uitdrukkelijk als aanname. '
-                              'Panasonic-documentatie kent modelverschillen: elektrische ondersteuning kan '
-                              'een interne backupheater en/of een externe tapwaterbooster omvatten, en bij '
-                              'sommige varianten ligt backupverwarming op de eerste voeding. Het profiel '
-                              'bevestigt daarom geen werkelijke lokale bedrading. Voeding 1 is geen zuivere '
-                              'compressormeter en voeding-2-watts onderscheiden backup en booster niet.',
-                              'De standaardweergave werkt automatisch met bestaande koppelingen en 200 W; je '
-                              'hoeft geen nieuw formulier of leesentiteit in te vullen. Alleen als je zelf '
-                              'wilt verfijnen, kan Actief verbruik vanaf (W) — alleen weergave tussen 10 en '
-                              '2000 W worden gekozen. Zij bepaalt uitsluitend wanneer de elektrische '
-                              'activiteit per geldige voeding wordt getoond en verandert geen '
-                              'SG-start-/stopdrempel, bronvalidatie, timer, koelvrijgave, budget of '
-                              'toestemming. Compleet totaal nul heet Geen elektrisch verbruik; positief '
-                              'totaal onder de grens Basisverbruik. Actieve watts geven elektrische '
-                              'activiteit, geen aparte compressor- of warmteproductiemeting.',
-                              'Elke verse geldige deelmeting heeft haar eigen betekenis, ook als het totaal '
-                              'onvolledig is. Actieve hoofdvoeding kan warmtepompactiviteit tonen en actieve '
-                              'ondersteuning haar eigen bijverwarmingsmelding. Een bekende nul op één '
-                              'voeding bewijst niet dat de hele installatie niets verbruikt. Alleen complete '
-                              'actuele gevalideerde niet-overlappende dekking kan het totaal of totale '
-                              'elektrische inactiviteit tonen. Een verse native taakmelding kan apart '
-                              'blijven staan bij een deelmeting, lage watts of ontbrekend totaal; een taak '
-                              'die uit meter plus context wordt afgeleid houdt dat brononderscheid.',
-                              'Functie voeding 1/2 — automatische weergave is optioneel. Automatisch volgens '
-                              'Panasonic-voedingen gebruikt het genoemde profiel op het bestaande '
-                              'verschillende sensorpaar; expliciete keuzes zijn Hoofdvoeding: warmtepomp, '
-                              'regeling en pompen of Elektrische ondersteuning. Eerder bewust gekozen '
-                              'afwijkende rollen blijven behouden. Een enkelvoudige meter krijgt geen '
-                              'automatisch hoofd-/heaterpaar. De totale niet-overlapbevestiging en de '
-                              'onderdeelrol zijn afzonderlijk: de profielaanname maakt geen onvolledige som '
-                              'compleet en geeft geen SG- of heaterbedieningsrecht. Na een echte '
-                              'meterwijziging blijven de bestaande dekkingscontrole en herbeoordeling van '
+               'paragraphs': ['Vanaf beta.87 worden uitsluitend verse eindige negatieve W/kW-waarden van de toegewezen '
+                              'warmtepompverbruiksmeters binnen het bestaande plausibele bereik na alle gewone broncontroles als 0 W gebruikt. '
+                              'Dit geldt voor de exclusieve totaalmeter of toegewezen deelvoedingen; de oorspronkelijke gerapporteerde waarde, '
+                              'ruwe watts en normalisatiemarkering blijven inspecteerbaar. Ontbrekend, oud, toekomstig, geschat, hersteld, '
+                              'NaN/oneindig, verkeerde eenheid, overlap of onvolledige dekking wordt niet naar nul omgezet. Bij een onvolledig '
+                              'meterpaar blijft het totaal onbekend. P1/net, export, PV, batterij en fasen houden hun bestaande tekenbetekenis. '
+                              'De nul is een bewuste software-interpretatie, geen kalibratie- of aansluitbewijs en geen '
+                              'compressor-/warmteclaim. Oude historie en eerdere exports worden niet opnieuw geïnterpreteerd.',
+                              'Koppel één bestaande bevestigde totaalmeter, of twee lokaal bevestigde volledige niet-overlappende deelmeters '
+                              'voor voeding 1 en voeding 2. Beide routes lezen actuele W/kW, valideren eenheid, tekenrichting, plausibiliteit '
+                              'en echte rapportage/heartbeat. De bestaande geldige single-meterkeuze blijft bij upgrade behouden. Selecteer '
+                              'geen P1/PV, energieteller in kWh of interne Shelly-temperatuur als exclusieve warmtepompvermogensbron.',
+                              'Alleen twee complete actuele gevalideerde deelmetingen vormen samen het totaal: voeding 1 plus voeding 2. Een '
+                              'ontbrekende, oude of ongeldige deelmeter maakt het totaal onvolledig/onbekend; de wel bekende deelwaarde blijft '
+                              'zichtbaar. Een actuele 0 W is gemeten nul. Gelijke bronnen, totaal plus deelmeter en inspecteerbare '
+                              'template-overlap worden geweigerd; verborgen overlap vereist lokale bevestiging. Een al inbegrepen heater wordt '
+                              'niet nogmaals opgeteld.',
+                              'Bij twee verschillende bestaande gebonden vermogenssensoren gebruikt de weergave automatisch het '
+                              'Panasonic-voedingsprofiel: voeding 1 omvat de warmtepomp, regeling en pompen; voeding 2 wordt als elektrische '
+                              'bijverwarming uitgelegd. Details benoemen dit uitdrukkelijk als aanname. Panasonic-documentatie kent '
+                              'modelverschillen: elektrische ondersteuning kan een interne backupheater en/of een externe tapwaterbooster '
+                              'omvatten, en bij sommige varianten ligt backupverwarming op de eerste voeding. Het profiel bevestigt daarom geen '
+                              'werkelijke lokale bedrading. Voeding 1 is geen zuivere compressormeter en voeding-2-watts onderscheiden backup '
+                              'en booster niet.',
+                              'De standaardweergave werkt automatisch met bestaande koppelingen en 200 W; je hoeft geen nieuw formulier of '
+                              'leesentiteit in te vullen. Alleen als je zelf wilt verfijnen, kan Actief verbruik vanaf (W) — alleen weergave '
+                              'tussen 10 en 2000 W worden gekozen. Zij bepaalt uitsluitend wanneer de elektrische activiteit per geldige '
+                              'voeding wordt getoond en verandert geen SG-start-/stopdrempel, bronvalidatie, timer, koelvrijgave, budget of '
+                              'toestemming. Compleet totaal nul heet Geen elektrisch verbruik; positief totaal onder de grens Basisverbruik. '
+                              'Actieve watts geven elektrische activiteit, geen aparte compressor- of warmteproductiemeting.',
+                              'Elke verse geldige deelmeting heeft haar eigen betekenis, ook als het totaal onvolledig is. Actieve hoofdvoeding '
+                              'kan warmtepompactiviteit tonen en actieve ondersteuning haar eigen bijverwarmingsmelding. Een bekende nul op één '
+                              'voeding bewijst niet dat de hele installatie niets verbruikt. Alleen complete actuele gevalideerde '
+                              'niet-overlappende dekking kan het totaal of totale elektrische inactiviteit tonen. Een verse native taakmelding '
+                              'kan apart blijven staan bij een deelmeting, lage watts of ontbrekend totaal; een taak die uit meter plus context '
+                              'wordt afgeleid houdt dat brononderscheid.',
+                              'Functie voeding 1/2 — automatische weergave is optioneel. Automatisch volgens Panasonic-voedingen gebruikt het '
+                              'genoemde profiel op het bestaande verschillende sensorpaar; expliciete keuzes zijn Hoofdvoeding: warmtepomp, '
+                              'regeling en pompen of Elektrische ondersteuning. Eerder bewust gekozen afwijkende rollen blijven behouden. Een '
+                              'enkelvoudige meter krijgt geen automatisch hoofd-/heaterpaar. De totale niet-overlapbevestiging en de '
+                              'onderdeelrol zijn afzonderlijk: de profielaanname maakt geen onvolledige som compleet en geeft geen SG- of '
+                              'heaterbedieningsrecht. Na een echte meterwijziging blijven de bestaande dekkingscontrole en herbeoordeling van '
                               'afwijkende rollen gelden.',
-                              'Het SG-contact is een afzonderlijk signaal, geen vermogensvoeding. '
-                              'Compressorbedrijf met 0 W op de ondersteuningsmeter is mogelijk en bewijst '
-                              'geen SG-effect. Optionele actuele compressorfrequentie gebruikt een echte '
-                              'Hz-bron. Zonder gekoppelde compressorbron kan passende verse native '
-                              'activiteit actief bedrijf melden; native UIT vereist expliciet globaal bewijs. Alleen programma, klepstand of watts '
-                              'niet. Een geschikte actuele ontvangen-SG-bron kan een expliciete '
-                              'actieve/inactieve SG-stand bevestigen; numerieke standen worden niet gegokt. '
-                              'Ontvangen SG en een draaiende compressor bewijzen geen causaal extra '
-                              'SG-effect.',
-                              'Het hele warmtepompvermogen is niet terugwinbaar door SG uit te zetten: '
-                              'native warmwater- of ruimtebedrijf kan blijven doorgaan. De netmeter bevat '
-                              'die stroom al. Vrijgekomen ruimte wordt pas toegewezen wanneer nieuwe '
-                              'metingen dat ondersteunen. Betrouwbaar werkelijk verbruik is geen onbeperkte '
-                              'nieuwe startcapaciteit of bewijs dat al dat vermogen door SG wordt '
-                              'veroorzaakt.',
-                              'Elektrische bijverwarming blijft volledig onder Panasonic-regie. Afgeleid '
-                              'opgenomen vermogen via de aangenomen of expliciete voedingsrol is geen '
-                              'afzonderlijk bevestigde native heaterstatus en maakt geen onderscheid tussen '
-                              'backup-/boosterelementen. Compressor en ondersteuning kunnen tegelijk actief '
-                              'zijn. Een afzonderlijk werkpunt is geen gegarandeerd totaal, heatermaximum of '
-                              'startdrempel. Er is geen belofte van nul netafname of uitsluitend '
-                              'compressorbedrijf. Bij aanhoudende ongewenste import wordt uitsluitend de '
-                              'optionele eigen SG-aanvraag vrijgegeven.',
-                              ('Per vermogensbron blijven laatste echte rapportagetijd, W/kW-eenheid, '
-                               'gerapporteerde waarde en concrete afkeurreden beschikbaar, ook als de '
-                               'actuele bruikbare waarde onbekend is. Ontbrekend, oud, hersteld, '
-                               'geschat en verkeerde eenheid blijven afzonderlijk van gemeten nul. Een '
-                               'gelijkblijvende waarde met een nieuw werkelijk bronrapport is vers; een '
-                               'regelronde of wijziging van een ander attribuut maakt de oude waarde niet '
-                               'vers. Nieuwe historie/export bewaren dit bewijs zonder oude ontbrekende '
-                               'historie aan te vullen.')],
+                              'Het SG-contact is een afzonderlijk signaal, geen vermogensvoeding. Compressorbedrijf met 0 W op de '
+                              'ondersteuningsmeter is mogelijk en bewijst geen SG-effect. Optionele actuele compressorfrequentie gebruikt een '
+                              'echte Hz-bron. Zonder gekoppelde compressorbron kan passende verse native activiteit actief bedrijf melden; '
+                              'native UIT vereist expliciet globaal bewijs. Alleen programma, klepstand of watts niet. Een geschikte actuele '
+                              'ontvangen-SG-bron kan een expliciete actieve/inactieve SG-stand bevestigen; numerieke standen worden niet '
+                              'gegokt. Ontvangen SG en een draaiende compressor bewijzen geen causaal extra SG-effect.',
+                              'Het hele warmtepompvermogen is niet terugwinbaar door SG uit te zetten: native warmwater- of ruimtebedrijf kan '
+                              'blijven doorgaan. De netmeter bevat die stroom al. Vrijgekomen ruimte wordt pas toegewezen wanneer nieuwe '
+                              'metingen dat ondersteunen. Betrouwbaar werkelijk verbruik is geen onbeperkte nieuwe startcapaciteit of bewijs '
+                              'dat al dat vermogen door SG wordt veroorzaakt.',
+                              'Elektrische bijverwarming blijft volledig onder Panasonic-regie. Afgeleid opgenomen vermogen via de aangenomen '
+                              'of expliciete voedingsrol is geen afzonderlijk bevestigde native heaterstatus en maakt geen onderscheid tussen '
+                              'backup-/boosterelementen. Compressor en ondersteuning kunnen tegelijk actief zijn. Een afzonderlijk werkpunt is '
+                              'geen gegarandeerd totaal, heatermaximum of startdrempel. Er is geen belofte van nul netafname of uitsluitend '
+                              'compressorbedrijf. Bij aanhoudende ongewenste import wordt uitsluitend de optionele eigen SG-aanvraag '
+                              'vrijgegeven.',
+                              'Per vermogensbron blijven laatste echte rapportagetijd, W/kW-eenheid, gerapporteerde waarde en concrete '
+                              'afkeurreden beschikbaar, ook als de actuele bruikbare waarde onbekend is. Ontbrekend, oud, hersteld, geschat en '
+                              'verkeerde eenheid blijven afzonderlijk van gemeten nul. Een gelijkblijvende waarde met een nieuw werkelijk '
+                              'bronrapport is vers; een regelronde of wijziging van een ander attribuut maakt de oude waarde niet vers. Nieuwe '
+                              'historie/export bewaren dit bewijs zonder oude ontbrekende historie aan te vullen.',
+                              'Het berekende tapwaterdoel blijft zichtbaar bij een onbekend SG-contact wanneer het normale doel en het '
+                              'brongebonden bevestigde weergavepercentage actueel geldig zijn. Bij 50 °C en 115% is de berekening 57,5 °C. '
+                              'Panasonic hoeft dit berekende doel niet terug te sturen. De vergelijking verandert geen Panasonic-doel of '
+                              'SG-profiel. Ontbreekt de lokale weergavekoppeling, open SG-doel voor weergave instellen en kies de juiste '
+                              'tankbron en het bestaande percentage; een algemene SG-vrijgave of analyse-import bevestigt niet automatisch een '
+                              'percentage voor iedere installatie.',
+                              'Een uitsluitend visuele SG-wijziging wordt vergeleken met de effectief gebruikte instellingen, inclusief '
+                              'bestaande standaardwaarden en migraties. Het toevoegen van zulke al geldende waarden of een andere volgorde van '
+                              'dezelfde ruimtebronnen is geen nieuwe stuurwijziging. Een echt andere bron, regelgrens, toestemming of gemengd '
+                              'voorstel houdt zijn veilige wachtgrens. Een reeds opgeslagen passend weergavevoorstel kan daardoor worden '
+                              'toegepast terwijl dezelfde SG-sessie doorloopt. Dit bevestigt geen ontbrekend percentage of tankbron. Bij een '
+                              'ontbrekend berekend SG-doel tonen Overzicht en Warmtepomp de reden en de knop SG-doel voor weergave instellen '
+                              'naast het normale Panasonic-doel.'],
                'bullets': []},
               {'title': '7. Wallbox: uitsluitend uitlezen en voorrang',
-               'paragraphs': ['SolarPilot bedient de Wallbox niet: geen start, stop, laadstroom, laadmodus of faseopdracht. De laadpaal kan autonoom Full Solar regelen of manueel/gepland laden. Een ingestelde Full Solar-optie is geen bewijs dat de effectieve sessie op zon terugregelt. Een betrouwbare effectieve-sessiebron onderscheidt zonneladen, manueel en gestopt; een manuele melding gaat vóór de instelling. De gekoppelde Wallbox en haar geregistreerde apparaatuitgangen blijven ook beschermd wanneer de SolarPilot-monitor uit staat. Gewone toestel- of batterijscripts mogen deze grens niet omzeilen.',
-                              'Onder Wallbox voorrang geven kies je 30 min, 1 uur, 2 uur, 3 uur, 4 uur, 5 uur of tot ik terug op automatisch zet. Tijdelijk toont de kaart een aftelklok tot de opgeslagen eindtijd. De laatste keuze toont letterlijk tot ik terug op automatisch zet en heeft geen aftelklok. De gewone Home Assistant-schakelaar inschakelen kiest standaard 30 minuten; met de bijbehorende keuzelijst of SolarPilot-kaart kies je de gewenste duur. Een keuze loopt door tijdens Alleen bekijken of Pauze, zonder daarmee apparaten te bedienen.',
-                              'De algemene keuze kopieert haar duur en dezelfde eindtijd naar de dan ondersteunde individuele toestelkeuzes. Daarna blijft ieder toestel apart bedienbaar: Automatisch volgt voor dat toestel weer de opgeslagen rangorde, een eigen tijdelijke keuze krijgt haar eigen eindtijd en de blijvende keuze blijft actief tot je terugschakelt. Een algemene wijziging wordt opnieuw naar de betrokken toestellen gekopieerd. Een individueel gewijzigde keuze verandert de algemene aftelklok niet.',
-                              'Algemeen terug naar Automatisch zet alle individuele uitzonderingen terug op Automatisch. Dat geldt zowel wanneer je zelf terugschakelt als wanneer de algemene tijd afloopt, ook voor een tussentijds afwijkend of blijvend ingesteld toestel. Als de algemene keuze al Automatisch is maar er nog individuele uitzonderingen zijn, kun je Alle toestellen terug op Automatisch kiezen. Een eigen individuele afloop verandert de andere toestellen niet.',
-                              'De eindtijd is absoluut en blijft na herladen of Home Assistant-herstart behouden; de gekozen tijd begint niet opnieuw. Een tijdens afwezigheid afgelopen algemene keuze ruimt bij herstel ook de individuele uitzonderingen op. Voor een blijvende keuze blijft de tekst tot ik terug op automatisch zet staan. De voorkeur zelf is geen bewijs van een verbonden auto, actuele laadvraag of beschikbaar vermogen.',
-                              'Wallbox voorrang geven laat alleen daarvoor geschikte flexibele SolarPilot-last wijken via de bestaande voorwaarden voor actuele laadvraag, hysterese, klein overschot en veilige overdracht. Het start of versnelt de auto niet rechtstreeks. Minimumlooptijden, beschermde cycli, echte terugmelding en elektrische grenzen blijven gelden. Noodzakelijk Panasonic-comfort loopt zelfstandig door; de individuele warmtepompkeuze betreft uitsluitend de optionele SG-zonneboost en verleent nooit recht om EV-vermogen over te nemen. Tijdelijke handmatige SG-Aan/Uit-bediening blijft een afzonderlijke keuze met haar eigen voorwaarden. De nieuwe tijdelijke voorkeur blokkeert een nieuwe optionele SG-start en respecteert bij een lopende SG-aanvraag de oorspronkelijke bevestigde minimumduur. Bestaande vrijgavegronden blijven gelden: de bestaande Wallbox-/EV-, elektrische, koel-, bron-, handmatige Uit- en communicatieregels kunnen eerder vrijgeven. Panasonic-comfort wordt niet uitgeschakeld.',
-                              'De afwasmachine heeft geen Wallbox-voorrangschakelaar en de algemene keuze voegt er geen startblokkering aan toe. Haar bestaande geldige klaarzettoestemming, deur- en apparaatvoorwaarden, vaste deadline, net-/fase-/vermogensruimte en regelmodus blijven gelden. Een ingeschakelde afwasmachine is daarmee geen nieuwe opdracht om zonder toestemming of veiligheidsvrijgave te starten. Een reeds begonnen beurt mag afwerken.',
-                              'Voorwaardelijk overneembaar EV-vermogen bestaat alleen voor een toegestaan '
-                              'toestel boven de Wallbox in de centrale lijst, met afzonderlijke toestemming en '
-                              'betrouwbare eigen meter/adapter en bevestigde zonnelaadsessie. SG-zonneboost '
-                              'gebruikt dit krediet nooit. Bij manueel, oud, onbekend of strijdig laden blijft '
-                              'alleen echte restinjectie bruikbaar. Geen ontbrekende sessiestatus gokken uit '
-                              'netafname.',
-                              'EV-vermogen vergroot geen elektrische capaciteit. De volledige nieuwe belasting '
-                              'moet vóór een opdracht binnen net-, kwartierpiek- en fasegrenzen passen alsof '
-                              'de laadpaal nog niet heeft gereageerd. Eén stap tegelijk en nieuwe rapportages '
-                              'blijven vereist. Lange minimumlooptijden en beschermde programma’s worden niet '
-                              'ingekort om vermogen sneller terug te nemen.',
-                              'Een verse lage laadkracht heft een reserve alleen op met een expliciete '
-                              'inactieve status, geen laadvraag of geen verbonden auto. Lage kracht alleen is '
-                              'onvoldoende. Klein restoverschot kan volgens de bestaande voorkeur door een '
-                              'lager toestel worden benut; veilige vrijgave kan later de autonome '
-                              'zonne-autostart ondersteunen. Bestaande voorkeuren en wachttijden blijven '
-                              'behouden.',
-                              'Het laadprofiel leest expliciete grenzen en fasen uit betrouwbare bronnen of '
-                              'gebruikt een bewust bevestigd terugvalprofiel. Huisaansluitstroom is geen '
-                              'laadstroomlimiet. SolarPilot verandert die waarden niet. Het dashboard '
-                              'onderscheidt sessie, ingestelde zonnemodus, werkelijk laden en wachtreden. '
-                              'Lokaal bewaarde laadperiode-eindes krijgen alleen een native stopreden bij '
-                              'aantoonbaar passende nieuwe rapportage; een meetgat of herstart is geen bewezen '
-                              'stopoorzaak.', ('Een gekoppelde Wallboxsessiebron die oud, onbeschikbaar of ongeldig '
-                               'is blijft onbekend. Beta.74 benoemt die bronkwaliteit als oorzaak '
-                               'bij de leervraag in plaats van onbekend te laten klinken als een '
-                               'bevestigde sessiestand. De ingestelde stale-grens, bestaande '
-                               'bewijsregels en read-only Wallboxbevoegdheid blijven gelijk.')],
+               'paragraphs': ['SolarPilot bedient de Wallbox niet: geen start, stop, laadstroom, laadmodus of faseopdracht. De laadpaal kan '
+                              'autonoom Full Solar regelen of manueel/gepland laden. Een ingestelde Full Solar-optie is geen bewijs dat de '
+                              'effectieve sessie op zon terugregelt. Een betrouwbare effectieve-sessiebron onderscheidt zonneladen, manueel en '
+                              'gestopt; een manuele melding gaat vóór de instelling. De gekoppelde Wallbox en haar geregistreerde '
+                              'apparaatuitgangen blijven ook beschermd wanneer de SolarPilot-monitor uit staat. Gewone toestel- of '
+                              'batterijscripts mogen deze grens niet omzeilen.',
+                              'Onder Wallbox voorrang geven kies je 30 min, 1 uur, 2 uur, 3 uur, 4 uur, 5 uur of tot ik terug op automatisch '
+                              'zet. Tijdelijk toont de kaart een aftelklok tot de opgeslagen eindtijd. De laatste keuze toont letterlijk tot ik '
+                              'terug op automatisch zet en heeft geen aftelklok. De gewone Home Assistant-schakelaar inschakelen kiest '
+                              'standaard 30 minuten; met de bijbehorende keuzelijst of SolarPilot-kaart kies je de gewenste duur. Een keuze '
+                              'loopt door tijdens Alleen bekijken of Pauze, zonder daarmee apparaten te bedienen.',
+                              'De algemene keuze kopieert haar duur en dezelfde eindtijd naar de dan ondersteunde individuele toestelkeuzes. '
+                              'Daarna blijft ieder toestel apart bedienbaar: Automatisch volgt voor dat toestel weer de opgeslagen rangorde, '
+                              'een eigen tijdelijke keuze krijgt haar eigen eindtijd en de blijvende keuze blijft actief tot je terugschakelt. '
+                              'Een algemene wijziging wordt opnieuw naar de betrokken toestellen gekopieerd. Een individueel gewijzigde keuze '
+                              'verandert de algemene aftelklok niet.',
+                              'Algemeen terug naar Automatisch zet alle individuele uitzonderingen terug op Automatisch. Dat geldt zowel '
+                              'wanneer je zelf terugschakelt als wanneer de algemene tijd afloopt, ook voor een tussentijds afwijkend of '
+                              'blijvend ingesteld toestel. Als de algemene keuze al Automatisch is maar er nog individuele uitzonderingen zijn, '
+                              'kun je Alle toestellen terug op Automatisch kiezen. Een eigen individuele afloop verandert de andere toestellen '
+                              'niet.',
+                              'De eindtijd is absoluut en blijft na herladen of Home Assistant-herstart behouden; de gekozen tijd begint niet '
+                              'opnieuw. Een tijdens afwezigheid afgelopen algemene keuze ruimt bij herstel ook de individuele uitzonderingen '
+                              'op. Voor een blijvende keuze blijft de tekst tot ik terug op automatisch zet staan. De voorkeur zelf is geen '
+                              'bewijs van een verbonden auto, actuele laadvraag of beschikbaar vermogen.',
+                              'Wallbox voorrang geven laat alleen daarvoor geschikte flexibele SolarPilot-last wijken via de bestaande '
+                              'voorwaarden voor actuele laadvraag, hysterese, klein overschot en veilige overdracht. Het start of versnelt de '
+                              'auto niet rechtstreeks. Minimumlooptijden, beschermde cycli, echte terugmelding en elektrische grenzen blijven '
+                              'gelden. Noodzakelijk Panasonic-comfort loopt zelfstandig door; de individuele warmtepompkeuze betreft '
+                              'uitsluitend de optionele SG-zonneboost en verleent nooit recht om EV-vermogen over te nemen. Tijdelijke '
+                              'handmatige SG-Aan/Uit-bediening blijft een afzonderlijke keuze met haar eigen voorwaarden. De nieuwe tijdelijke '
+                              'voorkeur blokkeert een nieuwe optionele SG-start en respecteert bij een lopende SG-aanvraag de oorspronkelijke '
+                              'bevestigde minimumduur. Bestaande vrijgavegronden blijven gelden: de bestaande Wallbox-/EV-, elektrische, koel-, '
+                              'bron-, handmatige Uit- en communicatieregels kunnen eerder vrijgeven. Panasonic-comfort wordt niet '
+                              'uitgeschakeld.',
+                              'De afwasmachine heeft geen Wallbox-voorrangschakelaar en de algemene keuze voegt er geen startblokkering aan '
+                              'toe. Haar bestaande geldige klaarzettoestemming, deur- en apparaatvoorwaarden, vaste deadline, '
+                              'net-/fase-/vermogensruimte en regelmodus blijven gelden. Een ingeschakelde afwasmachine is daarmee geen nieuwe '
+                              'opdracht om zonder toestemming of veiligheidsvrijgave te starten. Een reeds begonnen beurt mag afwerken.',
+                              'Voorwaardelijk overneembaar EV-vermogen bestaat alleen voor een toegestaan toestel boven de Wallbox in de '
+                              'centrale lijst, met afzonderlijke toestemming en betrouwbare eigen meter/adapter en bevestigde zonnelaadsessie. '
+                              'SG-zonneboost gebruikt dit krediet nooit. Bij manueel, oud, onbekend of strijdig laden blijft alleen echte '
+                              'restinjectie bruikbaar. Geen ontbrekende sessiestatus gokken uit netafname.',
+                              'EV-vermogen vergroot geen elektrische capaciteit. De volledige nieuwe belasting moet vóór een opdracht binnen '
+                              'net-, kwartierpiek- en fasegrenzen passen alsof de laadpaal nog niet heeft gereageerd. Eén stap tegelijk en '
+                              'nieuwe rapportages blijven vereist. Lange minimumlooptijden en beschermde programma’s worden niet ingekort om '
+                              'vermogen sneller terug te nemen.',
+                              'Een verse lage laadkracht heft een reserve alleen op met een expliciete inactieve status, geen laadvraag of geen '
+                              'verbonden auto. Lage kracht alleen is onvoldoende. Klein restoverschot kan volgens de bestaande voorkeur door '
+                              'een lager toestel worden benut; veilige vrijgave kan later de autonome zonne-autostart ondersteunen. Bestaande '
+                              'voorkeuren en wachttijden blijven behouden.',
+                              'Het laadprofiel leest expliciete grenzen en fasen uit betrouwbare bronnen of gebruikt een bewust bevestigd '
+                              'terugvalprofiel. Huisaansluitstroom is geen laadstroomlimiet. SolarPilot verandert die waarden niet. Het '
+                              'dashboard onderscheidt sessie, ingestelde zonnemodus, werkelijk laden en wachtreden. Lokaal bewaarde '
+                              'laadperiode-eindes krijgen alleen een native stopreden bij aantoonbaar passende nieuwe rapportage; een meetgat '
+                              'of herstart is geen bewezen stopoorzaak.',
+                              'Een gekoppelde Wallboxsessiebron die oud, onbeschikbaar of ongeldig is blijft onbekend. Beta.74 benoemt die '
+                              'bronkwaliteit als oorzaak bij de leervraag in plaats van onbekend te laten klinken als een bevestigde '
+                              'sessiestand. De ingestelde stale-grens, bestaande bewijsregels en read-only Wallboxbevoegdheid blijven gelijk.',
+                              'Geen of oude laadgegevens leggen andere SolarPilot-toestellen niet stil. De actuele P1-injectie bevat het '
+                              'werkelijke verbruik van de hele woning, inclusief de auto; alleen het resterende gemeten overschot komt '
+                              'beschikbaar, na de gewone reserves, batterijcorrectie en toewijzingen. Ontbrekend laadvermogen blijft onbekend '
+                              'en wordt geen gemeten nul of overneembaar EV-vermogen. Dit geldt ook voor SG-zonneboost, dat nooit EV-krediet '
+                              'krijgt. Een verse bewezen laadvraag of laadsessie behoudt de gekozen voorrang. Actuele '
+                              'net-/fase-/kwartiergrenzen, minimumtijden, beschermde cycli en apparaatvoorwaarden blijven gelden.'],
                'bullets': []},
               {'title': '8. Gewone flexibele toestellen en ontvochtiger',
-               'paragraphs': ['Bestaande toestellen behouden hun adapter, deelname, centrale positie, meter, '
-                              'minimumlooptijd, rusttijd, bescherming, dagdoel en bewuste nettoestemming. '
-                              'Nieuwe identiteiten beginnen Uitgesloten. Een onbereikbaar toestel wordt '
-                              'tijdelijk geïsoleerd en na bruikbaar bronherstel weer beoordeeld; deelname '
-                              'wordt niet stil veranderd.',
-                              'Actief betekent de werkelijk waargenomen aan-/actiefstatus, niet gegarandeerd continu compressorbedrijf of uitsluitend zonnegebruik. Gemeten W, geraamd W en onbekend blijven verschillende labels. Een ontbrekende noodzakelijke meting geeft geen verzonnen nul. Een fout wordt gericht bij de betrokken functie verklaard; alleen echte gedeelde onzekerheid mag andere starts beperken. Bij een lopende beschermde afwascyclus zonder eigen vermogensmeter blijft één reserve voor een mogelijke latere verwarmingspiek staan. Actuele injectie na huisreserve is daardoor niet automatisch volledig beschikbaar voor een lagere last. Diezelfde reserve wordt bij nieuwe toestel- of batterijopdrachten niet opnieuw afgetrokken.',
-                              'Handmatig starten/stoppen en een tijdelijke toestelboost gebruiken de bestaande '
-                              'toestemming en bescherming. Het zijn geen noodstop of bypass van fabrikant- en '
-                              'softwaregrenzen. Een looptijd mag tijdelijk netgebruik noodzakelijk maken. Een '
-                              'pure planningswijziging bij een bevestigde binaire AAN-last geeft geen nieuwe '
+               'paragraphs': ['Bestaande toestellen behouden hun adapter, deelname, centrale positie, meter, minimumlooptijd, rusttijd, '
+                              'bescherming, dagdoel en bewuste nettoestemming. Nieuwe identiteiten beginnen Uitgesloten. Tijdelijke '
+                              'onbereikbaarheid van een gewoon toestel geeft een informatieve herstelwacht, geen blijvende opdrachtfout. Elke '
+                              'vijf minuten volgt een nieuwe beoordeling. Alleen opnieuw bereikbare, voldoende actuele bronnen en de op dat '
+                              'moment geldige vraag, voorrang, tijden, modus en elektrische ruimte kunnen daarna een nieuwe opdracht toelaten. '
+                              'Een gemiste opdracht wordt niet uit een oude planning afgespeeld; deelname wordt niet stil gewijzigd.',
+                              'Actief betekent de werkelijk waargenomen aan-/actiefstatus, niet gegarandeerd continu compressorbedrijf of '
+                              'uitsluitend zonnegebruik. Gemeten W, geraamd W en onbekend blijven verschillende labels. Een ontbrekende '
+                              'noodzakelijke meting geeft geen verzonnen nul. Voor een tijdelijk offline geïsoleerd toestel geldt geen extra '
+                              'geschatte verbruiksreserve: het werkelijke P1-overschot is leidend. Onzeker eigendom en mogelijk al uitgevoerde '
+                              'opdrachten blijven afzonderlijk bewaard tot passende verse terugmelding; zij geven geen blind herhaalrecht. '
+                              'Actuele net-/fase-/kwartiergrenzen en betrouwbare gedeelde bronnen blijven gelden. Een echte configuratie-, '
+                              'authenticatie-, toestemmings-, interne of fysieke fout blijft gericht zichtbaar. De afzonderlijke toekomstige '
+                              'afwaspiek blijft alleen gelden bij werkelijk nu betrouwbaar gemelde actieve afwasstatus; een oude offline '
+                              'ON-status geeft geen extra piekreserve. De afzonderlijke SG-reserve en haar strengere voorwaarden blijven '
+                              'gelden. Bij een lopende beschermde afwascyclus zonder eigen vermogensmeter blijft de volledige toekomstige piek '
+                              'binnen de totale elektrische ruimte gereserveerd; geschikte gewone onderbreekbare lasten mogen volgens beta.89 '
+                              'wel de werkelijk resterende zonnepot benutten. Dezelfde reserve wordt bij nieuwe toestel- of batterijopdrachten '
+                              'niet opnieuw afgetrokken.',
+                              'Er zijn twee herstelwachten: bronherstel en verzoening van een mogelijk uitgevoerde opdracht. De vaste '
+                              'hercontrole bedraagt 300 seconden. Een bron die vanzelf eerder met bruikbare nieuwe status terugkeert kan al '
+                              'passief worden waargenomen; SolarPilot stuurt geen fysieke proefopdracht om bereikbaarheid te testen. Bij '
+                              'opdrachtonzekerheid is passende nieuwe terugmelding ná de poging vereist voordat normale planning weer beslist. '
+                              'Alleen exact herkende oudere gewone transport-/timeout-/terugmeldfouten gaan over naar deze wachtstatus; een oud '
+                              'opgeslagen statusbericht na upgrade bewijst geen herstel. Andere fouten worden niet stil gewist.',
+                              'Staat een eerder door SolarPilot beheerd toestel bij herstel nog AAN, dan hoeft het niet eerst UIT en opnieuw '
+                              'AAN om Automatisch te kunnen hervatten. Dit vereist dat de bewaarde eigen opdracht-/eigendomcontext en passende '
+                              'nieuwe oorspronkelijke AAN-terugmelding na de upgrade werkelijk overeenkomen; een extern ingeschakeld toestel '
+                              'wordt hiermee niet stil overgenomen. SolarPilot bevestigt dan de bestaande eigen AAN-toestand zonder nieuwe '
+                              'schakelopdracht en bewaakt vanaf de herstelwaarneming opnieuw de volledige ingestelde minimumlooptijd. Daarna '
+                              'kan een later actueel tekort onder de gewone stopvoorwaarden wel tot uitschakelen leiden. Automatisch is direct '
+                              'kiesbaar terwijl de afzonderlijke herstelwacht zo nodig tot de volgende 300s-hercontrole en passend nieuw bewijs '
+                              'blijft staan.',
+                              'Handmatig starten/stoppen en een tijdelijke toestelboost gebruiken de bestaande toestemming en bescherming. Het '
+                              'zijn geen noodstop of bypass van fabrikant- en softwaregrenzen. Een looptijd mag tijdelijk netgebruik '
+                              'noodzakelijk maken. Een pure planningswijziging bij een bevestigde binaire AAN-last geeft geen nieuwe '
                               'turn_on-opdracht.',
-                              'Toestel- en batterijscripts worden vóór uitvoering op vaste onafhankelijke doelapparaten gecontroleerd. Panasonic en het gereserveerde SG-contact mogen niet indirect worden bediend. Ontbrekende of niet controleerbare scriptinhoud en dynamische doelen blijven geblokkeerd. Dit bewijst geen fysieke veiligheid van het script; geschikte terugmelding en de bestaande toestemming blijven nodig. Ook gekoppelde en geregistreerde AEG-uitgangen zijn gereserveerd: een gewoon of genest script mag geen afwasstart, programmawijziging of stop uitvoeren. Gewone nieuwe opdrachten en batterijdoelen controleren hun actuele vrijgave opnieuw nadat het opdrachtjournaal duurzaam is opgeslagen. Batterijopdrachten die netafname verhogen controleren ook de bestaande vaste netafnamegrens, actuele kwartier- en ingeschakelde fase-importgrenzen vóór en na opslag. Alleen de bestaande expliciete faseverdeling geldt; een onbekende verdeling krijgt geen verzonnen driefasespreiding. De bestaande neutrale vrijgave blijft behouden.'],
+                              'Toestel- en batterijscripts worden vóór uitvoering op vaste onafhankelijke doelapparaten gecontroleerd. '
+                              'Panasonic en het gereserveerde SG-contact mogen niet indirect worden bediend. Ontbrekende of niet controleerbare '
+                              'scriptinhoud en dynamische doelen blijven geblokkeerd. Dit bewijst geen fysieke veiligheid van het script; '
+                              'geschikte terugmelding en de bestaande toestemming blijven nodig. Ook gekoppelde en geregistreerde AEG-uitgangen '
+                              'zijn gereserveerd: een gewoon of genest script mag geen afwasstart, programmawijziging of stop uitvoeren. Gewone '
+                              'nieuwe opdrachten en batterijdoelen controleren hun actuele vrijgave opnieuw nadat het opdrachtjournaal duurzaam '
+                              'is opgeslagen. Batterijopdrachten die netafname verhogen controleren ook de bestaande vaste netafnamegrens, '
+                              'actuele kwartier- en ingeschakelde fase-importgrenzen vóór en na opslag. Alleen de bestaande expliciete '
+                              'faseverdeling geldt; een onbekende verdeling krijgt geen verzonnen driefasespreiding. De bestaande neutrale '
+                              'vrijgave blijft behouden.',
+                              'Een terugkerend eerder eigen AAN-toestel behoudt de volledige minimumlooptijd vanaf de herstelwaarneming. De '
+                              'export toont die waarneming, eindtijd en resterende bescherming afzonderlijk. Een regelbaar number-toestel '
+                              'vergelijkt zijn echte positieve opgeslagen doel met de huidige instelling; het nominale maximum vervangt dat '
+                              'doel niet bij herstart. Een echte externe wijziging blijft handmatige overname.'],
                'bullets': []},
               {'title': '9. AEG-afwasmachine: één START per belading',
-               'paragraphs': ['De bestaande AEG/Electrolux-adapter verstuurt alleen de gecontroleerde native '
-                              'START-knop. Geen PAUSE, RESUME, STOPRESET, programmawijziging, native '
-                              'afteltimer of stroomonderbreking via een stekker. Een gestarte, gepauzeerde of '
-                              'nadrogende beurt blijft beschermd, ook bij wolken, Pauze of een manuele '
-                              'autosessie.',
-                              'In APP-modus maakt alleen een nieuwe fysieke overgang naar exact RemoteControl '
-                              'Enabled één aanvraag. Enabled bij opstart, reconnect of migratie is geen nieuwe '
-                              'belading; Not Safety Relevant Enabled is geen toestemming. Ready To Start, '
-                              'gesloten deur, geldig programma, bruikbare verbinding en eventuele '
-                              'alarmcontrole blijven vereist. ConnectivityState levert de heartbeat: '
-                              'onveranderde geldige statische deur-/programma-/gereedwaarden vervallen niet '
-                              'alleen doordat de tekst gelijk blijft. Unknown, Unavailable en restored blijven '
-                              'beschermd.',
-                              'Standaard geldt 13:00 als uiterste starttijd. Een aanvraag vóór de deadline '
-                              'gebruikt dezelfde kalenderdag; op/na de deadline geldt de opgeslagen keuze, '
-                              'standaard volgende dag. Een optionele maandagdeadline staat standaard leeg en '
-                              'gebruikt dan ook maandag de gewone tijd. Alleen een bewust ingestelde '
-                              'maandagwaarde wijzigt die dag. Tijdzone, geplande dag en toestemming worden in '
-                              'het aanvraagticket bevroren en over herstart bewaard.',
-                              'Een zonnestart vereist de ingestelde stabiele injectietijd, standaard 300 seconden voor nieuwe profielen. Op de vastgelegde APP-startdeadline vervalt de zonnevoorwaarde altijd en mag netstroom aanvullen. Een oude uitgeschakelde nettoestemmingsvlag kan deze vaste deadline niet meer in zonwachten veranderen. Een lage batterij-SoC of Wallbox-zonnevoorkeur houdt deze netstart niet tegen; er volgt geen batterij- of Wallbox-opdracht. Actuele net-/fase-/kwartierpiekruimte, globale modus en toestelvrijgave blijven nodig. Een na dertig seconden nog geblokkeerde deadline geeft eenmaal een melding met de actuele blokkering. Een in dezelfde ronde geselecteerde START geeft geen tegenstrijdige deadlinefout; een passende native Running-bevestiging ruimt de eerdere melding op. De verbruikte aanvraag blijft met haar vaste deadline en afzonderlijke startaanvraag/native bevestiging zichtbaar, zonder toestemming voor een tweede start; de standaard hersteltermijn van een nog niet verzonden start is 120 minuten, daarna is een nieuwe APP-aanvraag nodig. Een expliciete wijziging van de starttijd naar een tijdstip vóór de reeds vastgelegde vrijgave wacht niet ongemerkt tot morgen; voor een nog geldige aanvraag wordt de deadline dan nu bereikt, met behoud van de oorspronkelijke belading en vrijgavevoorwaarden.',
-                              'Het ticket wordt vóór START duurzaam als geprobeerd bewaard. Alleen een nieuwe passende Running-rapportage bevestigt start. Een onzekere of mislukte START wordt niet blind herhaald, ook niet na herstart. Handmatig starten verbruikt dezelfde aanvraag. Een gewijzigde deur, programma, koppeling of ingetrokken APP-vrijgave annuleert alleen de nog wachtende aanvraag. Onbekende of misvormde toestemmingsopslag blijft exact bewaard en blokkeert nieuwe afwasaanvragen en START. Alleen bekijken van native status en andere geldige regelingen blijven mogelijk; Controle afronden maakt geen nieuwe toestemming en wist deze opslagblokkering niet. Een onbekende of extreme APP-tijdstempel wordt privé behouden zonder nieuwe toestemming; een opgeslagen Running-rapport uit de toekomst kan geen huidige START bevestigen.',
-                              'End Of Cycle wordt eventgestuurd opgeslagen en blijft na Off, onbereikbaarheid '
-                              'en herstart zichtbaar. AirDry/Ado Drying betekent nadrogen, geen einde of '
-                              'nieuwe belading. Alleen Off of een onderbreking bewijst geen voltooiing; '
-                              'onbekende starttijd wordt geen exacte duur. Een nieuw betrouwbaar Ready To '
-                              'Start kan een achtergebleven oude cyclus als einde niet bevestigd afsluiten '
-                              'zonder een oude aanvraag te herstellen.',
-                              'Zonder exclusieve meter blijft de ingestelde nominale belasting een conservatieve toekomstige piekraming en geen gemeten actueel verbruik of faseprofiel. Alleen gewone onderbreekbare lasten krijgen bij een betrouwbare actuele actieve onbemeterde afwasstatus de beschreven uitzondering op de zachte zonnepot; de gehele piek blijft in de totale elektrische ruimte staan. Een gekoppelde maar onbruikbare meter geeft die uitzondering niet. Met bruikbare W/kW worden volledige gedekte cycli geleerd. Een voorkeur-AEG en een vandaag veilig startklaar ticket behouden hun startkans volgens de centrale lijst. SG gebruikt uitsluitend overblijvende ruimte en neemt geen afwasvermogen af. Een al lopende beurt is geen algemeen SG-veto wanneer na alle reserves genoeg echte ruimte resteert.',
-                              'Veilige overname van autonoom EV-zonnevermogen behoudt de bestaande '
-                              'afzonderlijke AEG-route en opt-in. De hele belasting moet passen vóór '
-                              'Wallbox-reactie. Een onzekere balans kan latere EV-gebaseerde starts blokkeren '
-                              'en een controle vragen, maar breekt de lopende beurt nooit af. Gerichte oudere '
-                              'profielherstelmigraties mogen alleen complete eenduidige koppelingen herstellen '
-                              'en maken zelf geen APP-ticket of fysieke START.'],
+               'paragraphs': ['De bestaande AEG/Electrolux-adapter verstuurt alleen de gecontroleerde native START-knop. Geen PAUSE, RESUME, '
+                              'STOPRESET, programmawijziging, native afteltimer of stroomonderbreking via een stekker. Een gestarte, '
+                              'gepauzeerde of nadrogende beurt blijft beschermd, ook bij wolken, Pauze of een manuele autosessie.',
+                              'In APP-modus maakt alleen een nieuwe fysieke overgang naar exact RemoteControl Enabled één aanvraag. Enabled bij '
+                              'opstart, reconnect of migratie is geen nieuwe belading; Not Safety Relevant Enabled is geen toestemming. Ready '
+                              'To Start, gesloten deur, geldig programma, bruikbare verbinding en eventuele alarmcontrole blijven vereist. '
+                              'ConnectivityState levert de heartbeat: onveranderde geldige statische deur-/programma-/gereedwaarden vervallen '
+                              'niet alleen doordat de tekst gelijk blijft. Unknown, Unavailable en restored blijven beschermd.',
+                              'Standaard geldt 13:00 als uiterste starttijd. Een aanvraag vóór de deadline gebruikt dezelfde kalenderdag; op/na '
+                              'de deadline geldt de opgeslagen keuze, standaard volgende dag. Een optionele maandagdeadline staat standaard '
+                              'leeg en gebruikt dan ook maandag de gewone tijd. Alleen een bewust ingestelde maandagwaarde wijzigt die dag. '
+                              'Tijdzone, geplande dag en toestemming worden in het aanvraagticket bevroren en over herstart bewaard.',
+                              'Een zonnestart vereist de ingestelde stabiele injectietijd, standaard 300 seconden voor nieuwe profielen. Op de '
+                              'vastgelegde APP-startdeadline vervalt de zonnevoorwaarde altijd en mag netstroom aanvullen. Een oude '
+                              'uitgeschakelde nettoestemmingsvlag kan deze vaste deadline niet meer in zonwachten veranderen. Een lage '
+                              'batterij-SoC of Wallbox-zonnevoorkeur houdt deze netstart niet tegen; er volgt geen batterij- of '
+                              'Wallbox-opdracht. Actuele net-/fase-/kwartierpiekruimte, globale modus en toestelvrijgave blijven nodig. Een na '
+                              'dertig seconden nog geblokkeerde deadline geeft eenmaal een melding met de actuele blokkering. Een in dezelfde '
+                              'ronde geselecteerde START geeft geen tegenstrijdige deadlinefout; een passende native Running-bevestiging ruimt '
+                              'de eerdere melding op. De verbruikte aanvraag blijft met haar vaste deadline en afzonderlijke '
+                              'startaanvraag/native bevestiging zichtbaar, zonder toestemming voor een tweede start; de standaard '
+                              'hersteltermijn van een nog niet verzonden start is 120 minuten, daarna is een nieuwe APP-aanvraag nodig. Een '
+                              'expliciete wijziging van de starttijd naar een tijdstip vóór de reeds vastgelegde vrijgave wacht niet ongemerkt '
+                              'tot morgen; voor een nog geldige aanvraag wordt de deadline dan nu bereikt, met behoud van de oorspronkelijke '
+                              'belading en vrijgavevoorwaarden.',
+                              'Het ticket wordt vóór START duurzaam als geprobeerd bewaard. Alleen een nieuwe passende Running-rapportage '
+                              'bevestigt start. Een onzekere of mislukte START wordt niet blind herhaald, ook niet na herstart. Handmatig '
+                              'starten verbruikt dezelfde aanvraag. Een gewijzigde deur, programma, koppeling of ingetrokken APP-vrijgave '
+                              'annuleert alleen de nog wachtende aanvraag. Onbekende of misvormde toestemmingsopslag blijft exact bewaard en '
+                              'blokkeert nieuwe afwasaanvragen en START. Alleen bekijken van native status en andere geldige regelingen blijven '
+                              'mogelijk; Controle afronden maakt geen nieuwe toestemming en wist deze opslagblokkering niet. Een onbekende of '
+                              'extreme APP-tijdstempel wordt privé behouden zonder nieuwe toestemming; een opgeslagen Running-rapport uit de '
+                              'toekomst kan geen huidige START bevestigen.',
+                              'Een tijdelijk onbereikbare of oude verbindingsbron geeft op de kaart een wachtreden. Herbeoordeling kan alleen '
+                              'een nog geldige, aantoonbaar niet eerder verzonden START laten uitvoeren wanneer de oorspronkelijke aanvraag en '
+                              'actuele toestel-/ruimtevoorwaarden opnieuw passen. Een al geprobeerd of onzeker START blijft verbruikt en wordt '
+                              'ook na vijf minuten of herstart niet opnieuw gestuurd. De herstelwacht maakt geen nieuwe APP-aanvraag, verlengt '
+                              'de bestaande deadline of hersteltermijn niet en onderbreekt geen lopend programma.',
+                              'End Of Cycle wordt eventgestuurd opgeslagen en blijft na Off, onbereikbaarheid en herstart zichtbaar. AirDry/Ado '
+                              'Drying betekent nadrogen, geen einde of nieuwe belading. Alleen Off of een onderbreking bewijst geen voltooiing; '
+                              'onbekende starttijd wordt geen exacte duur. Een nieuw betrouwbaar Ready To Start kan een achtergebleven oude '
+                              'cyclus als einde niet bevestigd afsluiten zonder een oude aanvraag te herstellen.',
+                              'Zonder exclusieve meter blijft de ingestelde nominale belasting bij actuele betrouwbare actieve afwasstatus een '
+                              'conservatieve toekomstige piekraming en geen gemeten actueel verbruik of faseprofiel. Een oude ON-status van een '
+                              'offline geïsoleerde afwasmachine geeft vanaf beta.90 geen extra hypothetische piekreserve. Alleen gewone '
+                              'onderbreekbare lasten krijgen bij een betrouwbare actuele actieve onbemeterde afwasstatus de beschreven '
+                              'uitzondering op de zachte zonnepot; de gehele piek blijft in de totale elektrische ruimte staan. Een gekoppelde '
+                              'maar onbruikbare meter geeft die uitzondering niet. Met bruikbare W/kW worden volledige gedekte cycli geleerd. '
+                              'Een voorkeur-AEG en een vandaag veilig startklaar ticket behouden hun startkans volgens de centrale lijst. SG '
+                              'gebruikt uitsluitend overblijvende ruimte en neemt geen afwasvermogen af. Een al lopende beurt is geen algemeen '
+                              'SG-veto wanneer na alle reserves genoeg echte ruimte resteert.',
+                              'Veilige overname van autonoom EV-zonnevermogen behoudt de bestaande afzonderlijke AEG-route en opt-in. De hele '
+                              'belasting moet passen vóór Wallbox-reactie. Een onzekere balans kan latere EV-gebaseerde starts blokkeren en een '
+                              'controle vragen, maar breekt de lopende beurt nooit af. Gerichte oudere profielherstelmigraties mogen alleen '
+                              'complete eenduidige koppelingen herstellen en maken zelf geen APP-ticket of fysieke START.',
+                              'Een vroegere bevestigde afwasvoltooiing blijft met haar oorspronkelijke tijd bewaard wanneer de cloudverbinding '
+                              'later wegvalt. Zij wordt geen bewijs dat de afwasmachine nu bereikbaar of UIT is. Actuele status en export '
+                              'gebruiken de oorspronkelijke bruikbare huidige bron; een ontbrekende rapporttijd blijft onbekend en wordt geen '
+                              'datum in 1970. Een nieuw eenmalig waargenomen einde blijft de oorspronkelijke beurt afsluiten, zonder nieuwe '
+                              'START of opnieuw klaarzetten.'],
                'bullets': []},
               {'title': '10. PV-model en Forecast.Solar',
-               'paragraphs': ['Forecast.Solar levert de basisverwachting via bestaande Home Assistant-bronnen '
-                              'en, waar ondersteund, de geladen coordinatorcurve. SolarPilot doet hiervoor '
-                              'geen nieuwe cloudpolling. Expliciete bronkeuzes blijven staan; bij precies één '
-                              'eenduidige installatie kan het register koppelingen vinden. Meerdere '
-                              'installaties vragen een bewuste keuze. Ontbrekende of oude forecast maakt geen '
-                              'virtueel huidig overschot.',
-                              ("PV-diagnose bewaart oorspronkelijke forecastuitgifte uitsluitend als een bruikbare oorspronkelijke tijd expliciet beschikbaar is. Een ontbrekende of ongeldige tijd, nul of een sentinel wordt geen 1970-datum; lokale ontvangst blijft afzonderlijk. Vooruit vastgelegde verwachtingen houden hun echte voorspellingstermijn en latere vergelijking. Een actuele of later bijgestelde forecast is geen bewijs van vroegere planning. Vooruit-PV-scores onderscheiden daglicht en nacht met afzonderlijke aantallen en foutmaten; veel nachtelijke nulpunten maken de daglichtscore niet kunstmatig gunstiger. Afzonderlijke scores worden uitsluitend op hun eigen beschikbare vergelijkingen berekend. Per kalibratiekwartier verklaren begrensde aantallen geldige en afgekeurde oorspronkelijke waarnemingen, redenen en brontijddekking waarom een eindige mediaan toch geen leerbewijs geeft. Bestaande leercriteria en factorgrenzen veranderen niet."),
-                              'Wattpiekvermogen van panelen en AC-omvormergrens blijven afzonderlijke '
-                              'instelwaarden. De actuele productiekleur en clipping gebruiken de ingestelde '
-                              'omvormergrens. SolarPilot wijzigt Forecast.Solar-instellingen niet. Geleerde '
-                              'lokale correctie wordt begrensd; onbekende delen van een curve of een scalar na '
-                              'haar lokale dag-/uurgrens worden niet automatisch nul of een nieuwe '
-                              'voorspelling.',
-                              'Kwartierkalibratie verzamelt maximaal één verse waarneming per minuut. Een '
-                              'kwartier vereist minstens twaalf geldige waarnemingen, elf minuten spreiding en '
-                              'voldoende dekking. De eerste tien minuten na start/reload, clipping, ongeldige '
-                              'geschatte bronnen en sterk wisselende verhoudingen worden niet als structurele '
-                              'schaduw geleerd. Geweigerde kwartieren blijven met reden inspecteerbaar. '
-                              'Een enkele sterke maar stabiele overgang kan wel als kandidaat worden bewaard, alleen uit een volledig geldig kwartier met rustige delen voor en na de overgang. Pas na het ingestelde minimum aan verschillende vergelijkbare dagen met dezelfde richting, timing en verhoudingen wordt een empirische overgangscorrectie geleerd. Eén wolk, herhaalde uitlezing, clipping of een meetgat is hiervoor geen bewijs. De factor van zo een kwartier volgt de geïntegreerde energieverhouding; vroegere geweigerde kwartieren worden niet achteraf goedgekeurd.',
-                              'Het lokale model gebruikt vergelijkbare dagen, zonnegeometrie waar bruikbaar en '
-                              'seizoensgroepen, zonder vaste schaduwklok. Een empirische afwijking bewijst '
-                              'niet welke fysieke oorzaak haar gaf. Bron-/profielwijzigingen maken alleen '
-                              'onverenigbare PV-factoren opnieuw te leren; andere modellen worden niet gewist. '
-                              'Oude historische kwartieren zonder gelijktijdige forecast zijn geen bewezen '
-                              'live kalibratie. Terugkerende overgangsgegevens blijven begrensd lokaal bewaard in de bestaande PV-opslag. Bestaande factoren, instellingen en uitschakelkeuzes blijven behouden. De leerstap blijft per dag begrensd volgens de gekozen preset; een oorzaak zoals een boom wordt niet automatisch vastgesteld.',
-                              'PV-diagnose toont ruwe/gecorrigeerde/werkelijke W, dekking, fouten, geweigerde '
-                              'kwartieren en leerdagen. Leerdagen totaal staan apart van passende dagen voor ieder voorspeld tijdvak. De reden voor de toegepaste factor en een namiddagprofiel tussen 15 en 18 uur per kwartier zijn zichtbaar. De factor voor nu is geen vaste dagfactor. Zij wordt afzonderlijk opgevraagd en gebruikt '
-                              'bestaande lokale informatie. De bestaande grenzen van dertig dagen en 2880 '
-                              'diagnosekwartieren blijven gelden. Voorspellingssensoren zijn geen '
-                              'gecertificeerde energietellers; dagen bij zomer-/wintertijd worden op echte '
-                              'tijdstempels berekend.'],
+               'paragraphs': ['Forecast.Solar levert de basisverwachting via bestaande Home Assistant-bronnen en, waar ondersteund, de geladen '
+                              'coordinatorcurve. SolarPilot doet hiervoor geen nieuwe cloudpolling. Expliciete bronkeuzes blijven staan; bij '
+                              'precies één eenduidige installatie kan het register koppelingen vinden. Meerdere installaties vragen een bewuste '
+                              'keuze. Ontbrekende of oude forecast maakt geen virtueel huidig overschot.',
+                              'PV-diagnose bewaart oorspronkelijke forecastuitgifte uitsluitend als een bruikbare oorspronkelijke tijd '
+                              'expliciet beschikbaar is. Een ontbrekende of ongeldige tijd, nul of een sentinel wordt geen 1970-datum; lokale '
+                              'ontvangst blijft afzonderlijk. Vooruit vastgelegde verwachtingen houden hun echte voorspellingstermijn en latere '
+                              'vergelijking. Een actuele of later bijgestelde forecast is geen bewijs van vroegere planning. Vooruit-PV-scores '
+                              'onderscheiden daglicht en nacht met afzonderlijke aantallen en foutmaten; veel nachtelijke nulpunten maken de '
+                              'daglichtscore niet kunstmatig gunstiger. Afzonderlijke scores worden uitsluitend op hun eigen beschikbare '
+                              'vergelijkingen berekend. Per kalibratiekwartier verklaren begrensde aantallen geldige en afgekeurde '
+                              'oorspronkelijke waarnemingen, redenen en brontijddekking waarom een eindige mediaan toch geen leerbewijs geeft. '
+                              'Bestaande leercriteria en factorgrenzen veranderen niet.',
+                              'Wattpiekvermogen van panelen en AC-omvormergrens blijven afzonderlijke instelwaarden. De actuele productiekleur '
+                              'en clipping gebruiken de ingestelde omvormergrens. SolarPilot wijzigt Forecast.Solar-instellingen niet. Geleerde '
+                              'lokale correctie wordt begrensd; onbekende delen van een curve of een scalar na haar lokale dag-/uurgrens worden '
+                              'niet automatisch nul of een nieuwe voorspelling.',
+                              'Kwartierkalibratie verzamelt maximaal één verse waarneming per minuut. Een kwartier vereist minstens twaalf '
+                              'geldige waarnemingen, elf minuten spreiding en voldoende dekking. De eerste tien minuten na start/reload, '
+                              'clipping, ongeldige geschatte bronnen en sterk wisselende verhoudingen worden niet als structurele schaduw '
+                              'geleerd. Geweigerde kwartieren blijven met reden inspecteerbaar. Een enkele sterke maar stabiele overgang kan '
+                              'wel als kandidaat worden bewaard, alleen uit een volledig geldig kwartier met rustige delen voor en na de '
+                              'overgang. Pas na het ingestelde minimum aan verschillende vergelijkbare dagen met dezelfde richting, timing en '
+                              'verhoudingen wordt een empirische overgangscorrectie geleerd. Eén wolk, herhaalde uitlezing, clipping of een '
+                              'meetgat is hiervoor geen bewijs. De factor van zo een kwartier volgt de geïntegreerde energieverhouding; '
+                              'vroegere geweigerde kwartieren worden niet achteraf goedgekeurd.',
+                              'Het lokale model gebruikt vergelijkbare dagen, zonnegeometrie waar bruikbaar en seizoensgroepen, zonder vaste '
+                              'schaduwklok. Een empirische afwijking bewijst niet welke fysieke oorzaak haar gaf. Bron-/profielwijzigingen '
+                              'maken alleen onverenigbare PV-factoren opnieuw te leren; andere modellen worden niet gewist. Oude historische '
+                              'kwartieren zonder gelijktijdige forecast zijn geen bewezen live kalibratie. Terugkerende overgangsgegevens '
+                              'blijven begrensd lokaal bewaard in de bestaande PV-opslag. Bestaande factoren, instellingen en uitschakelkeuzes '
+                              'blijven behouden. De leerstap blijft per dag begrensd volgens de gekozen preset; een oorzaak zoals een boom '
+                              'wordt niet automatisch vastgesteld.',
+                              'PV-diagnose toont ruwe/gecorrigeerde/werkelijke W, dekking, fouten, geweigerde kwartieren en leerdagen. '
+                              'Leerdagen totaal staan apart van passende dagen voor ieder voorspeld tijdvak. De reden voor de toegepaste factor '
+                              'en een namiddagprofiel tussen 15 en 18 uur per kwartier zijn zichtbaar. De factor voor nu is geen vaste '
+                              'dagfactor. Zij wordt afzonderlijk opgevraagd en gebruikt bestaande lokale informatie. De bestaande grenzen van '
+                              'dertig dagen en 2880 diagnosekwartieren blijven gelden. Voorspellingssensoren zijn geen gecertificeerde '
+                              'energietellers; dagen bij zomer-/wintertijd worden op echte tijdstempels berekend.',
+                              'Vanaf beta.91 wordt naast de oude gemengde vooruitvergelijking een nieuwe afzonderlijke reeks per 5–60 minuten, '
+                              '1–3 uur en 3–12 uur aangelegd. Per doelmoment, bronbinding en termijn geldt vooraf de eerste geldige lokaal '
+                              'waargenomen voorspelling; latere varianten vervangen haar niet. Banden delen dezelfde oorspronkelijke '
+                              'doelmeting. Unieke doelen, oorspronkelijke rapporten, daglichtdoelen, verschillende dagen en afhankelijkheid '
+                              'blijven zichtbaar. Oude gegevens worden niet teruggevuld, de provideruitgiftetijd blijft onbekend en de nieuwe '
+                              'score past geen correctiefactor toe.',
+                              'De korte kwaliteitsuitleg en de PV-vraag gebruiken dezelfde daglicht-MAE: minstens twaalf passende '
+                              'daglichtvergelijkingen en een fout groter dan 700 W. Nachtelijke nulmetingen maken een slechte '
+                              'daglichtvoorspelling niet goed. Zonder voldoende daglichtbewijs blijft die beoordeling onbekend. De gemengde en '
+                              'daglichtcijfers, basislastwaarschuwingen en bestaande kwaliteitsscore blijven zichtbaar; er wordt geen '
+                              'correctiefactor, planning of reserve door deze uitleg aangepast.'],
                'bullets': []},
               {'title': '11. Fasebewaking en fysieke grenzen',
-               'paragraphs': ['L1, L2 en L3 blijven afzonderlijk bewaakt wanneer geconfigureerd en bewust '
-                              'vrijgegeven. Netto-export over drie fasen bewijst niet dat iedere fase vrije '
-                              'stroomruimte heeft. Een ontbrekende vereiste fasekoppeling geeft geen algemene '
-                              'startvrijgave.',
-                              'Faseherkenning leert alleen bruikbare voldoende geïsoleerde vermogenssprongen. '
-                              'Gelijktijdige veranderingen worden verworpen. Herkend toestelvermogen en netto '
-                              'restcomponent staan apart; die rest is geen zuiver onbekend verbruik omdat PV '
-                              'en andere stromen meespelen. Herkenning blijft adviserend tot bewuste '
-                              'activering. Beveiligingen, tekenrichting en betrouwbare actuele bronnen blijven '
-                              'noodzakelijk.'],
+               'paragraphs': ['L1, L2 en L3 blijven afzonderlijk bewaakt wanneer geconfigureerd en bewust vrijgegeven. Netto-export over drie '
+                              'fasen bewijst niet dat iedere fase vrije stroomruimte heeft. Een ontbrekende vereiste fasekoppeling geeft geen '
+                              'algemene startvrijgave.',
+                              'Faseherkenning leert alleen bruikbare voldoende geïsoleerde vermogenssprongen. Gelijktijdige veranderingen '
+                              'worden verworpen. Herkend toestelvermogen en netto restcomponent staan apart; die rest is geen zuiver onbekend '
+                              'verbruik omdat PV en andere stromen meespelen. Herkenning blijft adviserend tot bewuste activering. '
+                              'Beveiligingen, tekenrichting en betrouwbare actuele bronnen blijven noodzakelijk.'],
                'bullets': []},
               {'title': '12. Thuisbatterij',
-               'paragraphs': ['Zonder gekoppelde hardware blijft de batterij-what-if adviserend. Fysieke '
-                              'batterijbediening vereist globale en individuele toestemming plus bevestigd '
-                              'exclusief eigenaarschap. Netladen en exportontladen staan standaard Uit. De '
-                              'eigen batterijcommandobescherming blijft bestaan en wordt niet door '
-                              'verwijdering van oude warmtepompsturing gereset.',
-                              'Commandointentie wordt vóór actuatie duurzaam bewaard. Koppeling, native '
-                              'doel/eenheid/grenzen, toestemming en Wallboxbescherming worden direct voor '
-                              'verzending opnieuw getoetst. Een passende nieuwe vermogensrapportage van na de '
-                              'opdracht, en bij numerieke bediening ook een passend native doel, zijn nodig. '
-                              'Een oude al passende powerwaarde is geen nieuwe bevestiging; onzekere '
-                              'opdrachten worden niet blind herhaald.',
-                              'Een pending batterijopdracht beschermt nieuwe starts en vermogensoverdracht '
-                              'tegen hergebruik van oude ruimte. Bestaande beschermde cycli blijven doorlopen. '
-                              'Na de actie zijn nieuwe P1 en normale wachttijden nodig. Voor verwijderen moet '
-                              'werkelijke neutrale power, en bij numerieke bediening een exact neutraal doel, '
-                              'betrouwbaar vaststaan. Handmatige doelen worden niet overschreven.',
-                              'Batterijflow telt eenmaal mee; read-only of foutieve profielen behouden hun '
-                              'echte stroom zonder nieuw bedieningsrecht. SoC vraagt bruikbare procentdata '
-                              'binnen 0–100. Numerieke doelen moeten nul exact kunnen weergeven binnen '
-                              'bereik/stap. Scripts vragen controle van inhoud en terugmelding; een naam '
-                              'alleen bewijst geen veilige functie.',
-                              'De what-if gebruikt standaard 80% round-trip efficiëntie, dus 20% totaalverlies '
-                              'over laden en later terugleveren. Dit blijft instelbaar en is geen aankoop- of '
-                              'besparingsgarantie. Bij meerdere batterijen gelden de bestaande '
-                              'verdeelstrategie en individuele grenzen.'],
+               'paragraphs': ['Zonder gekoppelde hardware blijft de batterij-what-if adviserend. Fysieke batterijbediening vereist globale en '
+                              'individuele toestemming plus bevestigd exclusief eigenaarschap. Netladen en exportontladen staan standaard Uit. '
+                              'De eigen batterijcommandobescherming blijft bestaan en wordt niet door verwijdering van oude warmtepompsturing '
+                              'gereset.',
+                              'Commandointentie wordt vóór actuatie duurzaam bewaard. Koppeling, native doel/eenheid/grenzen, toestemming en '
+                              'Wallboxbescherming worden direct voor verzending opnieuw getoetst. Een passende nieuwe vermogensrapportage van '
+                              'na de opdracht, en bij numerieke bediening ook een passend native doel, zijn nodig. Een oude al passende '
+                              'powerwaarde is geen nieuwe bevestiging; onzekere opdrachten worden niet blind herhaald.',
+                              'Een pending batterijopdracht beschermt nieuwe starts en vermogensoverdracht tegen hergebruik van oude ruimte. '
+                              'Bestaande beschermde cycli blijven doorlopen. Na de actie zijn nieuwe P1 en normale wachttijden nodig. Voor '
+                              'verwijderen moet werkelijke neutrale power, en bij numerieke bediening een exact neutraal doel, betrouwbaar '
+                              'vaststaan. Handmatige doelen worden niet overschreven.',
+                              'Batterijflow telt eenmaal mee; read-only of foutieve profielen behouden hun echte stroom zonder nieuw '
+                              'bedieningsrecht. SoC vraagt bruikbare procentdata binnen 0–100. Numerieke doelen moeten nul exact kunnen '
+                              'weergeven binnen bereik/stap. Scripts vragen controle van inhoud en terugmelding; een naam alleen bewijst geen '
+                              'veilige functie.',
+                              'De what-if gebruikt standaard 80% round-trip efficiëntie, dus 20% totaalverlies over laden en later '
+                              'terugleveren. Dit blijft instelbaar en is geen aankoop- of besparingsgarantie. Bij meerdere batterijen gelden de '
+                              'bestaande verdeelstrategie en individuele grenzen.'],
                'bullets': []},
               {'title': '13. Kwartierpiek, kosten en waardeschatting',
-               'paragraphs': ['Kwartiergemiddelde en maandpiek kunnen het ingestelde softwarematige '
-                              'importbudget beperken. Dat budget vervangt geen zekeringen of echte '
-                              'aansluiting. Dag-KPI’s zijn indicatieve toerekening en geen veiligheidsbron.',
-                              'Elektriciteitskost vandaag telt geldige gemeten netafnamekost min '
-                              'injectievergoeding op. Direct gebruikte PV verlaagt de netafname al en wordt '
-                              'niet nogmaals afgetrokken. Prijzen horen bij hun werkelijke meetinterval; een '
-                              'later tarief verandert eerdere energie niet. Meetgaten blijven zichtbaar. De '
-                              'planningskost is een aparte toekomstschatting, geen dagkost.',
-                              'Bij ontbrekende of ongeldige dynamische prijzen geldt het ingestelde vaste '
-                              'tarief. Een geldige nulprijs blijft nul, ontbrekende rijen verschuiven andere '
-                              'tijdposities niet. Negatieve prijzen en netto negatieve dagkosten blijven '
-                              'mogelijk. Bedragen bevatten geen vaste kosten, aanschaf, onderhoud of '
-                              'gegarandeerd capaciteitstarief.',
-                              'Het geschatte voordeel van automatische sturing is een aparte voorwaartse '
-                              'telling met maximaal negentig kalenderdagen. Alleen werkelijk actieve eigen '
-                              'automatische gewone lasten tellen. Native Wallbox-, warmtepomp- en handmatig '
-                              'gebruik geven geen verzonnen SG-besparing of vaste COP. Dit voordeel wordt niet '
-                              'nogmaals van de dagkost afgetrokken.'],
+               'paragraphs': ['Kwartiergemiddelde en maandpiek kunnen het ingestelde softwarematige importbudget beperken. Dat budget vervangt '
+                              'geen zekeringen of echte aansluiting. Dag-KPI’s zijn indicatieve toerekening en geen veiligheidsbron.',
+                              'Elektriciteitskost vandaag telt geldige gemeten netafnamekost min injectievergoeding op. Direct gebruikte PV '
+                              'verlaagt de netafname al en wordt niet nogmaals afgetrokken. Prijzen horen bij hun werkelijke meetinterval; een '
+                              'later tarief verandert eerdere energie niet. Meetgaten blijven zichtbaar. De planningskost is een aparte '
+                              'toekomstschatting, geen dagkost.',
+                              'Bij ontbrekende of ongeldige dynamische prijzen geldt het ingestelde vaste tarief. Een geldige nulprijs blijft '
+                              'nul, ontbrekende rijen verschuiven andere tijdposities niet. Negatieve prijzen en netto negatieve dagkosten '
+                              'blijven mogelijk. Bedragen bevatten geen vaste kosten, aanschaf, onderhoud of gegarandeerd capaciteitstarief.',
+                              'Het geschatte voordeel van automatische sturing is een aparte voorwaartse telling met maximaal negentig '
+                              'kalenderdagen. Alleen werkelijk actieve eigen automatische gewone lasten tellen. Native Wallbox-, warmtepomp- en '
+                              'handmatig gebruik geven geen verzonnen SG-besparing of vaste COP. Dit voordeel wordt niet nogmaals van de '
+                              'dagkost afgetrokken.',
+                              'Dagelijkse EMS-cijfers houden de werkelijk gemeten PV-tijd, ontbrekende PV-tijd en oudere onbekende dekking '
+                              'afzonderlijk bij. Een geldige nulmeting telt als meting; ontbrekend of ongeldig PV is geen gemeten nul. Net- en '
+                              'verbruikerenergie mogen met hun eigen passende metingen doorlopen. Een zelfverbruikspercentage op onvolledige '
+                              'dekking wordt als gedeeltelijk herkenbaar gemaakt; oude totalen krijgen geen achteraf verzonnen meetdekking. De '
+                              'registratie blijft een indicatieve toerekening en is geen bewezen besparing.'],
                'bullets': []},
               {'title': '14. Meetkwaliteit en modelgegevens',
-               'paragraphs': ['SolarPilot leert lokaal, zonder externe AI-dienst of het herschrijven van zijn code. Bruikbaar gemeten verbruik, basislast, PV-/weercorrectie, faseclassificatie en complete apparaatcycli kunnen analyse/planning verbeteren. Prioriteiten, deadlines, net-/fasegrenzen en fysieke toestemming veranderen niet autonoom door leren. Een vermogensprofiel uit een andere bronbinding telt niet mee. Faseleren vraagt volledige geïsoleerde metingen; een cyclus met onvoldoende werkelijke meetdekking wordt geen compleet leerprofiel. Beschadigde optionele velden worden afzonderlijk beoordeeld, zodat geldige buurrecords beschikbaar blijven.',
-                              'Oude woning-/tankmodellen en hun bewijs blijven bewaard voor privé-analyse en rollback. Zij verlenen in deze versie geen ruimte- of tankopdrachtrecht. Er is geen modelreset of nieuw actief klimaatleerregelpad. Bewaarde modelkwaliteit is geen kans dat een fysieke actie juist is. Een onbekend schema voor kosten, PV-model, besparingen of advies blijft in zijn oorspronkelijke opgeslagen vorm behouden en geeft geen modelbewijs. Onleesbare of onbekende historie-/analyseopslag wordt niet automatisch vervangen. Eventuele nieuwe waarnemingen in geheugen bewijzen geen herstel van die oude opslag.',
-                              'Grote model- en leerattributen blijven live en in eigen '
-                              'SolarPilot-opslag/export beschikbaar. Alleen herhaalde zware kopieën in de '
-                              'gewone Home Assistant Recorderhistoriek zijn uitgesloten. Ook de nieuwe '
-                              'veranderlijke waarnemingstijden van de warmtepompweergave worden alleen uit '
-                              'die herhaalde attributenkopie uitgesloten. Een onveranderde rusttoestand '
-                              'maakt daardoor geen nieuw detailrecord bij iedere vijfsecondenronde. Actuele '
-                              'sensorwaarden, live attributen, eigen metingen en export blijven behouden. '
-                              'De 16 KiB-grens betreft één attribuutpakket, niet vrije schijfruimte. '
-                              'Gedeelde weergavecache vermindert rekenwerk tijdens één publicatieronde; '
-                              'beslissingen en export gebruiken verse directe gegevens.',
-                              'Meetkwaliteit toont meetdekking, modelbasis en afwijkingen als waarnemingen, '
-                              'zonder leervragen of knoppen die je tussendoor bron-/aanpassingsbeleid laten '
-                              'kiezen. Als analyse nodig is, verzamelt één exportactie de beschikbare zeven '
-                              'dagen en de open bevindingen. Download het bestand, laat het hier analyseren '
-                              'en upload desgewenst het JSON-antwoordrapport terug. Alleen antwoorden die '
-                              'exact bij de geëxporteerde én nog actuele bevindingidentiteit/revisie passen '
-                              'kunnen haar reviewstatus verwerken. Beoordeelde bevindingen worden '
-                              'afgehandeld; meer data nodig blijft open. Een antwoord wijzigt geen '
-                              'sampling-/aanpassingsbeleid, modeltoestemming, instelling, code of '
-                              'apparaatbediening. De bestaande leer-/aanpassingsregels blijven gelden. '
-                              'Gemeten verbruik kan volgens de ingestelde bronkeuze worden gebruikt; '
-                              'geschatte, dubbele of ongeschikte bronnen zijn geen echte meting. Een '
-                              'recente basislastaanpassing wordt eerst vergeleken en alleen binnen de '
-                              'bestaande begrensde toestemming toegepast. Gewone analysebevindingen blijven '
-                              'bij Meetkwaliteit en Export en maken geen Home Assistant-melding. Alleen '
-                              'dringende regelingsproblemen houden hun gerichte melding.',
-                              ('Automatisch onderzoek controleert de bestaande gekoppelde bronnen lokaal, '
-                               'zonder upload of nieuwe apparaatbediening. Vijf onderwerpen krijgen een '
-                               'eigen status: warmtepompmeting, Wallboxsessiebron, PV-voorspelling en '
-                               'toestelmetingen en net/PV-coherentie. Meer meetgegevens nodig betekent dat bruikbaar '
-                               'vervolgbewijs ontbreekt; Controle nodig benoemt een bronprobleem; '
-                               'Bron of functie niet ingesteld benoemt ontbrekende configuratie; '
-                               'Geen afwijking in deze metingen beschrijft alleen het beschikbare bewijs. '
-                               'Geen van deze statussen certificeert de '
-                               'fysieke installatie. Dezelfde sectie staat onder Meetkwaliteit en '
-                               'Export → Analyse en advies. De beoordeling vermeldt bewijs, mogelijke oorzaken, '
-                               'voorstellen en de volgende actie. Mogelijke oorzaken zijn hypotheses, '
-                               'geen vastgestelde fysieke defecten.'),
-                              ('De vijf brononderwerpen worden maximaal eenmaal per minuut opnieuw '
-                               'beoordeeld. Verlopen bewijs of een gewijzigde relevante binding wordt '
-                               'ook tussen beoordelingen ongeldig. Alleen nieuwe '
-                               'werkelijke bruikbare bronrapporten leveren nieuwe meterwaarnemingen; '
-                               'dezelfde waarde opnieuw renderen, een regelronde of herstart telt niet '
-                               'als nieuw bewijs. Begrensde lokale tellingen bewaren voortgang zonder '
-                               'oude onbekende geschiedenis in te vullen. Vijf onderwerprecords bewaren '
-                               'elk maximaal 32 rapportcursors; tellers verzadigen bij 1.000.000. De '
-                               'warmtepomp bewaart maximaal 64 negatieve diagnostische rapporten. Zulke '
-                               'verse afgekeurde rapporten tellen alleen diagnostisch, nooit als geldige '
-                               'regelwatts. Herstart bewaart tellingen en cursors, maar geen actuele '
-                               'status of bronzekerheid. Een gewijzigde relevante '
-                               'bronbinding vraagt eigen nieuw bewijs. Het onderzoek verandert geen '
-                               'meterteken, sensorbinding, stale-grens, instelling, modeltoestemming of '
-                               'regelrecht. Een verkeerde aansluiting of ontbrekende meter kan lokale '
-                               'controle nodig houden. Een mogelijke lage-vermogensoffset wordt alleen '
-                               'als hypothese genoemd bij voldoende recente negatieve rapporten; de '
-                               'diagnose zelf corrigeert geen meter. De afzonderlijke beta.87-verbruiksinterpretatie mag een anders volledig geldige verse negatieve HP-waarde naar nul normaliseren met behoud van oorspronkelijke data. Aantallen oorspronkelijke rapporten '
-                               'zijn geen bewezen statistisch onafhankelijke meetproeven. Een verlopen '
-                               'of herstelde beoordeling blijft eerdere informatie, geen bewijs van de '
-                               'actuele toestand. Dit lokale onderzoek en de aparte warmtepompgeschiedenis '
-                               'blijven werken bij uitgeschakelde gedetailleerde analyseregistratie en '
-                               'bij Pauze; bestaande leer-/aanpassingskeuzes houden hun eigen werking.'),
-                              ("Het Wallbox-brondossier houdt de gekozen sessiebron, werkelijk beschikbare oorspronkelijke bronnen en hun rapporttijden afzonderlijk. Een onbewezen templateafhankelijkheid, formule of trigger blijft onbekend. Een verse vergelijkingsbron maakt een oude template niet vanzelf geldig. Net/PV-coherentie toont het tijdverschil tussen de oorspronkelijke rapporten en de bekende producent-/opslagdekking; onbekende aanvullende productie of opslag blijft mogelijk. Een opvallende balans maakt geen tekenomkering of nieuwe regelblokkering. Eerder beoordeelde verklaring, aantallen en bronbewijs blijven één samenhangende beoordeling met eigen tijdstip. Een nieuwe actuele bronwaarneming staat afzonderlijk met haar oorspronkelijke tijden en waarden. Een gewoon nieuw rapport verandert niet automatisch bronidentiteit of beleidscontext. Zo wordt een eerdere leeftijd of tijdscheefheid niet met later bronbewijs als hetzelfde meetmoment weergegeven."),
-                              ('De afzonderlijke SG-beoordeling benoemt de bestaande minimum- en '
-                               'wolkenbufferinstellingen en de grenzen van het beschikbare sessie- en '
-                               'reactiebewijs. Historische sessies uit een oudere release valideren geen '
-                               'nieuwere timers. Elektrische activiteit of een gesloten contact bewijst '
-                               'geen causale extra SG-opname. Voorstellen voor betere broninformatie '
-                               'of latere vergelijking zijn geen automatische wijziging van drempels, '
-                               'leases, Panasonic-profielen of harde elektrische grenzen. De bestaande '
-                               'regelronde observeert hiervoor SG, contact, P1 en PV met één passend '
-                               'tijdstip. Maximaal twaalf historische sessierecords, ook expliciet onderbroken, bewaren release, '
-                               'effectieve policy, vastgelegde aanvraagduur, dekking en stopinformatie. '
-                               'Een al actieve aanvraag bij begin van registratie krijgt geen bewezen '
-                               'start. Herstart, een meetgat boven dertig seconden, verlopen bronbewijs '
-                               'of gewijzigde policy kan geen complete vergelijkbare sessie opleveren. '
-                               'Opgeslagen records herstellen geen actieve aanvraag of bronzekerheid. '
-                               'Een passende complete sessie is beperkt timingbewijs, geen algemene '
-                               'praktijkacceptatie of compressorlooptijd.'),
-                              ('Nieuwe SG-onderzoeksmetingen bereiken vanaf beta.81 de werkelijke onderzoeksfunctie. Een begrensd historisch checkpoint markeert bronverlies of herstart als onvolledig en niet vergelijkbaar. Hij hervat geen actieve onderzoekscursor, aanvraag, lease of apparaatopdracht. Controllerstop, oorspronkelijk gemeld contact en concrete transportfase zijn afzonderlijk; een onzekere transportuitkomst krijgt geen blind retry. De fix vult oude lege registraties niet achteraf met complete sessies.'),
-                              ('Gekozen programma, verse native taak, afgeleide taak en de bestaande '
-                               'SG-veiligheidscontext blijven afzonderlijk. Afgeleide warmte-/koeltaken '
-                               'krijgen begrensde diagnostische voorbeelden en tellingen, zonder '
-                               'planningsgewicht in het bevestigde warmtepompmodel. Alleen nieuwe '
-                               'voldoende stabiele overgangen met verse bevestigde native '
-                               'taak-/rustbewijzen kunnen gevalideerde modellen opbouwen. Oude voorbeelden '
-                               'en dagen blijven exact bewaard; voorbeelden zonder bewijsherkomst tellen '
-                               'niet stil als bevestigd. Leren verandert nooit realtime netruimte. Er '
-                               'worden geen ontbrekende historische taken aangevuld.')],
+               'paragraphs': ['SolarPilot leert lokaal, zonder externe AI-dienst of het herschrijven van zijn code. Bruikbaar gemeten verbruik, '
+                              'basislast, PV-/weercorrectie, faseclassificatie en complete apparaatcycli kunnen analyse/planning verbeteren. '
+                              'Prioriteiten, deadlines, net-/fasegrenzen en fysieke toestemming veranderen niet autonoom door leren. Een '
+                              'vermogensprofiel uit een andere bronbinding telt niet mee. Faseleren vraagt volledige geïsoleerde metingen; een '
+                              'cyclus met onvoldoende werkelijke meetdekking wordt geen compleet leerprofiel. Beschadigde optionele velden '
+                              'worden afzonderlijk beoordeeld, zodat geldige buurrecords beschikbaar blijven.',
+                              'Oude woning-/tankmodellen en hun bewijs blijven bewaard voor privé-analyse en rollback. Zij verlenen in deze '
+                              'versie geen ruimte- of tankopdrachtrecht. Er is geen modelreset of nieuw actief klimaatleerregelpad. Bewaarde '
+                              'modelkwaliteit is geen kans dat een fysieke actie juist is. Een onbekend schema voor kosten, PV-model, '
+                              'besparingen of advies blijft in zijn oorspronkelijke opgeslagen vorm behouden en geeft geen modelbewijs. '
+                              'Onleesbare of onbekende historie-/analyseopslag wordt niet automatisch vervangen. Eventuele nieuwe waarnemingen '
+                              'in geheugen bewijzen geen herstel van die oude opslag.',
+                              'Grote model- en leerattributen blijven live en in eigen SolarPilot-opslag/export beschikbaar. Alleen herhaalde '
+                              'zware kopieën in de gewone Home Assistant Recorderhistoriek zijn uitgesloten. Ook de nieuwe veranderlijke '
+                              'waarnemingstijden van de warmtepompweergave worden alleen uit die herhaalde attributenkopie uitgesloten. Een '
+                              'onveranderde rusttoestand maakt daardoor geen nieuw detailrecord bij iedere vijfsecondenronde. Actuele '
+                              'sensorwaarden, live attributen, eigen metingen en export blijven behouden. De 16 KiB-grens betreft één '
+                              'attribuutpakket, niet vrije schijfruimte. Gedeelde weergavecache vermindert rekenwerk tijdens één '
+                              'publicatieronde; beslissingen en export gebruiken verse directe gegevens.',
+                              'Meetkwaliteit toont meetdekking, modelbasis en afwijkingen als waarnemingen, zonder leervragen of knoppen die je '
+                              'tussendoor bron-/aanpassingsbeleid laten kiezen. Als analyse nodig is, verzamelt één exportactie de beschikbare '
+                              'zeven dagen en de open bevindingen. Download het bestand, laat het hier analyseren en upload desgewenst het '
+                              'JSON-antwoordrapport terug. Alleen antwoorden die exact bij de geëxporteerde én nog actuele '
+                              'bevindingidentiteit/revisie passen kunnen haar reviewstatus verwerken. Beoordeelde bevindingen worden '
+                              'afgehandeld; meer data nodig blijft open. Een antwoord wijzigt geen sampling-/aanpassingsbeleid, '
+                              'modeltoestemming, instelling, code of apparaatbediening. De bestaande leer-/aanpassingsregels blijven gelden. '
+                              'Gemeten verbruik kan volgens de ingestelde bronkeuze worden gebruikt; geschatte, dubbele of ongeschikte bronnen '
+                              'zijn geen echte meting. Een recente basislastaanpassing wordt eerst vergeleken en alleen binnen de bestaande '
+                              'begrensde toestemming toegepast. Gewone analysebevindingen blijven bij Meetkwaliteit en Export en maken geen '
+                              'Home Assistant-melding. Alleen dringende regelingsproblemen houden hun gerichte melding.',
+                              'Automatisch onderzoek controleert de bestaande gekoppelde bronnen lokaal, zonder upload of nieuwe '
+                              'apparaatbediening. Vijf onderwerpen krijgen een eigen status: warmtepompmeting, Wallboxsessiebron, '
+                              'PV-voorspelling en toestelmetingen en net/PV-coherentie. Meer meetgegevens nodig betekent dat bruikbaar '
+                              'vervolgbewijs ontbreekt; Controle nodig benoemt een bronprobleem; Bron of functie niet ingesteld benoemt '
+                              'ontbrekende configuratie; Geen afwijking in deze metingen beschrijft alleen het beschikbare bewijs. Geen van '
+                              'deze statussen certificeert de fysieke installatie. Dezelfde sectie staat onder Meetkwaliteit en Export → '
+                              'Analyse en advies. De beoordeling vermeldt bewijs, mogelijke oorzaken, voorstellen en de volgende actie. '
+                              'Mogelijke oorzaken zijn hypotheses, geen vastgestelde fysieke defecten.',
+                              'De vijf brononderwerpen worden maximaal eenmaal per minuut opnieuw beoordeeld. Verlopen bewijs of een gewijzigde '
+                              'relevante binding wordt ook tussen beoordelingen ongeldig. Alleen nieuwe werkelijke bruikbare bronrapporten '
+                              'leveren nieuwe meterwaarnemingen; dezelfde waarde opnieuw renderen, een regelronde of herstart telt niet als '
+                              'nieuw bewijs. Begrensde lokale tellingen bewaren voortgang zonder oude onbekende geschiedenis in te vullen. Vijf '
+                              'onderwerprecords bewaren elk maximaal 32 rapportcursors; tellers verzadigen bij 1.000.000. De warmtepomp bewaart '
+                              'maximaal 64 negatieve diagnostische rapporten. Zulke verse afgekeurde rapporten tellen alleen diagnostisch, '
+                              'nooit als geldige regelwatts. Herstart bewaart tellingen en cursors, maar geen actuele status of bronzekerheid. '
+                              'Een gewijzigde relevante bronbinding vraagt eigen nieuw bewijs. Het onderzoek verandert geen meterteken, '
+                              'sensorbinding, stale-grens, instelling, modeltoestemming of regelrecht. Een verkeerde aansluiting of ontbrekende '
+                              'meter kan lokale controle nodig houden. Een mogelijke lage-vermogensoffset wordt alleen als hypothese genoemd '
+                              'bij voldoende recente negatieve rapporten; de diagnose zelf corrigeert geen meter. De afzonderlijke '
+                              'beta.87-verbruiksinterpretatie mag een anders volledig geldige verse negatieve HP-waarde naar nul normaliseren '
+                              'met behoud van oorspronkelijke data. Aantallen oorspronkelijke rapporten zijn geen bewezen statistisch '
+                              'onafhankelijke meetproeven. Een verlopen of herstelde beoordeling blijft eerdere informatie, geen bewijs van de '
+                              'actuele toestand. Dit lokale onderzoek en de aparte warmtepompgeschiedenis blijven werken bij uitgeschakelde '
+                              'gedetailleerde analyseregistratie en bij Pauze; bestaande leer-/aanpassingskeuzes houden hun eigen werking.',
+                              'Het Wallbox-brondossier houdt de gekozen sessiebron, werkelijk beschikbare oorspronkelijke bronnen en hun '
+                              'rapporttijden afzonderlijk. Een onbewezen templateafhankelijkheid, formule of trigger blijft onbekend. Een verse '
+                              'vergelijkingsbron maakt een oude template niet vanzelf geldig. Net/PV-coherentie toont het tijdverschil tussen '
+                              'de oorspronkelijke rapporten en de bekende producent-/opslagdekking; onbekende aanvullende productie of opslag '
+                              'blijft mogelijk. Een opvallende balans maakt geen tekenomkering of nieuwe regelblokkering. Eerder beoordeelde '
+                              'verklaring, aantallen en bronbewijs blijven één samenhangende beoordeling met eigen tijdstip. Een nieuwe actuele '
+                              'bronwaarneming staat afzonderlijk met haar oorspronkelijke tijden en waarden. Een gewoon nieuw rapport verandert '
+                              'niet automatisch bronidentiteit of beleidscontext. Zo wordt een eerdere leeftijd of tijdscheefheid niet met '
+                              'later bronbewijs als hetzelfde meetmoment weergegeven.',
+                              'De afzonderlijke SG-beoordeling benoemt de bestaande minimum- en wolkenbufferinstellingen en de grenzen van het '
+                              'beschikbare sessie- en reactiebewijs. Historische sessies uit een oudere release valideren geen nieuwere timers. '
+                              'Elektrische activiteit of een gesloten contact bewijst geen causale extra SG-opname. Voorstellen voor betere '
+                              'broninformatie of latere vergelijking zijn geen automatische wijziging van drempels, leases, Panasonic-profielen '
+                              'of harde elektrische grenzen. De bestaande regelronde observeert hiervoor SG, contact, P1 en PV met één passend '
+                              'tijdstip. Maximaal twaalf historische sessierecords, ook expliciet onderbroken, bewaren release, effectieve '
+                              'policy, vastgelegde aanvraagduur, dekking en stopinformatie. Een al actieve aanvraag bij begin van registratie '
+                              'krijgt geen bewezen start. Herstart, een meetgat boven dertig seconden, verlopen bronbewijs of gewijzigde policy '
+                              'kan geen complete vergelijkbare sessie opleveren. Opgeslagen records herstellen geen actieve aanvraag of '
+                              'bronzekerheid. Een passende complete sessie is beperkt timingbewijs, geen algemene praktijkacceptatie of '
+                              'compressorlooptijd.',
+                              'Nieuwe SG-onderzoeksmetingen bereiken vanaf beta.81 de werkelijke onderzoeksfunctie. Een begrensd historisch '
+                              'checkpoint markeert bronverlies of herstart als onvolledig en niet vergelijkbaar. Hij hervat geen actieve '
+                              'onderzoekscursor, aanvraag, lease of apparaatopdracht. Controllerstop, oorspronkelijk gemeld contact en concrete '
+                              'transportfase zijn afzonderlijk; een onzekere transportuitkomst krijgt geen blind retry. De fix vult oude lege '
+                              'registraties niet achteraf met complete sessies.',
+                              'Gekozen programma, verse native taak, afgeleide taak en de bestaande SG-veiligheidscontext blijven afzonderlijk. '
+                              'Afgeleide warmte-/koeltaken krijgen begrensde diagnostische voorbeelden en tellingen, zonder planningsgewicht in '
+                              'het bevestigde warmtepompmodel. Alleen nieuwe voldoende stabiele overgangen met verse bevestigde native '
+                              'taak-/rustbewijzen kunnen gevalideerde modellen opbouwen. Oude voorbeelden en dagen blijven exact bewaard; '
+                              'voorbeelden zonder bewijsherkomst tellen niet stil als bevestigd. Leren verandert nooit realtime netruimte. Er '
+                              'worden geen ontbrekende historische taken aangevuld.',
+                              'De twee minuten na inschakeling of bronherstel zijn een informatieve tijdelijke leerwacht, met begin, einde en '
+                              'resterende duur waar bekend. Een opdracht die op terugmelding wacht heeft geen verzonnen eindtijd. De laatste '
+                              'broncontrole staat apart van de telling van leerpogingen per kwartier. Langdurige uitsluiting door onbekende '
+                              'warmtepompcontext staat afzonderlijk; ontbrekende perioden worden nooit als nul geleerd.',
+                              'Bij het geladen Aquarea-contract met afzonderlijke operation_status betekent een ingeschakelde verwarmingsstand '
+                              'niet zelfstandig bewezen uitvoering. De leerclassificatie kan met passend gebonden LIVE-, pomp-, route- en '
+                              'volledig meterbewijs hoogstens een afgeleide taak gebruiken; zij maakt dit geen bevestigde modelmeting. Zonder '
+                              'dat bewijs blijft de leercontext onbekend. De uitleesweergave wordt opnieuw uit de bronwaarden beoordeeld; een '
+                              'oud label of berekende weergave verleent geen leerrecht. Pomp UIT of 0 W alleen maakt nog geen gevalideerde '
+                              'normale huishoudbasislast. Oude modellen en historische classificaties worden niet herschreven; onafhankelijke '
+                              'oudere native contracten behouden hun betekenis.'],
                'bullets': []},
               {'title': '15. Overzicht, uitleg en meldingen',
-               'paragraphs': ["Overzicht toont Wat gebeurt er en waarom? met per toestel de actuele toestand, één leidende reden, bekende W en uitklapbare voorwaarden. Gemeten, geschat, native gemeld en afgeleid blijven herkenbaar. De warmtepomp gebruikt dezelfde read-only backendtaak, metingen en SG-beslisreden, geen tweede frontendregelaar. Taak en elektrische ondersteuning blijven apart. Verse native acties en passende afleiding uit actuele toegewezen voeding/context kunnen de functie tonen; voor gekozen ruimtebedrijf blijft afzonderlijke verse tankrust nodig. De specifiek gecontroleerde providersemantiek kan een onterechte globale OFF uitsluitend voor presentatie duiden. Een onbekend totaal blijft onbekend en modellen/SG-voorwaarden veranderen niet. De normale boilerwaarde heet Ingesteld boilerdoel; een lokaal bevestigde percentagevergelijking staat apart als berekend SG-doel of doel bij AAN. Uitgebreide bronuitleg en onzekerheid blijven in Details/export. Open details, formulieren, popup en scroll blijven bij verversen op vaste ids bewaard.",
-                              'Doorlopend blauw en een bewegend warmtepompsymbool kunnen actuele elektrische activiteit weergeven. De ventilatoranimatie volgt de verse actieve hoofdmeting en is geen afzonderlijk bewijs van compressorbeweging. Bij alleen actieve elektrische ondersteuning beweegt het verwarmingssymbool en blijft de ventilator stil. Andere toestellen krijgen hun activiteitssymbool volgens de eigen betrouwbare actieve status. Verminderde beweging onderdrukt animaties. Een aangevraagde of beschikbare functie blijft onderscheiden van waargenomen activiteit. Een gesloten SG-contact bewijst geen fysieke tankopwarming. Productie en net hebben afzonderlijke groen-roodkleuren; onbekende/oude bronnen blijven grijs. Kleuren en beweging zijn presentatie, geen storing of vrijgave. De kaart laat verlopen P1/PV en Wallboxrapportages ook zonder een nieuwe HA-update vervallen. Onbeschikbaar of hersteld hoofdtoestelbewijs bevestigt geen activiteit. Lege, boolean en niet-eindige waarden worden geen gemeten nul. Open details en conceptinstellingen blijven bij deze verversing bewaard. Startuitleg toont het toegewezen startvermogen apart van de zonnepot vóór eindtoewijzing, gefilterde meting, gehele toekomstige cyclusreserve, eventueel voor dit onderbreekbare toestel versoepeld zonnedeel, werkelijk toegepaste zonne-reserve, eerdere toewijzingen en elektrische ruimte. Een geschatte afwaspiek blijft onderscheiden van gemeten actueel verbruik. Een tekort aan startbudget wordt niet meer voorgesteld als bewezen gebrek aan zonneproductie.',
-                              'Resterende fouten waarvoor jouw controle nodig is verschijnen in Home '
-                              'Assistant → Meldingen → SolarPilot: controle nodig. De melding bundelt '
-                              'gerichte oorzaken en acties, wordt bij inhoudelijke verandering bijgewerkt en '
-                              'verdwijnt na herstel. Meldingtransport mag de regeling niet laten crashen. '
-                              'Gewone bronwacht, rusttijd, een bewuste Pauze of fabrikantsterilisatie '
-                              'veroorzaken geen nieuwe foutspam.',
-                              'Een SG-koppelings- of terugvalprobleem blokkeert de betrokken SG-functie en noemt de ingebruiknamecontrole. Een oude gearchiveerde tank-/klimaatopdrachtfout wordt niet als actuele fysieke storing opgelost verklaard. Echte onbekende fouten, toestel-/batterijfouten, expliciete gebruikerskeuzes en verwijderverzoeken blijven beschermd. Controle afronden repareert geen verkeerde bronconfiguratie of onbereikbaar apparaat. Verouderde browserantwoorden mogen geen later geopend configuratievenster wijzigen of ontgrendelen. De actuele kaart gebruikt releasegebonden popupcode, ook wanneer oude aliassen nog in de browser aanwezig zijn.'],
+               'paragraphs': ['Overzicht toont Wat gebeurt er en waarom? met per toestel de actuele toestand, één leidende reden, bekende W en '
+                              'uitklapbare voorwaarden. Gemeten, geschat, native gemeld en afgeleid blijven herkenbaar. De warmtepomp gebruikt '
+                              'dezelfde read-only backendtaak, metingen en SG-beslisreden, geen tweede frontendregelaar. Taak en elektrische '
+                              'ondersteuning blijven apart. Verse native acties en passende afleiding uit actuele toegewezen voeding/context '
+                              'kunnen de functie tonen; voor gekozen ruimtebedrijf blijft afzonderlijke verse tankrust nodig. De specifiek '
+                              'gecontroleerde providersemantiek kan een onterechte globale OFF uitsluitend voor presentatie duiden. Een '
+                              'onbekend totaal blijft onbekend en modellen/SG-voorwaarden veranderen niet. De normale boilerwaarde heet '
+                              'Ingesteld boilerdoel; een lokaal bevestigde percentagevergelijking staat apart als berekend SG-doel of doel bij '
+                              'AAN. Uitgebreide bronuitleg en onzekerheid blijven in Details/export. Open details, formulieren, popup en scroll '
+                              'blijven bij verversen op vaste ids bewaard.',
+                              'Doorlopend blauw en een bewegend warmtepompsymbool kunnen actuele elektrische activiteit weergeven. De '
+                              'ventilatoranimatie volgt de verse actieve hoofdmeting en is geen afzonderlijk bewijs van compressorbeweging. Bij '
+                              'alleen actieve elektrische ondersteuning beweegt het verwarmingssymbool en blijft de ventilator stil. Andere '
+                              'toestellen krijgen hun activiteitssymbool volgens de eigen betrouwbare actieve status. Verminderde beweging '
+                              'onderdrukt animaties. Een aangevraagde of beschikbare functie blijft onderscheiden van waargenomen activiteit. '
+                              'Een gesloten SG-contact bewijst geen fysieke tankopwarming. Productie en net hebben afzonderlijke '
+                              'groen-roodkleuren; onbekende/oude bronnen blijven grijs. Kleuren en beweging zijn presentatie, geen storing of '
+                              'vrijgave. De kaart laat verlopen P1/PV en Wallboxrapportages ook zonder een nieuwe HA-update vervallen. '
+                              'Onbeschikbaar of hersteld hoofdtoestelbewijs bevestigt geen activiteit. Lege, boolean en niet-eindige waarden '
+                              'worden geen gemeten nul. Open details en conceptinstellingen blijven bij deze verversing bewaard. Startuitleg '
+                              'toont het toegewezen startvermogen apart van de zonnepot vóór eindtoewijzing, gefilterde meting, gehele '
+                              'toekomstige cyclusreserve, eventueel voor dit onderbreekbare toestel versoepeld zonnedeel, werkelijk toegepaste '
+                              'zonne-reserve, eerdere toewijzingen en elektrische ruimte. Een geschatte afwaspiek blijft onderscheiden van '
+                              'gemeten actueel verbruik. Een tekort aan startbudget wordt niet meer voorgesteld als bewezen gebrek aan '
+                              'zonneproductie.',
+                              'Resterende fouten waarvoor jouw controle nodig is verschijnen in Home Assistant → Meldingen → SolarPilot: '
+                              'controle nodig. De melding bundelt gerichte oorzaken en acties, wordt bij inhoudelijke verandering bijgewerkt en '
+                              'verdwijnt na herstel. Meldingtransport mag de regeling niet laten crashen. Gewone bronwacht, tijdelijke '
+                              'toestelonbereikbaarheid, rusttijd, een bewuste Pauze of fabrikantsterilisatie veroorzaken geen nieuwe foutspam. '
+                              'Tijdelijke toestelonbereikbaarheid toont een informatieve wachtstatus en het volgende vijfminutenmoment; zij '
+                              'wordt niet als bewezen fysieke storing of als gemeten nul voorgesteld.',
+                              'Een SG-koppelings- of terugvalprobleem blokkeert de betrokken SG-functie en noemt de ingebruiknamecontrole. Een '
+                              'oude gearchiveerde tank-/klimaatopdrachtfout wordt niet als actuele fysieke storing opgelost verklaard. Echte '
+                              'onbekende fouten, batterij- of fysieke toestelfouten, expliciete gebruikerskeuzes en verwijderverzoeken blijven '
+                              'beschermd. Controle afronden repareert geen verkeerde bronconfiguratie of onbereikbaar apparaat. Automatische '
+                              'herbeoordeling verruimt geen SG-, batterij-, native Panasonic- of Wallbox-bevoegdheid. Verouderde '
+                              'browserantwoorden mogen geen later geopend configuratievenster wijzigen of ontgrendelen. De actuele kaart '
+                              'gebruikt releasegebonden popupcode, ook wanneer oude aliassen nog in de browser aanwezig zijn.',
+                              'Gewone analysebevindingen, nieuwe bevindingrevisies, meer gegevens nodig en tijdelijke onbereikbaarheid '
+                              'veroorzaken geen algemene melding Analyse nodig, ook niet bij een eerder ingeschakelde analysemeldingsvoorkeur. '
+                              'Bevindingen en onderzoek blijven bij Meetkwaliteit en Export. Een bestaande algemene analysemelding wordt bij de '
+                              'eerste geslaagde controle opgeruimd. Dringende regelingsfouten blijven gericht zichtbaar, worden bij '
+                              'inhoudelijke wijziging bijgewerkt en verdwijnen na herstel. Een bewezen Aquarea-contractbreuk houdt haar '
+                              'afzonderlijke compatibiliteitsmelding. Het opruimen raakt geen andere melding of apparaat.'],
                'bullets': []},
               {'title': '16. Apparaat- en warmtepompgeschiedenis',
-               'paragraphs': ['Geschiedenis toont per toestel gekozen lokale dag, draaitijd, sessies en '
-                              'afzonderlijke start-/stopredenen. Een verzonden opdracht alleen is geen '
-                              'bevestigde start. Externe wijzigingen krijgen geen verzonnen gebruiker of '
-                              'automatisering als oorzaak. Een slimme stekker toont haar aan-tijd, niet '
-                              'noodzakelijk continu compressorbedrijf.',
-                              'Herstart, reload, onbereikbaarheid en meetgaten begrenzen de waarneming en '
-                              'tellen onbekende tijd niet mee. Sessies over middernacht worden per lokale '
-                              'kalenderdag verdeeld; die dag kan 23 of 25 uur duren. Oude niet-geregistreerde '
-                              'redenen worden niet achteraf gereconstrueerd.',
-                              'De bestaande eigen historie blijft bij updates staan: maximaal dertig kalenderdagen per gewone verbruiker, 2000 sessies en 300 extra gebeurtenissen. Bij volle detailgrens blijven dagtotalen met onvolledigheidslabel bestaan. Opslag is gebundeld; het laatste nog niet opgeslagen stukje kan bij een abrupte uitval ontbreken. Details worden alleen op aanvraag gelezen en bedienen niets. Leesrechten controleren zowel huidige als aantoonbaar historische bronkoppelingen. Oude historie zonder volledige bronherkomst blijft bewaard en is alleen voor een beheerder toegankelijk; privé bronherkomst wordt niet meegestuurd naar de gewone geschiedenisweergave.',
-                              ('De warmtepomp bewaart een afzonderlijke lokale geschiedenis over maximaal dertig HA-kalenderdagen. Kies een dag of vergelijk zeven/dertig dagen. Grafiek, activiteitperioden, taaksegmenten en SG-lagen gebruiken de daadwerkelijk beschikbare waarnemingen. De registratie begint na installatie van deze functie; oude verbruikerhistorie, modellen en analysegegevens blijven bewaard en worden niet als nieuwe warmtepompgeschiedenis teruggevuld.'),
-                              ("Start en stop betekenen een waargenomen overgang van warmtepompactiviteit uit passend vers native taakbewijs of actuele elektrische activiteit van een geldige toegewezen voeding; geen compressorstart of gegarandeerd thermisch bedrijf. De afzonderlijke read-only bedrijfsweergave bewaart verse native taken en expliciet afgeleide taken apart. Verwarmen, Koelen, Boiler opwarmen en Ontdooien vormen de primaire taaklijn; elektrische ondersteuning wordt daarnaast geregistreerd en kan dezelfde periode overlappen. Ondersteuning vervangt de taak niet en haar duur wordt niet bij taakduur opgeteld. Onbekende perioden krijgen geen verzonnen taak of stopoorzaak. De bestaande energie-integratie blijft complete meterdekking vereisen."),
-                              ('De aanvullende native-programmatijdlijn zet oorspronkelijke verse taakmelding, tanktemperatuur, gewoon tankdoel, eventueel bewezen effectief doel, afzonderlijke voedingen en native voltooiing naast elkaar. Onbekend blijft onbekend; watts of temperatuur boven het gewone doel bewijzen geen sterilisatie of haar resultaat. Korte elektrische activiteit krijgt een eigen presentatie naast de ruwe perioden en overgangen. Die presentatie wijzigt geen draaitijd, starts/stops, meetgaten of SG-timers en bewijst geen compressorstarts.'),
-                              ("Open Geschiedenis bij de warmtepomp in Overzicht, Toestellen of Warmtepomp. De popup Warmtepompgeschiedenis heeft een datumkiezer, Vorige/Volgende dag, Vandaag en Vernieuwen. Geregistreerde draaitijd, Starts, Stops, Gemeten verbruik en meetdekking beschrijven alleen de geregistreerde periode. De taaklijn onderscheidt Bevestigd, Afgeleid en Taak onbekend. Een afzonderlijke balk direct onder de taaklijn toont SG-contact AAN, UIT of onbekend op dezelfde lokale tijdas, uitsluitend met het oorspronkelijke actuele contactbewijs. De SolarPilot-aanvraag en ontvangen SG blijven apart; zij vullen een onbekend contact niet in. Actuele Temperatuur en Ingesteld doel hebben ieder hun eigen verse bron. Een berekend tapwater-SG-doel gebruikt alleen lokaal bevestigd percentage, normale doelbron en echt gemeld contact. Voor de gekozen historische dag toont een grafiek alleen de destijds opgeslagen temperatuur-, gewone doel- en geldige berekende SG-doelpunten. Het toen bevestigde percentage en originele contacttijden horen bij hetzelfde historische punt; huidige configuratie wordt niet op eerdere punten toegepast. Meetgaten worden niet overbrugd. Zeven/dertig-dagenbalken tonen geregistreerde activiteit en elektrische dagenergie. Ontbrekende dagen krijgen geen nul. De popup blijft bij gewone dashboardupdates open en geeft geen apparaatopdracht."),
-                              ('Geregistreerde elektrische energie betreft de gehele gemeten warmtepomp. '
-                               'Alleen twee bruikbare complete actuele bevestigde niet-overlappende '
-                               'meetpunten van dezelfde bronbinding leveren een trapeziumintegraal. '
-                               'Waarnemingen moeten hoogstens dertig seconden uit elkaar liggen. Een '
-                               'gelijkblijvende waarde blijft slechts bruikbaar zolang haar echte '
-                               'brontijd actueel is; een regelcyclus vernieuwt die tijd niet. Onvolledige '
-                               'of oude metingen, een meetgat, herstart of gewijzigde bronbinding '
-                               'onderbreken de integraal. Nul blijft gemeten nul. Dekking staat naast '
-                               'energie, zodat een gedeeltelijke dag niet volledig lijkt.'),
-                              ("SG-aanvraag, gemeld contact en werkelijk ontvangen SG-status hebben afzonderlijke tijdlijnen. De prominente contactbalk gebruikt alleen gemelde expliciet bevestigde contactstand en bewaart oorspronkelijke ontvangst en afloop: AAN, UIT en onbekend blijven gescheiden. Een oude contactwaarde, ontbrekende registratie of herstart wordt geen verlengd AAN- of UIT-segment. Ontvangen SG vereist zijn eigen passende verse bron; contact AAN of warmtepompverbruik bewijst ontvangst niet. Gelijktijdig warmtepompverbruik en SG is een waarneming, geen bewezen extra SG-kWh. Er wordt geen energie per taak, compressorlooptijd, COP of causale SG-besparing uit deze historie berekend."),
-                              ('Herstart, unload, ontbrekende bronnen en wijziging van meterbinding worden '
-                               'als registratiegrens behandeld, zonder oude actieve perioden over het gat '
-                               'door te trekken. Sessies worden over lokale middernacht verdeeld; dagen '
-                               'van 23/25 uur blijven correct. Activiteits-/SG-details en taaksegmenten '
-                               'hebben vaste aantallimieten; dagtotalen blijven met een '
-                               'onvolledigheidslabel bestaan als detail wordt afgekapt.'),
-                              ('Deze geschiedenis staat in afzonderlijke lokale Home Assistant-opslag en '
-                               'blijft bij gewone updates/herstart behouden. Ze werkt in de bestaande '
-                               'modi onafhankelijk van de analysedetailregistratie. Lezen gebruikt '
-                               'Home Assistant-leesrechten op de betrokken bronnen; bediening of '
-                               'instellingswijziging is niet beschikbaar. Een onleesbaar of niet '
-                               'ondersteund opslagformaat wordt niet stil overschreven. De laatste nog '
-                               'niet opgeslagen waarnemingen kunnen bij abrupte uitval ontbreken.')],
+               'paragraphs': ['Geschiedenis toont per toestel gekozen lokale dag, draaitijd, sessies en afzonderlijke start-/stopredenen. Een '
+                              'verzonden opdracht alleen is geen bevestigde start. Externe wijzigingen krijgen geen verzonnen gebruiker of '
+                              'automatisering als oorzaak. Een slimme stekker toont haar aan-tijd, niet noodzakelijk continu compressorbedrijf.',
+                              'Herstart, reload, onbereikbaarheid en meetgaten begrenzen de waarneming en tellen onbekende tijd niet mee. '
+                              'Sessies over middernacht worden per lokale kalenderdag verdeeld; die dag kan 23 of 25 uur duren. Oude '
+                              'niet-geregistreerde redenen worden niet achteraf gereconstrueerd.',
+                              'De bestaande eigen historie blijft bij updates staan: maximaal dertig kalenderdagen per gewone verbruiker, 2000 '
+                              'sessies en 300 extra gebeurtenissen. Bij volle detailgrens blijven dagtotalen met onvolledigheidslabel bestaan. '
+                              'Opslag is gebundeld; het laatste nog niet opgeslagen stukje kan bij een abrupte uitval ontbreken. Details worden '
+                              'alleen op aanvraag gelezen en bedienen niets. Leesrechten controleren zowel huidige als aantoonbaar historische '
+                              'bronkoppelingen. Oude historie zonder volledige bronherkomst blijft bewaard en is alleen voor een beheerder '
+                              'toegankelijk; privé bronherkomst wordt niet meegestuurd naar de gewone geschiedenisweergave.',
+                              'De warmtepomp bewaart een afzonderlijke lokale geschiedenis over maximaal dertig HA-kalenderdagen. Kies een dag '
+                              'of vergelijk zeven/dertig dagen. Grafiek, activiteitperioden, taaksegmenten en SG-lagen gebruiken de '
+                              'daadwerkelijk beschikbare waarnemingen. De registratie begint na installatie van deze functie; oude '
+                              'verbruikerhistorie, modellen en analysegegevens blijven bewaard en worden niet als nieuwe warmtepompgeschiedenis '
+                              'teruggevuld.',
+                              'Start en stop betekenen een waargenomen overgang van warmtepompactiviteit uit passend vers native taakbewijs of '
+                              'actuele elektrische activiteit van een geldige toegewezen voeding; geen compressorstart of gegarandeerd '
+                              'thermisch bedrijf. De afzonderlijke read-only bedrijfsweergave bewaart verse native taken en expliciet afgeleide '
+                              'taken apart. Verwarmen, Koelen, Boiler opwarmen en Ontdooien vormen de primaire taaklijn; elektrische '
+                              'ondersteuning wordt daarnaast geregistreerd en kan dezelfde periode overlappen. Ondersteuning vervangt de taak '
+                              'niet en haar duur wordt niet bij taakduur opgeteld. Onbekende perioden krijgen geen verzonnen taak of '
+                              'stopoorzaak. De bestaande energie-integratie blijft complete meterdekking vereisen.',
+                              'De aanvullende native-programmatijdlijn zet oorspronkelijke verse taakmelding, tanktemperatuur, gewoon tankdoel, '
+                              'eventueel bewezen effectief doel, afzonderlijke voedingen en native voltooiing naast elkaar. Onbekend blijft '
+                              'onbekend; watts of temperatuur boven het gewone doel bewijzen geen sterilisatie of haar resultaat. Korte '
+                              'elektrische activiteit krijgt een eigen presentatie naast de ruwe perioden en overgangen. Die presentatie '
+                              'wijzigt geen draaitijd, starts/stops, meetgaten of SG-timers en bewijst geen compressorstarts.',
+                              'Open Geschiedenis bij de warmtepomp in Overzicht, Toestellen of Warmtepomp. De popup Warmtepompgeschiedenis '
+                              'heeft een datumkiezer, Vorige/Volgende dag, Vandaag en Vernieuwen. Geregistreerde draaitijd, Starts, Stops, '
+                              'Gemeten verbruik en meetdekking beschrijven alleen de geregistreerde periode. De taaklijn onderscheidt '
+                              'Bevestigd, Afgeleid en Taak onbekend. Een afzonderlijke balk direct onder de taaklijn toont SG-contact AAN, UIT '
+                              'of onbekend op dezelfde lokale tijdas, uitsluitend met het oorspronkelijke actuele contactbewijs. De '
+                              'SolarPilot-aanvraag en ontvangen SG blijven apart; zij vullen een onbekend contact niet in. Actuele Temperatuur '
+                              'en Ingesteld doel hebben ieder hun eigen verse bron. Een berekend tapwater-SG-doel gebruikt alleen lokaal '
+                              'bevestigd percentage, normale doelbron en echt gemeld contact. Voor de gekozen historische dag toont een grafiek '
+                              'alleen de destijds opgeslagen temperatuur-, gewone doel- en geldige berekende SG-doelpunten. Het toen bevestigde '
+                              'percentage en originele contacttijden horen bij hetzelfde historische punt; huidige configuratie wordt niet op '
+                              'eerdere punten toegepast. Meetgaten worden niet overbrugd. Zeven/dertig-dagenbalken tonen geregistreerde '
+                              'activiteit en elektrische dagenergie. Ontbrekende dagen krijgen geen nul. De popup blijft bij gewone '
+                              'dashboardupdates open en geeft geen apparaatopdracht.',
+                              'Geregistreerde elektrische energie betreft de gehele gemeten warmtepomp. Alleen twee bruikbare complete actuele '
+                              'bevestigde niet-overlappende meetpunten van dezelfde bronbinding leveren een trapeziumintegraal. Waarnemingen '
+                              'moeten hoogstens dertig seconden uit elkaar liggen. Een gelijkblijvende waarde blijft slechts bruikbaar zolang '
+                              'haar echte brontijd actueel is; een regelcyclus vernieuwt die tijd niet. Onvolledige of oude metingen, een '
+                              'meetgat, herstart of gewijzigde bronbinding onderbreken de integraal. Nul blijft gemeten nul. Dekking staat '
+                              'naast energie, zodat een gedeeltelijke dag niet volledig lijkt.',
+                              'SG-aanvraag, gemeld contact en werkelijk ontvangen SG-status hebben afzonderlijke tijdlijnen. De prominente '
+                              'contactbalk gebruikt alleen gemelde expliciet bevestigde contactstand en bewaart oorspronkelijke ontvangst en '
+                              'afloop: AAN, UIT en onbekend blijven gescheiden. Een oude contactwaarde, ontbrekende registratie of herstart '
+                              'wordt geen verlengd AAN- of UIT-segment. Ontvangen SG vereist zijn eigen passende verse bron; contact AAN of '
+                              'warmtepompverbruik bewijst ontvangst niet. Gelijktijdig warmtepompverbruik en SG is een waarneming, geen bewezen '
+                              'extra SG-kWh. Er wordt geen energie per taak, compressorlooptijd, COP of causale SG-besparing uit deze historie '
+                              'berekend.',
+                              'Herstart, unload, ontbrekende bronnen en wijziging van meterbinding worden als registratiegrens behandeld, '
+                              'zonder oude actieve perioden over het gat door te trekken. Sessies worden over lokale middernacht verdeeld; '
+                              'dagen van 23/25 uur blijven correct. Activiteits-/SG-details en taaksegmenten hebben vaste aantallimieten; '
+                              'dagtotalen blijven met een onvolledigheidslabel bestaan als detail wordt afgekapt.',
+                              'Deze geschiedenis staat in afzonderlijke lokale Home Assistant-opslag en blijft bij gewone updates/herstart '
+                              'behouden. Ze werkt in de bestaande modi onafhankelijk van de analysedetailregistratie. Lezen gebruikt Home '
+                              'Assistant-leesrechten op de betrokken bronnen; bediening of instellingswijziging is niet beschikbaar. Een '
+                              'onleesbaar of niet ondersteund opslagformaat wordt niet stil overschreven. De laatste nog niet opgeslagen '
+                              'waarnemingen kunnen bij abrupte uitval ontbreken.',
+                              'Nieuwe taakregistraties krijgen geen kunstmatige onderbreking alleen doordat SolarPilot de herkenning van '
+                              'dezelfde geladen Aquarea-koppeling op de achtergrond opnieuw controleert. De gewone grenzen voor actuele native '
+                              'rapporten, passende vermogensmetingen, bronbinding en tegenstrijdige gegevens blijven gelden. Een gewijzigde of '
+                              'onbruikbare koppeling levert geen bekende taak op. Eerdere onbekende intervallen blijven als oorspronkelijke '
+                              'geschiedenis bewaard; zij worden niet achteraf tot verwarmen of boilerbedrijf gemaakt.',
+                              'De balken in Warmtepompgeschiedenis delen een aanraakbare tijdmarkering. Schuif horizontaal, gebruik de muis of '
+                              'bedien de markering met het toetsenbord. Binnen de begrensde afstand springt zij naar een werkelijk vastgelegd '
+                              'meetpunt; het tijdlabel en alle taak-/SG-informatie volgen die exacte tijd. Vorig/volgend meetpunt maakt de '
+                              'bewaarde punten apart bereikbaar. Een leeg of ver verwijderd meetpunt geeft geen verzonnen numerieke waarden. '
+                              'Vermogen is een W-meting op dat punt, geen verbruik per taak of per SG-sessie. Dagverbruik blijft apart als kWh '
+                              'met gemeten dekking. Temperatuur, normaal doel en berekend SG-doel houden hun eigen oorspronkelijke bronnen en '
+                              'tijden. De actuele boilerkaart bovenaan staat los van de geselecteerde historische waarden. Alleen bekijken '
+                              'stuurt geen apparaatopdracht en wijzigt geen instelling.',
+                              'Nieuwe historische vergelijkingspunten bewaren aanvullend alleen een gevalideerd volledig warmtepompvermogen met '
+                              'oorspronkelijke rapporttijd en geldigheid. Eerdere punten zonder dit bewijs krijgen geen achteraf opgeteld '
+                              'totaal uit deelvoedingen. Het bestaande opname-interval, de detailcaps en de dertig lokale kalenderdagen blijven '
+                              'behouden; een vermogenverandering alleen vult het archief niet met extra punten. Lokale UTC-daggrenzen laten de '
+                              'markering ook op dagen van 23 of 25 uur op de juiste tijd wijzen. Gedupliceerde lokale uren houden hun '
+                              'tijdzoneverschil.',
+                              'Lange warmtepompsessies met meer dan acht taakperioden tonen eerst een compacte samenvatting per taak en '
+                              'bewijsniveau. De oorspronkelijk geregistreerde perioden blijven chronologisch uitklapbaar, inclusief korte '
+                              'onbekende perioden. Dat overzicht telt alleen werkelijk geregistreerde taakduur binnen de betreffende sessie; '
+                              'het vult geen gaten en verandert geen dagenergie, taakclassificatie, tijdlijn of SG-bewijs. Elektrische '
+                              'ondersteuning blijft een afzonderlijke gelijktijdige waarneming. Overlappende bronperioden blijven behouden; hun '
+                              'opgetelde duur wordt met overlapwaarschuwing getoond en is geen aaneengesloten fysieke looptijd.',
+                              'De gedetailleerde taakperioden tonen seconden en hun oorspronkelijke beschikbare duur. Een positieve periode '
+                              'korter dan een seconde blijft een korte geregistreerde periode. Een enkele waarneming zonder vastgestelde duur '
+                              'wordt als meetpunt aangegeven. Taak onbekend betekent ontbrekend bewijs van de taak terwijl elektrische '
+                              'activiteit kan zijn waargenomen; een lijstregel is geen bewezen compressorstart of -stop.',
+                              'Tijdens het verwerken van een nieuw Aquarea-bericht kan de taak kort onbekend zijn. Een tussentijdse uitlezing '
+                              'mag het daaropvolgende geldige bronbericht niet verbruiken: na de normale bevestiging van dat nieuwe bericht is '
+                              'het direct bruikbaar, zonder een extra volledige poll af te wachten. De uitlezing zelf geeft geen nieuw actueel '
+                              'bewijs. Ontbrekende, oude, gecachete, gewijzigde of tegenstrijdige gegevens blijven onbekend. Oude onbekende '
+                              'geschiedenis wordt niet achteraf herschreven.',
+                              'Ook gewone en gearchiveerde toestellen hebben aanklikbare geschiedenisbalken, sessies en gebeurtenissen. Kies '
+                              'een tijd met vinger, muis of toetsenbord voor de werkelijk geregistreerde actieve periode, begin/einde, duur, '
+                              'bevestiging en start-/stopreden. Een leeg tijdvak betekent geen geregistreerde actieve periode; een exacte '
+                              'UIT-toestand is daar niet bewezen. Actuele status, huidige modus, vermogen of doelwaarde vullen historische '
+                              'gegevens niet aan. De gekozen sessie toont een compacte tijd-/duursamenvatting; oorspronkelijke tijden, '
+                              'bevestigingen en redenen blijven uitklapbaar. Op mobiel blijft de tijdsbalk bereikbaar tijdens het schuiven.',
+                              'De bewaarde Wallbox-laadperioden zijn afzonderlijk uitklapbaar met oorspronkelijke begin-/eindwaarnemingen, '
+                              'fabrikantstatus en beschikbare grensmetingen. Deze grensmetingen zijn geen continue vermogensreeks of energie '
+                              'per sessie. De SG-aanvraag, het contact en de ontvangen status blijven apart bereikbaar op de '
+                              'warmtepomptijdlijn.',
+                              'Bronhistorie opent de geschiedenisweergave van Home Assistant bij een toegestane gekoppelde bron. Dit maakt '
+                              'onder meer batterij-SoC, vermogenssensoren en regeldoelen bereikbaar waar Home Assistant die heeft opgeslagen. '
+                              'SolarPilot ontsluit uitsluitend toegestane huidige bronkoppelingen waarvoor de gebruiker leesrechten heeft; de '
+                              'bestaande apparaathistorie houdt ook haar rechten op oudere bronnen. De bronhistorie beschrijft de entiteit '
+                              'zelf: een huidige koppeling bewijst niet dat die bron vroeger steeds bij hetzelfde toestel hoorde. '
+                              'Recorderbeschikbaarheid, eigen bewaartermijn en meetgaten bepalen wat Home Assistant kan tonen. Er wordt geen '
+                              'nieuwe registratie aangezet en geen ontbrekend verleden verzonnen. Alleen de geschiedenisweergave openen '
+                              'verzendt geen apparaatopdracht.',
+                              'Tik op de huidige boilertemperatuur of het ingestelde boilerdoel om direct de geschiedenisweergave van de '
+                              'bijbehorende Home Assistant-bron te openen. De knop volgt de bron van de getoonde waarde, ook bij een '
+                              'gecontroleerd automatisch gevonden Aquarea-boiler. Wanneer beide waarden attributen van dezelfde boilerentiteit '
+                              'zijn, openen beide knoppen dezelfde entiteit. De bronkoppeling en leesrechten worden opnieuw gecontroleerd. Een '
+                              'berekend SG-doel heeft geen afzonderlijke gemelde entiteit en krijgt geen verzonnen bronhistorie.'],
                'bullets': []},
               {'title': '17. Privé-analyse-export',
-               'paragraphs': ['Export → Maak analysebestand levert voor een HA-beheerder met één klik een lokaal '
-                              'gecomprimeerd JSON.GZ-bestand van de beschikbare zeven dagen. De oorspronkelijke '
-                              'exportroute blijft ook perioden van 1 uur of 24 uur ondersteunen. Het bevat '
-                              'actuele bron-/configuratiegegevens, beslisredenen, versie per nieuwe '
-                              'registratie, beschikbare historie en modellen. Oude records zonder versie '
-                              'blijven onbekend. Het pakket bevat een gerichte analysis_request voor '
-                              'warmtepompinstellingen, SolarPilot-keuzes en logische verbetervoorstellen, '
-                              'plus bronherkomst en het adviesrapportformaat. Het bijbehorende '
-                              'Adviesrapport-sjabloon downloaden is daarna apart beschikbaar; dat sjabloon '
-                              'bevat de exacte bronhash. Het bestand verandert geen '
-                              'toestel, wordt niet automatisch geüpload en is geen herstelbare HA-back-up.',
-                              'Bronnamen en labels worden standaard consistent gepseudonimiseerd. Een '
-                              'expliciete keuze kan echte namen opnemen. Tokens, wachtwoorden, '
-                              'netwerk-/account-/locatiegegevens en ongeschikte privébronnen worden '
-                              'gefilterd. Tijdstippen en gebruikspatronen blijven aanwezig: controleer vóór '
-                              'delen en plaats geen analysebestand op publieke GitHub.',
-                              'De beheerder-WebSocket geeft alleen downloadinformatie; het bestand wordt '
-                              'buiten de eventloop gecomprimeerd en daarna via geauthenticeerde lokale HTTP '
-                              'gedownload. De download is tien minuten geldig en wordt na ontvangst/afloop '
-                              'opgeruimd. Maximaal twee bestanden staan tegelijk klaar of worden gemaakt. '
-                              'De route beperkt de uitgepakte JSON niet tot 16 MB en verkort de gevraagde '
-                              'periode niet om die grens te omzeilen.',
-                              'Alleen werkelijk bewaarde informatie is beschikbaar. De '
-                              'onderzoeksregistratie behoudt haar bestaande maximaal zeven dagen, 2016 '
-                              'gedetailleerde ronden, 20000 bronwijzigingen en 6000 gebeurtenissen. De '
-                              'laatste maximaal twee uur snelle punten blijven in RAM. Een korter '
-                              'registratie-interval kan door vaste aantallimieten een kortere ruwe periode '
-                              'geven. Geen onbeperkt archief, retentieverruiming of aanvulling van '
-                              'ontbrekende oude meetpunten.',
-                              'De warmtepompanalyse bundelt beschikbare voedingshistorie, native taken en '
-                              'gekozen context, ontdooimeldingen, SG-aanvraag/contact/beslisredenen, '
-                              'bronkwaliteit, instellingenwijzigingen en Aquarea-versie. De bestaande '
-                              'koppelingen worden automatisch gebruikt; hiervoor is geen extra entiteit of '
-                              'formulier nodig. Nieuwe registraties houden de afgeleide taak, getypeerde '
-                              'gekozen context en oorspronkelijke native OFF/IDLE-melding afzonderlijk; '
-                              'ontbrekende oude gegevens worden niet achteraf aangevuld. De '
-                              'meetregistratie gebruikt standaard zeven dagen met '
-                              'vijfminutenmeetpunten; bestaande instellingen en aantallimieten blijven gelden. '
-                              'Een meetpunt is geen volledige registratie van iedere '
-                              'korte piek of heater-/compressorwisseling. Meetgaten, gedeeltelijke dekking, '
-                              'bronversheid en de voedingsprofielaanname blijven expliciet; meterwatts '
-                              'bewijzen geen type backupheater/booster, warmteproductie of causaal '
-                              'SG-effect.',
-                              'Bij Analyse nodig maakt één actie een export van de beschikbare zeven dagen '
-                              'met open bevindingen, zonder extra vragen of nieuwe configuratie. Download '
-                              'het JSON.GZ-bestand en voeg het hier bewust toe voor analyse. De meegeleverde '
-                              'analysevraag betreft tips voor de native warmtepompinstellingen, SolarPilot-keuzes en concrete '
-                              'logische codeverbeteringen, met bewijs en beperkingen. Een analyse kan een '
-                              'JSON-antwoord-/adviezenrapport volgens het meegeleverde template teruggeven. '
-                              'Onder Export kun je dat rapport optioneel uploaden en de bevindingen/tips '
-                              'bekijken. De upload is uitsluitend een lokaal read-only rapport; zij wijzigt '
-                              'geen configuratie, programmabestand of apparaat en doet geen servicecall. '
-                              'Exact gekoppelde actuele antwoorden verwerken alleen de reviewstatus van '
-                              'bevindingen. Meer data nodig blijft open. Gewenste instellingenwijzigingen '
-                              'blijven een afzonderlijke bewuste configuratieactie met hun bestaande '
-                              'voorwaarden. Een codeverbetering vereist een afzonderlijke geteste release. '
-                              'De export neemt ook de beschikbare lokale onderzoeksstatus, '
-                              'bewijsgrenzen, hypotheses, voorstellen en vervolgstappen mee. '
-                              'Dit maakt ontbrekende bronnen zichtbaar; het verzint geen onafhankelijke '
-                              'meting of hardwarediagnose.',
-                              'Alleen een HA-beheerder kan een adviesrapport uploaden, bekijken of '
-                              'verwijderen. Upload ondersteunt UTF-8 JSON van maximaal 1 MiB met maximaal '
-                              'honderd adviezen en honderd bevindingantwoorden; dubbele of onbekende velden en ongeschikte schema-inhoud '
-                              'worden geweigerd. Adviezen benoemen categorie, bewijs, vertrouwen en '
-                              'beperkingen. Bronbinding vergelijkt exportidentiteit, SHA-256, versie en '
-                              'aanmaakdatum met maximaal vijftig recent bewaarde succesvolle '
-                              'exportidentiteiten. Een exacte match wordt als gekoppelde bron getoond; een '
-                              'niet gekoppeld rapport blijft ongeverifieerd en krijgt geen inhoudelijk '
-                              'vertrouwen of toepasrecht. Alleen het laatste rapport per integratie-entry '
-                              'wordt lokaal bewaard. Het rapport verwijderen wist geen oorspronkelijke '
-                              'metingen, exporthistorie of instellingen. Een bronmatch bewijst herkomst, '
-                              'niet dat ieder advies inhoudelijk correct of geschikt is. Antwoorden op open '
-                              'bevindingen vereisen de bijbehorende zevendagenexport en worden uitsluitend '
-                              'verwerkt wanneer de geëxporteerde en huidige '
-                              'identiteit/revisie exact overeenkomen. Een oud, niet gekoppeld of inmiddels '
-                              'gewijzigd vraagpunt wordt niet als actueel afgehandeld. Reviewstatus is geen '
-                              'toestemming voor automatisch instellen, leren, code of bediening.',
-                              'Een logische verbetersuggestie kan een stabiele proposal_id bevatten. De '
-                              'status van die suggestie wordt uitsluitend berekend uit het vertrouwde '
-                              'meegeleverde implementatieregister en de werkelijk geïnstalleerde '
-                              'SolarPilot-versie. Uitgevoerd vereist exact dezelfde voorstelidentiteit én '
-                              'inhoud in het register, plus een geïnstalleerde versie vanaf de geteste '
-                              'introductierelease. Een gewijzigde tekst of oudere/onherkende versie blijft '
-                              'open; een onbekende identiteit blijft ongekoppeld. Een upload kan zichzelf '
-                              'niet als uitgevoerd verklaren. '
-                              'Het rapport en zijn oorspronkelijke bronversie blijven bij een gewone '
-                              'update bewaard; de huidige versie wordt apart getoond. Een volgende analyse '
-                              'neemt beschikbare nog open logische voorstellen mee met dezelfde proposal_id '
-                              'en ongewijzigde abstracte voorsteltekst. Privébronnen, tijdstippen en '
-                              'ondersteunende details horen afzonderlijk in evidence, zodat nieuwe '
-                              'pseudoniemen de betekenis van het voorstel niet veranderen. Het uploaden van een '
-                              'antwoord werkt de integratie niet bij: een codeverbetering komt alleen via '
-                              'een afzonderlijk geverifieerde release en de normale HACS-/herstartprocedure. '
-                              'Dit maakt geen automatische codeactie buiten een actieve werksessie. '
-                              'Andere adviescategorieën tonen hun eigen categorie, zoals '
-                              'Advies over instellingen of Waarneming · geen softwarewijziging. Die aanduiding '
-                              'bewijst geen uitgevoerde instelling en maakt een advies niet automatisch '
-                              'een opgeloste taak. Het lokale onderzoek heeft afzonderlijke actuele '
-                              'brongebonden statussen.',
-                              'Warmtepompgeschiedenis wordt maximaal dertig lokale kalenderdagen bewaard. Die bewaartermijn staat apart van het gekozen rollende exportvenster van 1, 24 of 168 uur en het aantal werkelijk opgenomen datums. Het warmtepompdeel neemt elke lokale kalenderdag op die met dat venster overlapt; 168 uur kan daardoor acht datums omvatten, en rond een tijdwissel soms negen. Dagtotalen, taakperioden en SG-lagen blijven de volledige werkelijk geregistreerde lokale kalenderdag beschrijven. Gedeeltelijke grensdatums worden expliciet gemarkeerd, naast de afzonderlijke meetdekking. Gegevens op zo een grensdag kunnen buiten het rollende venster liggen; energie wordt niet naar rato geschat of kunstmatig afgeknipt. Alle onderdelen gebruiken hetzelfde exporteindtijdstip. Dit verandert geen opslagretentie, registratie, apparaatinstelling of ontbrekende historie.'],
+               'paragraphs': ['Export → Maak analysebestand levert voor een HA-beheerder met één klik een lokaal gecomprimeerd JSON.GZ-bestand '
+                              'van de beschikbare zeven dagen. De oorspronkelijke exportroute blijft ook perioden van 1 uur of 24 uur '
+                              'ondersteunen. Het bevat actuele bron-/configuratiegegevens, beslisredenen, versie per nieuwe registratie, '
+                              'beschikbare historie en modellen. Oude records zonder versie blijven onbekend. Het pakket bevat een gerichte '
+                              'analysis_request voor warmtepompinstellingen, SolarPilot-keuzes en logische verbetervoorstellen, plus '
+                              'bronherkomst en het adviesrapportformaat. Het bijbehorende Adviesrapport-sjabloon downloaden is daarna apart '
+                              'beschikbaar; dat sjabloon bevat de exacte bronhash. Het bestand verandert geen toestel, wordt niet automatisch '
+                              'geüpload en is geen herstelbare HA-back-up.',
+                              'Bronnamen en labels worden standaard consistent gepseudonimiseerd. Een expliciete keuze kan echte namen opnemen. '
+                              'Tokens, wachtwoorden, netwerk-/account-/locatiegegevens en ongeschikte privébronnen worden gefilterd. '
+                              'Tijdstippen en gebruikspatronen blijven aanwezig: controleer vóór delen en plaats geen analysebestand op '
+                              'publieke GitHub.',
+                              'De beheerder-WebSocket geeft alleen downloadinformatie; het bestand wordt buiten de eventloop gecomprimeerd en '
+                              'daarna via geauthenticeerde lokale HTTP gedownload. De download is tien minuten geldig en wordt na '
+                              'ontvangst/afloop opgeruimd. Maximaal twee bestanden staan tegelijk klaar of worden gemaakt. De route beperkt de '
+                              'uitgepakte JSON niet tot 16 MB en verkort de gevraagde periode niet om die grens te omzeilen.',
+                              'Alleen werkelijk bewaarde informatie is beschikbaar. De onderzoeksregistratie behoudt haar bestaande maximaal '
+                              'zeven dagen, 2016 gedetailleerde ronden, 20000 bronwijzigingen en 6000 gebeurtenissen. De laatste maximaal twee '
+                              'uur snelle punten blijven in RAM. Een korter registratie-interval kan door vaste aantallimieten een kortere ruwe '
+                              'periode geven. Geen onbeperkt archief, retentieverruiming of aanvulling van ontbrekende oude meetpunten.',
+                              'De warmtepompanalyse bundelt beschikbare voedingshistorie, native taken en gekozen context, ontdooimeldingen, '
+                              'SG-aanvraag/contact/beslisredenen, bronkwaliteit, instellingenwijzigingen en Aquarea-versie. De bestaande '
+                              'koppelingen worden automatisch gebruikt; hiervoor is geen extra entiteit of formulier nodig. Nieuwe registraties '
+                              'houden de afgeleide taak, getypeerde gekozen context en oorspronkelijke native OFF/IDLE-melding afzonderlijk; '
+                              'ontbrekende oude gegevens worden niet achteraf aangevuld. De meetregistratie gebruikt standaard zeven dagen met '
+                              'vijfminutenmeetpunten; bestaande instellingen en aantallimieten blijven gelden. Een meetpunt is geen volledige '
+                              'registratie van iedere korte piek of heater-/compressorwisseling. Meetgaten, gedeeltelijke dekking, bronversheid '
+                              'en de voedingsprofielaanname blijven expliciet; meterwatts bewijzen geen type backupheater/booster, '
+                              'warmteproductie of causaal SG-effect.',
+                              'Bij Analyse nodig maakt één actie een export van de beschikbare zeven dagen met open bevindingen, zonder extra '
+                              'vragen of nieuwe configuratie. Download het JSON.GZ-bestand en voeg het hier bewust toe voor analyse. De '
+                              'meegeleverde analysevraag betreft tips voor de native warmtepompinstellingen, SolarPilot-keuzes en concrete '
+                              'logische codeverbeteringen, met bewijs en beperkingen. Een analyse kan een JSON-antwoord-/adviezenrapport '
+                              'volgens het meegeleverde template teruggeven. Onder Export kun je dat rapport optioneel uploaden en de '
+                              'bevindingen/tips bekijken. De upload is uitsluitend een lokaal read-only rapport; zij wijzigt geen configuratie, '
+                              'programmabestand of apparaat en doet geen servicecall. Exact gekoppelde actuele antwoorden verwerken alleen de '
+                              'reviewstatus van bevindingen. Meer data nodig blijft open. Gewenste instellingenwijzigingen blijven een '
+                              'afzonderlijke bewuste configuratieactie met hun bestaande voorwaarden. Een codeverbetering vereist een '
+                              'afzonderlijke geteste release. De export neemt ook de beschikbare lokale onderzoeksstatus, bewijsgrenzen, '
+                              'hypotheses, voorstellen en vervolgstappen mee. Dit maakt ontbrekende bronnen zichtbaar; het verzint geen '
+                              'onafhankelijke meting of hardwarediagnose.',
+                              'Alleen een HA-beheerder kan een adviesrapport uploaden, bekijken of verwijderen. Upload ondersteunt UTF-8 JSON '
+                              'van maximaal 1 MiB met maximaal honderd adviezen en honderd bevindingantwoorden; dubbele of onbekende velden en '
+                              'ongeschikte schema-inhoud worden geweigerd. Adviezen benoemen categorie, bewijs, vertrouwen en beperkingen. '
+                              'Bronbinding vergelijkt exportidentiteit, SHA-256, versie en aanmaakdatum met maximaal vijftig recent bewaarde '
+                              'succesvolle exportidentiteiten. Een exacte match wordt als gekoppelde bron getoond; een niet gekoppeld rapport '
+                              'blijft ongeverifieerd en krijgt geen inhoudelijk vertrouwen of toepasrecht. Alleen het laatste rapport per '
+                              'integratie-entry wordt lokaal bewaard. Het rapport verwijderen wist geen oorspronkelijke metingen, '
+                              'exporthistorie of instellingen. Een bronmatch bewijst herkomst, niet dat ieder advies inhoudelijk correct of '
+                              'geschikt is. Antwoorden op open bevindingen vereisen de bijbehorende zevendagenexport en worden uitsluitend '
+                              'verwerkt wanneer de geëxporteerde en huidige identiteit/revisie exact overeenkomen. Een oud, niet gekoppeld of '
+                              'inmiddels gewijzigd vraagpunt wordt niet als actueel afgehandeld. Reviewstatus is geen toestemming voor '
+                              'automatisch instellen, leren, code of bediening.',
+                              'Een logische verbetersuggestie kan een stabiele proposal_id bevatten. De status van die suggestie wordt '
+                              'uitsluitend berekend uit het vertrouwde meegeleverde implementatieregister en de werkelijk geïnstalleerde '
+                              'SolarPilot-versie. Uitgevoerd vereist exact dezelfde voorstelidentiteit én inhoud in het register, plus een '
+                              'geïnstalleerde versie vanaf de geteste introductierelease. Een gewijzigde tekst of oudere/onherkende versie '
+                              'blijft open; een onbekende identiteit blijft ongekoppeld. Een upload kan zichzelf niet als uitgevoerd verklaren. '
+                              'Het rapport en zijn oorspronkelijke bronversie blijven bij een gewone update bewaard; de huidige versie wordt '
+                              'apart getoond. Een volgende analyse neemt beschikbare nog open logische voorstellen mee met dezelfde proposal_id '
+                              'en ongewijzigde abstracte voorsteltekst. Privébronnen, tijdstippen en ondersteunende details horen afzonderlijk '
+                              'in evidence, zodat nieuwe pseudoniemen de betekenis van het voorstel niet veranderen. Het uploaden van een '
+                              'antwoord werkt de integratie niet bij: een codeverbetering komt alleen via een afzonderlijk geverifieerde '
+                              'release en de normale HACS-/herstartprocedure. Dit maakt geen automatische codeactie buiten een actieve '
+                              'werksessie. Andere adviescategorieën tonen hun eigen categorie, zoals Advies over instellingen of Waarneming · '
+                              'geen softwarewijziging. Die aanduiding bewijst geen uitgevoerde instelling en maakt een advies niet automatisch '
+                              'een opgeloste taak. Het lokale onderzoek heeft afzonderlijke actuele brongebonden statussen.',
+                              'Warmtepompgeschiedenis wordt maximaal dertig lokale kalenderdagen bewaard. Die bewaartermijn staat apart van het '
+                              'gekozen rollende exportvenster van 1, 24 of 168 uur en het aantal werkelijk opgenomen datums. Het warmtepompdeel '
+                              'neemt elke lokale kalenderdag op die met dat venster overlapt; 168 uur kan daardoor acht datums omvatten, en '
+                              'rond een tijdwissel soms negen. Dagtotalen, taakperioden en SG-lagen blijven de volledige werkelijk '
+                              'geregistreerde lokale kalenderdag beschrijven. Gedeeltelijke grensdatums worden expliciet gemarkeerd, naast de '
+                              'afzonderlijke meetdekking. Gegevens op zo een grensdag kunnen buiten het rollende venster liggen; energie wordt '
+                              'niet naar rato geschat of kunstmatig afgeknipt. Alle onderdelen gebruiken hetzelfde exporteindtijdstip. Dit '
+                              'verandert geen opslagretentie, registratie, apparaatinstelling of ontbrekende historie.',
+                              'Nieuwe exports scheiden observed.control en observed.power van planning en eigendom. Hersteltijd en de '
+                              'minimumlooptijd zijn expliciete bewijsvelden. Dekking wordt daarnaast per werkelijk verzamelende release en bron '
+                              'verdeeld; een interval over een releasewissel of meetgat wordt niet overbrugd. Bij een geverifieerde '
+                              'Aquarea-cloudenergiesensor staan provider, bronsoort, werkelijk uitgelezen aggregatiebegin, exclusief '
+                              'periode-einde en UTC-tijdzone apart. Dag-/maandtotalen zijn pas vergelijkbaar bij dezelfde uren, scope en '
+                              'dekking; een HA-rapporttijd is geen aggregatiebegin. Ontbrekende native periodegegevens blijven onbekend. Een '
+                              'bekende aggregatieperiode is geen bewijs van actualiteit of volledige meetdekking.',
+                              'Aquarea 1.8.1 houdt de vorige UTC-cloudmaand vast tot de laatste energiegegevens zijn opgehaald en schuift '
+                              'daarna door naar de nieuwe maand. SolarPilot blijft de werkelijk door de native sensor gerapporteerde periode '
+                              'uitlezen. Een nieuwe exportdatum maakt een behouden oude maand niet tot de huidige maand; periodegrenzen '
+                              'bewijzen geen meetdekking of actualiteit. De status-/actiesemantiek en SDK zijn bij deze bronwijziging '
+                              'ongewijzigd. De aanvullende bronreview en regressies verruimen geen taak-, leer- of regelrecht.'],
                'bullets': []},
               {'title': '18. Live configuratie en één eigenaar',
-               'paragraphs': ['Configureren opent de bestaande HA-optiesflow met uitleg bij de velden. Alleen '
-                              'expliciet opslaan kan een instelling veranderen; openen/renderen bedient niets. '
-                              'Gewone ongewijzigde toestellen behouden timers, listeners, leerdata en modus. '
-                              'Een HACS-codeupdate vereist nog wel een HA-herstart.',
-                              'Koppeling-/meter-/beschermingswijzigingen aan actief of onzeker beheerde '
-                              'toestellen blijven onder de bestaande veilige voorstelroute staan. Naam en '
-                              'categorie kunnen zonder fysieke wijziging. Toestel vervangen geeft een nieuwe '
-                              'identiteit met voorkeuren als voorstel, geen oude fysieke rechten of '
-                              'startticket. Conflicterende edits en dubbele actuatoren/meters worden '
-                              'afgewezen.',
-                              'De gekozen SG-uitgang mag niet tegelijk een gewone flexibele last of '
-                              'batterijactuator zijn. Backendvalidatie voorkomt dubbel eigenaarschap. Een '
-                              'gewijzigde SG-koppeling vereist opnieuw ingebruikname en kan geen oude '
-                              'AAN-bevestiging overnemen. Wijzigen van toepassingsbereik of '
-                              'splitmeterkoppelingen vraagt de passende nieuwe lokale bevestiging; een vinkje '
-                              'wordt niet stil overgenomen. Controleer externe automatiseringen die dezelfde '
-                              'uitgang of native Panasonic-instellingen nog schrijven; SolarPilot bewijst hun '
-                              'afwezigheid niet zonder live inzage. Een gewijzigde native uitleesbron is geen '
-                              'nieuwe warmte-/koelvraag: de eerste verse rapportage vormt alleen een nieuwe '
-                              'referentie, waarna echt veranderde context of een nieuwe zonneperiode nodig '
-                              'blijft. Wijzigen van relevante native bronnen vraagt ook opnieuw de passende '
-                              'koelbeveiligingsbevestiging.',
-                              'Bij een wachtend APP-ticket kiest wijzigen van deadline/herstelvenster tussen volgende beladingen of expliciet hetzelfde huidige ticket. De bestaande kalenderdag blijft gelijk; er ontstaat geen START door opslaan. Wachtende voorstellen en archieven blijven inspecteerbaar. Alleen eigen virtuele SolarPilot-entiteiten mogen bij wijzigingen verdwijnen, nooit de oorspronkelijke apparaatentiteiten.'],
+               'paragraphs': ['Configureren opent de bestaande HA-optiesflow met uitleg bij de velden. Alleen expliciet opslaan kan een '
+                              'instelling veranderen; openen/renderen bedient niets. Gewone ongewijzigde toestellen behouden timers, listeners, '
+                              'leerdata en modus. Een HACS-codeupdate vereist nog wel een HA-herstart.',
+                              'Koppeling-/meter-/beschermingswijzigingen aan actief of onzeker beheerde toestellen blijven onder de bestaande '
+                              'veilige voorstelroute staan. Naam en categorie kunnen zonder fysieke wijziging. Toestel vervangen geeft een '
+                              'nieuwe identiteit met voorkeuren als voorstel, geen oude fysieke rechten of startticket. Conflicterende edits en '
+                              'dubbele actuatoren/meters worden afgewezen.',
+                              'De gekozen SG-uitgang mag niet tegelijk een gewone flexibele last of batterijactuator zijn. Backendvalidatie '
+                              'voorkomt dubbel eigenaarschap. Een gewijzigde SG-koppeling vereist opnieuw ingebruikname en kan geen oude '
+                              'AAN-bevestiging overnemen. Wijzigen van toepassingsbereik of splitmeterkoppelingen vraagt de passende nieuwe '
+                              'lokale bevestiging; een vinkje wordt niet stil overgenomen. Controleer externe automatiseringen die dezelfde '
+                              'uitgang of native Panasonic-instellingen nog schrijven; SolarPilot bewijst hun afwezigheid niet zonder live '
+                              'inzage. Een gewijzigde native uitleesbron is geen nieuwe warmte-/koelvraag: de eerste verse rapportage vormt '
+                              'alleen een nieuwe referentie, waarna echt veranderde context of een nieuwe zonneperiode nodig blijft. Wijzigen '
+                              'van relevante native bronnen vraagt ook opnieuw de passende koelbeveiligingsbevestiging.',
+                              'Bij een wachtend APP-ticket kiest wijzigen van deadline/herstelvenster tussen volgende beladingen of expliciet '
+                              'hetzelfde huidige ticket. De bestaande kalenderdag blijft gelijk; er ontstaat geen START door opslaan. Wachtende '
+                              'voorstellen en archieven blijven inspecteerbaar. Alleen eigen virtuele SolarPilot-entiteiten mogen bij '
+                              'wijzigingen verdwijnen, nooit de oorspronkelijke apparaatentiteiten.'],
                'bullets': []},
               {'title': '19. Migratie en veilige ingebruikname',
-               'paragraphs': ['Beta.83 behoudt de beta.63-fix voor onveranderbare en geneste Home '
-                              'Assistant-opties. Verwijder de integratie, configuratie, modellen of opslag '
-                              'niet. De upgrade houdt geldige single-meterkoppelingen, bestaande overige '
-                              'toestellen en privégegevens intact. Ongewijzigde geldige SG-, profiel-, '
-                              'meter- en koelbeveiligingsbevestigingen uit beta.67 blijven staan; een '
-                              'codeupdate vraagt daarvoor geen herbevestiging. Nieuwe profiel-, splitmeter-, '
-                              'compressor- en SG-bronvelden leveren geen stilzwijgende toestemming. De '
-                              'algemene SG-keuze vraagt expliciete lokale bevestiging.',
-                              'Een oude tankgebonden beleidswachtstand wordt bij bevestigde omschakeling '
-                              'naar het algemene profiel gericht beoordeeld. De oude herkomst blijft privé '
-                              'bewaard en nieuw betrouwbaar relevant native bewijs of een aantoonbaar nieuwe '
-                              'zonneperiode is nodig; omschakelen alleen start niets. De overgang doet geen '
-                              'fysieke opdracht. Echte handmatige overname, transportonzekerheid en '
-                              'veiligheidsblokkeringen worden hierdoor niet gewist.',
-                              'Voor upgrade maak je een volledige privé Home Assistant-back-up inclusief '
-                              'configuratie en SolarPilot-opslag. De versiegebonden migratie archiveert oude '
-                              'warmtepompopties, modellen en relevante opdracht-/foutgegevens buiten de '
-                              'actieve regeling. Zij is idempotent en verstuurt geen tank-/klimaatopdracht, '
-                              'SG-boost of afwasstart.',
-                              'Oude pending, doel-eigendom, hercontrole, foutwachttijden, manual hold en '
-                              'eigen klimaat-OFF kunnen niet opnieuw uitvoeren. Aantoonbaar uitsluitend '
-                              'vervallen regelopdrachtfouten worden als vervallen functie beoordeeld, niet '
-                              'als fysiek gerepareerd. Gemengde/onbekende foutpauzes, gewone '
-                              'apparaat-/batterijfouten, gebruikers-Pauze en verwijdering blijven beschermd. '
-                              'Brononzekerheid voor de nieuwe SG-functie blijft gelden.',
-                              'De globale hervatvoorkeur, geldige andere toestellen, entity-identiteiten, opgeslagen prioriteiten, APP-tickets, historie en leerdata blijven behouden. Nieuwe SG-sturing blijft uit totdat juiste uitgang, native basisinstellingen, geen dubbele writers, contactmapping en lokale aflooptimer werkelijk zijn bevestigd. De noodzakelijke lokale Panasonic/Shelly-controle is geen softwaretest. Geldige opgeslagen numerieke SG-teksten worden uitsluitend in de gekopieerde runtimeweergave naar dezelfde getalswaarde omgezet; de oorspronkelijke opties en private archieven blijven behouden. Ongeldige waarden blijven herkenbaar voor validatie.',
-                              ('Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische metingen in geopende apparatuur. Gebruik de korte controle in BETA83_INSTELLEN.md.')],
+               'paragraphs': ['Beta.83 behoudt de beta.63-fix voor onveranderbare en geneste Home Assistant-opties. Verwijder de integratie, '
+                              'configuratie, modellen of opslag niet. De upgrade houdt geldige single-meterkoppelingen, bestaande overige '
+                              'toestellen en privégegevens intact. Ongewijzigde geldige SG-, profiel-, meter- en koelbeveiligingsbevestigingen '
+                              'uit beta.67 blijven staan; een codeupdate vraagt daarvoor geen herbevestiging. Nieuwe profiel-, splitmeter-, '
+                              'compressor- en SG-bronvelden leveren geen stilzwijgende toestemming. De algemene SG-keuze vraagt expliciete '
+                              'lokale bevestiging.',
+                              'Een oude tankgebonden beleidswachtstand wordt bij bevestigde omschakeling naar het algemene profiel gericht '
+                              'beoordeeld. De oude herkomst blijft privé bewaard en nieuw betrouwbaar relevant native bewijs of een aantoonbaar '
+                              'nieuwe zonneperiode is nodig; omschakelen alleen start niets. De overgang doet geen fysieke opdracht. Echte '
+                              'handmatige overname, transportonzekerheid en veiligheidsblokkeringen worden hierdoor niet gewist.',
+                              'Voor upgrade maak je een volledige privé Home Assistant-back-up inclusief configuratie en SolarPilot-opslag. De '
+                              'versiegebonden migratie archiveert oude warmtepompopties, modellen en relevante opdracht-/foutgegevens buiten de '
+                              'actieve regeling. Zij is idempotent en verstuurt geen tank-/klimaatopdracht, SG-boost of afwasstart.',
+                              'Oude pending, doel-eigendom, hercontrole, foutwachttijden, manual hold en eigen klimaat-OFF kunnen niet opnieuw '
+                              'uitvoeren. Aantoonbaar uitsluitend vervallen regelopdrachtfouten worden als vervallen functie beoordeeld, niet '
+                              'als fysiek gerepareerd. Gemengde/onbekende foutpauzes, gewone apparaat-/batterijfouten, gebruikers-Pauze en '
+                              'verwijdering blijven beschermd. Brononzekerheid voor de nieuwe SG-functie blijft gelden.',
+                              'De globale hervatvoorkeur, geldige andere toestellen, entity-identiteiten, opgeslagen prioriteiten, APP-tickets, '
+                              'historie en leerdata blijven behouden. Nieuwe SG-sturing blijft uit totdat juiste uitgang, native '
+                              'basisinstellingen, geen dubbele writers, contactmapping en lokale aflooptimer werkelijk zijn bevestigd. De '
+                              'noodzakelijke lokale Panasonic/Shelly-controle is geen softwaretest. Geldige opgeslagen numerieke SG-teksten '
+                              'worden uitsluitend in de gekopieerde runtimeweergave naar dezelfde getalswaarde omgezet; de oorspronkelijke '
+                              'opties en private archieven blijven behouden. Ongeldige waarden blijven herkenbaar voor validatie.',
+                              'Controleer eenmalig op Panasonic de gewenste normale tank-/zone-/programma-instellingen, inclusief zelfstandig '
+                              'comfort en sterilisatie. Eerdere directe sturing kan iets hebben achtergelaten; deze nieuwe runtime schrijft dat '
+                              'niet terug. De fysieke SG-ingebruiknameproef gebeurt alleen met expliciete toestemming en zonder elektrische '
+                              'metingen in geopende apparatuur. Gebruik de korte controle in BETA83_INSTELLEN.md.'],
                'bullets': []},
               {'title': '20. Installatie, verwijderen en rollback',
-               'paragraphs': ['Installeer of update de Integration via HACS en herstart Home Assistant. De '
-                              'frontend wordt meegeleverd en automatisch geregistreerd: geen aparte '
-                              'Lovelace-resource, dashboard-YAML of www-kopie. Heropen de webpagina/app en '
-                              'controleer geladen backend- en kaartversie afzonderlijk: beide staan '
-                              'zichtbaar onder Instellingen & controle. Een oude kaart kon alleen de nieuwe '
-                              'backendversie tonen terwijl zij zelf nog oude weergavecode gebruikte. Het '
-                              'zijbalkpaneel gebruikt nu de releasekaart. Bij een verschil in versies geeft '
-                              'de kaart herlaadadvies. Herlaad de pagina volledig of sluit de app volledig '
-                              'af en open haar opnieuw, ook voor een bestaande Lovelace-kaart. Een oude '
-                              'kaart kan de nieuwe versieverschilwaarschuwing zelf nog niet tonen. Alleen '
-                              'naar een ander tabblad gaan of de integratie herladen vervangt niet zeker de '
-                              'al geladen browsercode. Een download bewijst geen geladen browsercode.',
-                              'Een privéprofiel blijft optioneel en uitsluitend lokaal. Importeren kan lege '
-                              'geldige bronkoppelingen aanvullen, maar activeert de SG-functie of nieuwe '
-                              'fysieke apparaatbediening niet. Bewaar userfiles en eigen HA-opslag; voeg ze '
-                              'niet aan publieke bron of pakket toe.',
-                              'Voor verwijderen kies je Verwijderen voorbereiden en wacht je op de gerichte '
-                              'veilige vrijgave. Een onzekere SG-uitgang blijft eerlijk onbekend; de '
-                              'gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van '
-                              'SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, '
-                              'AEG- of Shelly-integratie.',
-                              ("Rollback naar beta.88 herstelt de volledige toekomstige afwaspiekreserve in de gewone zonnepot; kleine lasten kunnen daardoor opnieuw wachten. Algemene en individuele Wallbox-voorkeuren en oorspronkelijke eindtijden blijven ondersteund. Geef vóór rollback de eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk en controleer de lokale afloop. Bewaar eerst een actuele volledige privéback-up; herstel gecontroleerde code met behoud van entry, opslag en userfiles. Oude taakperioden worden niet opnieuw geïnterpreteerd. Rollback corrigeert geen meter of fysieke installatie. Exact herstel vraagt code én passende volledige privéback-up. Herstel nooit een oude onverbruikte APP-aanvraag nadat dezelfde belading al fysiek gestart is. Gebruik geen twee runtimes tegelijk en verwijder de entry niet. Voor de oude directe beta.61-regeling blijft de volledige back-up van vóór beta.62 nodig. Zie BETA89_INSTELLEN.md.")],
+               'paragraphs': ['Installeer of update de Integration via HACS en herstart Home Assistant. De frontend wordt meegeleverd en '
+                              'automatisch geregistreerd: geen aparte Lovelace-resource, dashboard-YAML of www-kopie. Heropen de webpagina/app '
+                              'en controleer geladen backend- en kaartversie afzonderlijk: beide staan zichtbaar onder Instellingen & controle. '
+                              'Een oude kaart kon alleen de nieuwe backendversie tonen terwijl zij zelf nog oude weergavecode gebruikte. Het '
+                              'zijbalkpaneel gebruikt nu de releasekaart. Bij een verschil in versies geeft de kaart herlaadadvies. Herlaad de '
+                              'pagina volledig of sluit de app volledig af en open haar opnieuw, ook voor een bestaande Lovelace-kaart. Een '
+                              'oude kaart kan de nieuwe versieverschilwaarschuwing zelf nog niet tonen. Alleen naar een ander tabblad gaan of '
+                              'de integratie herladen vervangt niet zeker de al geladen browsercode. Een download bewijst geen geladen '
+                              'browsercode.',
+                              'Een privéprofiel blijft optioneel en uitsluitend lokaal. Importeren kan lege geldige bronkoppelingen aanvullen, '
+                              'maar activeert de SG-functie of nieuwe fysieke apparaatbediening niet. Bewaar userfiles en eigen HA-opslag; voeg '
+                              'ze niet aan publieke bron of pakket toe.',
+                              'Voor verwijderen kies je Verwijderen voorbereiden en wacht je op de gerichte veilige vrijgave. Een onzekere '
+                              'SG-uitgang blijft eerlijk onbekend; de gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen '
+                              'van SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, AEG- of Shelly-integratie.',
+                              'Rollback naar beta.105 brengt de eerdere verplichte Wallbox-voor-SG-regel en de handmatige SG-blokkering terug. '
+                              'Maak vooraf een volledige privéback-up, geef de eigen SG-aanvraag veilig vrij en behoud de entry, opslag en '
+                              'userfiles. Een al opgeslagen nieuwe volgorde kan in de oude versie anders worden geïnterpreteerd. Zie '
+                              'BETA106_INSTELLEN.md.'],
                'bullets': []},
               {'title': '21. Release- en documentatieregel',
-               'paragraphs': ["Dit is de enige volledige actuele regelbeschrijving. current_guide.py genereert dezelfde Markdown-mirrors en HA-uitleg. Optiehulp, versie, changelog, OVERDRACHT.md, installatie, rollback en testverslag horen bij dezelfde bronrelease. Historische releasebestanden beschrijven oudere versies en zijn geen actuele bediening. UPSTREAM_BRONNEN.md bewaart uitsluitend publieke gepinde contracten en actuele release-/PR-status. Een afzonderlijk geautoriseerde ChatGPT-taak controleert vanaf 21 oktober 2026 wekelijks op woensdag rond 19:00 Europe/Brussels relevante GitHub-wijzigingen en kan geteste SolarPilot-correcties volgens de normale releaseprocedure publiceren. Dit is externe ontwikkeling; de integratie bevat geen achtergrond-AI of automatische provider-/apparaatupdate. Privé-exports en sensorkoppelingen worden niet gepubliceerd.",
-                              'Softwaretests en geverifieerde publicatiepakketten bewijzen geen live '
-                              'HA-installatie, echt Shelly-timergedrag of fysieke Panasonic-reactie. Die '
-                              'bewijssoorten worden apart gerapporteerd. Publieke voorbeelden zijn fictief; '
-                              'persoonlijke installatiegegevens, ruwe exports en geheimen blijven lokaal.'],
+               'paragraphs': ['Dit is de enige volledige actuele regelbeschrijving. current_guide.py genereert dezelfde Markdown-mirrors en '
+                              'HA-uitleg. Optiehulp, versie, changelog, OVERDRACHT.md, installatie, rollback en testverslag horen bij dezelfde '
+                              'bronrelease. Historische releasebestanden beschrijven oudere versies en zijn geen actuele bediening. '
+                              'UPSTREAM_BRONNEN.md bewaart uitsluitend publieke gepinde contracten en actuele release-/PR-status. Een '
+                              'afzonderlijk geautoriseerde ChatGPT-taak controleert vanaf 21 oktober 2026 wekelijks op woensdag rond 19:00 '
+                              'Europe/Brussels relevante GitHub-wijzigingen en kan geteste SolarPilot-correcties volgens de normale '
+                              'releaseprocedure publiceren. Dit is externe ontwikkeling; de integratie bevat geen achtergrond-AI of '
+                              'automatische provider-/apparaatupdate. Privé-exports en sensorkoppelingen worden niet gepubliceerd.',
+                              'Softwaretests en geverifieerde publicatiepakketten bewijzen geen live HA-installatie, echt Shelly-timergedrag of '
+                              'fysieke Panasonic-reactie. Die bewijssoorten worden apart gerapporteerd. Publieke voorbeelden zijn fictief; '
+                              'persoonlijke installatiegegevens, ruwe exports en geheimen blijven lokaal.',
+                              'Elke SolarPilot-update controleert de laatste Aquarea-defaultbranch, gepubliceerde release en werkelijk '
+                              'gebruikte bibliotheek tegen het publieke bronreviewcheckpoint. Nieuwe relevante wijzigingen worden beoordeeld en '
+                              'met regressietests verwerkt in dezelfde update; ongewijzigde of irrelevante code wordt als zodanig vastgelegd. '
+                              'De CI-gate blokkeert publicatie bij onbeoordeelde upstreamwijzigingen of een niet-uitvoerbare broncontrole. De '
+                              'bestaande onderhoudstaak kan zelfstandig een geteste SolarPilot-herstelrelease op GitHub publiceren en daarover '
+                              'berichten. Dit is geen automatische installatie op Home Assistant en geen live verbinding met lokale meldingen. '
+                              'Installeer de release via HACS; instellingen en fysieke apparaten worden niet op afstand aangepast.'],
+               'bullets': []},
+              {'title': '22. Watermeter, boilercontext en mogelijke lekken',
+               'paragraphs': ['Open Water → Water instellen en schakel de monitor bewust in. Kies de bestaande cumulatieve waterstand, het '
+                              'actuele debiet en de binaire lekmelding van dezelfde bedoelde meter. Minstens één bron is nodig; alle drie geven '
+                              'het volledigste beeld. Er is geen automatische bronkoppeling. Standaard staat de monitor Uit, bronouderdom op '
+                              '300 seconden, de drempel op 0,1 L/min en de bevestigingsduur op 60 minuten. Meldingen staan bij inschakelen '
+                              'standaard Aan. Dit zijn instelbare adviesgrenzen en geen gekalibreerde lekdiagnose.',
+                              'Het overzicht toont liters per minuut, cumulatieve liters, geregistreerde dagliters en de afzonderlijke '
+                              'bronmelding. Alleen passende eindige niet-negatieve waarden en bruikbare oorspronkelijke HA-rapporttijden tellen '
+                              'mee. Een echte nul is geldig; onbekend is geen nul. HA-ontvangsttijd bewijst geen fysieke meettijd: gereplayde '
+                              'of door de leverancier gecachete metingen kunnen niet altijd worden herkend. Verlaag de bronouderdom niet onder '
+                              'het werkelijk betrouwbare rapportinterval.',
+                              'Dagliters komen uitsluitend uit passende opeenvolgende tellerstanden. De eerste stand is een beginpunt. '
+                              'Tellerdaling, bronwissel, herstart en meetgaten hebben hun eigen grenzen. Een stijging over een meetgat of '
+                              'lokale middernacht wordt niet naar rato aan een dag toegewezen. Debiet wordt niet in liters geïntegreerd of '
+                              'bovenop de teller opgeteld. De weergegeven daghoeveelheid is een gedeeltelijke registratie vanaf inschakeling, '
+                              'geen bewezen volledig dagtotaal of waterfactuur.',
+                              'Watergeschiedenis bewaart maximaal dertig lokale kalenderdagen met begrensde aantallen meetpunten, '
+                              'tellerintervallen en gebeurtenissen. Schuif over de vier balken of gebruik het toetsenbord voor het werkelijk '
+                              'opgeslagen meetpunt, debiet, meterstand, boilertemperatuur/doel, afwasstatus en bronkwaliteit. De tijdmarkering '
+                              'en details volgen hetzelfde punt. Meetgaten blijven onbekend; huidige waarden vullen het verleden niet aan. '
+                              'Vorig/volgend meetpunt maakt de bewaarde punten afzonderlijk bereikbaar. Bronhistorie opent de toegestane '
+                              'huidige waterentiteit in Home Assistant.',
+                              'Een geregistreerde boilerafkoeling vanaf 2 °C kan ook uit meerdere opeenvolgende kleine dalingen binnen maximaal '
+                              'dertig minuten worden herkend. De vergelijking gebruikt de hoogste passende eerdere temperatuur, bij gelijke '
+                              'waarden de oudste, en sluit bij de eerste voldoende daling een venster af. Vensters delen hoogstens hun '
+                              'eind-/beginpunt; liters worden niet dubbel geteld. Alle temperatuurberichten moeten geldig zijn en bij dezelfde '
+                              'broncontext horen. Ontbrekende temperatuurcontext, een relevante telleronderbreking, reset, herstart of '
+                              'bronwissel onderbreekt de vergelijking. Alleen een nieuw expliciet als debietprobleem vastgelegd meetgat '
+                              'blokkeert een bruikbare teller-/boilervergelijking niet. Oudere generieke meetgaten blijven conservatief een '
+                              'grens. Het toont samenloop, geen bewezen warmwatertap, thermisch verlies of oorzaak; een totaalmeter '
+                              'onderscheidt warm en koud water niet.',
+                              'Voor de afwasmachine toont Water de werkelijk bekende actieve status naast het huishoudelijke watergebruik. '
+                              'Alleen passende opeenvolgende actieve waarnemingen binnen vijf minuten leveren een begrensd '
+                              'vergelijkingsvenster. De liters blijven huishoudelijke deelmetingen: andere kranen en apparaten kunnen tegelijk '
+                              'water gebruiken. De monitor bepaalt geen afwasfase, eigen literverbruik of start-/stoptoestemming en wijzigt '
+                              'geen START-opdracht, ticket, planning of beschermde cyclus.',
+                              'De eigen lekmelding van de watermeter blijft apart van SolarPilot: langdurige stroming. Alleen nieuwe bruikbare '
+                              'debietberichten op of boven de drempel kunnen de ingestelde duur bevestigen. Oude of ontbrekende berichten, '
+                              'herstart en bronwissel maken geen doorlopend bewijs. Een getoonde verdenking is een controleadvies en kan '
+                              'normaal verbruik zijn. Een uitgeschakelde of ontbrekende detector geeft geen bewijs dat de installatie lekvrij '
+                              'is.',
+                              'Bij een nieuw actueel bewezen waarschuwingsincident verschijnt desgewenst één blijvende Home Assistant-melding. '
+                              'De melding is geen mobiele push. Herstart, heropenen, herhaald meten of opnieuw inschakelen bezorgt hetzelfde '
+                              'reeds gemelde incident niet opnieuw. Oude berichten kunnen een nieuwer incident niet bevestigen of wissen. Bij '
+                              'ontbrekende actuele gegevens blijft een eerder actief incident onopgelost herkenbaar; een andere bron kan het '
+                              'niet als hersteld afmelden. Bewust de watermonitor of haar meldingen uitschakelen ruimt alleen de eigen melding '
+                              'op en bewaart historie.',
+                              'Alle waterfuncties lezen uitsluitend. SolarPilot opent of sluit geen afsluiter en gebruikt waterdata niet voor '
+                              'SG, boilerdoel, afwasopdrachten of de energieplanner. De aparte opslag behoudt huidige en oudere bronrechten. '
+                              'Niet-beheerders hebben leesrechten op alle betrokken huidige en historische bronnen nodig; ontbrekende herkomst '
+                              'geeft hun geen toegang. Analyse-export neemt het werkelijk beschikbare wateroverzicht en de begrensde historie '
+                              'op met bestaande privacyfilters. Deel gebruikspatronen niet ongecontroleerd.',
+                              'Water toont voor stromingsbewaking en de eigen metermelding afzonderlijk of de bewust gekoppelde bron een '
+                              'actueel bruikbaar rapport heeft. Een ontbrekende optionele detector is herkenbaar als niet gekoppeld; een wel '
+                              'gekoppelde oude bron maakt de bewaking onvolledig of niet beschikbaar. Actuele bronnen betekent niet dat de '
+                              'zestig minuten zijn voltooid of dat de installatie lekvrij is. Een eerdere onopgeloste waarschuwing blijft '
+                              'staan. Deze bronuitleg is informatief en veroorzaakt geen nieuwe periodieke melding of '
+                              'energie-regelingsfoutpauze.',
+                              'Bij MQTT kunnen identieke waarden zonder force_update in Home Assistant een oude last_reported houden. '
+                              'Controleer bij oude debiet- of lekmeldingen de afzonderlijke publicatie, beschikbaarheid en bronconfiguratie. De '
+                              'update verandert die MQTT-instellingen niet en leent geen actualiteit van de totaalteller. force_update kan de '
+                              'ontvangstregistratie verbeteren wanneer werkelijke nieuwe berichten binnenkomen; het bewijst geen fysieke '
+                              'meettijd. De bronouderdom blind verlengen maakt ontbrekend bewijs niet betrouwbaar. Analyse-export bevat nu ook '
+                              'de effectieve waterinstellingen, module-inschakeling en bronkwaliteitsdiagnose.'],
+               'bullets': []},
+              {'title': '23. Eigen afwasmachinemeter: waarnemen zonder cloudbediening',
+               'paragraphs': ['Koppel bij het bestaande afwasmachinetoestel een exclusieve vermogenssensor in W/kW en optioneel de bijbehorende '
+                              'cumulatieve energieteller in Wh/kWh (total of total_increasing). De meter wordt uitsluitend gelezen; de '
+                              'voedingsschakelaar wordt niet als actuator toegevoegd. Bestaande native START-, deur-, remote-, programma- en '
+                              'verbindingsbronnen blijven nodig voor bediening, maar niet voor metergestuurde historiek.',
+                              'De voorlopige startinstelling is minstens 10 W gedurende 60 seconden aan opeenvolgende geldige rapporten. Tot 5 '
+                              'W gedurende 15 minuten sluit de afgeleide activiteit af, niet een bewezen succesvol programma. Korte stille '
+                              'fasen blijven in de waargenomen activiteit; een betrouwbare native draaiende of gepauzeerde status houdt die '
+                              'actief. Deze instelbare drempels zijn geen gekalibreerd toestelprofiel. Controleer ze aan een volledige echte '
+                              'afwasbeurt; deurverlichting of een uitzonderlijk lange stille fase kan de afleiding beïnvloeden.',
+                              'Zonder bevestigde SolarPilot-start hoort een nieuwe waargenomen activiteit bij Extern gestart of, wanneer de '
+                              'beginwaarneming ontbreekt, Begin onbekend. Oudere niet-geregistreerde beurten worden niet ingevuld. Onbekende, '
+                              'restored, geschatte, ongeldige of oude meterwaarden worden geen 0 W. Alleen nieuwe oorspronkelijke rapporttijden '
+                              'tellen mee voor de bevestigingsduur; een scherm verversen maakt een oude meting niet nieuw. De maximale '
+                              'rapportouderdom is voorlopig 120 seconden en is afzonderlijk instelbaar.',
+                              'Dag- en sessie-energie omvat alleen geldige opeenvolgende cumulatieve tellerstappen. Tellerresets, onmogelijke '
+                              'sprongen, onderbrekingen, herstart of een middernachtgrens worden niet geïnterpoleerd. De geregistreerde kWh '
+                              'blijven expliciet een deelmeting; zonder bruikbaar tellerpaar blijft het onbekend. De cumulatieve tellerstand is '
+                              'geen dagverbruik. Een nieuwe meter of gewijzigde drempel erft geen oude activiteitsduur of tellerbaseline. '
+                              'Eerdere historie en bronrechten blijven bewaard; per meter worden maximaal dertig lokale dagen bijgehouden.',
+                              'Een meterstart verleent nooit starttoestemming, verbruikt geen eenmalig startticket en bevestigt geen verzonden '
+                              'opdracht. Laag vermogen bewijst geen programma-einde. Deze afgeleide sessies worden geen volledige geleerde '
+                              'cyclus en maken geen fictieve zonne-energie of besparing. Andere verbruikers blijven hun eigen actuele '
+                              'voorwaarden gebruiken. Een live cloudprobleem kan dus naast een geldige lokale meterwaarneming blijven staan.'],
                'bullets': []}]}
 
-# Current release deltas are applied before hashing and Markdown generation.
-CURRENT_GUIDE["sections"][0]["paragraphs"] = [
-    "SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele net- en PV-metingen, echte toestelvoorwaarden en elektrische grenzen gaan altijd vóór een voorspelling of geleerd patroon. Eén uitgang heeft één eigenaar. Een regeling vervangt geen elektrische beveiliging.",
-    "Alleen bekijken berekent en registreert zonder nieuwe flexibele toestellen te starten. Automatisch regelen voert uitsluitend de toegestane apparaatbediening uit. Pauze start niets nieuws en geeft eigen onderbreekbare lasten veilig vrij, met behoud van minimumlooptijden en beschermde cycli. Een eigen SG-zonneboost wordt ingetrokken; de warmtepomp zelf blijft onder Panasonic-regie. Eigen bevestigde numerieke batterijdoelen behouden hun afzonderlijke veilige vrijgaveroute.",
-    "Na herstart automatisch hervatten staat standaard Aan. Een gewone opgeslagen Pauze vraagt na Home Assistant-start of herladen weer Automatisch regelen via de bestaande controles. Alleen bekijken, eerste installatie, echte interne fout- en verwijderpauzes blijven beschermd. De voorkeur wijzigen verandert de huidige modus niet. Opnieuw Pauze kiezen annuleert een wachtende hervatting. SG-ingebruikname en een oude boost krijgen hierdoor geen automatische bevestiging.",
-    "Bij een al opgeslagen interne foutpauze blijft automatisch hervatten beschermd. Na een update en volledige Home Assistant-herstart controleer je de concrete melding, kies je Controle afronden en daarna bewust Automatisch regelen wanneer de actuele controles dit toelaten. Herhalen zonder de fout op te lossen, opslag wissen of een native warmtepompopdracht geven is geen herstelroute.",
-    "Na een herstart leest SolarPilot echte toestelstatussen. Een tijdelijk onbereikbaar eerder beheerd toestel wacht afzonderlijk op bronherstel. Automatisch regelen is als globale modus kiesbaar; die keuze is geen toestemming om een onbereikbaar toestel te bedienen. Voor dat geïsoleerde offline toestel wordt geen extra geschatte verbruiksreserve van het gemeten P1-overschot afgehouden. Gezonde overige lasten kunnen verder zodra hun eigen voorwaarden en de gedeelde net-, fase- en veiligheidsmetingen betrouwbaar zijn en de actuele ruimte voldoende is. Elke vijf minuten wordt de herstelwacht opnieuw beoordeeld. Een onzekere fysieke opdracht wordt pas na passend nieuw oorspronkelijk terugmeldbewijs verzoend en niet blind herhaald."
-]
-CURRENT_GUIDE["sections"][1]["paragraphs"] = [
-    "De volledige netmeter bepaalt werkelijke afname en injectie. W en kW worden naar hetzelfde vermogen omgerekend; een kWh-teller is geen actuele vermogensbron. De tekenafspraak wordt bewust gekozen. Restored, ontbrekende, toekomstige, niet-eindige of verkeerd gevormde waarden geven geen vrijgave. Een onveranderde waarde kan actueel zijn wanneer haar echte ontvangst of bruikbare heartbeat dat bewijst.",
-    "Voorrang is de enige flexibele rangorde. De opgeslagen gebruikersvolgorde blijft bij deze update staan; een oude rangordemigratie wordt niet opnieuw toegepast. De rij voor extra warmwaterproductie vertegenwoordigt voortaan SG-zonneboost warmtepomp. Zij mag geen Wallbox-vermogen, beschermde afwascyclus of noodzakelijk Panasonic-comfort afnemen. Nieuwe gewone toestellen komen onderaan totdat je ze verplaatst.",
-    "Wallbox voorrang geven is een tijdelijke uitzondering op die opgeslagen volgorde. Automatisch gebruikt opnieuw de huidige opgeslagen rangorde; de schakelaar herschrijft haar niet. De algemene keuze geldt alleen voor op dat moment aanwezige ondersteunde flexibele SolarPilot-toestellen en de beschikbare optionele SG-zonneboost. Native warmtepompcomfort, read-only apparatuur en batterijen krijgen hierdoor geen extra bediening. De afwasmachine is uitgesloten van deze nieuwe keuze.",
-    "Start- en stopvertragingen, minimum aan/uit-tijden, dagdoelen, tijdvensters en beschermde programma’s blijven gelden. Een hoger toestel dat niet past hoeft een kleiner passend toestel niet te blokkeren. Lager geplaatste, werkelijk eigen en veilig onderbreekbare lasten kunnen alleen volgens de bestaande overdrachtvoorwaarden wijken. Eerst bevestigde UIT en nieuwe net-/PV-metingen; een stopverzoek is nog geen vrij vermogen.",
-    "Gewone onderbreekbare switch-, number- en gecontroleerde scriptlasten mogen sinds beta.89 werkelijk resterende zon benutten wanneer een afwasmachine zonder gekoppelde vermogensmeter betrouwbaar actueel actief is. Alleen de bij die afwasmachine horende toekomstige piekreserve vervalt voor hun zachte zonnepot. De volledige piekraming blijft in de totale elektrische net-/kwartierberekening gereserveerd; bestaande fasecontroles blijven gelijk en leveren geen gemeten toekomstig faseprofiel. Het meest voorzichtige actuele/gefilterde overschot na huisreserve en batterijontlading moet de last inclusief startmarge nog dekken. Andere actuele comfort-/onbevestigde SG-reserves blijven staan. Vanaf beta.90 wordt voor tijdelijk offline geïsoleerde toestellen geen hypothetische extra verbruiksreserve afgehouden; een oude afwasstatus is evenmin bewijs van een actuele toekomstige afwaspiek. Onbekende, oude of geïsoleerde afwasstatus en een gekoppelde maar onbruikbare meter geven geen versoepeling. Niet-onderbreekbare lasten en de afzonderlijke SG-route behouden hun volledige reservering. Bestaande vraag, interlocks, eigenaarschap, voorrang, minimumtijden en start-/stopbuffers blijven gelden; status en ruimte worden na wachtende opdrachtopslag opnieuw beoordeeld. Een latere afwaspiek kan tijdelijk netafname veroorzaken terwijl een minimumtijd of stopbuffer loopt; de update garandeert geen nulimport.",
-    "De ingebouwde gezamenlijke toestelplanner vergelijkt ook combinaties en ruilt planblokken tussen toestellen. Hij behoudt de geplande energie per toestel, bestaande toestemmingen en lopende beschermde cycli. Alleen een opnieuw gevalideerde betere voorspelde combinatie vervangt de basisplanning. De zoektijd is begrensd; beste gevonden is geen bewezen wereldwijd optimum. Geen EMHASS-add-on, tweede regelaar of extra installatie is nodig. Hij gebruikt PV, basislast, tarieven, kwartierpiek en batterijruimte. Hij kan alleen expliciet vrijgegeven flexibele lasten plannen. Het huidige blok kan de gewone realtime regeling ondersteunen, maar nooit te weinig werkelijk overschot overstemmen. Er is geen actieve warmtepomp-, tanktemperatuur- of klimaatplanning meer. Beide planners gebruiken uitsluitend volledige blokken binnen het toegestane venster. Prijsoptimalisatie Uit blijft ook voor beschermde cycli gelden; nettoestemming en reeds geplande hogere lasten worden bij de verdeling meegenomen.",
-    "Een dagdoel in kWh gebruikt werkelijk gemeten toestelenergie waar een exclusieve meter bestaat, anders een herkenbare schatting. Een beschermde cyclus wordt als aaneengesloten taak gepland. Zonder betrouwbaar duurprofiel wordt geen optimistische duur uit piekvermogen gegokt. Een lopende beschermde cyclus wordt niet gestopt wegens een nieuw plan. Goedkope netfallback blijft afzonderlijke dubbele toestemming en standaard uit.",
-    "Batterijadvies volgt de tijdvolgorde: alleen de echte beginlading en reeds voorspeld geladen energie kunnen een later blok voeden. Laden en ontladen respecteren aparte grenzen en het bestaande ingestelde round-trip rendement, standaard 80%. Het blijft adviserend en wordt na de toestelplanning berekend; batterij en toestellen worden niet samen wiskundig geoptimaliseerd. Ontbrekende voorspelling geeft geen batterijactie. De piekvermijdingsstraf in de planner is geen berekening van de werkelijke capaciteitstarieffactuur. Plannerkwaliteit toont meetdekking, voorspellingsfout en uitvoering afzonderlijk. Een historische replay is richtinggevend en reconstrueert niet iedere vroegere startvoorwaarde. Een volledige lokale dag heeft normaal 96 kwartieren, bij de zomer-/wintertijdwissel 92 of 100; gaten worden geen volledige prestatie.",
-    "Resterend kwartierbudget is een theoretische energiegrens voor de resterende seconden. Details/Energie tonen daarnaast de daadwerkelijk begrensde instantane ruimte na vaste import-, fase- en kwartiergrenzen. Een zeer hoog theoretisch kwartiergetal verruimt nooit de vaste elektrische grenzen, broncontrole, prioriteiten of zonnevoorwaarden. Een geblokkeerde SG-aanvraag benoemt de beperkende grens en benodigde extra raming."
-]
-CURRENT_GUIDE["sections"][7]["paragraphs"] = [
-    "Bestaande toestellen behouden hun adapter, deelname, centrale positie, meter, minimumlooptijd, rusttijd, bescherming, dagdoel en bewuste nettoestemming. Nieuwe identiteiten beginnen Uitgesloten. Tijdelijke onbereikbaarheid van een gewoon toestel geeft een informatieve herstelwacht, geen blijvende opdrachtfout. Elke vijf minuten volgt een nieuwe beoordeling. Alleen opnieuw bereikbare, voldoende actuele bronnen en de op dat moment geldige vraag, voorrang, tijden, modus en elektrische ruimte kunnen daarna een nieuwe opdracht toelaten. Een gemiste opdracht wordt niet uit een oude planning afgespeeld; deelname wordt niet stil gewijzigd.",
-    "Actief betekent de werkelijk waargenomen aan-/actiefstatus, niet gegarandeerd continu compressorbedrijf of uitsluitend zonnegebruik. Gemeten W, geraamd W en onbekend blijven verschillende labels. Een ontbrekende noodzakelijke meting geeft geen verzonnen nul. Voor een tijdelijk offline geïsoleerd toestel geldt geen extra geschatte verbruiksreserve: het werkelijke P1-overschot is leidend. Onzeker eigendom en mogelijk al uitgevoerde opdrachten blijven afzonderlijk bewaard tot passende verse terugmelding; zij geven geen blind herhaalrecht. Actuele net-/fase-/kwartiergrenzen en betrouwbare gedeelde bronnen blijven gelden. Een echte configuratie-, authenticatie-, toestemmings-, interne of fysieke fout blijft gericht zichtbaar. De afzonderlijke toekomstige afwaspiek blijft alleen gelden bij werkelijk nu betrouwbaar gemelde actieve afwasstatus; een oude offline ON-status geeft geen extra piekreserve. De afzonderlijke SG-reserve en haar strengere voorwaarden blijven gelden. Bij een lopende beschermde afwascyclus zonder eigen vermogensmeter blijft de volledige toekomstige piek binnen de totale elektrische ruimte gereserveerd; geschikte gewone onderbreekbare lasten mogen volgens beta.89 wel de werkelijk resterende zonnepot benutten. Dezelfde reserve wordt bij nieuwe toestel- of batterijopdrachten niet opnieuw afgetrokken.",
-    "Er zijn twee herstelwachten: bronherstel en verzoening van een mogelijk uitgevoerde opdracht. De vaste hercontrole bedraagt 300 seconden. Een bron die vanzelf eerder met bruikbare nieuwe status terugkeert kan al passief worden waargenomen; SolarPilot stuurt geen fysieke proefopdracht om bereikbaarheid te testen. Bij opdrachtonzekerheid is passende nieuwe terugmelding ná de poging vereist voordat normale planning weer beslist. Alleen exact herkende oudere gewone transport-/timeout-/terugmeldfouten gaan over naar deze wachtstatus; een oud opgeslagen statusbericht na upgrade bewijst geen herstel. Andere fouten worden niet stil gewist.",
-    "Staat een eerder door SolarPilot beheerd toestel bij herstel nog AAN, dan hoeft het niet eerst UIT en opnieuw AAN om Automatisch te kunnen hervatten. Dit vereist dat de bewaarde eigen opdracht-/eigendomcontext en passende nieuwe oorspronkelijke AAN-terugmelding na de upgrade werkelijk overeenkomen; een extern ingeschakeld toestel wordt hiermee niet stil overgenomen. SolarPilot bevestigt dan de bestaande eigen AAN-toestand zonder nieuwe schakelopdracht en bewaakt vanaf de herstelwaarneming opnieuw de volledige ingestelde minimumlooptijd. Daarna kan een later actueel tekort onder de gewone stopvoorwaarden wel tot uitschakelen leiden. Automatisch is direct kiesbaar terwijl de afzonderlijke herstelwacht zo nodig tot de volgende 300s-hercontrole en passend nieuw bewijs blijft staan.",
-    "Handmatig starten/stoppen en een tijdelijke toestelboost gebruiken de bestaande toestemming en bescherming. Het zijn geen noodstop of bypass van fabrikant- en softwaregrenzen. Een looptijd mag tijdelijk netgebruik noodzakelijk maken. Een pure planningswijziging bij een bevestigde binaire AAN-last geeft geen nieuwe turn_on-opdracht.",
-    "Toestel- en batterijscripts worden vóór uitvoering op vaste onafhankelijke doelapparaten gecontroleerd. Panasonic en het gereserveerde SG-contact mogen niet indirect worden bediend. Ontbrekende of niet controleerbare scriptinhoud en dynamische doelen blijven geblokkeerd. Dit bewijst geen fysieke veiligheid van het script; geschikte terugmelding en de bestaande toestemming blijven nodig. Ook gekoppelde en geregistreerde AEG-uitgangen zijn gereserveerd: een gewoon of genest script mag geen afwasstart, programmawijziging of stop uitvoeren. Gewone nieuwe opdrachten en batterijdoelen controleren hun actuele vrijgave opnieuw nadat het opdrachtjournaal duurzaam is opgeslagen. Batterijopdrachten die netafname verhogen controleren ook de bestaande vaste netafnamegrens, actuele kwartier- en ingeschakelde fase-importgrenzen vóór en na opslag. Alleen de bestaande expliciete faseverdeling geldt; een onbekende verdeling krijgt geen verzonnen driefasespreiding. De bestaande neutrale vrijgave blijft behouden."
-]
-CURRENT_GUIDE["sections"][8]["paragraphs"] = [
-    "De bestaande AEG/Electrolux-adapter verstuurt alleen de gecontroleerde native START-knop. Geen PAUSE, RESUME, STOPRESET, programmawijziging, native afteltimer of stroomonderbreking via een stekker. Een gestarte, gepauzeerde of nadrogende beurt blijft beschermd, ook bij wolken, Pauze of een manuele autosessie.",
-    "In APP-modus maakt alleen een nieuwe fysieke overgang naar exact RemoteControl Enabled één aanvraag. Enabled bij opstart, reconnect of migratie is geen nieuwe belading; Not Safety Relevant Enabled is geen toestemming. Ready To Start, gesloten deur, geldig programma, bruikbare verbinding en eventuele alarmcontrole blijven vereist. ConnectivityState levert de heartbeat: onveranderde geldige statische deur-/programma-/gereedwaarden vervallen niet alleen doordat de tekst gelijk blijft. Unknown, Unavailable en restored blijven beschermd.",
-    "Standaard geldt 13:00 als uiterste starttijd. Een aanvraag vóór de deadline gebruikt dezelfde kalenderdag; op/na de deadline geldt de opgeslagen keuze, standaard volgende dag. Een optionele maandagdeadline staat standaard leeg en gebruikt dan ook maandag de gewone tijd. Alleen een bewust ingestelde maandagwaarde wijzigt die dag. Tijdzone, geplande dag en toestemming worden in het aanvraagticket bevroren en over herstart bewaard.",
-    "Een zonnestart vereist de ingestelde stabiele injectietijd, standaard 300 seconden voor nieuwe profielen. Op de vastgelegde APP-startdeadline vervalt de zonnevoorwaarde altijd en mag netstroom aanvullen. Een oude uitgeschakelde nettoestemmingsvlag kan deze vaste deadline niet meer in zonwachten veranderen. Een lage batterij-SoC of Wallbox-zonnevoorkeur houdt deze netstart niet tegen; er volgt geen batterij- of Wallbox-opdracht. Actuele net-/fase-/kwartierpiekruimte, globale modus en toestelvrijgave blijven nodig. Een na dertig seconden nog geblokkeerde deadline geeft eenmaal een melding met de actuele blokkering. Een in dezelfde ronde geselecteerde START geeft geen tegenstrijdige deadlinefout; een passende native Running-bevestiging ruimt de eerdere melding op. De verbruikte aanvraag blijft met haar vaste deadline en afzonderlijke startaanvraag/native bevestiging zichtbaar, zonder toestemming voor een tweede start; de standaard hersteltermijn van een nog niet verzonden start is 120 minuten, daarna is een nieuwe APP-aanvraag nodig. Een expliciete wijziging van de starttijd naar een tijdstip vóór de reeds vastgelegde vrijgave wacht niet ongemerkt tot morgen; voor een nog geldige aanvraag wordt de deadline dan nu bereikt, met behoud van de oorspronkelijke belading en vrijgavevoorwaarden.",
-    "Het ticket wordt vóór START duurzaam als geprobeerd bewaard. Alleen een nieuwe passende Running-rapportage bevestigt start. Een onzekere of mislukte START wordt niet blind herhaald, ook niet na herstart. Handmatig starten verbruikt dezelfde aanvraag. Een gewijzigde deur, programma, koppeling of ingetrokken APP-vrijgave annuleert alleen de nog wachtende aanvraag. Onbekende of misvormde toestemmingsopslag blijft exact bewaard en blokkeert nieuwe afwasaanvragen en START. Alleen bekijken van native status en andere geldige regelingen blijven mogelijk; Controle afronden maakt geen nieuwe toestemming en wist deze opslagblokkering niet. Een onbekende of extreme APP-tijdstempel wordt privé behouden zonder nieuwe toestemming; een opgeslagen Running-rapport uit de toekomst kan geen huidige START bevestigen.",
-    "Een tijdelijk onbereikbare of oude verbindingsbron geeft op de kaart een wachtreden. Herbeoordeling kan alleen een nog geldige, aantoonbaar niet eerder verzonden START laten uitvoeren wanneer de oorspronkelijke aanvraag en actuele toestel-/ruimtevoorwaarden opnieuw passen. Een al geprobeerd of onzeker START blijft verbruikt en wordt ook na vijf minuten of herstart niet opnieuw gestuurd. De herstelwacht maakt geen nieuwe APP-aanvraag, verlengt de bestaande deadline of hersteltermijn niet en onderbreekt geen lopend programma.",
-    "End Of Cycle wordt eventgestuurd opgeslagen en blijft na Off, onbereikbaarheid en herstart zichtbaar. AirDry/Ado Drying betekent nadrogen, geen einde of nieuwe belading. Alleen Off of een onderbreking bewijst geen voltooiing; onbekende starttijd wordt geen exacte duur. Een nieuw betrouwbaar Ready To Start kan een achtergebleven oude cyclus als einde niet bevestigd afsluiten zonder een oude aanvraag te herstellen.",
-    "Zonder exclusieve meter blijft de ingestelde nominale belasting bij actuele betrouwbare actieve afwasstatus een conservatieve toekomstige piekraming en geen gemeten actueel verbruik of faseprofiel. Een oude ON-status van een offline geïsoleerde afwasmachine geeft vanaf beta.90 geen extra hypothetische piekreserve. Alleen gewone onderbreekbare lasten krijgen bij een betrouwbare actuele actieve onbemeterde afwasstatus de beschreven uitzondering op de zachte zonnepot; de gehele piek blijft in de totale elektrische ruimte staan. Een gekoppelde maar onbruikbare meter geeft die uitzondering niet. Met bruikbare W/kW worden volledige gedekte cycli geleerd. Een voorkeur-AEG en een vandaag veilig startklaar ticket behouden hun startkans volgens de centrale lijst. SG gebruikt uitsluitend overblijvende ruimte en neemt geen afwasvermogen af. Een al lopende beurt is geen algemeen SG-veto wanneer na alle reserves genoeg echte ruimte resteert.",
-    "Veilige overname van autonoom EV-zonnevermogen behoudt de bestaande afzonderlijke AEG-route en opt-in. De hele belasting moet passen vóór Wallbox-reactie. Een onzekere balans kan latere EV-gebaseerde starts blokkeren en een controle vragen, maar breekt de lopende beurt nooit af. Gerichte oudere profielherstelmigraties mogen alleen complete eenduidige koppelingen herstellen en maken zelf geen APP-ticket of fysieke START."
-]
-CURRENT_GUIDE["sections"][14]["paragraphs"] = [
-    "Overzicht toont Wat gebeurt er en waarom? met per toestel de actuele toestand, één leidende reden, bekende W en uitklapbare voorwaarden. Gemeten, geschat, native gemeld en afgeleid blijven herkenbaar. De warmtepomp gebruikt dezelfde read-only backendtaak, metingen en SG-beslisreden, geen tweede frontendregelaar. Taak en elektrische ondersteuning blijven apart. Verse native acties en passende afleiding uit actuele toegewezen voeding/context kunnen de functie tonen; voor gekozen ruimtebedrijf blijft afzonderlijke verse tankrust nodig. De specifiek gecontroleerde providersemantiek kan een onterechte globale OFF uitsluitend voor presentatie duiden. Een onbekend totaal blijft onbekend en modellen/SG-voorwaarden veranderen niet. De normale boilerwaarde heet Ingesteld boilerdoel; een lokaal bevestigde percentagevergelijking staat apart als berekend SG-doel of doel bij AAN. Uitgebreide bronuitleg en onzekerheid blijven in Details/export. Open details, formulieren, popup en scroll blijven bij verversen op vaste ids bewaard.",
-    "Doorlopend blauw en een bewegend warmtepompsymbool kunnen actuele elektrische activiteit weergeven. De ventilatoranimatie volgt de verse actieve hoofdmeting en is geen afzonderlijk bewijs van compressorbeweging. Bij alleen actieve elektrische ondersteuning beweegt het verwarmingssymbool en blijft de ventilator stil. Andere toestellen krijgen hun activiteitssymbool volgens de eigen betrouwbare actieve status. Verminderde beweging onderdrukt animaties. Een aangevraagde of beschikbare functie blijft onderscheiden van waargenomen activiteit. Een gesloten SG-contact bewijst geen fysieke tankopwarming. Productie en net hebben afzonderlijke groen-roodkleuren; onbekende/oude bronnen blijven grijs. Kleuren en beweging zijn presentatie, geen storing of vrijgave. De kaart laat verlopen P1/PV en Wallboxrapportages ook zonder een nieuwe HA-update vervallen. Onbeschikbaar of hersteld hoofdtoestelbewijs bevestigt geen activiteit. Lege, boolean en niet-eindige waarden worden geen gemeten nul. Open details en conceptinstellingen blijven bij deze verversing bewaard. Startuitleg toont het toegewezen startvermogen apart van de zonnepot vóór eindtoewijzing, gefilterde meting, gehele toekomstige cyclusreserve, eventueel voor dit onderbreekbare toestel versoepeld zonnedeel, werkelijk toegepaste zonne-reserve, eerdere toewijzingen en elektrische ruimte. Een geschatte afwaspiek blijft onderscheiden van gemeten actueel verbruik. Een tekort aan startbudget wordt niet meer voorgesteld als bewezen gebrek aan zonneproductie.",
-    "Resterende fouten waarvoor jouw controle nodig is verschijnen in Home Assistant → Meldingen → SolarPilot: controle nodig. De melding bundelt gerichte oorzaken en acties, wordt bij inhoudelijke verandering bijgewerkt en verdwijnt na herstel. Meldingtransport mag de regeling niet laten crashen. Gewone bronwacht, tijdelijke toestelonbereikbaarheid, rusttijd, een bewuste Pauze of fabrikantsterilisatie veroorzaken geen nieuwe foutspam. Tijdelijke toestelonbereikbaarheid toont een informatieve wachtstatus en het volgende vijfminutenmoment; zij wordt niet als bewezen fysieke storing of als gemeten nul voorgesteld.",
-    "Een SG-koppelings- of terugvalprobleem blokkeert de betrokken SG-functie en noemt de ingebruiknamecontrole. Een oude gearchiveerde tank-/klimaatopdrachtfout wordt niet als actuele fysieke storing opgelost verklaard. Echte onbekende fouten, batterij- of fysieke toestelfouten, expliciete gebruikerskeuzes en verwijderverzoeken blijven beschermd. Controle afronden repareert geen verkeerde bronconfiguratie of onbereikbaar apparaat. Automatische herbeoordeling verruimt geen SG-, batterij-, native Panasonic- of Wallbox-bevoegdheid. Verouderde browserantwoorden mogen geen later geopend configuratievenster wijzigen of ontgrendelen. De actuele kaart gebruikt releasegebonden popupcode, ook wanneer oude aliassen nog in de browser aanwezig zijn."
-]
-CURRENT_GUIDE["sections"][19]["paragraphs"] = [
-    "Installeer of update de Integration via HACS en herstart Home Assistant. De frontend wordt meegeleverd en automatisch geregistreerd: geen aparte Lovelace-resource, dashboard-YAML of www-kopie. Heropen de webpagina/app en controleer geladen backend- en kaartversie afzonderlijk: beide staan zichtbaar onder Instellingen & controle. Een oude kaart kon alleen de nieuwe backendversie tonen terwijl zij zelf nog oude weergavecode gebruikte. Het zijbalkpaneel gebruikt nu de releasekaart. Bij een verschil in versies geeft de kaart herlaadadvies. Herlaad de pagina volledig of sluit de app volledig af en open haar opnieuw, ook voor een bestaande Lovelace-kaart. Een oude kaart kan de nieuwe versieverschilwaarschuwing zelf nog niet tonen. Alleen naar een ander tabblad gaan of de integratie herladen vervangt niet zeker de al geladen browsercode. Een download bewijst geen geladen browsercode.",
-    "Een privéprofiel blijft optioneel en uitsluitend lokaal. Importeren kan lege geldige bronkoppelingen aanvullen, maar activeert de SG-functie of nieuwe fysieke apparaatbediening niet. Bewaar userfiles en eigen HA-opslag; voeg ze niet aan publieke bron of pakket toe.",
-    "Voor verwijderen kies je Verwijderen voorbereiden en wacht je op de gerichte veilige vrijgave. Een onzekere SG-uitgang blijft eerlijk onbekend; de gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, AEG- of Shelly-integratie.",
-    "Rollback naar beta.89 herstelt het eerdere fout-/herstelgedrag bij een onbereikbaar toestel; een dergelijke situatie kan weer een gerichte controle of blokkering vragen. De restzonverdeling naast een actieve onbemeterde afwasbeurt en de algemene en individuele Wallbox-voorkeuren met oorspronkelijke eindtijden blijven ondersteund. Geef vóór rollback de eigen SG-aanvraag veilig vrij waar betrouwbaar mogelijk en controleer de lokale afloop. Bewaar eerst een actuele volledige privéback-up; herstel gecontroleerde code met behoud van entry, opslag en userfiles. Een onzekere verzonden opdracht mag niet opnieuw worden uitgevoerd. Exact herstel vraagt code én een passende volledige privéback-up. Herstel nooit een oude onverbruikte APP-aanvraag nadat dezelfde belading al fysiek gestart is. Gebruik geen twee runtimes tegelijk en verwijder de entry niet. Voor de oude directe beta.61-regeling blijft de volledige back-up van vóór beta.62 nodig. Zie BETA90_INSTELLEN.md."
-]
-
-# Beta.91 observations extend retained policy; no native actuation is added.
-CURRENT_GUIDE["sections"][2]["paragraphs"].append("Aquarea en zijn bibliotheek worden beoordeeld op de daadwerkelijk geladen parser- en statusbetekenis, bronbinding en getypeerde gegevens. Versienummers zijn diagnosegegevens en geen toelatingslijst. Een toekomstige compatibele versie blijft dezelfde presentatieroute gebruiken. Een aantoonbaar gewijzigd contract geeft een afzonderlijke gededupliceerde compatibiliteitsmelding; gewone offline of ontbrekende actuele data blijven bronwacht. Na bevestigd compatibel herstel verdwijnt de melding. Originele rapporttijden, maximale tijdsafstand en conflicten blijven bepalend; conservatief leren en SG-koelvrijgave worden niet verruimd.")
-CURRENT_GUIDE["sections"][3]["paragraphs"].append("Nieuwe SG-sessies bewaren bij de eerste opdracht hun SolarPilot-versie, effectieve regels met hash, eigenaarschap, opdrachtidentiteit en oorspronkelijke bronrapporten. Stopreden en transportuitkomst blijven afzonderlijk; een natuurlijke lokale timerafloop of externe overname krijgt ook een eigen einde zonder verzonnen UIT-opdracht. Herbevestigingswacht toont zowel de oorspronkelijke stopreden als de actuele voorwaarde. Oude sessies krijgen geen huidige policy achteraf.")
-CURRENT_GUIDE["sections"][5]["paragraphs"].append("Het berekende tapwaterdoel blijft zichtbaar bij een onbekend SG-contact wanneer het normale doel en het brongebonden bevestigde weergavepercentage actueel geldig zijn. Bij 50 °C en 115% is de berekening 57,5 °C. Panasonic hoeft dit berekende doel niet terug te sturen. De vergelijking verandert geen Panasonic-doel of SG-profiel. Ontbreekt de lokale weergavekoppeling, open SG-doel voor weergave instellen en kies de juiste tankbron en het bestaande percentage; een algemene SG-vrijgave of analyse-import bevestigt niet automatisch een percentage voor iedere installatie.")
-CURRENT_GUIDE["sections"][7]["paragraphs"].append("Een terugkerend eerder eigen AAN-toestel behoudt de volledige minimumlooptijd vanaf de herstelwaarneming. De export toont die waarneming, eindtijd en resterende bescherming afzonderlijk. Een regelbaar number-toestel vergelijkt zijn echte positieve opgeslagen doel met de huidige instelling; het nominale maximum vervangt dat doel niet bij herstart. Een echte externe wijziging blijft handmatige overname.")
-CURRENT_GUIDE["sections"][9]["paragraphs"].append("Vanaf beta.91 wordt naast de oude gemengde vooruitvergelijking een nieuwe afzonderlijke reeks per 5–60 minuten, 1–3 uur en 3–12 uur aangelegd. Per doelmoment, bronbinding en termijn geldt vooraf de eerste geldige lokaal waargenomen voorspelling; latere varianten vervangen haar niet. Banden delen dezelfde oorspronkelijke doelmeting. Unieke doelen, oorspronkelijke rapporten, daglichtdoelen, verschillende dagen en afhankelijkheid blijven zichtbaar. Oude gegevens worden niet teruggevuld, de provideruitgiftetijd blijft onbekend en de nieuwe score past geen correctiefactor toe.")
-CURRENT_GUIDE["sections"][13]["paragraphs"].append("De twee minuten na inschakeling of bronherstel zijn een informatieve tijdelijke leerwacht, met begin, einde en resterende duur waar bekend. Een opdracht die op terugmelding wacht heeft geen verzonnen eindtijd. De laatste broncontrole staat apart van de telling van leerpogingen per kwartier. Langdurige uitsluiting door onbekende warmtepompcontext staat afzonderlijk; ontbrekende perioden worden nooit als nul geleerd.")
-CURRENT_GUIDE["sections"][16]["paragraphs"].append("Nieuwe exports scheiden observed.control en observed.power van planning en eigendom. Hersteltijd en de minimumlooptijd zijn expliciete bewijsvelden. Dekking wordt daarnaast per werkelijk verzamelende release en bron verdeeld; een interval over een releasewissel of meetgat wordt niet overbrugd. Bij een geverifieerde Aquarea-cloudenergiesensor staan provider, bronsoort, werkelijk uitgelezen aggregatiebegin, exclusief periode-einde en UTC-tijdzone apart. Dag-/maandtotalen zijn pas vergelijkbaar bij dezelfde uren, scope en dekking; een HA-rapporttijd is geen aggregatiebegin. Ontbrekende native periodegegevens blijven onbekend. Een bekende aggregatieperiode is geen bewijs van actualiteit of volledige meetdekking.")
-CURRENT_GUIDE["sections"][19]["paragraphs"][-1] = 'Rollback naar beta.102 behoudt dezelfde instellingen, opslag, modellen, historie, waterregistratie en SG-bediening. De kaart kan bij het gesplitste Aquarea-statuscontract weer een onbekende taak tonen terwijl de backend al een taak afleidt; de oude bronbenaming keert terug. Er is geen opslagmigratie. Bewaar vóór terugzetten een volledige privéback-up, behoud de entry en userfiles, herstart Home Assistant volledig en herlaad de app/browser. Verder teruggaan naar beta.101 kan de aanvullende watermeetgatrol bij een volgende opslag verliezen. Zie BETA103_INSTELLEN.md.'
-
-CURRENT_GUIDE["sections"][20]["paragraphs"].append("Elke SolarPilot-update controleert de laatste Aquarea-defaultbranch, gepubliceerde release en werkelijk gebruikte bibliotheek tegen het publieke bronreviewcheckpoint. Nieuwe relevante wijzigingen worden beoordeeld en met regressietests verwerkt in dezelfde update; ongewijzigde of irrelevante code wordt als zodanig vastgelegd. De CI-gate blokkeert publicatie bij onbeoordeelde upstreamwijzigingen of een niet-uitvoerbare broncontrole. De bestaande onderhoudstaak kan zelfstandig een geteste SolarPilot-herstelrelease op GitHub publiceren en daarover berichten. Dit is geen automatische installatie op Home Assistant en geen live verbinding met lokale meldingen. Installeer de release via HACS; instellingen en fysieke apparaten worden niet op afstand aangepast.")
-
-CURRENT_GUIDE["sections"][14]["paragraphs"].append("Gewone analysebevindingen, nieuwe bevindingrevisies, meer gegevens nodig en tijdelijke onbereikbaarheid veroorzaken geen algemene melding Analyse nodig, ook niet bij een eerder ingeschakelde analysemeldingsvoorkeur. Bevindingen en onderzoek blijven bij Meetkwaliteit en Export. Een bestaande algemene analysemelding wordt bij de eerste geslaagde controle opgeruimd. Dringende regelingsfouten blijven gericht zichtbaar, worden bij inhoudelijke wijziging bijgewerkt en verdwijnen na herstel. Een bewezen Aquarea-contractbreuk houdt haar afzonderlijke compatibiliteitsmelding. Het opruimen raakt geen andere melding of apparaat.")
-
-CURRENT_GUIDE["sections"][15]["paragraphs"].append("Nieuwe taakregistraties krijgen geen kunstmatige onderbreking alleen doordat SolarPilot de herkenning van dezelfde geladen Aquarea-koppeling op de achtergrond opnieuw controleert. De gewone grenzen voor actuele native rapporten, passende vermogensmetingen, bronbinding en tegenstrijdige gegevens blijven gelden. Een gewijzigde of onbruikbare koppeling levert geen bekende taak op. Eerdere onbekende intervallen blijven als oorspronkelijke geschiedenis bewaard; zij worden niet achteraf tot verwarmen of boilerbedrijf gemaakt.")
-
-CURRENT_GUIDE["sections"][6]["paragraphs"].append("Geen of oude laadgegevens leggen andere SolarPilot-toestellen niet stil. De actuele P1-injectie bevat het werkelijke verbruik van de hele woning, inclusief de auto; alleen het resterende gemeten overschot komt beschikbaar, na de gewone reserves, batterijcorrectie en toewijzingen. Ontbrekend laadvermogen blijft onbekend en wordt geen gemeten nul of overneembaar EV-vermogen. Dit geldt ook voor SG-zonneboost, dat nooit EV-krediet krijgt. Een verse bewezen laadvraag of laadsessie behoudt de gekozen voorrang. Actuele net-/fase-/kwartiergrenzen, minimumtijden, beschermde cycli en apparaatvoorwaarden blijven gelden.")
-
-# Beta.95 keeps current evidence distinct from retained history and display settings.
-CURRENT_GUIDE["sections"][5]["paragraphs"].append('Een uitsluitend visuele SG-wijziging wordt vergeleken met de effectief gebruikte instellingen, inclusief bestaande standaardwaarden en migraties. Het toevoegen van zulke al geldende waarden of een andere volgorde van dezelfde ruimtebronnen is geen nieuwe stuurwijziging. Een echt andere bron, regelgrens, toestemming of gemengd voorstel houdt zijn veilige wachtgrens. Een reeds opgeslagen passend weergavevoorstel kan daardoor worden toegepast terwijl dezelfde SG-sessie doorloopt. Dit bevestigt geen ontbrekend percentage of tankbron. Bij een ontbrekend berekend SG-doel tonen Overzicht en Warmtepomp de reden en de knop SG-doel voor weergave instellen naast het normale Panasonic-doel.')
-CURRENT_GUIDE["sections"][8]["paragraphs"].append('Een vroegere bevestigde afwasvoltooiing blijft met haar oorspronkelijke tijd bewaard wanneer de cloudverbinding later wegvalt. Zij wordt geen bewijs dat de afwasmachine nu bereikbaar of UIT is. Actuele status en export gebruiken de oorspronkelijke bruikbare huidige bron; een ontbrekende rapporttijd blijft onbekend en wordt geen datum in 1970. Een nieuw eenmalig waargenomen einde blijft de oorspronkelijke beurt afsluiten, zonder nieuwe START of opnieuw klaarzetten.')
-CURRENT_GUIDE["sections"][3]["paragraphs"].append('Nieuwe SG-stopregistraties bewaren bij de laatste hercontrole welke concrete voorwaarde de aanvraag afwees, met de oorspronkelijke beschikbare bronwaarden. Een algemene melding dat voorwaarden gewijzigd zijn bewijst geen handmatige ingreep. Oudere generieke stops blijven qua specifieke oorzaak onbekend. Een expliciet geregistreerde onbereikbare SG-uitgang krijgt een bron-/contactcategorie. Stopbesluit, verzenduitkomst en werkelijk gemelde contactstand blijven afzonderlijke bewijzen; dit verandert geen vijfminutenbuffer, minimale sessieduur of lokale Shelly-timer.')
-CURRENT_GUIDE["sections"][12]["paragraphs"].append('Dagelijkse EMS-cijfers houden de werkelijk gemeten PV-tijd, ontbrekende PV-tijd en oudere onbekende dekking afzonderlijk bij. Een geldige nulmeting telt als meting; ontbrekend of ongeldig PV is geen gemeten nul. Net- en verbruikerenergie mogen met hun eigen passende metingen doorlopen. Een zelfverbruikspercentage op onvolledige dekking wordt als gedeeltelijk herkenbaar gemaakt; oude totalen krijgen geen achteraf verzonnen meetdekking. De registratie blijft een indicatieve toerekening en is geen bewezen besparing.')
-CURRENT_GUIDE["sections"][19]["paragraphs"][-1] = 'Rollback naar beta.102 behoudt dezelfde instellingen, opslag, modellen, historie, waterregistratie en SG-bediening. De kaart kan bij het gesplitste Aquarea-statuscontract weer een onbekende taak tonen terwijl de backend al een taak afleidt; de oude bronbenaming keert terug. Er is geen opslagmigratie. Bewaar vóór terugzetten een volledige privéback-up, behoud de entry en userfiles, herstart Home Assistant volledig en herlaad de app/browser. Verder teruggaan naar beta.101 kan de aanvullende watermeetgatrol bij een volgende opslag verliezen. Zie BETA103_INSTELLEN.md.'
-
-CURRENT_GUIDE["sections"][15]["paragraphs"].append('De balken in Warmtepompgeschiedenis delen een aanraakbare tijdmarkering. Schuif horizontaal, gebruik de muis of bedien de markering met het toetsenbord. Binnen de begrensde afstand springt zij naar een werkelijk vastgelegd meetpunt; het tijdlabel en alle taak-/SG-informatie volgen die exacte tijd. Vorig/volgend meetpunt maakt de bewaarde punten apart bereikbaar. Een leeg of ver verwijderd meetpunt geeft geen verzonnen numerieke waarden. Vermogen is een W-meting op dat punt, geen verbruik per taak of per SG-sessie. Dagverbruik blijft apart als kWh met gemeten dekking. Temperatuur, normaal doel en berekend SG-doel houden hun eigen oorspronkelijke bronnen en tijden. De actuele boilerkaart bovenaan staat los van de geselecteerde historische waarden. Alleen bekijken stuurt geen apparaatopdracht en wijzigt geen instelling.')
-CURRENT_GUIDE["sections"][15]["paragraphs"].append('Nieuwe historische vergelijkingspunten bewaren aanvullend alleen een gevalideerd volledig warmtepompvermogen met oorspronkelijke rapporttijd en geldigheid. Eerdere punten zonder dit bewijs krijgen geen achteraf opgeteld totaal uit deelvoedingen. Het bestaande opname-interval, de detailcaps en de dertig lokale kalenderdagen blijven behouden; een vermogenverandering alleen vult het archief niet met extra punten. Lokale UTC-daggrenzen laten de markering ook op dagen van 23 of 25 uur op de juiste tijd wijzen. Gedupliceerde lokale uren houden hun tijdzoneverschil.')
-CURRENT_GUIDE["sections"][2]["paragraphs"].append('De daadwerkelijk geladen SDK 1.4-statusvorm krijgt een eigen gecontroleerde betekenis naast het behouden oudere specialStatus-contract. Oude historische bewijzen worden niet hernoemd of met nieuw bewijs verrijkt. Alleen broncode en actuele getypeerde velden die met het bijbehorende contract overeenkomen mogen actueel worden gelezen. De nieuwe LIVE/CACHED-status moet echt LIVE zijn; een geslaagde cloudpoll met cachedata maakt die gegevens niet vers. Dit geeft geen nieuwe Panasonic-write of extra SG-vrijgave. Versienummers alleen geven geen bewijs.')
-
-CURRENT_GUIDE["sections"][15]["paragraphs"].append('Lange warmtepompsessies met meer dan acht taakperioden tonen eerst een compacte samenvatting per taak en bewijsniveau. De oorspronkelijk geregistreerde perioden blijven chronologisch uitklapbaar, inclusief korte onbekende perioden. Dat overzicht telt alleen werkelijk geregistreerde taakduur binnen de betreffende sessie; het vult geen gaten en verandert geen dagenergie, taakclassificatie, tijdlijn of SG-bewijs. Elektrische ondersteuning blijft een afzonderlijke gelijktijdige waarneming. Overlappende bronperioden blijven behouden; hun opgetelde duur wordt met overlapwaarschuwing getoond en is geen aaneengesloten fysieke looptijd.')
-CURRENT_GUIDE["sections"][15]["paragraphs"].append('De gedetailleerde taakperioden tonen seconden en hun oorspronkelijke beschikbare duur. Een positieve periode korter dan een seconde blijft een korte geregistreerde periode. Een enkele waarneming zonder vastgestelde duur wordt als meetpunt aangegeven. Taak onbekend betekent ontbrekend bewijs van de taak terwijl elektrische activiteit kan zijn waargenomen; een lijstregel is geen bewezen compressorstart of -stop.')
-CURRENT_GUIDE["sections"][15]["paragraphs"].append('Tijdens het verwerken van een nieuw Aquarea-bericht kan de taak kort onbekend zijn. Een tussentijdse uitlezing mag het daaropvolgende geldige bronbericht niet verbruiken: na de normale bevestiging van dat nieuwe bericht is het direct bruikbaar, zonder een extra volledige poll af te wachten. De uitlezing zelf geeft geen nieuw actueel bewijs. Ontbrekende, oude, gecachete, gewijzigde of tegenstrijdige gegevens blijven onbekend. Oude onbekende geschiedenis wordt niet achteraf herschreven.')
-
-CURRENT_GUIDE["sections"][15]["paragraphs"].append('Ook gewone en gearchiveerde toestellen hebben aanklikbare geschiedenisbalken, sessies en gebeurtenissen. Kies een tijd met vinger, muis of toetsenbord voor de werkelijk geregistreerde actieve periode, begin/einde, duur, bevestiging en start-/stopreden. Een leeg tijdvak betekent geen geregistreerde actieve periode; een exacte UIT-toestand is daar niet bewezen. Actuele status, huidige modus, vermogen of doelwaarde vullen historische gegevens niet aan. De gekozen sessie toont een compacte tijd-/duursamenvatting; oorspronkelijke tijden, bevestigingen en redenen blijven uitklapbaar. Op mobiel blijft de tijdsbalk bereikbaar tijdens het schuiven.')
-CURRENT_GUIDE["sections"][15]["paragraphs"].append('De bewaarde Wallbox-laadperioden zijn afzonderlijk uitklapbaar met oorspronkelijke begin-/eindwaarnemingen, fabrikantstatus en beschikbare grensmetingen. Deze grensmetingen zijn geen continue vermogensreeks of energie per sessie. De SG-aanvraag, het contact en de ontvangen status blijven apart bereikbaar op de warmtepomptijdlijn.')
-CURRENT_GUIDE["sections"][15]["paragraphs"].append('Bronhistorie opent de geschiedenisweergave van Home Assistant bij een toegestane gekoppelde bron. Dit maakt onder meer batterij-SoC, vermogenssensoren en regeldoelen bereikbaar waar Home Assistant die heeft opgeslagen. SolarPilot ontsluit uitsluitend toegestane huidige bronkoppelingen waarvoor de gebruiker leesrechten heeft; de bestaande apparaathistorie houdt ook haar rechten op oudere bronnen. De bronhistorie beschrijft de entiteit zelf: een huidige koppeling bewijst niet dat die bron vroeger steeds bij hetzelfde toestel hoorde. Recorderbeschikbaarheid, eigen bewaartermijn en meetgaten bepalen wat Home Assistant kan tonen. Er wordt geen nieuwe registratie aangezet en geen ontbrekend verleden verzonnen. Alleen de geschiedenisweergave openen verzendt geen apparaatopdracht.')
-
-CURRENT_GUIDE["sections"][15]["paragraphs"].append('Tik op de huidige boilertemperatuur of het ingestelde boilerdoel om direct de geschiedenisweergave van de bijbehorende Home Assistant-bron te openen. De knop volgt de bron van de getoonde waarde, ook bij een gecontroleerd automatisch gevonden Aquarea-boiler. Wanneer beide waarden attributen van dezelfde boilerentiteit zijn, openen beide knoppen dezelfde entiteit. De bronkoppeling en leesrechten worden opnieuw gecontroleerd. Een berekend SG-doel heeft geen afzonderlijke gemelde entiteit en krijgt geen verzonnen bronhistorie.')
-
-CURRENT_GUIDE["sections"][3]["paragraphs"].append('De tijdelijke SG-bediening leest vanaf beta.100 uitsluitend de geconfigureerde beschikbaarheid en de bestaande handmatige keuze met haar oorspronkelijke eindtijd. Daardoor herhaalt het tonen van die bediening geen volledige SG- en Panasonic-beoordeling. De resterende duur volgt nog steeds de huidige klok; het openen of verversen van de bediening verlengt de keuze niet. Automatisch en Aan/Uit voor 30/60 minuten behouden hun betekenis. Een keuze is geen gemelde contactstand of nieuwe schakeltoestemming; de gewone uitvoering beoordeelt haar actuele bronnen, rechten, voorrang en grenzen afzonderlijk.')
-
-
-# Beta.101 water telemetry is optional and never enters control policy.
-CURRENT_GUIDE["sections"].append({
-    "title": "22. Watermeter, boilercontext en mogelijke lekken",
-    "paragraphs": [
-        "Open Water → Water instellen en schakel de monitor bewust in. Kies de bestaande cumulatieve waterstand, het actuele debiet en de binaire lekmelding van dezelfde bedoelde meter. Minstens één bron is nodig; alle drie geven het volledigste beeld. Er is geen automatische bronkoppeling. Standaard staat de monitor Uit, bronouderdom op 300 seconden, de drempel op 0,1 L/min en de bevestigingsduur op 60 minuten. Meldingen staan bij inschakelen standaard Aan. Dit zijn instelbare adviesgrenzen en geen gekalibreerde lekdiagnose.",
-        "Het overzicht toont liters per minuut, cumulatieve liters, geregistreerde dagliters en de afzonderlijke bronmelding. Alleen passende eindige niet-negatieve waarden en bruikbare oorspronkelijke HA-rapporttijden tellen mee. Een echte nul is geldig; onbekend is geen nul. HA-ontvangsttijd bewijst geen fysieke meettijd: gereplayde of door de leverancier gecachete metingen kunnen niet altijd worden herkend. Verlaag de bronouderdom niet onder het werkelijk betrouwbare rapportinterval.",
-        "Dagliters komen uitsluitend uit passende opeenvolgende tellerstanden. De eerste stand is een beginpunt. Tellerdaling, bronwissel, herstart en meetgaten hebben hun eigen grenzen. Een stijging over een meetgat of lokale middernacht wordt niet naar rato aan een dag toegewezen. Debiet wordt niet in liters geïntegreerd of bovenop de teller opgeteld. De weergegeven daghoeveelheid is een gedeeltelijke registratie vanaf inschakeling, geen bewezen volledig dagtotaal of waterfactuur.",
-        "Watergeschiedenis bewaart maximaal dertig lokale kalenderdagen met begrensde aantallen meetpunten, tellerintervallen en gebeurtenissen. Schuif over de vier balken of gebruik het toetsenbord voor het werkelijk opgeslagen meetpunt, debiet, meterstand, boilertemperatuur/doel, afwasstatus en bronkwaliteit. De tijdmarkering en details volgen hetzelfde punt. Meetgaten blijven onbekend; huidige waarden vullen het verleden niet aan. Vorig/volgend meetpunt maakt de bewaarde punten afzonderlijk bereikbaar. Bronhistorie opent de toegestane huidige waterentiteit in Home Assistant.",
-        "Een geregistreerde boilerafkoeling vanaf 2 °C kan ook uit meerdere opeenvolgende kleine dalingen binnen maximaal dertig minuten worden herkend. De vergelijking gebruikt de hoogste passende eerdere temperatuur, bij gelijke waarden de oudste, en sluit bij de eerste voldoende daling een venster af. Vensters delen hoogstens hun eind-/beginpunt; liters worden niet dubbel geteld. Alle temperatuurberichten moeten geldig zijn en bij dezelfde broncontext horen. Ontbrekende temperatuurcontext, een relevante telleronderbreking, reset, herstart of bronwissel onderbreekt de vergelijking. Alleen een nieuw expliciet als debietprobleem vastgelegd meetgat blokkeert een bruikbare teller-/boilervergelijking niet. Oudere generieke meetgaten blijven conservatief een grens. Het toont samenloop, geen bewezen warmwatertap, thermisch verlies of oorzaak; een totaalmeter onderscheidt warm en koud water niet.",
-        "Voor de afwasmachine toont Water de werkelijk bekende actieve status naast het huishoudelijke watergebruik. Alleen passende opeenvolgende actieve waarnemingen binnen vijf minuten leveren een begrensd vergelijkingsvenster. De liters blijven huishoudelijke deelmetingen: andere kranen en apparaten kunnen tegelijk water gebruiken. De monitor bepaalt geen afwasfase, eigen literverbruik of start-/stoptoestemming en wijzigt geen START-opdracht, ticket, planning of beschermde cyclus.",
-        "De eigen lekmelding van de watermeter blijft apart van SolarPilot: langdurige stroming. Alleen nieuwe bruikbare debietberichten op of boven de drempel kunnen de ingestelde duur bevestigen. Oude of ontbrekende berichten, herstart en bronwissel maken geen doorlopend bewijs. Een getoonde verdenking is een controleadvies en kan normaal verbruik zijn. Een uitgeschakelde of ontbrekende detector geeft geen bewijs dat de installatie lekvrij is.",
-        "Bij een nieuw actueel bewezen waarschuwingsincident verschijnt desgewenst één blijvende Home Assistant-melding. De melding is geen mobiele push. Herstart, heropenen, herhaald meten of opnieuw inschakelen bezorgt hetzelfde reeds gemelde incident niet opnieuw. Oude berichten kunnen een nieuwer incident niet bevestigen of wissen. Bij ontbrekende actuele gegevens blijft een eerder actief incident onopgelost herkenbaar; een andere bron kan het niet als hersteld afmelden. Bewust de watermonitor of haar meldingen uitschakelen ruimt alleen de eigen melding op en bewaart historie.",
-        "Alle waterfuncties lezen uitsluitend. SolarPilot opent of sluit geen afsluiter en gebruikt waterdata niet voor SG, boilerdoel, afwasopdrachten of de energieplanner. De aparte opslag behoudt huidige en oudere bronrechten. Niet-beheerders hebben leesrechten op alle betrokken huidige en historische bronnen nodig; ontbrekende herkomst geeft hun geen toegang. Analyse-export neemt het werkelijk beschikbare wateroverzicht en de begrensde historie op met bestaande privacyfilters. Deel gebruikspatronen niet ongecontroleerd."
-    ], "bullets": []})
-CURRENT_GUIDE["sections"][19]["paragraphs"][-1] = 'Rollback naar beta.102 behoudt dezelfde instellingen, opslag, modellen, historie, waterregistratie en SG-bediening. De kaart kan bij het gesplitste Aquarea-statuscontract weer een onbekende taak tonen terwijl de backend al een taak afleidt; de oude bronbenaming keert terug. Er is geen opslagmigratie. Bewaar vóór terugzetten een volledige privéback-up, behoud de entry en userfiles, herstart Home Assistant volledig en herlaad de app/browser. Verder teruggaan naar beta.101 kan de aanvullende watermeetgatrol bij een volgende opslag verliezen. Zie BETA103_INSTELLEN.md.'
-
-
-# Beta.102 corrects evidence interpretation without granting control rights.
-CURRENT_GUIDE["sections"][9]["paragraphs"].append('De korte kwaliteitsuitleg en de PV-vraag gebruiken dezelfde daglicht-MAE: minstens twaalf passende daglichtvergelijkingen en een fout groter dan 700 W. Nachtelijke nulmetingen maken een slechte daglichtvoorspelling niet goed. Zonder voldoende daglichtbewijs blijft die beoordeling onbekend. De gemengde en daglichtcijfers, basislastwaarschuwingen en bestaande kwaliteitsscore blijven zichtbaar; er wordt geen correctiefactor, planning of reserve door deze uitleg aangepast.')
-CURRENT_GUIDE["sections"][13]["paragraphs"].append('Bij het geladen Aquarea-contract met afzonderlijke operation_status betekent een ingeschakelde verwarmingsstand niet zelfstandig bewezen uitvoering. De leerclassificatie kan met passend gebonden LIVE-, pomp-, route- en volledig meterbewijs hoogstens een afgeleide taak gebruiken; zij maakt dit geen bevestigde modelmeting. Zonder dat bewijs blijft de leercontext onbekend. De uitleesweergave wordt opnieuw uit de bronwaarden beoordeeld; een oud label of berekende weergave verleent geen leerrecht. Pomp UIT of 0 W alleen maakt nog geen gevalideerde normale huishoudbasislast. Oude modellen en historische classificaties worden niet herschreven; onafhankelijke oudere native contracten behouden hun betekenis.')
-CURRENT_GUIDE["sections"][21]["paragraphs"].append('Water toont voor stromingsbewaking en de eigen metermelding afzonderlijk of de bewust gekoppelde bron een actueel bruikbaar rapport heeft. Een ontbrekende optionele detector is herkenbaar als niet gekoppeld; een wel gekoppelde oude bron maakt de bewaking onvolledig of niet beschikbaar. Actuele bronnen betekent niet dat de zestig minuten zijn voltooid of dat de installatie lekvrij is. Een eerdere onopgeloste waarschuwing blijft staan. Deze bronuitleg is informatief en veroorzaakt geen nieuwe periodieke melding of energie-regelingsfoutpauze.')
-CURRENT_GUIDE["sections"][21]["paragraphs"].append('Bij MQTT kunnen identieke waarden zonder force_update in Home Assistant een oude last_reported houden. Controleer bij oude debiet- of lekmeldingen de afzonderlijke publicatie, beschikbaarheid en bronconfiguratie. De update verandert die MQTT-instellingen niet en leent geen actualiteit van de totaalteller. force_update kan de ontvangstregistratie verbeteren wanneer werkelijke nieuwe berichten binnenkomen; het bewijst geen fysieke meettijd. De bronouderdom blind verlengen maakt ontbrekend bewijs niet betrouwbaar. Analyse-export bevat nu ook de effectieve waterinstellingen, module-inschakeling en bronkwaliteitsdiagnose.')
-CURRENT_GUIDE["sections"][19]["paragraphs"][-1] = 'Rollback naar beta.102 behoudt dezelfde instellingen, opslag, modellen, historie, waterregistratie en SG-bediening. De kaart kan bij het gesplitste Aquarea-statuscontract weer een onbekende taak tonen terwijl de backend al een taak afleidt; de oude bronbenaming keert terug. Er is geen opslagmigratie. Bewaar vóór terugzetten een volledige privéback-up, behoud de entry en userfiles, herstart Home Assistant volledig en herlaad de app/browser. Verder teruggaan naar beta.101 kan de aanvullende watermeetgatrol bij een volgende opslag verliezen. Zie BETA103_INSTELLEN.md.'
-
-CURRENT_GUIDE["sections"][16]["paragraphs"].append("Aquarea 1.8.1 houdt de vorige UTC-cloudmaand vast tot de laatste energiegegevens zijn opgehaald en schuift daarna door naar de nieuwe maand. SolarPilot blijft de werkelijk door de native sensor gerapporteerde periode uitlezen. Een nieuwe exportdatum maakt een behouden oude maand niet tot de huidige maand; periodegrenzen bewijzen geen meetdekking of actualiteit. De status-/actiesemantiek en SDK zijn bij deze bronwijziging ongewijzigd. De aanvullende bronreview en regressies verruimen geen taak-, leer- of regelrecht.")
-
-
-
-
-# Release-specific recovery boundary: no global OFF prerequisite for source waits.
-CURRENT_GUIDE['sections'][0]['paragraphs'].append(
-    'Controle afronden beoordeelt echte fouten, niet gewone tijdelijke onbereikbaarheid. '
-    'Een offline afwasmachine of andere bronwachter hoeft niet eerst UIT te bevestigen '
-    'om een onafhankelijke fout af te ronden. De eigen wachttijd, onbekende toestand, '
-    'lease en eenmalige aanvraag blijven bewaard. Een verouderde knop zonder echte '
-    'fout doet niets en verstuurt geen toestelopdracht. Onzekere verzonden opdrachten '
-    'vereisen passende nieuwe terugmelding; een oude of restored UIT is geen bewijs. '
-    'Wallbox-telemetriewacht wordt informatief getoond zonder foutkleur of resetknop. '
-    'Een dubbele koppeling blijft een zichtbare configuratiemelding. Actuele '
-    'P1-restzon en alle bestaande toestel-, net-, fase- en kwartiergrenzen blijven leidend.'
-)
-
-# Meter observation has no path into command eligibility or cycle learning.
-CURRENT_GUIDE["sections"].append({
-    "title": "23. Eigen afwasmachinemeter: waarnemen zonder cloudbediening",
-    "paragraphs": [
-        "Koppel bij het bestaande afwasmachinetoestel een exclusieve vermogenssensor in W/kW en optioneel de bijbehorende cumulatieve energieteller in Wh/kWh (total of total_increasing). De meter wordt uitsluitend gelezen; de voedingsschakelaar wordt niet als actuator toegevoegd. Bestaande native START-, deur-, remote-, programma- en verbindingsbronnen blijven nodig voor bediening, maar niet voor metergestuurde historiek.",
-        "De voorlopige startinstelling is minstens 10 W gedurende 60 seconden aan opeenvolgende geldige rapporten. Tot 5 W gedurende 15 minuten sluit de afgeleide activiteit af, niet een bewezen succesvol programma. Korte stille fasen blijven in de waargenomen activiteit; een betrouwbare native draaiende of gepauzeerde status houdt die actief. Deze instelbare drempels zijn geen gekalibreerd toestelprofiel. Controleer ze aan een volledige echte afwasbeurt; deurverlichting of een uitzonderlijk lange stille fase kan de afleiding beïnvloeden.",
-        "Zonder bevestigde SolarPilot-start hoort een nieuwe waargenomen activiteit bij Extern gestart of, wanneer de beginwaarneming ontbreekt, Begin onbekend. Oudere niet-geregistreerde beurten worden niet ingevuld. Onbekende, restored, geschatte, ongeldige of oude meterwaarden worden geen 0 W. Alleen nieuwe oorspronkelijke rapporttijden tellen mee voor de bevestigingsduur; een scherm verversen maakt een oude meting niet nieuw. De maximale rapportouderdom is voorlopig 120 seconden en is afzonderlijk instelbaar.",
-        "Dag- en sessie-energie omvat alleen geldige opeenvolgende cumulatieve tellerstappen. Tellerresets, onmogelijke sprongen, onderbrekingen, herstart of een middernachtgrens worden niet geïnterpoleerd. De geregistreerde kWh blijven expliciet een deelmeting; zonder bruikbaar tellerpaar blijft het onbekend. De cumulatieve tellerstand is geen dagverbruik. Een nieuwe meter of gewijzigde drempel erft geen oude activiteitsduur of tellerbaseline. Eerdere historie en bronrechten blijven bewaard; per meter worden maximaal dertig lokale dagen bijgehouden.",
-        "Een meterstart verleent nooit starttoestemming, verbruikt geen eenmalig startticket en bevestigt geen verzonden opdracht. Laag vermogen bewijst geen programma-einde. Deze afgeleide sessies worden geen volledige geleerde cyclus en maken geen fictieve zonne-energie of besparing. Andere verbruikers blijven hun eigen actuele voorwaarden gebruiken. Een live cloudprobleem kan dus naast een geldige lokale meterwaarneming blijven staan."
-    ], "bullets": []})
-CURRENT_GUIDE["sections"][19]["paragraphs"][-1] = "Rollback naar beta.104 herstelt de vorige afwasregistratie en verwijdert deze onafhankelijke meterweergave. Een oudere versie kan de nieuwe aanvullende meterhistoriek bij een volgende opslag niet behouden. Maak daarom vóór de update en vóór rollback een volledige privéback-up, inclusief de SolarPilot-consumer_history-opslag; verwijder de integratie niet. Zie BETA105_INSTELLEN.md."
 GUIDE_HASH = hashlib.sha256(
     json.dumps(CURRENT_GUIDE, sort_keys=True, ensure_ascii=False).encode("utf-8")
 ).hexdigest()

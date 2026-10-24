@@ -182,7 +182,9 @@ def sg_solar_budget(runtime):
     battery discharge, and measured PV caps the total. Its incremental credit
     is an attribution, not a separate measured PV-to-HP share. This deliberately
     conservative budget is not headroom, SG-owned watts or forecast power.
-    No prospective device OFF, EV reclaim or learned draw supplies this credit.
+    Confirmed autonomous solar charging can be allocated to SG only when SG
+    precedes the Wallbox in the central order. It remains conditional EV power,
+    never measured export; the dispatch guard checks stability and hard limits.
     """
     grid, valid, discharge, ready, grid_stamp = runtime._site_data()
     pv, pv_stamp = runtime._power(runtime.settings.get("pv_entity"))
@@ -224,16 +226,32 @@ def sg_solar_budget(runtime):
     complete = (power.get("valid") is True and power.get("complete") is True
                 and hp is not None and 0 <= hp <= _POWER_PLAUSIBILITY_W
                 and hp_stamp is not None and -5 <= now-hp_stamp <= stale)
-    eligible = max(0.0, min(pv, (hp if complete else 0.0)-conservative_grid-discharge)-reserve)
-    credit = max(0.0, eligible-available)
+    ev = 0.0
+    ev_stamp = None
+    board = getattr(runtime, "priority_board", None)
+    if board is not None and board.sg_before_wallbox() and runtime.wallbox_settings.get("enabled"):
+        from .wallbox import state_set
+        reading = runtime._wallbox_reading()
+        watts, reported = _number(reading.power_w), _number(reading.stamp)
+        if (reading.valid and isinstance(reading.mode, str)
+                and reading.mode.casefold() in state_set(runtime.wallbox_settings["full_solar_states"])
+                and reading.demand is not False and watts is not None and watts >= 0
+                and reported is not None and -5 <= now-reported <= min(stale, runtime.wallbox_settings["reclaim_max_age_s"])):
+            ev = min(watts, float(runtime.sg_boost.settings["expected_power_w"]))
+            ev_stamp = reported
+    hp_eligible = max(0.0, min(pv, (hp if complete else 0.0)-conservative_grid-discharge)-reserve)
+    eligible = max(0.0, min(pv, (hp if complete else 0.0)+ev-conservative_grid-discharge)-reserve)
+    credit = max(0.0, hp_eligible-available)
     credit_reason = ("Actueel volledig warmtepompverbruik telt mee in het afgeleide SG-zonnebudget"
                      if credit > 0 else "Geen extra zonnebijdrage uit de warmtepompmeting"
                      if complete else power.get("reason") or "Warmtepomptotaal niet volledig of actueel")
     return {"valid": True, "available_w": available, "eligible_w": eligible, "hp_solar_w": credit,
+            "ev_solar_w": ev, "ev_reported_at": ev_stamp,
             "hp_power_w": hp if complete else None, "hp_credit_reason": credit_reason,
             "grid_w": grid, "conservative_grid_w": conservative_grid,
             "discharge_w": discharge, "pv_w": pv, "reserve_w": reserve,
             "grid_reported_at": grid_stamp, "pv_reported_at": pv_stamp,
-            "stamp": min(residual_stamp, hp_stamp) if credit > 0 else residual_stamp,
+            "stamp": min([residual_stamp] + ([hp_stamp] if complete and credit > 0 else [])
+                         + ([ev_stamp] if ev > 0 else [])),
             "residual_stamp": residual_stamp,
             "reason": "Werkelijk restoverschot na beschermde toestellen"}

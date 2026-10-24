@@ -70,7 +70,7 @@ async def test_external_timer_takeover_records_loss_of_ownership_and_never_write
     adapter.expiry += 100
     clock.advance(5)
     await tick(manager)
-    assert manager.manual_hold and not manager.owned
+    assert manager.external_control_overview()["active"] and not manager.owned
     assert manager._last_session["command_identity"] == identity
     assert "eigenaarschap vrijgegeven" in manager._last_session["reason"]
     assert manager._last_session["transport"] is None

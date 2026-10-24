@@ -452,7 +452,7 @@ attributes["priority_board"] = {
     "protected": [{"id": "safety", "name": "Veiligheid en Panasonic-regeling", "active": True,
         "power_label": "Niet beschikbaar voor zonneboost",
         "reason": "Panasonic regelt ruimtecomfort, normaal warm water en sterilisatie zelfstandig. SG verandert geen native instelling."}],
-    "constraints": [{"before": "wallbox", "after": "dhw_extra", "reason": "SG-zonneboost blijft na de Wallbox."},
+    "constraints": [
         {"before": "device:dishwasher", "after": "dhw_extra", "reason": "De afwas behoudt voorrang op SG-zonneboost."}],
     "note": "Fictief voorbeeld: de bestaande voorrang blijft behouden totdat je een wijziging bevestigt. Deze pagina slaat niets op.",
 }

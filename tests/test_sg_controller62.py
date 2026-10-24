@@ -343,7 +343,7 @@ async def test_external_manual_on_without_journal_is_not_switched_off():
     manager, adapter, clock, _ = fixture()
     adapter.on = True
     await manager.start()
-    assert manager.manual_hold and manager.relay_on is True
+    assert manager.external_control_overview()["active"] and manager.relay_on is True
     await manager.set_enabled(False)
     await manager.close()
     assert not adapter.calls
@@ -355,7 +355,7 @@ async def test_external_timer_change_releases_ownership_but_respects_contact():
     adapter.expiry += 600
     clock.advance(10)
     await tick(manager)
-    assert manager.manual_hold and not manager.owned and adapter.on
+    assert manager.external_control_overview()["active"] and not manager.owned and adapter.on
     assert len(adapter.calls) == 1
 
 

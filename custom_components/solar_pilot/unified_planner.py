@@ -398,20 +398,6 @@ class UnifiedPlanner:
     def due(self, wall_ts):
         return self.plan is None or wall_ts - self.last_plan_wall >= max(60, int(self.settings["replan_min"]) * 60)
 
-    @staticmethod
-    def _within_window(dt, cfg):
-        if not cfg.get("time_window_enabled"):
-            return True
-        start = str(cfg.get("time_window_start", "00:00:00"))[:5]
-        end = str(cfg.get("time_window_end", "23:59:00"))[:5]
-        hm = dt.strftime("%H:%M")
-        return (start <= hm < end) if start <= end else (hm >= start or hm < end)
-
-    @staticmethod
-    def _deadline_ok(dt, cfg):
-        deadline = str(cfg.get("daily_deadline", "23:59:00"))[:5]
-        return dt.strftime("%H:%M") <= deadline
-
     def build(self, *, local_now, pv_hourly_w, import_prices, export_prices, devices,
               capacity_target_w=None, battery=None):
         c = self.settings

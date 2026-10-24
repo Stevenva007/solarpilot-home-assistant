@@ -126,9 +126,9 @@ def test_revision_ignores_telemetry_but_detects_settings_devices_and_legacy_cont
         with pytest.raises(HomeAssistantError,match='intussen'):b.validate(old,b.order(),b.permissions(),True)
 
 
-def test_extra_cannot_overtake_wallbox_or_preferred_dishwasher():
+def test_extra_can_overtake_wallbox_but_not_protected_dishwasher():
     r,h=multiple();b=r.priority_board
-    with pytest.raises(HomeAssistantError,match='Wallbox'):b.validate(b.revision(),[EXTRA,WALLBOX,'device:a','device:second_consumer'],b.permissions(),True)
+    b.validate(b.revision(),[EXTRA,WALLBOX,'device:a','device:second_consumer'],b.permissions(),True)
     r.configs['a'].update(kind='dishwasher',dishwasher_priority_enabled=True)
     with pytest.raises(HomeAssistantError,match='voorrang'):b.validate(b.revision(),[WALLBOX,EXTRA,'device:a','device:second_consumer'],b.permissions(),True)
 
