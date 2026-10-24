@@ -1,0 +1,23 @@
+name: Export source (temporary)
+
+on:
+  push:
+    branches:
+      - fix/beta106-sg-priority
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create source archive
+        run: git archive --format=zip HEAD -o solarpilot-beta106-working-source.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: solarpilot-beta106-working-source
+          path: solarpilot-beta106-working-source.zip
+          retention-days: 1
+          if-no-files-found: error
