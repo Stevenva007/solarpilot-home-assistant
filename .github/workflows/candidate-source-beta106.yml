@@ -1,0 +1,19 @@
+name: Beta106 source bundle
+on:
+  push:
+    branches: [fix/wallbox-residual-only-beta106]
+    paths: [.github/workflows/candidate-source-beta106.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Archive public source without repository credentials
+        run: git archive --format=tar.gz --output=solarpilot-source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: beta106-public-source
+          path: solarpilot-source.tar.gz
+          retention-days: 1
