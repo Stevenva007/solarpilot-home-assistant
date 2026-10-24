@@ -15,7 +15,8 @@ jobs:
           ref: e88b2091302a1bd6af0fdf7154f152bb7dda8ecb
           persist-credentials: false
       - name: Download exact offline test dependency
-        run: python -m pip download --no-deps --only-binary=:all: voluptuous==0.16.0 -d wheels
+        run: |
+          python -m pip download --no-deps --only-binary=:all: voluptuous==0.16.0 -d wheels
       - uses: actions/upload-artifact@v4
         with:
           name: beta106-offline-test-dependency
