@@ -1,5 +1,9 @@
 # Openbaar upstream-bronregister
 
+## Hercontrole beta.106 — 24 oktober 2026
+
+Defaultbranches, HEADs, laatste stabiele releases en tagcommits zijn opnieuw online gecontroleerd en ongewijzigd. Zie [UPSTREAM_BETA106.md](UPSTREAM_BETA106.md). De inhoudelijke beta.105-beoordeling hieronder blijft van toepassing.
+
 ## Actuele aanvullende broncontrole beta.105 — 23 oktober 2026
 
 Aquarea **1.9.0** op `d3867f4143f7e2c15b84ed67c6e7ace2561f5f96` en SDK **1.5.0** op `55da9428ddf43ed26f2386d79c43d50cf4d9da0c` zijn inhoudelijk beoordeeld vanaf de hieronder bewaarde beta.103-bronnen. De wijzigingen betreffen authenticatie/appversieherstel; mislukte polls blijven ongeldige waarnemingen. De actuele pinned bronstand staat in `upstream_review.json`; vergelijking, impact en bewijsgrenzen staan in [de aanvullende bronbeoordeling](UPSTREAM_BETA105.md). Geen nieuw actuatorrecht of claim van lokale installatiecompatibiliteit.

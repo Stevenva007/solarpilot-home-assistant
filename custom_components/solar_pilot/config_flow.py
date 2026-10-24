@@ -182,10 +182,6 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
     def _runtime(self):
         return getattr(self.config_entry, "runtime_data", None)
 
-    def _busy(self):
-        rt = self._runtime()
-        return rt is not None and not rt.editable
-
     def _site(self):
         return {**DEFAULTS, **self.config_entry.data, **self._base_options().get("settings", {})}
 

@@ -28,6 +28,7 @@ NEW_STORAGE_DROP_C = 2.0
 NEW_STORAGE_CONFIRM_S = 300.0
 NEW_CONTEXT_CONFIRM_S = 300.0
 RELEVANT_NATIVE_CONTEXTS = frozenset({"space_heating", "space_cooling", "tapwater_heating"})
+EXTERNAL_REASSESS_S = 900
 _UNSET_RESIDUAL = object()
 
 
@@ -52,6 +53,9 @@ class SGBoostManager:
         self._manual_control = None
         self._manual_deadline = None
         self._manual_session_started = None
+        self._external_control = None
+        self._external_deadline = None
+        self._adopting_external = False
         self._lease_duration = None
         self._binding_identity = None
         self._off_attempted = False
@@ -191,6 +195,103 @@ class SGBoostManager:
         """Read the current timed preference without heat-pump diagnostics."""
         return self._manual_overview()
 
+    def external_control_overview(self):
+        value = self._external_control
+        if value is None:
+            return {"active": False, "remaining_s": 0, "expires_at": None}
+        remaining = max(0.0, min(self._external_deadline-self._clock(),
+                                 value["expires_at"]-self._wall_clock()))
+        return {"active": True, "remaining_s": math.ceil(remaining),
+                "expires_at": value["expires_at"], "duration_s": EXTERNAL_REASSESS_S}
+
+    @property
+    def adopting_external(self):
+        """Only an already-ON contact can use the zero-increase dispatch path."""
+        return self._adopting_external and self.relay_confirmed and self.relay_on is True
+
+    def _external_matches(self, raw):
+        value = self._external_control
+        return (value is not None and raw is not None and raw.get("output") is True
+                and raw.get("setup_valid") is True
+                and raw.get("fingerprint") == value.get("fingerprint")
+                and raw.get("binding_identity") == value.get("binding_identity")
+                and value.get("control_identity") == self._control_identity())
+
+    def _observe_external_on(self, raw):
+        """Observe a user ON without replaying ON or extending a saved deadline."""
+        if (raw is None or raw.get("output") is not True or raw.get("setup_valid") is not True
+                or self.fault or not self.auto_enabled
+                or getattr(self.runtime, "mode", "observe") != "solar"
+                or self.settings.get("commissioning_confirmed") is not True
+                or self.settings.get("watchdog_confirmed") is not True
+                or not isinstance(raw.get("fingerprint"), dict) or not raw["fingerprint"]):
+            return False
+        if self._external_control is None:
+            wall = self._wall_clock()
+            self._external_control = {"schema": 1, "created_at": wall,
+                "expires_at": wall+EXTERNAL_REASSESS_S,
+                "control_identity": self._control_identity(),
+                "fingerprint": deepcopy(raw["fingerprint"]),
+                "binding_identity": raw.get("binding_identity"),
+                "timer_expiry": self._expiry(raw)}
+            self._external_deadline = self._clock()+EXTERNAL_REASSESS_S
+            self.completion_hold = False
+            self._hold_reason = ""
+            self._general_reference = self._general_candidate = None
+            self._note("SG-contact handmatig aangezet; automatische herbeoordeling over 15 minuten")
+        if not self._external_matches(raw):
+            return False
+        self.manual_hold = False
+        self._set_state("external_on", "SG-contact handmatig aan; automatische herbeoordeling na 15 minuten")
+        return True
+
+    async def _external_tick(self, raw, *, gates, imported, surplus, hard_limit):
+        """Keep the physical ON, then continue under automatic rights or release."""
+        if self._external_control is None:
+            return False
+        if not self.auto_enabled or getattr(self.runtime, "mode", "observe") != "solar":
+            self._set_state("external_on", "SG-contact handmatig aan; automatische overname wacht tot Automatisch regelen aanstaat")
+            return True
+        if raw is None:
+            self._set_state("blocked", "Handmatig SG-contact wacht op actuele terugmelding voor herbeoordeling")
+            return True
+        if not self._external_matches(raw):
+            return True
+        if self.external_control_overview()["remaining_s"] > 0 and not hard_limit:
+            self._set_state("external_on", "SG-contact handmatig aan; automatische herbeoordeling na 15 minuten")
+            return True
+        external = deepcopy(self._external_control)
+        self._generation += 1
+        if (not gates and imported is not None and surplus is not None
+                and surplus >= float(self.settings["threshold_w"])
+                and imported <= float(self.settings["import_threshold_w"])):
+            self._adopting_external = True
+            try:
+                continued = await self._issue_on()
+            finally:
+                self._adopting_external = False
+            if continued and self.owned:
+                origin = self._clock()-(self._wall_clock()-external["created_at"])
+                self._session_started = self._minimum_started = origin
+                self._external_control = self._external_deadline = None
+                self._note("Handmatig SG-contact na 15 minuten overgenomen door de automatische regeling")
+                await self._save()
+                return True
+            # A rejected preflight has sent no ON. Re-read before any OFF;
+            # never retry an uncertain command or a changed physical contact.
+            raw = await self._read(force=True)
+            if self.fault or not self._external_matches(raw):
+                return True
+        self._possibly_owned = True
+        self._lease_expiry = self._expiry(raw)
+        self._off_attempted = False
+        self._external_control["decision_expiry"] = self._expiry(raw)
+        reason = gates[0] if gates else "Onvoldoende zonneoverschot na handmatige SG-periode"
+        await self._release("Handmatige SG-periode herbeoordeeld: " + reason, policy_hold=False)
+        self._external_control = self._external_deadline = None
+        await self._save()
+        return True
+
     def _session_checkpoint(self):
         if self._restart_resume is not None:
             return deepcopy(self._restart_resume)
@@ -285,6 +386,7 @@ class SGBoostManager:
                 "lease_expiry": self._lease_expiry,
                 "session_checkpoint": self._session_checkpoint(),
                 "manual_control": deepcopy(self._manual_control),
+                "external_control": deepcopy(self._external_control),
                 "manual_hold": self.manual_hold, "completion_hold": self.completion_hold,
                 "session_finishing": self._session_finishing,
                 "rest_until_wall": self._rest_until_wall,
@@ -313,6 +415,16 @@ class SGBoostManager:
         self._restart_release = stored.get("owned") is True and not self.manual_hold
         self._restored_expiry = finite(stored.get("lease_expiry"))
         self._lease_expiry = self._restored_expiry
+        external = stored.get("external_control")
+        if (isinstance(external, dict) and external.get("schema") == 1
+                and external.get("control_identity") == self._control_identity()
+                and finite(external.get("created_at")) is not None
+                and finite(external.get("expires_at")) is not None
+                and external["expires_at"]-external["created_at"] == EXTERNAL_REASSESS_S
+                and 0 <= self._wall_clock()-external["created_at"] <= 7*86400
+                and isinstance(external.get("fingerprint"), dict) and external["fingerprint"]):
+            self._external_control = deepcopy(external)
+            self._external_deadline = self._clock()+external["expires_at"]-self._wall_clock()
         manual = stored.get("manual_control")
         if (isinstance(manual, dict) and manual.get("schema") == 1
                 and manual.get("mode") in ("on", "off")
@@ -683,6 +795,7 @@ class SGBoostManager:
         self.state = state
         self.status = {"normal": "Panasonic regelt zelfstandig", "waiting_surplus": "Wachten op zon",
                        "boost_requested": "SG-zonneboost aangevraagd", "rest": "Rusttijd",
+                       "external_on": "SG-contact handmatig aan",
                        "blocked": "Zonneboost geblokkeerd"}[state]
         self.reason = reason
 
@@ -855,8 +968,9 @@ class SGBoostManager:
             elif self._restart_release:
                 await self._reconcile_restart(raw)
             elif raw["output"]:
-                self.manual_hold = True
-                self._set_state("blocked", "SG-contact staat buiten SolarPilot aan; handmatige stand blijft behouden")
+                if not self._observe_external_on(raw):
+                    self.manual_hold = True
+                    self._set_state("blocked", "SG-contact staat buiten SolarPilot aan; handmatige stand blijft behouden")
             await self._save()
 
     async def _reconcile_restart(self, raw, *, current_gates=None, source_gap=False):
@@ -962,6 +1076,8 @@ class SGBoostManager:
                 and (not self.completion_hold or self.manual_mode == "on") and not self.fault)
 
     def _manual_session_origin(self):
+        if self._adopting_external and self._external_control is not None:
+            return self._clock()-(self._wall_clock()-self._external_control["created_at"])
         return self._manual_session_started if self.manual_mode == "on" else None
 
     def _on_authorized(self, generation, renewal):
@@ -1085,7 +1201,17 @@ class SGBoostManager:
             # permission at Switch.Set; no new ON authority comes from a read.
             self._status(raw)
             before_contact = {**deepcopy(raw), "confirmed": True, "stamp": self._relay_observed_at}
-            if not renewal and raw["output"] is True:
+            if self._adopting_external and not self._external_matches(raw):
+                self.owned = self._possibly_owned = self.desired_on = False
+                self._observe_contact(raw)
+                self._capture_dispatch_rejection("permission_changed", renewal)
+                return False
+            manual = self._manual_control if self.manual_mode == "on" else None
+            named_manual = (manual is not None and raw.get("setup_valid") is True
+                and raw.get("fingerprint") == manual.get("fingerprint")
+                and raw.get("binding_identity") == manual.get("binding_identity"))
+            if not renewal and raw["output"] is True and not (
+                    self._adopting_external and self._external_matches(raw) or named_manual):
                 self.owned = self._possibly_owned = self.desired_on = False
                 self.manual_hold = True
                 self._set_state("blocked", "SG-contact staat buiten SolarPilot aan; handmatige stand blijft behouden")
@@ -1364,6 +1490,8 @@ class SGBoostManager:
                 changed = (self._lease_expiry is not None and (
                     expiry is not None and abs(expiry-self._lease_expiry) > 2
                     or raw.get("timer_cancelled") is True))
+                if self._external_control is not None and "decision_expiry" in self._external_control:
+                    changed = changed or not self._external_matches(raw) or expiry != self._external_control["decision_expiry"]
                 if raw["output"] is False or changed:
                     self.owned = self._possibly_owned = self.desired_on = False
                     self._minimum_started = None
@@ -1435,6 +1563,15 @@ class SGBoostManager:
         """Distinguish our expiry/late echo from an external contact change."""
         if raw is None:
             return
+        if self._external_control is not None and not self._external_matches(raw):
+            self._external_control = self._external_deadline = None
+            if raw.get("output") is False:
+                self.manual_hold = True
+                self._set_state("blocked", "SG-contact handmatig uitgeschakeld; automatische start blijft uit tot Hervatten")
+                return
+            self.manual_hold = True
+            self._set_state("blocked", "SG-koppeling gewijzigd; controleer de actuele uitgang")
+            return
         now = self._clock()
         ours = self.owned or self._possibly_owned
         if ours and raw["output"] is False:
@@ -1479,8 +1616,9 @@ class SGBoostManager:
                 self._record_session_end("SG-contact buiten SolarPilot gewijzigd; eigenaarschap vrijgegeven")
                 self._session_started = self._last_renewed = None
                 self._minimum_started = None
-                self.manual_hold = True
-                self._set_state("blocked", "SG-contact buiten SolarPilot gewijzigd; handmatige stand blijft behouden")
+                if not self._observe_external_on(raw):
+                    self.manual_hold = True
+                    self._set_state("blocked", "SG-contact buiten SolarPilot gewijzigd; handmatige stand blijft behouden")
             elif expiry is None:
                 # Missing/invalid timer fields cannot prove who changed it.
                 # Retain only prior OFF/recovery authority, never renew ON.
@@ -1489,9 +1627,15 @@ class SGBoostManager:
             elif self._lease_deadline is not None and now > self._lease_deadline + 2:
                 self.desired_on = False
                 self._fault("lease_failed", "SG-contact bleef na de lokale aflooptijd aan; controleer de Shelly-terugval")
-        elif raw["output"] and not self.manual_hold:
-            self.manual_hold = True
-            self._set_state("blocked", "SG-contact staat buiten SolarPilot aan; handmatige stand blijft behouden")
+        elif raw["output"]:
+            manual = self._manual_control if self.manual_mode == "on" else None
+            if (manual is not None and raw.get("setup_valid") is True
+                    and raw.get("fingerprint") == manual.get("fingerprint")
+                    and raw.get("binding_identity") == manual.get("binding_identity")):
+                return
+            if not self._observe_external_on(raw) and not self.manual_hold:
+                self.manual_hold = True
+                self._set_state("blocked", "SG-contact staat buiten SolarPilot aan; handmatige stand blijft behouden")
 
     def _valid_tank_observation(self, raw):
         """Accept only the live monitor's validated Celsius tank observation."""
@@ -1972,13 +2116,13 @@ class SGBoostManager:
                 # Reconciliation may have written OFF. Its fresh readback or
                 # unknown result supersedes the earlier ON snapshot.
                 raw = None
-            observed = (self.owned, self._possibly_owned, self.manual_hold, self.completion_hold,
+            observed = (deepcopy(self._external_control), self.owned, self._possibly_owned, self.manual_hold, self.completion_hold,
                         self._session_started, self.fault_code)
             if self._restart_resume is None:
                 self._observe_contact(raw)
             self._request_rest_off_current = bool(raw is not None and raw.get("output") is False
                 and self.relay_confirmed and self.relay_on is False)
-            if observed != (self.owned, self._possibly_owned, self.manual_hold, self.completion_hold,
+            if observed != (self._external_control, self.owned, self._possibly_owned, self.manual_hold, self.completion_hold,
                             self._session_started, self.fault_code):
                 await self._save()
             if self._profile_change_release:
@@ -2004,6 +2148,8 @@ class SGBoostManager:
                                  priority_allowed=priority_allowed, hard_limit=hard_limit,
                                  electrical_reason=electrical_reason)
             self._blocked_reasons = gates
+            if await self._external_tick(raw, gates=gates, imported=imported, surplus=surplus, hard_limit=hard_limit):
+                return self.sent_this_tick
             if self._restart_resume is not None and raw is not None:
                 await self._reconcile_restart(raw, current_gates=gates,
                     source_gap=start_wait_source_gap is True or not data_fresh and phase_allowed is True and not hard_limit)
@@ -2139,12 +2285,18 @@ class SGBoostManager:
                 raise HomeAssistantError("Deze SolarPilot-regeling is afgesloten.")
             previous, previous_deadline = self._manual_control, self._manual_deadline
             previous_origin = self._manual_session_started
+            previous_external, previous_external_deadline = self._external_control, self._external_deadline
+            previous_hold = self.manual_hold
             raw = await self._read(force=True) if mode != "auto" and self.configured else None
             if generation != self._generation:
                 raise HomeAssistantError("De SG-keuze is intussen vervangen.")
             if mode == "on" and (raw is None or raw.get("setup_valid") is not True
                     or not isinstance(raw.get("fingerprint"), dict) or not raw["fingerprint"]):
                 raise HomeAssistantError("Controleer eerst de actuele SG-uitgang en lokale terugval.")
+            if mode in ("on", "off"):
+                self._external_control = self._external_deadline = None
+                if raw is not None and raw.get("output") is True:
+                    self.manual_hold = False
             wall, now = self._wall_clock(), self._clock()
             self._manual_control = (None if mode == "auto" else {"schema": 1, "mode": mode,
                 "duration_s": duration_s, "created_at": wall, "expires_at": wall+duration_s,
@@ -2158,8 +2310,8 @@ class SGBoostManager:
                     or self._actuator_conflicts(self.settings)):
                 self._manual_control, self._manual_deadline = previous, previous_deadline
                 self._manual_session_started = previous_origin
-                if self.manual_hold:
-                    raise HomeAssistantError("Het SG-contact is buiten SolarPilot gewijzigd; kies eerst Hervatten voordat je tijdelijk Aan kiest.")
+                self._external_control, self._external_deadline = previous_external, previous_external_deadline
+                self.manual_hold = previous_hold
                 raise HomeAssistantError("Handmatige SG-boost vereist actieve regeling, een bevestigde koppeling en geldige veiligheidsvoorwaarden.")
             self._stable_since = None
             try:
@@ -2168,6 +2320,8 @@ class SGBoostManager:
                 if mode == "on":
                     self._manual_control, self._manual_deadline = previous, previous_deadline
                     self._manual_session_started = previous_origin
+                    self._external_control, self._external_deadline = previous_external, previous_external_deadline
+                    self.manual_hold = previous_hold
                 else:
                     # Failed persistence cannot keep the old live ON choice.
                     self._manual_control = self._manual_deadline = None
@@ -2409,6 +2563,7 @@ class SGBoostManager:
                     and self.settings.get("profile_confirmed") is True and self.completion_hold
                     and self._hold_reason == "response_unknown" and self._general_reference is not None),
                 "manual_control": self._manual_overview(),
+                "external_control": self.external_control_overview(),
                 "observed_at": wall,
                 "commissioning_confirmed": self.settings.get("commissioning_confirmed") is True,
                 "watchdog_confirmed": self.settings.get("watchdog_confirmed") is True,
@@ -2421,7 +2576,7 @@ class SGBoostManager:
                 "rearm_wait": self._rearm_wait(),
                 "active_session_provenance": deepcopy(self._session_provenance)
                     if self._session_started is not None or self._restart_resume is not None else None,
-                "owner": ("manual" if self.manual_hold else "solarpilot" if self.owned or self._possibly_owned
+                "owner": ("external" if self._external_control is not None else "manual" if self.manual_hold else "solarpilot" if self.owned or self._possibly_owned
                           else "unknown" if self.relay_on is None else "none"),
                 "lease_confirmed": bool(self.owned and self.relay_confirmed and self.relay_on is True
                     and self._lease_deadline is not None and now < self._lease_deadline),

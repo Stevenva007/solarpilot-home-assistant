@@ -231,7 +231,8 @@ class SolarRuntime:
         # it again independently of P1; missing EV telemetry grants no EV watts
         # and must not erase the actual residual export measured at the site.
         wallbox_cap = None
-        if self.wallbox_settings.get("enabled"):
+        if self.wallbox_settings.get("enabled") and not (
+                self.priority_board.sg_before_wallbox() and self.sg_boost.manual_mode == "on"):
             current_wallbox = self._update_sg_wallbox_guard(time.monotonic(), self._wallbox_reading(),
                 grid, self.settings["reserve_w"], discharge)
             wallbox_cap = current_wallbox.max_increase_w
@@ -431,18 +432,24 @@ class SolarRuntime:
         return HouseFirstGuard(c) if self.others_first or per_device else WallboxGuard(c)
 
     def _make_sg_wallbox_guard(self):
-        """SG never inherits another consumer's permission to reclaim EV watts."""
-        return WallboxGuard({**self.wallbox_settings, "policy": "priority",
+        """The same central order decides SG versus autonomous solar charging."""
+        before = getattr(self, "priority_board", None) is not None and self.priority_board.sg_before_wallbox()
+        guard = HouseFirstGuard if before else WallboxGuard
+        return guard({**self.wallbox_settings, "policy": "house_first" if before else "priority",
+            "max_takeover_w": float(self.sg_boost.settings["expected_power_w"]) if before else self.wallbox_settings.get("max_takeover_w", 2500),
             "stable_s": self.learning.effective_stable_s(self.wallbox_settings["stable_s"]),
             "sample_gap_s": max(30, self.settings["interval_s"] * 2)})
 
     def _update_sg_wallbox_guard(self, now, reading, grid, reserve, discharge=0.0):
+        before = self.priority_board.sg_before_wallbox()
+        if isinstance(self.sg_wallbox_guard, HouseFirstGuard) != before:
+            self.sg_wallbox_guard = self._make_sg_wallbox_guard()
         # An active/uncertain session keeps its EV priority. Ordinary consumers
         # can use actual export even with an unknown/manual session, but SG's
         # new native-HP threshold contribution must not bypass that residual
         # limit. None preserves unknown session evidence without granting EV
         # credit or claiming Full solar. Confirmed no-request keeps its fast path.
-        if (reading.valid and reading.mode in ("manual", "unknown", "stopped")
+        if (not before and reading.valid and reading.mode in ("manual", "unknown", "stopped")
                 and not confirmed_no_active_request(reading, self.wallbox_settings)):
             reading = replace(reading, mode=None)
         return self.sg_wallbox_guard.update(now, reading, grid, reserve, discharge)
@@ -575,12 +582,15 @@ class SolarRuntime:
                 self.device_modes[recovered_id] = "auto"
                 self.note(f'{self.configs[recovered_id]["name"]}: beta.38 herstelde de afgesproken Auto-deelname; APP-vrijgave blijft per belading verplicht.')
         migrated_priority_board = await self.priority_board.migrate_beta36()
+        migrated_wallbox_last = await self.priority_board.migrate_beta106()
         # Build the guard after migration so schema-2 per-device Wallbox rights
         # are active immediately after a beta.35 restart, not one reload later.
         self.wallbox_guard = self._make_wallbox_guard()
         self.sg_wallbox_guard = self._make_sg_wallbox_guard()
         if migrated_priority_board:
             self.note("Beta.36-migratie: bestaande flexibele voorrang exact vastgelegd als centrale prioriteitenlijst.")
+        if migrated_wallbox_last:
+            self.note("Voorrang bijgewerkt: gegenereerde standaard zet Auto laden achteraan; eigen opgeslagen keuzes blijven behouden.")
         self.energy_kwh = max(0, float(data.get("energy_kwh", 0)))
         stored_stats = data.get("ems_stats", {})
         self.ems_stats = dict(stored_stats) if isinstance(stored_stats, dict) else fresh_daily_stats()
@@ -2770,7 +2780,8 @@ class SolarRuntime:
         sg_sent = await self.sg_boost.tick(
             surplus_w=budget.get("eligible_w", budget["available_w"]),
             real_surplus_w=budget["available_w"], data_fresh=budget["valid"] and bool(import_observation),
-            phase_allowed=actual_phase_ok if self.sg_boost.busy else sg_start_allowed,
+            phase_allowed=(actual_phase_ok if self.sg_boost.busy or self.sg_boost.external_control_overview()["active"]
+                           else sg_start_allowed),
             priority_allowed=priority_allowed and sg_dispatch,
             grid_import_w=import_observation.get("watts"), hard_limit=hard_limit,
             grid_import_stamp=import_observation.get("stamp"),
@@ -3172,7 +3183,10 @@ class SolarRuntime:
         # Re-read the protected autonomous EV at the last asynchronous boundary.
         # Credited native HP consumption is never reclaimable Wallbox power.
         wallbox_cap = None
-        if self.wallbox_settings.get("enabled"):
+        continuation = renewal or self.sg_boost.adopting_external or (
+            self.sg_boost.manual_mode == "on" and self.sg_boost.relay_confirmed and self.sg_boost.relay_on is True)
+        if self.wallbox_settings.get("enabled") and not (
+                (continuation or self.sg_boost.manual_mode == "on") and self.priority_board.sg_before_wallbox()):
             current_wallbox = self._update_sg_wallbox_guard(time.monotonic(), self._wallbox_reading(),
                 budget["grid_w"], self.settings["reserve_w"], budget["discharge_w"])
             if current_wallbox.block_increase or current_wallbox.release_flexible:
@@ -3185,7 +3199,7 @@ class SolarRuntime:
         if (not renewal and (budget["stamp"] <= self.last_issued_wall or
                 time.monotonic()-self.last_issued < self.settings["settle_s"])):
             return rejected("settle")
-        increment = 0.0 if renewal else float(self.sg_boost.settings["expected_power_w"])
+        increment = 0.0 if continuation else float(self.sg_boost.settings["expected_power_w"])
         envelope = increment+self.isolated_reserve_w
         envelope += sum(max(0, st.target_w-st.measured_w) for i,st in self.states.items()
                         if st.owned and st.on and i not in self.source_isolated_devices)
@@ -3196,6 +3210,11 @@ class SolarRuntime:
         readings["projected_grid_w"] = projected
         if projected > self.settings["max_import_w"]:
             return rejected("net_limit")
+        if self.sg_boost.adopting_external:
+            observation = self._sg_import_observation() or {}
+            if (observation.get("watts") is None
+                    or observation["watts"] > float(self.sg_boost.settings["import_threshold_w"])):
+                return rejected("soft_import_policy")
         if renewal and (automatic or self.sg_boost.manual_mode != "on"):
             import_observation = self._sg_import_observation() or {}
             reports["soft_import"] = {"watts": import_observation.get("watts"),

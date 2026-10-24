@@ -118,7 +118,11 @@ async def test_final_contact_must_be_live_unchanged_confirmed_off(block):
     elif block == "firmware":
         adapter.fingerprint["firmware_id"] = "fictional-new-firmware"
     await collect(manager, clock, row, 60)
-    assert manager.completion_hold and manager._general_candidate is None
+    if block == "external_on":
+        assert manager.external_control_overview()["active"]
+    else:
+        assert manager.completion_hold
+    assert manager._general_candidate is None
     assert manager._rest_until == deadline and adapter.calls == calls
     assert not manager.owned
 

@@ -116,7 +116,7 @@ async def test_explicit_off_names_current_manually_on_mapped_contact():
     adapter.on = True
     adapter.start, adapter.duration, adapter.expiry = clock(), 300, clock()+300
     await manager.start()
-    assert manager.manual_hold and not manager.owned
+    assert manager.external_control_overview()["active"] and not manager.owned
     await manager.set_manual_control("off", 1800)
     assert adapter.calls == [("off", None)] and adapter.on is False
     assert manager.overview()["manual_control"]["mode"] == "off"

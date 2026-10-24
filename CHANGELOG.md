@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta.106 — centrale voorrang en automatische SG-overname
+
+- Verwijdert de vaste Wallbox-vóór-SG-beperking; pijltjes en slepen kunnen SG en gewone toestellen langs de Wallbox verplaatsen.
+- Zet automatisch gegenereerde defaults eenmaal op Auto laden als laatste; bewaart bewust opgeslagen keuzes en beschermde afwasvoorrang.
+- Laat SG vóór de Wallbox actuele bevestigde autonome zonnelaadruimte gebruiken; houdt werkelijk overschot en fysieke net-/fase-/kwartiergrenzen apart.
+- Neemt extern handmatig SG-AAN waar met een oorspronkelijke vijftienminutendeadline. Na afloop volgt actuele automatische voortzetting zonder UIT-puls of gerichte vrijgave. Geen nachtboost, timerreset bij herstart of automatische herinschakeling na handmatig UIT.
+- Verwijdert drie ongebruikte helpers en oude documentatie-overrides; actualiseert startuitleg, handleiding en overdracht.
+- Voegt regressies en een verplichte browsercontrole voor de gemelde bediening en SG-afteller toe. Zie BETA106_INSTELLEN.md en TESTRESULTATEN_BETA106.md.
+
 ## 1.0.0-beta.105 — eigen afwasmachinemeter zonder cloudafhankelijkheid
 
 - Optionele exclusieve vermogens- en cumulatieve energiemeter bij de bestaande afwasmachinekoppeling.

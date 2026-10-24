@@ -1,5 +1,5 @@
-/* SolarPilot 1.0.0-beta.105. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
-const SP_CARD_VERSION = '1.0.0-beta.105';
+/* SolarPilot 1.0.0-beta.106. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+const SP_CARD_VERSION = '1.0.0-beta.106';
 const SP_DIALOG_RELEASE = SP_CARD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g,'-');
 const SP_ANALYSIS_DIALOG_TAG = `solar-pilot-analysis-dialog-${SP_DIALOG_RELEASE}`;
 const SP_QUALITY_DIALOG_TAG = `solar-pilot-learning-dialog-${SP_DIALOG_RELEASE}`;
@@ -917,7 +917,7 @@ class SolarPilotPriorityDialog extends HTMLElement {
     this.content.innerHTML=`<div class="intro"><p>${spEscape(data.note)}</p><small>‘Ja’ is een toestemming, geen garantie dat er nu vermogen beschikbaar is. Alleen veilige, bevestigde zonnelaadsessies tellen mee.</small></div><ol class="rows priority-stack">${(data.protected||[]).map(r=>`<li class="row locked"><div class="rank fixed">VAST<span aria-hidden="true">🔒</span></div><div class="title"><strong>${spEscape(r.name)}</strong><small>${spEscape(r.active?'Actief':'Niet ingesteld of niet actief')}</small><small class="note">${spEscape(r.reason||'')}</small></div><div class="permission"><b>Mag de auto minder laden?</b><small>${spEscape(powerOutcome(r))}</small></div><div></div></li>`).join('')}${this._order.map((key,n)=>{
       const r=rows.get(key);if(!r)return '';const isDevice=key.startsWith('device:');const yes=this._permissions[key]===true;
       const beforeWallbox=this._order.indexOf(key)<this._order.indexOf('wallbox');
-      const relation=!isDevice?powerOutcome(r):!yes?'Nee · alleen werkelijk vrij zonneoverschot.':beforeWallbox?'Ja · dit toestel staat vóór Auto laden.':'Nee · Auto laden staat hoger.';
+      const relation=key==='dhw_extra'?(beforeWallbox?'SG krijgt eerst zonnestroom; de Wallbox vangt het resterende overschot op.':'Alleen restoverschot; Auto laden staat hoger.'):!isDevice?powerOutcome(r):!yes?'Nee · alleen werkelijk vrij zonneoverschot.':beforeWallbox?'Ja · dit toestel staat vóór Auto laden.':'Nee · Auto laden staat hoger.';
       const savedPermission=isDevice&&yes&&!beforeWallbox?'<small>Toestemming is bewaard; wordt gebruikt als je dit toestel boven Auto laden zet.</small>':'';
       return `<li class="row" data-row="${spEscape(key)}" draggable="true"><div class="rank">${n+1}<span aria-hidden="true">⠿</span></div><div class="title"><strong>${spEscape(r.name)}</strong><small>${spEscape(r.status||(r.active?'Ingesteld':'Niet actief'))}</small><small class="note">${spEscape(r.reason||'')}</small></div><div class="permission">${isDevice?`<label>Mag de auto minder laden?<select data-power="${spEscape(key)}" aria-label="Mag de auto minder laden voor ${spEscape(r.name)}?"><option value="yes" ${yes?'selected':''}>Ja · binnen veilige grenzen</option><option value="no" ${!yes?'selected':''}>Nee · alleen vrij overschot</option></select></label><small>${spEscape(relation)}</small>${savedPermission}`:`<b>Mag de auto minder laden?</b><small>${spEscape(relation)}</small>`}</div><div class="moves"><button type="button" data-move="${spEscape(key)}" data-delta="-1" data-edge="${n===0}" aria-label="${spEscape(r.name)} hoger">↑</button><button type="button" data-move="${spEscape(key)}" data-delta="1" data-edge="${n===this._order.length-1}" aria-label="${spEscape(r.name)} lager">↓</button></div></li>`;
     }).join('')}</ol><div class="actions"><label class="confirm"><input type="checkbox" data-confirm ${this._confirmed?'checked':''}>Deze volgorde en keuzes toepassen. Lopende programma’s en beschermde looptijden blijven behouden.</label><div class="buttons"><button type="button" class="save" data-save>Voorrang opslaan</button><button type="button" data-close>Annuleren</button><button type="button" data-reload>Actuele instellingen opnieuw laden</button></div></div>`;
@@ -1951,13 +1951,19 @@ class SolarPilotCard extends HTMLElement {
     const states=this._sgDisplayStates(c),s=c.sgBoost||{};
     const items=[['relay','SG-contact','Gemelde contactstand; deze is onafhankelijk van compressorbedrijf.']];
     if(states.received.state!=='unknown')items.push(['received','Ontvangen door Panasonic','Afzonderlijk bevestigd met een actuele ontvangen-SG-bron.']);
-    const mismatch=states.request.state!=='unknown'&&states.relay.state!=='unknown'&&states.request.state!==states.relay.state;
+    const external=s.external_control?.active===true;
+    const mismatch=!external&&states.request.state!=='unknown'&&states.relay.state!=='unknown'&&states.request.state!==states.relay.state;
     const warning=mismatch?states.request.state==='active'?'Zonneboost aangevraagd; het SG-contact staat nog open.':'Geen zonneboost aangevraagd; het SG-contact is nog actief.':'';
     return `<div class="sg-status-strip" aria-label="SG-contact en beschikbare ontvangstmelding">${items.map(([key,label,title])=>`<div class="sg-stage is-${states[key].state}" data-sg-stage="${key}" title="${spEscape(title)}"><span>${spEscape(label)}</span><strong>${spEscape(states[key].label)}</strong></div>`).join('')}</div>${warning?`<p class="note sg-signal-warning"><b>${spEscape(warning)}</b></p>`:''}<p class="note sg-policy">Zonneboost: <b>${s.enabled===true?'toegelaten':s.enabled===false?'uitgeschakeld':'onbekend'}</b></p>${this._sgManualControl(c)}${this._sgWaitBanner(c)}${this._sgMinimumBanner(c)}${this._sgCloudBanner(c)}`;
   }
   _sgManualState(c){
     const s=c.sgBoost||{},value=s.manual_control,object=value&&typeof value==='object'&&!Array.isArray(value);
     const fresh=this._freshObservation(s.observed_at,s.relay_stale_s??120),mode=object&&['auto','on','off'].includes(value.mode)?value.mode:null;
+    const external=s.external_control;
+    if(fresh&&external?.active===true&&typeof external.expires_at==='number'&&Number.isFinite(external.expires_at)&&external.duration_s===900){
+      const remaining=Math.ceil(Math.max(0,Math.min(900,external.expires_at-Date.now()/1000)));
+      return {mode:'external',label:'Handmatig aan · automatische overname',remaining,duration:900,reason:''};
+    }
     const reason=fresh&&typeof value?.reason==='string'?value.reason.slice(0,600):'';
     if(!object||!fresh||!mode)return {mode:null,label:'Bedieningskeuze onbekend',remaining:null,duration:null,reason:''};
     if(mode==='auto')return {mode,label:'Automatisch',remaining:null,duration:null,reason};
@@ -1971,7 +1977,7 @@ class SolarPilotCard extends HTMLElement {
     const supported=value&&typeof value==='object'&&!Array.isArray(value),admin=this._hass?.user?.is_admin===true;
     const ready=supported&&s.configured===true&&!!c.a?.config_entry_id&&typeof this._hass?.callService==='function'&&admin&&!this._busy;
     const choice=(mode,duration,label)=>`<button type="button" class="mini ${state.mode===mode&&(mode==='auto'||state.duration===duration)&&state.remaining!==0?'active':''}" data-action="sg_manual_control" data-sg-mode="${mode}"${duration?` data-sg-duration="${duration}"`:''} aria-pressed="${state.mode===mode&&(mode==='auto'||state.duration===duration)&&state.remaining!==0}" ${ready&&(mode!=='on'||s.enabled===true&&c.a.mode==='solar')?'':'disabled'}>${label}</button>`;
-    const clock=state.mode==='on'||state.mode==='off'?state.remaining==null?'Resterende tijd onbekend':state.remaining===0?'Tijd verstreken · wacht op automatische beoordeling':`Nog ${this._sgWaitTime(state.remaining)} · daarna automatisch`:'';
+    const clock=['on','off','external'].includes(state.mode)?state.remaining==null?'Resterende tijd onbekend':state.remaining===0?'Tijd verstreken · wacht op automatische beoordeling':`Nog ${this._sgWaitTime(state.remaining)} · ${state.mode==='external'?'daarna beoordelen of SG aan mag blijven':'daarna automatisch'}`:'';
     const blocked=state.mode==='on'&&this._freshObservation(s.observed_at,s.relay_stale_s??120)&&s.desired_on!==true;
     const reason=blocked?(state.reason||this._heatpumpReason(c)):'';
     return `<section class="sg-manual-control" data-sg-manual-control="${state.mode||'unknown'}" aria-label="Tijdelijke SG-bediening"><div class="sg-manual-head"><strong>SG-bediening ${this._question('dashboard','sg_manual_control','Tijdelijke SG-bediening')}</strong><span data-sg-control-mode>${spEscape(state.label)}</span></div>${clock?`<p class="note" data-sg-control-countdown>${spEscape(clock)}</p>`:''}<div class="sg-manual-actions">${choice('auto',null,'Automatisch')}${choice('on',1800,'Aan · 30 min')}${choice('on',3600,'Aan · 1 uur')}${choice('off',1800,'Uit · 30 min')}${choice('off',3600,'Uit · 1 uur')}</div>${this._sgManualBusy?'<p class="note" role="status">Bedieningskeuze versturen…</p>':''}${reason?`<p class="note sg-manual-blocked" data-sg-control-blocked><b>Aanvraag wacht:</b> ${spEscape(this._plainReason(reason))}</p>`:''}${!supported?'<p class="note">Tijdelijke bediening is nog niet beschikbaar; werk integratie en kaart samen bij.</p>':!admin?'<p class="note">Een Home Assistant-beheerder kan de SG-bediening wijzigen.</p>':s.enabled!==true?'<p class="note">Schakel zonneboost in om tijdelijk AAN te kunnen aanvragen.</p>':c.a.mode!=='solar'?'<p class="note">Kies Automatisch regelen om tijdelijk AAN te kunnen aanvragen.</p>':''}<small>Na afloop terug naar automatisch. Veiligheidsvoorwaarden blijven gelden.</small></section>`;

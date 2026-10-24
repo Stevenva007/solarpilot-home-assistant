@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "reviewed_at": "2026-10-23T17:34:00Z",
+  "reviewed_at": "2026-10-24T17:35:58Z",
   "assessment": {
     "status": "complete_no_unprocessed_changes",
-    "summary": "Beta.105 source-impact review supplements docs/UPSTREAM_BRONNEN.md with docs/UPSTREAM_BETA105.md. Official releases, tag refs and five-commit comparisons identify Aquarea 1.9.0 at d3867f4143f7e2c15b84ed67c6e7ace2561f5f96 and aioaquarea-ng 1.5.0 at 55da9428ddf43ed26f2386d79c43d50cf4d9da0c. Integration setup/config/coordinator now distinguish app-version rejection, create a repair and retry instead of wrong-password reauthentication; failed polls remain UpdateFailed. SDK auth probes and caches accepted app versions, bounds the rejected-login retry and adds a specific AuthenticationError subtype, safe error-code logging and a credential-free canary. Examined changes do not alter the device/zone/tank/status parsers consumed by SolarPilot. SolarPilot performs no provider login or probe and already rejects failed coordinator updates and stale/unknown contract evidence. No additional production change is needed; do not suppress repairs or convert cached values to fresh physical evidence or OFF. Previous monthly-period and typed status review remains applicable. Source freshness is not runtime compatibility, installation acceptance or physical sensor validation. All exact-commit regression, browser, startup and publication gates remain required, with no claimed outcome in this record.",
+    "summary": "Beta.106 rechecked official repository metadata, both main branch HEADs, latest stable releases and tag commit refs on 2026-10-24. Aquarea 1.9.0 remains d3867f4143f7e2c15b84ed67c6e7ace2561f5f96; SDK 1.5.0 remains 55da9428ddf43ed26f2386d79c43d50cf4d9da0c. No additional source changes since the complete beta.105 authentication/app-version assessment. Existing loaded executable semantics, original provider/HA report times and native status/energy contract checks remain unchanged. The SG takeover and central-order changes add no Panasonic writer. See docs/UPSTREAM_BETA106.md and docs/UPSTREAM_BETA105.md. Source freshness is not runtime compatibility or physical installation approval; exact-commit CI gates remain required.",
     "compatibility_claim": false,
     "evidence_document": "docs/UPSTREAM_BRONNEN.md"
   },
@@ -19,8 +19,8 @@
         "published_at": "2026-10-23T15:12:05Z",
         "selection": "github_latest_published_stable"
       },
-      "reviewed_base_commit": "6717d82ccfb14708abb4a66f494b97418ad80863",
-      "review_result": "relevant_changes_processed"
+      "reviewed_base_commit": "d3867f4143f7e2c15b84ed67c6e7ace2561f5f96",
+      "review_result": "no_additional_changes"
     },
     {
       "repository": "wpatrik14/aioaquarea",
@@ -33,8 +33,8 @@
         "published_at": "2026-10-23T15:00:23Z",
         "selection": "github_latest_published_stable"
       },
-      "reviewed_base_commit": "893065a81c014cb9aa1d3350446d61c01bccf3b9",
-      "review_result": "relevant_changes_processed"
+      "reviewed_base_commit": "55da9428ddf43ed26f2386d79c43d50cf4d9da0c",
+      "review_result": "no_additional_changes"
     }
   ]
 }

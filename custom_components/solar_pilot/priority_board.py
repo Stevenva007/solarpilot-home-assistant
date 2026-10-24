@@ -2,8 +2,8 @@
 
 Absent a saved board, the beta.34 controllers are untouched. Saving is an admin
 operation under the existing runtime lock. Safety/comfort is NOT a sortable load.
-The optional SG request stays behind EV and the protected dishwasher preference;
-it can be placed among other lower loads without borrowing EV watts.
+The central order also governs SG versus autonomous EV charging. The protected
+dishwasher preference stays ahead of optional SG; the Wallbox defaults to last.
 """
 from __future__ import annotations
 
@@ -61,8 +61,7 @@ class PriorityBoard:
         order = s.get("order")
         return (s.get("schema") in (1, SCHEMA) and isinstance(order, list)
                 and all(isinstance(x, str) for x in order)
-                and len(set(order)) == len(order) and WALLBOX in order and EXTRA in order
-                and order.index(WALLBOX) < order.index(EXTRA))
+                and len(set(order)) == len(order) and WALLBOX in order and EXTRA in order)
 
     def legacy_order(self):
         r = self.r
@@ -85,7 +84,7 @@ class PriorityBoard:
             key = device_key(i)
             if key not in result:
                 if dishwasher_priority_enabled(self.r.configs[i]):
-                    result.insert(result.index(WALLBOX), key)
+                    result.insert(min(result.index(WALLBOX), result.index(EXTRA)), key)
                 elif self.r.configs[i].get("kind") == "dishwasher":
                     # Protected programme power remains ahead of the optional
                     # tank buffer even when no EV preference was granted.
@@ -94,7 +93,10 @@ class PriorityBoard:
                     # A newly added flexible device gets no implicit priority over
                     # existing choices. It starts at the bottom until the user
                     # deliberately moves it in the central priority screen.
-                    result.append(key)
+                    if result[-1] == WALLBOX:
+                        result.insert(result.index(WALLBOX), key)
+                    else:
+                        result.append(key)
         return result
 
     def order(self):
@@ -103,13 +105,15 @@ class PriorityBoard:
         policy = getattr(self.r, "wallbox_priority", None)
         return policy.overlay_order(result) if policy is not None else result
 
+    def sg_before_wallbox(self):
+        order = self.order()
+        return self.active and order.index(EXTRA) < order.index(WALLBOX)
+
     def ranks(self):
         return {key: n + 1 for n, key in enumerate(self.order())}
 
     def constraints(self):
-        rows = [{"before": WALLBOX, "after": EXTRA,
-                 "reason": "SG-zonneboost blijft na de Wallbox en gebruikt geen laadvermogen van de auto."}]
-        rows += [{"before": device_key(i), "after": EXTRA,
+        rows = [{"before": device_key(i), "after": EXTRA,
                   "reason": c["name"] + " houdt de afgesproken voorrang op SG-zonneboost."}
                  for i, c in self.r.configs.items() if c.get("kind") == "dishwasher"]
         return rows
@@ -192,6 +196,7 @@ class PriorityBoard:
                           "source": "central_beta36"}
         if self.saved.get(EXTRA_MIGRATION) == 57:
             desired[GROUP][EXTRA_MIGRATION] = 57
+        desired[GROUP]["wallbox_last_migration"] = 106
         await self.r.live_options.submit(base, desired)
         return {**self.overview(), "message": "Voorrang opgeslagen. De volgende regelcontrole gebruikt de nieuwe volgorde; lopende bescherming blijft gelden."}
 
@@ -217,6 +222,26 @@ class PriorityBoard:
             self.r.entry.options = options
         return True
 
+    async def migrate_beta106(self):
+        """Replace generated EV-first defaults once; preserve deliberate edits."""
+        saved = self.saved
+        if saved.get("wallbox_last_migration") == 106:
+            return False
+        if self.active and not saved.get("source", "").startswith("migrated_"):
+            return False
+        order = self.base_order()
+        if saved.get("source", "").startswith("migrated_") or not self.active:
+            order = [key for key in order if key != WALLBOX] + [WALLBOX]
+        options = deepcopy(dict(self.r.entry.options))
+        options[GROUP] = {**saved, "schema": SCHEMA, "order": order,
+            "wallbox_power": self.permissions(), "wallbox_last_migration": 106}
+        updater = getattr(getattr(self.r.hass, "config_entries", None), "async_update_entry", None)
+        if updater is not None:
+            updater(self.r.entry, options=options)
+        else:
+            self.r.entry.options = options
+        return True
+
     def protected_rows(self):
         return [{"id": "safety", "name": "Veiligheid en Panasonic-regeling", "active": True,
                  "power_label": "Niet beschikbaar voor zonneboost",
@@ -232,11 +257,12 @@ class PriorityBoard:
                 rows.append({"id": key, "name": "Auto laden (Wallbox)", "kind": "wallbox",
                     "active": bool(r.wallbox_settings.get("enabled")), "position": ranks[key],
                     "power_label": "Wallbox-vermogen: dit ís de Wallbox",
-                    "reason": "De Wallbox regelt zelf. SolarPilot verstuurt geen laadcommando vanuit deze lijst."})
+                    "reason": "De Wallbox regelt zelf het laden met het overschot dat na de hoger geplaatste toestellen overblijft."})
             elif key == EXTRA:
                 rows.append({"id": key, "name": "Warmtepomp — SG-zonneboost", "kind": "sg_boost",
                     "active": r.sg_boost.configured and r.sg_boost.settings.get("enabled") is True,
-                    "position": ranks[key], "power_label": "Alleen echt restoverschot; geen laadvermogen",
+                    "position": ranks[key], "power_label": ("Ja, bij bevestigde zonnelaadmodus" if self.sg_before_wallbox()
+                        else "Alleen restoverschot; Auto laden staat hoger"),
                     "reason": "Een extra SG-vraag mag alleen lager geplaatste, eigen onderbreekbare toestellen veilig laten wachten."})
             else:
                 i = key[len("device:"):]
@@ -291,10 +317,12 @@ class PriorityBoard:
                 and not r.sg_boost.minimum_hold_active):
             return False
         guard = getattr(r.wallbox_guard, "result", None)
-        if r.wallbox_settings.get("enabled") and getattr(guard, "block_increase", False):
+        if (not self.sg_before_wallbox() and r.wallbox_settings.get("enabled")
+                and getattr(guard, "block_increase", False)):
             return False
         sg_guard = getattr(getattr(r, "sg_wallbox_guard", None), "result", guard)
-        if r.wallbox_settings.get("enabled") and getattr(sg_guard, "block_increase", False):
+        if (not self.sg_before_wallbox() and r.wallbox_settings.get("enabled")
+                and getattr(sg_guard, "block_increase", False)):
             return False
         budget = sg_solar_budget(r)
         if not budget["valid"]:
@@ -310,7 +338,7 @@ class PriorityBoard:
                 continue
             if cfg.get("kind") == "dishwasher" and not r.dishwasher.permitted(cfg, read_dishwasher(r.hass,cfg),time.time())[0]:
                 continue
-            if budget["available_w"] >= d.minimum+d.start_margin_w:
+            if budget["available_w"]+budget.get("ev_solar_w", 0) >= d.minimum+d.start_margin_w:
                 return False
         return True
 

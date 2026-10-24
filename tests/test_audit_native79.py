@@ -60,7 +60,7 @@ async def test_external_timer_change_never_renews_our_previous_request(change):
         adapter.duration, adapter.expiry = 0, None
     calls = deepcopy(adapter.calls)
     await tick(manager)
-    assert manager.manual_hold
+    assert manager.external_control_overview()["active"]
     assert not manager.owned and not manager.desired_on
     assert adapter.calls == calls
     for _ in range(3):
@@ -135,7 +135,8 @@ async def test_timer_takeover_during_production_preflight_has_no_renewal_write(n
         native.device.duration += -120 if change == "shortened" else 120
     native.device.release_read.set()
     await renewal
-    assert manager.manual_hold and not manager.owned and not manager.desired_on
+    assert (manager.manual_hold if change == "off" else manager.external_control_overview()["active"])
+    assert not manager.owned and not manager.desired_on
     assert writes(native) == before
 
 

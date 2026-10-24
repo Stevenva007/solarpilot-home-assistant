@@ -404,7 +404,7 @@ async def test_manual_contact_on_does_not_invent_timer_confirmation():
     adapter.on = True
     await manager.start()
     view = manager.overview()
-    assert view["owner"] == "manual" and view["lease_confirmed"] is False
+    assert view["owner"] == "external" and view["lease_confirmed"] is False
     assert not adapter.calls
 
 
