@@ -1,0 +1,60 @@
+name: Isolated SG priority development
+on:
+  push:
+    branches: [feat/sg-first-wallbox-remainder]
+permissions:
+  contents: write
+concurrency:
+  group: isolated-sg-priority-development
+  cancel-in-progress: false
+jobs:
+  source-and-tests:
+    if: github.repository == 'Stevenva007/solarpilot-home-assistant' && github.ref == 'refs/heads/feat/sg-first-wallbox-remainder'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Apply reviewed branch-local patch when present
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f .sg-priority-development.patch; then
+            python - <<'PY'
+          import pathlib, subprocess
+          patch = pathlib.Path('.sg-priority-development.patch')
+          names = subprocess.check_output(['git','apply','--numstat',str(patch)], text=True)
+          for row in names.splitlines():
+              path = row.split('\t', 2)[2]
+              if not path.startswith(('custom_components/solar_pilot/', 'tests/', 'docs/', 'tools/')) and path not in ('OVERDRACHT.md', 'CHANGELOG.md', 'README.md'):
+                  raise SystemExit('Unapproved patch path: ' + path)
+              if '..' in pathlib.PurePosixPath(path).parts:
+                  raise SystemExit('Unsafe patch path')
+          PY
+            git apply --check .sg-priority-development.patch
+            git apply .sg-priority-development.patch
+            rm .sg-priority-development.patch
+            python -m pip install -r requirements-dev.txt
+            PYTHONDONTWRITEBYTECODE=1 python -m pytest -q -p no:cacheprovider tests/test_sg_ev_priority106.py
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add -u
+            git add custom_components/solar_pilot tests docs tools OVERDRACHT.md CHANGELOG.md README.md
+            git diff --cached --check
+            git commit -m 'feat: apply SG-first solar allocation and regression tests'
+            git push origin HEAD:feat/sg-first-wallbox-remainder
+          fi
+      - name: Export exact branch source for local verification
+        run: |
+          git rev-parse HEAD > source-commit.txt
+          git archive --format=zip HEAD -o solarpilot-branch-source.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sg-priority-branch-source
+          path: |
+            solarpilot-branch-source.zip
+            source-commit.txt
+          retention-days: 3
