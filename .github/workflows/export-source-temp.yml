@@ -15,9 +15,17 @@ jobs:
       - uses: actions/checkout@v4
       - name: Create source archive
         run: git archive --format=zip HEAD -o solarpilot-beta106-working-source.zip
+      - name: Download test dependency
+        run: python -m pip download --no-deps voluptuous==0.16.0 --dest deps
       - uses: actions/upload-artifact@v4
         with:
           name: solarpilot-beta106-working-source
           path: solarpilot-beta106-working-source.zip
+          retention-days: 1
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: beta106-test-dependency
+          path: deps/*
           retention-days: 1
           if-no-files-found: error
