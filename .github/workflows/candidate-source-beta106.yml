@@ -13,7 +13,8 @@ jobs:
       - name: Archive public source without repository credentials
         run: git archive --format=tar.gz --output=solarpilot-source.tar.gz HEAD
       - name: Download portable local test dependency
-        run: python -m pip download --no-deps --only-binary=:all: voluptuous==0.16.0 -d wheels
+        run: |
+          python -m pip download --no-deps --only-binary=:all: voluptuous==0.16.0 -d wheels
       - uses: actions/upload-artifact@v4
         with:
           name: beta106-public-source
