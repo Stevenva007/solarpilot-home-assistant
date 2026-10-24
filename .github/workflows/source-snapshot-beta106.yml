@@ -14,10 +14,10 @@ jobs:
         with:
           ref: e88b2091302a1bd6af0fdf7154f152bb7dda8ecb
           persist-credentials: false
-      - name: Archive tracked source only
-        run: git archive --format=zip --output=source-beta105.zip HEAD
+      - name: Download exact offline test dependency
+        run: python -m pip download --no-deps --only-binary=:all: voluptuous==0.16.0 -d wheels
       - uses: actions/upload-artifact@v4
         with:
-          name: source-beta105-e88b209
-          path: source-beta105.zip
+          name: beta106-offline-test-dependency
+          path: wheels/*.whl
           retention-days: 7
