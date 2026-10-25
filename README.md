@@ -1,12 +1,12 @@
 # SolarPilot
 
-**Actuele bronversie: 1.0.0-beta.107.** SolarPilot verdeelt lokaal zonnestroom tussen je toestellen in Home Assistant.
+**Actuele bronversie: 1.0.0-beta.108.** SolarPilot verdeelt lokaal zonnestroom tussen je toestellen in Home Assistant.
 
-De Wallbox staat standaard achteraan en gebruikt zelfstandig het resterende overschot. Voorwaardelijk laadvermogen voor een SG-start moet bij de actuele P1/PV-balans passen; een nog recent maar fysiek tegenstrijdig cloudrapport levert geen laadbijdrage. De kaart benoemt de werkelijke voorrang en het verschil tussen wolkenbuffer en directe netgrens. Snelle diagnose bevat oorspronkelijke bronrapporten om een volgende laad-/netreactie te beoordelen.
+De Wallbox staat standaard achteraan en gebruikt zelfstandig het resterende overschot. Staat SG hoger, dan mag de warmtepomp betrouwbaar gemeten zonnelaadvermogen overnemen terwijl de Wallbox zelf terugregelt. Daarvoor mag de softwarematige totale netgrens kort en begrensd worden overschreden: standaard maximaal vier minuten, met actuele broncontrole en een vastgelegd vermogensplafond. Fase-, kwartier-, batterij- en andere toestelcontroles blijven afzonderlijk gelden. De gewone vijfminutenwolkenbuffer loopt tegelijk op de ruwe netafname; er komt geen nieuwe wachttijd bij.
 
-[Actuele werking](docs/ACTUELE_WERKING.md) · [Installatie en rollback](docs/BETA107_INSTELLEN.md) · [Testverslag](docs/TESTRESULTATEN_BETA107.md) · [Changelog](CHANGELOG.md)
+[Actuele werking](docs/ACTUELE_WERKING.md) · [Installatie en rollback](docs/BETA108_INSTELLEN.md) · [Testverslag](docs/TESTRESULTATEN_BETA108.md) · [Changelog](CHANGELOG.md)
 
-Panasonic regelt de warmtepomp zelfstandig; SolarPilot bedient uitsluitend de bevestigde SG-uitgang. De afwasmachine behoudt haar beschermde cyclus. Net-, fase- en kwartiergrenzen blijven gelden.
+Panasonic regelt de warmtepomp zelfstandig; SolarPilot bedient uitsluitend de bevestigde SG-uitgang. De afwasmachine behoudt haar beschermde cyclus. De softwarematige netgrens heeft uitsluitend de beschreven begrensde SG-/Wallbox-uitzondering; fase- en kwartiergrenzen blijven gelden.
 
 ## Installatie via HACS
 
@@ -21,7 +21,7 @@ Bij **Analyse nodig** maakt één klik een export van de beschikbare zeven dagen
 
 ## Herstel van de beta.62-opstartfout
 
-Update via HACS naar beta.96 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.91 vraagt geen herbevestiging alleen door de codeupdate.
+Update via HACS naar de huidige gepubliceerde release en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.91 vraagt geen herbevestiging alleen door de codeupdate.
 
 ## Upgrade vanaf beta.61
 
@@ -33,7 +33,7 @@ Geldige andere toestellen, prioriteiten, APP-tickets, geschiedenis, leerdata en 
 
 - P1/PV, fysieke grenzen en fabrikantbeveiligingen gaan vóór forecasts en plannen. De gezamenlijke planner is geen nieuwe actuator of thermische Panasonic-regelaar.
 - Panasonic bezit comfort, verwarmen/koelen, warm water, elektrische ondersteuning en sterilisatie.
-- SG is een optionele extra flexibele vraag en neemt geen Wallbox-, afwas- of noodzakelijk comfortvermogen af.
+- SG is een optionele extra flexibele vraag. Alleen wanneer zij hoger staat mag zij betrouwbaar gemeten autonoom zonnelaadvermogen van de Wallbox begrensd overnemen. Beschermde afwasbeurten en noodzakelijk Panasonic-comfort blijven behouden.
 - Aanvraag/eigenaar, gemelde contactstand/lokale timer, compressor/native context en ontvangen SG-status zijn afzonderlijke bewijslagen. Compressorbedrijf bewijst geen extra SG-effect.
 - Eén totaalmeter of twee complete bevestigde niet-overlappende voedingen; ontbrekend totaal blijft onbekend en inbegrepen heater wordt niet nogmaals opgeteld.
 - Een SG-sessie is standaard begrensd tot één uur. Tapwater-only behoudt tankafkoeling; het lokaal bevestigde algemene profiel vraagt na rust betekenisvol nieuw zon-/native bewijs. Tijd, reload of dezelfde samples geeft geen eindeloze herstarts. Extra koeling heeft afzonderlijke bestaande condensbeveiliging nodig tenzij betrouwbare native context koeling uitsluit.
@@ -51,7 +51,7 @@ Geen back-ups, access tokens, huisadressen, persoonlijke entitybindings of ruwe 
 
 Kies **Verwijderen voorbereiden**, wacht op gerichte veilige vrijgave, verwijder de SolarPilot-entry en vervolgens de HACS-integratie. Dit verwijdert geen oorspronkelijke Shelly-, warmtepomp-, Wallbox-, AEG- of meterintegratie. Bewaar vooraf de gewenste privégegevens en back-up. Onzekere SG-status wordt niet als bevestigd UIT voorgesteld.
 
-De SG-startdrempel gebruikt vanaf beta.69 de gemeten gezamenlijke zonnebijdrage inclusief de complete actuele warmtepompmeting. Restinjectie en mogelijke extra SG-vraag blijven apart; net-/fasegrenzen en Wallboxvoorrang gelden volledig. Details tonen de gebruikte bijdrage, bronkwaliteit en concrete blokkering. Native en afgeleide taakvoorbeelden blijven afzonderlijk in leren/export.
+De SG-startdrempel gebruikt vanaf beta.69 de gemeten gezamenlijke zonnebijdrage inclusief de complete actuele warmtepompmeting. Restinjectie en mogelijke extra SG-vraag blijven apart; fase-/kwartiergrenzen en de effectieve centrale voorrang blijven gelden. Alleen de softwarematige netgrens heeft de begrensde SG-/Wallbox-overdrachtuitzondering. Details tonen de gebruikte bijdrage, bronkwaliteit en concrete blokkering. Native en afgeleide taakvoorbeelden blijven afzonderlijk in leren/export.
 
 
 Het openbare [upstream-bronregister](docs/UPSTREAM_BRONNEN.md) houdt vaste bronversies en relevante PR-status bij. Een afzonderlijke geautoriseerde wekelijkse ChatGPT-taak kan relevante geteste SolarPilot-correcties onderzoeken en publiceren. Dit is externe ontwikkeling; SolarPilot voert geen achtergrond-AI, automatische providerupdate of wijziging van lokale apparaten uit.

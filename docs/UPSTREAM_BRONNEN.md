@@ -1,5 +1,9 @@
 # Openbaar upstream-bronregister
 
+## Hercontrole beta.108 — 25 oktober 2026
+
+Officiële defaultbranches, HEADs, laatste stabiele releases en tagcommits zijn opnieuw online gecontroleerd en ongewijzigd. Zie [UPSTREAM_BETA108.md](UPSTREAM_BETA108.md). De begrensde lokale SG-/Wallbox-reactietijd verandert het Panasonic-/SDK-broncontract of de read-only Wallboxgrens niet.
+
 ## Hercontrole beta.107 — 25 oktober 2026
 
 De officiële defaultbranches, HEADs, laatste stabiele releases en tagcommits zijn opnieuw online vergeleken met de inhoudelijke pins en ongewijzigd. Zie [UPSTREAM_BETA107.md](UPSTREAM_BETA107.md). De nieuwe SG-/diagnosewijzigingen veranderen het Panasonic-/SDK-broncontract niet.

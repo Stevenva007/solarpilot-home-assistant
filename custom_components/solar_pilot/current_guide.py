@@ -3,16 +3,16 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.107'
+GUIDE_VERSION = '1.0.0-beta.108'
 GUIDE_UPDATED = '2026-10-25'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.107',
+ 'version': '1.0.0-beta.108',
  'updated': '2026-10-25',
- 'intro': 'SolarPilot verdeelt beschikbare zonnestroom volgens één instelbare volgorde. De Wallbox staat standaard achteraan en regelt zelf het '
-          'resterende zonneoverschot. Voorwaardelijk laadvermogen voor een SG-start moet ook bij de actuele P1/PV-balans passen. De '
-          'wolkenbuffer overbrugt gewone tekorten; de afzonderlijke netgrens blijft direct gelden. Je bewaart je toestellen, metingen en '
-          'historiek. Panasonic blijft de warmtepomp zelfstandig regelen.',
+ 'intro': 'SolarPilot verdeelt beschikbare zonnestroom volgens één instelbare volgorde. Staat SG vóór de Wallbox, dan mag de warmtepomp '
+          'betrouwbaar gemeten zonnelaadvermogen overnemen. De Wallbox krijgt een begrensde reactietijd om zelf terug te regelen. Fase-, '
+          'kwartier-, batterij- en broncontroles blijven gelden. Je bewaart je toestellen, metingen en historiek. Panasonic blijft de '
+          'warmtepomp zelfstandig regelen.',
  'sections': [{'title': '1. Basisprincipe en modi',
                'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele net- en PV-metingen, echte '
                               'toestelvoorwaarden en elektrische grenzen gaan altijd vóór een voorspelling of geleerd patroon. Eén uitgang '
@@ -280,10 +280,11 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'vernieuwing leidend. Dit kan gewone netafname binnen die grenzen tijdelijk toestaan en garandeert geen '
                               'nulimport. De wolkentimer gebruikt de actuele P1-netmeting. Resterende schermtijd blijft begrensd door de '
                               'geldigheid vanaf de oorspronkelijke P1-rapportagetijd, de bevestigde lease en het harde maximum; een schermklok '
-                              'maakt oude brondata niet vers. Een overschrijding van de apart ingestelde maximale totale netafname geeft SG '
-                              'onmiddellijk vrij, ook tijdens minimumduur of wolkenbuffer en ook als de lager geplaatste Wallbox nog laadt. Een '
-                              'langere wolkenbuffer verandert die beslissing niet. SolarPilot kan de read-only Wallbox niet dwingen eerst te '
-                              'stoppen en garandeert geen nulimport.',
+                              'maakt oude brondata niet vers. Vanaf beta.108 mag de softwarematige totale netgrens tijdens een geldige '
+                              'begrensde SG-/Wallbox-overdracht tijdelijk worden overschreden. Dit is een afzonderlijke uitzondering voor een '
+                              'lager geplaatste, aantoonbaar autonome zonneladende Wallbox; de gewone wolkenbuffer blijft parallel op de ruwe '
+                              'P1-netafname lopen. Zonder geldige overdracht of na haar oorspronkelijke eindtijd blijft de netgrens direct '
+                              'gelden. SolarPilot geeft de Wallbox geen opdracht en garandeert geen nulimport.',
                               'De minimumduur begint pas na bevestigde contact-AAN. Leasevernieuwing reset haar niet; herstart of reload geeft '
                               'geen nieuw minimum of nieuwe sessie. De tekorttimer loopt tijdens het minimum door. Begint netafname boven 600 W '
                               'in minuut 18, dan zijn vijf continue minuten pas in minuut 23 voltooid en kan dan pas gewone vrijgave worden '
@@ -371,11 +372,38 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'een al toegelaten SG-aanvraag.',
                               'De startdrempel en de elektrische ruimte blijven afzonderlijk. Bijvoorbeeld 2000 W volledig gemeten '
                               'warmtepompverbruik en 1000 W bruikbaar restoverschot kunnen 3000 W voor de startdrempel leveren. SG vóór een '
-                              'bevestigde zonneladende Wallbox kan daarnaast de begrensde actuele laadbijdrage gebruiken. De vaste importgrens, '
-                              'kwartiergrens, fasemarge en hogere apparaatprioriteiten moeten de volledige mogelijke extra SG-vraag nog '
-                              'toelaten. Bestaand warmtepompverbruik vergroot geen fysieke elektrische ruimte. Staat Auto laden hoger, dan '
-                              'blijft zijn actuele voorrang gelden. Een al toegelaten SG-aanvraag wordt beoordeeld op actuele netafname, '
-                              'minimumduur en wolkenbuffer, zonder opnieuw startvermogen te reserveren.',
+                              'bevestigde zonneladende Wallbox kan daarnaast de begrensde actuele laadbijdrage gebruiken. Kwartiergrens, '
+                              'fasemarge en hogere apparaatprioriteiten moeten de volledige mogelijke extra SG-vraag nog toelaten. Alleen de '
+                              'softwarematige totale importgrens krijgt bij SG vóór een bevestigde zonneladende Wallbox de hieronder beschreven '
+                              'begrensde overdrachtuitzondering. Bestaand warmtepompverbruik vergroot geen fysieke elektrische ruimte. Staat '
+                              'Auto laden hoger, dan blijft zijn actuele voorrang gelden. Een al toegelaten SG-aanvraag wordt beoordeeld op '
+                              'actuele netafname, minimumduur en wolkenbuffer, zonder opnieuw startvermogen te reserveren.',
+                              'SG vóór de Wallbox mag vanaf beta.108 tijdelijk haar zonnestroom overnemen terwijl de laadpaal zelfstandig '
+                              'trager terugregelt. De extra ruimte boven de softwarematige totale netgrens is nooit groter dan het actuele '
+                              'coherente zonnelaadvermogen, de geraamde SG-opname en max_takeover_w samen toestaan; standaard is die laatste '
+                              'grens 2500 W. De bestaande handover_s begrenst de reactietijd, standaard 240 seconden en voor deze SG-route '
+                              'hoogstens 600 seconden. Een nieuwe SG-start behoudt de zonnevoorwaarde en alle afzonderlijke elektrische '
+                              'controles. Bij een lopende bevestigde SG-aanvraag, of een exact actueel waargenomen extern AAN-contact binnen '
+                              'zijn oorspronkelijke vijftienminutenperiode, begint de reactie-episode bij het eerste bruikbare P1-rapport boven '
+                              'de netgrens. Een piek later in een al lopende SG-sessie kan dus ook worden overbrugd.',
+                              'De oorspronkelijke reactie-eindtijd blijft bewaard en wordt niet verlengd door een laadrapport, uitlezen, '
+                              'leasevernieuwing of herstart. De eerste toegelaten overdrachtsbijdrage is een plafond; later meer gemeld '
+                              'laadvermogen koopt geen grotere uitzondering. Voor een nieuwe episode moet de ruwe P1-netafname eerst minstens '
+                              'handover_confirm_s, standaard vijftien seconden, op of onder de gewone SG-importdrempel liggen, standaard 600 W, '
+                              'met minstens twee verschillende nieuwe rapporten. Rond de softwaregrens schommelen geeft dus geen telkens nieuwe '
+                              'reactietijd. Zonder bewaard geldig overdrachtsbewijs vereist een herstart eerst dit nieuwe herstelbewijs. '
+                              'Onbekende, oude, handmatige of tegenstrijdige laadgegevens en gewijzigde bron-/voorrangs-/beleidskoppelingen '
+                              'geven geen uitzondering. Een geldige korte lokale SG-toestemming, contactbevestiging en de oorspronkelijke '
+                              'sessiegrens blijven vereist.',
+                              'De gewone wolkenbuffer en de Wallbox-reactietijd lopen tegelijk. Het van de Wallbox overgenomen vermogen wordt '
+                              'niet van de echte P1-netafname afgetrokken voor die wolkentimer, de fasebewaking, het kwartierbudget of '
+                              'batterijontlading. Deze afzonderlijke controles kunnen SG eerder vrijgeven. Een verlopen reactie-eindtijd koopt '
+                              'geen extra vijf minuten wolkenbuffer en een minimumduur verlengt de uitzondering niet. Details tonen de actuele '
+                              'overdracht en haar begrensde resterende tijd; een schermklok verleent geen toestemming. De reactietijd is een '
+                              'venster voor de actieve Home Assistant-regeling. De bestaande korte lokale lease voor een eigen '
+                              'SolarPilot-aanvraag blijft afzonderlijk, standaard 300 seconden. Bij Home Assistant-uitval garandeert het '
+                              'vierminutenvenster daarom geen fysieke UIT precies na 240 seconden; de reeds geprogrammeerde lokale timer '
+                              'behoudt haar eigen afloop.',
                               'De startvertraging controleert de gezamenlijke zonnebijdrage. Na starten blijven werkelijke netafname, de '
                               'bestaande tekortvertraging en het effectieve minimum voor gewone tekortvrijgave bepalend. Het minimum doet geen '
                               'nieuwe start, tellerreset of verlaging van fysieke guards ontstaan. Nieuwe zonneperiode na een beëindigde '
@@ -471,9 +499,12 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'onbereikbaarheid blijft onbekend, zonder fictieve UIT-bevestiging.',
                               'Een buiten SolarPilot handmatig ingeschakeld SG-contact verschijnt als Handmatig aan met een afteller van '
                               'vijftien minuten. Tijdens die periode wordt geen AAN-opdracht herhaald en begint de afteller na herstart niet '
-                              'opnieuw. Na afloop houdt SolarPilot het contact alleen aan wanneer actuele bronnen, voorrang, koeling en '
-                              'elektrische grenzen dat toestaan en de netafname hoogstens de ingestelde SG-grens is. Voortzetting bevestigt een '
-                              'korte lokale aflooptimer zonder voorafgaande UIT-puls; anders wordt het contact vrijgegeven. Ontbrekende '
+                              'opnieuw. Tijdens de oorspronkelijke vijftien minuten mag de begrensde Wallbox-reactietijd een exact bij de '
+                              'huidige uitgang, fingerprint en binding passend actueel extern AAN-contact behouden. Dit geeft geen eigendom, '
+                              'AAN-opdracht, leasevernieuwing of extra minimumduur. Na de oorspronkelijke vijftienminutendeadline houdt '
+                              'SolarPilot het contact alleen aan wanneer actuele bronnen, voorrang, koeling en elektrische grenzen dat toestaan '
+                              'en de ruwe netafname hoogstens de ingestelde SG-grens is, standaard 600 W. Voortzetting bevestigt een korte '
+                              'lokale aflooptimer zonder voorafgaande UIT-puls; anders wordt het contact vrijgegeven. Ontbrekende '
                               'contactterugmelding geeft wachten op een nieuwe meting, zonder de eindtijd op te schuiven. Een echte harde grens '
                               'kan eerder vrijgave vragen. Een handmatige UIT blijft gerespecteerd tot Hervatten; een bewuste tijdelijke '
                               'Aan-keuze kan een actueel gecontroleerd extern AAN-contact direct overnemen.',
@@ -593,13 +624,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Wallbox voorrang geven laat alleen daarvoor geschikte flexibele SolarPilot-last wijken via de bestaande '
                               'voorwaarden voor actuele laadvraag, hysterese, klein overschot en veilige overdracht. Het start of versnelt de '
                               'auto niet rechtstreeks. Minimumlooptijden, beschermde cycli, echte terugmelding en elektrische grenzen blijven '
-                              'gelden. Noodzakelijk Panasonic-comfort loopt zelfstandig door; de individuele warmtepompkeuze betreft '
-                              'uitsluitend de optionele SG-zonneboost en verleent nooit recht om EV-vermogen over te nemen. Tijdelijke '
-                              'handmatige SG-Aan/Uit-bediening blijft een afzonderlijke keuze met haar eigen voorwaarden. De nieuwe tijdelijke '
-                              'voorkeur blokkeert een nieuwe optionele SG-start en respecteert bij een lopende SG-aanvraag de oorspronkelijke '
-                              'bevestigde minimumduur. Bestaande vrijgavegronden blijven gelden: de bestaande Wallbox-/EV-, elektrische, koel-, '
-                              'bron-, handmatige Uit- en communicatieregels kunnen eerder vrijgeven. Panasonic-comfort wordt niet '
-                              'uitgeschakeld.',
+                              'gelden. Noodzakelijk Panasonic-comfort loopt zelfstandig door. Deze tijdelijke Wallbox-voorrang betreft '
+                              'uitsluitend de optionele SG-zonneboost; zolang de Wallbox hierdoor hoger staat is de aanvullende '
+                              'SG-overdrachtuitzondering niet beschikbaar. Tijdelijke handmatige SG-Aan/Uit-bediening blijft een afzonderlijke '
+                              'keuze met haar eigen voorwaarden. De nieuwe tijdelijke voorkeur blokkeert een nieuwe optionele SG-start en '
+                              'respecteert bij een lopende SG-aanvraag de oorspronkelijke bevestigde minimumduur. Bestaande vrijgavegronden '
+                              'blijven gelden: de bestaande Wallbox-/EV-, elektrische, koel-, bron-, handmatige Uit- en communicatieregels '
+                              'kunnen eerder vrijgeven. Panasonic-comfort wordt niet uitgeschakeld.',
                               'De afwasmachine heeft geen Wallbox-voorrangschakelaar en de algemene keuze voegt er geen startblokkering aan '
                               'toe. Haar bestaande geldige klaarzettoestemming, deur- en apparaatvoorwaarden, vaste deadline, '
                               'net-/fase-/vermogensruimte en regelmodus blijven gelden. Een ingeschakelde afwasmachine is daarmee geen nieuwe '
@@ -926,7 +957,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'compressorlooptijd. Vanaf beta.107 bewaren de snelle analysewaarnemingen en nieuwe SG-toestandsovergangen '
                               'bovendien afzonderlijke net-/PV- en Wallbox-bronwaarden met oorspronkelijke rapporttijden en '
                               'laadsessiebevestiging. Een laatste ontvangen cloudrapport is niet noodzakelijk de fysieke waarde op het '
-                              'stopmoment. Oudere ontbrekende bronvelden worden niet achteraf ingevuld.',
+                              'stopmoment. Oudere ontbrekende bronvelden worden niet achteraf ingevuld. Vanaf beta.108 bewaart de snelle '
+                              'analyse ook de actuele SG-/Wallbox-overdracht. Veranderingen van toestand, oorspronkelijk begin of eindtijd '
+                              'worden met broncontext in de bestaande begrensde gebeurtenissenhistorie van maximaal zeven dagen opgenomen; '
+                              'alleen het aflopen van schermseconden maakt geen nieuw gebeurtenisrecord. Nieuwe SG-toestandsovergangen behouden '
+                              'dezelfde overdrachtseindtijd in hun elektrische context. Aantoonbaar herstel kan de actieve episode afsluiten, '
+                              'maar wist dit bewaarde diagnosebewijs binnen de retentie niet. Deze registratie is uitsluitend diagnose en '
+                              'herstelt geen overdracht, lease of apparaatbevoegdheid.',
                               'Nieuwe SG-onderzoeksmetingen bereiken vanaf beta.81 de werkelijke onderzoeksfunctie. Een begrensd historisch '
                               'checkpoint markeert bronverlies of herstart als onvolledig en niet vergelijkbaar. Hij hervat geen actieve '
                               'onderzoekscursor, aanvraag, lease of apparaatopdracht. Controllerstop, oorspronkelijk gemeld contact en concrete '
@@ -1274,10 +1311,10 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Voor verwijderen kies je Verwijderen voorbereiden en wacht je op de gerichte veilige vrijgave. Een onzekere '
                               'SG-uitgang blijft eerlijk onbekend; de gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen '
                               'van SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, AEG- of Shelly-integratie.',
-                              'Rollback naar beta.106 behoudt de centrale volgorde en externe SG-overname, maar mist de nieuwe '
-                              'SG-startcoherentiecontrole en aanvullende brontelemetrie. Maak vooraf een volledige privéback-up, geef de eigen '
-                              'SG-aanvraag veilig vrij en behoud de entry, opslag en userfiles. Gebruik geen twee runtimes tegelijk. Zie '
-                              'BETA107_INSTELLEN.md.'],
+                              'Rollback naar beta.107 behoudt de centrale volgorde, externe SG-overname, startcoherentie en brontelemetrie, '
+                              'maar verwijdert de nieuwe begrensde Wallbox-reactietijd. De softwarematige netgrens kan SG dan opnieuw direct '
+                              'vrijgeven terwijl de Wallbox nog laadt. Maak vooraf een volledige privéback-up, geef de eigen SG-aanvraag veilig '
+                              'vrij en behoud de entry, opslag en userfiles. Gebruik geen twee runtimes tegelijk. Zie BETA108_INSTELLEN.md.'],
                'bullets': []},
               {'title': '21. Release- en documentatieregel',
                'paragraphs': ['Dit is de enige volledige actuele regelbeschrijving. current_guide.py genereert dezelfde Markdown-mirrors en '

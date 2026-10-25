@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.107",
+  "version": "1.0.0-beta.108",
   "language": "nl",
   "steps": {
     "init": {
@@ -595,7 +595,7 @@
       },
       "data_description": {
         "reserve_w": "Injectiebuffer die SolarPilot niet opnieuw toewijst.",
-        "max_import_w": "Softwarematige bovengrens voor de totale netafname.",
+        "max_import_w": "Softwarematige bovengrens voor de totale netafname, geen zekeringbeveiliging en geen afzonderlijke fasebeveiliging.",
         "battery_min_soc": "Onder deze batterijlaadtoestand mag ontladen vermogen niet als beschikbare energie voor gewone nieuwe zonnelasten worden behandeld."
       }
     },
@@ -679,7 +679,7 @@
         "idle_states": "Puntkomma-gescheiden statusnamen zonder actuele laadvraag, bijvoorbeeld Ready of Paused.",
         "full_solar_states": "Puntkomma-gescheiden herkenningswaarden voor uitsluitend zonneladen, bijvoorbeeld full_solar.",
         "handover_s": "Uiterste termijn om een gecontroleerde vermogensovername van de Wallbox te bevestigen.",
-        "handover_confirm_s": "Vereiste duur van bevestigde stabiele netmetingen tijdens een overname.",
+        "handover_confirm_s": "Vereiste duur van bevestigde stabiele netmetingen tijdens een gewone overdracht.",
         "handover_import_w": "Kleine tolerantie op netafname bij de bevestiging van een overdracht.",
         "reclaim_max_age_s": "Maximale leeftijd van het Wallbox-rapport voordat een nieuwe gecontroleerde overname mag beginnen.",
         "max_takeover_w": "Maximale vermogenstap bij het overnemen van laadvermogen.",
@@ -2680,9 +2680,9 @@
     },
     "power_policy.max_import_w": {
       "title": "Maximale softwarematige netafname (W)",
-      "short": "Softwarematige bovengrens voor de totale netafname.",
+      "short": "Softwarematige bovengrens voor de totale netafname, geen zekeringbeveiliging en geen afzonderlijke fasebeveiliging.",
       "paragraphs": [
-        "Softwarematige bovengrens voor de totale netafname. Dit is geen zekeringbeveiliging en beschermt niet zelfstandig elke fase. Lagere waarden beperken toegestane starts; onbeheerde apparaten kunnen de grens toch overschrijden. Overschrijding geeft een eigen SG-aanvraag onmiddellijk vrij, ook tijdens minimumduur of wolkenbuffer. Een langere wolkenbuffer verruimt deze grens niet.",
+        "Softwarematige bovengrens voor de totale netafname, geen zekeringbeveiliging en geen afzonderlijke fasebeveiliging. Vanaf beta.108 mag alleen SG vóór een bevestigde autonome zonneladende Wallbox deze grens tijdens een begrensde overdracht tijdelijk overschrijden. De uitzondering blijft beperkt door actuele coherente laadmetingen, de SG-raming, max_takeover_w en de oorspronkelijke handover_s-eindtijd. Daarbuiten geeft overschrijding een eigen SG-aanvraag direct vrij. Fase-, kwartier-, batterij- en broncontroles blijven afzonderlijk gelden; onbeheerde apparaten kunnen de softwaregrens toch overschrijden.",
         "Vermogensinstellingen zijn softwarematige planningsgrenzen. Ze verhogen nooit de echte capaciteit van de aansluiting.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -2893,16 +2893,16 @@
       "title": "Uiterlijke overnamebevestiging (s)",
       "short": "Uiterste termijn om een gecontroleerde vermogensovername van de Wallbox te bevestigen.",
       "paragraphs": [
-        "Uiterste termijn om een gecontroleerde vermogensovername van de Wallbox te bevestigen. Een cloudrapport kan later komen dan de fysieke reactie. Verleng dit niet om een niet-reagerende laadpaal toch goed te keuren.",
+        "Uiterste termijn om een gecontroleerde vermogensovername van de Wallbox te bevestigen. Voor SG vóór een bevestigde autonome zonneladende Wallbox begrenst dit vanaf beta.108 ook de tijdelijke uitzondering op de softwarematige totale netgrens: standaard 240 seconden, in de SG-route hoogstens 600 seconden. De oorspronkelijke episode begint bij het eerste actuele P1-rapport boven de grens tijdens een bevestigde SG-aanvraag of een exact actueel waargenomen extern AAN-contact binnen zijn oorspronkelijke vijftien minuten. Laadrapporten, leasevernieuwing en herstart verlengen haar niet. De gewone wolkenbuffer loopt parallel op ruwe P1. Fase-, kwartier- en batterijgrenzen blijven direct gelden. Deze softwaretijd is geen nieuwe lokale Shelly-timer; de bestaande korte eigen SG-lease blijft apart, standaard 300 seconden. Bij HA-uitval is fysieke UIT exact na 240 seconden niet gegarandeerd.",
         "SolarPilot leest de Wallbox; de laadpaal regelt zelf het laden. Auto laden staat standaard als laatste in de centrale volgorde. Hogere toegestane toestellen en SG krijgen eerst zonnestroom. Onbekende laadgegevens geven geen laadvermogen om over te nemen en blokkeren echt P1-restoverschot niet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
     "wallbox_advanced.handover_confirm_s": {
       "title": "Stabiele netmeting voor bevestiging (s)",
-      "short": "Vereiste duur van bevestigde stabiele netmetingen tijdens een overname.",
+      "short": "Vereiste duur van bevestigde stabiele netmetingen tijdens een gewone overdracht.",
       "paragraphs": [
-        "Vereiste duur van bevestigde stabiele netmetingen tijdens een overname. Pas daarna wordt een volgende verhoging toegelaten. Een serviceaanroep alleen is geen bewijs.",
+        "Vereiste duur van bevestigde stabiele netmetingen tijdens een gewone overdracht. Voor een nieuwe SG-/Wallbox-reactie-episode moet de ruwe P1-netafname minstens deze tijd, standaard vijftien seconden, op of onder de SG-importdrempel liggen, met minstens twee verschillende nieuwe bronrapporten. Alleen even onder de softwarematige totale netgrens komen herstart de reactietijd niet. Een serviceaanroep of schermklok is geen meetbewijs.",
         "SolarPilot leest de Wallbox; de laadpaal regelt zelf het laden. Auto laden staat standaard als laatste in de centrale volgorde. Hogere toegestane toestellen en SG krijgen eerst zonnestroom. Onbekende laadgegevens geven geen laadvermogen om over te nemen en blokkeren echt P1-restoverschot niet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -2929,7 +2929,7 @@
       "title": "Max over te nemen vermogen per stap (W)",
       "short": "Maximale vermogenstap bij het overnemen van laadvermogen.",
       "paragraphs": [
-        "Maximale vermogenstap bij het overnemen van laadvermogen. Alleen de eigen last wordt gestuurd. Werkelijke importgrens, exclusieve meting en terugmelding blijven ook bij een kleine stap verplicht.",
+        "Maximale vermogenstap bij het overnemen van laadvermogen. Voor de begrensde SG-/Wallbox-reactietijd is de extra ruimte boven de softwarematige netgrens nooit groter dan het minimum van deze waarde, de geraamde SG-opname en het actuele coherente autonome zonnelaadvermogen. De eerste toegelaten bijdrage blijft het plafond voor die episode. De Wallbox krijgt geen opdracht; afzonderlijke fase-, kwartier-, batterij- en broncontroles blijven gelden.",
         "SolarPilot leest de Wallbox; de laadpaal regelt zelf het laden. Auto laden staat standaard als laatste in de centrale volgorde. Hogere toegestane toestellen en SG krijgen eerst zonnestroom. Onbekende laadgegevens geven geen laadvermogen om over te nemen en blokkeren echt P1-restoverschot niet.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -4196,7 +4196,7 @@
       "title": "Netafname moet continu aanhouden (s)",
       "short": "Gewone actueel gemeten netafname moet continu boven de ingestelde wolkenbuffer blijven gedurende deze tijd, standaard 300 seconden of vijf minuten.",
       "paragraphs": [
-        "Gewone actueel gemeten netafname moet continu boven de ingestelde wolkenbuffer blijven gedurende deze tijd, standaard 300 seconden of vijf minuten. Bij de buffer of lager wordt de lopende tekorttimer gewist. Vrijgave wacht op zowel deze volledige aaneengesloten tijd als het effectieve minimum, standaard twintig minuten. De tekorttimer loopt tijdens het minimum door: vanaf minuut 18 betekent pas minuut 23, en eerder voltooide vijf minuten kunnen bij minuut 20 al gelden. Korte lokale leases worden tijdens geldige wolkenwachttijd veilig vernieuwd, ook na het minimum. Harde guards, geverifieerde native beëindiging, handmatige overname en sessiemaximum blijven direct leidend. Alleen de SG-aanvraag, geen compressorlooptijd. De wolkentimer gebruikt de actuele P1-netmeting. Resterende schermtijd blijft begrensd door de geldigheid vanaf de oorspronkelijke P1-rapportagetijd, de bevestigde lease en het harde maximum; een schermklok maakt oude brondata niet vers. Overschrijding van de afzonderlijke maximale totale netafname onderbreekt SG direct, ook als de autonoom regelende Wallbox nog laadt. Langer bufferen verandert die grens niet.",
+        "Gewone actueel gemeten netafname moet continu boven de ingestelde wolkenbuffer blijven gedurende deze tijd, standaard 300 seconden of vijf minuten. Bij de buffer of lager wordt de lopende tekorttimer gewist. Vrijgave wacht op zowel deze volledige aaneengesloten tijd als het effectieve minimum, standaard twintig minuten. De tekorttimer loopt tijdens het minimum door: vanaf minuut 18 betekent pas minuut 23, en eerder voltooide vijf minuten kunnen bij minuut 20 al gelden. Korte lokale leases worden tijdens geldige wolkenwachttijd veilig vernieuwd, ook na het minimum. Harde guards, geverifieerde native beëindiging, handmatige overname en sessiemaximum blijven direct leidend. Alleen de SG-aanvraag, geen compressorlooptijd. De wolkentimer gebruikt de actuele P1-netmeting. Resterende schermtijd blijft begrensd door de geldigheid vanaf de oorspronkelijke P1-rapportagetijd, de bevestigde lease en het harde maximum; een schermklok maakt oude brondata niet vers. Alleen tijdens een geldige begrensde SG-/Wallbox-overdracht mag de softwarematige totale netgrens tijdelijk worden overschreden. Deze wolkentimer blijft ook dan op de ruwe P1-netafname doorlopen; de overdracht geeft geen nieuwe vijf minuten en omzeilt geen afzonderlijke fase-, kwartier- of batterijgrens.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -4337,7 +4337,7 @@
       "title": "SG-bediening",
       "short": "Kies Automatisch, tijdelijk Aan of tijdelijk Uit, telkens voor 30 of 60 minuten.",
       "paragraphs": [
-        "Kies Automatisch, tijdelijk Aan of tijdelijk Uit, telkens voor 30 of 60 minuten. De absolute eindtijd blijft na herstart behouden; zij begint niet opnieuw. Bij afloop kiest SolarPilot Automatisch en beoordeelt de actuele voorwaarden. Tijdelijk Uit blokkeert alleen de eigen SG-aanvraag, niet de native warmtepomp. Tijdelijk Aan is een bewuste vraag die zon, startvertraging, rust, beleidswacht en zachte importstop vervangt. Zij blijft afhankelijk van bestaande ingebruikname, betrouwbare bronnen, lokale timer, elektrische ruimte, profiel, koelbeveiliging, globale modus en voorrang. Een nog gemeld AAN wordt na herstart alleen behouden bij passend eigen sessiebewijs en verse geldige voorwaarden. Onzekere opdrachten worden niet blind herhaald. Het oorspronkelijke harde sessiemaximum blijft leidend; een lopende sessie begint niet opnieuw. Alleen een bevestigd beta.84-sessiecheckpoint kan een nog lopende korte lokale timer bij echte HA-herstart voortzetten; oude journals houden de veilige vrijgave. De gemelde contactstand blijft afzonderlijk van deze gekozen bediening. Een extern ingeschakeld SG-contact wordt automatisch als handmatig Aan herkend. Na vijftien minuten beoordeelt SolarPilot met actuele metingen of het contact mag aanblijven. De oorspronkelijke eindtijd blijft na herstart staan. Je hoeft hiervoor niet eerst Hervatten te kiezen.",
+        "Kies Automatisch, tijdelijk Aan of tijdelijk Uit, telkens voor 30 of 60 minuten. De absolute eindtijd blijft na herstart behouden; zij begint niet opnieuw. Bij afloop kiest SolarPilot Automatisch en beoordeelt de actuele voorwaarden. Tijdelijk Uit blokkeert alleen de eigen SG-aanvraag, niet de native warmtepomp. Tijdelijk Aan is een bewuste vraag die zon, startvertraging, rust, beleidswacht en zachte importstop vervangt. Zij blijft afhankelijk van bestaande ingebruikname, betrouwbare bronnen, lokale timer, elektrische ruimte, profiel, koelbeveiliging, globale modus en voorrang. Een nog gemeld AAN wordt na herstart alleen behouden bij passend eigen sessiebewijs en verse geldige voorwaarden. Onzekere opdrachten worden niet blind herhaald. Het oorspronkelijke harde sessiemaximum blijft leidend; een lopende sessie begint niet opnieuw. Alleen een bevestigd beta.84-sessiecheckpoint kan een nog lopende korte lokale timer bij echte HA-herstart voortzetten; oude journals houden de veilige vrijgave. De gemelde contactstand blijft afzonderlijk van deze gekozen bediening. Een extern ingeschakeld SG-contact wordt automatisch als handmatig Aan herkend. Na vijftien minuten beoordeelt SolarPilot met actuele metingen of het contact mag aanblijven. De oorspronkelijke eindtijd blijft na herstart staan. Je hoeft hiervoor niet eerst Hervatten te kiezen. Binnen de oorspronkelijke externe vijftienminutenperiode kan de begrensde Wallbox-reactietijd een exact passend actueel AAN-contact behouden zonder eigendom, ON-opdracht, leasevernieuwing of nieuw minimum. De oorspronkelijke deadline en de daaropvolgende beoordeling op ruwe netafname blijven ongewijzigd.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },

@@ -634,7 +634,7 @@
         },
         "data_description": {
           "reserve_w": "Injectiebuffer die SolarPilot niet opnieuw toewijst.",
-          "max_import_w": "Softwarematige bovengrens voor de totale netafname.",
+          "max_import_w": "Softwarematige bovengrens voor de totale netafname, geen zekeringbeveiliging en geen afzonderlijke fasebeveiliging.",
           "battery_min_soc": "Onder deze batterijlaadtoestand mag ontladen vermogen niet als beschikbare energie voor gewone nieuwe zonnelasten worden behandeld."
         }
       },
@@ -718,7 +718,7 @@
           "idle_states": "Puntkomma-gescheiden statusnamen zonder actuele laadvraag, bijvoorbeeld Ready of Paused.",
           "full_solar_states": "Puntkomma-gescheiden herkenningswaarden voor uitsluitend zonneladen, bijvoorbeeld full_solar.",
           "handover_s": "Uiterste termijn om een gecontroleerde vermogensovername van de Wallbox te bevestigen.",
-          "handover_confirm_s": "Vereiste duur van bevestigde stabiele netmetingen tijdens een overname.",
+          "handover_confirm_s": "Vereiste duur van bevestigde stabiele netmetingen tijdens een gewone overdracht.",
           "handover_import_w": "Kleine tolerantie op netafname bij de bevestiging van een overdracht.",
           "reclaim_max_age_s": "Maximale leeftijd van het Wallbox-rapport voordat een nieuwe gecontroleerde overname mag beginnen.",
           "max_takeover_w": "Maximale vermogenstap bij het overnemen van laadvermogen.",

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta.108 — SG neemt zonnestroom over met Wallbox-reactietijd
+
+- Laat SG vóór een bevestigde autonome zonneladende Wallbox tijdelijk haar gemeten zonnevermogen overnemen terwijl de laadpaal zelfstandig terugregelt. Alleen de softwarematige totale netgrens krijgt hiervoor een begrensde uitzondering; geen laadcommando of extra Panasonic-bediening.
+- Begrens de bijdrage met actueel coherent laadvermogen, de SG-raming en max_takeover_w. De eerste bijdrage blijft het plafond; de bestaande handover_s bepaalt de oorspronkelijke reactietijd, standaard vier minuten en voor SG hoogstens tien minuten.
+- Bewaar de absolute episode-eindtijd en voorkom verlengen door polls, leasevernieuwing of herstart. Een nieuwe episode vraagt aantoonbaar herstel van de ruwe netafname op of onder de SG-importdrempel gedurende de bevestigingstijd, met minstens twee nieuwe rapporten.
+- Behoud de gewone wolkenbuffer op ruwe P1 parallel aan de overdracht en alle afzonderlijke fase-, kwartier-, batterij-, bron-, eigendoms- en sessiecontroles. Oudere of onbruikbare laadgegevens krijgen geen overnameruimte.
+- Bewaar oorspronkelijk overdrachtbegin, eindtijd en broncontext in snelle analyse en begrensde toestandsovergangen. Herstel wist dit diagnosebewijs binnen de bestaande retentie niet; aftelseconden maken geen gebeurtenisstroom en geven geen besturingsrecht.
+- Toon de actuele reactietijd in Details en werk actuele uitleg, optiehulp, installatie/rollback en overdracht bij. Zie BETA108_INSTELLEN.md en TESTRESULTATEN_BETA108.md.
+
 ## 1.0.0-beta.107 — coherent SG-zonnebudget en verklaarde netgrens
 
 - Laat een recent maar met actuele P1/PV tegenstrijdig Wallboxrapport geen voorwaardelijke SG-startbijdrage leveren. De complete actuele warmtepompmeting telt mee in de coherentiecontrole; 250 W tolerantie vangt kleine tijdverschillen op.

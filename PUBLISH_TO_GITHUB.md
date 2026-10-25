@@ -11,7 +11,7 @@ Voer passende regressies, de volledige suite, actuele-uitleg-/handoffcontrole, r
 1. Repository, documentatie, upstream, grenzen en volledige testsuite.
 2. HACS.
 3. Hassfest.
-4. De echte Chromium-interactietests met fictieve data, waaronder voorrang, externe SG-overname en de actuele SG-stop-/netgrensuitleg.
+4. De echte Chromium-interactietests met fictieve data, waaronder voorrang, externe SG-overname en de actuele begrensde SG-/Wallbox-reactietijd en stopuitleg.
 5. Echte Home Assistant-startup met huidige en historische immutable fixtures.
 
 Voeg alleen de gecontroleerde head samen wanneer alle vijf slagen. Een oudere groene commit is geen bewijs voor een nieuwe wijziging. Publiceer geen ZIP als vervanging voor een mislukte verplichte gate.

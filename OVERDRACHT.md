@@ -1,9 +1,9 @@
 <!-- solarpilot-handoff-schema: 1 -->
-<!-- solarpilot-handoff-version: 1.0.0-beta.107 -->
+<!-- solarpilot-handoff-version: 1.0.0-beta.108 -->
 
 # OVERDRACHT — SolarPilot
 
-Laatst bijgewerkt: **25 oktober 2026**. Actuele bron: **v1.0.0-beta.107**. Bouwbasis: gepubliceerde beta.106 `8193c183e293b5bb02809930cf3a46fa35ee8a41`. Installatie en rollback: `docs/BETA107_INSTELLEN.md`. Softwarebewijs en publicatievoorwaarden: `docs/TESTRESULTATEN_BETA107.md`.
+Laatst bijgewerkt: **25 oktober 2026**. Actuele bron: **v1.0.0-beta.108**. Bouwbasis: gepubliceerde beta.107 `3c375dc1a34ecf33e5c80b00f8b64a5c1a555a88`. Installatie en rollback: `docs/BETA108_INSTELLEN.md`. Softwarebewijs en publicatievoorwaarden: `docs/TESTRESULTATEN_BETA108.md`.
 
 ## 1. Projectdoel in gewone taal
 
@@ -11,20 +11,19 @@ SolarPilot verdeelt beschikbare zonnestroom lokaal tussen flexibele toestellen, 
 
 ## 2. Actuele basis
 
-Beta.107 weigert voorwaardelijke EV-startbijdrage voor SG wanneer het recente Wallboxrapport samen met de complete actuele warmtepompmeting niet binnen de uit actuele PV, getekende P1 en batterijontlading afgeleide totale belasting past, met 250 W tolerantie. Werkelijk restoverschot en een al toegelaten SG-aanvraag behouden hun bestaande betekenis. Voorrangsteksten volgen de effectieve volgorde. Snelle analyse en nieuwe SG-toestandsovergangen bewaren afzonderlijk oorspronkelijk net-/PV-/Wallboxbronbewijs. Geen ingestelde netgrens of wolkenbuffer is verhoogd.
+Beta.108 laat SG vóór een lager geplaatste bevestigde autonome zonnelaadsessie van de Wallbox tijdig haar zonnevermogen gebruiken. De laadpaal regelt zelfstandig en mag vertraagd reageren. Alleen de softwarematige totale netgrens krijgt een afzonderlijke begrensde uitzondering. De bijdrage is hoogstens het minimum van actueel coherent laadvermogen, de geraamde SG-opname en max_takeover_w; standaard begrenst die laatste waarde tot 2500 W. De eerste bijdrage blijft het plafond voor dezelfde episode.
 
-Beta.106 verwijdert de vaste Wallbox-vóór-SG-beperking uit backend en editor. De centrale volgorde is ook voor SG leidend. Gegenereerde oude defaults krijgen eenmaal de Wallbox achteraan; een bewust opgeslagen eigen volgorde wordt niet herschreven. Nieuwe gewone toestellen komen vóór een laatst geplaatste Wallbox. De afwasmachine houdt de beschermde plaats vóór SG.
+De bestaande handover_s geeft standaard 240 seconden reactietijd, voor SG hoogstens 600 seconden. Een episode begint bij het eerste bruikbare P1-rapport boven de softwaregrens tijdens een bevestigde lopende SG-aanvraag of een exact actueel waargenomen extern AAN-contact binnen zijn oorspronkelijke vijftien minuten. De oorspronkelijke absolute eindtijd blijft na herstart staan. Alleen aantoonbaar herstel naar de ruwe SG-importdrempel, standaard 600 W, gedurende handover_confirm_s, standaard vijftien seconden, en minstens twee verschillende nieuwe rapporten maakt een volgende episode mogelijk. Een onbekende herstart begint zonder verse uitzondering.
 
-Een extern AAN-contact wordt in Automatisch regelen waargenomen met een oorspronkelijke absolute vijftienminutendeadline. Dit is nog geen SolarPilot-eigendom of bewezen lokale lease. Na afloop volgt uitsluitend bij actuele passende zonne-, net-, koel-, prioriteits- en elektrische voorwaarden een bevestigde korte lokale toestemming, zonder UIT-puls. Anders volgt gerichte vrijgave. Alleen bekijken/Pauze nemen het externe contact niet over. Een fysieke handmatige UIT blijft beschermd.
-
-De canonieke gebruikersuitleg is één declaratieve `current_guide.py`; `docs/ACTUELE_WERKING.md`, de ingebedde mirror en optiehulp worden daaruit gegenereerd. Oude append-/override-lagen zijn samengevoegd. De overige bronisolatie, afwasmeterwaarneming, historie, modellen, onderzoek en export/antwoordcontracten blijven behouden.
+De beta.107-startcoherentie en oorspronkelijke brontelemetrie blijven behouden. Centrale voorrang, expliciet opgeslagen gebruikersvolgorde en beschermde afwasvoorrang blijven leidend. Een exact passend actueel extern AAN-contact mag binnen de oorspronkelijke vijftien minuten dezelfde begrensde EV-reactietijd voor behoud gebruiken, zonder eigendom, ON-opdracht, leasevernieuwing of verse minimumduur. De oorspronkelijke vijftienminutendeadline en daaropvolgende ruwe importbeoordeling blijven ongewijzigd. De canonieke actuele uitleg en optiehulp blijven één declaratieve bron met gegenereerde mirrors.
 
 ## 3. Absolute ontwerpregels
 
 - Panasonic-entiteiten zijn read-only. Alleen de bewust toegewezen bestaande fysieke SG-uitgang heeft een aparte gecontroleerde schrijfroute. Geen tank-/kamertemperatuur-, programma-, AUTO/OFF-, heater-, Powerful-/Force- of tweede-Shelly-besturing toevoegen. Bestaande lokaal ingestelde SG-capaciteiten blijven behouden.
 - Wallbox blijft read-only, ook bij uitgeschakelde monitoring en via inspecteerbare indirecte scripts. Een hogere last kan de laadpaal uitsluitend indirect laten terugregelen. Geen laadcommando of verzonnen laadvermogen.
-- Alleen met SG vóór Auto laden mag actuele betrouwbare gemeten laadruimte uit een bevestigde autonome zonnelaadsessie voor SG meetellen. Dit blijft voorwaardelijk vermogen, afzonderlijk van echte P1-injectie. Handmatige, onbekende, oude, ontbrekende of fysiek tegenstrijdige laadsessiegegevens geven geen credit. De coherentiecontrole verleent geen nieuwe actuele meettijd en past uitsluitend de voorwaardelijke SG-startbijdrage aan. Een hogere Wallbox houdt de bestaande voorrang; een al toegelaten SG-aanvraag krijgt niet opnieuw een startreserve vanwege een lager geplaatste Wallbox.
-- Netgrens, resterend kwartierbudget, passende afzonderlijke fasegrenzen, batterijontlading, bronactualiteit, interlocks, gebruikerskeuze, beschermde cycli en lopende opdrachten blijven onafhankelijk leidend. Ook na opslag- of transport-awaits worden de relevante gegevens opnieuw gecontroleerd.
+- Alleen met SG vóór Auto laden mag actuele betrouwbare gemeten laadruimte uit een bevestigde autonome zonnelaadsessie voor SG meetellen. Dit blijft voorwaardelijk vermogen, afzonderlijk van echte P1-injectie. Handmatige, onbekende, oude, ontbrekende of fysiek tegenstrijdige laadsessiegegevens geven geen credit. De coherentiecontrole verleent geen nieuwe actuele meettijd en begrenst uitsluitend de voorwaardelijke SG-bijdrage; zij creëert geen werkelijk gemeten vrije injectie. Een hogere Wallbox houdt de bestaande voorrang; een al toegelaten SG-aanvraag krijgt niet opnieuw een startreserve vanwege een lager geplaatste Wallbox.
+- De softwarematige totale netgrens kent uitsluitend de expliciet geautoriseerde begrensde SG-/Wallbox-reactie-uitzondering. Ruwe P1 wordt niet aangepast. Resterend kwartierbudget, passende afzonderlijke fasegrenzen, batterijontlading, bronactualiteit, interlocks, gebruikerskeuze, beschermde cycli en lopende opdrachten blijven onafhankelijk leidend. Ook na opslag- of transport-awaits worden de relevante gegevens opnieuw gecontroleerd.
+- De Wallbox-reactie-episode krijgt één oorspronkelijke absolute eindtijd en begrensde eerste bijdrage. Polls, uitlezen, leasevernieuwing, gewijzigde koppelingen of herstart verlengen die niet. Geen nieuw episodebudget door alleen onder de softwaregrens te schommelen; werkelijk herstel op of onder de SG-importdrempel vraagt bevestigingstijd en minstens twee nieuwe rapporten. Verlies van actuele geschikte EV-bronnen trekt de uitzondering in.
 - Een waargenomen extern AAN geeft geen eigendom. De oorspronkelijke vijftienminutentijd blijft na herstart staan. Voortzetting vraagt nieuwe actuele voorwaarden en bevestiging van de korte lokale timer. Een handmatige UIT, gewijzigde koppeling, onzekere opdracht of defecte terugval geeft geen blind replay. Een volledige eigen bevestigde lease mag uitsluitend onder haar bestaande herstartcontract voortgezet worden.
 - Externe SG-overname vraagt ook voldoende actuele startbijdrage; lage netafname zonder zon geeft geen nachtboost. Voor de extra elektrische ruimte is een al ingeschakeld passend contact geen nieuwe extra belasting. De oorspronkelijke sessietijd telt mee in het harde maximum.
 - Tijdelijke gewone bron-/transportonbereikbaarheid is een afzonderlijke source_wait/command_wait met hercontrole, geen algemene UIT-voorwaarde of foutpauze. Onzekere werkelijk verzonden opdrachten behouden hun eigen gerichte herstelvoorwaarden. Geen andere toestellen blokkeren omdat een bron ontbreekt.
@@ -36,11 +35,13 @@ De canonieke gebruikersuitleg is één declaratieve `current_guide.py`; `docs/AC
 
 ## 4. Actuele werking
 
-De runtime leest P1/PV, eventuele batterij- en fasegegevens en bestaande toestelbronnen. Zij houdt werkelijk restoverschot, al verbruikt warmtepompvermogen en voorwaardelijk overdraagbaar autonoom laadvermogen apart. De centrale rangorde en individuele voorwaarden bepalen het voorstel. De finale dispatch herleest de benodigde actuele gegevens; een plan alleen is geen toestemming.
+De runtime leest P1/PV, eventuele batterij- en fasegegevens en bestaande toestelbronnen. Werkelijk restoverschot, al gebruikt warmtepompvermogen en voorwaardelijk overdraagbaar autonoom laadvermogen blijven apart. De centrale rangorde en individuele voorwaarden bepalen de kandidaat; finale dispatch herleest de benodigde actuele gegevens.
 
-Gewone toestellen houden start-/stopbuffers en minimumtijden. De afwasroute behoudt eenmalige appvrijgave, deur/remote/verbinding, deadlines en bescherming van een gestarte cyclus. Een onafhankelijke meter kan een extern gestarte elektrische activiteit registreren zonder startrecht te verlenen.
+Gewone toestellen behouden start-/stopbuffers en minimumtijden. De afwasroute houdt eenmalige appvrijgave, deur/remote/verbinding, deadlines en bescherming van een gestarte cyclus. Een onafhankelijke meterwaarneming verleent geen startrecht.
 
-SG gebruikt een afzonderlijke lokale lease, met minimumduur, wolkenbuffer, rest-/herbeoordelingsregels en een hard sessiemaximum. De wolkenbuffer blijft standaard 600 W gedurende vijf minuten. De apart ingestelde maximale totale netafname blijft een directe vrijgavevoorwaarde, ook wanneer de lager geplaatste Wallbox nog laadt. Een langere buffer omzeilt die grens niet. De regeling kan de read-only laadpaal niet dwingen eerst te stoppen. Extern handmatig AAN krijgt eerst vijftien minuten waarneming. Daarna kan dezelfde actuele AAN zonder UIT-puls overgaan naar automatisch, mits alle actuele voorwaarden gelden. Een externe UIT wordt niet automatisch opnieuw aangezet. Tijdelijk Aan/Uit voor 30/60 minuten blijft beschikbaar; een bewuste keuze kan het gecontroleerde externe AAN-contact direct benoemen.
+SG gebruikt een afzonderlijke lokale lease, minimumduur, wolkenbuffer, herbeoordelingsregels en een hard sessiemaximum. De gewone wolkenbuffer blijft standaard 600 W gedurende vijf minuten en gebruikt de ruwe P1-netafname. De begrensde Wallbox-reactietijd loopt parallel; zij geeft geen nieuwe tekorttimer en wordt niet door het SG-minimum verlengd. Alleen binnen een actuele bewezen overdracht mag de softwarematige totale netgrens tijdelijk worden overschreden. Fase-, kwartier-, batterij- en bronvoorwaarden kunnen eerder vrijgeven. Zonder geldige uitzondering of bij verlopen eindtijd geldt de gewone netgrens weer.
+
+Extern handmatig AAN krijgt eerst vijftien minuten waarneming en daarna de bestaande actuele overnamebeoordeling. Binnen de oorspronkelijke externe periode mag de begrensde EV-reactietijd alleen een exact passend actueel AAN-contact behouden; de deadline en daarna de ruwe import-/zonnebeoordeling blijven ongewijzigd. Een fysieke handmatige UIT wordt niet automatisch teruggezet. Tijdelijk Aan/Uit voor 30/60 minuten blijft beschikbaar. Panasonic blijft eigenaar van comfort en compressorregeling; de Wallbox krijgt geen opdracht.
 
 ## 5. Configuratie, integraties en belangrijke entiteiten
 
@@ -50,15 +51,11 @@ De integratie gebruikt bestaande Home Assistant-bronnen en de apart gevalideerde
 
 ## 6. Belangrijke ontwerpbeslissingen + waarom
 
-Een laatste HA-cloudrapport kan nog binnen zijn ouderdomsgrens liggen terwijl de fysieke laadpaal al heeft teruggeregeld. Een incoherente vermogenscombinatie levert daarom geen EV-startcredit; onafhankelijk gemeten export blijft bruikbaar. De controle is conservatief bij ongelijktijdige meters en is geen kalibratie. Zij verlengt geen lopende buffer of lease en maakt geen bestaande SG-stop later.
+Alleen voorrang bij de start werkte niet samen met een autonoom regelende laadpaal die later terugschakelt. Beta.108 maakt die vertraagde reactie mogelijk binnen een expliciete beperkte software-uitzondering. De totale P1-netafname blijft zichtbaar en wordt voor de gewone wolkenbuffer, fasebewaking en kwartiercontrole niet met toekomstig EV-vermogen verlaagd. De uitzondering is dus geen bewijs van fysieke nulimport of bevestigd terugregelen.
 
-Een SG-stop boven de vaste totale netgrens is geen verlopen wolkenbuffer. Die grens ongemerkt uitstellen of vergroten zou haar bestaande betekenis veranderen. Beta.107 verduidelijkt het besluit en bewaart betere brongegevens voor vervolgonderzoek. Een gesloten contact of lage warmtepompwatts bewijst geen extra SG-opname; een langzame EV-/PV-reactie blijft zonder passend gelijktijdig bewijs een hypothese.
+Een episode blijft begrensd na een kleine dip rond de softwaregrens. Pas ruwe netafname op of onder de gewone SG-importdrempel met meerdere nieuwe rapporten en bevestigingstijd herstelt een nieuwe overdrachtsmogelijkheid. Absolute opslag en conservatieve herstart voorkomen steeds nieuwe gratis reactietijd. Verlies of wijziging van de bron-/beleids-/voorrangskoppeling geeft geen nieuwe toestemming.
 
-De vorige vaste Wallbox-vóór-SG-regel veroorzaakte de gemelde onwerkende verplaatsingen en kon geldige SG-starts blijven blokkeren. De bestaande HouseFirstGuard wordt nu ook voor SG gebruikt wanneer de centrale volgorde dat vraagt. Dit hergebruikt stabiliteits- en meetbeleid en houdt de laadpaal autonoom.
-
-Een permanente manual_hold voor iedere externe AAN paste niet bij de gewenste automatische terugkeer. Externe waarneming heeft nu een aparte kleine bewaarde toestand met vaste deadline. Eigendom ontstaat pas na een geslaagde actuele gecontroleerde timeropdracht. OFF is geen noodzakelijke tussenstap voor een geldige overname.
-
-Drie ongebruikte helpers zijn verwijderd; de echte planner toetst nog steeds volledige slots tegen venster/deadline. Handleiding en optiehulp hebben ieder één actuele declaratie. README en startinstructie verwijzen naar de huidige werking; releasehistorie blijft in CHANGELOG en Git. De oude Manual Release-workflow is verwijderd; uitsluitend de bestaande volledige Validate-publicatieroute blijft over.
+Een laatste cloudrapport kan binnen de ouderdomsgrens vallen terwijl de laadpaal al anders verbruikt. Daarom blijft de beta.107-coherentiecontrole voor de voorwaardelijke bijdrage behouden. Onafhankelijk gemeten export blijft bruikbaar. De nieuwe reactietijd verandert geen Panasonic-capaciteit, SG-mapping, fysieke Shelly-terugval, normale externe waarneming of beveiligingsinstelling.
 
 ## 7. Automatische processen
 
@@ -72,25 +69,25 @@ Gebruik uitsluitend fictieve bronidentiteiten in tests en browserfixtures. Diagn
 
 ## 9. Testprocedure + actuele teststatus
 
-De volledige beta.107-bron slaagt lokaal met 8707 tests, zonder fouten of skips, waaronder 40 nieuwe regressies. De 63 gerichte kaart-/module-/UI-controles slagen eveneens. Een achtergebleven kaartversie uit de eerste loop is gecorrigeerd vóór de geslaagde volledige herhaling. Actuele uitleg, overdracht, privacy/structuur, SG-grens, beide JavaScript-syntaxcontroles en online upstreamreview zijn gecontroleerd. De exacte CI-gates en downloadvergelijking blijven afzonderlijke voorwaarden voor publicatie. Zie docs/TESTRESULTATEN_BETA107.md.
+De definitieve beta.108-bron slaagt lokaal met 8828 tests zonder fouten of skips, waaronder 121 nieuwe overdrachts-, runtime-, transport-, UI- en diagnoseregressies. Drie opstartregressies uit een vroege volledige loop zijn opgelost door pas na geladen opslag te observeren/bewaren; de oorspronkelijke en aanvullende opslagtests slagen in de volledige herhaling. Actuele uitleg, veldhulp, overdracht, privacy/structuur, SG-grens en beide JavaScript-syntaxcontroles zijn gecontroleerd. De online upstreamhercontrole bevestigt ongewijzigde officiële HEADs en stabiele tagcommits. Exacte CI-gates en downloadvergelijking blijven vereist; zie docs/TESTRESULTATEN_BETA108.md.
 
-Alle vijf bestaande CI-gates blijven verplicht: repository/full-suite, HACS, Hassfest, Chromium en echte Home Assistant-startup. De browsergate behoudt onder andere pijltjes, slepen, bevestigen, opslaan, mobiele weergave en externe SG-afteller. Een lokaal ontbrekende browser geeft geen reden om de vereiste remote browsergate over te slaan.
+Alle vijf bestaande CI-gates blijven verplicht: repository/full-suite, HACS, Hassfest, Chromium en echte Home Assistant-startup. De browsercontrole behoudt de bestaande prioriteitsbediening en SG-/bronweergave. Een lokale ontbrekende browser rechtvaardigt geen overgeslagen remote gate.
 
 ## 10. Bekende problemen / beperkingen
 
-Softwaretests certificeren geen fysieke bekabeling, SG-respons, sensorkalibratie of werkelijk terugregelen van een Wallbox. Voorwaardelijke overdracht kan kort netafname veroorzaken; harde grenzen blijven bewaakt. Daardoor kan SG ook met een nog ladende Wallbox direct worden vrijgegeven. Beta.107 belooft niet dat dit fysieke gedrag verdwijnt. De coherentiecontrole kan bij ongelijktijdige meters een nieuwe start uitstellen; ze bewijst geen defecte meter of laadpaal. Een bestaande PV-voorspelfout of ontbrekende afzonderlijke meter is niet door het corrigeren van voorrang opgelost. Bronproblemen vragen bewijs en bewuste koppeling; geen sensoren gokken.
+Softwaretests certificeren geen bekabeling, werkelijke SG-respons, kalibratie of daadwerkelijke Wallbox-terugregeling. De nieuwe software-uitzondering staat bewust tijdelijk extra totale netafname toe binnen haar bewijs-, vermogens- en tijdgrenzen; zij verhoogt geen fysieke aansluitcapaciteit. De lokale korte SG-terugval blijft een afzonderlijk mechanisme. Het vierminutenvenster betreft actieve HA-softwarepolicy. Een bestaande eigen lokale lease is standaard 300 seconden; bij HA-uitval is fysieke UIT exact op 240 seconden dus niet gegarandeerd. Extern AAN krijgt door de beperkte bewaarexceptie geen nieuw lokaal timerrecht.
 
-Nieuwe external_control-opslag is aanvullend op schema 1. Beta.105 negeert deze toestand en kent de nieuwe deadline niet. Een nieuwe SG-vóór-Wallbox-volgorde kan in een oude versie anders worden geïnterpreteerd. Onzekerheid wordt niet als bewezen UIT of fysieke reparatie voorgesteld.
+Een ongeschikte, oude, handmatige of tegenstrijdige EV-bron geeft geen uitzondering. Na een onbekende herstart moet eerst nieuw herstelbewijs komen; een aantoonbaar lopende bewaarde episode krijgt alleen haar oorspronkelijke resterende tijd. Onafhankelijke fase-, kwartier-, batterij- of contactvoorwaarden kunnen SG nog steeds eerder vrijgeven. Een groter wolkenvenster is geen vervanging voor deze regeling. PV-voorspelling en ontbrekende exclusieve meters blijven afzonderlijke onderwerpen.
 
 ## 11. Concrete openstaande ontwikkeling
 
-Na installatie met de nieuwe oorspronkelijke brontelemetrie observeren of de natuurlijke SG-/Wallboxreactie en actuele stopgrenzen overeenkomen met de software-uitkomst. Dit is een installatiecontrole, geen reden om vooraf een geforceerde warmte-/laadproef uit te voeren. PV-voorspelling en ontbrekende exclusieve meters blijven afzonderlijke analyseonderwerpen. Geen extra comfortregelingen of hardwareopdrachten toevoegen zonder nieuwe gebruikersvraag.
+Laat na installatie de normale SG-/Wallboxreactie met oorspronkelijke brontelemetrie vastleggen. Beoordeel of de berekende reactietijd, werkelijke P1 en laadsessierapporten overeenkomen; geen geforceerde warmte- of laadproef uitvoeren als publicatiestap. PV-voorspelling en ontbrekende exclusieve meters vragen hun eigen bewijs. Geen extra hardwarebediening of Panasonic-writer toevoegen.
 
 ## 12. Installatie/upgrade en rollback
 
-Update via HACS naar beta.107, herstart Home Assistant volledig en herlaad app/browser. Controleer backend-/kaartversie en de centrale volgorde. Maak vooraf een volledige privéback-up, inclusief aanvullende meterhistorie en userfiles.
+Update via HACS naar beta.108, herstart Home Assistant volledig en herlaad app/browser. Controleer backend-/kaartversie en de effectieve centrale volgorde. SG moet vóór de Wallbox staan voor de nieuwe overdracht. Bestaande handover_s en max_takeover_w blijven bewaard. Maak vooraf een volledige privéback-up, inclusief userfiles en aanvullende historie.
 
-Rollback naar beta.106 behoudt de centrale volgorde en externe overname, maar mist de nieuwe coherentiecontrole en aanvullende diagnose. Geef een eigen SG-aanvraag waar betrouwbaar mogelijk veilig vrij, controleer lokale afloop en zet code terug met behoud van entry en gegevens. Geen tweede runtime of verwijder/herinstallatie als migratiemethode. Zie docs/BETA107_INSTELLEN.md.
+Rollback naar beta.107 behoudt centrale voorrang, externe overname, coherentie en brontelemetrie, maar verwijdert deze begrensde netgrensuitzondering. SG kan bij een netpiek dan opnieuw direct openen terwijl de Wallbox nog laadt. Geef de eigen SG-aanvraag waar betrouwbaar mogelijk veilig vrij en behoud entry en gegevens. Zie docs/BETA108_INSTELLEN.md.
 
 ## 13. Belangrijkste bestanden
 
@@ -98,7 +95,8 @@ Rollback naar beta.106 behoudt de centrale volgorde en externe overname, maar mi
 - priority_board.py: centrale volgorde, expliciete opslaanvalidatie en eenmalige defaultmigratie.
 - sg_boost.py / sg_transport.py: waarneming, oorspronkelijke deadlines, lease-eigendom en lokale SG-transportgrens.
 - heatpump_budget.py / house_first.py: aparte gemeten en voorwaardelijke zonnebijdragen, SG-startcoherentie en stabiliteit.
-- analysis_export.py: snelle brontelemetrie en bewaard broncontext bij nieuwe SG-toestandsovergangen.
+- sg_wallbox_transfer.py: begrensde reactie-episode, oorspronkelijk plafond en eindtijd, herstelbewijs en conservatieve herstart.
+- analysis_export.py: snelle brontelemetrie met actuele overdracht; oorspronkelijk overdrachtbegin/eindtijd en broncontext bij begrensde toestandsovergangen en SG-overgangen. Herstel wist dit eerdere bewijs binnen de maximaal zevendaagse gebeurtenisretentie niet; geen aftelseconde-eventstroom of controlrecht.
 - frontend/solar-pilot-card.js: editor, SG-stand en afteller.
 - current_guide.py / option_help.py: canonieke actuele uitleg en veldhulp.
 - tests/test_sg_coherence107.py / tests/test_sg_priority_reason107.py / tests/test_analysis_fast107.py: nieuwe regressies; bestaande voorrangs-, audit- en herstarttests behouden hun overige assertions.
@@ -106,8 +104,10 @@ Rollback naar beta.106 behoudt de centrale volgorde en externe overname, maar mi
 
 ## 14. Release-checklist
 
-Volledige suite; actuele uitleg; handoff; repositoryprivacy/structuur; SG-grens; online upstreamreview; beide JavaScript-syntaxcontroles; diffreview. Daarna vijf groene exacte CI-gates: repository/full-suite, HACS, Hassfest, Chromium, echte Home Assistant-startup. Pas daarna main. Main herhaalt de gates en publiceert tag, HACS-ZIP, lokale ZIP en beide beta.107-documenten. Vergelijk de vier gedownloade assets opnieuw met de exacte tag/bron-SHA. Geen manual-release-omweg, force-push of verplaatste oude tag.
+Volledige suite; actuele uitleg; handoff; repositoryprivacy/structuur; SG-grens; online upstreamreview; beide JavaScript-syntaxcontroles; diffreview. Daarna vijf groene exacte CI-gates: repository/full-suite, HACS, Hassfest, Chromium, echte Home Assistant-startup. Pas daarna main. Main herhaalt de gates en publiceert tag, HACS-ZIP, lokale ZIP en beide beta.108-documenten. Vergelijk de vier gedownloade assets opnieuw met de exacte tag/bron-SHA. Geen manual-release-omweg, force-push of verplaatste oude tag.
 
 ## 15. AI-handoff
 
-Begin bij de actuele bron en dit dossier; gebruik historische releasebeschrijvingen niet als huidige regeling. Een directe netgrensstop wordt niet opgelost door alleen de wolkenbuffer langer te maken. Bewaar de grens en onderscheid gemeten, afgeleide en onbekende oorzaak; de Wallbox blijft read-only. Lees de concrete nieuwe gebruikersvraag en preserveer onafhankelijke beschermingen. Een nieuwe externe AAN wordt vijftien minuten waargenomen; een externe UIT blijft gerespecteerd. De Wallbox staat standaard achteraan, maar een expliciet opgeslagen andere volgorde blijft een echte keuze. Iedere wijziging aan deze grenzen vraagt zinvolle regressies en bijgewerkte actuele uitleg. Publiceer geen privé-export of huishouddetails en claim geen live-installatietest die niet is uitgevoerd.
+Begin bij de actuele bron en dit dossier. De gebruiker heeft expliciet toegestaan dat SG zonnestroom van een lager geplaatste autonoom regelende Wallbox overneemt en dat die vertraagd terugschakelt. De softwarematige totale netgrens krijgt daarom uitsluitend de beschreven begrensde overdrachtuitzondering; beschrijf haar niet meer als een altijd onmiddellijke SG-stop. Houd de ruwe P1 en onafhankelijke fase-, kwartier-, batterij-, bron-, eigendoms- en sessievoorwaarden intact.
+
+Lees de concrete volgende vraag en verleng geen episode door uitlezen, herstart of hetzelfde meetbewijs. Maak geen handmatige/unknown EV-sessie tot bevestigde zonnelaadvraag. Behoud expliciete volgorde, SG-capaciteiten, beschermde afwascyclus en fysieke UIT. Werk actuele uitleg en overdracht bij iedere wijziging bij. Publiceer geen privé-export of huishouddetails en claim geen fysieke installatieproef die niet is uitgevoerd.

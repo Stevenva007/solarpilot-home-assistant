@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "reviewed_at": "2026-10-25T13:22:31Z",
+  "reviewed_at": "2026-10-25T14:20:07Z",
   "assessment": {
     "status": "complete_no_unprocessed_changes",
-    "summary": "Beta.107 rechecked official repository metadata, both main branch HEADs, latest stable releases and tag commit refs on 2026-10-25. Aquarea 1.9.0 remains d3867f4143f7e2c15b84ed67c6e7ace2561f5f96; SDK 1.5.0 remains 55da9428ddf43ed26f2386d79c43d50cf4d9da0c. No additional source changes since the complete beta.105 authentication/app-version assessment. Existing loaded executable semantics, original provider/HA report times and native status/energy contract checks remain unchanged. The conditional SG-start coherence check and read-only telemetry add no Panasonic writer. See docs/UPSTREAM_BETA107.md and docs/UPSTREAM_BETA105.md. Source freshness is not runtime compatibility or physical installation approval; exact-commit CI gates remain required.",
+    "summary": "Beta.108 rechecked official repository metadata, both main branch HEADs, latest stable releases and tag commit refs on 2026-10-25. Aquarea 1.9.0 remains d3867f4143f7e2c15b84ed67c6e7ace2561f5f96; SDK 1.5.0 remains 55da9428ddf43ed26f2386d79c43d50cf4d9da0c. No additional source changes since the complete beta.105 authentication/app-version assessment. Existing loaded executable semantics, original provider/HA report times and native status/energy contract checks remain unchanged. The bounded SG/Wallbox reaction window changes only local software import policy, adds no Wallbox or Panasonic writer and grants no provider compatibility claim. See docs/UPSTREAM_BETA108.md and docs/UPSTREAM_BETA105.md. Exact-commit CI gates and release asset comparison remain required.",
     "compatibility_claim": false,
     "evidence_document": "docs/UPSTREAM_BRONNEN.md"
   },

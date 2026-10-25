@@ -33,7 +33,12 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                                 'extern ingeschakeld SG-contact wordt automatisch als handmatig Aan herkend. '
                                 'Na vijftien minuten beoordeelt SolarPilot met actuele metingen of het '
                                 'contact mag aanblijven. De oorspronkelijke eindtijd blijft na herstart '
-                                'staan. Je hoeft hiervoor niet eerst Hervatten te kiezen.',
+                                'staan. Je hoeft hiervoor niet eerst Hervatten te kiezen. Binnen de '
+                                'oorspronkelijke externe vijftienminutenperiode kan de begrensde '
+                                'Wallbox-reactietijd een exact passend actueel AAN-contact behouden zonder '
+                                'eigendom, ON-opdracht, leasevernieuwing of nieuw minimum. De '
+                                'oorspronkelijke deadline en de daaropvolgende beoordeling op ruwe netafname '
+                                'blijven ongewijzigd.',
  'others_first': 'Globale standaard voor gewone verbruikers: Andere eerst of Wallbox eerst. Een bewust '
                  'opgeslagen centrale volgorde is leidend. Panasonic regelt noodzakelijk comfort '
                  'zelfstandig. Extra SG-zonneboost volgt dezelfde centrale volgorde; vóór Auto laden kan '
@@ -121,11 +126,13 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
               'zachte zonnepot af. De volledige piek blijft in de totale elektrische ruimte gereserveerd. '
               'Bestaande fasecontroles, minimumtijden en start-/stopbuffers blijven gelden; geen '
               'nulimportgarantie.',
- 'max_import_w': 'Softwarematige bovengrens voor de totale netafname. Dit is geen zekeringbeveiliging en '
-                 'beschermt niet zelfstandig elke fase. Lagere waarden beperken toegestane starts; '
-                 'onbeheerde apparaten kunnen de grens toch overschrijden. Overschrijding geeft een eigen '
-                 'SG-aanvraag onmiddellijk vrij, ook tijdens minimumduur of wolkenbuffer. Een langere '
-                 'wolkenbuffer verruimt deze grens niet.',
+ 'max_import_w': 'Softwarematige bovengrens voor de totale netafname, geen zekeringbeveiliging en geen '
+                 'afzonderlijke fasebeveiliging. Vanaf beta.108 mag alleen SG vóór een bevestigde autonome '
+                 'zonneladende Wallbox deze grens tijdens een begrensde overdracht tijdelijk overschrijden. '
+                 'De uitzondering blijft beperkt door actuele coherente laadmetingen, de SG-raming, '
+                 'max_takeover_w en de oorspronkelijke handover_s-eindtijd. Daarbuiten geeft overschrijding '
+                 'een eigen SG-aanvraag direct vrij. Fase-, kwartier-, batterij- en broncontroles blijven '
+                 'afzonderlijk gelden; onbeheerde apparaten kunnen de softwaregrens toch overschrijden.',
  'battery_min_soc': 'Onder deze batterijlaadtoestand mag ontladen vermogen niet als beschikbare energie voor '
                     'gewone nieuwe zonnelasten worden behandeld. Dit is geen vervanging voor de echte '
                     'batterij-BMS-reserve.',
@@ -336,20 +343,34 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
  'drop_tolerance_w': 'Kleinste relevante verandering in laadvermogen voor de wisselwerkingsbewaking. Kleine '
                      'meetruis wordt niet als een echte reactie behandeld. Te groot kan een werkelijke '
                      'daling missen.',
- 'handover_s': 'Uiterste termijn om een gecontroleerde vermogensovername van de Wallbox te bevestigen. Een '
-               'cloudrapport kan later komen dan de fysieke reactie. Verleng dit niet om een niet-reagerende '
-               'laadpaal toch goed te keuren.',
- 'handover_confirm_s': 'Vereiste duur van bevestigde stabiele netmetingen tijdens een overname. Pas daarna '
-                       'wordt een volgende verhoging toegelaten. Een serviceaanroep alleen is geen bewijs.',
+ 'handover_s': 'Uiterste termijn om een gecontroleerde vermogensovername van de Wallbox te bevestigen. Voor '
+               'SG vóór een bevestigde autonome zonneladende Wallbox begrenst dit vanaf beta.108 ook de '
+               'tijdelijke uitzondering op de softwarematige totale netgrens: standaard 240 seconden, in de '
+               'SG-route hoogstens 600 seconden. De oorspronkelijke episode begint bij het eerste actuele '
+               'P1-rapport boven de grens tijdens een bevestigde SG-aanvraag of een exact actueel '
+               'waargenomen extern AAN-contact binnen zijn oorspronkelijke vijftien minuten. Laadrapporten, '
+               'leasevernieuwing en herstart verlengen haar niet. De gewone wolkenbuffer loopt parallel op '
+               'ruwe P1. Fase-, kwartier- en batterijgrenzen blijven direct gelden. Deze softwaretijd is '
+               'geen nieuwe lokale Shelly-timer; de bestaande korte eigen SG-lease blijft apart, standaard '
+               '300 seconden. Bij HA-uitval is fysieke UIT exact na 240 seconden niet gegarandeerd.',
+ 'handover_confirm_s': 'Vereiste duur van bevestigde stabiele netmetingen tijdens een gewone overdracht. '
+                       'Voor een nieuwe SG-/Wallbox-reactie-episode moet de ruwe P1-netafname minstens deze '
+                       'tijd, standaard vijftien seconden, op of onder de SG-importdrempel liggen, met '
+                       'minstens twee verschillende nieuwe bronrapporten. Alleen even onder de '
+                       'softwarematige totale netgrens komen herstart de reactietijd niet. Een '
+                       'serviceaanroep of schermklok is geen meetbewijs.',
  'handover_import_w': 'Kleine tolerantie op netafname bij de bevestiging van een overdracht. Geen doel om '
                       'stroom van het net af te nemen. Een grotere waarde kan een mislukte overdracht '
                       'verhullen.',
  'reclaim_max_age_s': 'Maximale leeftijd van het Wallbox-rapport voordat een nieuwe gecontroleerde overname '
                       'mag beginnen. Oude laadgegevens mogen niet als actueel vrijmaakbaar vermogen worden '
                       'gebruikt.',
- 'max_takeover_w': 'Maximale vermogenstap bij het overnemen van laadvermogen. Alleen de eigen last wordt '
-                   'gestuurd. Werkelijke importgrens, exclusieve meting en terugmelding blijven ook bij een '
-                   'kleine stap verplicht.',
+ 'max_takeover_w': 'Maximale vermogenstap bij het overnemen van laadvermogen. Voor de begrensde '
+                   'SG-/Wallbox-reactietijd is de extra ruimte boven de softwarematige netgrens nooit groter '
+                   'dan het minimum van deze waarde, de geraamde SG-opname en het actuele coherente autonome '
+                   'zonnelaadvermogen. De eerste toegelaten bijdrage blijft het plafond voor die episode. De '
+                   'Wallbox krijgt geen opdracht; afzonderlijke fase-, kwartier-, batterij- en broncontroles '
+                   'blijven gelden.',
  'priority_stable_s': 'Hoe lang genoeg vermogen vrijgemaakt kan worden voor het EV-minimum voordat lagere '
                       'eigen lasten wijken. Standaard 120 s. Een lopende compressor krijgt eerst zijn '
                       'minimumlooptijd.',
@@ -1155,9 +1176,11 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                              'Alleen de SG-aanvraag, geen compressorlooptijd. De wolkentimer gebruikt de '
                              'actuele P1-netmeting. Resterende schermtijd blijft begrensd door de geldigheid '
                              'vanaf de oorspronkelijke P1-rapportagetijd, de bevestigde lease en het harde '
-                             'maximum; een schermklok maakt oude brondata niet vers. Overschrijding van de afzonderlijke '
-                             'maximale totale netafname onderbreekt SG direct, ook als de autonoom regelende Wallbox '
-                             'nog laadt. Langer bufferen verandert die grens niet.',
+                             'maximum; een schermklok maakt oude brondata niet vers. Alleen tijdens een '
+                             'geldige begrensde SG-/Wallbox-overdracht mag de softwarematige totale netgrens '
+                             'tijdelijk worden overschreden. Deze wolkentimer blijft ook dan op de ruwe '
+                             'P1-netafname doorlopen; de overdracht geeft geen nieuwe vijf minuten en '
+                             'omzeilt geen afzonderlijke fase-, kwartier- of batterijgrens.',
  'sg_advanced:import_threshold_w': 'Wolkenbuffer voor gewone actueel gemeten netafname, standaard 600 W. '
                                    'Alleen strikt hogere netafname start de aaneengesloten tekorttimer, '
                                    'standaard vijf minuten; bij deze grens of lager wordt de timer gewist. '
