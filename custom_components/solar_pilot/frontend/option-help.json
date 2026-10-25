@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.106",
+  "version": "1.0.0-beta.107",
   "language": "nl",
   "steps": {
     "init": {
@@ -2682,7 +2682,7 @@
       "title": "Maximale softwarematige netafname (W)",
       "short": "Softwarematige bovengrens voor de totale netafname.",
       "paragraphs": [
-        "Softwarematige bovengrens voor de totale netafname. Dit is geen zekeringbeveiliging en beschermt niet zelfstandig elke fase. Lagere waarden beperken toegestane starts; onbeheerde apparaten kunnen de grens toch overschrijden.",
+        "Softwarematige bovengrens voor de totale netafname. Dit is geen zekeringbeveiliging en beschermt niet zelfstandig elke fase. Lagere waarden beperken toegestane starts; onbeheerde apparaten kunnen de grens toch overschrijden. Overschrijding geeft een eigen SG-aanvraag onmiddellijk vrij, ook tijdens minimumduur of wolkenbuffer. Een langere wolkenbuffer verruimt deze grens niet.",
         "Vermogensinstellingen zijn softwarematige planningsgrenzen. Ze verhogen nooit de echte capaciteit van de aansluiting.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -4196,7 +4196,7 @@
       "title": "Netafname moet continu aanhouden (s)",
       "short": "Gewone actueel gemeten netafname moet continu boven de ingestelde wolkenbuffer blijven gedurende deze tijd, standaard 300 seconden of vijf minuten.",
       "paragraphs": [
-        "Gewone actueel gemeten netafname moet continu boven de ingestelde wolkenbuffer blijven gedurende deze tijd, standaard 300 seconden of vijf minuten. Bij de buffer of lager wordt de lopende tekorttimer gewist. Vrijgave wacht op zowel deze volledige aaneengesloten tijd als het effectieve minimum, standaard twintig minuten. De tekorttimer loopt tijdens het minimum door: vanaf minuut 18 betekent pas minuut 23, en eerder voltooide vijf minuten kunnen bij minuut 20 al gelden. Korte lokale leases worden tijdens geldige wolkenwachttijd veilig vernieuwd, ook na het minimum. Harde guards, geverifieerde native beëindiging, handmatige overname en sessiemaximum blijven direct leidend. Alleen de SG-aanvraag, geen compressorlooptijd. De wolkentimer gebruikt de actuele P1-netmeting. Resterende schermtijd blijft begrensd door de geldigheid vanaf de oorspronkelijke P1-rapportagetijd, de bevestigde lease en het harde maximum; een schermklok maakt oude brondata niet vers.",
+        "Gewone actueel gemeten netafname moet continu boven de ingestelde wolkenbuffer blijven gedurende deze tijd, standaard 300 seconden of vijf minuten. Bij de buffer of lager wordt de lopende tekorttimer gewist. Vrijgave wacht op zowel deze volledige aaneengesloten tijd als het effectieve minimum, standaard twintig minuten. De tekorttimer loopt tijdens het minimum door: vanaf minuut 18 betekent pas minuut 23, en eerder voltooide vijf minuten kunnen bij minuut 20 al gelden. Korte lokale leases worden tijdens geldige wolkenwachttijd veilig vernieuwd, ook na het minimum. Harde guards, geverifieerde native beëindiging, handmatige overname en sessiemaximum blijven direct leidend. Alleen de SG-aanvraag, geen compressorlooptijd. De wolkentimer gebruikt de actuele P1-netmeting. Resterende schermtijd blijft begrensd door de geldigheid vanaf de oorspronkelijke P1-rapportagetijd, de bevestigde lease en het harde maximum; een schermklok maakt oude brondata niet vers. Overschrijding van de afzonderlijke maximale totale netafname onderbreekt SG direct, ook als de autonoom regelende Wallbox nog laadt. Langer bufferen verandert die grens niet.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]

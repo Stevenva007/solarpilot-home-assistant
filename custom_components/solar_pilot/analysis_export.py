@@ -346,6 +346,70 @@ def entity_snapshot(hass, eid, wall):
     return result
 
 
+def electrical_source_evidence(runtime, entity_id, wall, stale_s, *, power=False, nonnegative=False):
+    """A configured source's original report, never a new physical measurement.
+
+    Keep stale raw reports and their clocks visible without turning them into
+    usable watts. Only fixed source roles are sampled; related entity attributes
+    and device/account metadata do not enter the fast log.
+    """
+    entity_id = entity_id if isinstance(entity_id, str) and ENTITY_RE.fullmatch(entity_id) and not PRIVATE_KEYS.search(entity_id) else None
+    obj = runtime.hass.states.get(entity_id) if entity_id else None
+    attrs = getattr(obj, "attributes", {}) or {}
+    stamp = runtime._reported_wall(obj)
+    if isinstance(stamp, bool) or not isinstance(stamp, (int, float)) or not math.isfinite(stamp) or not 0 < stamp <= wall + 5:
+        stamp = None
+    age = wall-stamp if stamp is not None else None
+    raw = obj.state if obj is not None else None
+    fresh = age is not None and -5 <= age <= stale_s
+    valid = bool(fresh and raw not in (None, "", "unknown", "unavailable")
+                 and not any(attrs.get(key) for key in ("estimated", "is_estimated", "restored")))
+    result = {"entity_id": entity_id, "raw_state": raw, "reported_at_wall": stamp,
+              "report_age_s": round(age, 2) if age is not None else None,
+              "stale_s": stale_s, "valid": valid}
+    if power:
+        watts, _ = runtime._power(entity_id, stale_s)
+        valid = bool(valid and not isinstance(watts, bool) and isinstance(watts, (int, float))
+                     and math.isfinite(watts) and (not nonnegative or watts >= 0))
+        result.update(unit_of_measurement=attrs.get("unit_of_measurement"),
+                      watts=watts if valid else None, valid=valid)
+    return result
+
+
+def electrical_context_evidence(runtime, wall):
+    """Capture site and charger evidence together without polling or control."""
+    c = runtime.wallbox_settings
+    site = {role: electrical_source_evidence(runtime, runtime.settings.get(key), wall,
+                runtime.settings["stale_s"], power=True)
+            for role, key in (("grid", "grid_entity"), ("pv", "pv_entity"))}
+    if runtime.settings.get("grid_sign") == "separate":
+        site["grid_export"] = electrical_source_evidence(runtime, runtime.settings.get("export_entity"),
+            wall, runtime.settings["stale_s"], power=True, nonnegative=True)
+    reading, guard = runtime.wallbox_guard.reading, runtime.wallbox_guard.result
+    sources = {role: electrical_source_evidence(runtime, c.get(key), wall, c["stale_s"],
+                   power=role == "power", nonnegative=True)
+               for role, key in (("power", "power_entity"), ("session", "session_mode_entity"),
+                                 ("status", "status_entity"), ("mode", "mode_entity"))}
+    reading_stamp = reading.stamp
+    if (isinstance(reading_stamp, bool) or not isinstance(reading_stamp, (int, float))
+            or not math.isfinite(reading_stamp) or not 0 < reading_stamp <= wall + 5):
+        reading_stamp = None
+    wallbox = {"enabled": c["enabled"], "read_only": True,
+               "state": guard.state, "reason": guard.reason,
+               "power_w": reading.power_w if reading.valid else None,
+               "power_reported_at": reading_stamp,
+               "last_report_age_s": round(wall-reading_stamp, 2) if reading_stamp is not None else None,
+               "demand": reading.demand, "reported_mode": reading.mode,
+               "reported_status": reading.status, "session_value": reading.session_value,
+               "session_confirmed": reading.session_confirmed,
+               "session_reported_at": sources["session"]["reported_at_wall"],
+               "session_source_matches_reading": bool(sources["session"]["valid"]
+                   and sources["session"]["raw_state"] == reading.session_value),
+               "sources": sources,
+               "meter_note": "Regelreading en actuele bronrapporten staan apart. Bronrapporttijd is geen bewezen fysiek meettijdstip; bronnen kunnen onderling achterlopen."}
+    return site, wallbox
+
+
 def consumer_evidence(runtime, device_id, wall=None, now=None):
     """Read original feedback separately from controller accounting values."""
     wall = time.time() if wall is None else wall
@@ -658,6 +722,8 @@ class AnalysisRecorder:
         fast = {"ts": wall, "release": VERSION, "mode": r.mode, "grid_w": r.grid_w, "pv_w": r.pv_w,
                 "source_policy": {"grid_entity": r.settings.get("grid_entity"),
                                   "pv_entity": r.settings.get("pv_entity"),
+                                  "grid_sign": r.settings.get("grid_sign"),
+                                  "export_entity": r.settings.get("export_entity") if r.settings.get("grid_sign") == "separate" else None,
                                   "stale_s": r.settings.get("stale_s")},
                 "problem": safe(getattr(r, "problem", "")),
                 "problem_kind": getattr(r, "problem_kind", ""),
@@ -673,6 +739,7 @@ class AnalysisRecorder:
                                   "power_w": s.measured_w, "target_w": r.result.targets.get(i),
                                   "reason": r.result.reasons.get(i), "estimated": not bool(r.configs[i].get("power_entity"))}
                             for i, s in r.states.items()}, "cycle_ms": round(elapsed_ms, 3)}
+        fast["electrical_sources"], fast["wallbox"] = electrical_context_evidence(r, wall)
         for device_id, data in fast["devices"].items():
             cfg = r.configs[device_id]
             data.update(consumer_evidence(r, device_id, wall))
@@ -694,8 +761,15 @@ class AnalysisRecorder:
         from .analysis_review import discrete_heatpump_state, heatpump_record
         heatpump_state = discrete_heatpump_state(fast["panasonic"], fast["sg_boost"])
         if heatpump_state != self.last_heatpump_state:
+            event_data = {"state": heatpump_state, "observation": heatpump_record(fast)}
+            previous_sg = self.last_heatpump_state.get("sg") if isinstance(self.last_heatpump_state, dict) else None
+            if heatpump_state["sg"] != previous_sg:
+                # Keep the original electrical reports at a request/contact
+                # transition beyond the RAM-only two-hour fast-log window.
+                event_data["electrical_context"] = {key: fast[key] for key in
+                    ("ts", "grid_w", "pv_w", "source_policy", "electrical_sources", "wallbox")}
             self.event("heatpump_change", "Warmtepomp-/SG-meldingen of meetdrempel gewijzigd",
-                       {"state": heatpump_state, "observation": heatpump_record(fast)})
+                       event_data)
             self.last_heatpump_state = heatpump_state
         effective_settings = safe({"settings": r.settings, "devices": r.configs, "sg_boost": r.sg_boost.config,
                                    "wallbox": r.wallbox_settings, "pv_forecast": r.pv_forecast.settings,
@@ -758,7 +832,7 @@ class AnalysisRecorder:
             self.last_state[eid] = obj.get("state")
         w = r.wallbox_overview()
         snapshot = {**fast, "entities": compact,
-                    "wallbox": {k: safe(w.get(k)) for k in ("state", "reason", "power_w", "demand", "reported_mode", "last_report_age_s", "handover")},
+                    "wallbox": {**fast["wallbox"], **{k: safe(w.get(k)) for k in ("state", "reason", "power_w", "demand", "reported_mode", "last_report_age_s", "handover")}},
                     "phase": safe(r.phase), "capacity": safe(r.capacity), "prices": safe(r._economy_prices())}
         self._append("samples", safe(snapshot))
         self.prune(wall)

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.107 — coherent SG-zonnebudget en verklaarde netgrens
+
+- Laat een recent maar met actuele P1/PV tegenstrijdig Wallboxrapport geen voorwaardelijke SG-startbijdrage leveren. De complete actuele warmtepompmeting telt mee in de coherentiecontrole; 250 W tolerantie vangt kleine tijdverschillen op.
+- Behoudt werkelijk gemeten restoverschot, al toegelaten SG-aanvragen en alle bestaande elektrische grenzen, minimumduur en wolkenbuffer. Verhoogt geen limiet of buffertijd.
+- Benoemt de effectieve SG-/Wallboxvolgorde correct en legt uit dat de afzonderlijke totale netgrens SG direct kan vrijgeven, ook als de Wallbox nog laadt.
+- Breidt snelle analysewaarnemingen en nieuwe SG-toestandsovergangen uit met begrensd oorspronkelijk net-/PV-/Wallboxbronbewijs. Oude ontbrekende gegevens blijven onbekend.
+- Werkt actuele uitleg, optiehulp, installatie-/rollbackdocument en overdracht bij. Zie BETA107_INSTELLEN.md en TESTRESULTATEN_BETA107.md; de vijf bestaande exacte publicatiegates blijven verplicht.
+
 ## 1.0.0-beta.106 — centrale voorrang en automatische SG-overname
 
 - Verwijdert de vaste Wallbox-vóór-SG-beperking; pijltjes en slepen kunnen SG en gewone toestellen langs de Wallbox verplaatsen.

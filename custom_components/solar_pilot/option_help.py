@@ -123,7 +123,9 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
               'nulimportgarantie.',
  'max_import_w': 'Softwarematige bovengrens voor de totale netafname. Dit is geen zekeringbeveiliging en '
                  'beschermt niet zelfstandig elke fase. Lagere waarden beperken toegestane starts; '
-                 'onbeheerde apparaten kunnen de grens toch overschrijden.',
+                 'onbeheerde apparaten kunnen de grens toch overschrijden. Overschrijding geeft een eigen '
+                 'SG-aanvraag onmiddellijk vrij, ook tijdens minimumduur of wolkenbuffer. Een langere '
+                 'wolkenbuffer verruimt deze grens niet.',
  'battery_min_soc': 'Onder deze batterijlaadtoestand mag ontladen vermogen niet als beschikbare energie voor '
                     'gewone nieuwe zonnelasten worden behandeld. Dit is geen vervanging voor de echte '
                     'batterij-BMS-reserve.',
@@ -1153,7 +1155,9 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                              'Alleen de SG-aanvraag, geen compressorlooptijd. De wolkentimer gebruikt de '
                              'actuele P1-netmeting. Resterende schermtijd blijft begrensd door de geldigheid '
                              'vanaf de oorspronkelijke P1-rapportagetijd, de bevestigde lease en het harde '
-                             'maximum; een schermklok maakt oude brondata niet vers.',
+                             'maximum; een schermklok maakt oude brondata niet vers. Overschrijding van de afzonderlijke '
+                             'maximale totale netafname onderbreekt SG direct, ook als de autonoom regelende Wallbox '
+                             'nog laadt. Langer bufferen verandert die grens niet.',
  'sg_advanced:import_threshold_w': 'Wolkenbuffer voor gewone actueel gemeten netafname, standaard 600 W. '
                                    'Alleen strikt hogere netafname start de aaneengesloten tekorttimer, '
                                    'standaard vijf minuten; bij deze grens of lager wordt de timer gewist. '

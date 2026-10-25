@@ -1,5 +1,5 @@
-/* SolarPilot 1.0.0-beta.106. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
-const SP_CARD_VERSION = '1.0.0-beta.106';
+/* SolarPilot 1.0.0-beta.107. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+const SP_CARD_VERSION = '1.0.0-beta.107';
 const SP_DIALOG_RELEASE = SP_CARD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g,'-');
 const SP_ANALYSIS_DIALOG_TAG = `solar-pilot-analysis-dialog-${SP_DIALOG_RELEASE}`;
 const SP_QUALITY_DIALOG_TAG = `solar-pilot-learning-dialog-${SP_DIALOG_RELEASE}`;
@@ -2113,7 +2113,8 @@ class SolarPilotCard extends HTMLElement {
     return {...value,instantaneous_headroom_w:fresh?value.instantaneous_headroom_w:null,
       sg_eligible_solar_w:solarFresh?value.sg_eligible_solar_w:null,
       sg_hp_solar_w:solarFresh?value.sg_hp_solar_w:null,
-      sg_residual_solar_w:solarFresh?value.sg_residual_solar_w:null};
+      sg_residual_solar_w:solarFresh?value.sg_residual_solar_w:null,
+      sg_ev_credit_reason:solarFresh?value.sg_ev_credit_reason:null};
   }
   _sgCoolingState(c){
     const s=c.sgBoost||{},p=c.panasonic||{},value=s.cooling_diagnostic?.schema===1?s.cooling_diagnostic:p.cooling_context_diagnostic;
@@ -2142,9 +2143,10 @@ class SolarPilotCard extends HTMLElement {
   }
   _sgTransportDetails(c,scope){
     const s=c.sgBoost||{},stop=s.last_session,current=s.transport_evidence,previous=stop?.transport;
-    if(!current&&!previous)return '';
+    if(!current&&!previous&&!stop)return '';
     const zone=this._hass?.config?.time_zone;
-    return `<details data-ui-key="sg:${spEscape(scope)}:transport"><summary>SG-stopbesluit en transport</summary><dl class="investigation-metrics"><div><dt>Laatste stopbesluit</dt><dd>${stop?spEscape(spProofClock(stop.ended_at,zone)+' · '+String(stop.reason||'Reden onbekend').slice(0,240)):'Onbekend'}</dd></div><div><dt>Transport bij die stop</dt><dd>${spEscape(spTransportProof(previous))} · ${spEscape(spProofClock(previous?.observed_at,zone))}</dd></div><div><dt>Laatste transportstap</dt><dd>${spEscape(spTransportProof(current))} · ${spEscape(spProofClock(current?.observed_at,zone))}</dd></div></dl><p class="note">Dit zijn afzonderlijke geregistreerde momenten. Een latere geslaagde lezing bevestigt geen eerdere UIT-opdracht. Contactstand en Panasonic-ontvangst behouden hun eigen bronbewijs.</p></details>`;
+    const hardNetStop=typeof stop?.reason==='string'&&/^Netgrens overschreden: [0-9]+(?:\.[0-9]+)? W afname > [0-9]+(?:\.[0-9]+)? W$/.test(stop.reason);
+    return `<details data-ui-key="sg:${spEscape(scope)}:transport"><summary>SG-stopbesluit en transport</summary><dl class="investigation-metrics"><div><dt>Laatste stopbesluit</dt><dd>${stop?spEscape(spProofClock(stop.ended_at,zone)+' · '+String(stop.reason||'Reden onbekend').slice(0,240)):'Onbekend'}</dd></div><div><dt>Transport bij die stop</dt><dd>${spEscape(spTransportProof(previous))} · ${spEscape(spProofClock(previous?.observed_at,zone))}</dd></div><div><dt>Laatste transportstap</dt><dd>${spEscape(spTransportProof(current))} · ${spEscape(spProofClock(current?.observed_at,zone))}</dd></div></dl>${hardNetStop?'<p class="note" data-sg-stop-limit="net">De vaste netafnamegrens stopte deze SG-aanvraag direct. De wolkenbuffer en minimumduur stellen deze grens niet uit. De autonoom regelende Wallbox kan op dat moment nog laden; een langere wolkenbuffer voorkomt deze stop niet.</p>':''}<p class="note">Dit zijn afzonderlijke geregistreerde momenten. Een latere geslaagde lezing bevestigt geen eerdere UIT-opdracht. Contactstand en Panasonic-ontvangst behouden hun eigen bronbewijs.</p></details>`;
   }
   _sgDetails(c,scope='comfort'){
     const s=c.sgBoost||{},p=c.panasonic||{},zones=Array.isArray(p.display_zones)?p.display_zones:Array.isArray(p.zones)?p.zones:[];
@@ -2167,7 +2169,9 @@ class SolarPilotCard extends HTMLElement {
     const electrical=this._electricalLimits(c);
     if(electrical){
       facts.push(['Zonnevermogen voor SG-drempel',spPower(electrical.sg_eligible_solar_w)],['Warmtepompbijdrage aan startdrempel (afgeleid)',spPower(electrical.sg_hp_solar_w)],['Resterende vrije zonnestroom',spPower(electrical.sg_residual_solar_w)],['Elektrische ruimte nu',spPower(electrical.instantaneous_headroom_w)]);
-      if(electrical.sg_protected_ev_headroom_w!=null)facts.push(['Stabiele ruimte na Wallbox',spPower(electrical.sg_protected_ev_headroom_w)]);
+      facts.push(['Vaste netafnamegrens',spPower(electrical.fixed_import_limit_w)]);
+      if(electrical.sg_ev_credit_reason)facts.push(['Wallbox-bijdrage',String(electrical.sg_ev_credit_reason)]);
+      if(electrical.sg_protected_ev_headroom_w!=null)facts.push(['Stabiele ruimte voor SG',spPower(electrical.sg_protected_ev_headroom_w)]);
       if(electrical.quarter_enabled)facts.push(['Theoretisch kwartierbudget',spPower(electrical.quarter_theoretical_headroom_w)]);
     }
     if(p.power_scope==='split')facts.push(['Voeding 1',this._supplyPower(p,1)],['Voeding 2',this._supplyPower(p,2)]);

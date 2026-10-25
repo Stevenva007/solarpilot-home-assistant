@@ -239,7 +239,8 @@ class SolarRuntime:
         if (self.wallbox_settings.get("enabled")
                 and wallbox_cap is not None and incremental + isolated + unconsumed > wallbox_cap):
             free = max(0.0, wallbox_cap - isolated - unconsumed)
-            return False, (f"Wallbox heeft voorrang: SG vraagt {incremental:.0f} W extra; "
+            priority = "SG vóór Wallbox" if self.priority_board.sg_before_wallbox() else "Wallbox heeft voorrang"
+            return False, (f"{priority}: SG vraagt {incremental:.0f} W extra; "
                            f"stabiele vrije zonnestroom laat nu {free:.0f} W toe")
         if (self.phase_settings.get("enabled") and self.phase_settings.get("control_starts")
                 and (not self.phase.valid or self.phase.block_increase
@@ -347,6 +348,7 @@ class SolarRuntime:
             "sg_residual_solar_w": solar["available_w"] if solar["valid"] else None,
             "sg_hp_solar_w": solar.get("hp_solar_w", 0.0) if solar["valid"] else None,
             "sg_hp_credit_reason": solar.get("hp_credit_reason", ""),
+            "sg_ev_credit_reason": solar.get("ev_credit_reason") if solar["valid"] else None,
             "sg_protected_ev_headroom_w": (self.sg_wallbox_guard.result.max_increase_w
                 if self.wallbox_settings.get("enabled") else None),
         }
@@ -1523,7 +1525,9 @@ class SolarRuntime:
                 "reclaim_allowed_now": reclaim_now, "reclaim_reason": reclaim_reason,
                 "priority_min_power_w": self.consumer_wallbox.settings["priority_min_power_w"],
                 "charging_profile": self.wallbox_profile.cached,
-                "comfort_priority": "Warmtepompcomfort vóór Wallbox; extra 60 °C ná Wallbox",
+                "comfort_priority": ("Warmtepompcomfort blijft bij Panasonic; SG-zonneboost vóór Wallbox"
+                    if self.priority_board.sg_before_wallbox() else
+                    "Warmtepompcomfort blijft bij Panasonic; SG-zonneboost ná Wallbox"),
                 "priority_switch": self.entity_id("switch", "others_first"),
                 "reclaimable_w": reclaimable,
                 "handover": self.handover.overview(time.monotonic()) if self.handover else self.last_handover,

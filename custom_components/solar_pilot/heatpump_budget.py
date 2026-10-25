@@ -228,6 +228,7 @@ def sg_solar_budget(runtime):
                 and hp_stamp is not None and -5 <= now-hp_stamp <= stale)
     ev = 0.0
     ev_stamp = None
+    ev_credit_reason = None
     board = getattr(runtime, "priority_board", None)
     if board is not None and board.sg_before_wallbox() and runtime.wallbox_settings.get("enabled"):
         from .wallbox import state_set
@@ -237,8 +238,17 @@ def sg_solar_budget(runtime):
                 and reading.mode.casefold() in state_set(runtime.wallbox_settings["full_solar_states"])
                 and reading.demand is not False and watts is not None and watts >= 0
                 and reported is not None and -5 <= now-reported <= min(stale, runtime.wallbox_settings["reclaim_max_age_s"])):
-            ev = min(watts, float(runtime.sg_boost.settings["expected_power_w"]))
-            ev_stamp = reported
+            # A cloud-polled EV report can still be within its age limit after
+            # the charger has already reduced power. It must fit inside the
+            # contemporaneous whole-site load before it supplies solar credit.
+            # P1/PV also arrive separately: inconsistency removes conditional
+            # credit only, never measured export or a live SG permission.
+            site_load = max(0.0, pv + grid + discharge)
+            if watts + (hp if complete else 0.0) > site_load + 250.0:
+                ev_credit_reason = "Wallbox-rapport past niet bij de actuele P1/PV-balans; alleen werkelijk zonneoverschot telt"
+            else:
+                ev = min(watts, float(runtime.sg_boost.settings["expected_power_w"]))
+                ev_stamp = reported
     hp_eligible = max(0.0, min(pv, (hp if complete else 0.0)-conservative_grid-discharge)-reserve)
     eligible = max(0.0, min(pv, (hp if complete else 0.0)+ev-conservative_grid-discharge)-reserve)
     credit = max(0.0, hp_eligible-available)
@@ -246,7 +256,7 @@ def sg_solar_budget(runtime):
                      if credit > 0 else "Geen extra zonnebijdrage uit de warmtepompmeting"
                      if complete else power.get("reason") or "Warmtepomptotaal niet volledig of actueel")
     return {"valid": True, "available_w": available, "eligible_w": eligible, "hp_solar_w": credit,
-            "ev_solar_w": ev, "ev_reported_at": ev_stamp,
+            "ev_solar_w": ev, "ev_reported_at": ev_stamp, "ev_credit_reason": ev_credit_reason,
             "hp_power_w": hp if complete else None, "hp_credit_reason": credit_reason,
             "grid_w": grid, "conservative_grid_w": conservative_grid,
             "discharge_w": discharge, "pv_w": pv, "reserve_w": reserve,

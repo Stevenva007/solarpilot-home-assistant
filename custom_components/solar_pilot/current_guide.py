@@ -3,15 +3,16 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.106'
-GUIDE_UPDATED = '2026-10-24'
+GUIDE_VERSION = '1.0.0-beta.107'
+GUIDE_UPDATED = '2026-10-25'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.106',
- 'updated': '2026-10-24',
+ 'version': '1.0.0-beta.107',
+ 'updated': '2026-10-25',
  'intro': 'SolarPilot verdeelt beschikbare zonnestroom volgens één instelbare volgorde. De Wallbox staat standaard achteraan en regelt zelf het '
-          'resterende zonneoverschot. Een extern handmatig ingeschakeld SG-contact wordt zichtbaar overgenomen en na vijftien minuten '
-          'automatisch herbeoordeeld. Je bewaart je toestellen, metingen en historiek. Panasonic blijft de warmtepomp zelfstandig regelen.',
+          'resterende zonneoverschot. Voorwaardelijk laadvermogen voor een SG-start moet ook bij de actuele P1/PV-balans passen. De '
+          'wolkenbuffer overbrugt gewone tekorten; de afzonderlijke netgrens blijft direct gelden. Je bewaart je toestellen, metingen en '
+          'historiek. Panasonic blijft de warmtepomp zelfstandig regelen.',
  'sections': [{'title': '1. Basisprincipe en modi',
                'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele net- en PV-metingen, echte '
                               'toestelvoorwaarden en elektrische grenzen gaan altijd vóór een voorspelling of geleerd patroon. Eén uitgang '
@@ -279,7 +280,10 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'vernieuwing leidend. Dit kan gewone netafname binnen die grenzen tijdelijk toestaan en garandeert geen '
                               'nulimport. De wolkentimer gebruikt de actuele P1-netmeting. Resterende schermtijd blijft begrensd door de '
                               'geldigheid vanaf de oorspronkelijke P1-rapportagetijd, de bevestigde lease en het harde maximum; een schermklok '
-                              'maakt oude brondata niet vers.',
+                              'maakt oude brondata niet vers. Een overschrijding van de apart ingestelde maximale totale netafname geeft SG '
+                              'onmiddellijk vrij, ook tijdens minimumduur of wolkenbuffer en ook als de lager geplaatste Wallbox nog laadt. Een '
+                              'langere wolkenbuffer verandert die beslissing niet. SolarPilot kan de read-only Wallbox niet dwingen eerst te '
+                              'stoppen en garandeert geen nulimport.',
                               'De minimumduur begint pas na bevestigde contact-AAN. Leasevernieuwing reset haar niet; herstart of reload geeft '
                               'geen nieuw minimum of nieuwe sessie. De tekorttimer loopt tijdens het minimum door. Begint netafname boven 600 W '
                               'in minuut 18, dan zijn vijf continue minuten pas in minuut 23 voltooid en kan dan pas gewone vrijgave worden '
@@ -359,7 +363,12 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'laadvermogen, geen werkelijk vrije injectie. Zonder geldige actuele zonnelaadgegevens telt alleen aantoonbare '
                               'restzon en de afzonderlijk volledig gemeten warmtepompbijdrage mee. De Wallbox krijgt geen opdracht: zij regelt '
                               'zelf terug. Een lagere eigen onderbreekbare last mag alleen wijken met behoud van minimumlooptijd en '
-                              'gebruikerskeuze; een afwasprogramma en native noodzakelijk comfort blijven beschermd.',
+                              'gebruikerskeuze; een afwasprogramma en native noodzakelijk comfort blijven beschermd. Vanaf beta.107 wordt deze '
+                              'voorwaardelijke laadbijdrage geweigerd als het gemelde laadvermogen samen met de complete actuele '
+                              'warmtepompmeting meer dan 250 W boven de uit actuele PV, getekende P1 en batterijontlading afgeleide totale '
+                              'belasting ligt. Dit is een conservatieve controle op ongelijktijdige rapporten, geen meterkalibratie of bewijs '
+                              'van de fysieke oorzaak. Werkelijke restinjectie blijft bruikbaar; de controle geeft geen nieuwe stopopdracht aan '
+                              'een al toegelaten SG-aanvraag.',
                               'De startdrempel en de elektrische ruimte blijven afzonderlijk. Bijvoorbeeld 2000 W volledig gemeten '
                               'warmtepompverbruik en 1000 W bruikbaar restoverschot kunnen 3000 W voor de startdrempel leveren. SG vóór een '
                               'bevestigde zonneladende Wallbox kan daarnaast de begrensde actuele laadbijdrage gebruiken. De vaste importgrens, '
@@ -898,11 +907,12 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'rapporttijden afzonderlijk. Een onbewezen templateafhankelijkheid, formule of trigger blijft onbekend. Een verse '
                               'vergelijkingsbron maakt een oude template niet vanzelf geldig. Net/PV-coherentie toont het tijdverschil tussen '
                               'de oorspronkelijke rapporten en de bekende producent-/opslagdekking; onbekende aanvullende productie of opslag '
-                              'blijft mogelijk. Een opvallende balans maakt geen tekenomkering of nieuwe regelblokkering. Eerder beoordeelde '
-                              'verklaring, aantallen en bronbewijs blijven één samenhangende beoordeling met eigen tijdstip. Een nieuwe actuele '
-                              'bronwaarneming staat afzonderlijk met haar oorspronkelijke tijden en waarden. Een gewoon nieuw rapport verandert '
-                              'niet automatisch bronidentiteit of beleidscontext. Zo wordt een eerdere leeftijd of tijdscheefheid niet met '
-                              'later bronbewijs als hetzelfde meetmoment weergegeven.',
+                              'blijft mogelijk. De diagnostische balansmelding keert geen teken om en geeft zelf geen nieuwe regelblokkering. '
+                              'De afzonderlijke SG-startcoherentiecontrole kan uitsluitend de voorwaardelijke EV-bijdrage weigeren; werkelijk '
+                              'restoverschot blijft bruikbaar. Eerder beoordeelde verklaring, aantallen en bronbewijs blijven één samenhangende '
+                              'beoordeling met eigen tijdstip. Een nieuwe actuele bronwaarneming staat afzonderlijk met haar oorspronkelijke '
+                              'tijden en waarden. Een gewoon nieuw rapport verandert niet automatisch bronidentiteit of beleidscontext. Zo '
+                              'wordt een eerdere leeftijd of tijdscheefheid niet met later bronbewijs als hetzelfde meetmoment weergegeven.',
                               'De afzonderlijke SG-beoordeling benoemt de bestaande minimum- en wolkenbufferinstellingen en de grenzen van het '
                               'beschikbare sessie- en reactiebewijs. Historische sessies uit een oudere release valideren geen nieuwere timers. '
                               'Elektrische activiteit of een gesloten contact bewijst geen causale extra SG-opname. Voorstellen voor betere '
@@ -913,7 +923,10 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'krijgt geen bewezen start. Herstart, een meetgat boven dertig seconden, verlopen bronbewijs of gewijzigde policy '
                               'kan geen complete vergelijkbare sessie opleveren. Opgeslagen records herstellen geen actieve aanvraag of '
                               'bronzekerheid. Een passende complete sessie is beperkt timingbewijs, geen algemene praktijkacceptatie of '
-                              'compressorlooptijd.',
+                              'compressorlooptijd. Vanaf beta.107 bewaren de snelle analysewaarnemingen en nieuwe SG-toestandsovergangen '
+                              'bovendien afzonderlijke net-/PV- en Wallbox-bronwaarden met oorspronkelijke rapporttijden en '
+                              'laadsessiebevestiging. Een laatste ontvangen cloudrapport is niet noodzakelijk de fysieke waarde op het '
+                              'stopmoment. Oudere ontbrekende bronvelden worden niet achteraf ingevuld.',
                               'Nieuwe SG-onderzoeksmetingen bereiken vanaf beta.81 de werkelijke onderzoeksfunctie. Een begrensd historisch '
                               'checkpoint markeert bronverlies of herstart als onvolledig en niet vergelijkbaar. Hij hervat geen actieve '
                               'onderzoekscursor, aanvraag, lease of apparaatopdracht. Controllerstop, oorspronkelijk gemeld contact en concrete '
@@ -1261,10 +1274,10 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Voor verwijderen kies je Verwijderen voorbereiden en wacht je op de gerichte veilige vrijgave. Een onzekere '
                               'SG-uitgang blijft eerlijk onbekend; de gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen '
                               'van SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, AEG- of Shelly-integratie.',
-                              'Rollback naar beta.105 brengt de eerdere verplichte Wallbox-voor-SG-regel en de handmatige SG-blokkering terug. '
-                              'Maak vooraf een volledige privéback-up, geef de eigen SG-aanvraag veilig vrij en behoud de entry, opslag en '
-                              'userfiles. Een al opgeslagen nieuwe volgorde kan in de oude versie anders worden geïnterpreteerd. Zie '
-                              'BETA106_INSTELLEN.md.'],
+                              'Rollback naar beta.106 behoudt de centrale volgorde en externe SG-overname, maar mist de nieuwe '
+                              'SG-startcoherentiecontrole en aanvullende brontelemetrie. Maak vooraf een volledige privéback-up, geef de eigen '
+                              'SG-aanvraag veilig vrij en behoud de entry, opslag en userfiles. Gebruik geen twee runtimes tegelijk. Zie '
+                              'BETA107_INSTELLEN.md.'],
                'bullets': []},
               {'title': '21. Release- en documentatieregel',
                'paragraphs': ['Dit is de enige volledige actuele regelbeschrijving. current_guide.py genereert dezelfde Markdown-mirrors en '
