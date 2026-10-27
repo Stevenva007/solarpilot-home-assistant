@@ -1,15 +1,17 @@
 <!-- solarpilot-handoff-schema: 1 -->
-<!-- solarpilot-handoff-version: 1.0.0-beta.107 -->
+<!-- solarpilot-handoff-version: 1.0.0-beta.108 -->
 
 # OVERDRACHT — SolarPilot
 
-Laatst bijgewerkt: **25 oktober 2026**. Actuele bron: **v1.0.0-beta.107**. Bouwbasis: gepubliceerde beta.106 `8193c183e293b5bb02809930cf3a46fa35ee8a41`. Installatie en rollback: `docs/BETA107_INSTELLEN.md`. Softwarebewijs en publicatievoorwaarden: `docs/TESTRESULTATEN_BETA107.md`.
+Laatst bijgewerkt: **27 oktober 2026**. Actuele bron: **v1.0.0-beta.108**. Bouwbasis: gepubliceerde beta.106 `8193c183e293b5bb02809930cf3a46fa35ee8a41`. Installatie en rollback: `docs/BETA108_INSTELLEN.md`. Softwarebewijs en publicatievoorwaarden: `docs/TESTRESULTATEN_BETA108.md`.
 
 ## 1. Projectdoel in gewone taal
 
 SolarPilot verdeelt beschikbare zonnestroom lokaal tussen flexibele toestellen, een beschermde afwasmachine en een optionele SG-zonneboost. De autonoom regelende Wallbox gebruikt standaard het overschot dat overblijft. Panasonic regelt zelfstandig ruimtecomfort, normaal warm water, koeling en sterilisatie. Home Assistant toont actuele activiteit, de reden om te wachten en geregistreerde historie. Modellen en voorspellingen helpen plannen; actuele metingen bepalen wat fysiek mag.
 
 ## 2. Actuele basis
+
+Beta.108 voorkomt te grote recorderattributen bij Wallbox-sensoren. De vermogenssensor publiceert alleen power_w; de statussensor behoudt live diagnostiek maar sluit vier grote velden uit de recorder uit. Dit geeft geen nieuwe bronmeetmomenten, apparaatopdrachten of gewijzigde regelinstellingen. Regressies gebruiken uitsluitend fictieve gegevens.
 
 Beta.107 weigert voorwaardelijke EV-startbijdrage voor SG wanneer het recente Wallboxrapport samen met de complete actuele warmtepompmeting niet binnen de uit actuele PV, getekende P1 en batterijontlading afgeleide totale belasting past, met 250 W tolerantie. Werkelijk restoverschot en een al toegelaten SG-aanvraag behouden hun bestaande betekenis. Voorrangsteksten volgen de effectieve volgorde. Snelle analyse en nieuwe SG-toestandsovergangen bewaren afzonderlijk oorspronkelijk net-/PV-/Wallboxbronbewijs. Geen ingestelde netgrens of wolkenbuffer is verhoogd.
 
@@ -72,7 +74,7 @@ Gebruik uitsluitend fictieve bronidentiteiten in tests en browserfixtures. Diagn
 
 ## 9. Testprocedure + actuele teststatus
 
-De volledige beta.107-bron slaagt lokaal met 8707 tests, zonder fouten of skips, waaronder 40 nieuwe regressies. De 63 gerichte kaart-/module-/UI-controles slagen eveneens. Een achtergebleven kaartversie uit de eerste loop is gecorrigeerd vóór de geslaagde volledige herhaling. Actuele uitleg, overdracht, privacy/structuur, SG-grens, beide JavaScript-syntaxcontroles en online upstreamreview zijn gecontroleerd. De exacte CI-gates en downloadvergelijking blijven afzonderlijke voorwaarden voor publicatie. Zie docs/TESTRESULTATEN_BETA107.md.
+De beta.108-teststatus wordt vastgelegd in docs/TESTRESULTATEN_BETA108.md. De vijf commitgebonden CI-gates en de vergelijking van de gepubliceerde assets blijven verplicht; een eerdere groene release vervangt deze niet.
 
 Alle vijf bestaande CI-gates blijven verplicht: repository/full-suite, HACS, Hassfest, Chromium en echte Home Assistant-startup. De browsergate behoudt onder andere pijltjes, slepen, bevestigen, opslaan, mobiele weergave en externe SG-afteller. Een lokaal ontbrekende browser geeft geen reden om de vereiste remote browsergate over te slaan.
 
@@ -90,7 +92,7 @@ Na installatie met de nieuwe oorspronkelijke brontelemetrie observeren of de nat
 
 Update via HACS naar beta.107, herstart Home Assistant volledig en herlaad app/browser. Controleer backend-/kaartversie en de centrale volgorde. Maak vooraf een volledige privéback-up, inclusief aanvullende meterhistorie en userfiles.
 
-Rollback naar beta.106 behoudt de centrale volgorde en externe overname, maar mist de nieuwe coherentiecontrole en aanvullende diagnose. Geef een eigen SG-aanvraag waar betrouwbaar mogelijk veilig vrij, controleer lokale afloop en zet code terug met behoud van entry en gegevens. Geen tweede runtime of verwijder/herinstallatie als migratiemethode. Zie docs/BETA107_INSTELLEN.md.
+Rollback naar beta.106 behoudt de centrale volgorde en externe overname, maar mist de nieuwe coherentiecontrole en aanvullende diagnose. Geef een eigen SG-aanvraag waar betrouwbaar mogelijk veilig vrij, controleer lokale afloop en zet code terug met behoud van entry en gegevens. Geen tweede runtime of verwijder/herinstallatie als migratiemethode. Zie docs/BETA108_INSTELLEN.md.
 
 ## 13. Belangrijkste bestanden
 

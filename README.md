@@ -1,10 +1,10 @@
 # SolarPilot
 
-**Actuele bronversie: 1.0.0-beta.107.** SolarPilot verdeelt lokaal zonnestroom tussen je toestellen in Home Assistant.
+**Actuele bronversie: 1.0.0-beta.108.** SolarPilot verdeelt lokaal zonnestroom tussen je toestellen in Home Assistant.
 
 De Wallbox staat standaard achteraan en gebruikt zelfstandig het resterende overschot. Voorwaardelijk laadvermogen voor een SG-start moet bij de actuele P1/PV-balans passen; een nog recent maar fysiek tegenstrijdig cloudrapport levert geen laadbijdrage. De kaart benoemt de werkelijke voorrang en het verschil tussen wolkenbuffer en directe netgrens. Snelle diagnose bevat oorspronkelijke bronrapporten om een volgende laad-/netreactie te beoordelen.
 
-[Actuele werking](docs/ACTUELE_WERKING.md) · [Installatie en rollback](docs/BETA107_INSTELLEN.md) · [Testverslag](docs/TESTRESULTATEN_BETA107.md) · [Changelog](CHANGELOG.md)
+[Actuele werking](docs/ACTUELE_WERKING.md) · [Installatie en rollback](docs/BETA108_INSTELLEN.md) · [Testverslag](docs/TESTRESULTATEN_BETA108.md) · [Changelog](CHANGELOG.md)
 
 Panasonic regelt de warmtepomp zelfstandig; SolarPilot bedient uitsluitend de bevestigde SG-uitgang. De afwasmachine behoudt haar beschermde cyclus. Net-, fase- en kwartiergrenzen blijven gelden.
 
