@@ -245,14 +245,18 @@ def test_actual_p1_budget_with_missing_hp_total_keeps_zero_credit_and_full_futur
     assert budget["valid"] and budget["available_w"] == budget["eligible_w"] == 3200
     assert budget["hp_power_w"] is None and budget["hp_solar_w"] == 0
     assert runtime.sg_dispatch_allowed()
-    # Returning known watts may qualify existing HP-solar attribution only;
-    # it cannot reduce the full projected future request at the physical gate.
+    # Returning a complete coherent actual total also reduces the remaining
+    # increase towards the configured total HP envelope.
     hass.states.set("sensor.fictional_main_absent", 4000, {"unit_of_measurement": "W"})
     recovered = sg_solar_budget(runtime)
     assert recovered["valid"] and recovered["hp_power_w"] == 4000
     assert recovered["available_w"] == 3200 and recovered["eligible_w"] > recovered["available_w"]
     hass.states.set("sensor.grid", -2699, {"unit_of_measurement": "W"})
-    assert not runtime.sg_dispatch_allowed()
+    assert runtime.sg_dispatch_allowed()
+    # Losing the HP report restores the full possible increase, rather than
+    # retaining a deduction from an older successful read.
+    hass.states.set("sensor.fictional_main_absent", "unavailable", {"unit_of_measurement": "W"})
+    assert not runtime.sg_dispatch_allowed(ignore_solar=True)
 
 
 @pytest.mark.asyncio

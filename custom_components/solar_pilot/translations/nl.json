@@ -137,7 +137,7 @@
           "non_interruptible": "Gestarte cyclus niet onderbreken — vereist een vraagsignaal"
         },
         "data_description": {
-          "nominal_w": "Realistische conservatieve planningswaarde voor het toestel.",
+          "nominal_w": "Realistische raming voor een nieuwe start en de toestelplanning.",
           "min_units": "Kleinste bruikbare actieve instelling van de numerieke actuator.",
           "max_units": "Hoogste toegestane actuatorinstelling binnen het fysieke apparaatbereik.",
           "step_units": "Grootte van elke regelstap op de numerieke actuator.",
@@ -633,8 +633,8 @@
           "battery_min_soc": "Generieke batterij voorrang tot (%)"
         },
         "data_description": {
-          "reserve_w": "Injectiebuffer die SolarPilot niet opnieuw toewijst.",
-          "max_import_w": "Softwarematige bovengrens voor de totale netafname.",
+          "reserve_w": "Vaste huisbuffer die SolarPilot niet opnieuw toewijst.",
+          "max_import_w": "Softwarematige bovengrens voor de totale netafname, geen zekeringbeveiliging en geen afzonderlijke fasebeveiliging.",
           "battery_min_soc": "Onder deze batterijlaadtoestand mag ontladen vermogen niet als beschikbare energie voor gewone nieuwe zonnelasten worden behandeld."
         }
       },
@@ -718,7 +718,7 @@
           "idle_states": "Puntkomma-gescheiden statusnamen zonder actuele laadvraag, bijvoorbeeld Ready of Paused.",
           "full_solar_states": "Puntkomma-gescheiden herkenningswaarden voor uitsluitend zonneladen, bijvoorbeeld full_solar.",
           "handover_s": "Uiterste termijn om een gecontroleerde vermogensovername van de Wallbox te bevestigen.",
-          "handover_confirm_s": "Vereiste duur van bevestigde stabiele netmetingen tijdens een overname.",
+          "handover_confirm_s": "Vereiste duur van bevestigde stabiele netmetingen tijdens een gewone overdracht.",
           "handover_import_w": "Kleine tolerantie op netafname bij de bevestiging van een overdracht.",
           "reclaim_max_age_s": "Maximale leeftijd van het Wallbox-rapport voordat een nieuwe gecontroleerde overname mag beginnen.",
           "max_takeover_w": "Maximale vermogenstap bij het overnemen van laadvermogen.",
@@ -774,7 +774,7 @@
           "non_interruptible": "Gestarte cyclus niet onderbreken — vereist een vraagsignaal"
         },
         "data_description": {
-          "nominal_w": "Realistische conservatieve planningswaarde voor het toestel.",
+          "nominal_w": "Realistische raming voor een nieuwe start en de toestelplanning.",
           "min_units": "Kleinste bruikbare actieve instelling van de numerieke actuator.",
           "max_units": "Hoogste toegestane actuatorinstelling binnen het fysieke apparaatbereik.",
           "step_units": "Grootte van elke regelstap op de numerieke actuator.",
@@ -1061,7 +1061,7 @@
           "commissioning_confirmed": "Juiste SG-trap, gekozen toepassingsbereik en externe schrijvers gecontroleerd",
           "watchdog_confirmed": "Lokale aflooptimer en verlengen zonder schakelen getest",
           "threshold_w": "SG-startdrempel: restzon + reeds gebruikte warmtepompzon (W)",
-          "expected_power_w": "Voorlopige raming van de extra vraag (W)",
+          "expected_power_w": "Geraamd totaalvermogen bij SG (W)",
           "profile": "Toepassingsbereik SG-zonneboost",
           "profile_confirmed": "Toepassingsbereik lokaal bevestigd",
           "cooling_protection_confirmed": "Bestaande condens-/dauwpuntbeveiliging voor extra koeling bevestigd"
@@ -1072,7 +1072,7 @@
           "commissioning_confirmed": "Bevestig pas na lokale controle van de juiste SG-trap, gewenste native basisinstellingen, gekozen toepassingsbereik en afwezigheid van dubbele automatiseringen.",
           "watchdog_confirmed": "Bevestig pas na een echte lokale proef: de Shelly opent het contact wanneer vernieuwing uitblijft, en tijdige vernieuwing verlengt de timer zonder UIT/AAN-geklapper.",
           "threshold_w": "Benodigde zonnebijdrage voor een nieuwe SG-aanvraag, standaard 3000 W: werkelijk restoverschot plus het actuele bevestigde warmtepompverbruik dat al door zon wordt gedekt.",
-          "expected_power_w": "Voorlopige raming van de extra SG-vraag, standaard 3200 W.",
+          "expected_power_w": "Geraamd totaalvermogen van de warmtepomp met SG, standaard 3000 W.",
           "profile": "Kies het lokaal gecontroleerde toepassingsbereik: uitsluitend tapwater of algemene SG-boost volgens de actieve Panasonic-bedrijfsmodus.",
           "profile_confirmed": "Bevestig dat het geselecteerde toepassingsbereik overeenkomt met de lokaal ingestelde SG-capaciteit.",
           "cooling_protection_confirmed": "Bevestig alleen een geschikte bestaande condens-/dauwpuntbeveiliging voor extra koeling."

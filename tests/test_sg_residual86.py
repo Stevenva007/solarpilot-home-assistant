@@ -88,7 +88,7 @@ async def test_progress_is_read_only_and_expires_with_original_residual_report()
     assert progress["reassessment_state"] == "confirming_fresh_residual_surplus"
     assert progress["reassessment_remaining_s"] == 300
     assert progress["real_residual_surplus_w"] == 4000
-    assert progress["residual_reassessment_threshold_w"] == 3200
+    assert progress["residual_reassessment_threshold_w"] == 3000
     clock.advance(121)
     progress = manager.overview()
     assert progress["reassessment_remaining_s"] is None
@@ -145,6 +145,6 @@ def test_actual_p1_pv_budget_remains_valid_without_optional_hp_total(optional_po
     assert budget["hp_solar_w"] == 0
     assert budget["eligible_w"] == budget["available_w"]
     assert runtime.sg_dispatch_allowed() is True
-    # No measured HP total does not shrink the extra 3200 W estimate.
+    # No measured HP total does not shrink the full configured total estimate.
     hass.states.set("sensor.grid", 0, {"unit_of_measurement": "W"})
     assert runtime.sg_dispatch_allowed(ignore_solar=True) is False

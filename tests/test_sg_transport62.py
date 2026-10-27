@@ -202,7 +202,6 @@ async def test_missing_official_loaded_coordinator_has_no_generic_fallback(nativ
     ("id", "shelly1g4-020000000002", "unsupported_device"),
     ("mac", "not-a-mac", "unsupported_device"),
     ("profile", "cover", "wrong_role"),
-    ("ver", None, "firmware_unknown"), ("fw_id", "", "firmware_unknown"),
 ])
 async def test_real_device_information_must_match_exact_supported_hardware(native, field, value, code):
     native.device.info[field] = value
@@ -234,14 +233,12 @@ async def test_unsafe_local_settings_block_only_on_and_are_visible(native, field
 
 
 @pytest.mark.asyncio
-async def test_firmware_change_requires_rechecking_lease_but_allows_same_contact_off(native):
+async def test_firmware_change_keeps_live_configuration_and_timer_checks(native):
     await native.adapter.get_status()
     native.device.info.update(ver="2.0.0", fw_id="public-fixture/2.0.0")
     status = await native.adapter.get_status()
-    assert status["firmware"] == "2.0.0" and not status["setup_valid"]
-    with pytest.raises(ShellyLeaseError) as caught:
-        await native.adapter.set_on(300)
-    assert caught.value.code == "configuration_invalid" and writes(native) == []
+    assert status["firmware"] == "2.0.0" and status["setup_valid"]
+    assert (await native.adapter.set_on(300))["lease_proven"]
     assert (await native.adapter.set_off())["output"] is False
 
 
@@ -356,10 +353,9 @@ async def test_firmware_fingerprint_is_stable_and_changes_on_upgrade(native):
     assert first == (await native.adapter.get_status())["fingerprint"]
     native.device.info.update(ver="2.0.0", fw_id="public-fixture/2.0.0")
     upgraded = await native.adapter.get_status()
-    assert upgraded["fingerprint"] != first and not upgraded["setup_valid"]
+    assert upgraded["fingerprint"] != first and upgraded["setup_valid"]
     fresh_adapter = ShellyLeaseAdapter(native.hass, "switch.public_sg")
-    # A fresh adapter exposes the new fingerprint; controller's persisted
-    # commissioning must compare it with first before permitting ON.
+    # A fresh adapter exposes firmware metadata while physical checks stay live.
     assert (await fresh_adapter.get_status())["fingerprint"] != first
 
 

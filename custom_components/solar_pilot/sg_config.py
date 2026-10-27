@@ -14,7 +14,7 @@ import re
 SG_DEFAULTS = {
     "entity_id": "", "enabled": False,
     "commissioning_confirmed": False, "watchdog_confirmed": False,
-    "threshold_w": 3000.0, "expected_power_w": 3200.0,
+    "threshold_w": 3000.0, "expected_power_w": 3000.0,
     "start_delay_s": 120, "stop_delay_s": 300, "rest_s": 900,
     "min_session_s": 1200, "max_session_s": 3600, "lease_s": 300, "renew_s": 60,
     "hysteresis_w": 300.0, "import_threshold_w": 600.0,

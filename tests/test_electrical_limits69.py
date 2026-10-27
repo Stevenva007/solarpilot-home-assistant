@@ -24,6 +24,8 @@ def near_quarter_end(runtime, grid):
 def test_large_remaining_quarter_budget_never_enlarges_fixed_import_room():
     runtime, hass = configured(export=0)
     runtime.settings["max_import_w"] = 3500
+    # An idle HP needs the complete total envelope as a new increase.
+    hass.states.set("sensor.public_hp", 0, {"unit_of_measurement": "W"})
     hass.states.set("sensor.grid", 2000, {"unit_of_measurement": "W"})
     near_quarter_end(runtime, 2000)
     assert runtime.capacity.allowed_grid_w > 1_000_000
@@ -38,7 +40,8 @@ def test_large_remaining_quarter_budget_never_enlarges_fixed_import_room():
 
 
 def test_phase_and_quarter_limits_remain_independent_smaller_constraints():
-    runtime, _ = configured(export=5000)
+    runtime, hass = configured(export=5000)
+    hass.states.set("sensor.public_hp", 0, {"unit_of_measurement": "W"})
     near_quarter_end(runtime, -5000)
     runtime.phase_settings.update(enabled=True, control_starts=True)
     runtime.phase = replace(runtime.phase, enabled=True, valid=True,
@@ -83,6 +86,9 @@ def protected_ev(runtime, hass):
 
 def test_solar_credited_hp_never_inherits_house_first_ev_takeover_rights():
     runtime, hass = configured(export=1000)
+    # The measured 2.2 kW may count towards SG's solar threshold. The remaining
+    # 1 kW increase still cannot borrow EV watts when that EV has priority.
+    hass.states.set("sensor.public_hp", 2200, {"unit_of_measurement": "W"})
     protected_ev(runtime, hass)
     assert runtime.others_first
     assert runtime.wallbox_guard.result.max_increase_w == 2850
@@ -129,6 +135,7 @@ def test_confirmed_idle_ev_does_not_reserve_fictional_charging_capacity():
 @pytest.mark.parametrize("mode", ["unknown", "manual", "stopped"])
 def test_active_ev_unconfirmed_session_still_gets_actual_residual_priority(mode):
     runtime, hass = configured(export=1000)
+    hass.states.set("sensor.public_hp", 2200, {"unit_of_measurement": "W"})
     protected_ev(runtime, hass)
     reading = replace(runtime._wallbox_reading(), mode=mode)
     result = runtime._update_sg_wallbox_guard(time.monotonic(), reading, -1000, 150)
@@ -150,12 +157,16 @@ async def test_ordinary_command_invalidates_sg_ev_window_and_requires_new_ev_rep
     assert not runtime.sg_dispatch_allowed()
 
 
-def test_committed_loads_reduce_current_room_without_becoming_available_solar():
+def test_future_thermostat_targets_do_not_reduce_measured_current_room():
     runtime, _ = configured(export=5000)
     runtime.states["a"].target_w = 1700
     runtime.states["a"].measured_w = 1000
     view = runtime.electrical_limits_overview()
-    assert view["committed_reserve_w"] == 700
+    assert view["committed_reserve_w"] == 0
+    assert view["fixed_import_headroom_w"] == view["instantaneous_headroom_w"] == 5500
+    # A real load step appears in P1 and then reduces current room once.
+    runtime.hass.states.set("sensor.grid", -4300, {"unit_of_measurement": "W"})
+    view = runtime.electrical_limits_overview()
     assert view["fixed_import_headroom_w"] == view["instantaneous_headroom_w"] == 4800
 
 

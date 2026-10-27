@@ -181,12 +181,13 @@ def test_number_increase_does_not_use_phantom_measured_consumption():
     assert p.action is None or p.action.watts < 1380
 
 
-def test_committed_but_idle_load_is_not_double_allocated():
+def test_idle_thermostat_reserves_no_future_power_from_current_export():
     ds = [dev("a"), dev("b")]
     states = {"a": owned(), "b": State()}
     states["a"].measured_w = 0
     p = plan(site(-1500), ds, states)
-    assert p.action is None or p.action.id != "b"
+    assert p.action and p.action.id == "b" and p.action.watts == 1000
+    assert p.targets["a"] == 1000  # Existing request is preserved, not stopped.
 
 
 def test_priority_reallocation_stops_lower_first():

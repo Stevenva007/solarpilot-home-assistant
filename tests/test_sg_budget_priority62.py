@@ -143,7 +143,8 @@ def test_sg_budget_subtracts_battery_discharge_and_one_house_reserve():
 
 
 def test_phase_gate_requires_one_full_expected_hp_envelope_without_2500w_shortcut():
-    r, _h = configured(export=6000)
+    r, h = configured(export=6000)
+    h.states.set("sensor.public_hp", 0, {"unit_of_measurement": "W"})
     r.phase_settings.update(enabled=True, control_starts=True)
     r.phase = replace(r.phase, enabled=True, valid=True, block_increase=False, headroom_w=2500)
     assert r.heat_pump_increase_allowed()[0] is False
@@ -163,20 +164,21 @@ def test_net_gate_does_not_subtract_already_measured_hp_draw_from_future_envelop
     assert r.heat_pump_increase_allowed()[0] is True
 
 
-def test_final_sg_dispatch_rechecks_other_future_commitments_on_phase_headroom():
+def test_final_sg_dispatch_uses_current_load_instead_of_other_future_commitments():
     r, h = configured(export=6000)
-    r.states["a"].target_w = 1500  # 500 W committed but not yet present in P1.
+    r.states["a"].target_w = 1500  # A later thermostat step is no present P1 use.
+    h.states.set("sensor.public_hp", 0, {"unit_of_measurement": "W"})
     r.phase_settings.update(enabled=True, control_starts=True, limit_w=3500,
                             phase_1_entity="sensor.public_phase1", phase_2_entity="sensor.public_phase2",
                             phase_3_entity="sensor.public_phase3")
     for eid in ("sensor.public_phase1", "sensor.public_phase2", "sensor.public_phase3"):
         h.states.set(eid, 0, {"unit_of_measurement": "W"})
     r.phase = replace(r.phase, enabled=True, valid=True, block_increase=False, headroom_w=3200)
-    assert r.heat_pump_increase_allowed()[0] is False
-    assert r.sg_dispatch_allowed() is False
-    r.phase_settings["limit_w"] = 4000
-    r.phase = replace(r.phase, headroom_w=3700)
+    assert r.heat_pump_increase_allowed()[0] is True
     assert r.sg_dispatch_allowed() is True
+    r.phase_settings["limit_w"] = 3100
+    r.phase = replace(r.phase, headroom_w=3100)
+    assert r.sg_dispatch_allowed() is False  # Actual SG increase still needs room.
 
 
 @pytest.mark.asyncio
@@ -222,11 +224,11 @@ def test_higher_fitting_load_gets_actual_solar_before_optional_sg():
     assert r.priority_board.sg_priority_allowed(100) is True
 
 
-def test_due_dishwasher_keeps_priority_even_when_it_needs_other_energy():
+def test_waiting_due_dishwasher_does_not_reserve_a_future_solar_window():
     r, _h = configured(kind="dishwasher")
     r.states["a"].on = False
     r.dishwasher_app.due = lambda cfg, wall: True
-    assert r.priority_board.sg_priority_allowed(100) is False
+    assert r.priority_board.sg_priority_allowed(100) is True
 
 
 def test_sg_off_proposal_is_not_available_watts_before_fresh_actual_p1():
@@ -321,7 +323,7 @@ def test_lower_pause_never_claims_future_off_watts_as_phase_headroom():
     r.states["a"].target_w = 1500  # Another 500 W is already committed.
     r.phase_settings.update(enabled=True, control_starts=True)
     r.phase = replace(r.phase, enabled=True, valid=True, block_increase=False,
-                      release_flexible=False, headroom_w=3200)
+                      release_flexible=False, headroom_w=3199)
     # The 1000 W candidate must not add fictional headroom before actual OFF.
     assert mature_reclaim(r, h) is None
     assert r.priority_board.extra_reclaim["state"] == "idle"

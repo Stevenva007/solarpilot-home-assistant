@@ -496,18 +496,20 @@ async def test_only_ev_solar_wait_may_be_ignored_at_grid_deadline(monkeypatch):
     assert not [x for x in h.services.calls if x[0] in ('number','switch')]
 
 @pytest.mark.asyncio
-async def test_deadline_reserves_other_owned_but_unconsumed_commitments(monkeypatch):
+async def test_deadline_does_not_reserve_an_idle_protected_devices_future_power(monkeypatch):
     from custom_components.solar_pilot.const import DEVICE_DEFAULTS
     from custom_components.solar_pilot.engine import State
     r,h,c,w=configured(monkeypatch);ready(r,h,c,w)
     h.states.set('sensor.grid',500,{'unit_of_measurement':'W'});await r.tick()
-    # Non-interruptible owned cycle currently in a zero-W phase still reserves 2500 W.
+    # The zero-W phase is protected but reserves no hypothetical next2500Wstep.
     r.configs['other']={**DEVICE_DEFAULTS,'id':'other','name':'Other example','kind':'switch','control_entity':'switch.other',
                         'power_entity':'sensor.other_power','nominal_w':2500,'non_interruptible':True}
     r.states['other']=State(owned=True,on=True,target_w=2500,measured_w=0)
     r.device_modes['other']='auto';h.states.set('switch.other','on');h.states.set('sensor.other_power',0,{'unit_of_measurement':'W'})
     move(h,w,'2026-09-29T13:00');await r.tick()
-    assert not [x for x in h.services.calls if x[0]=='button']
+    assert len([x for x in h.services.calls if x[0]=='button']) == 1
+    assert r.states['other'].on and r.states['other'].owned
+    assert not [x for x in h.services.calls if x[:2] == ('switch','turn_off')]
 
 @pytest.mark.asyncio
 async def test_app_request_can_wait_beyond_static_guard_age_when_connectivity_stays_fresh(monkeypatch):

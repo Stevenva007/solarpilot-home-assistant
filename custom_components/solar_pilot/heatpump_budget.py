@@ -174,6 +174,30 @@ def heatpump_power(runtime, *, now_wall=None):
             "measured_wall": min(one["measured_wall"], two["measured_wall"]), "rejection_reason": None, "reason": ""}
 
 
+def sg_expected_increment(runtime, budget=None):
+    """Expected total HP draw minus its proven current complete measurement.
+
+    Other appliances already appear in P1. Their nominal watts or a possible
+    later heating peak are not an extra commitment. Unknown HP draw receives
+    no subtraction; malformed settings fail closed at electrical gates.
+    """
+    total = _number(runtime.sg_boost.settings.get("expected_power_w"))
+    if total is None or total < 0:
+        return math.inf
+    budget = sg_solar_budget(runtime) if budget is None else budget
+    current = _number(budget.get("hp_power_w"))
+    stamp = _number(budget.get("hp_power_reported_at"))
+    stale = _number(runtime.sg_boost.settings.get("stale_s"))
+    site = [_number(budget.get(key)) for key in ("pv_w", "grid_w", "discharge_w")]
+    coherent = (all(value is not None for value in site) and site[0] >= 0 and site[2] >= 0
+                and current is not None and current <= max(0.0, sum(site))+250.0)
+    complete = (budget.get("valid") is True and budget.get("hp_power_complete") is True
+                and current is not None and 0 <= current <= _POWER_PLAUSIBILITY_W
+                and stamp is not None and stale is not None and coherent
+                and -5 <= time.time()-stamp <= stale)
+    return max(0.0, total-(current if complete else 0.0))
+
+
 def sg_solar_budget(runtime):
     """Keep physical export separate from the solar already used by the HP.
 
@@ -213,8 +237,9 @@ def sg_solar_budget(runtime):
     filtered = _number(runtime.filtered)
     if runtime.filtered is not None and filtered is None:
         return result
-    reserves = [_number(value) for value in (runtime.settings["reserve_w"], runtime.isolated_reserve_w,
-                                            getattr(runtime, "_dishwasher_comfort_reserve", 0))]
+    # Actual whole-site P1 already contains appliances' current consumption.
+    # A possible future programme peak must not spend today's export twice.
+    reserves = [_number(value) for value in (runtime.settings["reserve_w"], runtime.isolated_reserve_w)]
     if any(value is None for value in reserves):
         return result
     reserve = sum(max(0.0, value) for value in reserves)
@@ -226,6 +251,15 @@ def sg_solar_budget(runtime):
     complete = (power.get("valid") is True and power.get("complete") is True
                 and hp is not None and 0 <= hp <= _POWER_PLAUSIBILITY_W
                 and hp_stamp is not None and -5 <= now-hp_stamp <= stale)
+    # A fresh but delayed cloud value must still fit the current whole-site
+    # balance. Otherwise it cannot provide HP solar credit or lower the new
+    # electrical increase. Independent actual export remains usable.
+    site_load = max(0.0, pv + grid + discharge)
+    hp_incoherent = bool(complete and hp > site_load+250.0)
+    if hp_incoherent:
+        complete = False
+    total = _number(runtime.sg_boost.settings.get("expected_power_w"))
+    hp_deducted = bool(complete and hp > 0 and total is not None and total > 0)
     ev = 0.0
     ev_stamp = None
     ev_credit_reason = None
@@ -243,7 +277,6 @@ def sg_solar_budget(runtime):
             # contemporaneous whole-site load before it supplies solar credit.
             # P1/PV also arrive separately: inconsistency removes conditional
             # credit only, never measured export or a live SG permission.
-            site_load = max(0.0, pv + grid + discharge)
             if watts + (hp if complete else 0.0) > site_load + 250.0:
                 ev_credit_reason = "Wallbox-rapport past niet bij de actuele P1/PV-balans; alleen werkelijk zonneoverschot telt"
             else:
@@ -252,16 +285,18 @@ def sg_solar_budget(runtime):
     hp_eligible = max(0.0, min(pv, (hp if complete else 0.0)-conservative_grid-discharge)-reserve)
     eligible = max(0.0, min(pv, (hp if complete else 0.0)+ev-conservative_grid-discharge)-reserve)
     credit = max(0.0, hp_eligible-available)
-    credit_reason = ("Actueel volledig warmtepompverbruik telt mee in het afgeleide SG-zonnebudget"
+    credit_reason = ("Warmtepomp-rapport past niet bij de actuele P1/PV-balans; geen aftrek of extra zonnebijdrage"
+                     if hp_incoherent else "Actueel volledig warmtepompverbruik telt mee in het afgeleide SG-zonnebudget"
                      if credit > 0 else "Geen extra zonnebijdrage uit de warmtepompmeting"
                      if complete else power.get("reason") or "Warmtepomptotaal niet volledig of actueel")
     return {"valid": True, "available_w": available, "eligible_w": eligible, "hp_solar_w": credit,
             "ev_solar_w": ev, "ev_reported_at": ev_stamp, "ev_credit_reason": ev_credit_reason,
-            "hp_power_w": hp if complete else None, "hp_credit_reason": credit_reason,
+            "hp_power_w": hp if complete else None, "hp_power_complete": complete,
+            "hp_power_reported_at": hp_stamp, "hp_credit_reason": credit_reason,
             "grid_w": grid, "conservative_grid_w": conservative_grid,
             "discharge_w": discharge, "pv_w": pv, "reserve_w": reserve,
             "grid_reported_at": grid_stamp, "pv_reported_at": pv_stamp,
-            "stamp": min([residual_stamp] + ([hp_stamp] if complete and credit > 0 else [])
+            "stamp": min([residual_stamp] + ([hp_stamp] if complete and (credit > 0 or hp_deducted) else [])
                          + ([ev_stamp] if ev > 0 else [])),
             "residual_stamp": residual_stamp,
-            "reason": "Werkelijk restoverschot na beschermde toestellen"}
+            "reason": "Actueel gemeten restoverschot; geen reservering voor toekomstige toestelpieken"}

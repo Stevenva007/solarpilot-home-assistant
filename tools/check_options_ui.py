@@ -31,7 +31,7 @@ with sync_playwright() as p:
         {name:'commissioning_confirmed',required:true,selector:{boolean:{}},default:false},
         {name:'watchdog_confirmed',required:true,selector:{boolean:{}},default:false},
         {name:'threshold_w',required:true,selector:{number:{min:500,max:20000,step:50}},default:3000},
-        {name:'expected_power_w',required:true,selector:{number:{min:100,max:30000,step:50}},default:3200}
+        {name:'expected_power_w',required:true,selector:{number:{min:100,max:30000,step:50}},default:3000}
       ]};
       window.apiHandler=async(method,path,data)=>{
         window.apiCalls.push({method,path,data});

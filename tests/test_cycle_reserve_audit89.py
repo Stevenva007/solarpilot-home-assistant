@@ -209,8 +209,8 @@ async def test_running_external_unmetered_cycle_stays_external_and_only_small_lo
     assert runtime.states["fictional_cycle"].on
     assert not runtime.states["fictional_cycle"].owned
     assert runtime.entry.options == original_options
-    assert runtime.result.start_power["a"]["protected_cycle_reserve_w"] == 2000
-    assert runtime.result.start_power["a"]["solar_cycle_reserve_relief_w"] == 2000
+    assert runtime.result.start_power["a"]["protected_cycle_reserve_w"] == 0
+    assert runtime.result.start_power["a"]["solar_cycle_reserve_relief_w"] == 0
 
 
 @pytest.mark.asyncio
@@ -319,7 +319,7 @@ async def test_full_hard_reservation_is_retained_when_grid_room_changes_during_j
 
 
 @pytest.mark.asyncio
-async def test_new_external_cycle_during_journal_cannot_spend_the_previously_empty_reserve(monkeypatch):
+async def test_external_cycle_during_journal_uses_fresh_p1_without_future_peak_reserve(monkeypatch):
     runtime, hass = runtime_with_running_cycle()
     hass.states.set("sensor.dw_phase", "Idle")
     hass.states.set("sensor.grid", 1800, {"unit_of_measurement": "W"})
@@ -333,15 +333,15 @@ async def test_new_external_cycle_during_journal_cannot_spend_the_previously_emp
         if changed or "a" not in data.get("leases", {}):
             return
         changed = True
-        # An autonomous protected cycle starts after the small load's first
-        # admission. Its full possible peak must enter the final hard envelope.
+        # A running programme is protected. Its possible later heater step is
+        # not currently in P1 and does not reserve the remaining hard room.
         hass.states.set("sensor.dw_phase", "Washing")
 
     monkeypatch.setattr(runtime.store, "async_save", start_cycle_during_journal)
     await runtime.tick()
-    assert changed and not writes(hass)
-    assert runtime.pending is None and not runtime.states["a"].owned
-    assert "a" not in runtime.store.data["leases"]
+    assert changed and [row[:2] for row in writes(hass)] == [("switch", "turn_on")]
+    assert runtime.pending and runtime.states["a"].owned
+    assert "a" in runtime.store.data["leases"]
 
 
 @pytest.mark.asyncio
@@ -397,7 +397,7 @@ async def test_restart_does_not_restore_a_stale_solar_exception_from_prior_obser
     runtime, hass = runtime_with_running_cycle()
     runtime.mode = "observe"
     await runtime.tick()
-    assert runtime.result.start_power["a"]["solar_cycle_reserve_relief_w"] == 2000
+    assert runtime.result.start_power["a"]["solar_cycle_reserve_relief_w"] == 0
     saved = runtime._snapshot()
     hass.states.set("sensor.dw_connection", "Connected", reported_age=301)
     replacement = SolarRuntime(hass, runtime.entry)

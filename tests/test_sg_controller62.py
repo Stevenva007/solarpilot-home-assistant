@@ -49,7 +49,8 @@ class Adapter:
         self.no_expiry = False
         self.off_bad = False
         self.delayed = None
-        self.fingerprint = {"device_id": "fictional-relay", "firmware_id": "fixture-v1", "component": "switch:0"}
+        self.fingerprint = {"device_id": "fictional-relay", "firmware_id": "fixture-v1", "component": "switch:0",
+                            "model": "fixture-model", "gen": 4, "profile": "switch", "app": "fixture-app", "version": "1.0.0"}
 
     def status(self):
         if self.on and self.expiry is not None and self.clock() >= self.expiry and not self.no_expiry:
@@ -527,23 +528,21 @@ async def test_waiting_does_not_request_notification_but_transport_fault_does():
 
 
 @pytest.mark.asyncio
-async def test_firmware_change_releases_and_revokes_old_commissioning():
+async def test_firmware_change_keeps_commissioning_and_existing_live_lease():
     manager, adapter, _, _ = await boosted()
     assert manager.snapshot()["commissioned_fingerprint"] == adapter.fingerprint
     adapter.fingerprint["firmware_id"] = "fixture-v2"
     await tick(manager)
-    assert adapter.calls[-1] == ("off", None)
-    assert manager.fault_code == "firmware_changed"
-    assert not manager.settings["watchdog_confirmed"]
-    assert not manager.settings["commissioning_confirmed"]
-    with pytest.raises(HomeAssistantError):
-        await manager.resume_automation()
-    with pytest.raises(HomeAssistantError):
-        await manager.set_enabled(True)
+    assert adapter.calls == [("on", 300)]
+    assert not manager.fault_code
+    assert manager.settings["watchdog_confirmed"]
+    assert manager.settings["commissioning_confirmed"]
+    assert manager.owned and manager.desired_on
+    assert manager.snapshot()["commissioned_fingerprint"] == adapter.fingerprint
 
 
 @pytest.mark.asyncio
-async def test_restart_does_not_reuse_firmware_attestation_for_new_version():
+async def test_restart_firmware_metadata_alone_does_not_require_reconfirmation():
     prior, adapter, clock, runtime = await boosted()
     saved = prior.snapshot()
     saved.pop("session_checkpoint")  # Legacy release-only reconciliation.
@@ -551,8 +550,8 @@ async def test_restart_does_not_reuse_firmware_attestation_for_new_version():
     manager = SGBoostManager(runtime, adapter=adapter, clock=clock)
     manager.restore(saved)
     await manager.start()
-    assert manager.fault_code == "firmware_changed"
-    assert not manager.settings["watchdog_confirmed"]
+    assert not manager.fault_code
+    assert manager.settings["watchdog_confirmed"]
     assert adapter.calls[-1] == ("off", None)
     clock.advance(10000)
     await tick(manager)
@@ -560,18 +559,17 @@ async def test_restart_does_not_reuse_firmware_attestation_for_new_version():
 
 
 @pytest.mark.asyncio
-async def test_explicit_new_commissioning_can_accept_changed_firmware_after_release():
+async def test_firmware_is_accepted_without_a_new_manual_commissioning_action():
     manager, adapter, clock, _ = await boosted()
+    origin = manager._session_started
     adapter.fingerprint["firmware_id"] = "fixture-v2"
     await tick(manager)
-    manager.update_config({**manager.settings, "commissioning_confirmed": True, "watchdog_confirmed": True})
     assert not manager.fault
     assert manager.snapshot()["commissioned_fingerprint"] == adapter.fingerprint
-    clock.advance(900)
-    await tick(manager)
-    clock.advance(120)
+    clock.advance(manager.settings["renew_s"])
     await tick(manager)
     assert manager.owned and adapter.calls[-1] == ("on", 300)
+    assert manager._session_started == origin
 
 
 @pytest.mark.asyncio

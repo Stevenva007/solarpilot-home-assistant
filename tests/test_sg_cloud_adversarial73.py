@@ -178,7 +178,7 @@ async def live_cloud_dispatch():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("hard_guard", [
-    "fixed_import", "committed_load", "stale_grid", "stale_pv",
+    "fixed_import", "actual_load", "stale_grid", "stale_pv",
     "battery_discharge", "missing_phases", "missing_quarter", "protected_ev",
     "pause", "restart", "runtime_fault", "pending_command", "removal",
 ])
@@ -186,8 +186,11 @@ async def test_cloud_after_minimum_cannot_bypass_live_physical_or_runtime_guards
     manager, _adapter, _clock, _runtime, live, hass = await live_cloud_dispatch()
     if hard_guard == "fixed_import":
         hass.states.set("sensor.grid", 3501, {"unit_of_measurement": "W"})
-    elif hard_guard == "committed_load":
+    elif hard_guard == "actual_load":
         live.states["a"].target_w += 2601
+        # The future thermostat target alone spends no current export.
+        assert live.sg_dispatch_allowed(renewal=True)
+        hass.states.set("sensor.grid", 3501, {"unit_of_measurement": "W"})
     elif hard_guard in ("stale_grid", "stale_pv"):
         entity = "sensor.grid" if hard_guard == "stale_grid" else "sensor.public_pv"
         obj = hass.states.get(entity)

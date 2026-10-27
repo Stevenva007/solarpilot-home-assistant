@@ -66,7 +66,7 @@ DISPATCH_REJECTION_REASONS = {
 DISPATCH_READING_KEYS = frozenset({"grid_w", "pv_w", "discharge_w", "reserve_w", "available_w", "eligible_w",
     "budget_oldest_reported_at", "residual_oldest_reported_at", "extra_w", "envelope_w", "projected_grid_w",
     "fixed_import_limit_w", "wallbox_headroom_w", "phase_headroom_w", "quarter_limit_w"})
-DISPATCH_SOURCE_KEYS = ("site_grid", "site_pv", "soft_import", "phase_1", "phase_2", "phase_3", "quarter_average", "quarter_peak")
+DISPATCH_SOURCE_KEYS = ("site_grid", "site_pv", "hp_power", "soft_import", "phase_1", "phase_2", "phase_3", "quarter_average", "quarter_peak")
 
 
 def _number(value):

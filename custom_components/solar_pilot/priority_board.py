@@ -19,7 +19,7 @@ from .consumer_wallbox import follows_wallbox
 from .dishwasher_priority import enabled as dishwasher_priority_enabled
 from .wallbox_policy import reclaim_permission
 from .engine import Action
-from .heatpump_budget import sg_solar_budget
+from .heatpump_budget import sg_solar_budget, sg_expected_increment
 from .dishwasher import read as read_dishwasher
 from .sg_config import actuator_conflicts, validate_config
 
@@ -329,12 +329,12 @@ class PriorityBoard:
             return False
         for d in r.devices():
             st, cfg = r.states[d.id], r.configs[d.id]
-            if cfg.get("kind") == "dishwasher" and r.dishwasher_app.due(cfg, time.time()) and not st.on:
-                return False
             if (ranks[device_key(d.id)] >= ranks[EXTRA] or st.on or not st.enabled
                     or not st.available or not st.demand or not st.interlock or not st.cycle_armed
                     or st.fault or st.manual_until > now or now-st.last_off < d.min_off_s
-                    or st.planner_hold and not st.deadline_force):
+                    or st.planner_hold and not st.deadline_force
+                    or (not st.deadline_force and d.start_delay_s > 0
+                        and (st.start_since is None or now-st.start_since < d.start_delay_s))):
                 continue
             if cfg.get("kind") == "dishwasher" and not r.dishwasher.permitted(cfg, read_dishwasher(r.hass,cfg),time.time())[0]:
                 continue
@@ -378,9 +378,7 @@ class PriorityBoard:
         if max(0.0, budget["pv_w"]-budget["reserve_w"]) < c["threshold_w"]:
             self._clear_extra_reclaim("Ook na pauzeren is er nog onvoldoende werkelijke zonneproductie")
             return None
-        unconsumed = sum(max(0.0, st.target_w-st.measured_w) for i,st in r.states.items()
-                         if st.owned and st.on and i not in r.source_isolated_devices)
-        envelope = c["expected_power_w"]+r.isolated_reserve_w+unconsumed
+        envelope = sg_expected_increment(r, budget)+r.isolated_reserve_w
         guard = getattr(getattr(r, "sg_wallbox_guard", None), "result", getattr(r.wallbox_guard, "result", None))
         wallbox_limit = getattr(guard, "max_increase_w", None)
         if r.wallbox_settings.get("enabled") and wallbox_limit is not None:

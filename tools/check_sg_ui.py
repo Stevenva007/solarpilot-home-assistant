@@ -175,8 +175,8 @@ with sync_playwright() as p:
     overview=page.locator('solar-pilot-card >> [data-reason-key="overview:sg"] [data-sg-manual-control]')
     assert overview.locator('button[data-action=sg_manual_control]').count()==5
     assert overview.evaluate('e=>e.scrollWidth<=e.clientWidth+1')
-    # beta.86: a fresh negative HP report is invalid, never zero. SG may
-    # separately re-confirm actual P1/PV residual using its extra-power estimate.
+    # A rejected HP report remains unknown. SG may separately re-confirm
+    # actual P1/PV residual using the full configured SG total-power estimate.
     page.evaluate("""() => {const a=structuredClone(c._last.attributes),now=Date.now()/1000;
       const p=a.panasonic,s=a.sg_boost;
       Object.assign(p,{power_scope:'split',power_w:null,power_kind:'unknown',power_complete:false,
@@ -207,7 +207,11 @@ with sync_playwright() as p:
         assert first.get_attribute('data-supply-quality')=='invalid'
         assert '0 W' in overview_row.locator('[data-supply-number="2"]').inner_text()
         assert 'actuele P1/PV-metingen' in overview_row.locator('[data-sg-optional-meter]').inner_text()
-        assert '3,2 kW geraamde extra opname' in overview_row.locator('[data-sg-optional-meter]').inner_text()
+        optional_note=overview_row.locator('[data-sg-optional-meter]').inner_text()
+        assert '3,2 kW geraamd totaalvermogen bij SG' in optional_note
+        assert 'Warmtepompbijdrage blijft onbekend' in optional_note
+        assert 'zonder volledige actuele warmtepompmeting telt de hele raming als mogelijke toename' in optional_note
+        assert 'geraamde extra opname' not in optional_note
         residual=overview_row.locator('[data-sg-wait=reassessment]')
         assert 'restoverschot herbevestigen' in residual.inner_text()
         assert 'van 5 min' in residual.inner_text() and 'Restoverschot 5,6 kW · nodig 3,2 kW' in residual.inner_text()
@@ -289,4 +293,4 @@ with sync_playwright() as p:
     page.keyboard.press('Escape')
     assert not errors, errors
     browser.close()
-print('OK: SG details and help each survive 80 updates; independent compressor/received SG/uptake and split meter evidence; honest unknowns/manual lease; 320/390/768/1280 browser layout; zero device calls from observations; temporary SG service-only ON/OFF 30/60 and Auto payloads at every width, separate contact proof, expiry waits for backend and keeps modal; completed startclock through brief measurement gap never claims contact ON; actual residual rearm, rejected fresh HP reading versus stale source, optional extra estimate and modal retention at four widths; normalized HP zero preserves raw negative Details and original report time, stale/missing values stay unknown, modal survives80updates. Fictitious data only.')
+print('OK: SG details and help each survive 80 updates; independent compressor/received SG/uptake and split meter evidence; honest unknowns/manual lease; 320/390/768/1280 browser layout; zero device calls from observations; temporary SG service-only ON/OFF 30/60 and Auto payloads at every width, separate contact proof, expiry waits for backend and keeps modal; completed startclock through brief measurement gap never claims contact ON; actual residual rearm, rejected fresh HP reading versus stale source, configured total estimate without a complete HP measurement and modal retention at four widths; normalized HP zero preserves raw negative Details and original report time, stale/missing values stay unknown, modal survives80updates. Fictitious data only.')
