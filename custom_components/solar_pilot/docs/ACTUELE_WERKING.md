@@ -1,8 +1,8 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.108
+**Versie:** 1.0.0-beta.109
 **Bijgewerkt:** 2026-10-27
-**Regel-hash:** `e37989f76aeb8536`
+**Regel-hash:** `382914796d4b1e96`
 
 SolarPilot verdeelt beschikbare zonnestroom volgens één instelbare volgorde. De Wallbox staat standaard achteraan en regelt zelf het resterende zonneoverschot. Voorwaardelijk laadvermogen voor een SG-start moet ook bij de actuele P1/PV-balans passen. De wolkenbuffer overbrugt gewone tekorten; de afzonderlijke netgrens blijft direct gelden. Je bewaart je toestellen, metingen en historiek. Panasonic blijft de warmtepomp zelfstandig regelen.
 
@@ -435,7 +435,7 @@ Een privéprofiel blijft optioneel en uitsluitend lokaal. Importeren kan lege ge
 
 Voor verwijderen kies je Verwijderen voorbereiden en wacht je op de gerichte veilige vrijgave. Een onzekere SG-uitgang blijft eerlijk onbekend; de gecontroleerde lokale terugval begrenst de eigen aanvraag. Verwijderen van SolarPilot verwijdert geen oorspronkelijke meter-, warmtepomp-, Wallbox-, AEG- of Shelly-integratie.
 
-Rollback naar beta.106 behoudt de centrale volgorde en externe SG-overname, maar mist de nieuwe SG-startcoherentiecontrole en aanvullende brontelemetrie. Maak vooraf een volledige privéback-up, geef de eigen SG-aanvraag veilig vrij en behoud de entry, opslag en userfiles. Gebruik geen twee runtimes tegelijk. Zie BETA108_INSTELLEN.md.
+Rollback naar beta.106 behoudt de centrale volgorde en externe SG-overname, maar mist de nieuwe SG-startcoherentiecontrole en aanvullende brontelemetrie. Maak vooraf een volledige privéback-up, geef de eigen SG-aanvraag veilig vrij en behoud de entry, opslag en userfiles. Gebruik geen twee runtimes tegelijk. Zie BETA109_INSTELLEN.md.
 
 ## 21. Release- en documentatieregel
 
