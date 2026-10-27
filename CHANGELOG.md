@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0-beta.109 — kleine Wallbox-meetgegevens en recorderherstel
+
+- Publiceert alleen power_w bij de laadvermogensensor; watt- en meetmetadata blijven behouden.
+- Behoudt volledige actuele Wallbox-statusinformatie, maar schrijft grote laadprofielen, activiteitsdetails, reserveringsblokkades en prioriteitsgegevens niet naar de recorder.
+- Voegt regressies toe met grote fictieve profielen, nulvermogen en ontbrekende metingen. Geen nieuwe apparaatopdrachten, instellingen of bronrapporttijden.
+- Installatie, rollback en bewijs: BETA109_INSTELLEN.md en TESTRESULTATEN_BETA109.md.
+
 ## 1.0.0-beta.107 — coherent SG-zonnebudget en verklaarde netgrens
 
 - Laat een recent maar met actuele P1/PV tegenstrijdig Wallboxrapport geen voorwaardelijke SG-startbijdrage leveren. De complete actuele warmtepompmeting telt mee in de coherentiecontrole; 250 W tolerantie vangt kleine tijdverschillen op.

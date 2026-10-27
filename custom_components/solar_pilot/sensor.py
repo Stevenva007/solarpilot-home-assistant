@@ -120,6 +120,7 @@ class SolarSensor(SolarEntity, SensorEntity):
         "power_observed_at", "power_supply1_observed_at", "power_supply2_observed_at",
         "power_source_quality", "history", "operation_display", "sg_tank_goal", "source_contract",
         "compressor_frequency_observed_at", "sg_status_observed_at", "water",
+        "charging_profile", "activity_details", "reclaim_blocks", "consumer_priority",
     })
 
     def __init__(self, runtime, suffix, name, device_id=None):
@@ -306,7 +307,9 @@ class SolarSensor(SolarEntity, SensorEntity):
             return self._ems()
         if self.suffix == "learning":
             return self._learning()
-        if self.suffix in ("wallbox_status", "wallbox_power"):
+        if self.suffix == "wallbox_power":
+            return {"power_w": r.wallbox_overview()["power_w"]}
+        if self.suffix == "wallbox_status":
             return r.wallbox_overview()
         if self.key:
             isolation = getattr(r, "source_isolated_devices", {}).get(self.key, {})

@@ -3,17 +3,17 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.107'
-GUIDE_UPDATED = '2026-10-25'
+GUIDE_VERSION = '1.0.0-beta.109'
+GUIDE_UPDATED = '2026-10-27'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.107',
- 'updated': '2026-10-25',
+ 'version': '1.0.0-beta.109',
+ 'updated': '2026-10-27',
  'intro': 'SolarPilot verdeelt beschikbare zonnestroom volgens één instelbare volgorde. De Wallbox staat standaard achteraan en regelt zelf het '
           'resterende zonneoverschot. Voorwaardelijk laadvermogen voor een SG-start moet ook bij de actuele P1/PV-balans passen. De '
           'wolkenbuffer overbrugt gewone tekorten; de afzonderlijke netgrens blijft direct gelden. Je bewaart je toestellen, metingen en '
           'historiek. Panasonic blijft de warmtepomp zelfstandig regelen.',
- 'sections': [{'title': '1. Basisprincipe en modi',
+ 'sections': [{'title': 'Geschiedenis en Wallbox-metingen', 'paragraphs': ['De laadvermogensensor publiceert alleen het oorspronkelijke laadvermogen als klein attribuut. De aparte Wallbox-statussensor behoudt uitgebreide profielen en diagnostiek voor de actuele weergave. Grote laadprofielen, activiteitsdetails, reserveringsblokkades en prioriteitsgegevens worden niet bij iedere statuswijziging in de recorder opgeslagen. Metingen, instellingen, bewaarde modellen en de autonome laadregeling blijven ongewijzigd.'], 'bullets': []}, {'title': '1. Basisprincipe en modi',
                'paragraphs': ['SolarPilot verdeelt beschikbare zonnestroom lokaal in Home Assistant. Actuele net- en PV-metingen, echte '
                               'toestelvoorwaarden en elektrische grenzen gaan altijd vóór een voorspelling of geleerd patroon. Eén uitgang '
                               'heeft één eigenaar. Een regeling vervangt geen elektrische beveiliging.',
@@ -1277,7 +1277,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Rollback naar beta.106 behoudt de centrale volgorde en externe SG-overname, maar mist de nieuwe '
                               'SG-startcoherentiecontrole en aanvullende brontelemetrie. Maak vooraf een volledige privéback-up, geef de eigen '
                               'SG-aanvraag veilig vrij en behoud de entry, opslag en userfiles. Gebruik geen twee runtimes tegelijk. Zie '
-                              'BETA107_INSTELLEN.md.'],
+                              'BETA109_INSTELLEN.md.'],
                'bullets': []},
               {'title': '21. Release- en documentatieregel',
                'paragraphs': ['Dit is de enige volledige actuele regelbeschrijving. current_guide.py genereert dezelfde Markdown-mirrors en '

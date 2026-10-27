@@ -151,7 +151,7 @@ jobs:
 
   real-ha-startup:
     name: Real Home Assistant startup
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
