@@ -35,6 +35,7 @@ class RelayStatus(TypedDict):
     timer_expires_at: float | None
     lease_remaining_s: float | None
     device_unixtime: float | None
+    device_uptime_s: float | None
     lease_proven: bool
     timer_cancelled: bool
     setup_valid: bool
@@ -247,6 +248,9 @@ class ShellyLeaseAdapter:
         clock = _number(sys.get("unixtime"))
         if clock is not None and clock <= 0:
             clock = None
+        uptime = _number(sys.get("uptime"))
+        if uptime is not None and not 0 <= uptime <= 1_000_000_000:
+            uptime = None
         started, duration = _number(raw.get("timer_started_at")), _number(raw.get("timer_duration"))
         timer_cancelled = duration == 0
         if started is None or duration is None or started < 0 or duration <= 0:
@@ -258,7 +262,7 @@ class ShellyLeaseAdapter:
             configuration_error = configuration_error or "De Shelly meldt een fout; SG blijft tijdelijk geblokkeerd."
         return {"output": raw["output"], "timer_started_at": started, "timer_duration": duration,
                 "timer_expires_at": expires, "lease_remaining_s": remaining,
-                "device_unixtime": clock, "lease_proven": proven,
+                "device_unixtime": clock, "device_uptime_s": uptime, "lease_proven": proven,
                 "timer_cancelled": timer_cancelled,
                 "setup_valid": configuration_error is None, "configuration_error": configuration_error,
                 "source": SOURCE, "firmware": firmware, "firmware_id": firmware_id,

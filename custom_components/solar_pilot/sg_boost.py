@@ -37,6 +37,16 @@ _FINGERPRINT_FIELDS = frozenset({"device_id", "model", "gen", "firmware_id", "ve
 _FIRMWARE_FIELDS = frozenset({"firmware_id", "version", "app"})
 
 
+def _strict_time(value):
+    if type(value) not in (int, float):
+        return None
+    try:
+        value = float(value)
+    except (ValueError, OverflowError):
+        return None
+    return value if math.isfinite(value) else None
+
+
 class SGBoostManager:
     def __init__(self, runtime, adapter=None, clock=None):
         self.runtime = runtime
@@ -132,6 +142,10 @@ class SGBoostManager:
         self._commissioned_binding_identity = None
         self._firmware_recovery_pending = False
         self._firmware_verification = "pending"
+        self._boot_observation = None
+        self._firmware_reboot = None
+        self._firmware_reboot_anchor = None
+        self._firmware_reboot_invalid = False
         self.sent_this_tick = False
         self.renewed_this_tick = False
 
@@ -363,6 +377,9 @@ class SGBoostManager:
                 self._commissioned_binding_identity = None
                 self._firmware_recovery_pending = False
                 self._firmware_verification = "pending"
+                self._boot_observation = self._firmware_reboot = None
+                self._firmware_reboot_anchor = None
+                self._firmware_reboot_invalid = False
         if (updated.get("tank_temperature_entity") != old_tank_entity
                 and (self.completion_hold or self.owned or self._need_reference)):
             self._tank_source_changed = True
@@ -397,6 +414,12 @@ class SGBoostManager:
 
     def snapshot(self):
         """Store evidence only; configuration remains the enable authority."""
+        reboot = deepcopy(self._firmware_reboot)
+        if isinstance(reboot, dict) and self._firmware_reboot_anchor is not None:
+            reboot["remaining_cap_s"] = max(0.0, min(reboot["remaining_cap_s"],
+                self._firmware_reboot_anchor["deadline"]-self._clock()))
+            reboot["observed_at"] = max(reboot["observed_at"], self._wall_clock())
+            self._firmware_reboot.update(remaining_cap_s=reboot["remaining_cap_s"], observed_at=reboot["observed_at"])
         return {"schema": 1, "relay_entity": self.settings.get("entity_id", ""),
                 "owned": bool(self.owned or self._possibly_owned or self._restart_release),
                 "lease_expiry": self._lease_expiry,
@@ -413,6 +436,8 @@ class SGBoostManager:
                 "fingerprint_change": deepcopy(self._fingerprint_change),
                 "commissioned_binding_identity": self._commissioned_binding_identity,
                 "firmware_recovery_pending": self._firmware_recovery_pending,
+                "boot_observation": deepcopy(self._boot_observation),
+                "firmware_reboot": reboot,
                 "need_reference": deepcopy(self._need_reference),
                 "tank_source_changed": self._tank_source_changed,
                 "last_rearm": deepcopy(self._last_rearm),
@@ -549,6 +574,37 @@ class SGBoostManager:
             or stored.get("firmware_recovery_pending") is True and self._fingerprint_change is not None
             and self._same_hardware(self._fingerprint_change["commissioned_fingerprint"],
                                     self._fingerprint_change["observed_fingerprint"]))
+        boot = stored.get("boot_observation")
+        boot_times = {key: _strict_time(boot.get(key)) for key in ("observed_at", "clock", "uptime")} if isinstance(boot, dict) else {}
+        if (isinstance(boot, dict) and type(boot.get("schema")) is int and boot["schema"] == 1
+                and all(value is not None for value in boot_times.values())
+                and 0 <= boot_times["observed_at"] <= self._wall_clock()
+                and boot_times["clock"] > 0 and 0 <= boot_times["uptime"] <= 1_000_000_000
+                and type(boot.get("output")) is bool and isinstance(boot.get("fingerprint"), dict)):
+            self._boot_observation = {**deepcopy(boot), **boot_times, "lease_expiry": _strict_time(boot.get("lease_expiry"))}
+        reboot = stored.get("firmware_reboot")
+        reboot_times = {key: _strict_time(reboot.get(key)) for key in (
+            "detected_at", "started_at", "minimum_started_at", "deadline", "remaining_cap_s", "observed_at")} if isinstance(reboot, dict) else {}
+        if (isinstance(reboot, dict) and type(reboot.get("schema")) is int and reboot["schema"] == 1
+                and isinstance(reboot.get("state"), str) and reboot["state"] in {"waiting", "resumed", "expired"}
+                and reboot.get("control_identity") == self._control_identity()
+                and all(value is not None for value in reboot_times.values())
+                and 0 <= reboot_times["started_at"] <= reboot_times["minimum_started_at"] <= reboot_times["detected_at"] <= reboot_times["observed_at"] <= self._wall_clock()
+                and 0 <= reboot_times["remaining_cap_s"] <= float(self.settings["max_session_s"])
+                and 0 < reboot_times["deadline"]-reboot_times["started_at"] <= float(self.settings["max_session_s"])):
+            self._firmware_reboot = {**deepcopy(reboot), **reboot_times}
+            now, wall = self._clock(), self._wall_clock()
+            remaining = min(reboot_times["remaining_cap_s"], reboot_times["deadline"]-wall)
+            elapsed = max(wall-reboot_times["started_at"],
+                          reboot_times["deadline"]-reboot_times["started_at"]-remaining)
+            self._firmware_reboot_anchor = {"origin": now-elapsed,
+                "minimum": now-elapsed+reboot_times["minimum_started_at"]-reboot_times["started_at"],
+                "deadline": now+remaining}
+        elif reboot is not None:
+            # Recognisable damaged recovery must not silently create a new
+            # full session. This is a targeted SG hold, not a global fault.
+            self._firmware_reboot_invalid = True
+            self._firmware_reboot = {"schema": 1, "state": "invalid"}
         reason = stored.get("hold_reason")
         self._hold_reason = (reason if reason in {"session_limit", "native_completed", "no_uptake", "profile_changed", "response_unknown"}
                              else "session_limit" if self.completion_hold else "")
@@ -646,6 +702,8 @@ class SGBoostManager:
             if provenance and isinstance(origin, dict) and origin.get("command_identity") == provenance["command_identity"]:
                 self._hold_origin.update(stop_reason=reason, ended_at=ended)
         self._session_provenance = None
+        if isinstance(self._firmware_reboot, dict) and self._firmware_reboot.get("state") == "resumed":
+            self._firmware_reboot = self._firmware_reboot_anchor = None
 
     def _rearm_wait(self):
         if not self.completion_hold:
@@ -940,7 +998,51 @@ class SGBoostManager:
                     and value.get("binding_identity") == raw.get("binding_identity")):
                 value["fingerprint"] = deepcopy(raw["fingerprint"])
 
+    def _observe_boot(self, raw, *, firmware_changed):
+        """A fresh uptime reset can distinguish our firmware reboot from user OFF."""
+        raw["_firmware_reboot_proven"] = False
+        wall = self._wall_clock()
+        clock, uptime = _strict_time(raw.get("device_unixtime")), _strict_time(raw.get("device_uptime_s"))
+        prior = self._boot_observation
+        if (clock is None or clock <= 0 or uptime is None or not 0 <= uptime <= 1_000_000_000
+                or raw.get("setup_valid") is not True or raw.get("configuration_error")):
+            self._boot_observation = None
+            return
+        elapsed = wall-prior["observed_at"] if isinstance(prior, dict) else -1
+        prior_expiry = finite(prior.get("lease_expiry")) if isinstance(prior, dict) else None
+        if (firmware_changed and self.owned and self.desired_on and not self.manual_hold
+                and not self.completion_hold
+                and self._session_started is not None and self._minimum_started is not None
+                and self._clock() < self._session_started+float(self.settings["max_session_s"])
+                and self._lease_deadline is not None and self._clock() < self._lease_deadline
+                and raw.get("output") is False and isinstance(prior, dict) and prior.get("output") is True
+                and 0 <= elapsed <= float(self.settings["stale_s"])
+                and clock >= prior["clock"] and abs((clock-prior["clock"])-elapsed) <= 5
+                and prior["uptime"] > uptime+2 and uptime <= elapsed+2
+                and clock-uptime >= prior["clock"]-1
+                and self._same_hardware(prior.get("fingerprint"), raw.get("fingerprint"))
+                and prior.get("binding_identity") == raw.get("binding_identity")
+                and prior_expiry is not None and self._lease_expiry is not None
+                and abs(prior_expiry-self._lease_expiry) <= 1 and clock < prior_expiry):
+            raw["_firmware_reboot_proven"] = True
+        self._boot_observation = {"schema": 1, "observed_at": wall, "clock": clock, "uptime": uptime,
+            "output": raw["output"], "lease_expiry": self._expiry(raw),
+            "fingerprint": deepcopy(raw.get("fingerprint")), "binding_identity": raw.get("binding_identity")}
+
+    def _firmware_reboot_waiting(self):
+        value = self._firmware_reboot
+        return bool(isinstance(value, dict) and value.get("state") == "waiting" and not self._firmware_reboot_invalid)
+
+    def _firmware_reboot_deadline(self):
+        value = self._firmware_reboot
+        if not isinstance(value, dict) or value.get("state") not in {"waiting", "resumed"}:
+            return None
+        if value.get("state") == "resumed" and self._session_started is None:
+            return None
+        return self._firmware_reboot_anchor["deadline"] if self._firmware_reboot_anchor is not None else None
+
     def _fingerprint_check(self, raw):
+        raw["_firmware_reboot_proven"] = False
         fingerprint = raw.get("fingerprint")
         if not isinstance(fingerprint, dict) or not fingerprint:
             self._firmware_verification = "pending"
@@ -961,6 +1063,7 @@ class SGBoostManager:
                 "observed_fingerprint": deepcopy(fingerprint)}
         same_hardware = self._same_hardware(self._commissioned_fingerprint, fingerprint)
         same_binding = self._fingerprint_binding_current(raw)
+        self._observe_boot(raw, firmware_changed=bool(same_hardware and same_binding and changed))
         if same_hardware and same_binding:
             if self.fault_code == "firmware_changed":
                 self._firmware_recovery_pending = True
@@ -1068,6 +1171,11 @@ class SGBoostManager:
         if self.fault_code == "unavailable_read":
             self.fault_code = self.fault = ""
         evidence_changed = self._fingerprint_check(raw)
+        if raw.get("_firmware_reboot_proven") is True:
+            # Commit the ended lease and bounded recovery together. A crash
+            # during the following save must not restore the old ON journal
+            # alongside an already-observed reboot OFF.
+            self._observe_contact(raw)
         manual = self._manual_control
         if (manual is not None and (raw.get("fingerprint") != manual.get("fingerprint")
                 or raw.get("binding_identity") != manual.get("binding_identity"))):
@@ -1217,11 +1325,14 @@ class SGBoostManager:
                 and not self.cooling_block_reason(live=True)
                 and not self._profile_change_release
                 and self.manual_mode != "off" and not self.manual_hold
+                and not self._firmware_reboot_invalid
                 and (not self.completion_hold or self.manual_mode == "on") and not self.fault)
 
     def _manual_session_origin(self):
         if self._adopting_external and self._external_control is not None:
             return self._clock()-(self._wall_clock()-self._external_control["created_at"])
+        if self._firmware_reboot_waiting():
+            return self._firmware_reboot_anchor["origin"]
         return self._manual_session_started if self.manual_mode == "on" else None
 
     def _on_authorized(self, generation, renewal):
@@ -1290,6 +1401,11 @@ class SGBoostManager:
         lease_s = min(float(self.settings["lease_s"]),
                       float(self.settings["max_session_s"]) - float(self.settings["ack_timeout_s"]))
         manual_origin = self._manual_session_origin()
+        reboot_deadline = self._firmware_reboot_deadline()
+        reboot_minimum = (self._firmware_reboot_anchor["minimum"]
+                          if self._firmware_reboot_waiting() else None)
+        if reboot_deadline is not None:
+            lease_s = min(lease_s, reboot_deadline-self._clock()-float(self.settings["ack_timeout_s"]))
         automatic_bridge = renewal and self.manual_mode == "on" and self._automatic_continuation_allowed(self._generation)
         manual_limit = self._manual_deadline if self.manual_mode == "on" and not automatic_bridge else None
         manual_wall_limit = self._manual_control["expires_at"] if manual_limit is not None else None
@@ -1376,6 +1492,8 @@ class SGBoostManager:
             remaining_ack = max(0.0, write_guard_deadline - final_now)
             hard_deadline = ((self._session_started if renewal else manual_origin if manual_origin is not None else final_now)
                              + float(self.settings["max_session_s"]))
+            if reboot_deadline is not None:
+                hard_deadline = min(hard_deadline, reboot_deadline)
             if (final_now >= write_guard_deadline
                     or final_now + lease_s + remaining_ack > hard_deadline):
                 self._capture_dispatch_rejection("session_deadline", renewal)
@@ -1463,7 +1581,7 @@ class SGBoostManager:
             self._transport_confirmed("renew" if renewal else "on")
             if not renewal:
                 self._session_started = manual_origin if manual_origin is not None else issued_at
-                self._minimum_started = self._clock()
+                self._minimum_started = reboot_minimum if reboot_minimum is not None else self._clock()
                 self._capture_session_provenance(identity=command_identity, settings=command_settings,
                     issued_at=issued_at, source_reports=source_reports,
                     fixed_import_limit_w=command_fixed_import_limit_w, request_mode=command_request_mode)
@@ -1523,6 +1641,8 @@ class SGBoostManager:
                 stop_evidence=self._dispatch_rejection)
             return False
         self.owned = True
+        if self._firmware_reboot_waiting():
+            self._firmware_reboot["state"] = "resumed"
         self._possibly_owned = False
         self._last_renewed = self._clock()
         if not renewal:
@@ -1719,6 +1839,31 @@ class SGBoostManager:
             return
         now = self._clock()
         ours = self.owned or self._possibly_owned
+        if ours and raw["output"] is False and raw.get("_firmware_reboot_proven") is True:
+            wall = self._wall_clock()
+            origin = wall-(now-self._session_started)
+            minimum = wall-(now-self._minimum_started)
+            previous = self._firmware_reboot_deadline()
+            deadline = self._session_started+float(self.settings["max_session_s"])
+            if previous is not None:
+                deadline = min(deadline, previous)
+            self._record_session_end("SG-contact uit na bewezen firmwareherstart; actuele zonnebeoordeling volgt")
+            self._firmware_reboot = {"schema": 1, "state": "waiting", "detected_at": wall,
+                "started_at": origin, "minimum_started_at": minimum,
+                "deadline": wall+(deadline-now), "control_identity": self._control_identity(),
+                "remaining_cap_s": max(0.0, deadline-now), "observed_at": wall}
+            self._firmware_reboot_anchor = {"origin": self._session_started,
+                "minimum": self._minimum_started, "deadline": deadline}
+            self._generation += 1
+            self.owned = self._possibly_owned = self.desired_on = False
+            self._lease_expiry = self._lease_deadline = None
+            self._session_started = self._minimum_started = self._last_renewed = None
+            self._restart_resume = None
+            self._restart_release = False
+            self._reset_start_window()
+            self._import_since = self._import_observation = self._import_policy = None
+            self._set_state("waiting_surplus", "SG-uitgang herstart na firmwareupdate; verse zonnestabiliteit wordt gecontroleerd")
+            return
         if ours and raw["output"] is False:
             ending_session = self._session_started is not None
             expired = self._lease_deadline is not None and now >= self._lease_deadline - 1
@@ -2152,6 +2297,8 @@ class SGBoostManager:
             reasons.append("Automatisch regelen staat niet aan")
         if self.fault_code in {"firmware_changed", "commissioning_changed"} and self.fault:
             reasons.append(self.fault)
+        if self._firmware_reboot_invalid:
+            reasons.append("SG-herstelgegevens zijn niet betrouwbaar; controleer de uitgang en kies Hervatten voor een nieuwe beoordeling")
         if self.settings.get("commissioning_confirmed") is not True:
             reasons.append("Bevestig eerst de SG-mapping en Panasonic-instellingen")
         if self.settings.get("watchdog_confirmed") is not True:
@@ -2255,6 +2402,13 @@ class SGBoostManager:
                 self._hold_reason = ""
                 self._need_reference = self._need_candidate = None
                 self._stable_since = None
+            if self._firmware_reboot_waiting() and self._clock() >= self._firmware_reboot_anchor["deadline"]:
+                self._firmware_reboot["state"] = "expired"
+                self.completion_hold = True
+                self._hold_reason = "session_limit"
+                self._capture_need_reference()
+                self._reset_start_window()
+                await self._save()
             if self._new_storage_available():
                 await self._save()
             raw = await self._read() if self.configured and not self._closed else None
@@ -2323,7 +2477,9 @@ class SGBoostManager:
             if self.owned and self.desired_on:
                 elapsed = now - self._session_started if self._session_started is not None else 0
                 complete = self.manual_mode != "on" and physical.get("verified") is True and (physical.get("completed") is True or physical.get("no_uptake") is True)
-                if complete or elapsed >= float(self.settings["max_session_s"]):
+                reboot_deadline = self._firmware_reboot_deadline()
+                if complete or elapsed >= float(self.settings["max_session_s"]) or (
+                        reboot_deadline is not None and now >= reboot_deadline):
                     self.completion_hold = True
                     self._hold_reason = ("no_uptake" if complete and physical.get("no_uptake") is True
                                          else "native_completed" if complete else "session_limit")
@@ -2361,7 +2517,7 @@ class SGBoostManager:
                     if self.manual_mode == "on" or imported <= float(self.settings["import_threshold_w"]) or self.minimum_hold_active or self.cloud_hold_active:
                         await self._issue_on(renewal=True)
                 return self.sent_this_tick
-            if self.manual_mode == "on":
+            if self.manual_mode == "on" and not self._firmware_reboot_waiting():
                 await self._issue_on()
                 return self.sent_this_tick
             if now < self._rest_until:
@@ -2533,6 +2689,9 @@ class SGBoostManager:
             if self.fault_code in {"firmware_changed", "commissioning_changed"}:
                 raise HomeAssistantError(self.fault)
             self.manual_hold = False
+            self._firmware_reboot = None
+            self._firmware_reboot_anchor = None
+            self._firmware_reboot_invalid = False
             self._manual_control = self._manual_deadline = None
             self.completion_hold = False
             self._need_reference = self._need_candidate = None

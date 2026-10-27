@@ -251,7 +251,13 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'haar eigen actuele voorwaarden vallen. Details en nieuwe exports bewaren de eerste waargenomen '
                               'wijziging, detectietijd, gewijzigde veldnamen en beschikbare oude/nieuwe firmwareversie, ook na '
                               'herstart. Oudere ontbrekende vergelijking blijft onbekend. De firmwaremelding is informatief en '
-                              'verleent op zichzelf geen opdrachtrecht.',
+                              'verleent op zichzelf geen opdrachtrecht. Een bewezen firmware-update met Shelly-herstart naar UIT '
+                              'tijdens een bestaande eigen SG-toestemming veroorzaakt evenmin een blijvende handmatige-UIT-pauze. '
+                              'Alleen met passend oorspronkelijk eigen sessiebewijs, dezelfde hardware en binding, actuele geldige '
+                              'configuratie en tijd-/uptimebewijs van die herstart krijgt de gewone actuele zonnebeoordeling met '
+                              'startstabiliteit opnieuw gelegenheid. De oorspronkelijke sessiegrens en eventuele tijdelijke '
+                              'handmatige eindtijd blijven staan; er volgt geen blinde AAN-herhaling of nieuwe gratis sessie. '
+                              'Zonder dat bewijs blijft een werkelijke handmatige UIT beschermd.',
                               'De regeling onderscheidt normaal, wachten op voldoende zonnebijdrage, boost aangevraagd, rusttijd en'
                               ' geblokkeerd. De SG-startdrempel gebruikt werkelijk restoverschot plus de extra meegetelde bijdrage '
                               'uit een complete actuele bevestigde exclusieve warmtepompmeting. De gezamenlijke zonnebijdrage is '

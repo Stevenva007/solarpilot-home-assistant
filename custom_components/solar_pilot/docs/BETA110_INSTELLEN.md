@@ -20,6 +20,8 @@ Een firmwareversiewijziging alleen is **informatief**: SG blijft automatisch bru
 
 Een oude `firmware_changed`-blokkade kan bij een verse geldige uitlezing en passend bewaard bewijs van dezelfde fysieke uitgang automatisch herstellen. Ontbrekende of afwijkende hardwaregegevens worden niet ingevuld. Een werkelijk ander toestel, andere fysieke koppeling of onbruikbare configuratie of timer houdt zijn eigen actuele controlevoorwaarden; een firmwareversie alleen veroorzaakt die blokkade niet.
 
+Bij een bewezen firmware-update met Shelly-herstart naar UIT tijdens een bestaande eigen SG-toestemming ontstaat geen blijvende handmatige-UIT-pauze. Passend oorspronkelijk sessiebewijs, dezelfde hardware/binding, actuele geldige configuratie en tijd-/uptimebewijs van de herstart zijn vereist. Daarna volgt de gewone actuele zonnebeoordeling met startstabiliteit; geen blinde AAN-herhaling. De oorspronkelijke sessiegrens en eventuele tijdelijke handmatige eindtijd blijven behouden. Ontbreekt het bewijs, dan blijft een werkelijke handmatige UIT beschermd.
+
 Details en nieuwe exports bewaren de eerste beschikbare vergelijking, haar detectietijd, gewijzigde veldnamen en beschikbare oude/nieuwe firmwareversie, ook na herstart. Oudere ontbrekende vergelijkingsgegevens blijven onbekend. Er wordt geen geforceerde fysieke timerproef of SG-schakeling uitgevoerd om alleen een firmwaremelding te verwerken.
 
 Controleer na volledig opstarten backend- en kaartversie, de centrale volgorde, de SG-totaalraming en de concrete SG-wachtreden. De recordercorrectie uit beta.109 blijft behouden. Een normale update bewaart configuratie, modellen, aanvragen en historie. Softwarepublicatie is geen fysieke installatieproef.
