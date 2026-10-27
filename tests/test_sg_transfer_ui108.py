@@ -1,5 +1,6 @@
 """The shipped card describes only a currently proven, bounded EV transfer."""
 from copy import deepcopy
+from unittest.mock import patch
 
 import pytest
 
@@ -7,8 +8,12 @@ from test_sg_ui_platforms62 import attributes, execute, text
 
 
 def transfer():
-    data = attributes(desired_on=True, relay_on=True, lease_confirmed=True,
-        owner="solarpilot", state="boost_requested", lease_remaining_s=300)
+    # Use an exact second: multiplying a wall-time float by 1000 in the Node
+    # clock and dividing it back can move the synthetic instant by a fraction
+    # of a millisecond, changing ceil() or triggering the future-source veto.
+    with patch("test_sg_ui_platforms62.time.time", return_value=1_800_000_000.0):
+        data = attributes(desired_on=True, relay_on=True, lease_confirmed=True,
+            owner="solarpilot", state="boost_requested", lease_remaining_s=300)
     now = data["_test_clock"]
     data["sg_boost"]["relay_valid_until"] = now+120
     data["ems"] = {"electrical_limits": {"source_valid": True,

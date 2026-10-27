@@ -75,6 +75,8 @@ Tests en browserfixtures gebruiken uitsluitend fictieve bronnen. Diagnosebestand
 
 De definitieve beta.110-bron slaagt lokaal met 8989 tests zonder fouten of skips, waaronder 280 nieuwe regressies. De volledige loop eindigde op 100% met exitcode 0 en de verzamelde testlijst bevestigt hetzelfde aantal. Een onafhankelijke adversarial review vond geen materiële fout. Zie docs/TESTRESULTATEN_BETA110.md. De gerichte regressies omvatten echte huidige lastverdeling, SG-totaalraming, prioriteitskandidaten, late bronwijzigingen, beschermde cycli, fingerprintdiagnose en begrensde EV-reactie. De recordercorrectie uit beta.109 blijft onder regressietest.
 
+De aftelregressie gebruikt een vaste hele seconde om zwevendekomma-afronding tussen Python en JavaScript uit de test te houden; productietijden en strikte vervalcontroles zijn ongewijzigd.
+
 Controleer volledige suite, actuele uitleg/optiehulp, handoff, repositoryprivacy/structuur, SG-opdrachtgrens, beide JavaScript-syntaxcontroles en online upstreamreview. Alle vijf commitgebonden CI-gates blijven verplicht: repository/full-suite, HACS, Hassfest, Chromium en echte Home Assistant-startup. Geen lokaal ontbrekende browser als reden voor een remote skip.
 
 ## 10. Bekende problemen / beperkingen
