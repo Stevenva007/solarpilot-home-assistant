@@ -128,7 +128,7 @@ async def test_missing_phase_source_blocks_battery_import_increase(source, durin
 
 
 @pytest.mark.asyncio
-async def test_battery_charge_reserves_unmeasured_owned_future_device_demand_on_each_phase():
+async def test_battery_charge_uses_current_phase_room_without_future_device_demand():
     runtime, hass = phase_battery()
     runtime.states["a"].on = runtime.states["a"].owned = True
     runtime.states["a"].target_w = 1000
@@ -136,8 +136,9 @@ async def test_battery_charge_reserves_unmeasured_owned_future_device_demand_on_
     hass.states.set("sensor.fixture_phase1", 1500, {"unit_of_measurement": "W"})
     hass.states.set("sensor.fixture_phase2", -3300, {"unit_of_measurement": "W"})
     hass.states.set("sensor.fixture_phase3", 0, {"unit_of_measurement": "W"})
-    assert not await runtime.battery_fleet.tick(grid_w=-1800, allow_command=True)
-    assert not hass.services.calls and "Fasegrens" in runtime.battery_fleet.overview()["reason"]
+    assert await runtime.battery_fleet.tick(grid_w=-1800, allow_command=True)
+    assert hass.services.calls[-1][2]["value"] == -1800
+    assert hass.states.get("switch.load").state == "on"
 
 
 @pytest.mark.asyncio
@@ -169,8 +170,8 @@ async def test_advisory_only_phase_setting_keeps_existing_charge_permission():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("extra_latent_w,expected", [(0, True), (600, False)])
-async def test_running_unmetered_aeg_future_peak_is_reserved_once_for_battery_charge(extra_latent_w, expected):
+@pytest.mark.parametrize("extra_latent_w", [0, 600])
+async def test_running_unmetered_aeg_and_idle_device_reserve_no_future_battery_charge_power(extra_latent_w):
     from copy import deepcopy
     import time
     from test_dishwasher import setup
@@ -205,8 +206,8 @@ async def test_running_unmetered_aeg_future_peak_is_reserved_once_for_battery_ch
     grid, valid, discharge, ready, _stamp = runtime._site_data()
     runtime._update_dishwasher_priority(time.monotonic(), runtime._local_now(), grid, valid,
                                         discharge, ready, runtime._wallbox_reading())
-    assert runtime._dishwasher_unmetered_reserves == {"a": 1800}
-    assert runtime._dishwasher_comfort_reserve == 1800
-    assert await runtime.battery_fleet._send("bat1", -1800) is expected
-    assert bool(hass.services.calls) is expected
+    assert runtime._dishwasher_unmetered_reserves == {}
+    assert runtime._dishwasher_comfort_reserve == 0
+    assert await runtime.battery_fleet._send("bat1", -1800)
+    assert hass.services.calls[-1][2]["value"] == -1800
     assert hass.states.get("sensor.dw_phase").state == "Running"

@@ -98,7 +98,7 @@ async def test_changed_native_context_cannot_switch_the_early_residual_proof_lan
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("block", ["read", "backoff", "external_on", "binding", "setup", "firmware"])
+@pytest.mark.parametrize("block", ["read", "backoff", "external_on", "binding", "setup"])
 async def test_final_contact_must_be_live_unchanged_confirmed_off(block):
     manager, adapter, clock, _runtime, row = await ended_request()
     await partial(manager, clock, row)
@@ -115,8 +115,6 @@ async def test_final_contact_must_be_live_unchanged_confirmed_off(block):
         adapter.binding = "b"*64
     elif block == "setup":
         adapter.configured = False
-    elif block == "firmware":
-        adapter.fingerprint["firmware_id"] = "fictional-new-firmware"
     await collect(manager, clock, row, 60)
     if block == "external_on":
         assert manager.external_control_overview()["active"]

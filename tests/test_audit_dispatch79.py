@@ -198,7 +198,7 @@ async def test_deadline_start_is_cancelled_when_runtime_closes_during_journal(mo
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("change", ["phase", "capacity", "commitment"])
+@pytest.mark.parametrize("change", ["phase", "capacity", "current_load"])
 async def test_increase_cannot_spend_capacity_lost_during_journal(monkeypatch, change):
     import time
     from copy import deepcopy
@@ -236,6 +236,9 @@ async def test_increase_cannot_spend_capacity_lost_during_journal(monkeypatch, c
             h.states.set("sensor.average", "unavailable", {"unit_of_measurement": "W"})
         else:
             h.states.set("sensor.other", 0, {"unit_of_measurement": "W", "estimated": True})
+            # An uncertain device value cannot create power; the actual P1
+            # change, rather than a nominal later peak, rejects this increase.
+            h.states.set("sensor.grid", 3000, {"unit_of_measurement": "W"})
 
     monkeypatch.setattr(r.store, "async_save", lose_room)
     await r._send(Action("a", 1000, "Bewuste netstart"), time.monotonic())
@@ -498,7 +501,7 @@ async def test_future_restored_running_report_cannot_confirm_an_actual_start_com
 
 
 @pytest.mark.asyncio
-async def test_unmetered_cycle_peak_stays_electrical_while_flexible_dispatch_uses_real_solar():
+async def test_unmetered_cycle_has_no_future_reserve_while_flexible_dispatch_uses_real_solar():
     from copy import deepcopy
     from custom_components.solar_pilot.engine import State
     r, h, c = setup(nominal_w=1800)
@@ -517,10 +520,10 @@ async def test_unmetered_cycle_peak_stays_electrical_while_flexible_dispatch_use
     r.device_modes["b"] = "auto"
     h.states.set("switch.other_load", "off")
     await r.tick()
-    assert r._dishwasher_unmetered_reserve == 1800
+    assert r._dishwasher_unmetered_reserve == 0
     assert r.result.start_power["b"]["available_w"] == 2980
-    assert r.result.start_power["b"]["electrical_headroom_w"] == 4800
-    assert r.result.start_power["b"]["protected_cycle_reserve_w"] == 1800
+    assert r.result.start_power["b"]["electrical_headroom_w"] == 6600
+    assert r.result.start_power["b"]["protected_cycle_reserve_w"] == 0
     assert r.result.start_power["b"]["solar_cycle_reserve_w"] == 0
     assert [call[:2] for call in writes(h)] == [("switch", "turn_on")]
     assert r.states["a"].owned and h.states.get("sensor.dw_phase").state == "Running"
@@ -570,7 +573,7 @@ def test_final_start_budget_reports_phase_limit_instead_of_missing_solar():
 
 
 @pytest.mark.asyncio
-async def test_current_phase_start_budget_deducts_running_unmetered_cycle_once():
+async def test_current_phase_start_budget_deducts_no_future_unmetered_cycle_peak():
     from copy import deepcopy
     from custom_components.solar_pilot.engine import State
     r, h, _cfg = setup(nominal_w=1800)
@@ -596,10 +599,10 @@ async def test_current_phase_start_budget_deducts_running_unmetered_cycle_once()
         h.states.set(entity, watts, {"unit_of_measurement": "W"})
     await r.tick()
     allocation = r.result.start_power["b"]
-    assert r._dishwasher_unmetered_reserve == 1800
-    assert allocation["available_w"] == allocation["electrical_headroom_w"] == 200
-    assert not allocation["sufficient"] and "Fasegrens" in r.result.reasons["b"]
-    assert not writes(h)
+    assert r._dishwasher_unmetered_reserve == 0
+    assert allocation["available_w"] == allocation["electrical_headroom_w"] == 2000
+    assert allocation["sufficient"]
+    assert [call[:2] for call in writes(h)] == [("switch", "turn_on")]
 
 
 @pytest.mark.asyncio

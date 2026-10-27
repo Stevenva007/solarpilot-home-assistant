@@ -40,7 +40,7 @@ def test_full_first_backup_exact_and_new_binding_never_guessed():
     assert data["unified_planner"]["base_load"] == stored["unified_planner"]["base_load"]
     assert "plan" not in data["unified_planner"]
     assert report["legacy_candidates"] == {"threshold_w": 3700.0, "expected_power_w": 4100.0}
-    assert new["sg_boost"]["threshold_w"] == 3000 and new["sg_boost"]["expected_power_w"] == 3200
+    assert new["sg_boost"]["threshold_w"] == 3000 and new["sg_boost"]["expected_power_w"] == 3000
 
 
 def test_idempotent_and_later_sg_permissions_preserved():

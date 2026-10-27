@@ -694,7 +694,7 @@
           "commissioning_confirmed": "Correct SG stage, selected scope and external writers checked",
           "watchdog_confirmed": "Local expiry timer and renewal without switching tested",
           "threshold_w": "Usable solar surplus required to start (W)",
-          "expected_power_w": "Provisional additional demand estimate (W)",
+          "expected_power_w": "Estimated total heat-pump power with SG (W)",
           "profile": "SG solar-boost scope",
           "profile_confirmed": "Scope confirmed locally",
           "cooling_protection_confirmed": "Existing condensation/dew-point protection for additional cooling confirmed"

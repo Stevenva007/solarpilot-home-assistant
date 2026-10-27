@@ -76,7 +76,7 @@ class DishwasherPriority:
         self.since = {i: v for i, v in self.since.items() if i in preferred}
         out.active_ids = {i for i in preferred if states[i].on or i in self.watches}
         # No automatic-preference intervention during Pause/Observe. Running
-        # physical cycles remain a reserved load, not an absolute 60 °C veto.
+        # physical cycles remain protected, without a hypothetical peak reserve.
         if mode != "solar":
             self.since.clear(); self.view = out; return out
         eligible = {i for i in preferred if i in permitted_ids and not states[i].on
@@ -113,9 +113,9 @@ class DishwasherPriority:
             candidate_low = {j: watts for j, watts in low.items()
                              if ranked is None or configs[j].get("_priority_board_rank", -1) > ranked}
             own_low = sum(candidate_low.values())
-            # Consumption is already in P1; reserve only unconsumed commitments.
-            other_commitment = sum(max(0.0, s.target_w-s.measured_w) for j, s in states.items()
-                                   if s.owned and s.on and j not in candidate_low)
+            # P1 includes current consumption. Idle thermostat/nominal targets
+            # are no reservation against an actual new start window.
+            other_commitment = 0.0
             free = -max(actual_grid, filtered_grid)-discharge_w-reserve_w-other_commitment-comfort_reserve_w
             cap_after_release = max_import_w-actual_grid+own_low-other_commitment-comfort_reserve_w
             allowed_credit = credit if (configs[i].get("dishwasher_ev_solar_priority", True)
@@ -144,8 +144,8 @@ class DishwasherPriority:
                 self.since.pop(i, None)
                 continue  # Tiny residuals can still be used by the dehumidifier.
             # A ready idle/pending cycle that fits gets one start opportunity
-            # before optional SG boost. Active protected cycles retain their
-            # measured or unmetered future draw in the runtime budget.
+            # before optional SG boost. An active cycle remains protected;
+            # possible future heater steps are not reserved in this budget.
             out.fitting_ids.add(i)
             out.luxury_block = True
             out.reason = "Afwasmachine past in de veilige startpool en krijgt eerst startkans vóór SG-zonneboost"

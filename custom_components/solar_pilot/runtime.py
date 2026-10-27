@@ -7,6 +7,8 @@ from collections import deque
 from dataclasses import fields, replace
 from datetime import datetime, timedelta, timezone
 import logging
+import hashlib
+import json
 import math
 import time
 from zoneinfo import ZoneInfo
@@ -57,6 +59,7 @@ from .battery_runtime import BatteryFleetManager
 from .panasonic_monitor import PanasonicMonitor
 from .panasonic_migration import migrate_panasonic
 from .sg_boost import SGBoostManager
+from .sg_wallbox_transfer import SGWallboxTransfer
 from .panasonic_authority import PanasonicCommandAuthority
 from .ems import (CAPACITY_DEFAULTS, ECONOMY_DEFAULTS, FORECAST_DEFAULTS,
                   PLANNER_DEFAULTS, PHASE_DEFAULTS, KNOWN_LEGACY_CONFLICTS,
@@ -69,8 +72,7 @@ from .live_options import LiveOptions, ARCHIVED, keyed
 from .platforms import LivePlatforms
 from .priority_board import PriorityBoard
 from .wallbox_priority import WallboxPriority
-from .heatpump_budget import sg_solar_budget, heatpump_power, heatpump_shared
-from .cycle_reserve import solar_cycle_reserve_relief
+from .heatpump_budget import sg_solar_budget, sg_expected_increment, heatpump_power, heatpump_shared
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -177,6 +179,7 @@ class SolarRuntime:
         self._removal_ready_noted = False
         self.store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
         self.sg_boost = SGBoostManager(self)
+        self.sg_wallbox_transfer = SGWallboxTransfer()
         self.command_authority = PanasonicCommandAuthority(self)
         self.analysis = AnalysisRecorder(self)
         self.analysis_feedback = AnalysisFeedbackStore(self)
@@ -216,15 +219,13 @@ class SolarRuntime:
             return False, "Wacht op bevestiging van de vorige verdeling"
         if not check_capacity:
             return True, "Actuele bronnen en eerdere opdrachten gecontroleerd vóór veilig vrijmaken"
-        # Native HP draw remains in P1; SG cannot reclaim it.
-        incremental = float(self.sg_boost.settings["expected_power_w"])
+        # The setting is the expected total HP draw with SG. Existing complete
+        # HP consumption is already in P1; only the remaining increase is new.
+        incremental = sg_expected_increment(self)
         isolated = max(0.0, float(self.isolated_reserve_w))
-        unconsumed = sum(max(0.0, st.target_w - st.measured_w)
-                         for i, st in self.states.items() if st.owned and st.on
-                         and i not in self.source_isolated_devices)
-        projected = grid + incremental + isolated + unconsumed
-        if projected > self.settings["max_import_w"]:
-            free = max(0.0, self.settings["max_import_w"] - grid - isolated - unconsumed)
+        projected = grid + incremental + isolated
+        if not self._sg_net_limit_allowed(grid, projected=projected):
+            free = max(0.0, self.settings["max_import_w"] - grid - isolated)
             return False, (f"Netgrens: SG vraagt {incremental:.0f} W extra; "
                            f"nu {free:.0f} W beschikbaar binnen {self.settings['max_import_w']:.0f} W netafname")
         # A remembered Wallbox wait/cap is not current charging evidence. Read
@@ -237,18 +238,18 @@ class SolarRuntime:
                 grid, self.settings["reserve_w"], discharge)
             wallbox_cap = current_wallbox.max_increase_w
         if (self.wallbox_settings.get("enabled")
-                and wallbox_cap is not None and incremental + isolated + unconsumed > wallbox_cap):
-            free = max(0.0, wallbox_cap - isolated - unconsumed)
+                and wallbox_cap is not None and incremental + isolated > wallbox_cap):
+            free = max(0.0, wallbox_cap - isolated)
             priority = "SG vóór Wallbox" if self.priority_board.sg_before_wallbox() else "Wallbox heeft voorrang"
             return False, (f"{priority}: SG vraagt {incremental:.0f} W extra; "
                            f"stabiele vrije zonnestroom laat nu {free:.0f} W toe")
         if (self.phase_settings.get("enabled") and self.phase_settings.get("control_starts")
                 and (not self.phase.valid or self.phase.block_increase
                      or self.phase.headroom_w is None
-                     or self.phase.headroom_w < incremental + isolated + unconsumed)):
+                     or self.phase.headroom_w < incremental + isolated)):
             if not self.phase.valid or self.phase.headroom_w is None:
                 return False, self.phase.reason or "Wacht op betrouwbare actuele fasevermogens"
-            free = max(0.0, self.phase.headroom_w - isolated - unconsumed)
+            free = max(0.0, self.phase.headroom_w - isolated)
             return False, (f"Fasegrens: SG vraagt {incremental:.0f} W extra; "
                            f"kleinste vrije faseruimte {free:.0f} W. {self.phase.reason}")
         if self.capacity_settings.get("enabled"):
@@ -258,7 +259,7 @@ class SolarRuntime:
             if limit is None:
                 limit = max(0.0, self.capacity.effective_target_w - self.capacity_settings["margin_w"])
             if projected > limit:
-                free = max(0.0, limit - grid - isolated - unconsumed)
+                free = max(0.0, limit - grid - isolated)
                 return False, (f"Kwartierbudget: SG vraagt {incremental:.0f} W extra; "
                                f"nu {free:.0f} W beschikbaar binnen het piekdoel")
         return True, "Actuele elektrische ruimte gecontroleerd"
@@ -275,10 +276,7 @@ class SolarRuntime:
         sources_valid = bool(valid and ready and pv is not None and pv >= 0)
         source_stamps = [reported, _pv_reported]
         source_stale = min(self.settings["stale_s"], self.sg_boost.settings["stale_s"])
-        reserve = max(0.0, float(self.isolated_reserve_w)) + sum(
-            max(0.0, st.target_w - st.measured_w)
-            for i, st in self.states.items() if st.owned and st.on
-            and i not in self.source_isolated_devices)
+        reserve = max(0.0, float(self.isolated_reserve_w))
         fixed_limit = float(self.settings["max_import_w"])
         fixed_room = max(0.0, fixed_limit - grid - reserve) if valid else None
         rooms = [fixed_room] if fixed_room is not None else []
@@ -322,6 +320,11 @@ class SolarRuntime:
             else:
                 sources_valid = False
         solar = sg_solar_budget(self)
+        extra = sg_expected_increment(self, solar)
+        total = float(self.sg_boost.settings["expected_power_w"])
+        increment_stamp = solar.get("stamp") if solar["valid"] else None
+        if extra < total and solar.get("hp_power_reported_at") is not None:
+            source_stamps.append(solar["hp_power_reported_at"])
         instant_room = min(rooms) if sources_valid and rooms else None
         if sources_valid and self.phase_settings.get("enabled") and (self.phase.block_increase or self.phase.release_flexible):
             instant_room = 0.0
@@ -341,7 +344,10 @@ class SolarRuntime:
             "instantaneous_headroom_w": instant_room,
             "phase_increase_blocked": bool(self.phase_settings.get("enabled")
                 and (self.phase.block_increase or self.phase.release_flexible)),
-            "sg_estimated_extra_w": float(self.sg_boost.settings["expected_power_w"]),
+            "sg_estimated_total_w": total, "sg_estimated_extra_w": extra,
+            "sg_increment_observed_at": increment_stamp,
+            "sg_increment_valid_until": (increment_stamp+float(self.sg_boost.settings["stale_s"])
+                if increment_stamp is not None else None),
             "sg_solar_valid": solar["valid"],
             "sg_solar_observed_at": solar.get("stamp") if solar["valid"] else None,
             "sg_eligible_solar_w": solar.get("eligible_w", solar["available_w"]) if solar["valid"] else None,
@@ -349,6 +355,7 @@ class SolarRuntime:
             "sg_hp_solar_w": solar.get("hp_solar_w", 0.0) if solar["valid"] else None,
             "sg_hp_credit_reason": solar.get("hp_credit_reason", ""),
             "sg_ev_credit_reason": solar.get("ev_credit_reason") if solar["valid"] else None,
+            "sg_wallbox_transfer": self.sg_wallbox_transfer_overview(solar),
             "sg_protected_ev_headroom_w": (self.sg_wallbox_guard.result.max_increase_w
                 if self.wallbox_settings.get("enabled") else None),
         }
@@ -365,24 +372,16 @@ class SolarRuntime:
             if completed.get("ended_at", 0) >= watch["issued_wall"]:
                 self.dishwasher_priority.watches.pop(i, None)
         devices = {d.id:d for d in self.devices()}
-        # Without a Shelly, the displayed 'measured_w' is an estimate. Reserve a
-        # full possible future heater step rather than treating that estimate as
-        # proof the cycle already draws its maximum. This is deliberately
-        # conservative; actual phase scheduling remains deferred.
-        isolated_ids = set(self.source_isolated_devices)
-        unmetered_by_device = {i: devices[i].maximum for i,c in self.configs.items()
-            if c.get("kind") == "dishwasher" and self.states[i].on and self.states[i].available
-            and not c.get("power_entity") and i not in isolated_ids
-            and read_dishwasher(self.hass, c, time.time()).active is True}
+        # P1 already contains the running programme's current consumption.
+        # A possible later heater step is not currently used solar power and
+        # must not reserve this window a second time. The programme remains
+        # non-interruptible; future changes are evaluated from fresh P1.
+        unmetered_by_device = {}
         unmetered = sum(unmetered_by_device.values())
         reserve += unmetered
         self._dishwasher_unmetered_reserve = unmetered
         self._dishwasher_unmetered_reserves = unmetered_by_device
-        # Only a currently trusted running cycle has a future-peak reserve.
-        # An offline cycle remains unknown: its cached watts are not an extra
-        # deduction from actual P1 surplus and never become measured zero.
-        self._dishwasher_solar_cycle_relief_w = sum(watts for i, watts in unmetered_by_device.items()
-            if read_dishwasher(self.hass, self.configs[i], time.time()).active is True)
+        self._dishwasher_solar_cycle_relief_w = 0.0
         permitted = {i for i,c in self.configs.items() if dishwasher_has_priority(c)
             and self.dishwasher.permitted(c, read_dishwasher(self.hass,c), time.time())[0]}
         # This release's additional reservation is scoped to an actual priority
@@ -482,6 +481,7 @@ class SolarRuntime:
             "dishwasher_app": self.dishwasher_app.snapshot(),
             "dishwasher_priority": self.dishwasher_priority.snapshot(),
             "sg_boost": self.sg_boost.snapshot(),
+            "sg_wallbox_transfer": self.sg_wallbox_transfer.snapshot(),
             "panasonic_archive": deepcopy(self.panasonic_archive),
             "priorities": self.priorities, "device_modes": self.device_modes,
             "others_first": self.others_first, "learning": self.learning.snapshot(),
@@ -544,6 +544,7 @@ class SolarRuntime:
         self.dishwasher_app.restore(data.get("dishwasher_app", {}))
         self.dishwasher_priority.restore(data.get("dishwasher_priority", {}), self.configs)
         self.sg_boost.restore(data.get("sg_boost", {}))
+        self.sg_wallbox_transfer.restore(data.get("sg_wallbox_transfer", {}))
         self.electricity_cost.restore(data.get("electricity_cost", {}))
         self.others_first = data.get("others_first", True) is True
         self.wallbox_priority.restore(data.get("wallbox_priority", {}))
@@ -1543,6 +1544,137 @@ class SolarRuntime:
                 "remaining_s": v.remaining_s, "possible_interactions": g.conflict_count,
                 "stable_s": g.settings["stable_s"], "stale_s": c["stale_s"],
                 "meter_note": "Laatste HA-rapport is niet noodzakelijk het fysieke meettijdstip"}
+
+    def _sg_transfer_live(self):
+        """An existing proven request, or its still-unreconciled exact lease.
+
+        The restart candidate only keeps the electrical gate open for the
+        existing readback. SGBoostManager still proves the complete checkpoint
+        before it takes ownership; no ON or renewal bypasses that proof.
+        """
+        sg = self.sg_boost
+        if sg._confirmed_request_current() and sg._on_permission_current(sg._generation):
+            return True
+        checkpoint = sg._restart_resume
+        wall = time.time()
+        external = sg._external_control
+        if (isinstance(external, dict) and sg._on_permission_current(sg._generation)
+                and sg.relay_confirmed and sg.relay_on is True
+                and isinstance(sg._relay_observed_at, (int, float))
+                and -5 <= wall-sg._relay_observed_at < float(sg.settings["stale_s"])
+                and external.get("control_identity") == sg._control_identity()
+                and external.get("fingerprint") == sg._observed_fingerprint
+                and external.get("binding_identity") == sg._relay_binding_identity):
+            # Preserving the observed manual contact is not ownership. Its
+            # original 15-minute reassessment and raw import test remain intact.
+            return True
+        return bool(isinstance(checkpoint, dict) and sg._on_permission_current(sg._generation)
+            and sg.relay_confirmed and sg.relay_on is True
+            and isinstance(sg._relay_observed_at, (int, float))
+            and -5 <= wall-sg._relay_observed_at < float(sg.settings["stale_s"])
+            and isinstance(sg._relay_valid_until, (int, float)) and wall < sg._relay_valid_until
+            and sg._relay_binding_identity == checkpoint.get("binding_identity"))
+
+    def _sg_transfer_inputs(self, budget=None):
+        """Conditional EV watts never change the actual site measurements."""
+        from .sg_config import finite
+        budget = sg_solar_budget(self) if budget is None else budget
+        credit = 0.0
+        if (budget.get("valid") is True and self.mode == "solar"
+                and self.wallbox_settings.get("enabled") and self.priority_board.sg_before_wallbox()
+                and not self._closed and not self.removal_requested and not self.restart_blocking
+                and not self.faults and not self.pending and not self.handover and not self.battery_fleet.busy):
+            values = [finite(value) for value in (budget.get("ev_solar_w"),
+                self.sg_boost.settings.get("expected_power_w"), self.wallbox_settings.get("max_takeover_w"))]
+            if all(value is not None and value >= 0 for value in values):
+                credit = min(values)
+        try:
+            # Only policy/source facts belong in the identity. Unrelated HA
+            # metadata can contain nested immutable mappings and display names
+            # must not invalidate an otherwise unchanged transfer.
+            site_keys = ("grid_entity", "grid_sign", "export_entity", "pv_entity",
+                "battery_power_entity", "battery_sign", "battery_discharge_tolerance_w",
+                "max_import_w", "reserve_w", "stale_s")
+            ev_keys = ("enabled", "power_entity", "status_entity", "mode_entity",
+                "demand_entity", "connected_entity", "session_mode_entity", "stale_s",
+                "reclaim_max_age_s", "full_solar_states", "session_solar_states",
+                "session_manual_states", "session_stopped_states", "trust_solar_setting",
+                "charging_threshold_w", "demand_states", "idle_states", "max_takeover_w",
+                "handover_s", "handover_confirm_s")
+            control_identity = self.sg_boost._control_identity()
+            if control_identity is None:
+                credit = 0.0
+            identity = hashlib.sha256(json.dumps({
+                "site": {key: self.settings.get(key) for key in site_keys},
+                "wallbox": {key: self.wallbox_settings.get(key) for key in ev_keys},
+                "sg": control_identity, "order": self.priority_board.order(),
+                "battery_fleet_enabled": self.battery_fleet.settings.get("enabled"),
+                "battery_sources": sorted((key, value.get("power_entity"))
+                    for key, value in self.battery_fleet.configs.items()),
+                "mode": self.mode}, sort_keys=True, allow_nan=False).encode()).hexdigest()
+        except (TypeError, ValueError):
+            identity, credit = "", 0.0
+        return budget, credit, identity
+
+    async def _observe_sg_wallbox_transfer(self):
+        """Durably anchor a real P1 episode before it can postpone a stop."""
+        from .sg_config import finite
+        if not self.data_loaded:
+            # A calculation before start/load must not overwrite an existing
+            # journal, or build a new exception from uninitialised ownership.
+            return sg_solar_budget(self)
+        for _attempt in range(3):
+            budget, credit, identity = self._sg_transfer_inputs()
+            stamp = budget.get("grid_reported_at") if budget.get("valid") else None
+            now, wall = time.monotonic(), time.time()
+            stale = finite(self.sg_boost.settings.get("stale_s"))
+            if (not isinstance(stamp, (int, float)) or isinstance(stamp, bool)
+                    or stale is None or not -5 <= wall-stamp < stale):
+                stamp = None
+            before = self.sg_wallbox_transfer.snapshot()
+            changed = self.sg_wallbox_transfer.observe(now=now, wall=wall,
+                grid_w=budget.get("grid_w") if stamp is not None else None, grid_stamp=stamp,
+                limit_w=self.settings["max_import_w"],
+                recovery_w=self.sg_boost.settings["import_threshold_w"],
+                eligible_w=credit, duration_s=self.wallbox_settings["handover_s"],
+                confirm_s=self.wallbox_settings["handover_confirm_s"], identity=identity,
+                live=self._sg_transfer_live())
+            if not changed:
+                return budget
+            try:
+                await self.store.async_save(self._snapshot())
+            except Exception:
+                self.sg_wallbox_transfer.restore(before)
+                raise
+        return sg_solar_budget(self)
+
+    def _sg_net_limit_allowed(self, grid, *, projected=None, budget=None):
+        from .sg_config import finite
+        grid = finite(grid)
+        projected = grid if projected is None else finite(projected)
+        limit = finite(self.settings.get("max_import_w"))
+        if grid is None or projected is None or limit is None:
+            return False
+        if projected <= limit:
+            return True
+        _budget, credit, identity = self._sg_transfer_inputs(budget)
+        return self.sg_wallbox_transfer.allowed(now=time.monotonic(), wall=time.time(),
+            grid_w=grid, projected_w=projected, limit_w=limit, eligible_w=credit,
+            identity=identity, live=self._sg_transfer_live())
+
+    def sg_wallbox_transfer_overview(self, budget=None):
+        budget, credit, _identity = self._sg_transfer_inputs(budget)
+        now, wall = time.monotonic(), time.time()
+        view = self.sg_wallbox_transfer.overview(now=now, wall=wall)
+        stamp = budget.get("stamp") if budget.get("valid") else None
+        grid = budget.get("grid_w") if budget.get("valid") else None
+        applicable = (view.get("active") is True and grid is not None
+            and grid > self.settings["max_import_w"] and self._sg_net_limit_allowed(grid, budget=budget))
+        valid_until = (min(stamp+float(self.sg_boost.settings["stale_s"]),
+                           self.sg_boost._relay_valid_until or wall,
+                           view.get("expires_at") or wall) if isinstance(stamp, (int, float)) else wall)
+        return {**view, "observed_at": wall, "eligible_w": credit,
+                "applicable": bool(applicable), "valid_until": valid_until}
 
     def _sg_import_observation(self):
         """Actual signed P1 and its original report time, independent of PV/HP.
@@ -2732,23 +2864,37 @@ class SolarRuntime:
             self.note(self.configs[device_id]["name"]+": "+message)
             await self.notify(message)
             self.store.async_delay_save(self._snapshot, 1)
+        budget = await self._observe_sg_wallbox_transfer()
+        # Persisting a new reaction window can await slow storage. Use the
+        # current raw site, phases and quarter budget after that boundary.
+        grid, valid, discharge, ready, reported = self._site_data()
+        self.grid_w = grid
         budget = sg_solar_budget(self)
+        if self.phase_settings.get("enabled"):
+            self.phase = phase_decision(tuple(self._power(self.phase_settings.get(key),
+                self.phase_settings["stale_s"])[0] for key in
+                ("phase_1_entity", "phase_2_entity", "phase_3_entity")), self.phase_settings)
+        if self.capacity_settings.get("enabled"):
+            avg_w, _ = self._power(self.capacity_settings.get("average_demand_entity"), self.capacity_settings["stale_s"])
+            month_w, _ = self._power(self.capacity_settings.get("monthly_peak_entity"), max(self.capacity_settings["stale_s"], 3600))
+            self.capacity = capacity_decision(self._local_now(), avg_w, month_w,
+                grid if valid else None, self.capacity_settings)
         sg_dispatch = not (self.pending or self.handover or self.battery_fleet.busy
                            or self.restart_blocking or self.faults or self.removal_requested)
         sg_start_allowed, sg_reason = self.heat_pump_increase_allowed()
         actual_phase_ok = (not self.phase_settings.get("enabled") or
             self.phase.valid and not self.phase.release_flexible and not self.phase.block_increase)
         hard_limit = (bool(discharge and discharge > self.settings.get("battery_discharge_tolerance_w", 50))
-                      or bool(valid and grid > self.settings["max_import_w"])
+                      or bool(valid and not self._sg_net_limit_allowed(grid))
                       or not actual_phase_ok)
         start_known_hard_limit = (bool(discharge and discharge > self.settings.get("battery_discharge_tolerance_w", 50))
-            or bool(valid and grid > self.settings["max_import_w"])
+            or bool(valid and not self._sg_net_limit_allowed(grid))
             or bool(self.phase_settings.get("enabled") and self.phase.valid
                     and (self.phase.release_flexible or self.phase.block_increase)))
         hard_limit_reason = ""
         if discharge and discharge > self.settings.get("battery_discharge_tolerance_w", 50):
             hard_limit_reason = f"Batterij ontlaadt {discharge:.0f} W; extra SG-aanvraag wordt vrijgegeven"
-        elif valid and grid > self.settings["max_import_w"]:
+        elif valid and not self._sg_net_limit_allowed(grid):
             hard_limit_reason = (f"Netgrens overschreden: {grid:.0f} W afname "
                                  f"> {self.settings['max_import_w']:.0f} W")
         elif not actual_phase_ok:
@@ -2770,7 +2916,7 @@ class SolarRuntime:
         current_import = import_observation.get("watts")
         # Handover/notification awaits may replace the P1 captured above. Its
         # new watts and original report must also retain the hard ceilings.
-        if current_import is not None and current_import > self.settings["max_import_w"]:
+        if current_import is not None and not self._sg_net_limit_allowed(current_import):
             hard_limit = True
             start_known_hard_limit = True
             hard_limit_reason = hard_limit_reason or (f"Netgrens overschreden: {current_import:.0f} W afname "
@@ -2804,9 +2950,7 @@ class SolarRuntime:
                 "entity_id": tank["temperature_entity"], "temperature_c": tank["temperature_c"],
                 "stamp": tank["temperature_stamp"]})
         extra_reclaim = None
-        wash_due = any(self.dishwasher_app.due(cfg, time.time()) and not self.states[i].on
-                       for i, cfg in self.configs.items())
-        if can_increase and valid and ready and not sg_sent and not self.handover and not wash_due:
+        if can_increase and valid and ready and not sg_sent and not self.handover:
             allowed, _reason = self.heat_pump_increase_allowed(check_capacity=False)
             if allowed:
                 extra_reclaim = self.priority_board.extra_reclaim_action(now, local_now)
@@ -2899,9 +3043,7 @@ class SolarRuntime:
         due_devices = [d for d in operational_devices if self.dishwasher_app.due(self.configs[d.id], time.time()) and not self.states[d.id].on]
         if due_devices:
             from copy import deepcopy
-            due_ids = {d.id for d in due_devices}
-            other_commitment = sum(max(0.0, st.target_w-st.measured_w)
-                for i, st in self.states.items() if i not in due_ids and i not in isolated_ids and st.owned and st.on)
+            other_commitment = 0.0  # P1 already includes other active devices.
             deadline_site = replace(site, external_hold=self.phase.release_flexible,
                 external_reason=self.phase.reason, device_holds=priority.holds, device_start_blocks=priority.blocks,
                 battery_ready=True,
@@ -3160,7 +3302,8 @@ class SolarRuntime:
             residual_oldest_reported_at=budget.get("residual_stamp"),
             fixed_import_limit_w=self.settings["max_import_w"])
         reports.update(site_grid={"watts": budget.get("grid_w"), "reported_at": budget.get("grid_reported_at")},
-            site_pv={"watts": budget.get("pv_w"), "reported_at": budget.get("pv_reported_at")})
+            site_pv={"watts": budget.get("pv_w"), "reported_at": budget.get("pv_reported_at")},
+            hp_power={"watts": budget.get("hp_power_w"), "reported_at": budget.get("hp_power_reported_at")})
         # Preserve the existing short-circuit order and every control check.
         if self._closed:
             return rejected("runtime_closed")
@@ -3203,16 +3346,14 @@ class SolarRuntime:
         if (not renewal and (budget["stamp"] <= self.last_issued_wall or
                 time.monotonic()-self.last_issued < self.settings["settle_s"])):
             return rejected("settle")
-        increment = 0.0 if continuation else float(self.sg_boost.settings["expected_power_w"])
+        increment = 0.0 if continuation else sg_expected_increment(self, budget)
         envelope = increment+self.isolated_reserve_w
-        envelope += sum(max(0, st.target_w-st.measured_w) for i,st in self.states.items()
-                        if st.owned and st.on and i not in self.source_isolated_devices)
         readings.update(extra_w=increment, envelope_w=envelope)
         if wallbox_cap is not None and envelope > wallbox_cap:
             return rejected("wallbox_headroom")
         projected = budget["grid_w"]+envelope
         readings["projected_grid_w"] = projected
-        if projected > self.settings["max_import_w"]:
+        if not self._sg_net_limit_allowed(budget["grid_w"], projected=projected, budget=budget):
             return rejected("net_limit")
         if self.sg_boost.adopting_external:
             observation = self._sg_import_observation() or {}
@@ -3261,12 +3402,10 @@ class SolarRuntime:
             return None
         grid, valid, discharge, ready, _stamp = self._site_data()
         if (discharge is not None and discharge > self.settings.get("battery_discharge_tolerance_w", 50)
-                or valid and grid > self.settings["max_import_w"]):
+                or valid and not self._sg_net_limit_allowed(grid)):
             return None
-        envelope = float(self.sg_boost.settings["expected_power_w"])+self.isolated_reserve_w
-        envelope += sum(max(0, st.target_w-st.measured_w) for i, st in self.states.items()
-            if st.owned and st.on and i not in self.source_isolated_devices)
-        if valid and grid+envelope > self.settings["max_import_w"]:
+        envelope = sg_expected_increment(self)+self.isolated_reserve_w
+        if valid and not self._sg_net_limit_allowed(grid, projected=grid+envelope):
             return None
         source_gap = not valid or not ready
         if self.phase_settings.get("enabled"):
@@ -3302,9 +3441,6 @@ class SolarRuntime:
         budget = sg_solar_budget(self)
         if budget["valid"]:
             return not self.priority_board.sg_priority_allowed(time.monotonic())
-        if any(cfg.get("kind") == "dishwasher" and self.dishwasher_app.due(cfg, time.time())
-               and not self.states[i].on for i, cfg in self.configs.items()):
-            return True
         if self.wallbox_settings.get("enabled"):
             for guard in (self.wallbox_guard.result, self.sg_wallbox_guard.result):
                 if guard.block_increase and guard.state != "unavailable":
@@ -3352,17 +3488,8 @@ class SolarRuntime:
         isolated = self.source_isolated_devices
         reserve = (sum(info["reserve_w"] for info in isolated.values())
                    + getattr(self, "_dishwasher_comfort_reserve", 0) + self.sg_unconfirmed_reserve_w)
-        for key, st in self.states.items():
-            if key == i or key in isolated or not st.owned or not st.on:
-                continue
-            other_cfg = self.configs[key]
-            measured = self._power(other_cfg.get("power_entity"))[0] if self._reclaim_meter(key) else None
-            # A thermostat can stop drawing during the journal await. Its next
-            # heating peak remains promised power. Estimates/unknowns cannot
-            # discharge that reservation at the last command boundary.
-            future = max(0.0, st.target_w-(measured if measured is not None and measured >= 0 else 0.0))
-            covered = getattr(self, "_dishwasher_unmetered_reserves", {}).get(key, 0.0)
-            reserve += max(0.0, future-covered)
+        # Re-read P1 after the journal await. Existing devices' current draw is
+        # already in that balance; their nominal future peaks are not reserved.
         available = max(0.0, cap-grid-reserve)
         context["effective_import_limit_w"] = cap
         allocation = self.result.start_power.setdefault(i, {})
@@ -3497,30 +3624,12 @@ class SolarRuntime:
         isolated = trial.source_isolated_devices
         if i in isolated:
             return "Toestelbronnen onbetrouwbaar vóór opdracht"
-        # Re-evaluate native cycles after the durable intent. Preserve the full
-        # known future peak only for cycles currently reported running; an
-        # unavailable cached state does not add hypothetical offline consumption.
-        # Active trusted cycles retain their existing electrical protection.
-        cached_cycles = getattr(self, "_dishwasher_unmetered_reserves", {})
-        devices = {d.id: d for d in trial.devices()}
-        fresh_cycles = {key: devices[key].maximum for key, other_cfg in self.configs.items()
-            if other_cfg.get("kind") == "dishwasher" and not other_cfg.get("power_entity")
-            and key not in isolated
-            and read_dishwasher(self.hass, other_cfg, time.time()).active is True}
-        cycles = {key: max(cached_cycles.get(key, 0.0), watts)
-            for key, watts in fresh_cycles.items()}
-        comfort = max(0.0, getattr(self, "_dishwasher_comfort_reserve", 0)-sum(cached_cycles.values()))
+        # Current P1 contains running cycles, including a heater that changed
+        # during the journal await. A future peak is not an additional reserve.
+        comfort = max(0.0, getattr(self, "_shared_heatpump_comfort_reserve_w", 0))
         reserve = (sum(info["reserve_w"] for info in isolated.values())
-                   + comfort + sum(cycles.values()) + self.sg_unconfirmed_reserve_w)
-        solar_relief = solar_cycle_reserve_relief(cfg.get("kind"), cfg.get("non_interruptible"),
-            reserve, sum(fresh_cycles.values()))
-        for key, other in self.states.items():
-            if key == i or key in isolated or not other.owned or not other.on:
-                continue
-            actual = self._power(self.configs[key].get("power_entity"))[0] if self._reclaim_meter(key) else None
-            future = max(0.0, other.target_w-(actual if actual is not None and actual >= 0 else 0.0))
-            covered = cycles.get(key, 0.0)
-            reserve += max(0.0, future-covered)
+                   + comfort + self.sg_unconfirmed_reserve_w)
+        solar_relief = 0.0
         increment = max(0.0, action.watts-(max(0.0, measured) if active else 0.0))
         cap = self.settings["max_import_w"]
         if self.capacity_settings.get("enabled"):
@@ -3720,10 +3829,8 @@ class SolarRuntime:
                 cap = (0 if not self.capacity.valid else min(cap,
                     self.capacity.allowed_grid_w if self.capacity.allowed_grid_w is not None
                     else self.capacity.effective_target_w or cap))
-            commitment = sum(max(0.0, st.target_w-st.measured_w) for key,st in self.states.items()
-                             if key != i and key not in isolated and st.owned and st.on)
             isolated_reserve = sum(info["reserve_w"] for info in isolated.values())
-            reserved = getattr(self,"_dishwasher_comfort_reserve",0)+commitment+isolated_reserve
+            reserved = getattr(self,"_shared_heatpump_comfort_reserve_w",0)+isolated_reserve
             full = (wb_now.mode or "").casefold() in state_set(self.wallbox_settings["full_solar_states"])
             actual_free = -max(grid_now or 0,self.filtered if self.filtered is not None else grid_now or 0)-(discharge_now or 0)-self.settings["reserve_w"]-reserved
             allocation_cfg = self.priority_board.effective_config(i, cfg)

@@ -314,7 +314,7 @@ async def test_external_dishwasher_losing_connection_does_not_keep_a_cached_peak
     runtime, hass = runtime_with_running_cycle()
     runtime.mode = "observe"
     await runtime.tick()
-    assert runtime._dishwasher_unmetered_reserve == 2000
+    assert runtime._dishwasher_unmetered_reserve == 0
     assert runtime.states["fictional_cycle"].on
     assert not runtime.states["fictional_cycle"].owned
     hass.states.set("sensor.dw_connection", "Disconnected")

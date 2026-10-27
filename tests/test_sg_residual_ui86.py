@@ -82,7 +82,7 @@ def solar_budget(data):
 def test_optional_hp_meter_note_uses_real_solar_and_extra_estimate_without_global_start_permission(view):
     _, root = parsed(solar_budget(rejected_feed()), view)
     note = next(n for n in root.walk() if "data-sg-optional-meter" in n.attributes)
-    assert "actuele P1/PV-metingen" in note.text() and "3,2 kW geraamde extra opname" in note.text()
+    assert "actuele P1/PV-metingen" in note.text() and "3,2 kW geraamd totaalvermogen bij SG" in note.text()
     assert "Warmtepompbijdrage blijft onbekend" in note.text()
     assert "SG-contact Open" in root.text()
     assert "Wacht op voldoende zonneoverschot" in root.text()

@@ -13,6 +13,7 @@ import inspect
 import hashlib
 import json
 import math
+import re
 import time
 import uuid
 
@@ -30,6 +31,10 @@ NEW_CONTEXT_CONFIRM_S = 300.0
 RELEVANT_NATIVE_CONTEXTS = frozenset({"space_heating", "space_cooling", "tapwater_heating"})
 EXTERNAL_REASSESS_S = 900
 _UNSET_RESIDUAL = object()
+FIRMWARE_CHANGE_REASON = "SG-uitgang wordt automatisch opnieuw gecontroleerd na de firmwarewijziging"
+COMMISSIONING_CHANGE_REASON = "SG-uitgang of koppeling gewijzigd; controleer de gekozen uitgang en lokale terugval in de SG-instellingen"
+_FINGERPRINT_FIELDS = frozenset({"device_id", "model", "gen", "firmware_id", "version", "app", "profile", "component"})
+_FIRMWARE_FIELDS = frozenset({"firmware_id", "version", "app"})
 
 
 class SGBoostManager:
@@ -123,6 +128,10 @@ class SGBoostManager:
         self._low_uptake_stamp = None
         self._commissioned_fingerprint = None
         self._observed_fingerprint = None
+        self._fingerprint_change = None
+        self._commissioned_binding_identity = None
+        self._firmware_recovery_pending = False
+        self._firmware_verification = "pending"
         self.sent_this_tick = False
         self.renewed_this_tick = False
 
@@ -350,6 +359,10 @@ class SGBoostManager:
                 self._request_rest_off_current = False
                 self._lease_expiry = self._lease_deadline = None
                 self._commissioned_fingerprint = self._observed_fingerprint = None
+                self._fingerprint_change = None
+                self._commissioned_binding_identity = None
+                self._firmware_recovery_pending = False
+                self._firmware_verification = "pending"
         if (updated.get("tank_temperature_entity") != old_tank_entity
                 and (self.completion_hold or self.owned or self._need_reference)):
             self._tank_source_changed = True
@@ -372,10 +385,13 @@ class SGBoostManager:
                 native_reset_stamp=None, profile_transition=False,
                 native_rebase=True, native_after=self._wall_clock())
             self._general_candidate = self._general_reset_candidate = None
-        if new_confirmation and self.fault_code == "firmware_changed":
+        if new_confirmation and self.fault_code in {"firmware_changed", "commissioning_changed"}:
             if not self._injected_adapter:
                 self._adapter = None
             self._commissioned_fingerprint = deepcopy(self._observed_fingerprint)
+            self._commissioned_binding_identity = self._relay_binding_identity
+            self._fingerprint_change = None
+            self._firmware_recovery_pending = False
             self.fault_code = self.fault = ""
         self.config = self.settings
 
@@ -393,6 +409,10 @@ class SGBoostManager:
                 "request_rest_policy": self._request_rest_policy,
                 "fault_code": self.fault_code, "last_session": deepcopy(self._last_session),
                 "commissioned_fingerprint": deepcopy(self._commissioned_fingerprint),
+                "observed_fingerprint": deepcopy(self._observed_fingerprint),
+                "fingerprint_change": deepcopy(self._fingerprint_change),
+                "commissioned_binding_identity": self._commissioned_binding_identity,
+                "firmware_recovery_pending": self._firmware_recovery_pending,
                 "need_reference": deepcopy(self._need_reference),
                 "tank_source_changed": self._tank_source_changed,
                 "last_rearm": deepcopy(self._last_rearm),
@@ -510,6 +530,25 @@ class SGBoostManager:
             if isinstance(origin, dict) else None)
         fingerprint = stored.get("commissioned_fingerprint")
         self._commissioned_fingerprint = deepcopy(fingerprint) if isinstance(fingerprint, dict) else None
+        binding = stored.get("commissioned_binding_identity")
+        self._commissioned_binding_identity = binding if isinstance(binding, str) and len(binding) == 64 and all(
+            char in "0123456789abcdef" for char in binding) else None
+        observed = stored.get("observed_fingerprint")
+        self._observed_fingerprint = deepcopy(observed) if isinstance(observed, dict) and observed else None
+        change = stored.get("fingerprint_change")
+        detected = finite(change.get("detected_at")) if isinstance(change, dict) else None
+        if (isinstance(change, dict) and change.get("schema") == 1
+                and (change.get("detected_at") is None
+                     or detected is not None and 0 <= detected <= self._wall_clock() + 5)
+                and isinstance(change.get("commissioned_fingerprint"), dict)
+                and isinstance(change.get("observed_fingerprint"), dict)):
+            self._fingerprint_change = {"schema": 1, "detected_at": detected,
+                "commissioned_fingerprint": deepcopy(change["commissioned_fingerprint"]),
+                "observed_fingerprint": deepcopy(change["observed_fingerprint"])}
+        self._firmware_recovery_pending = (stored.get("fault_code") == "firmware_changed"
+            or stored.get("firmware_recovery_pending") is True and self._fingerprint_change is not None
+            and self._same_hardware(self._fingerprint_change["commissioned_fingerprint"],
+                                    self._fingerprint_change["observed_fingerprint"]))
         reason = stored.get("hold_reason")
         self._hold_reason = (reason if reason in {"session_limit", "native_completed", "no_uptake", "profile_changed", "response_unknown"}
                              else "session_limit" if self.completion_hold else "")
@@ -548,8 +587,10 @@ class SGBoostManager:
         # Reload preserves completed evidence, never a partly observed window.
         self._general_candidate = self._general_reset_candidate = None
         code = stored.get("fault_code")
-        if code in {"on_failed", "lease_invalid", "lease_failed", "firmware_changed"}:
-            self._fault(code, "SG-zonneboost vraagt controle van de lokale terugval; overige toestellen blijven werken")
+        if code in {"on_failed", "lease_invalid", "lease_failed", "firmware_changed", "commissioning_changed"}:
+            self._fault(code, FIRMWARE_CHANGE_REASON if code == "firmware_changed" else
+                        COMMISSIONING_CHANGE_REASON if code == "commissioning_changed" else
+                        "SG-zonneboost vraagt controle van de lokale terugval; overige toestellen blijven werken")
         self.desired_on = False
         self.owned = False
         self._possibly_owned = False
@@ -866,20 +907,119 @@ class SGBoostManager:
         if live is not None and isinstance(getattr(live, "applied", None), dict):
             live.applied["sg_boost"] = deepcopy(self.settings)
 
+    @staticmethod
+    def _same_hardware(before, after):
+        """Firmware labels never identify a different physical SG output."""
+        if not isinstance(before, dict) or not isinstance(after, dict):
+            return False
+        required = ("device_id", "model", "profile", "component")
+        if (not all(isinstance(before.get(key), str) and before[key]
+                    and isinstance(after.get(key), str) and after[key] for key in required)
+                or type(before.get("gen")) is not int or type(after.get("gen")) is not int):
+            return False
+        return ({key: value for key, value in before.items() if key not in _FIRMWARE_FIELDS}
+                == {key: value for key, value in after.items() if key not in _FIRMWARE_FIELDS})
+
+    def _fingerprint_binding_current(self, raw):
+        binding = raw.get("binding_identity")
+        expected = self._commissioned_binding_identity
+        if expected is not None and binding != expected:
+            return False
+        if (self.owned or self._possibly_owned) and self._binding_identity is not None and binding != self._binding_identity:
+            return False
+        return all(not isinstance(value, dict) or value.get("binding_identity") is None
+                   or value["binding_identity"] == binding
+                   for value in (self._manual_control, self._external_control, self._restart_resume))
+
+    def _rebind_firmware_evidence(self, raw):
+        # These are live proofs for the same output. Keep their original control
+        # identities, ownership, timer/session limits and absolute deadlines.
+        # Historical command provenance and the first mismatch remain immutable.
+        for value in (self._manual_control, self._external_control, self._restart_resume):
+            if (isinstance(value, dict) and self._same_hardware(value.get("fingerprint"), raw.get("fingerprint"))
+                    and value.get("binding_identity") == raw.get("binding_identity")):
+                value["fingerprint"] = deepcopy(raw["fingerprint"])
+
     def _fingerprint_check(self, raw):
         fingerprint = raw.get("fingerprint")
         if not isinstance(fingerprint, dict) or not fingerprint:
-            return
+            self._firmware_verification = "pending"
+            return False
+        previous_observed = self._observed_fingerprint
         self._observed_fingerprint = deepcopy(fingerprint)
         if self._commissioned_fingerprint is None:
             if self.settings.get("commissioning_confirmed") is True and self.settings.get("watchdog_confirmed") is True:
                 self._commissioned_fingerprint = deepcopy(fingerprint)
-            return
-        if fingerprint != self._commissioned_fingerprint:
+                self._commissioned_binding_identity = raw.get("binding_identity")
+            return False
+        changed = fingerprint != self._commissioned_fingerprint
+        first_change = changed and self._fingerprint_change is None
+        if first_change:
+            self._fingerprint_change = {"schema": 1,
+                "detected_at": None if self.fault_code == "firmware_changed" else self._wall_clock(),
+                "commissioned_fingerprint": deepcopy(self._commissioned_fingerprint),
+                "observed_fingerprint": deepcopy(fingerprint)}
+        same_hardware = self._same_hardware(self._commissioned_fingerprint, fingerprint)
+        same_binding = self._fingerprint_binding_current(raw)
+        if same_hardware and same_binding:
+            if self.fault_code == "firmware_changed":
+                self._firmware_recovery_pending = True
+            self._firmware_verification = "pending"
+            if raw.get("setup_valid") is True and not raw.get("configuration_error"):
+                # A version/build/app label is advisory. Current physical
+                # identity, selected binding, actual switch settings and contact
+                # status are fresh; each real ON still proves its local timer.
+                self._firmware_verification = "verified"
+                self._rebind_firmware_evidence(raw)
+                self._commissioned_fingerprint = deepcopy(fingerprint)
+                self._commissioned_binding_identity = raw.get("binding_identity")
+                recovered = self._firmware_recovery_pending
+                if recovered:
+                    self.settings["commissioning_confirmed"] = True
+                    self.settings["watchdog_confirmed"] = True
+                    self._persist_settings()
+                    self._firmware_recovery_pending = False
+                if self.fault_code == "firmware_changed":
+                    self.fault_code = self.fault = ""
+                return changed or recovered or self._fingerprint_change is not None and previous_observed != fingerprint
+            return first_change or self._fingerprint_change is not None and previous_observed != fingerprint
+        if changed or not same_binding:
+            confirmations_changed = (self.settings.get("commissioning_confirmed") is True
+                                     or self.settings.get("watchdog_confirmed") is True)
             self.settings["commissioning_confirmed"] = False
             self.settings["watchdog_confirmed"] = False
-            self._persist_settings()
-            self._fault("firmware_changed", "SG-toestel of firmware gewijzigd; bevestig de koppeling en test de lokale aflooptimer opnieuw")
+            if confirmations_changed:
+                self._persist_settings()
+            self._firmware_verification = "blocked"
+            self._firmware_recovery_pending = False
+            self._fault("commissioning_changed", COMMISSIONING_CHANGE_REASON)
+            return first_change or previous_observed != fingerprint
+        return False
+
+    def commissioning_diagnostic(self):
+        """Safe historical explanation; no identifiers or new control rights."""
+        active = self.fault_code == "commissioning_changed"
+        change = self._fingerprint_change if isinstance(self._fingerprint_change, dict) else {}
+        before = change.get("commissioned_fingerprint") or {}
+        after = change.get("observed_fingerprint") or {}
+
+        def version(fingerprint):
+            value = fingerprint.get("version") if isinstance(fingerprint, dict) else None
+            return value if isinstance(value, str) and len(value) <= 80 and re.fullmatch(
+                r"[0-9]+(?:\.[0-9]+){1,3}(?:[-+][A-Za-z0-9.-]{1,48})?", value) else None
+
+        firmware_only = bool(change) and self._same_hardware(before, after)
+        return {"schema": 1, "read_only": True, "active": active,
+                "firmware_only": firmware_only, "verification": self._firmware_verification,
+                "automatic": bool(firmware_only and self._firmware_verification == "verified"),
+                "evidence_available": bool(change), "detected_at": change.get("detected_at"),
+                "changed_fields": sorted(key for key in _FINGERPRINT_FIELDS if before.get(key) != after.get(key)),
+                "current_changed_fields": sorted(key for key in _FINGERPRINT_FIELDS
+                    if (self._commissioned_fingerprint or {}).get(key) != (self._observed_fingerprint or {}).get(key)),
+                "previous_version": version(before), "observed_version": version(after),
+                "current_observed_version": version(self._observed_fingerprint),
+                "action": ("Controleer de gekozen SG-uitgang en lokale Shelly-terugval in de SG-instellingen."
+                           if active else "")}
 
     def _timer_proof(self, raw, *, renewal=False, lease_s=None):
         start = finite(raw.get("timer_started_at"))
@@ -913,12 +1053,13 @@ class SGBoostManager:
             raw = self._status(await asyncio.wait_for(self._transport().get_status(),
                                                     float(self.settings["ack_timeout_s"])))
         except Exception as err:
+            self._firmware_verification = "pending"
             self._record_transport("read", error=err, attempted=False)
             self.relay_on = None
             self.relay_confirmed = False
             self._read_failures += 1
             self._next_read = now + min(300.0, 15.0 * 2 ** min(self._read_failures, 4))
-            if self.fault_code not in {"on_failed", "lease_invalid", "lease_failed", "firmware_changed"}:
+            if self.fault_code not in {"on_failed", "lease_invalid", "lease_failed", "firmware_changed", "commissioning_changed"}:
                 self._fault("unavailable_read", "SG-uitgang niet bereikbaar; status onbekend, de lokale toestemming wordt niet vernieuwd")
             return None
         self._transport_confirmed("read")
@@ -926,7 +1067,7 @@ class SGBoostManager:
         self._next_read = now
         if self.fault_code == "unavailable_read":
             self.fault_code = self.fault = ""
-        self._fingerprint_check(raw)
+        evidence_changed = self._fingerprint_check(raw)
         manual = self._manual_control
         if (manual is not None and (raw.get("fingerprint") != manual.get("fingerprint")
                 or raw.get("binding_identity") != manual.get("binding_identity"))):
@@ -934,11 +1075,14 @@ class SGBoostManager:
             self._manual_control = self._manual_deadline = None
             self._stable_since = self._start_soft_since = None
             self._start_soft_kind = None
-            self._fault("binding_changed", "Tijdelijke SG-keuze vervallen: actuele uitgangskoppeling gewijzigd")
-        if (raw.get("setup_valid") is False or raw.get("configuration_error")) and self.fault_code not in {"on_failed", "lease_invalid", "lease_failed", "firmware_changed"}:
+            if self.fault_code != "commissioning_changed":
+                self._fault("binding_changed", "Tijdelijke SG-keuze vervallen: actuele uitgangskoppeling gewijzigd")
+        if (raw.get("setup_valid") is False or raw.get("configuration_error")) and self.fault_code not in {"on_failed", "lease_invalid", "lease_failed", "commissioning_changed"}:
             self._fault("setup_invalid", "Controleer de SG-koppeling en lokale Shelly-terugval; automatische boost blijft uit")
         elif self.fault_code == "setup_invalid":
             self.fault_code = self.fault = ""
+        if evidence_changed:
+            await self._save()
         return raw
 
     async def start(self):
@@ -1200,6 +1344,7 @@ class SGBoostManager:
             # lease. The existing no-arg callback still checks live electrical
             # permission at Switch.Set; no new ON authority comes from a read.
             self._status(raw)
+            self._fingerprint_check(raw)
             before_contact = {**deepcopy(raw), "confirmed": True, "stamp": self._relay_observed_at}
             if self._adopting_external and not self._external_matches(raw):
                 self.owned = self._possibly_owned = self.desired_on = False
@@ -1312,7 +1457,7 @@ class SGBoostManager:
             if issued_at is None:
                 raise ValueError("dispatch_not_observed")
             self._fingerprint_check(raw)
-            if self.fault_code == "firmware_changed":
+            if self.fault_code in {"firmware_changed", "commissioning_changed"}:
                 raise ValueError("commissioning_changed")
             self._timer_proof(raw, renewal=renewal, lease_s=lease_s)
             self._transport_confirmed("renew" if renewal else "on")
@@ -1352,7 +1497,7 @@ class SGBoostManager:
                     if write_guard_deadline is not None:
                         self._lease_deadline = max(self._lease_deadline or 0.0,
                                                    write_guard_deadline+lease_s)
-                if self.fault_code != "firmware_changed":
+                if self.fault_code not in {"firmware_changed", "commissioning_changed"}:
                     self._fault("on_failed", "SG-aanvraag of lokale aflooptimer niet bevestigd; controle nodig voordat opnieuw wordt gestart")
                 if self.owned or self._possibly_owned:
                     await self._release(self.fault, rest=True, preserve_fault=True)
@@ -2005,6 +2150,8 @@ class SGBoostManager:
             reasons.append("Automatische zonneboost staat uit")
         if getattr(self.runtime, "mode", "observe") != "solar":
             reasons.append("Automatisch regelen staat niet aan")
+        if self.fault_code in {"firmware_changed", "commissioning_changed"} and self.fault:
+            reasons.append(self.fault)
         if self.settings.get("commissioning_confirmed") is not True:
             reasons.append("Bevestig eerst de SG-mapping en Panasonic-instellingen")
         if self.settings.get("watchdog_confirmed") is not True:
@@ -2033,7 +2180,7 @@ class SGBoostManager:
             reasons.append("Begrensde SG-sessieduur bereikt; tijdelijke keuze verlengt de sessielimiet niet")
         if include_completion_hold and self.completion_hold and self.manual_mode != "on":
             reasons.append(self._completion_reason())
-        if self.fault:
+        if self.fault and self.fault not in reasons:
             reasons.append(self.fault)
         return reasons
 
@@ -2383,8 +2530,8 @@ class SGBoostManager:
             raw = await self._read(force=True) if self.configured else None
             if raw is None:
                 raise HomeAssistantError("De SG-uitgang is nog niet betrouwbaar bereikbaar.")
-            if self.fault_code == "firmware_changed":
-                raise HomeAssistantError("Bevestig de gewijzigde SG-koppeling en test de lokale aflooptimer opnieuw in de instellingen.")
+            if self.fault_code in {"firmware_changed", "commissioning_changed"}:
+                raise HomeAssistantError(self.fault)
             self.manual_hold = False
             self._manual_control = self._manual_deadline = None
             self.completion_hold = False
@@ -2599,6 +2746,7 @@ class SGBoostManager:
                 "cloud_valid_until": cloud_valid_until,
                 "manual_hold": self.manual_hold, "completion_hold": self.completion_hold,
                 "fault": self.fault, "fault_code": self.fault_code, "action_required": self.action_required,
+                "commissioning_diagnostic": self.commissioning_diagnostic(),
                 "transport_evidence": deepcopy(self._transport_evidence),
                 "dispatch_rejection": deepcopy(self._dispatch_rejection),
                 "blocked_reasons": list(self._blocked_reasons), "last_session": deepcopy(self._last_session),

@@ -598,6 +598,7 @@ class AnalysisRecorder:
         self.last_attributes = {}
         self.last_decision = None
         self.last_heatpump_state = None
+        self.last_sg_transfer_state = None
         self.last_effective_settings = None
         self.dropped = {"samples": 0, "changes": 0, "events": 0}
         self.loaded = False
@@ -740,6 +741,13 @@ class AnalysisRecorder:
                                   "reason": r.result.reasons.get(i), "estimated": not bool(r.configs[i].get("power_entity"))}
                             for i, s in r.states.items()}, "cycle_ms": round(elapsed_ms, 3)}
         fast["electrical_sources"], fast["wallbox"] = electrical_context_evidence(r, wall)
+        transfer_reader = getattr(r, "sg_wallbox_transfer_overview", None)
+        try:
+            fast["sg_wallbox_transfer"] = safe(transfer_reader()) if callable(transfer_reader) else None
+        except Exception:
+            # Optional diagnostics cannot create a window or invalidate the
+            # other observed electrical facts when their overview is missing.
+            fast["sg_wallbox_transfer"] = None
         for device_id, data in fast["devices"].items():
             cfg = r.configs[device_id]
             data.update(consumer_evidence(r, device_id, wall))
@@ -767,10 +775,23 @@ class AnalysisRecorder:
                 # Keep the original electrical reports at a request/contact
                 # transition beyond the RAM-only two-hour fast-log window.
                 event_data["electrical_context"] = {key: fast[key] for key in
-                    ("ts", "grid_w", "pv_w", "source_policy", "electrical_sources", "wallbox")}
+                    ("ts", "grid_w", "pv_w", "source_policy", "electrical_sources", "wallbox", "sg_wallbox_transfer")}
             self.event("heatpump_change", "Warmtepomp-/SG-meldingen of meetdrempel gewijzigd",
                        event_data)
             self.last_heatpump_state = heatpump_state
+        transfer = fast["sg_wallbox_transfer"]
+        if isinstance(transfer, dict) and transfer.get("state") in (
+                "waiting_recovery", "ready", "active", "exhausted"):
+            transfer_state = tuple(transfer.get(key) for key in ("state", "started_at", "expires_at"))
+            if (transfer_state != self.last_sg_transfer_state
+                    and (self.last_sg_transfer_state is not None
+                         or transfer_state[0] not in ("waiting_recovery", "ready"))):
+                # A countdown changes every loop. Persist only an actual state
+                # or original anchor change in the existing bounded event log.
+                self.event("sg_wallbox_transfer", "SG-Wallbox-overdracht waargenomen",
+                    {"transfer": transfer, "electrical_context": {key: fast[key] for key in
+                        ("ts", "grid_w", "pv_w", "source_policy", "electrical_sources", "wallbox", "sg_wallbox_transfer")}})
+            self.last_sg_transfer_state = transfer_state
         effective_settings = safe({"settings": r.settings, "devices": r.configs, "sg_boost": r.sg_boost.config,
                                    "wallbox": r.wallbox_settings, "pv_forecast": r.pv_forecast.settings,
                                    "analysis": self.settings})

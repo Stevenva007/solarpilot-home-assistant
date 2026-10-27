@@ -268,16 +268,16 @@ async def test_deadline_cannot_overlap_an_unconfirmed_other_command(monkeypatch)
 
 
 @pytest.mark.asyncio
-async def test_deadline_preserves_unconsumed_protected_cycle_commitment(monkeypatch):
+async def test_deadline_uses_real_room_without_idle_protected_cycle_reserve(monkeypatch):
     r, h, c, w, clock = prepare(monkeypatch)
     await r.tick()
     add_other(r, h, clock, on=True, protected=True, watts=2400, measured=0)
     advance(h, w, clock, "2026-09-28T10:01")
     await r.tick()
-    assert not starts(h)
+    assert len(starts(h)) == 1
     assert r.states["other"].on and r.states["other"].owned
     assert not [call for call in h.services.calls if call[:2] == ("switch", "turn_off")]
-    assert r.overview()[0]["start_diagnostics"]["power"]["allocation"]["available_w"] == 1000
+    assert r.overview()[0]["start_diagnostics"]["power"]["allocation"]["available_w"] >= 2000
 
 
 @pytest.mark.asyncio
@@ -584,7 +584,7 @@ async def test_native_program_or_request_replacement_during_save_cannot_inherit_
 
 
 @pytest.mark.asyncio
-async def test_protected_load_new_zero_watt_phase_keeps_future_power_reserved_at_dispatch(monkeypatch):
+async def test_protected_load_zero_watt_phase_reserves_no_future_power_at_dispatch(monkeypatch):
     r, h, c, w, clock = prepare(monkeypatch)
     await r.tick()
     add_other(r, h, clock, on=True, protected=True, watts=2400, measured=2400)
@@ -595,8 +595,8 @@ async def test_protected_load_new_zero_watt_phase_keeps_future_power_reserved_at
         await save(data)
         if not triggered and r.pending and r.pending["id"] == "a":
             triggered.append(True)
-            # Its heater pauses while another household load rises. P1 alone
-            # would hide the 2400 W this protected cycle may need again.
+            # Its heater pauses while another household load rises. Fresh P1
+            # still leaves 2800 W; the possible later 2400 W step is not reserved.
             h.states.set("sensor.example_other", 0, {"unit_of_measurement": "W"})
             h.states.set("sensor.grid", 1200, {"unit_of_measurement": "W"})
 
@@ -604,15 +604,14 @@ async def test_protected_load_new_zero_watt_phase_keeps_future_power_reserved_at
     advance(h, w, clock, "2026-09-28T10:00")
     await r.tick()
     assert triggered == [True]
-    assert not starts(h)
-    assert not r.pending and not r.states["a"].owned
+    assert len(starts(h)) == 1
+    assert r.pending and r.states["a"].owned
     assert r.states["other"].on and r.states["other"].owned
     assert not [call for call in h.services.calls if call[:2] == ("switch", "turn_off")]
-    assert not r.dishwasher.tickets["a"].get("attempted")
+    assert r.dishwasher.tickets["a"].get("attempted")
     allocation = r.overview()[0]["start_diagnostics"]["power"]["allocation"]
-    assert allocation["available_w"] == 400
-    assert allocation["required_w"] == 2000 and not allocation["sufficient"]
-    assert "400" in r.result.reasons["a"]
+    assert allocation["available_w"] == 2800
+    assert allocation["required_w"] == 2000 and allocation["sufficient"]
 
 
 @pytest.mark.asyncio
@@ -622,6 +621,7 @@ async def test_repeated_last_boundary_blocks_do_not_hide_a_real_unissued_deadlin
     other = add_other(r, h, clock, on=True, protected=True, watts=2400, measured=2400)
     other.pop("power_entity")
     advance(h, w, clock, "2026-09-28T10:01")
+    h.states.set("sensor.grid", 2500, {"unit_of_measurement": "W"})
     await r.tick()
     await r.tick()
     await r.tick()
@@ -632,6 +632,6 @@ async def test_repeated_last_boundary_blocks_do_not_hide_a_real_unissued_deadlin
     assert r.states["other"].on and r.states["other"].owned
     alerts = notifications(h, "create")
     assert len(alerts) == 1
-    assert "1000" in alerts[0][2]["message"]
+    assert "1500" in alerts[0][2]["message"]
     assert "2000" in alerts[0][2]["message"]
     assert not notifications(h, "dismiss")

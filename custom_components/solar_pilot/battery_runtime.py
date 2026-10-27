@@ -223,18 +223,10 @@ class BatteryFleetManager:
             return "Netmeting niet betrouwbaar vóór batterijopdracht"
         isolated = runtime.source_isolated_devices
         reserve = sum(info["reserve_w"] for info in isolated.values())
-        reserve += getattr(runtime, "_dishwasher_comfort_reserve", 0) + runtime.sg_unconfirmed_reserve_w
-        for device_id, state in runtime.states.items():
-            if device_id in isolated or not state.owned or not state.on:
-                continue
-            actual = (runtime._power(runtime.configs[device_id].get("power_entity"))[0]
-                      if runtime._reclaim_meter(device_id) else None)
-            future = max(0.0, state.target_w-(actual if actual is not None and actual >= 0 else 0.0))
-            # The native protected-cycle reserve already contains each running
-            # unmetered AEG's full future peak. Keep only any excess commitment;
-            # other unmetered appliances still require their entire reservation.
-            covered = getattr(runtime, "_dishwasher_unmetered_reserves", {}).get(device_id, 0.0)
-            reserve += max(0.0, future-covered)
+        # P1 includes devices' current draw. A thermostat or dishwasher's
+        # possible next heating step reserves no power from battery charging.
+        # An uncertain own SG command remains distinct from a future load.
+        reserve += runtime.sg_unconfirmed_reserve_w
         cap = finite(runtime.settings.get("max_import_w"))
         if cap is None or cap < 0 or grid+increment+reserve > cap:
             return "Netafnamegrens: onvoldoende actuele ruimte voor batterijopdracht"

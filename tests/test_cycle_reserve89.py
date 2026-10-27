@@ -137,8 +137,8 @@ async def test_runtime_starts_flexible_load_and_leaves_running_dishwasher_untouc
     runtime, hass = runtime_case(owned=owned)
     await runtime.tick()
     assert [(call[0], call[1]) for call in writes(hass)] == [("switch", "turn_on")]
-    assert runtime._dishwasher_unmetered_reserve == 2000
-    assert runtime._dishwasher_solar_cycle_relief_w == 2000
+    assert runtime._dishwasher_unmetered_reserve == 0
+    assert runtime._dishwasher_solar_cycle_relief_w == 0
     assert runtime.result.start_power["b"]["available_w"] == 750
     assert hass.states.get("sensor.dw_phase").state == "Running"
     assert runtime.states["a"].owned is owned

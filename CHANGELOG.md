@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.110 — echt huidig overschot en SG-totaalraming
+
+- Reserveert geen toekomstige afwas-, thermostaat- of andere toestelpieken in de actuele zonnepot of elektrische ruimte. P1 bevat hun huidige verbruik al. Wachtende aanvragen houden geen vermogen vooruit vast; werkelijk startklare passende kandidaten volgen de centrale volgorde.
+- Maakt de SG-raming expliciet het totale warmtepompvermogen met SG, standaard 3000 W. Bestaande getallen blijven behouden. Alleen complete verse exclusieve HP-meting verlaagt de getoetste mogelijke extra opname; ontbrekend bewijs behoudt de volle raming.
+- Neemt de begrensde SG-/Wallboxreactie op: standaard 240 seconden met oorspronkelijk plafond en absolute eindtijd, actueel coherent EV-bewijs en nieuw herstelbewijs. De gewone wolkenbuffer loopt parallel op ruwe P1; afzonderlijke actuele grenzen blijven gelden.
+- Behandelt firmwareversiewijzigingen als informatieve melding zonder blokkade of handmatige herbevestiging. Verifieert dezelfde fysieke uitgang en actuele configuratie/timer automatisch en herstelt een oude firmware-only-latch bij passend bewaard bewijs en verse geldige uitlezing. Echte fysieke wijzigingen blijven afzonderlijk. Bewaart oorspronkelijke beschikbare verschillen voor diagnose; geen nieuwe Panasonic- of Wallboxopdracht.
+- Behoudt beschermde cycli, pending-/ACK-/settle-serialisatie, late bronhercontrole en de compacte recordergegevens van beta.109. Werkt actuele uitleg, veldhulp en overdracht bij. Zie BETA110_INSTELLEN.md en TESTRESULTATEN_BETA110.md.
+
 ## 1.0.0-beta.109 — kleine Wallbox-meetgegevens en recorderherstel
 
 - Publiceert alleen power_w bij de laadvermogensensor; watt- en meetmetadata blijven behouden.

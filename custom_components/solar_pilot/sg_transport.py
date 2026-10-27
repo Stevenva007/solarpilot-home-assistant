@@ -40,9 +40,9 @@ class RelayStatus(TypedDict):
     setup_valid: bool
     configuration_error: str | None
     source: str
-    firmware: str
-    firmware_id: str
-    fingerprint: dict[str, str | int]
+    firmware: str | None
+    firmware_id: str | None
+    fingerprint: dict[str, str | int | None]
     binding_identity: str
     known: bool
 
@@ -135,8 +135,8 @@ class ShellyLeaseAdapter:
         self._lock = asyncio.Lock()
         self._binding_key: tuple[str, str, str] | None = None
         self._identity: tuple[str, str] | None = None
-        self._firmware: tuple[str, str, str] | None = None
-        self._fingerprint: dict[str, str | int] = {}
+        self._firmware: tuple[str | None, str | None, str | None] | None = None
+        self._fingerprint: dict[str, str | int | None] = {}
 
     @property
     def configured(self) -> bool:
@@ -199,7 +199,7 @@ class ShellyLeaseAdapter:
                                    command_attempted=writing, command_applied=writing)
         return result
 
-    async def _identity_check(self, binding: _Binding) -> tuple[str, str, str | None]:
+    async def _identity_check(self, binding: _Binding) -> tuple[str | None, str | None, str | None]:
         info = await self._rpc(binding, "Shelly.GetDeviceInfo")
         mac = _mac(info.get("mac"))
         device_id = info.get("id")
@@ -210,23 +210,21 @@ class ShellyLeaseAdapter:
             raise ShellyLeaseError("unverified_mapping", "De actuele Shelly-identiteit past niet bij de gekozen SG-uitgang.")
         if info.get("profile") not in (None, "switch"):
             raise ShellyLeaseError("wrong_role", "De Shelly-uitgang staat niet in de vereiste schakelrol.")
-        firmware, firmware_id, app = info.get("ver"), info.get("fw_id"), info.get("app")
-        if not all(isinstance(value, str) and value.strip() for value in (firmware, firmware_id, app)):
-            raise ShellyLeaseError("firmware_unknown", "De Shelly-firmware kan niet bevestigd worden.")
+        # Firmware metadata is advisory. The actual supported device, selected
+        # output, switch configuration, clock and local timer are checked live;
+        # a different or absent release label does not revoke that evidence.
+        firmware, firmware_id, app = (value if isinstance(value, str) and value.strip() else None
+                                      for value in (info.get("ver"), info.get("fw_id"), info.get("app")))
         identity = (device_id, mac)
         if self._identity is not None and identity != self._identity:
             raise ShellyLeaseError("binding_changed", "Het SG-toestel is gewijzigd; controleer de koppeling opnieuw.")
-        changed = self._firmware is not None and self._firmware != (firmware, firmware_id, app)
         self._identity = identity
-        if self._firmware is None:
-            self._firmware = (firmware, firmware_id, app)
-        # Local persistent commissioning can compare this exact fingerprint
-        # across reload/restart; the adapter does not silently approve a change.
+        self._firmware = (firmware, firmware_id, app)
         self._fingerprint = {"device_id": device_id, "model": MODEL, "gen": 4,
                              "firmware_id": firmware_id, "version": firmware,
                              "app": app, "profile": "switch", "component": "switch:0"}
         self._binding_key = (binding.device_id, binding.unique_id, binding.config_entry_id)
-        return firmware, firmware_id, ("Shelly-firmware gewijzigd; test de lokale SG-beveiliging opnieuw." if changed else None)
+        return firmware, firmware_id, None
 
     async def _configuration_error(self, binding: _Binding) -> str | None:
         config = await self._rpc(binding, "Switch.GetConfig", {"id": 0})
@@ -240,7 +238,7 @@ class ShellyLeaseAdapter:
             return "Schakel automatisch inschakelen op de Shelly uit."
         return None
 
-    async def _read(self, binding: _Binding, firmware: str, firmware_id: str,
+    async def _read(self, binding: _Binding, firmware: str | None, firmware_id: str | None,
                     configuration_error: str | None) -> RelayStatus:
         raw = await self._rpc(binding, "Switch.GetStatus", {"id": 0})
         if type(raw.get("id")) is not int or raw["id"] != 0 or type(raw.get("output")) is not bool:

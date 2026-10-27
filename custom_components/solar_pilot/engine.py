@@ -167,6 +167,7 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
     remaining_solar = solar_budget - max(0.0, site.comfort_reserve_w)
     remaining_cap = cap_budget - max(0.0, site.comfort_reserve_w)
     locked: set[str] = set()
+    allocated_w: dict[str, float] = {}
     sorted_devices = sorted(devices, key=lambda d: (
         0 if (states[d.id].manual_forced or states[d.id].boost_until > site.now or states[d.id].deadline_urgent) else (d.priority if site.ordered_priorities else (0 if d.id in site.priority_ids else 200) + (1000 if d.id in site.subordinate_ids else 0) + d.priority), d.id))
 
@@ -183,8 +184,12 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
             amount = (site.handover_target_w if handover_lock else
                       d.minimum if d.kind == "number" and not d.non_interruptible else max(d.minimum, s.target_w))
             out.targets[d.id] = amount
-            remaining_solar -= amount
-            remaining_cap -= amount
+            # Preserve the existing request, but budget only its current draw.
+            # A possible later thermostat/heater peak owns no solar reserve.
+            allocated = min(amount, max(0.0, s.measured_w))
+            allocated_w[d.id] = allocated
+            remaining_solar -= allocated
+            remaining_cap -= allocated
             locked.add(d.id)
             out.reasons[d.id] = ("Manueel actief" if s.manual_forced else
                                  "Gecontroleerde overname: Wallbox krijgt reactietijd" if handover_lock else
@@ -209,8 +214,11 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
                 previous = out.targets[d.id]
                 amount = d.quantize(previous + max(0, extra))
                 out.targets[d.id] = amount
-                remaining_solar -= amount - previous
-                remaining_cap -= amount - previous
+                allocated = amount if amount > s.target_w else min(amount, max(0.0, s.measured_w))
+                delta = allocated-allocated_w[d.id]
+                allocated_w[d.id] = allocated
+                remaining_solar -= delta
+                remaining_cap -= delta
                 out.reasons[d.id] = "Minimale looptijd; vermogen regelbaar"
             continue
         reason = ""
@@ -275,13 +283,15 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
                             and d.id not in site.no_reclaim_ids else 0.0)
         if (not s.owned and not eligible or d.id in site.no_reclaim_ids) and not boost:
             available = min(available, device_solar-credit+protected_credit)
-        needed = d.minimum + (d.start_margin_w if not s.on and not boost else 0)
+        needed = (min(d.minimum, max(0.0, s.measured_w))
+                  if s.owned and s.on and d.kind in ("switch", "script")
+                  else d.minimum + (d.start_margin_w if not s.on and not boost else 0))
         if not s.on:
             # Report the SAME conservative allocation used below, not a second
             # optimistic calculation from the instantaneous export alone.
             filtered_free = max(0.0, -grid-max(0.0, site.battery_discharge_w)-site.reserve_w)
-            locked_w = sum(out.targets[i] for i in locked)
-            prior_w = sum(watts for i, watts in out.targets.items() if i != d.id and i not in locked)
+            locked_w = sum(allocated_w.get(i, 0.0) for i in locked)
+            prior_w = sum(watts for i, watts in allocated_w.items() if i != d.id and i not in locked)
             locked_commitment = max(0.0, locked_w-owned_w)
             higher_commitment = max(0.0, locked_w+prior_w-owned_w)-locked_commitment
             solar_available = device_solar
@@ -290,8 +300,7 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
             total_reserve = max(0.0, site.comfort_reserve_w)
             components = [max(0.0, value) for value in (site.protected_cycle_reserve_w,
                 site.isolated_reserve_w, site.sg_unconfirmed_reserve_w)]
-            committed = total_reserve + sum(max(0.0, states[other.id].target_w-states[other.id].measured_w)
-                for other in devices if states[other.id].owned and states[other.id].on)
+            committed = total_reserve
             electrical = site.max_import_w-site.grid_w-committed
             if site.max_increase_w is not None:
                 electrical = min(electrical, site.max_increase_w)
@@ -324,11 +333,24 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
                 "electrical_headroom_w": round(max(0.0, electrical), 2),
                 "grid_allowed": boost,
             }
-        target = d.quantize(available) if available >= needed else 0.0
+        target = (s.target_w if s.owned and s.on and d.kind in ("switch", "script")
+                  and available >= needed else d.quantize(available) if available >= needed else 0.0)
         if target:
             out.targets[d.id] = target
-            remaining_solar -= target
-            remaining_cap -= target
+            allocated = min(target, max(0.0, s.measured_w)) if s.owned and s.on else target
+            # An actual new number command must fit its whole target: final
+            # dispatch compares that target with fresh physical consumption.
+            if s.owned and s.on and d.kind == "number" and target > s.target_w:
+                allocated = target
+            # A future start window is no current power reservation. Keep
+            # proving this candidate's own start delay, while smaller ready
+            # loads may use the actual surplus in the meantime.
+            start_origin = s.start_since if s.start_since is not None else site.now
+            if not s.on and site.now-start_origin < d.start_delay_s:
+                allocated = 0.0
+            allocated_w[d.id] = allocated
+            remaining_solar -= allocated
+            remaining_cap -= allocated
             if not s.on:
                 if s.start_since is None:
                     s.start_since = site.now
@@ -396,10 +418,9 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
                     out.reasons[d.id] = site.increase_reason
         return out
 
-    # Reserve already committed but currently unconsumed power (e.g. a thermostat
-    # momentarily not heating). Never allocate that same headroom a second time.
-    committed = max(0.0, site.comfort_reserve_w) + sum(max(0.0, states[d.id].target_w - states[d.id].measured_w)
-                    for d in devices if states[d.id].owned and states[d.id].on)
+    # Existing devices are in P1. Only explicit non-device uncertainty remains;
+    # idle thermostat targets do not reserve hypothetical future consumption.
+    committed = max(0.0, site.comfort_reserve_w)
     for d in sorted_devices:
         s = states[d.id]
         target = out.targets[d.id]
@@ -413,8 +434,7 @@ def plan(site: Site, devices: list[Device], states: dict[str, State]) -> Plan:
             out.reasons[d.id] = site.device_start_blocks[d.id]
             continue
         current = s.measured_w if s.owned and s.on else 0.0
-        own_commitment = max(0.0, s.target_w - current) if s.owned and s.on else 0.0
-        other_commitment = committed - own_commitment
+        other_commitment = committed
         cap_free = site.max_import_w - site.grid_w - other_commitment
         relief = solar_cycle_reserve_relief(d.kind, d.non_interruptible,
             site.comfort_reserve_w, min(site.cycle_solar_relief_w, site.protected_cycle_reserve_w))

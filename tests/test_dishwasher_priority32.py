@@ -340,12 +340,12 @@ async def test_tomorrow_request_does_not_impose_today_reservations(monkeypatch):
     assert not r.dishwasher_priority.view.luxury_block
 
 @pytest.mark.asyncio
-async def test_running_unmetered_cycle_retains_future_heater_reservation(monkeypatch):
+async def test_running_unmetered_cycle_reserves_no_future_heater_power(monkeypatch):
     r,h,c,w=solar_case(monkeypatch);await r.tick()
     w[0]+=3;event(r,h,c,w,'dishwasher_state_entity','Running')
     await r.tick()
-    assert r._dishwasher_unmetered_reserve==2000
-    assert r.overview()[0]['dishwasher']['priority_policy']['unmetered_reserve_w']==2000
+    assert r._dishwasher_unmetered_reserve==0
+    assert r.overview()[0]['dishwasher']['priority_policy']['unmetered_reserve_w']==0
     assert not r.handover
 
 @pytest.mark.asyncio

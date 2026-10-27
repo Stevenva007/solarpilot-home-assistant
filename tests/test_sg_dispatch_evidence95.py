@@ -18,6 +18,7 @@ from test_sg_minimum_adversarial72 import live_dispatch
 def test_rejected_fixed_net_gate_records_actual_boundary_values_and_success_clears_the_previous_denial():
     runtime, hass = configured(export=0, reserve=0)
     runtime.settings["max_import_w"] = 3500
+    hass.states.set("sensor.public_hp", 0, {"unit_of_measurement": "W"})
     hass.states.set("sensor.grid", 2000, {"unit_of_measurement": "W"})
     assert runtime.sg_dispatch_allowed(ignore_solar=True) is False
     evidence = deepcopy(runtime._sg_dispatch_rejection)

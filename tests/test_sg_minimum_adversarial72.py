@@ -80,7 +80,7 @@ async def test_renewal_flag_never_grants_an_initial_on_during_import():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("hard_guard", [
-    "fixed_import", "committed_load", "stale_grid", "stale_pv",
+    "fixed_import", "actual_load", "stale_grid", "stale_pv",
     "battery_discharge", "missing_phases", "missing_quarter", "protected_ev",
     "pause", "restart", "runtime_fault", "pending_command", "removal",
 ])
@@ -90,8 +90,10 @@ async def test_minimum_import_permission_never_bypasses_final_live_hard_guards(h
     assert manager.minimum_hold_active and live.sg_dispatch_allowed(renewal=True)
     if hard_guard == "fixed_import":
         hass.states.set("sensor.grid", 501, {"unit_of_measurement": "W"})
-    elif hard_guard == "committed_load":
+    elif hard_guard == "actual_load":
         live.states["a"].target_w += 101
+        assert live.sg_dispatch_allowed(renewal=True)
+        hass.states.set("sensor.grid", 501, {"unit_of_measurement": "W"})
     elif hard_guard in ("stale_grid", "stale_pv"):
         entity = "sensor.grid" if hard_guard == "stale_grid" else "sensor.public_pv"
         obj = hass.states.get(entity)

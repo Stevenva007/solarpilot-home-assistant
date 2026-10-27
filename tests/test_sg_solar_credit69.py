@@ -38,7 +38,7 @@ def test_running_hp_solar_counts_towards_start_threshold_without_changing_actual
     (500, 4000, 2000, 500, 1000, 0, 1000),
     (-1000, 4000, 2000, 500, 2500, 500, 2000),
     (-1000, 2500, 2000, 500, 2500, 500, 2000),
-    (500, 600, 2000, 0, 600, 0, 600),
+    (500, 600, 2000, 0, 0, 0, 0),  # HP exceeds the current whole-site load.
     (0, 0, 2000, 0, 0, 0, 0),
     (-10000, 4000, 2000, 0, 4000, 4000, 0),
     (2500, 4000, 2000, 0, 0, 0, 0),
@@ -55,28 +55,28 @@ def test_non_solar_energy_is_removed_and_combined_credit_never_exceeds_measured_
     assert eligible <= pv
 
 
-def test_reserve_and_filtered_grid_are_conservative_and_not_counted_twice():
+def test_house_buffer_and_filtered_grid_remain_without_future_appliance_reserve():
     runtime, _ = metered(reserve=150)
     runtime._dishwasher_comfort_reserve = 200
     runtime.filtered = -500
     budget = sg_solar_budget(runtime)
-    assert budget["reserve_w"] == 350
+    assert budget["reserve_w"] == 150
     assert budget["conservative_grid_w"] == -500
-    assert budget["available_w"] == 150
-    assert budget["eligible_w"] == 2150
+    assert budget["available_w"] == 350
+    assert budget["eligible_w"] == 2350
     assert budget["hp_solar_w"] == 2000
 
 
-def test_protected_reserve_counts_once_without_extra_offline_estimate():
+def test_offline_device_or_future_cycle_peak_does_not_reduce_measured_surplus():
     runtime, hass = metered(reserve=150)
     runtime.states["a"].available = False
     hass.states.set("sensor.load", 700, {"unit_of_measurement": "W"})
     runtime._dishwasher_comfort_reserve = 200
     budget = sg_solar_budget(runtime)
     assert runtime.isolated_reserve_w == 0
-    assert budget["reserve_w"] == 350
-    assert budget["available_w"] == 650
-    assert budget["eligible_w"] == 2650
+    assert budget["reserve_w"] == 150
+    assert budget["available_w"] == 850
+    assert budget["eligible_w"] == 2850
     assert budget["hp_solar_w"] == 2000
 
 
@@ -246,9 +246,9 @@ def test_lower_reclaim_cannot_borrow_active_wallbox_reserved_power():
     assert "Wallbox" in runtime.priority_board.extra_reclaim["reason"]
 
 
-def test_threshold_credit_never_replaces_full_future_physical_hp_envelope():
+def test_expected_total_hp_draw_deducts_only_its_complete_current_measurement():
     runtime, _ = metered(grid=-1000)
     assert sg_solar_budget(runtime)["eligible_w"] == runtime.sg_boost.settings["threshold_w"]
-    # The existing 2 kW may persist while SG adds demand; it is not a delta model.
+    # 3.2 kW total minus the already measured 2 kW leaves a 1.2 kW increase.
     allowed, _ = runtime.heat_pump_increase_allowed()
-    assert not allowed  # -1 kW + 3.2 kW exceeds the unchanged 0.5 kW import limit.
+    assert allowed  # -1 kW + 1.2 kW fits the unchanged 0.5 kW import limit.
