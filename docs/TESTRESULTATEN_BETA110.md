@@ -11,3 +11,5 @@ De begrensde SG-/Wallboxreactie omvat oorspronkelijk episodeplafond en absolute 
 Alle vijf bestaande commitgebonden GitHub Validate-gates blijven verplicht: repository met volledige testsuite, HACS, Hassfest, echte Chromium-interacties en echte Home Assistant-startup. Main herhaalt de gates. De vier gedownloade release-assets worden vervolgens met de exacte tag en bron-SHA vergeleken. Een oudere groene commit of alleen een gemaakte ZIP voldoet niet.
 
 Er is geen fysieke SG-, warmtepomp- of laadproef uitgevoerd. Fictieve tests bewijzen geen werkelijke terugregeling, bekabeling, lokale timerwerking of gerealiseerde besparing. Privé-exportgegevens zijn geen openbare fixtures.
+
+De UI-regressie voor de oorspronkelijke Wallbox-eindtijd gebruikt een vaste hele seconde als testklok. Daardoor blijven de strikte aftel- en bronvervalasserties deterministisch bij Python/JavaScript-omrekening; de productieklok en regeling zijn ongewijzigd.
