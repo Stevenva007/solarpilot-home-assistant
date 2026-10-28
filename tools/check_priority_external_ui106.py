@@ -39,8 +39,24 @@ with sync_playwright() as p:
     editor.locator('[data-move="device:flex_load"][data-delta="-1"]').click()
     assert page.evaluate("JSON.stringify(c._priorityDialog._order)===JSON.stringify(['device:dishwasher','dhw_extra','device:flex_load','wallbox'])")
     assert editor.locator(".status.error").count() == 0
-    editor.locator('[data-row="device:flex_load"]').drag_to(editor.locator('[data-row="dhw_extra"]'))
+    # On mobile, a row's centre can be inside its native permission select.
+    # Start the real browser drag in the visible rank/grip area instead.
+    page.evaluate("""() => {
+      window.priorityDragProof={};const root=c._priorityDialog.shadowRoot;
+      root.addEventListener('pointerdown',e=>{
+        priorityDragProof.pointerRow=e.target.closest('[data-row]')?.dataset.row;
+        priorityDragProof.pointerGrip=!!e.target.closest('.rank');
+      },{once:true,capture:true});
+      for(const type of ['dragstart','drop'])root.addEventListener(type,e=>{
+        priorityDragProof[type]={row:e.target.closest('[data-row]')?.dataset.row,trusted:e.isTrusted};
+      },{once:true});
+    }""")
+    editor.locator('[data-row="device:flex_load"] > .rank').drag_to(
+        editor.locator('[data-row="dhw_extra"] > .rank'))
     assert page.evaluate("c._priorityDialog._order.indexOf('device:flex_load')<c._priorityDialog._order.indexOf('dhw_extra')")
+    assert page.evaluate("""priorityDragProof.pointerRow==='device:flex_load'&&priorityDragProof.pointerGrip===true&&
+      priorityDragProof.dragstart.row==='device:flex_load'&&priorityDragProof.dragstart.trusted===true&&
+      priorityDragProof.drop.row==='dhw_extra'&&priorityDragProof.drop.trusted===true""")
     editor.locator("[data-confirm]").check()
     editor.locator("[data-save]").click()
     page.wait_for_function("c._priorityDialog.status.textContent==='Voorrang opgeslagen.'")
