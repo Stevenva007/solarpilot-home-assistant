@@ -40,9 +40,10 @@ with sync_playwright() as p:
     editor.locator('[data-move="device:flex_load"][data-delta="-1"]').click()
     assert page.evaluate("JSON.stringify(c._priorityDialog._order)===JSON.stringify(['device:dishwasher','dhw_extra','device:flex_load','wallbox'])")
     assert editor.locator(".status.error").count() == 0
-    # Use the rank/grip rather than a native permission select. Chromium's
-    # first dragged move enters a target; later moves deliver the dragover
-    # that accepts a drop. Exercise that native sequence with multiple moves.
+    # Both grips must be visible before mousedown: scrolling the dialog to a
+    # hidden target during the gesture moves the source out from under the
+    # pointer before Chromium can start a native drag. Later native moves
+    # deliver the dragover that accepts the drop.
     page.evaluate("""() => {
       window.priorityDragProof={};const root=c._priorityDialog.shadowRoot;
       const node=el=>el?{tag:el.tagName,row:el.closest('[data-row]')?.dataset.row,
@@ -79,8 +80,37 @@ with sync_playwright() as p:
         priorityDragProof[type]={row:e.target.closest('[data-row]')?.dataset.row,trusted:e.isTrusted};
       },{once:true});
     }""")
+    prepared_drag = page.evaluate("""async () => {
+      const dialog=c._priorityDialog.dialog,root=c._priorityDialog.shadowRoot;
+      const ids=['device:flex_load','dhw_extra'];
+      const grips=ids.map(id=>root.querySelector(`[data-row="${id}"] > .rank`));
+      const bounds=()=>{
+        const box=dialog.getBoundingClientRect(),actions=root.querySelector('.actions').getBoundingClientRect();
+        return {top:Math.max(16,box.top+dialog.clientTop+16),
+          bottom:Math.min(innerHeight-16,box.bottom-dialog.clientTop-16,actions.top-12)};
+      };
+      for(let pass=0;pass<2;pass++){
+        const safe=bounds(),boxes=grips.map(grip=>grip.getBoundingClientRect());
+        const top=Math.min(...boxes.map(box=>box.top)),bottom=Math.max(...boxes.map(box=>box.bottom));
+        dialog.scrollTop+=(top+bottom-safe.top-safe.bottom)/2;
+        await new Promise(requestAnimationFrame);
+      }
+      const safe=bounds(),points=grips.map((grip,index)=>{
+        const box=grip.getBoundingClientRect(),x=box.x+box.width/2,y=box.y+box.height/2;
+        const hit=root.elementFromPoint(x,y);
+        return {id:ids[index],x,y,top:box.top,bottom:box.bottom,
+          visible:box.top>=safe.top&&box.bottom<=safe.bottom,
+          hitGrip:hit?.closest('.rank')===grip,
+          hitRow:hit?.closest('[data-row]')?.dataset.row};
+      });
+      const prepared={safe,scrollTop:dialog.scrollTop,points,
+        ready:points.every(point=>point.visible&&point.hitGrip&&point.hitRow===point.id)};
+      priorityDragDiagnostics.prepared={...prepared,snapshot:priorityDragSnapshot()};
+      return prepared;
+    }""")
+    assert prepared_drag["ready"], prepared_drag
     editor.locator('[data-row="device:flex_load"] > .rank').drag_to(
-        editor.locator('[data-row="dhw_extra"] > .rank'), steps=20)
+        editor.locator('[data-row="dhw_extra"] > .rank'), steps=20, scroll="none")
     drag_diagnostics = page.evaluate("""({...priorityDragDiagnostics,
       after:priorityDragSnapshot(),proof:priorityDragProof})""")
     print("Priority drag diagnostics: " + json.dumps(drag_diagnostics, ensure_ascii=False), flush=True)
