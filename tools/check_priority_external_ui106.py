@@ -1,5 +1,6 @@
 """Exercise the reported priority moves and external SG countdown in Chromium."""
 from pathlib import Path
+import json
 import os
 import shutil
 
@@ -39,10 +40,37 @@ with sync_playwright() as p:
     editor.locator('[data-move="device:flex_load"][data-delta="-1"]').click()
     assert page.evaluate("JSON.stringify(c._priorityDialog._order)===JSON.stringify(['device:dishwasher','dhw_extra','device:flex_load','wallbox'])")
     assert editor.locator(".status.error").count() == 0
-    # On mobile, a row's centre can be inside its native permission select.
-    # Start the real browser drag in the visible rank/grip area instead.
+    # Use the rank/grip rather than a native permission select. Chromium's
+    # first dragged move enters a target; later moves deliver the dragover
+    # that accepts a drop. Exercise that native sequence with multiple moves.
     page.evaluate("""() => {
       window.priorityDragProof={};const root=c._priorityDialog.shadowRoot;
+      const node=el=>el?{tag:el.tagName,row:el.closest('[data-row]')?.dataset.row,
+        classes:el.className,action:el.dataset?.move||el.dataset?.action||null}:null;
+      const rect=el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};};
+      window.priorityDragSnapshot=()=>({order:[...c._priorityDialog._order],
+        drag:c._priorityDialog._drag,scrollTop:c._priorityDialog.dialog.scrollTop,
+        status:c._priorityDialog.status.textContent,
+        dialog:rect(c._priorityDialog.dialog),viewport:{width:innerWidth,height:innerHeight},
+        rows:[...root.querySelectorAll('[data-row]')].map(row=>{
+          const grip=row.querySelector('.rank'),r=grip.getBoundingClientRect();
+          return {id:row.dataset.row,draggable:row.draggable,row:rect(row),grip:rect(grip),
+            gripHit:node(root.elementFromPoint(r.x+r.width/2,r.y+r.height/2))};})});
+      window.priorityDragDiagnostics={before:priorityDragSnapshot(),events:[]};
+      for(const type of ['pointerdown','mousedown','dragstart','dragenter','dragover','drop','dragend','pointerup','mouseup'])
+        root.addEventListener(type,e=>{
+          if(priorityDragDiagnostics.events.length<100)priorityDragDiagnostics.events.push({
+            type:e.type,phase:'capture',target:node(e.target),trusted:e.isTrusted,x:e.clientX,y:e.clientY,
+            hit:node(root.elementFromPoint(e.clientX,e.clientY)),
+            drag:c._priorityDialog._drag,defaultPrevented:e.defaultPrevented,
+            scrollTop:c._priorityDialog.dialog.scrollTop,order:[...c._priorityDialog._order]});
+        },{capture:true});
+      for(const type of ['dragover','drop'])root.addEventListener(type,e=>{
+        if(priorityDragDiagnostics.events.length<100)priorityDragDiagnostics.events.push({
+          type:e.type,phase:'after-handler',target:node(e.target),trusted:e.isTrusted,
+          defaultPrevented:e.defaultPrevented,drag:c._priorityDialog._drag,
+          scrollTop:c._priorityDialog.dialog.scrollTop,order:[...c._priorityDialog._order]});
+      });
       root.addEventListener('pointerdown',e=>{
         priorityDragProof.pointerRow=e.target.closest('[data-row]')?.dataset.row;
         priorityDragProof.pointerGrip=!!e.target.closest('.rank');
@@ -52,8 +80,11 @@ with sync_playwright() as p:
       },{once:true});
     }""")
     editor.locator('[data-row="device:flex_load"] > .rank').drag_to(
-        editor.locator('[data-row="dhw_extra"] > .rank'))
-    assert page.evaluate("c._priorityDialog._order.indexOf('device:flex_load')<c._priorityDialog._order.indexOf('dhw_extra')")
+        editor.locator('[data-row="dhw_extra"] > .rank'), steps=20)
+    drag_diagnostics = page.evaluate("""({...priorityDragDiagnostics,
+      after:priorityDragSnapshot(),proof:priorityDragProof})""")
+    print("Priority drag diagnostics: " + json.dumps(drag_diagnostics, ensure_ascii=False), flush=True)
+    assert page.evaluate("c._priorityDialog._order.indexOf('device:flex_load')<c._priorityDialog._order.indexOf('dhw_extra')"), drag_diagnostics
     assert page.evaluate("""priorityDragProof.pointerRow==='device:flex_load'&&priorityDragProof.pointerGrip===true&&
       priorityDragProof.dragstart.row==='device:flex_load'&&priorityDragProof.dragstart.trusted===true&&
       priorityDragProof.drop.row==='dhw_extra'&&priorityDragProof.drop.trusted===true""")
