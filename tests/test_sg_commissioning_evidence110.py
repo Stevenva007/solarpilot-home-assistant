@@ -368,17 +368,20 @@ async def test_proven_firmware_reboot_off_waits_for_fresh_solar_without_manual_h
     await tick(manager)
     assert not manager.owned and not manager.desired_on and not manager.manual_hold
     assert not manager.completion_hold and not manager.fault
-    assert manager._firmware_reboot["state"] == "waiting"
-    assert manager._firmware_reboot["started_at"] == origin
-    assert manager._firmware_reboot["minimum_started_at"] == minimum
+    # General automatic solar operation no longer inherits a one-hour cap.
+    # This real physical OFF ends the old episode; a new request still needs
+    # fresh stability and a new proven bounded local lease.
+    assert manager._firmware_reboot is None
+    assert manager._last_session["duration_s"] == 30
     assert len(adapter.calls) == 1 and manager.state == "waiting_surplus"
     clock.advance(manager.settings["start_delay_s"]-1)
     await tick(manager)
     assert len(adapter.calls) == 1
     clock.advance(1)
     await tick(manager)
-    assert manager.owned and manager._session_started == origin and manager._minimum_started == minimum
-    assert manager._firmware_reboot["state"] == "resumed" and len(adapter.calls) == 2
+    assert manager.owned and manager._session_started == clock() > origin
+    assert manager._minimum_started >= manager._session_started > minimum
+    assert manager._firmware_reboot is None and len(adapter.calls) == 2
 
 
 @pytest.mark.asyncio

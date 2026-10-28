@@ -68,11 +68,9 @@ class WallboxPriority:
                 key.endswith("_entity") or key.endswith("_script") or key in (
                     "id", "kind", "control_unit", "profile_id", "profile", "non_interruptible"))}
             bindings["device:" + device_id] = _digest(identity)
-        settings = getattr(getattr(self.r, "sg_boost", None), "settings", {})
-        if settings.get("enabled") is True and settings.get("entity_id"):
-            bindings[EXTRA] = _digest({key: settings.get(key) for key in (
-                "entity_id", "profile", "native_program_entity", "native_pump_entity",
-                "native_direction_entity", "cooling_entity")})
+        # SG has fixed precedence over confirmed autonomous solar charging.
+        # Existing SG choices are filtered by _project; a general preference
+        # continues to fan out only to the ordinary eligible devices.
         return bindings
 
     @staticmethod

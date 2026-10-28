@@ -139,7 +139,7 @@ async def test_overload_above_current_ev_credit_is_not_buffered(monkeypatch):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("change", ["higher_wallbox", "manual_session", "unknown_status", "stale_ev", "incoherent_ev"])
+@pytest.mark.parametrize("change", ["manual_session", "unknown_status", "stale_ev", "incoherent_ev"])
 async def test_an_active_window_loses_permission_when_ev_proof_or_order_changes(monkeypatch, change):
     runtime, hass, manager, _adapter, clock = await running(monkeypatch)
     clock.advance(5)
@@ -255,10 +255,14 @@ async def test_native_preflight_does_not_write_on_after_transfer_permission_chan
     else:
         report(hass, clock, "sensor.public_ev_power", "unavailable", {"unit_of_measurement": "W"})
     native.device.release_read.set()
-    with pytest.raises(ShellyLeaseError) as caught:
+    if change == "order":
         await pending
-    assert caught.value.code == "dispatch_changed" and not caught.value.command_attempted
-    assert writes(native) == [] and not hass.services.calls
+        assert len(writes(native)) == 1 and not hass.services.calls
+    else:
+        with pytest.raises(ShellyLeaseError) as caught:
+            await pending
+        assert caught.value.code == "dispatch_changed" and not caught.value.command_attempted
+        assert writes(native) == [] and not hass.services.calls
 
 
 @pytest.mark.asyncio
@@ -307,7 +311,8 @@ async def test_failure_to_persist_first_episode_grants_no_transfer_permission(mo
 
 
 @pytest.mark.asyncio
-async def test_policy_changed_during_episode_storage_cannot_retain_sg(monkeypatch):
+@pytest.mark.parametrize("change", ["order", "source"])
+async def test_order_is_not_transfer_policy_but_source_changes_during_storage_still_revoke(monkeypatch, change):
     runtime, hass, manager, adapter, clock = await running(monkeypatch)
     original_save = runtime.store.async_save
     changed = False
@@ -317,14 +322,23 @@ async def test_policy_changed_during_episode_storage_cannot_retain_sg(monkeypatc
         await original_save(data)
         if data["sg_wallbox_transfer"]["episode"] is not None and not changed:
             changed = True
-            runtime.entry.options["priority_board"]["order"] = ["wallbox", "dhw_extra", "device:a"]
+            if change == "order":
+                runtime.entry.options["priority_board"]["order"] = ["wallbox", "dhw_extra", "device:a"]
+            else:
+                runtime.wallbox_settings["power_entity"] = "sensor.different_ev"
 
     monkeypatch.setattr(runtime.store, "async_save", changed_while_saving)
     clock.advance(5)
     await spike(runtime, hass, clock)
-    assert changed and not manager.owned and not adapter.on
-    assert adapter.calls[-1] == ("off", None)
-    assert runtime.sg_wallbox_transfer.snapshot()["episode"]["invalidated"] is True
+    assert changed
+    if change == "order":
+        assert manager.owned and adapter.on
+        assert runtime.sg_wallbox_transfer_overview()["remaining_s"] == 240
+        assert not runtime.sg_wallbox_transfer.snapshot()["episode"]["invalidated"]
+    else:
+        assert not manager.owned and not adapter.on
+        assert adapter.calls[-1] == ("off", None)
+        assert runtime.sg_wallbox_transfer.snapshot()["episode"]["invalidated"] is True
     assert not hass.services.calls
 
 

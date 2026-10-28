@@ -89,21 +89,23 @@ def test_general_and_individual_switches_are_available_in_actual_views(view):
     root = Markup(result["html"]).root
     targets = [n.attributes["data-wallbox-priority-target"] for n in root.walk()
                if "data-wallbox-priority-target" in n.attributes]
-    assert sorted(targets) == ["device:fan", "dhw_extra", "global"]
+    assert sorted(targets) == ["device:fan", "global"]
+    assert "Warmtepomp gebruikt zonnestroom vóór automatisch laden" in Markup(result["html"]).root.text()
     assert not result["calls"]
 
 
-def test_warmtepump_switch_is_only_extra_sg_and_preserves_ordinary_sg_controls():
+def test_warmtepump_has_fixed_solar_priority_and_preserves_ordinary_sg_controls():
     result = execute(view="comfort")
     text = Markup(result["html"]).root.text()
-    assert 'data-wallbox-priority-target="dhw_extra"' in result["html"]
-    assert "Alleen extra SG-zonneboost; Panasonic-comfort blijft behouden" in text
+    assert 'data-wallbox-priority-target="dhw_extra"' not in result["html"]
+    assert 'data-sg-solar-priority' in result["html"]
+    assert "Warmtepomp gebruikt zonnestroom vóór automatisch laden" in text
     assert 'data-action="sg_boost_enabled"' in result["html"]
     assert 'data-wallbox-priority-target="global"' not in result["html"]
 
 
 @pytest.mark.parametrize("option", OPTIONS)
-@pytest.mark.parametrize("target", ["global", "device:fan", "dhw_extra"])
+@pytest.mark.parametrize("target", ["global", "device:fan"])
 def test_each_choice_sends_only_the_authorized_policy_service(option, target):
     result = execute(option=option, target=target)
     assert result["calls"] == [{"domain": "solar_pilot", "service": "wallbox_priority_control",
@@ -200,3 +202,35 @@ def test_device_name_is_escaped_in_markup_and_aria_label():
     result = execute(target="device:fan", label=payload)
     root = Markup(result["html"]).root
     assert payload in root.text() and not any(n.tag == "img" for n in root.walk())
+
+
+@pytest.mark.parametrize("option", ["auto", *OPTIONS])
+def test_sg_is_not_a_wallbox_override_target_even_from_legacy_dom(option):
+    result = execute(option=option, target="dhw_extra", actions=[
+        {"kind": "wallbox_priority_toggle", "target": "dhw_extra"},
+        {"kind": "wallbox_priority_duration", "target": "dhw_extra"}])
+    assert not result["calls"] and not result["opened"]
+    assert 'data-wallbox-priority-target="dhw_extra"' not in result["html"]
+    assert "Warmtepomp gebruikt zonnestroom vóór automatisch laden" in Markup(result["html"]).root.text()
+
+
+def test_legacy_sg_only_override_does_not_make_global_ordinary_controls_mixed():
+    data = attributes()
+    data["wallbox_priority"]["sg_boost"] = choice("dhw_extra", "until_auto")
+    data["wallbox_priority"]["mixed"] = True
+    result = execute(data)
+    assert "Afzonderlijke keuzes wijken af" not in Markup(result["html"]).root.text()
+    assert "Alles automatisch" not in Markup(result["html"]).root.text()
+    assert not result["calls"]
+
+
+@pytest.mark.parametrize("legacy_sg", [False, True])
+def test_ordinary_same_duration_with_a_different_expiry_keeps_its_mixed_notice(legacy_sg):
+    data = attributes("1h")
+    if not legacy_sg:
+        data["wallbox_priority"]["sg_boost"] = None
+    data["wallbox_priority"]["devices"]["fan"]["expires_at"] += 60
+    data["wallbox_priority"]["mixed"] = True
+    result = execute(data)
+    assert "Afzonderlijke keuzes wijken af" in Markup(result["html"]).root.text()
+    assert not result["calls"]

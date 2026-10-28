@@ -70,13 +70,13 @@ def test_last_wallbox_supplies_conditional_solar_budget_but_no_physical_export()
     runtime, hass = solar_wallbox()
     budget = sg_solar_budget(runtime)
     assert budget["available_w"] == 0
-    assert budget["eligible_w"] == 3050 and budget["ev_solar_w"] == 3200
+    assert budget["eligible_w"] == 3850 and budget["ev_solar_w"] == 4000
     assert runtime.sg_dispatch_allowed(automatic=True)
     assert isinstance(runtime.sg_wallbox_guard, HouseFirstGuard)
     assert not hass.services.calls
     runtime.entry.options["priority_board"]["order"] = ["wallbox", "dhw_extra", "device:a"]
-    assert sg_solar_budget(runtime)["ev_solar_w"] == 0
-    assert not runtime.sg_dispatch_allowed(automatic=True)
+    assert sg_solar_budget(runtime)["ev_solar_w"] == 4000
+    assert runtime.sg_dispatch_allowed(automatic=True)
 
 
 @pytest.mark.parametrize("invalid", ["stale", "manual", "unknown", "missing"])

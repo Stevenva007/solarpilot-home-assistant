@@ -43,12 +43,12 @@ def build(*, admin=True, user_id="admin"):
     def overview():
         return {"general": row("global"), "devices": {key: row("device:" + key)
                 for key, cfg in runtime.configs.items() if cfg.get("kind") != "dishwasher"},
-                "sg_boost": row("dhw_extra"), "observed_at": 1000, "available": True}
+                "sg_boost": None, "observed_at": 1000, "available": True}
 
     def scope(target):
         profiles = (runtime.configs if target == "global" else
                     {target[7:]: runtime.configs.get(target[7:])} if target.startswith("device:") else {})
-        sg = runtime.sg_boost.settings if target in ("global", "dhw_extra") else {}
+        sg = {}  # SG is outside every Wallbox preference scope.
         return deepcopy((profiles, sg, runtime.wallbox_settings))
 
     runtime.wallbox_priority = NS(overview=overview, scope=scope)
@@ -102,7 +102,7 @@ async def test_admin_service_uses_scoped_policy_only_in_observer_mode(option):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("target", ["global", "device:load", "dhw_extra"])
+@pytest.mark.parametrize("target", ["global", "device:load"])
 async def test_non_admin_and_read_only_user_cannot_modify_any_scope(target):
     runtime, _, context, calls = build(admin=False)
     with pytest.raises(HomeAssistantError, match="beheerder"):
@@ -132,7 +132,7 @@ async def test_trusted_home_assistant_automation_uses_standard_admin_service_sem
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("target", ["device:dish", "device:removed", "device:sg_boost"])
+@pytest.mark.parametrize("target", ["device:dish", "device:removed", "device:sg_boost", "dhw_extra"])
 async def test_removed_dishwasher_and_invented_targets_are_rejected(target):
     runtime, _, context, calls = build()
     with pytest.raises(HomeAssistantError, match="bestaat niet"):
@@ -142,7 +142,7 @@ async def test_removed_dishwasher_and_invented_targets_are_rejected(target):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("change", ["closed", "entry_none", "replacement", "registry", "unloaded",
-                                    "removed", "dishwasher", "rebind", "wallbox_rebind", "sg_rebind"])
+                                    "removed", "dishwasher", "rebind", "wallbox_rebind"])
 async def test_auth_wait_never_adopts_stale_runtime_or_rebound_profile(change):
     runtime, hass, context, calls = build()
     admitted, release = asyncio.Event(), asyncio.Event()
@@ -153,7 +153,7 @@ async def test_auth_wait_never_adopts_stale_runtime_or_rebound_profile(change):
         return NS(is_admin=True)
 
     hass.auth.async_get_user = user
-    target = "dhw_extra" if change == "sg_rebind" else "device:load"
+    target = "device:load"
     task = asyncio.create_task(async_set_wallbox_priority(runtime, target, "2h", context=context))
     await admitted.wait()
     if change == "closed":
@@ -246,8 +246,7 @@ def entity_namespace(filename):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("target,key,sg", [("global", None, False), ("device:load", "load", False),
-                                         ("dhw_extra", None, True)])
+@pytest.mark.parametrize("target,key,sg", [("global", None, False), ("device:load", "load", False)])
 @pytest.mark.parametrize("on,option", [(True, "30m"), (False, "auto")])
 async def test_native_switch_on_default_and_off_share_authenticated_helper(target, key, sg, on, option):
     runtime, _, context, calls = build()
@@ -291,8 +290,8 @@ def test_live_entity_factories_exclude_all_dishwashers(filename, classname):
     namespace = entity_namespace(filename)
     entities = namespace["_entities"](runtime)
     priorities = [row for row in entities if isinstance(row, namespace[classname])]
-    assert {row.target for row in priorities} == {"global", "device:load", "dhw_extra"}
-    assert {row.suffix for row in priorities} == {"wallbox_priority", "wallbox_priority_sg"}
+    assert {row.target for row in priorities} == {"global", "device:load"}
+    assert {row.suffix for row in priorities} == {"wallbox_priority"}
     assert priority_choice_view(runtime, "device:dish") is None
 
 

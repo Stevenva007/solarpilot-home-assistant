@@ -228,21 +228,12 @@ class SolarRuntime:
             free = max(0.0, self.settings["max_import_w"] - grid - isolated)
             return False, (f"Netgrens: SG vraagt {incremental:.0f} W extra; "
                            f"nu {free:.0f} W beschikbaar binnen {self.settings['max_import_w']:.0f} W netafname")
-        # A remembered Wallbox wait/cap is not current charging evidence. Read
-        # it again independently of P1; missing EV telemetry grants no EV watts
-        # and must not erase the actual residual export measured at the site.
-        wallbox_cap = None
-        if self.wallbox_settings.get("enabled") and not (
-                self.priority_board.sg_before_wallbox() and self.sg_boost.manual_mode == "on"):
-            current_wallbox = self._update_sg_wallbox_guard(time.monotonic(), self._wallbox_reading(),
+        # SG's own source-proven solar budget and start clock decide solar
+        # eligibility. A separate EV guard must not reserve the car's watts or
+        # impose a second all-solar increase cap on the user's SG threshold.
+        if self.wallbox_settings.get("enabled"):
+            self._update_sg_wallbox_guard(time.monotonic(), self._wallbox_reading(),
                 grid, self.settings["reserve_w"], discharge)
-            wallbox_cap = current_wallbox.max_increase_w
-        if (self.wallbox_settings.get("enabled")
-                and wallbox_cap is not None and incremental + isolated > wallbox_cap):
-            free = max(0.0, wallbox_cap - isolated)
-            priority = "SG vóór Wallbox" if self.priority_board.sg_before_wallbox() else "Wallbox heeft voorrang"
-            return False, (f"{priority}: SG vraagt {incremental:.0f} W extra; "
-                           f"stabiele vrije zonnestroom laat nu {free:.0f} W toe")
         if (self.phase_settings.get("enabled") and self.phase_settings.get("control_starts")
                 and (not self.phase.valid or self.phase.block_increase
                      or self.phase.headroom_w is None
@@ -353,11 +344,11 @@ class SolarRuntime:
             "sg_eligible_solar_w": solar.get("eligible_w", solar["available_w"]) if solar["valid"] else None,
             "sg_residual_solar_w": solar["available_w"] if solar["valid"] else None,
             "sg_hp_solar_w": solar.get("hp_solar_w", 0.0) if solar["valid"] else None,
+            "sg_ev_solar_w": solar.get("ev_solar_w", 0.0) if solar["valid"] else None,
             "sg_hp_credit_reason": solar.get("hp_credit_reason", ""),
             "sg_ev_credit_reason": solar.get("ev_credit_reason") if solar["valid"] else None,
             "sg_wallbox_transfer": self.sg_wallbox_transfer_overview(solar),
-            "sg_protected_ev_headroom_w": (self.sg_wallbox_guard.result.max_increase_w
-                if self.wallbox_settings.get("enabled") else None),
+            "sg_protected_ev_headroom_w": None,
         }
 
     def _dishwasher_comfort_context(self):
@@ -433,26 +424,23 @@ class SolarRuntime:
         return HouseFirstGuard(c) if self.others_first or per_device else WallboxGuard(c)
 
     def _make_sg_wallbox_guard(self):
-        """The same central order decides SG versus autonomous solar charging."""
-        before = getattr(self, "priority_board", None) is not None and self.priority_board.sg_before_wallbox()
-        guard = HouseFirstGuard if before else WallboxGuard
-        return guard({**self.wallbox_settings, "policy": "house_first" if before else "priority",
-            "max_takeover_w": float(self.sg_boost.settings["expected_power_w"]) if before else self.wallbox_settings.get("max_takeover_w", 2500),
+        """SG may always take confirmed solar-EV watts; other rows stay intact."""
+        from .sg_config import normalize_config
+        manager = getattr(self, "sg_boost", None)
+        config = (manager.settings if manager is not None else
+                  normalize_config(self.entry.options.get("sg_boost", {})))
+        return HouseFirstGuard({**self.wallbox_settings, "policy": "house_first",
+            "max_takeover_w": float(config["expected_power_w"]),
             "stable_s": self.learning.effective_stable_s(self.wallbox_settings["stable_s"]),
             "sample_gap_s": max(30, self.settings["interval_s"] * 2)})
 
     def _update_sg_wallbox_guard(self, now, reading, grid, reserve, discharge=0.0):
-        before = self.priority_board.sg_before_wallbox()
-        if isinstance(self.sg_wallbox_guard, HouseFirstGuard) != before:
+        if not isinstance(self.sg_wallbox_guard, HouseFirstGuard):
             self.sg_wallbox_guard = self._make_sg_wallbox_guard()
-        # An active/uncertain session keeps its EV priority. Ordinary consumers
-        # can use actual export even with an unknown/manual session, but SG's
-        # new native-HP threshold contribution must not bypass that residual
-        # limit. None preserves unknown session evidence without granting EV
-        # credit or claiming Full solar. Confirmed no-request keeps its fast path.
-        if (not before and reading.valid and reading.mode in ("manual", "unknown", "stopped")
-                and not confirmed_no_active_request(reading, self.wallbox_settings)):
-            reading = replace(reading, mode=None)
+        self.sg_wallbox_guard.settings["stable_s"] = self.learning.effective_stable_s(self.wallbox_settings["stable_s"])
+        self.sg_wallbox_guard.settings["max_takeover_w"] = float(self.sg_boost.settings["expected_power_w"])
+        # Unknown/manual EV reports supply no reclaim watts. Independently
+        # measured P1 export remains usable and never gives the EV a veto.
         return self.sg_wallbox_guard.update(now, reading, grid, reserve, discharge)
 
     @property
@@ -1526,9 +1514,7 @@ class SolarRuntime:
                 "reclaim_allowed_now": reclaim_now, "reclaim_reason": reclaim_reason,
                 "priority_min_power_w": self.consumer_wallbox.settings["priority_min_power_w"],
                 "charging_profile": self.wallbox_profile.cached,
-                "comfort_priority": ("Warmtepompcomfort blijft bij Panasonic; SG-zonneboost vóór Wallbox"
-                    if self.priority_board.sg_before_wallbox() else
-                    "Warmtepompcomfort blijft bij Panasonic; SG-zonneboost ná Wallbox"),
+                "comfort_priority": "Warmtepompcomfort blijft bij Panasonic; SG heeft altijd voorrang op autonome Wallbox-zonnestroom",
                 "priority_switch": self.entity_id("switch", "others_first"),
                 "reclaimable_w": reclaimable,
                 "handover": self.handover.overview(time.monotonic()) if self.handover else self.last_handover,
@@ -1581,7 +1567,7 @@ class SolarRuntime:
         budget = sg_solar_budget(self) if budget is None else budget
         credit = 0.0
         if (budget.get("valid") is True and self.mode == "solar"
-                and self.wallbox_settings.get("enabled") and self.priority_board.sg_before_wallbox()
+                and self.wallbox_settings.get("enabled")
                 and not self._closed and not self.removal_requested and not self.restart_blocking
                 and not self.faults and not self.pending and not self.handover and not self.battery_fleet.busy):
             values = [finite(value) for value in (budget.get("ev_solar_w"),
@@ -1607,7 +1593,7 @@ class SolarRuntime:
             identity = hashlib.sha256(json.dumps({
                 "site": {key: self.settings.get(key) for key in site_keys},
                 "wallbox": {key: self.wallbox_settings.get(key) for key in ev_keys},
-                "sg": control_identity, "order": self.priority_board.order(),
+                "sg": control_identity, "sg_wallbox_policy": "sg_solar_always_first_v111",
                 "battery_fleet_enabled": self.battery_fleet.settings.get("enabled"),
                 "battery_sources": sorted((key, value.get("power_entity"))
                     for key, value in self.battery_fleet.configs.items()),
@@ -1675,6 +1661,27 @@ class SolarRuntime:
                            view.get("expires_at") or wall) if isinstance(stamp, (int, float)) else wall)
         return {**view, "observed_at": wall, "eligible_w": credit,
                 "applicable": bool(applicable), "valid_until": valid_until}
+
+    def sg_usable_solar_observation(self, budget=None):
+        """Original-source usable SG pool; no actuator or allocation permission."""
+        budget = sg_solar_budget(self) if budget is None else budget
+        p1_report = self._sg_import_observation() or {}
+        site_keys = ("grid_entity", "grid_sign", "export_entity", "pv_entity",
+            "battery_power_entity", "battery_sign", "reserve_w", "stale_s")
+        ev_keys = ("enabled", "power_entity", "status_entity", "mode_entity", "session_mode_entity",
+            "connected_entity", "demand_entity", "stale_s", "reclaim_max_age_s", "full_solar_states",
+            "session_solar_states", "session_manual_states", "session_stopped_states", "trust_solar_setting")
+        hp_keys = ("power_entity", "power_scope", "power_supply1_entity", "power_supply2_entity",
+            "split_power_confirmed", "power_supply_profile", "power_supply1_role", "power_supply2_role")
+        return {"valid": budget.get("valid") is True, "watts": budget.get("eligible_w"),
+            "stamp": budget.get("stamp"), "report_stamp": p1_report.get("stamp"),
+            "source_identity": {"policy": "sg_solar_pool111",
+                "site": {key: self.settings.get(key) for key in site_keys},
+                "wallbox": {key: self.wallbox_settings.get(key) for key in ev_keys},
+                "heatpump": {key: self.panasonic.settings.get(key) for key in hp_keys},
+                "battery_fleet_enabled": self.battery_fleet.settings.get("enabled"),
+                "battery_sources": sorted((key, value.get("power_entity"))
+                    for key, value in self.battery_fleet.configs.items())}}
 
     def _sg_import_observation(self):
         """Actual signed P1 and its original report time, independent of PV/HP.
@@ -2929,6 +2936,7 @@ class SolarRuntime:
                 f"> {cap_limit:.0f} W resterende kwartiergrens")
         sg_sent = await self.sg_boost.tick(
             surplus_w=budget.get("eligible_w", budget["available_w"]),
+            usable_solar_observation=self.sg_usable_solar_observation(budget),
             real_surplus_w=budget["available_w"], data_fresh=budget["valid"] and bool(import_observation),
             phase_allowed=(actual_phase_ok if self.sg_boost.busy or self.sg_boost.external_control_overview()["active"]
                            else sg_start_allowed),
@@ -2944,7 +2952,8 @@ class SolarRuntime:
             start_source_identity=(tuple(self.settings.get(key) for key in (
                 "grid_entity", "grid_sign", "export_entity", "pv_entity", "battery_power_entity")),
                 tuple(self.phase_settings.get(key) for key in ("phase_1_entity", "phase_2_entity", "phase_3_entity")),
-                tuple(self.capacity_settings.get(key) for key in ("average_demand_entity", "monthly_peak_entity"))),
+                tuple(self.capacity_settings.get(key) for key in ("average_demand_entity", "monthly_peak_entity")),
+                self.sg_usable_solar_observation(budget)["source_identity"]),
             solar_stamp=budget.get("residual_stamp", budget.get("stamp")),
             tank_observation={
                 "entity_id": tank["temperature_entity"], "temperature_c": tank["temperature_c"],
@@ -3327,19 +3336,14 @@ class SolarRuntime:
             return rejected("battery_discharge")
         if not self.priority_board.sg_priority_allowed(time.monotonic()):
             return rejected("priority")
-        # Re-read the protected autonomous EV at the last asynchronous boundary.
-        # Credited native HP consumption is never reclaimable Wallbox power.
-        wallbox_cap = None
+        if self.wallbox_settings.get("enabled"):
+            self._update_sg_wallbox_guard(time.monotonic(), self._wallbox_reading(),
+                budget["grid_w"], self.settings["reserve_w"], budget["discharge_w"])
         continuation = renewal or self.sg_boost.adopting_external or (
             self.sg_boost.manual_mode == "on" and self.sg_boost.relay_confirmed and self.sg_boost.relay_on is True)
-        if self.wallbox_settings.get("enabled") and not (
-                (continuation or self.sg_boost.manual_mode == "on") and self.priority_board.sg_before_wallbox()):
-            current_wallbox = self._update_sg_wallbox_guard(time.monotonic(), self._wallbox_reading(),
-                budget["grid_w"], self.settings["reserve_w"], budget["discharge_w"])
-            if current_wallbox.block_increase or current_wallbox.release_flexible:
-                return rejected("wallbox_priority")
-            wallbox_cap = current_wallbox.max_increase_w
-            readings["wallbox_headroom_w"] = wallbox_cap
+        # sg_solar_budget above re-read the EV, HP and site at this final
+        # boundary. No remembered Wallbox preference or secondary solar cap can
+        # veto SG; conditional EV power still needs its current coherent proof.
         if (not renewal and not ignore_solar and (automatic or self.sg_boost.manual_mode != "on")
                 and budget.get("eligible_w", budget["available_w"]) < self.sg_boost.settings["threshold_w"]):
             return rejected("solar_threshold")
@@ -3349,8 +3353,6 @@ class SolarRuntime:
         increment = 0.0 if continuation else sg_expected_increment(self, budget)
         envelope = increment+self.isolated_reserve_w
         readings.update(extra_w=increment, envelope_w=envelope)
-        if wallbox_cap is not None and envelope > wallbox_cap:
-            return rejected("wallbox_headroom")
         projected = budget["grid_w"]+envelope
         readings["projected_grid_w"] = projected
         if not self._sg_net_limit_allowed(budget["grid_w"], projected=projected, budget=budget):
@@ -3441,10 +3443,8 @@ class SolarRuntime:
         budget = sg_solar_budget(self)
         if budget["valid"]:
             return not self.priority_board.sg_priority_allowed(time.monotonic())
-        if self.wallbox_settings.get("enabled"):
-            for guard in (self.wallbox_guard.result, self.sg_wallbox_guard.result):
-                if guard.block_increase and guard.state != "unavailable":
-                    return True
+        # Missing site data is a source wait. A remembered general EV wait or
+        # temporary ordinary-device preference cannot become an SG veto.
         return False
 
     def _dishwasher_deadline_dispatch_block(self, cfg, watts, *, expected_cfg=None, expected_request=None):

@@ -84,19 +84,19 @@ def protected_ev(runtime, hass):
     runtime.sg_wallbox_guard.update(time.monotonic(), reading, grid, 150, discharge)
 
 
-def test_solar_credited_hp_never_inherits_house_first_ev_takeover_rights():
+def test_hp_and_ev_solar_remain_separate_without_an_ev_priority_veto():
     runtime, hass = configured(export=1000)
-    # The measured 2.2 kW may count towards SG's solar threshold. The remaining
-    # 1 kW increase still cannot borrow EV watts when that EV has priority.
     hass.states.set("sensor.public_hp", 2200, {"unit_of_measurement": "W"})
     protected_ev(runtime, hass)
-    assert runtime.others_first
-    assert runtime.wallbox_guard.result.max_increase_w == 2850
-    assert runtime.sg_wallbox_guard.result.max_increase_w == 850
-    assert runtime.electrical_limits_overview()["sg_eligible_solar_w"] >= 3000
-    allowed, reason = runtime.heat_pump_increase_allowed()
-    assert not allowed and reason.startswith("Wallbox heeft voorrang:")
-    assert "850 W" in reason and not runtime.sg_dispatch_allowed()
+    view = runtime.electrical_limits_overview()
+    assert view["sg_residual_solar_w"] == 850
+    assert view["sg_hp_solar_w"] == 2200
+    assert view["sg_ev_solar_w"] == 2000
+    assert view["sg_eligible_solar_w"] == 5050
+    assert view["sg_estimated_extra_w"] == 1000
+    assert view["sg_protected_ev_headroom_w"] is None
+    assert runtime.heat_pump_increase_allowed()[0]
+    assert runtime.sg_dispatch_allowed()
     assert not hass.services.calls
 
 
@@ -133,15 +133,18 @@ def test_confirmed_idle_ev_does_not_reserve_fictional_charging_capacity():
 
 
 @pytest.mark.parametrize("mode", ["unknown", "manual", "stopped"])
-def test_active_ev_unconfirmed_session_still_gets_actual_residual_priority(mode):
+def test_unconfirmed_ev_supplies_no_credit_but_does_not_own_actual_hp_solar(mode):
     runtime, hass = configured(export=1000)
     hass.states.set("sensor.public_hp", 2200, {"unit_of_measurement": "W"})
     protected_ev(runtime, hass)
     reading = replace(runtime._wallbox_reading(), mode=mode)
-    result = runtime._update_sg_wallbox_guard(time.monotonic(), reading, -1000, 150)
-    assert result.max_increase_w == 850
-    assert runtime.sg_wallbox_guard.reading.mode is None
-    assert not runtime.heat_pump_increase_allowed()[0]
+    runtime._wallbox_reading = lambda: reading
+    budget = runtime.electrical_limits_overview()
+    assert budget["sg_ev_solar_w"] == 0
+    assert budget["sg_eligible_solar_w"] == 3050
+    assert runtime.heat_pump_increase_allowed()[0]
+    assert runtime.sg_dispatch_allowed()
+    assert not hass.services.calls
 
 
 @pytest.mark.asyncio

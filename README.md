@@ -1,10 +1,10 @@
 # SolarPilot
 
-**Actuele bronversie: 1.0.0-beta.110.** SolarPilot verdeelt lokaal zonnestroom tussen je toestellen in Home Assistant.
+**Actuele bronversie: 1.0.0-beta.111.** SolarPilot verdeelt lokaal zonnestroom tussen je toestellen in Home Assistant.
 
-SolarPilot gebruikt het echte huidige P1-overschot zonder toekomstige toestel- of afwaspieken apart te houden. Geraamd totaalvermogen bij SG is standaard 3000 W; alleen de nog mogelijke toename boven compleet actueel gemeten warmtepompvermogen wordt elektrisch getoetst. Staat SG vóór de Wallbox, dan krijgt de autonome zonnelader standaard vier minuten om zelf terug te regelen binnen een beperkte softwarematige netgrensuitzondering. De gewone wolkenbuffer loopt parallel; actuele fase-, kwartier-, batterij- en broncontroles blijven gelden. Een firmwareversiewijziging alleen blokkeert niets: dezelfde fysieke uitgang en bruikbare configuratie/timer worden automatisch gecontroleerd, met behoud van geldige ingebruikname.
+Automatisch algemeen SG-zonbedrijf mag een toegestaan AAN-contact behouden zolang de actuele zonne-, bron-, elektrische en overige voorwaarden passen. Er is geen verplichte uurstop en de oorspronkelijke starttijd wordt niet administratief vernieuwd. De warmtepomp heeft vaste toegang tot betrouwbaar bevestigd autonoom Wallbox-zonnelaadvermogen, ongeacht centrale of tijdelijke Wallboxkeuzes. Korte lokale toestemming wordt actueel gecontroleerd vernieuwd. Bij een al geopend oud sessieslot kan actueel bruikbaar P1-/HP-/EV-zonnebudget opnieuw starten zonder verplichte zonnedip of contextwissel; de startstabiliteit telt eenmaal. Geen toekomstige toestelreserves; 3000 W blijft een geraamd totaalvermogen.
 
-[Actuele werking](docs/ACTUELE_WERKING.md) · [Installatie en rollback](docs/BETA110_INSTELLEN.md) · [Testverslag](docs/TESTRESULTATEN_BETA110.md) · [Changelog](CHANGELOG.md)
+[Actuele werking](docs/ACTUELE_WERKING.md) · [Installatie en rollback](docs/BETA111_INSTELLEN.md) · [Testverslag](docs/TESTRESULTATEN_BETA111.md) · [Changelog](CHANGELOG.md)
 
 Panasonic regelt de warmtepomp zelfstandig; SolarPilot bedient uitsluitend de bevestigde SG-uitgang. De afwasmachine behoudt haar beschermde cyclus. Net-, fase- en kwartiergrenzen blijven gelden.
 
@@ -21,7 +21,7 @@ Bij **Analyse nodig** maakt één klik een export van de beschikbare zeven dagen
 
 ## Herstel van de beta.62-opstartfout
 
-Update via HACS naar beta.96 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.91 vraagt geen herbevestiging alleen door de codeupdate.
+Update via HACS naar beta.111 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.91 vraagt geen herbevestiging alleen door de codeupdate.
 
 ## Upgrade vanaf beta.61
 
@@ -33,10 +33,10 @@ Geldige andere toestellen, prioriteiten, APP-tickets, geschiedenis, leerdata en 
 
 - P1/PV, fysieke grenzen en fabrikantbeveiligingen gaan vóór forecasts en plannen. De gezamenlijke planner is geen nieuwe actuator of thermische Panasonic-regelaar.
 - Panasonic bezit comfort, verwarmen/koelen, warm water, elektrische ondersteuning en sterilisatie.
-- SG is een optionele flexibele vraag. Zij kan volgens de centrale volgorde betrouwbaar bevestigd autonoom EV-zonnevermogen gebruiken; afwascycli en noodzakelijk Panasonic-comfort blijven beschermd.
+- SG is een optionele vraag met vaste zonnevoorrang op betrouwbaar bevestigd autonoom EV-zonneladen; afwascycli en noodzakelijk Panasonic-comfort blijven beschermd.
 - Aanvraag/eigenaar, gemelde contactstand/lokale timer, compressor/native context en ontvangen SG-status zijn afzonderlijke bewijslagen. Compressorbedrijf bewijst geen extra SG-effect.
 - Eén totaalmeter of twee complete bevestigde niet-overlappende voedingen; ontbrekend totaal blijft onbekend en inbegrepen heater wordt niet nogmaals opgeteld.
-- Een SG-sessie is standaard begrensd tot één uur. Tapwater-only behoudt tankafkoeling; het lokaal bevestigde algemene profiel vraagt na rust betekenisvol nieuw zon-/native bewijs. Tijd, reload of dezelfde samples geeft geen eindeloze herstarts. Extra koeling heeft afzonderlijke bestaande condensbeveiliging nodig tenzij betrouwbare native context koeling uitsluit.
+- Tijdelijk handmatige en andere begrensde SG-routes houden hun maximum, standaard één uur; automatisch algemeen zonbedrijf heeft geen verplichte uurstop. Tapwater-only behoudt tankafkoeling. Het bevestigde algemene profiel kan na een bewezen automatische sessielimiet of onbekende reactie nieuw actueel bruikbaar zonnebudget bevestigen met eenmaal de ingestelde startstabiliteit. Native voltooiing, geen opname en handmatige UIT blijven afzonderlijk; tijd of dezelfde samples alleen geven geen nieuwe aanvraag. Extra koeling heeft afzonderlijke bestaande condensbeveiliging nodig tenzij betrouwbare native context koeling uitsluit.
 - De Wallbox blijft read-only; een afwasbeurt krijgt maximaal één native START en wordt nooit onderbroken. De vastgelegde APP-startdeadline staat netstroom toe zonder zonnevoorwaarde, binnen de bestaande fysieke en apparaatgrenzen.
 - Batterijbediening houdt haar eigen expliciete toestemming/eigenaarschap en commandobevestiging.
 - Een EMS en lokale timer vervangen geen elektrische beveiliging.
@@ -51,7 +51,7 @@ Geen back-ups, access tokens, huisadressen, persoonlijke entitybindings of ruwe 
 
 Kies **Verwijderen voorbereiden**, wacht op gerichte veilige vrijgave, verwijder de SolarPilot-entry en vervolgens de HACS-integratie. Dit verwijdert geen oorspronkelijke Shelly-, warmtepomp-, Wallbox-, AEG- of meterintegratie. Bewaar vooraf de gewenste privégegevens en back-up. Onzekere SG-status wordt niet als bevestigd UIT voorgesteld.
 
-De SG-startdrempel gebruikt vanaf beta.69 de gemeten gezamenlijke zonnebijdrage inclusief de complete actuele warmtepompmeting. Restinjectie, SG-totaalraming en mogelijke extra opname blijven apart; actuele grenzen en de effectieve centrale volgorde blijven gelden. Details tonen de gebruikte bijdrage, bronkwaliteit en concrete blokkering. Native en afgeleide taakvoorbeelden blijven afzonderlijk in leren/export.
+De SG-startdrempel gebruikt vanaf beta.69 de gemeten gezamenlijke zonnebijdrage inclusief de complete actuele warmtepompmeting. Restinjectie, SG-totaalraming en mogelijke extra opname blijven apart; actuele grenzen en gewone toestelprioriteiten blijven gelden. SG behoudt vaste zonnevoorrang op autonoom laden. Details tonen de gebruikte bijdrage, bronkwaliteit en concrete blokkering. Native en afgeleide taakvoorbeelden blijven afzonderlijk in leren/export.
 
 
 Het openbare [upstream-bronregister](docs/UPSTREAM_BRONNEN.md) houdt vaste bronversies en relevante PR-status bij. Een afzonderlijke geautoriseerde wekelijkse ChatGPT-taak kan relevante geteste SolarPilot-correcties onderzoeken en publiceren. Dit is externe ontwikkeling; SolarPilot voert geen achtergrond-AI, automatische providerupdate of wijziging van lokale apparaten uit.

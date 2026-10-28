@@ -45,7 +45,7 @@ async def test_confirmed_start_freezes_original_policy_sources_owner_and_command
     wait = manager.overview()["rearm_wait"]
     assert wait["original_stop_reason"] == last["reason"]
     assert wait["original_hold_reason"] == "response_unknown"
-    assert "werkelijk restoverschot" in wait["current_condition"]
+    assert "bruikbaar zonnevermogen" in wait["current_condition"]
     assert wait["command_identity"] == frozen["command_identity"]
 
 
@@ -119,7 +119,7 @@ async def test_failed_off_keeps_controller_stop_transport_uncertainty_and_rearm_
     manager._observe_contact(await manager._read(force=True))
     assert manager._last_session == frozen
     assert manager.overview()["rearm_wait"]["original_stop_reason"] == reason
-    assert "restoverschot" in manager.overview()["rearm_wait"]["current_condition"]
+    assert "bruikbaar zonnevermogen" in manager.overview()["rearm_wait"]["current_condition"]
 
 
 @pytest.mark.asyncio

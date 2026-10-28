@@ -2,8 +2,9 @@
 
 Absent a saved board, the beta.34 controllers are untouched. Saving is an admin
 operation under the existing runtime lock. Safety/comfort is NOT a sortable load.
-The central order also governs SG versus autonomous EV charging. The protected
-dishwasher preference stays ahead of optional SG; the Wallbox defaults to last.
+The central order governs ordinary devices. SG always precedes autonomous solar
+EV charging without moving saved rows. The protected dishwasher preference stays
+ahead of optional SG; the Wallbox defaults to last.
 """
 from __future__ import annotations
 
@@ -106,8 +107,12 @@ class PriorityBoard:
         return policy.overlay_order(result) if policy is not None else result
 
     def sg_before_wallbox(self):
-        order = self.order()
-        return self.active and order.index(EXTRA) < order.index(WALLBOX)
+        """Fixed SG/solar-EV precedence, independent of saved or temporary rows.
+
+        This is the effective pairwise policy, not a rewrite of order/ranks.
+        Actual EV credit still requires current coherent autonomous solar proof.
+        """
+        return True
 
     def ranks(self):
         return {key: n + 1 for n, key in enumerate(self.order())}
@@ -261,8 +266,7 @@ class PriorityBoard:
             elif key == EXTRA:
                 rows.append({"id": key, "name": "Warmtepomp — SG-zonneboost", "kind": "sg_boost",
                     "active": r.sg_boost.configured and r.sg_boost.settings.get("enabled") is True,
-                    "position": ranks[key], "power_label": ("Ja, bij bevestigde zonnelaadmodus" if self.sg_before_wallbox()
-                        else "Alleen restoverschot; Auto laden staat hoger"),
+                    "position": ranks[key], "power_label": "Altijd, bij bevestigde autonome zonnelaadmodus",
                     "reason": "Een extra SG-vraag mag alleen lager geplaatste, eigen onderbreekbare toestellen veilig laten wachten."})
             else:
                 i = key[len("device:"):]
@@ -287,7 +291,7 @@ class PriorityBoard:
                 "extra_reclaim": dict(self.extra_reclaim),
                 "wallbox_power": permissions, "rows": rows, "protected": self.protected_rows(),
                 "constraints": self.constraints(),
-                "note": ("Dit is de enige volgorde voor flexibele zonne-energie. Wat hoger staat krijgt eerst de kans, maar lopende programma’s, minimumlooptijden en veiligheid blijven altijd beschermd."
+                "note": ("De lijst bepaalt de toestelvolgorde. SG mag altijd bevestigde autonome Wallbox-zonnestroom overnemen; de overige toestelkeuzes en bescherming blijven gelden."
                          if self.active else "De bestaande effectieve volgorde wordt ongewijzigd in deze centrale lijst vastgelegd."),
                 "legacy_note": "Eerder opgeslagen toestelkeuzes blijven behouden; deze centrale lijst is leidend."}
 
@@ -311,19 +315,6 @@ class PriorityBoard:
     def sg_priority_allowed(self, now):
         """Higher fitting requests get the next actual solar window first."""
         r, ranks = self.r, self.ranks()
-        temporary = getattr(r, "wallbox_priority", None)
-        if (temporary is not None and temporary.active(EXTRA)
-                and getattr(getattr(r.consumer_wallbox, "result", None), "block_starts", False)
-                and not r.sg_boost.minimum_hold_active):
-            return False
-        guard = getattr(r.wallbox_guard, "result", None)
-        if (not self.sg_before_wallbox() and r.wallbox_settings.get("enabled")
-                and getattr(guard, "block_increase", False)):
-            return False
-        sg_guard = getattr(getattr(r, "sg_wallbox_guard", None), "result", guard)
-        if (not self.sg_before_wallbox() and r.wallbox_settings.get("enabled")
-                and getattr(sg_guard, "block_increase", False)):
-            return False
         budget = sg_solar_budget(r)
         if not budget["valid"]:
             return False
@@ -338,7 +329,20 @@ class PriorityBoard:
                 continue
             if cfg.get("kind") == "dishwasher" and not r.dishwasher.permitted(cfg, read_dishwasher(r.hass,cfg),time.time())[0]:
                 continue
-            if budget["available_w"]+budget.get("ev_solar_w", 0) >= d.minimum+d.start_margin_w:
+            # A higher row can use only its own proven rights, not SG's fixed
+            # EV permission. Otherwise an EV-ineligible waiting device can veto
+            # SG forever while lacking the power needed to start itself.
+            own_ev = 0.0
+            if cfg.get("kind") == "dishwasher":
+                current = self.effective_config(d.id, cfg)
+                if current.get("dishwasher_ev_solar_priority") is True and d.id not in r.dishwasher_priority.ev_blocks:
+                    own_ev = min(budget.get("ev_solar_w", 0.0),
+                        max(0.0, getattr(r.dishwasher_priority.view, "ev_credit", {}).get(d.id, 0.0)))
+            elif d.allow_wallbox_reclaim:
+                own_ev = min(budget.get("ev_solar_w", 0.0),
+                             max(0.0, getattr(r.wallbox_guard, "reclaimable_w", 0.0)),
+                             max(0.0, r.wallbox_settings.get("max_takeover_w", 2500)))
+            if budget["available_w"]+own_ev >= d.minimum+d.start_margin_w:
                 return False
         return True
 
@@ -379,12 +383,6 @@ class PriorityBoard:
             self._clear_extra_reclaim("Ook na pauzeren is er nog onvoldoende werkelijke zonneproductie")
             return None
         envelope = sg_expected_increment(r, budget)+r.isolated_reserve_w
-        guard = getattr(getattr(r, "sg_wallbox_guard", None), "result", getattr(r.wallbox_guard, "result", None))
-        wallbox_limit = getattr(guard, "max_increase_w", None)
-        if r.wallbox_settings.get("enabled") and wallbox_limit is not None:
-            if not finite(wallbox_limit) or wallbox_limit < envelope:
-                self._clear_extra_reclaim("SG wacht op voldoende stabiel restoverschot na de Wallbox")
-                return None
         limit = r.settings["max_import_w"]
         if r.capacity_settings.get("enabled"):
             if not r.capacity.valid:
@@ -406,7 +404,7 @@ class PriorityBoard:
             # A pause proposal is not credited to the actual budget. Recompute
             # its potential threshold room before clipping: an OFF first pays
             # any existing import, battery contribution and protected reserve.
-            balance = ((budget["hp_power_w"] or 0.0)-budget["conservative_grid_w"]
+            balance = ((budget["hp_power_w"] or 0.0)+budget.get("ev_solar_w", 0.0)-budget["conservative_grid_w"]
                        -budget["discharge_w"]+freed)
             return max(0.0, min(budget["pv_w"], balance)-budget["reserve_w"])
         for candidate in pool:

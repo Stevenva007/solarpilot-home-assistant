@@ -1,0 +1,21 @@
+# SolarPilot beta.111 — softwarevalidatie
+
+## Controle
+
+Doorlopend automatisch algemeen SG-zonbedrijf wordt getoetst zonder uurstop of administratieve start-/elapsedreset, met korte daadwerkelijke lokale leases en actuele hercontrole. De eigen bruikbare-zontekorttimer begint onder max(0, startdrempel - hysteresis_w), gebruikt de bestaande stopvertraging en loopt parallel met het oorspronkelijke minimum. De tekortroute moet ook bij lage P1-import stoppen na dit passende minimum/tekortbewijs wanneer het bruikbare zonnebudget wegvalt; de ruwe-P1-importtimer blijft apart. Handmatige en andere begrensde routes houden hun maximale duur en oorspronkelijke eindtijden.
+
+De regressies toetsen vaste SG-zonnevoorrang bij iedere centrale en tijdelijke Wallboxkeuze, behoud van gewone toestelvolgorde en kandidaat-eigen EV-rechten, de complete actuele EV-balans vóór bestaande import en een afzonderlijk begrensde overname.
+
+De actuele bruikbare-zonherstart wordt beoordeeld na een bewezen automatische sessielimiet of onbekende reactie, met actuele UIT, minimaal twee nieuwe bronrapporten, eenmaal de ingestelde startstabiliteit en finale bron-/identiteitscontrole na awaits. Verkorting van nog lopende verzoekrust vereist daarnaast volledige passende oorspronkelijke opdrachtidentiteit en UIT na het einde. Na gewone rust wordt nieuwe actuele aanvraag toegestaan zonder permanent oudhashslot bij onvolledige oude historie of gewijzigde configuratie. Echte P1-injectie blijft apart van HP- en EV-credit. Nieuwe vragen worden niet uit tijd, herstart, oude samples, onbekende of handmatige EV-data afgeleid. Bestaande native behoefte-, handmatige UIT-, fout- en lokale timervoorwaarden blijven behouden; duurgrenzen blijven gelden waar de route begrensd is.
+
+Firmwareherstel toetst ook een werkelijk bevestigde automatische firmware-UIT na uren doorlopend bedrijf en oude verlopen herstelregistraties: nieuwe verse startstabiliteit en korte lease, zonder oude uurcap en met behoud van handmatige/andere begrensde eindtijden. Tekortregressies bewaken oorspronkelijke lokale tekort-/minimumdeadlines over herstart, klokterugloop en herhaalde oude hoge samples.
+
+Ook de bestaande firmware-/rebootherstel-, recorder-, broncoherentie-, actuele lastverdelings-, fase-/kwartier-/batterij-, prioriteits-, UI- en begrensde SG-/Wallboxreactieregressies blijven vereist.
+
+**Definitieve lokale volledige testuitslag: 9159 geslaagd, 0 fouten, 0 overgeslagen**, op 28 oktober 2026 in 256,83 seconden met `PYTHONDONTWRITEBYTECODE=1 python -m pytest -q -p no:cacheprovider`. De zes nieuwe beta.111-testbestanden bevatten 169 geslaagde gevallen; de volledige suite telt 170 gevallen meer dan beta.110. Gerichte firmwarecontrole: 81 geslaagd. De onafhankelijke actuele-zon- en firmwarecontrole: 32 geslaagd. Automatisch doorlopend bedrijf behoudt na ruim drie uur dezelfde echte start en opdrachtidentiteit, zonder UIT-puls. De kortste geldige maximale begrensde duur van 300 seconden knipt een bewezen automatische zonnelease of vernieuwing niet meer tot 280 seconden; handmatige bediening houdt die oorspronkelijke begrenzing.
+
+Actuele uitleg en veldhulp, handoff, privacy/structuur, SG-opdrachtgrens, beide JavaScript-syntaxcontroles, diffcontrole en online upstreamreview zijn lokaal geslaagd. De actuele uitleg heeft hash `f01e17f3cc7b0353`. De functionele bron bleef tijdens de volledige suite ongewijzigd; daarna zijn alleen deze uitslagen en de overdracht vastgelegd.
+
+Alle vijf bestaande commitgebonden Validate-gates blijven verplicht: repository/full-suite, HACS, Hassfest, echte Chromium-interacties en echte Home Assistant-startup. Main herhaalt ze; daarna worden alle vier gedownloade release-assets tegen de exacte tag en bron-SHA vergeleken. Een oudere groene commit of alleen een ZIP is geen bewijs voor een nieuwe bron.
+
+Geen fysieke SG-, warmtepomp- of laadproef uitgevoerd. Softwaretests certificeren geen bekabeling, sensorkalibratie, werkelijke opname, lokale timer of gerealiseerde besparing. Privé-installatiegegevens en screenshots zijn geen openbare fixtures.

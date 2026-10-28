@@ -37,7 +37,7 @@ def test_coherence_warning_uses_current_solar_proof_and_is_escaped():
     result = execute(data)
     assert message in text(result["initial"])
     assert "<img src=x" not in result["initial"]
-    assert "Stabiele ruimte voor SG" in text(result["initial"])
+    assert "Stabiele ruimte voor SG" not in text(result["initial"]), "SG has no separate Wallbox priority cap"
     assert "Stabiele ruimte na Wallbox" not in text(result["initial"])
     assert not result["calls"]
     stale = execute(data, now=now+121)

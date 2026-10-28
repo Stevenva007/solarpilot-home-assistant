@@ -262,16 +262,22 @@ def sg_solar_budget(runtime):
     hp_deducted = bool(complete and hp > 0 and total is not None and total > 0)
     ev = 0.0
     ev_stamp = None
-    ev_credit_reason = None
-    board = getattr(runtime, "priority_board", None)
-    if board is not None and board.sg_before_wallbox() and runtime.wallbox_settings.get("enabled"):
+    ev_credit_reason = "Wallbox-monitor staat uit; geen laadvermogen als zonnebijdrage"
+    if runtime.wallbox_settings.get("enabled"):
         from .wallbox import state_set
         reading = runtime._wallbox_reading()
         watts, reported = _number(reading.power_w), _number(reading.stamp)
-        if (reading.valid and isinstance(reading.mode, str)
-                and reading.mode.casefold() in state_set(runtime.wallbox_settings["full_solar_states"])
-                and reading.demand is not False and watts is not None and watts >= 0
-                and reported is not None and -5 <= now-reported <= min(stale, runtime.wallbox_settings["reclaim_max_age_s"])):
+        if not reading.valid or watts is None or watts < 0:
+            ev_credit_reason = "Wallbox-bronnen ontbreken of zijn onbruikbaar; geen laadvermogen als zonnebijdrage"
+        elif reported is None or not -5 <= now-reported <= min(stale, runtime.wallbox_settings["reclaim_max_age_s"]):
+            ev_credit_reason = "Wallbox-rapport te oud of niet actueel; geen laadvermogen als zonnebijdrage"
+        elif not isinstance(reading.mode, str) or reading.mode.casefold() not in state_set(runtime.wallbox_settings["full_solar_states"]):
+            ev_credit_reason = ("Handmatige Wallbox-laadsessie; geen autonome zonnebijdrage"
+                                if reading.mode == "manual" else
+                                "Autonome Wallbox-zonnelaadsessie niet bevestigd; geen laadvermogen als zonnebijdrage")
+        elif reading.demand is False or watts == 0:
+            ev_credit_reason = "Geen actueel autonoom zonnelaadvermogen om over te nemen"
+        else:
             # A cloud-polled EV report can still be within its age limit after
             # the charger has already reduced power. It must fit inside the
             # contemporaneous whole-site load before it supplies solar credit.
@@ -280,8 +286,14 @@ def sg_solar_budget(runtime):
             if watts + (hp if complete else 0.0) > site_load + 250.0:
                 ev_credit_reason = "Wallbox-rapport past niet bij de actuele P1/PV-balans; alleen werkelijk zonneoverschot telt"
             else:
-                ev = min(watts, float(runtime.sg_boost.settings["expected_power_w"]))
+                # The complete coherent solar pool is calculated before site
+                # import/reserve are deducted. Capping EV watts at the HP
+                # estimate here would deduct import from that estimate twice.
+                # The actual bounded transfer allowance is a separate runtime
+                # check, bounded by the SG total estimate and takeover watts.
+                ev = watts
                 ev_stamp = reported
+                ev_credit_reason = None
     hp_eligible = max(0.0, min(pv, (hp if complete else 0.0)-conservative_grid-discharge)-reserve)
     eligible = max(0.0, min(pv, (hp if complete else 0.0)+ev-conservative_grid-discharge)-reserve)
     credit = max(0.0, hp_eligible-available)
