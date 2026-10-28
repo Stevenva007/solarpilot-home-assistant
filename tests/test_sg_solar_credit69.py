@@ -236,14 +236,20 @@ def test_prospective_lower_pause_first_pays_import_instead_of_adding_clipped_wat
     assert runtime.priority_board.extra_reclaim["state"] == "idle"
 
 
-def test_lower_reclaim_cannot_borrow_active_wallbox_reserved_power():
+def test_sg_reclaim_ignores_wallbox_preference_without_inventing_freed_or_ev_watts():
     runtime, _ = metered(grid=-2000, hp=0)
     runtime.wallbox_settings["enabled"] = True
     runtime.sg_wallbox_guard.result = replace(runtime.sg_wallbox_guard.result,
-                                             block_increase=False, max_increase_w=2000)
+                                             block_increase=True, max_increase_w=0)
     assert runtime.priority_board.extra_reclaim_action(100, datetime.now(timezone.utc)) is None
-    assert runtime.priority_board.extra_reclaim["state"] == "idle"
-    assert "Wallbox" in runtime.priority_board.extra_reclaim["reason"]
+    proposal = runtime.priority_board.extra_reclaim
+    assert proposal["state"] == "stability"
+    assert proposal["device_ids"] == ["a"]
+    assert proposal["prospective_freed_w"] == 1000
+    budget = sg_solar_budget(runtime)
+    assert budget["eligible_w"] == 2000 and budget["ev_solar_w"] == 0
+    assert not runtime.sg_dispatch_allowed()
+    assert not runtime.hass.services.calls
 
 
 def test_expected_total_hp_draw_deducts_only_its_complete_current_measurement():

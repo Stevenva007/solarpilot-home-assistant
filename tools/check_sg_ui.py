@@ -291,6 +291,118 @@ with sync_playwright() as p:
     assert '→ toegepast 0 W' not in overview_row.locator('[data-heatpump-provenance]').inner_text()
     assert host.locator('dialog').is_visible() and page.evaluate('manualCalls.length===manualBefore')
     page.keyboard.press('Escape')
+    # Current HP + autonomous solar EV watts are separate from real export.
+    # A fresh session-limit rearm uses the configured start window once.
+    page.evaluate("""() => {const a=structuredClone(c._last.attributes),now=Date.now()/1000,s=a.sg_boost,p=a.panasonic;
+      Object.assign(p,{power_scope:'split',power_w:2590,power_kind:'measured',power_complete:true,
+        power_stamp:now,power_observed_at:now,power_supply1_w:2590,power_supply1_valid:true,
+        power_supply1_observed_at:now,power_supply2_w:0,power_supply2_valid:true,power_supply2_observed_at:now});
+      p.power_activity={state:'active',active:true,complete:true,total_w:2590,observed_at:now,stale_s:120,
+        supplies:[{number:1,role:'main',valid:true,watts:2590,observed_at:now,state:'active'},
+          {number:2,role:'heater',valid:true,watts:0,observed_at:now,state:'off'}]};
+      p.power_source_quality={supply1:{valid:true,watts:2590,source_watts:2590,source_value:'2590',
+        source_unit:'W',source_reported_wall:now,measured_wall:now,rejection_reason:null}};
+      Object.assign(s,{observed_at:now,relay_observed_at:now,relay_on:false,relay_confirmed:true,
+        desired_on:false,manual_hold:false,fault:'',profile:'general',completion_hold:true,
+        policy_hold_reason:'session_limit',estimated_power_w:3000,usable_reassessment_available:true,
+        usable_reassessment_threshold_w:3000,usable_solar_w:4139,usable_solar_reported_at:now,
+        usable_solar_valid_until:now+120,real_residual_surplus_w:39,reassessment_kind:'fresh_usable_solar',
+        reassessment_state:'confirming_fresh_usable_solar',reassessment_required_s:120,
+        reassessment_remaining_s:60,reassessment_reports:2,reassessment_source_current:true,
+        reassessment_final_report_required:false,reassessment_valid_until:now+30,
+        rearm_wait:{request_rest_remaining_s:900,request_rest_replaceable:true}});
+      a.ems.electrical_limits={source_valid:true,source_observed_at:now,source_stale_s:120,
+        sg_solar_valid:true,sg_solar_observed_at:now,sg_residual_solar_w:39,
+        sg_eligible_solar_w:4139,sg_hp_solar_w:2590,sg_ev_solar_w:1510,
+        sg_ev_credit_reason:'Actuele bevestigde autonome zonnelaadruimte',
+        sg_estimated_extra_w:410,sg_increment_observed_at:now,sg_increment_valid_until:now+120};
+      c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{state:'Zonnestroom',attributes:a}}};} """)
+    for width in (320,390,768,1280):
+        page.set_viewport_size({'width':width,'height':1000})
+        banner=overview_row.locator('[data-sg-wait=reassessment]')
+        assert 'zonnebudget bevestigen' in banner.inner_text()
+        assert 'van 2 min' in banner.inner_text() and 'Bruikbaar zonnevermogen 4,14 kW · nodig 3 kW' in banner.inner_text()
+        assert 'Restoverschot 39 W · nodig 3 kW' not in banner.inner_text()
+        assert 'telt één keer als startstabiliteit' in banner.inner_text()
+        assert 'Daarna geldt de gewone startvertraging' not in banner.inner_text()
+        assert 'Overdraagbare Wallbox-zonnestroom (voorwaardelijk)' in overview_row.inner_text()
+        assert '1,51 kW' in overview_row.inner_text() and '410 W' in overview_row.inner_text()
+        assert overview_row.locator('[data-sg-solar-priority]').is_visible()
+        assert overview_row.locator('[data-wallbox-priority-target="dhw_extra"]').count()==0
+        assert overview_row.locator('[data-sg-stage=relay]').inner_text()=='SG-contact\nOpen'
+        assert overview_row.evaluate('e=>e.scrollWidth<=e.clientWidth+1'),width
+        assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
+    page.evaluate("""() => {const a=structuredClone(c._last.attributes),now=Date.now()/1000;
+      a.sg_boost.usable_solar_valid_until=now-1;
+      a.ems.electrical_limits.sg_solar_observed_at=now-121;
+      c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{state:'Zonnestroom',attributes:a}}};
+      c._refreshObservationDisplay();} """)
+    assert 'Bruikbaar zonnevermogen onbekend' in overview_row.locator('[data-sg-wait=reassessment]').inner_text()
+    assert '1,51 kW' not in overview_row.inner_text()
+    assert page.evaluate('manualCalls.length===manualBefore')
+    # An automatic general SG request may stay ON after the old one-hour
+    # boundary. The solar-continuation claim still expires on its original
+    # current proof, separately from the bounded physical-contact timer.
+    page.evaluate("""() => {const a=structuredClone(c._last.attributes),now=Date.now()/1000,s=a.sg_boost;
+      Object.assign(s,{observed_at:now,relay_observed_at:now,relay_on:true,relay_confirmed:true,
+        desired_on:true,owner:'solarpilot',lease_confirmed:true,lease_remaining_s:300,
+        relay_valid_until:now+120,remaining_s:null,continuous_solar:true,
+        continuous_solar_valid_until:now+30,manual_control:{mode:'auto'},
+        manual_hold:false,completion_hold:false,fault:'',state:'boost_requested',
+        reason:'SG-contact actief; zonnevoorwaarden blijven voldaan',
+        session_elapsed_s:7500,active_session_provenance:{owner:'solarpilot',started_at:now-7500},
+        policy_hold_reason:null,reassessment_kind:null,reassessment_state:null,
+        reassessment_remaining_s:null,usable_reassessment_available:false,
+        min_session_s:1200,effective_min_session_s:1200,minimum_remaining_s:0,
+        minimum_active:false,minimum_valid_until:now+120,
+        import_threshold_w:600,stop_delay_s:300,cloud_active:false,
+        cloud_remaining_s:null,cloud_valid_until:now+120});
+      Object.assign(a.ems.electrical_limits,{source_observed_at:now,sg_solar_observed_at:now,
+        sg_increment_observed_at:now,sg_increment_valid_until:now+120});
+      window.continuousOriginalStart=s.active_session_provenance.started_at;
+      c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{state:'Zonnestroom',attributes:a}}};} """)
+    for width in (320,390,768,1280):
+        page.set_viewport_size({'width':width,'height':1000})
+        assert 'Lopende automatische zonneboost' in overview_row.locator('[data-sg-continuous]').inner_text()
+        assert 'Blijft actief zolang zonnevoorwaarden kloppen' in overview_row.inner_text()
+        assert 'Resterende sessie' not in overview_row.inner_text()
+        assert overview_row.locator('[data-sg-stage=relay]').inner_text()=='SG-contact\nActief'
+        assert 'Minimum verstreken' in overview_row.locator('[data-sg-minimum]').inner_text()
+        assert 'Geen lopende importbuffer' in overview_row.locator('[data-sg-cloud]').inner_text()
+        assert overview_row.evaluate('e=>e.scrollWidth<=e.clientWidth+1'),width
+        assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
+    # Only the continuation source proof expires; neither a new session nor a
+    # UI-generated OFF follows from rendering. The contact remains confirmed.
+    page.evaluate("""() => {window.continuousClock=Date.now;
+      const instant=Date.now()+31000;Date.now=()=>instant;c._refreshObservationDisplay();} """)
+    assert overview_row.locator('[data-sg-continuous]').count()==0
+    assert 'Wacht op actuele voortzettingsvoorwaarden' in overview_row.inner_text()
+    assert overview_row.locator('[data-sg-stage=relay]').inner_text()=='SG-contact\nActief'
+    assert page.evaluate('c._last.attributes.sg_boost.active_session_provenance.started_at===continuousOriginalStart')
+    assert page.evaluate('manualCalls.length===manualBefore')
+    page.evaluate('() => {Date.now=continuousClock;}')
+    page.evaluate("""() => {const a=structuredClone(c._last.attributes),now=Date.now()/1000,s=a.sg_boost;
+      Object.assign(s,{observed_at:now,relay_observed_at:now,relay_valid_until:now+120,
+        lease_remaining_s:300,continuous_solar_valid_until:now+30,
+        minimum_valid_until:now+120,cloud_valid_until:now+120,
+        joint_solar_deficit_active:true,joint_solar_deficit_remaining_s:250,
+        joint_solar_deficit_valid_until:now+30});
+      Object.assign(a.ems.electrical_limits,{source_observed_at:now,sg_solar_observed_at:now,
+        sg_eligible_solar_w:2000,sg_hp_solar_w:2000,sg_ev_solar_w:0,sg_residual_solar_w:0,
+        sg_increment_observed_at:now,sg_increment_valid_until:now+120});
+      c.hass={...c._hass,states:{...c._hass.states,[c._entity]:{state:'Zonnestroom',attributes:a}}};} """)
+    for width in (320,390,768,1280):
+        page.set_viewport_size({'width':width,'height':1000})
+        deficit=overview_row.locator('[data-sg-solar-deficit]')
+        assert 'Wolkenbuffer voor te weinig zonnestroom' in deficit.inner_text()
+        assert 'Te weinig bruikbare zonnestroom' in deficit.inner_text()
+        assert 'geen extra buffer achteraf' in deficit.inner_text()
+        assert 'Geen lopende importbuffer' in overview_row.locator('[data-sg-cloud]').inner_text()
+        assert overview_row.locator('[data-sg-stage=relay]').inner_text()=='SG-contact\nActief'
+        assert overview_row.evaluate('e=>e.scrollWidth<=e.clientWidth+1'),width
+        assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
+    assert page.evaluate('c._last.attributes.sg_boost.active_session_provenance.started_at===continuousOriginalStart')
+    assert page.evaluate('manualCalls.length===manualBefore')
     assert not errors, errors
     browser.close()
-print('OK: SG details and help each survive 80 updates; independent compressor/received SG/uptake and split meter evidence; honest unknowns/manual lease; 320/390/768/1280 browser layout; zero device calls from observations; temporary SG service-only ON/OFF 30/60 and Auto payloads at every width, separate contact proof, expiry waits for backend and keeps modal; completed startclock through brief measurement gap never claims contact ON; actual residual rearm, rejected fresh HP reading versus stale source, configured total estimate without a complete HP measurement and modal retention at four widths; normalized HP zero preserves raw negative Details and original report time, stale/missing values stay unknown, modal survives80updates. Fictitious data only.')
+print('OK: SG details and help each survive 80 updates; independent compressor/received SG/uptake and split meter evidence; honest unknowns/manual lease; 320/390/768/1280 browser layout; zero device calls from observations; temporary SG service-only ON/OFF 30/60 and Auto payloads at every width, separate contact proof, expiry waits for backend and keeps modal; completed startclock through brief measurement gap never claims contact ON; actual residual rearm, rejected fresh HP reading versus stale source, configured total estimate without a complete HP measurement and modal retention at four widths; normalized HP zero preserves raw negative Details and original report time, stale/missing values stay unknown, modal survives80updates; joint HP/EV solar budget uses one configured rearm window, raw export remains separate, fixed SG priority and expiry without control calls at four widths; automatic solar remains ON after two hours with separately bounded lease proof and original session start, source expiry removes only the continuation promise, independent solar deficit buffer without high grid import. Fictitious data only.')

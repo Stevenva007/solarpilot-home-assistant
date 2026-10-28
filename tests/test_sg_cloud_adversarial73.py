@@ -205,6 +205,10 @@ async def test_cloud_after_minimum_cannot_bypass_live_physical_or_runtime_guards
         live.capacity_settings.update(enabled=True)
     elif hard_guard == "protected_ev":
         protected_ev(live, hass)
+        # SG can retain confirmed solar EV watts during the cloud hold, while
+        # actual P1 above the fixed import ceiling still blocks the renewal.
+        assert live.sg_dispatch_allowed(renewal=True)
+        hass.states.set("sensor.grid", 3501, {"unit_of_measurement": "W"})
     elif hard_guard == "pause":
         live.mode = "paused"
     elif hard_guard == "restart":

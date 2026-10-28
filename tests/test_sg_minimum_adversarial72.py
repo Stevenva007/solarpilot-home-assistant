@@ -108,6 +108,10 @@ async def test_minimum_import_permission_never_bypasses_final_live_hard_guards(h
         live.capacity_settings.update(enabled=True)
     elif hard_guard == "protected_ev":
         protected_ev(live, hass)
+        # An ordinary Wallbox preference is no SG veto. The unchanged actual
+        # import ceiling still terminates the minimum-hold permission.
+        assert live.sg_dispatch_allowed(renewal=True)
+        hass.states.set("sensor.grid", 3501, {"unit_of_measurement": "W"})
     elif hard_guard == "pause":
         live.mode = "paused"
     elif hard_guard == "restart":

@@ -34,7 +34,7 @@ async def test_each_allowed_duration_keeps_absolute_deadline_and_no_commands(mon
     assert answer["general"]["expires_at"] == clock.value+seconds
     assert answer["general"]["duration_s"] == seconds
     assert all(choice["option"] == option for choice in answer["devices"].values())
-    assert answer["sg_boost"]["option"] == option and not answer["mixed"]
+    assert answer["sg_boost"] is None and not answer["mixed"]
     assert r.store.data["wallbox_priority"] == r.wallbox_priority.snapshot()
     assert r.entry.options == old_options and not h.services.calls
     clock.value += seconds/2
@@ -73,7 +73,7 @@ async def test_general_deadline_clears_later_indefinite_exception_readonly_then_
     view = r.wallbox_priority.overview()
     assert view["general"]["option"] == "auto"
     assert all(not choice["active"] for choice in view["devices"].values())
-    assert not view["sg_boost"]["active"]
+    assert view["sg_boost"] is None
     assert r.wallbox_priority.snapshot() == before
     await r.wallbox_priority.expire()
     assert r.store.data["wallbox_priority"]["general"] is None
@@ -154,36 +154,18 @@ async def test_forced_behind_wallbox_never_gets_reclaim_or_modifies_sg_policy(mo
 
 
 @pytest.mark.asyncio
-async def test_new_sg_soft_preference_uses_existing_minimum_and_keeps_existing_ev_guard(monkeypatch):
-    from dataclasses import replace
-    from test_sg_controller62 import boosted, tick
-    from test_sg_minimum72 import advance
-    from test_sg_budget_priority62 import configured
-    from custom_components.solar_pilot.consumer_wallbox import PriorityResult
-    manager, adapter, clock, _runtime = await boosted()
-    r, _h = configured()
-    r.wallbox_settings["enabled"] = True
-    r.sg_boost = manager
-    r.data_loaded = True
-    r.publish = lambda: None
-    await r.async_set_wallbox_priority("dhw_extra", "1h")
-    r.consumer_wallbox.result = PriorityResult(block_starts=True)
-    assert manager.minimum_hold_active
-    assert r.priority_board.sg_priority_allowed(clock())
-    # An existing EV guard still blocks; only the new soft opportunity gate is
-    # deferred during the already confirmed request's original minimum.
-    original = r.sg_wallbox_guard.result
-    r.sg_wallbox_guard.result = replace(original, block_increase=True)
-    assert not r.priority_board.sg_priority_allowed(clock())
-    r.sg_wallbox_guard.result = original
-    start = manager._minimum_started
-    await advance(manager, clock, 1200, imported=0)
-    assert manager.owned and adapter.on
-    assert manager._minimum_started == start
-    assert not manager.minimum_hold_active
-    assert not r.priority_board.sg_priority_allowed(clock())
-    await tick(manager, priority_allowed=False)
-    assert not manager.owned and adapter.calls[-1] == ("off", None)
+async def test_sg_cannot_be_put_behind_wallbox_by_a_temporary_or_general_choice(monkeypatch):
+    r, h, _clock = ready(monkeypatch)
+    saved = deepcopy(r.priority_board.base_order())
+    with pytest.raises(HomeAssistantError, match="ondersteunt geen"):
+        await r.async_set_wallbox_priority("dhw_extra", "1h")
+    await r.async_set_wallbox_priority("global", "1h")
+    assert "dhw_extra" not in r.wallbox_priority.eligible()
+    assert not r.wallbox_priority.active("dhw_extra")
+    assert r.wallbox_priority.overview()["sg_boost"] is None
+    assert r.priority_board.sg_before_wallbox()
+    assert r.priority_board.base_order() == saved
+    assert not h.services.calls
 
 
 @pytest.mark.asyncio

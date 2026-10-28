@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.0-beta.111 — doorlopend SG-zonbedrijf en vaste zonnevoorrang
+
+- Laat een toegestaan automatisch algemeen SG-AAN-contact aanblijven zolang actuele voorwaarden voldoen. Geen verplichte uurstop of administratieve reset van start/elapsed; de korte lokale toestemming wordt telkens actueel gecontroleerd. Handmatige en andere begrensde routes houden hun oorspronkelijke maximum/eindtijden.
+- Behandelt ook onvoldoende gezamenlijk bruikbaar zonnebudget als begrensd tekort bij lage ruwe P1-afname. Nacht of ontbrekende bronkwaliteit krijgt geen eindeloze toestemming; minimum, tekortduur, lokale timer en afzonderlijke harde voorwaarden blijven behouden.
+- Geeft SG vaste toegang tot actueel coherent bevestigd autonoom Wallbox-zonnelaadvermogen, onafhankelijk van centrale of tijdelijke Wallboxvoorkeuren. Gewone toestelvolgorde en eigen overnamerechten blijven behouden. SG verdwijnt als afzonderlijk Wallboxvoorrangdoel.
+- Laat het complete actuele EV-vermogen in de gemeten energiebalans meetellen vóór aftrek van bestaande import en marges; feitelijke overname en reactie-episode blijven afzonderlijk begrensd. Oude, handmatige, onbekende of tegenstrijdige laadgegevens geven geen EV-credit.
+- Voegt voor het bevestigde algemene profiel een afzonderlijke actuele bruikbare-zonherstart toe na een automatische sessielimiet of onbekende reactie. Geen verplichte eerdere zonnedip of gewijzigde native context voor deze route. Actuele UIT, minstens twee nieuwe oorspronkelijke bronrapporten en eenmaal de ingestelde startstabiliteit blijven vereist.
+- Maakt vóór afloop alleen volledig bewezen verzoekrust vervangbaar, met passende oorspronkelijke opdrachtidentiteit en UIT na het einde. Na gewone rust kan de huidige geldige configuratie met verse stabiele bronnen een nieuwe aanvraag dragen zonder permanent oudhashslot. De volgende aanvraag krijgt een nieuwe gecontroleerde lokale timer; automatisch algemeen zonbedrijf heeft daarna geen uurstop, handmatige en andere begrensde routes behouden hun eindtijd. Native voltooiing, aantoonbaar geen opname, handmatige UIT en onzekere opdrachten houden hun afzonderlijke voorwaarden.
+- Beëindigt na bewezen fysieke firmware-UIT de oude automatische algemene contactepisode en beoordeelt een werkelijk nieuwe aanvraag op verse gewone startstabiliteit, actuele controles en een nieuwe korte lokale lease. Een oude uurcap of verlopen automatische firmwarewacht blokkeert die beoordeling niet blijvend. Doorlopend AAN behoudt oorspronkelijke start/elapsed; handmatige en andere begrensde routes behouden hun eindtijden.
+- Toont echte vrije injectie, HP-bijdrage, voorwaardelijke EV-zonnebijdrage en het gezamenlijke budget apart, met concrete bronreden en begrensde herstartteller. Behoudt firmwareherstel, actuele elektrische grenzen, beschermde cycli en het ontbreken van toekomstige toestelreserves.
+- Werkt actuele uitleg, optiehulp, installatie/rollback, testverslag, upstreamreview en overdracht bij. Zie BETA111_INSTELLEN.md en TESTRESULTATEN_BETA111.md.
+
 ## 1.0.0-beta.110 — echt huidig overschot en SG-totaalraming
 
 - Reserveert geen toekomstige afwas-, thermostaat- of andere toestelpieken in de actuele zonnepot of elektrische ruimte. P1 bevat hun huidige verbruik al. Wachtende aanvragen houden geen vermogen vooruit vast; werkelijk startklare passende kandidaten volgen de centrale volgorde.

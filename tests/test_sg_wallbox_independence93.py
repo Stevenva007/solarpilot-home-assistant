@@ -103,15 +103,17 @@ def test_wallbox_independence_preserves_real_sg_safety_guards(guard):
     assert h.services.calls == []
 
 
-def test_fresh_explicit_ev_request_keeps_its_proven_priority():
+def test_waiting_ev_with_zero_draw_does_not_reserve_actual_solar_export():
     r, h = unknown_wallbox()
     h.states.set("sensor.public_ev_power", 0, {"unit_of_measurement": "W"})
     h.states.set("sensor.public_ev_status", "Waiting for green energy")
     reading = r._wallbox_reading()
     assert reading.valid and reading.demand is True
-    assert not r.heat_pump_increase_allowed()[0]
-    assert not r.sg_dispatch_allowed(automatic=True)
-    assert r.sg_wallbox_guard.result.state == "waiting"
+    r.learning.effective_stable_s = lambda _seconds: 0
+    assert r.heat_pump_increase_allowed()[0]
+    assert r.sg_dispatch_allowed(automatic=True)
+    assert r.sg_wallbox_guard.result.state == "unknown"
+    assert sg_solar_budget(r)["ev_solar_w"] == 0
     assert h.services.calls == []
 
 

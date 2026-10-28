@@ -196,12 +196,13 @@ assert.doesNotMatch(dialog._body.innerHTML,/12\/5 geldige dagen/);
 """)
 
 
-def test_wallbox_profile_labels_match_sg_is_extra_lower_priority_policy():
+def test_wallbox_profile_labels_match_fixed_sg_solar_priority():
     execute("""
 const card=Object.create(SolarPilotCard.prototype);card._question=()=>'';
 const text=card._wallboxProfile({charging_profile:{phases:1,max_current_a:10,maximum_power_w:2300}});
-assert.doesNotMatch(text,/extra SG-zonneboost houdt voorrang voor de Wallbox/);
-assert.match(text,/SG-zonneboost gebruikt alleen/);
+assert.match(text,/SG mag bevestigde autonome Wallbox-zonnestroom met vaste voorrang gebruiken/);
+assert.match(text,/de Wallbox regelt zelf terug/);
+assert.doesNotMatch(text,/alleen toegestaan restoverschot/);
 """)
 
 

@@ -1,11 +1,13 @@
 # SolarPilot starten of bijwerken
 
-Installeer **1.0.0-beta.110** via HACS, herstart Home Assistant volledig en herlaad de app of browser.
+Installeer **1.0.0-beta.111** via HACS, herstart Home Assistant volledig en herlaad de app of browser.
 
-SolarPilot gebruikt het echte huidige overschot zonder toekomstige toestelpieken te reserveren. Controleer onder **Voorrang** de centrale volgorde; een eerder bewust opgeslagen keuze blijft behouden. De SG-raming betreft vanaf deze versie het totale warmtepompvermogen bij SG, standaard 3000 W. Alleen compleet actueel gemeten HP-vermogen wordt eenmaal afgetrokken om de mogelijke extra opname te toetsen.
+SG/warmtepomp heeft vaste toegang tot actueel coherent bevestigd autonoom Wallbox-zonnelaadvermogen. De centrale volgorde en tijdelijke Wallboxvoorkeuren van gewone toestellen veranderen niet, maar kunnen SG niet van die zonnestroom uitsluiten. De Wallbox regelt zelf terug; SolarPilot geeft geen laadcommando.
 
-SG vóór een bevestigde autonome zonneladende Wallbox geeft de laadpaal standaard vier minuten om zelf terug te regelen. De begrensde uitzondering betreft de softwarematige totale netgrens. De gewone vijfminutenwolkenbuffer loopt parallel; actuele fase-, kwartier-, batterij- en broncontroles blijven gelden. Een handmatig ingeschakeld SG-contact behoudt zijn oorspronkelijke vijftien minuten waarneming.
+Een toegestaan AAN-contact in automatisch algemeen SG-zonbedrijf mag aanblijven zolang actuele voorwaarden voldoen. Er is geen verplichte uurstop, geen administratieve sessiereset en geen steeds nieuwe startbuffer tijdens geldige korte leasevernieuwing. De oorspronkelijke verstreken tijd blijft bewaard; de kaart toont de lopende automatische zonneboost en de echte korte lokale toestemming. Onvoldoende bruikbaar zonnebudget wordt ook bij lage P1-import begrensd behandeld; nacht geeft geen toestemming. De maximumduur blijft gelden voor handmatige en andere begrensde routes.
 
-Een **firmwareversiewijziging alleen** blokkeert SG niet en vraagt geen handmatige herbevestiging. SolarPilot controleert dezelfde fysieke uitgang en actuele configuratie/timer automatisch. Een oude firmware-only-blokkade herstelt bij passend bewaard hardwarebewijs en een verse geldige uitlezing; een echte andere koppeling of onbruikbare timer houdt haar afzonderlijke controlevoorwaarden.
+Na een bewezen beëindigde automatische sessie door het sessiemaximum of onbekende SG-reactie kan een nieuwe aanvraag op actueel bruikbaar P1-/HP-/EV-zonnebudget worden bevestigd. Een eerdere zonnedip of Panasonic-contextwissel is niet nodig voor deze route. Actuele UIT, minstens twee nieuwe oorspronkelijke bronrapporten, eenmaal de ingestelde startstabiliteit en alle finale voorwaarden blijven vereist. Een al geopend oud contact krijgt een nieuwe gecontroleerde korte lokale toestemming; doorlopend automatisch algemeen zonbedrijf vraagt actuele voorwaarden, geen nieuwe uurdeadline.
 
-[Installatie en rollback](docs/BETA110_INSTELLEN.md) · [Actuele werking](docs/ACTUELE_WERKING.md) · [Testverslag](docs/TESTRESULTATEN_BETA110.md) · [Overdracht](OVERDRACHT.md)
+Het echte huidige overschot blijft leidend, zonder toekomstige toestelreserveringen. Geraamd totaalvermogen bij SG blijft standaard 3000 W. Alleen compleet actueel passend HP-vermogen verlaagt de mogelijke extra opname. Gewone vijfminutenwolkenbuffer, begrensde Wallboxreactietijd en actuele fase-, kwartier-, batterij- en broncontroles blijven afzonderlijk. Firmwaremetadata blijft informatief; het bestaande bewezen firmwareherstel is behouden.
+
+[Installatie en rollback](docs/BETA111_INSTELLEN.md) · [Actuele werking](docs/ACTUELE_WERKING.md) · [Testverslag](docs/TESTRESULTATEN_BETA111.md) · [Overdracht](OVERDRACHT.md)

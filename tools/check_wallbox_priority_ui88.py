@@ -22,7 +22,7 @@ SETUP = """() => {
    eligible:true,duration_s:prioritySeconds[option]??null,expires_at:prioritySeconds[option]?Date.now()/1000+prioritySeconds[option]:null,
    remaining_s:prioritySeconds[option]??null,indefinite:option==='until_auto',label:'synthetisch'});
  window.priorityModel={general:choice('global'),devices:{fan:choice('device:fan'),heater:choice('device:heater')},
-   sg_boost:choice('dhw_extra'),available:true,mixed:false,observed_at:now};
+   sg_boost:choice('dhw_extra','until_auto'),available:true,mixed:false,observed_at:now};
  const a=structuredClone(c._last.attributes);a.mode='solar';
  const example=(a.devices||[]).find(d=>d.kind!=='dishwasher')||{};
  a.devices=[{...example,id:'fan',name:'Voorbeeldtoestel',kind:'switch',mode:'auto',available:true,wallbox_first:false,power_w:0},
@@ -42,11 +42,9 @@ SETUP = """() => {
    if(domain!=='solar_pilot'||service!=='wallbox_priority_control')throw Error('Unexpected physical or unrelated command');
    if(data.target==='global'){
      priorityModel.general=choice('global',data.option);for(const id of Object.keys(priorityModel.devices))priorityModel.devices[id]=choice('device:'+id,data.option);
-     priorityModel.sg_boost=choice('dhw_extra',data.option);
-   }else if(data.target==='dhw_extra')priorityModel.sg_boost=choice(data.target,data.option);
-   else if(data.target.startsWith('device:')&&Object.hasOwn(priorityModel.devices,data.target.slice(7)))priorityModel.devices[data.target.slice(7)]=choice(data.target,data.option);
+   }else if(data.target.startsWith('device:')&&Object.hasOwn(priorityModel.devices,data.target.slice(7)))priorityModel.devices[data.target.slice(7)]=choice(data.target,data.option);
    else throw Error('Unexpected target');
-   priorityModel.mixed=[...Object.values(priorityModel.devices),priorityModel.sg_boost].some(x=>x.option!==priorityModel.general.option);
+   priorityModel.mixed=Object.values(priorityModel.devices).some(x=>x.option!==priorityModel.general.option);
    priorityModel.observed_at=Date.now()/1000;publishPriority();
  };
  c._view='overview';publishPriority();
@@ -69,7 +67,7 @@ with sync_playwright() as p:
     def picker():
         return card.locator('[data-wallbox-priority-dialog]')
 
-    assert card.locator('[data-wallbox-priority-target]').count() == 4
+    assert card.locator('[data-wallbox-priority-target]').count() == 3
     assert card.locator('[data-wallbox-priority-target="device:dishwasher"]').count() == 0
     assert card.locator('[data-wallbox-priority-target="wallbox"]').count() == 0
     assert page.evaluate('priorityCalls.length') == 0
@@ -84,13 +82,13 @@ with sync_playwright() as p:
         assert not picker().locator('dialog').is_visible()
         assert page.evaluate('priorityCalls.at(-1).data') == {
             "config_entry_id": "synthetic-entry", "target": "global", "option": option}
-        assert page.evaluate('[priorityModel.general,...Object.values(priorityModel.devices),priorityModel.sg_boost].every(x=>x.option===priorityCalls.at(-1).data.option)')
+        assert page.evaluate('[priorityModel.general,...Object.values(priorityModel.devices)].every(x=>x.option===priorityCalls.at(-1).data.option)')
         if option == "until_auto":
             assert control("global").locator('[data-wallbox-priority-clock]').inner_text() == "tot ik terug op automatisch zet"
         else:
             assert control("global").locator('[data-wallbox-priority-clock]').inner_text().startswith("Nog ")
         control("global").locator('[data-action="wallbox_priority_toggle"]').click()
-        assert page.evaluate('[priorityModel.general,...Object.values(priorityModel.devices),priorityModel.sg_boost].every(x=>x.option==="auto")')
+        assert page.evaluate('[priorityModel.general,...Object.values(priorityModel.devices)].every(x=>x.option==="auto")')
 
     # An individual remains editable under an active general policy.
     control("global").locator('[data-action="wallbox_priority_toggle"]').click()
@@ -102,9 +100,9 @@ with sync_playwright() as p:
     control("device:fan").locator('[data-action="wallbox_priority_toggle"]').click()
     picker().locator('[data-priority-option="30m"]').click()
     assert page.evaluate('priorityModel.devices.fan.option') == "30m"
-    assert page.evaluate('priorityModel.sg_boost.option') == "2h"
+    assert page.evaluate('priorityModel.sg_boost.option') == "until_auto"
     control("global").locator('[data-action="wallbox_priority_auto"]').click()
-    assert page.evaluate('[priorityModel.general,...Object.values(priorityModel.devices),priorityModel.sg_boost].every(x=>x.option==="auto")')
+    assert page.evaluate('[priorityModel.general,...Object.values(priorityModel.devices)].every(x=>x.option==="auto")')
 
     # Global AUTO can also clear an individually active policy when the general
     # switch itself is already in AUTO.
@@ -156,20 +154,23 @@ with sync_playwright() as p:
     # is created for the dishwasher, native comfort, Wallbox itself or battery.
     for view in ('loads', 'priorities'):
         card.locator(f'button[role="tab"][data-value="{view}"]').click()
-        assert card.locator('[data-wallbox-priority-target]').count() == 4
+        assert card.locator('[data-wallbox-priority-target]').count() == 3
         assert card.locator('[data-wallbox-priority-target="device:dishwasher"]').count() == 0
     card.locator('button[role="tab"][data-value="comfort"]').click()
-    assert card.locator('[data-wallbox-priority-target]').count() == 1
-    assert control('dhw_extra').is_visible()
+    assert card.locator('[data-wallbox-priority-target]').count() == 0
+    assert card.locator('[data-sg-solar-priority]').is_visible()
+    assert control('dhw_extra').count() == 0
     assert card.locator('[data-action="sg_boost_enabled"]').count() == 1
     assert card.locator('[data-sg-manual-control]').count() == 1
 
     # Permission revocation closes the stale picker and cannot send a command.
-    control('dhw_extra').locator('[data-action="wallbox_priority_toggle"]').click()
+    card.locator('button[role="tab"][data-value="loads"]').click()
+    control('device:fan').locator('[data-action="wallbox_priority_toggle"]').click()
     assert picker().locator('dialog').is_visible()
     page.evaluate("""() => {c.hass={...c._hass,user:{id:'synthetic-viewer',is_admin:false}};}""")
     assert not picker().locator('dialog').is_visible()
-    assert control('dhw_extra').locator('[data-action="wallbox_priority_toggle"]').is_disabled()
+    assert control('device:fan').locator('[data-action="wallbox_priority_toggle"]').is_disabled()
+    assert page.evaluate("c._setWallboxPriority('device:fan','1h')") is False
     assert page.evaluate("c._setWallboxPriority('dhw_extra','1h')") is False
     assert page.evaluate('priorityCalls.length') == count
     assert not errors, errors
