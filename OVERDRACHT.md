@@ -78,6 +78,8 @@ De concrete nieuwe scenario’s gebruiken uitsluitend fictieve meters en de werk
 
 Op 30 oktober 2026 slaagde de definitieve volledige lokale suite: **9238 tests, 0 fouten, 0 overgeslagen**, in 237,83 seconden. De vijf nieuwe beta.112-bestanden bevatten 79 regressiegevallen. De echte Chromium-SG-controle slaagde op 320/390/768/1280 pixels, inclusief vijftienminutenbuffer en korte lokale toestemming. Uitleg/optiehulp, handoff, privacy/structuur, SG-opdrachtgrens, JavaScript-syntax, diffcontrole en online upstreamreview zijn groen. De actuele officiële HEADs en opgeloste stabiele tagcommits zijn ongewijzigd; guidehash `35bbe4479df8b4f4`. Zie `docs/TESTRESULTATEN_BETA112.md`. Dit is lokaal softwarebewijs; de exacte GitHub-controles en publicatiestatus blijven afzonderlijk te verifiëren.
 
+De eerste PR #55-run op `9fb4c4` bevestigde repository/full-suite (9238), HACS, Hassfest en Chromium; de normale echte HA-start slaagde eveneens. De aanvullende SG-fixture had nog een oude verwachting van volledig ongewijzigde opties. De actuele fixture controleert nu exact de toegestane eenmalige 900 s/600 W-migratie plus `_sg_cloud_buffer_migration = 1`, met behoud van alle overige opties en het oorspronkelijke archief. Read-only uitlezen en herladen mogen daarna niets extra wijzigen. De volledige echte-HA-gate en alle overige gates moeten voor de gewijzigde commit opnieuw worden bevestigd.
+
 Alle vijf commitgebonden CI-gates blijven vereist: repository/full-suite, HACS, Hassfest, echte Chromium-interacties en echte Home Assistant-startup. Geen oudere groene head als vervanging voor de nieuwe exacte controles.
 
 ## 10. Bekende problemen / beperkingen

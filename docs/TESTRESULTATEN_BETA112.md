@@ -22,7 +22,11 @@ De echte Chromium-SG-controle slaagde op 320, 390, 768 en 1280 pixels, inclusief
 
 De onafhankelijke migratieregressies bevestigen dat tijdelijke handmatige AAN/UIT-keuzes en extern AAN hun oorspronkelijke eindtijd behouden. De eenmalige beleidsmigratie wijzigt uitsluitend een exact passende identiteit van die bestaande keuzes; historische sessies, eigendom en actieve lease-/tekortbewijzen worden niet opgewaardeerd. Afwijkende koppelingen of andere beleidswijzigingen krijgen geen dergelijke overname.
 
-De commitgebonden GitHub-controles volgen op de pull request. Deze lokale resultaten claimen geen gepubliceerde release of geslaagde fysieke installatie.
+Op PR #55, commit `9fb4c4`, slaagden de repositorycontrole met 9238 tests, HACS, Hassfest en de echte Chromium-controle. Ook de normale echte Home Assistant-start slaagde. De aanvullende bestaande-SG-fixture verwachtte nog ongewijzigde oude opties en werd aangepast aan de expliciete eenmalige buffermigratie; hiermee is de volledige echte-HA-gate nog niet als geslaagd aangemerkt.
+
+De echte Home Assistant-fixture vergelijkt de opgeslagen opties nu met exact het oorspronkelijke object plus de toegestane eenmalige wijziging: `stop_delay_s = 900`, `import_threshold_w = 600` en `_sg_cloud_buffer_migration = 1`. Alle andere opties en het oorspronkelijke archief moeten gelijk blijven. Uitlezen en herladen mogen daarna geen verdere configuratiewijziging veroorzaken. Dit controleert de echte migratie zonder de bestaande read-only- en archiefcontroles te versoepelen.
+
+De gewijzigde controle vereist opnieuw alle vijf gates op de nieuwe exacte commit. Deze resultaten claimen geen gepubliceerde release of geslaagde fysieke installatie.
 
 ## Publicatievoorwaarden en bewijsgrenzen
 
