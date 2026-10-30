@@ -525,8 +525,8 @@ def current_sg_fixture():
         "power_supply2_entity": "sensor.synthetic_supply2", "split_power_confirmed": True,
         "compressor_frequency_entity": "sensor.synthetic_frequency",
         "sg_status_entity": "binary_sensor.synthetic_sg_received",
-        # Persisted beta.72 default pair: beta.73 upgrades only its effective
-        # import policy without changing these immutable options or bindings.
+        # Persisted beta.72 default pair: beta.112 durably upgrades its
+        # effective five-minute buffer once, keeping all bindings and holds.
         "hysteresis_w": 300, "stop_delay_s": 60,
     }
     journal.pop("dhw")
@@ -560,24 +560,25 @@ def assert_current_sg(runtime, entry, expected_options, expected_journal):
     assert runtime.sg_boost._general_reference == expected_journal["sg_boost"]["general_reference"]
     assert runtime.sg_boost.auto_enabled is False
     assert runtime.sg_boost.desired_on is False and runtime.sg_boost.owned is False
-    # Upgrade defaults are runtime-only: immutable pre-upgrade options and
-    # restored manual/completion holds grant no active minimum or new lease.
+    # Only the declared cloud-policy upgrade is persisted. The unrelated
+    # minimum remains a runtime default; restored holds grant no new lease.
     assert "min_session_s" not in expected_options["sg_boost"]
     assert "min_session_s" not in entry.options["sg_boost"]
     assert runtime.sg_boost.settings["min_session_s"] == 1200
     assert runtime.sg_boost.settings["max_session_s"] == 3600
-    assert "import_threshold_w" not in expected_options["sg_boost"]
-    assert "import_threshold_w" not in entry.options["sg_boost"]
+    assert entry.options["_sg_cloud_buffer_migration"] == 1
+    assert expected_options["sg_boost"]["import_threshold_w"] == 600
+    assert entry.options["sg_boost"]["import_threshold_w"] == 600
     assert entry.options["sg_boost"]["hysteresis_w"] == 300
-    assert entry.options["sg_boost"]["stop_delay_s"] == 60
+    assert entry.options["sg_boost"]["stop_delay_s"] == 900
     assert runtime.sg_boost.settings["hysteresis_w"] == 300
     assert runtime.sg_boost.settings["import_threshold_w"] == 600
-    assert runtime.sg_boost.settings["stop_delay_s"] == 300
+    assert runtime.sg_boost.settings["stop_delay_s"] == 900
     sg = runtime.sg_boost.overview()
     assert sg["effective_min_session_s"] == 1200
     assert sg["minimum_remaining_s"] is None
     assert sg["minimum_valid_until"] is None and sg["minimum_active"] is False
-    assert sg["import_threshold_w"] == 600 and sg["stop_delay_s"] == 300
+    assert sg["import_threshold_w"] == 600 and sg["stop_delay_s"] == 900
     assert sg["cloud_remaining_s"] is None and sg["cloud_active"] is False
     assert sg["cloud_valid_until"] is None and sg["cloud_import_hold"] is False
     overview = runtime.panasonic.overview()
@@ -767,6 +768,13 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
         raise AssertionError(f"Expected Home Assistant 2026.10.x, found {core_version}")
     options, journal = current_sg_fixture() if current_sg else fixture()
     expected_options, expected_journal = deepcopy(options), deepcopy(journal)
+    # Specify the authorized migration independently of production output.
+    # Every subsequent read-only operation and reload must retain this exact
+    # result; the original fixture remains the archive/failure baseline.
+    expected_current_options = deepcopy(expected_options)
+    if current_sg:
+        expected_current_options["_sg_cloud_buffer_migration"] = 1
+        expected_current_options["sg_boost"].update(import_threshold_w=600, stop_delay_s=900)
     with tempfile.TemporaryDirectory(prefix="solarpilot-real-core-") as directory:
         config_dir = Path(directory)
         target = config_dir / "custom_components" / "solar_pilot"
@@ -874,6 +882,9 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
             archive = deepcopy(runtime.panasonic_archive)
             if current_sg:
                 assert archive == expected_journal["panasonic_archive"]
+                assert isinstance(entry.options, MappingProxyType)
+                assert options == expected_options and journal == expected_journal
+                assert dict(entry.options) == expected_current_options
                 observed = runtime.panasonic.overview()
                 assert observed["power_w"] == 1400 and observed["power_complete"] is True
                 assert observed["power_supply1_w"] == 1400 and observed["power_supply2_w"] == 0
@@ -916,7 +927,7 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                 off = runtime.panasonic.overview()["power_activity"]
                 assert off["label"] == "Geen elektrisch verbruik" and off["active"] is False
                 assert runtime.sg_boost.snapshot() == control_before
-                assert dict(entry.options) == expected_options and not physical_calls
+                assert dict(entry.options) == expected_current_options and not physical_calls
                 # Main and auxiliary supplies are separate observations. High
                 # auxiliary uptake does not become compressor operation.
                 hass.states.async_set("sensor.synthetic_supply1", "58", {"unit_of_measurement": "W"})
@@ -970,7 +981,7 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                 hass.states.async_set("sensor.synthetic_supply1", "1.4", {"unit_of_measurement": "kW"})
                 assert runtime.panasonic.overview()["power_activity"]["label"] == "Sanitair water opwarmen"
                 assert runtime.sg_boost.snapshot() == control_before
-                assert dict(entry.options) == expected_options and not physical_calls
+                assert dict(entry.options) == expected_current_options and not physical_calls
                 hass.states.async_set("water_heater.synthetic_tank", "eco", {
                     "temperature": 51, "current_temperature": 48, "temperature_unit": "°C"})
                 hass.states.async_set("climate.synthetic_zone", "heat", {
@@ -1045,7 +1056,7 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                 for key in ("context", "context_reliable", "context_signature", "cooling_possible", "operation"):
                     assert runtime.panasonic.overview()[key] == inherited_control[key]
                 assert runtime.sg_boost.snapshot() == control_before
-                assert dict(entry.options) == expected_options and not physical_calls
+                assert dict(entry.options) == expected_current_options and not physical_calls
                 hass.states.async_set("sensor.synthetic_supply1", "1.4", {"unit_of_measurement": "kW"})
                 hass.states.async_set("sensor.synthetic_supply2", "unavailable", {"unit_of_measurement": "W"})
                 observed = runtime.panasonic.overview()
@@ -1054,7 +1065,7 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                 hass.states.async_set("sensor.synthetic_supply2", "250", {"unit_of_measurement": "W"})
                 hass.states.async_set("sensor.synthetic_frequency", "35", {"unit_of_measurement": "Hz"})
                 hass.states.async_set("binary_sensor.synthetic_sg_received", "unknown")
-                assert_current_sg(runtime, entry, expected_options, expected_journal)
+                assert_current_sg(runtime, entry, expected_current_options, expected_journal)
             else:
                 assert archive["backup_options"] == expected_options
                 assert archive["backup_store"] == expected_journal
@@ -1142,7 +1153,7 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
             feedback_saved = await entry.runtime_data.analysis_feedback.store.async_load()
             assert feedback_saved["report"] is None and feedback_saved["known_exports"]
             if current_sg:
-                assert_current_sg(entry.runtime_data, entry, expected_options, expected_journal)
+                assert_current_sg(entry.runtime_data, entry, expected_current_options, expected_journal)
             assert not physical_calls, physical_calls
             before_unload = {"history": deepcopy(entry.runtime_data.heatpump_history.model.snapshot()),
                              "access_sources": set(entry.runtime_data.heatpump_history.access_sources)}
@@ -1166,7 +1177,7 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
             assert not physical_calls, physical_calls
             if current_sg:
                 persisted = await store.async_load()
-                assert dict(entry.options) == expected_options
+                assert dict(entry.options) == expected_current_options
                 assert persisted["panasonic_archive"] == expected_journal["panasonic_archive"]
                 assert persisted["sg_boost"]["manual_hold"] is True
                 assert persisted["sg_boost"]["completion_hold"] is True
@@ -1220,7 +1231,9 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
                         "retired_entity_and_unloaded_runtime_rejected": True,
                         "last_entry_removal_unregisters_service": True},
                     **({"fixture": "current general SG with split read-only sources",
-                        "immutable_nested_options_exact": True, "manual_and_completion_holds_preserved": True,
+                        "options_exact_after_declared_cloud_migration": True,
+                        "cloud_buffer_migrated_once_to_900_s": True,
+                        "manual_and_completion_holds_preserved": True,
                         "split_units_zero_missing_and_sum": True, "compressor_and_sg_proof_separate": True,
                         "automatic_power_display_without_new_settings": True,
                         "independent_heater_supply_and_partial_measurement": True,

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.112 — SG blijft doorlopen bij moduleren en korte wolken
+
+- Verwijdert de startvermogensdrempel uit het behoud van een lopend automatisch algemeen SG-contact. Nog actueel bruikbaar P1-/HP-/EV-zonnebudget na import, batterijcorrectie en huisbuffer kan een modulerende warmtepomp laten doorlopen; starten behoudt zijn eigen drempel en stabiliteit.
+- Herstelt de beoordeling van niet-gelijktijdige bronrapporten. Het opnieuw bruikbaar worden van een actuele warmtepompmeting mag de oudste tijd van het gezamenlijke budget verlagen zonder onmiddellijke tekortstop vóór minimum of wolkenbuffer. Oorspronkelijke actualiteit, rapportvoortgang en vaste tekortdeadlines blijven afzonderlijk gecontroleerd.
+- Vergroot op verzoek de gedeelde gewone zonne-/importbuffer naar vijftien minuten (900 seconden). Zet de vroegere standaard van 300 seconden eenmaal om; andere bewaarde aangepaste waarden en latere eigen keuzes blijven behouden. Minimumduur blijft twintig minuten en de zachte importgrens 600 W. De zonnebuffer begint wanneer het geldige bruikbare budget nul is; de importbuffer blijft apart op echte P1 werken. Herstel wist de betreffende klok, zonder starttijdreset, verplichte uurstop of verlenging van handmatige eindtijden.
+- Behoudt actuele harde net-, fase-, kwartier-, batterij-, bron-, koel-, contact- en timercontroles en vaste SG-zonnevoorrang op autonoom Wallboxladen. Geen nieuwe Panasonic- of Wallboxopdracht; alleen de beschreven eenmalige standaardbuffermigratie.
+- Benoemt de actieve zonnebuffer en resterende minimumduur in de actuele SG-reden. Werkt actuele uitleg in Home Assistant, veldhulp, installatie/rollback, testverslag, upstreamreview en overdracht bij. Zie BETA112_INSTELLEN.md en TESTRESULTATEN_BETA112.md.
+
 ## 1.0.0-beta.111 — doorlopend SG-zonbedrijf en vaste zonnevoorrang
 
 - Laat een toegestaan automatisch algemeen SG-AAN-contact aanblijven zolang actuele voorwaarden voldoen. Geen verplichte uurstop of administratieve reset van start/elapsed; de korte lokale toestemming wordt telkens actueel gecontroleerd. Handmatige en andere begrensde routes houden hun oorspronkelijke maximum/eindtijden.

@@ -10,7 +10,7 @@ from test_sg_controller62 import boosted, fixture, tick
 
 
 @pytest.mark.asyncio
-async def test_cloud_policy_defaults_are_separate_from_solar_episode_hysteresis():
+async def test_explicit_cloud_policy_is_separate_from_solar_episode_hysteresis():
     manager, adapter, clock, _ = await boosted(min_session_s=0)
     assert manager.settings["import_threshold_w"] == 600
     assert manager.settings["stop_delay_s"] == 300
@@ -128,7 +128,7 @@ async def test_missing_stale_or_future_original_p1_proof_releases_even_during_mi
     ("import_threshold_w", -1), ("import_threshold_w", 20001),
     ("stop_delay_s", None), ("stop_delay_s", "invalid"),
     ("stop_delay_s", float("nan")), ("stop_delay_s", True),
-    ("stop_delay_s", 0), ("stop_delay_s", 601),
+    ("stop_delay_s", 0), ("stop_delay_s", 901),
 ])
 async def test_invalid_stored_import_policy_blocks_without_throwing_or_retaining_owned_on(key, value):
     manager, adapter, clock, _ = await boosted()

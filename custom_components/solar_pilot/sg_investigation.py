@@ -280,7 +280,7 @@ def _valid_policy(policy):
     policy = {key: _number(_map(policy).get(key)) for key in (
         "import_threshold_w", "stop_delay_s", "effective_min_session_s", "max_session_s", "stale_s")}
     return (policy.get("import_threshold_w") is not None and 0 <= policy["import_threshold_w"] <= 20000
-            and policy.get("stop_delay_s") is not None and 5 <= policy["stop_delay_s"] <= 600
+            and policy.get("stop_delay_s") is not None and 5 <= policy["stop_delay_s"] <= 900
             and policy.get("effective_min_session_s") is not None and 0 <= policy["effective_min_session_s"] <= 14400
             and policy.get("max_session_s") is not None and 300 <= policy["max_session_s"] <= 14400
             and policy["effective_min_session_s"] <= policy["max_session_s"]
@@ -692,5 +692,5 @@ def assessment(runtime, now, sg=None, research=None):
         item.update(status="check_needed", summary="De actuele SG-bron of contactbevestiging vraagt controle.")
     if not comparable:
         item["proposals"].append({"id": "sg_complete_session", "kind": "investigation",
-            "text": "Registreer een complete nieuwe SG-sessie met versie, effectief beleid, originele bronrapporten en stopreden. Beoordeel 600 W/vijf minuten en de vrijgave rond minuut twintig; behoud instellingen en veiligheidsgrenzen."})
+            "text": "Registreer een complete nieuwe SG-sessie met versie, effectief beleid, originele bronrapporten en stopreden. Beoordeel 600 W/vijftien minuten en de vrijgave rond minuut twintig; behoud instellingen en veiligheidsgrenzen."})
     return item

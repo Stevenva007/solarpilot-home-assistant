@@ -1673,8 +1673,19 @@ class SolarRuntime:
             "session_solar_states", "session_manual_states", "session_stopped_states", "trust_solar_setting")
         hp_keys = ("power_entity", "power_scope", "power_supply1_entity", "power_supply2_entity",
             "split_power_confirmed", "power_supply_profile", "power_supply1_role", "power_supply2_role")
+        # The oldest contributing report is a freshness bound, not a sequence:
+        # a still-fresh HP/EV report can rejoin the pool after a P1/PV mismatch.
+        # Keep their original clocks separate so that this does not look like
+        # a replay, while an actual rollback of the same source remains visible.
+        source_reports = {"p1": p1_report.get("stamp"), "site": budget.get("grid_reported_at"),
+                          "pv": budget.get("pv_reported_at")}
+        if budget.get("hp_power_complete") is True:
+            source_reports["hp"] = budget.get("hp_power_reported_at")
+        if (budget.get("ev_solar_w") or 0) > 0:
+            source_reports["ev"] = budget.get("ev_reported_at")
         return {"valid": budget.get("valid") is True, "watts": budget.get("eligible_w"),
             "stamp": budget.get("stamp"), "report_stamp": p1_report.get("stamp"),
+            "source_reports": source_reports,
             "source_identity": {"policy": "sg_solar_pool111",
                 "site": {key: self.settings.get(key) for key in site_keys},
                 "wallbox": {key: self.wallbox_settings.get(key) for key in ev_keys},

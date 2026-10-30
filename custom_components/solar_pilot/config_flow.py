@@ -813,7 +813,7 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
     async def async_step_sg_advanced(self, user_input=None):
         def schema(c):
             return {vol.Required(k, default=c[k]): num(low, high, step) for k, low, high, step in (
-                ("start_delay_s", 30, 1800, 10), ("stop_delay_s", 5, 600, 5),
+                ("start_delay_s", 30, 1800, 10), ("stop_delay_s", 5, 900, 5),
                 ("import_threshold_w", 0, 20000, 50), ("hysteresis_w", 0, 5000, 50),
                 ("rest_s", 60, 7200, 60),
                 ("min_session_s", 0, 14400, 60), ("max_session_s", 300, 14400, 60), ("lease_s", 60, 600, 30),

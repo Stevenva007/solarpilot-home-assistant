@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from copy import deepcopy
+import hashlib
+import json
 import math
 import re
 
@@ -15,7 +17,7 @@ SG_DEFAULTS = {
     "entity_id": "", "enabled": False,
     "commissioning_confirmed": False, "watchdog_confirmed": False,
     "threshold_w": 3000.0, "expected_power_w": 3000.0,
-    "start_delay_s": 120, "stop_delay_s": 300, "rest_s": 900,
+    "start_delay_s": 120, "stop_delay_s": 900, "rest_s": 900,
     "min_session_s": 1200, "max_session_s": 3600, "lease_s": 300, "renew_s": 60,
     "hysteresis_w": 300.0, "import_threshold_w": 600.0,
     "ack_timeout_s": 20, "stale_s": 120,
@@ -52,12 +54,24 @@ NUMBER_LIMITS = {
     "threshold_w": (500, 20000), "expected_power_w": (100, 30000),
     "hysteresis_w": (0, 5000), "import_threshold_w": (0, 20000),
     "start_delay_s": (30, 1800),
-    "stop_delay_s": (5, 600), "rest_s": (60, 7200),
+    "stop_delay_s": (5, 900), "rest_s": (60, 7200),
     "min_session_s": (0, 14400), "max_session_s": (300, 14400), "lease_s": (60, 600),
     "renew_s": (10, 120), "ack_timeout_s": (5, 60),
     "stale_s": (15, 600), "power_activity_threshold_w": (10, 2000),
     "sg_dhw_capacity_percent": (100, 200), "sg_dhw_capacity_confirmed_at": (0, 4102444800),
 }
+
+
+def control_identity(settings):
+    """Exact effective control policy identity, shared with narrow migrations."""
+    if not isinstance(settings, Mapping):
+        return None
+    value = {key: value for key, value in settings.items() if key not in DISPLAY_ONLY_KEYS}
+    try:
+        return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"),
+                                         allow_nan=False).encode()).hexdigest()
+    except (TypeError, ValueError):
+        return None
 
 
 def finite(value):

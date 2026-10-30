@@ -9,10 +9,11 @@ from __future__ import annotations
 
 from copy import deepcopy
 from collections.abc import Mapping
-from .sg_config import SG_DEFAULTS, finite, normalize_config
+from .sg_config import SG_DEFAULTS, control_identity, finite, normalize_config
 
 MIGRATION_VERSION = 1
 MARKER = "_panasonic_migration"
+SG_CLOUD_BUFFER_MARKER = "_sg_cloud_buffer_migration"
 ARCHIVE_KEY = "panasonic_archive"
 RETIRED_GROUPS = frozenset({"dhw", "smart_climate"})
 KNOWN_DHW_FAULTS = frozenset({
@@ -29,6 +30,53 @@ def _mapping(value):
     # HA ConfigEntry.options is an immutable mapping, while Store payloads are
     # ordinary dictionaries. Both represent the same JSON configuration data.
     return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _migrate_cloud_buffer(options, stored=None):
+    """Upgrade the old default once in the existing durable options migration.
+
+    This marker is outside the SG policy: it grants no actuator permission and
+    does not rewrite historical sessions, active deadlines or private backups.
+    Exact existing manual/external intents keep their original time bounds;
+    only their policy identity follows this sole default-policy update.
+    A later explicit five-minute setting remains a valid user choice.
+    """
+    marker = options.get(SG_CLOUD_BUFFER_MARKER)
+    if type(marker) is int and marker >= 1:
+        return False
+    raw = options.get("sg_boost")
+    if isinstance(raw, Mapping):
+        config = deepcopy(dict(raw))
+        previous = normalize_config(config)
+        legacy_default_pair = ("import_threshold_w" not in config
+            and finite(config.get("hysteresis_w", 300)) == 300
+            and finite(config.get("stop_delay_s", 60)) == 60)
+        if previous["stop_delay_s"] == 900 and ("stop_delay_s" not in config or legacy_default_pair):
+            previous["stop_delay_s"] = 300
+        if "stop_delay_s" not in config or finite(previous["stop_delay_s"]) == 300:
+            if "import_threshold_w" not in config:
+                # Preserve the effective pre-existing import choice before
+                # changing the delay, which old pre-beta.73 parsing also used
+                # to recognise its legacy default pair.
+                config["import_threshold_w"] = normalize_config(config)["import_threshold_w"]
+            config["stop_delay_s"] = SG_DEFAULTS["stop_delay_s"]
+            options["sg_boost"] = config
+            current = normalize_config(config)
+            old_identity, new_identity = control_identity(previous), control_identity(current)
+            journal = stored.get("sg_boost") if isinstance(stored, dict) else None
+            if (old_identity is not None and new_identity is not None
+                    and isinstance(journal, dict) and journal.get("schema") == 1
+                    and journal.get("relay_entity") == previous["entity_id"] == current["entity_id"]
+                    and {key: value for key, value in previous.items() if key != "stop_delay_s"}
+                        == {key: value for key, value in current.items() if key != "stop_delay_s"}):
+                for key in ("manual_control", "external_control"):
+                    intent = journal.get(key)
+                    if (isinstance(intent, dict) and intent.get("schema") == 1
+                            and intent.get("control_identity") == old_identity
+                            and (key == "external_control" or intent.get("mode") in ("on", "off"))):
+                        intent["control_identity"] = new_identity
+    options[SG_CLOUD_BUFFER_MARKER] = 1
+    return True
 
 
 def _assessment(options, stored):
@@ -90,7 +138,7 @@ def migrate_panasonic(options, stored):
                 and valid_archive)
     if complete:
         report = deepcopy(_mapping(archive.get("assessment")))
-        report["changed"] = False
+        report["changed"] = _migrate_cloud_buffer(options, stored)
         return options, stored, report
 
     # Store is committed before entry.options. A crash between those two saves
@@ -154,4 +202,5 @@ def migrate_panasonic(options, stored):
         stored[ARCHIVE_KEY] = {"version": MIGRATION_VERSION, "read_only": True,
                               "backup_options": old_options, "backup_store": old_store,
                               "assessment": deepcopy(report)}
+    _migrate_cloud_buffer(options)
     return options, stored, report

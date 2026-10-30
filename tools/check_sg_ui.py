@@ -355,7 +355,7 @@ with sync_playwright() as p:
         reassessment_remaining_s:null,usable_reassessment_available:false,
         min_session_s:1200,effective_min_session_s:1200,minimum_remaining_s:0,
         minimum_active:false,minimum_valid_until:now+120,
-        import_threshold_w:600,stop_delay_s:300,cloud_active:false,
+        import_threshold_w:600,stop_delay_s:900,cloud_active:false,
         cloud_remaining_s:null,cloud_valid_until:now+120});
       Object.assign(a.ems.electrical_limits,{source_observed_at:now,sg_solar_observed_at:now,
         sg_increment_observed_at:now,sg_increment_valid_until:now+120});
@@ -385,7 +385,7 @@ with sync_playwright() as p:
       Object.assign(s,{observed_at:now,relay_observed_at:now,relay_valid_until:now+120,
         lease_remaining_s:300,continuous_solar_valid_until:now+30,
         minimum_valid_until:now+120,cloud_valid_until:now+120,
-        joint_solar_deficit_active:true,joint_solar_deficit_remaining_s:250,
+        joint_solar_deficit_active:true,joint_solar_deficit_remaining_s:850,
         joint_solar_deficit_valid_until:now+30});
       Object.assign(a.ems.electrical_limits,{source_observed_at:now,sg_solar_observed_at:now,
         sg_eligible_solar_w:2000,sg_hp_solar_w:2000,sg_ev_solar_w:0,sg_residual_solar_w:0,
@@ -396,8 +396,10 @@ with sync_playwright() as p:
         deficit=overview_row.locator('[data-sg-solar-deficit]')
         assert 'Wolkenbuffer voor te weinig zonnestroom' in deficit.inner_text()
         assert 'Te weinig bruikbare zonnestroom' in deficit.inner_text()
+        assert 'nog 14 min' in deficit.inner_text()
         assert 'geen extra buffer achteraf' in deficit.inner_text()
         assert 'Geen lopende importbuffer' in overview_row.locator('[data-sg-cloud]').inner_text()
+        assert '600 W / 15 min' in overview_row.locator('[data-sg-cloud]').inner_text()
         assert overview_row.locator('[data-sg-stage=relay]').inner_text()=='SG-contact\nActief'
         assert overview_row.evaluate('e=>e.scrollWidth<=e.clientWidth+1'),width
         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width

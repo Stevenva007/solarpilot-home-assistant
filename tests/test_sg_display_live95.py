@@ -67,7 +67,7 @@ async def test_legacy_defaults_do_not_park_a_display_only_edit_during_owned_sg(i
     base, desired = proposal(runtime, sg_dhw_capacity_percent=115)
     assert base["sg_boost"]["stop_delay_s"] == 60
     assert "import_threshold_w" not in base["sg_boost"]
-    assert runtime.sg_boost.settings["stop_delay_s"] == 300
+    assert runtime.sg_boost.settings["stop_delay_s"] == 900
     assert runtime.sg_boost.settings["import_threshold_w"] == 600
     assert _sg_changed_keys(base["sg_boost"], desired["sg_boost"]) == {"sg_dhw_capacity_percent"}
 
@@ -76,7 +76,7 @@ async def test_legacy_defaults_do_not_park_a_display_only_edit_during_owned_sg(i
     assert not result[PENDING]
     assert runtime.sg_boost.settings["sg_dhw_capacity_percent"] == 115
     assert runtime.panasonic.settings["sg_dhw_capacity_percent"] == 115
-    assert runtime.entry.options["sg_boost"]["stop_delay_s"] == 300
+    assert runtime.entry.options["sg_boost"]["stop_delay_s"] == 900
     assert runtime.entry.options["sg_boost"]["import_threshold_w"] == 600
     assert controls(runtime) == before
     assert_unconfirmed_display(runtime)
