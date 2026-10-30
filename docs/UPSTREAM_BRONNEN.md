@@ -1,5 +1,9 @@
 # Openbaar upstream-bronregister
 
+## Hercontrole beta.112 — 30 oktober 2026
+
+De online broncontrole bevestigde opnieuw dezelfde officiële defaultbranch-HEADs, nieuwste stabiele releases en opgeloste tagcommits. Zie [UPSTREAM_BETA112.md](UPSTREAM_BETA112.md). De correcties aan SG-behoud en niet-gelijktijdige bronrapporten wijzigen geen native Panasonic-/SDK-contract.
+
 ## Hercontrole beta.111 — 28 oktober 2026
 
 De actuele officiële defaultbranch-HEADs, nieuwste stabiele releases en opgeloste tagcommits zijn online opnieuw gecontroleerd en ongewijzigd. Zie [UPSTREAM_BETA111.md](UPSTREAM_BETA111.md). Vaste SG-zonnevoorrang en de actuele bruikbare-zonherstart wijzigen het native Panasonic-/SDK-contract niet.

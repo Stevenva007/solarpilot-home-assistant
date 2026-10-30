@@ -96,7 +96,8 @@ def test_beta63_immutable_nested_config_and_private_archive_remain_idempotent():
               "manual_hold": True, "relay_entity": old_sg["entity_id"]}, "history": [5, 6]}
     before = deepcopy(options), deepcopy(stored)
     new, data, report = migrate_panasonic(MappingProxyType(options), stored)
-    assert not report["changed"]
+    assert report["changed"]  # First beta.112 startup records the buffer migration.
+    assert new["_sg_cloud_buffer_migration"] == 1
     assert new["sg_boost"] == old_sg and data["sg_boost"] == stored["sg_boost"]
     assert data["panasonic_archive"] == archive and new["retained"] == options["retained"]
     again, repeated, report2 = migrate_panasonic(MappingProxyType(new), data)

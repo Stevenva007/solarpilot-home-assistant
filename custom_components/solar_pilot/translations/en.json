@@ -733,12 +733,12 @@
       },
       "sg_advanced": {
         "title": "Solar boost — stability and local fallback",
-        "description": "Automatic general solar operation can continue while current conditions permit. Raw grid import above the default 600 W and insufficient usable solar budget have separate deficit timers, with five minutes of confirmation by default, running alongside the original minimum request duration. The short local timer, native conditions and hard limits remain separate.",
+        "description": "Automatic general solar operation can continue while current conditions permit. Raw grid import above the default 600 W and zero valid usable solar budget have separate deficit timers, with fifteen minutes of confirmation by default, alongside the original minimum duration. Modulating at lower power does not require the starting threshold again. The short local timer, native conditions and hard limits remain separate.",
         "data": {
           "start_delay_s": "Stable surplus before starting (s)",
-          "stop_delay_s": "Confirm continuous deficit (s)",
+          "stop_delay_s": "Cloud buffer for continuous deficit (s)",
           "import_threshold_w": "Grid-import limit before stop delay (W)",
-          "hysteresis_w": "SG solar margin and new solar period threshold (W)",
+          "hysteresis_w": "New solar period threshold (W)",
           "rest_s": "SG request repeat wait (s)",
           "min_session_s": "Minimum SG request duration (s)",
           "max_session_s": "Maximum duration for bounded SG control (s)",
@@ -750,8 +750,8 @@
         "data_description": {
           "min_session_s": "Minimum SG request duration, default 1200 seconds, for ordinary soft deficit release. It starts at confirmed ON and is not reset by renewal. Deficit confirmation runs alongside it. Manual and other bounded routes retain their original maximum. Panasonic controls compressor runtime.",
           "import_threshold_w": "Cloud buffer for actual raw grid import, default 600 W. Strictly higher import starts its own deficit timer; values at or below the threshold clear that timer. Usable solar budget has a separate deficit check, including at low grid import.",
-          "hysteresis_w": "Margin below the SG start threshold for the independent usable-solar deficit timer during continuous automatic general solar operation; also retains its alternative new-solar-period evidence threshold. Default 300 W. Raw P1 import has a separate threshold.",
-          "stop_delay_s": "Deficit confirmation, default 300 seconds. Raw grid import and valid usable solar budget below max(0, start threshold - solar margin) use separate timers. Release waits for confirmed deficit and the original minimum, which run in parallel. Invalid sources do not grant continuous solar permission.",
+          "hysteresis_w": "Threshold for the alternative new-solar-period restart evidence, default 300 W of actual residual export. Its existing five-minute evidence phases remain unchanged. This is not a continuation threshold for a running automatic general SG contact or a raw grid-import limit.",
+          "stop_delay_s": "Ordinary cloud-buffer duration, default 900 seconds (15 minutes). Raw grid import and zero valid usable solar budget use separate timers. A running contact need not meet the starting threshold again. Deficit and the original minimum duration run in parallel; the local permission retains confirmation margin and can expire slightly earlier. The former 300-second default is migrated once to 900; other saved custom durations and later deliberate settings are retained. Hard limits and necessary source validity still apply.",
           "rest_s": "Default request fallback wait: 900 seconds. Before expiry, proven original ended automatic session-limit or unknown-response evidence may replace this request wait with fresh OFF and at least two new usable-solar reports over the existing start stability once. After ordinary rest, current valid configuration and new stable sources can support a new request without an old policy hash blocking it permanently. Native need, manual OFF and uncertain commands keep their own conditions. This is not compressor rest.",
           "max_session_s": "Maximum duration for manual and other bounded SG routes, default 3600 seconds. Automatic general solar operation has no mandatory hourly stop: a permitted ON contact can remain while current usable solar and all other conditions hold. Short local permission is checked at each renewal; the original start and elapsed time are retained."
         }

@@ -19,7 +19,7 @@ import uuid
 
 from homeassistant.exceptions import HomeAssistantError
 
-from .sg_config import DISPLAY_ONLY_KEYS, actuator_conflicts, finite, normalize_config, validate_config
+from .sg_config import DISPLAY_ONLY_KEYS, actuator_conflicts, control_identity, finite, normalize_config, validate_config
 from .const import VERSION
 from .sg_investigation import (clean_dispatch_rejection, clean_session_provenance,
     effective_session_policy, session_policy_hash)
@@ -179,13 +179,7 @@ class SGBoostManager:
         return self.settings.get("enabled") is True
 
     def _control_identity(self, settings=None):
-        source = self.settings if settings is None else settings
-        value = {key: value for key, value in source.items() if key not in DISPLAY_ONLY_KEYS}
-        try:
-            return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"),
-                                             allow_nan=False).encode()).hexdigest()
-        except (TypeError, ValueError):
-            return None
+        return control_identity(self.settings if settings is None else settings)
 
     @staticmethod
     def _historical_provenance(value):
@@ -1377,7 +1371,7 @@ class SGBoostManager:
                 self._off_attempted = False
                 current_pool = self._current_usable_solar()
                 if (self._joint_solar_deficit is None and
-                        (current_pool is None or current_pool["watts"] < self._joint_solar_threshold())):
+                        (current_pool is None or current_pool["watts"] <= 0)):
                     # Unobserved downtime cannot create a fresh cloud period.
                     self._continuous_admitted = False
                 else:
@@ -1850,6 +1844,12 @@ class SGBoostManager:
     def _active_reason(self):
         if self.manual_mode == "on":
             return f"SG-boost tijdelijk handmatig aan; automatisch over {self._manual_overview()['remaining_s']} s"
+        if self._joint_solar_deficit is not None and self._automatic_solar_session():
+            remaining = math.ceil(self._joint_remaining() or 0)
+            if self.minimum_hold_active:
+                minimum = math.ceil(max(0.0, self._effective_minimum_s() - (self._clock() - self._minimum_started)))
+                return f"Tijdelijk geen bruikbare zonnestroom; wolkenbuffer nog {remaining} s, minimumduur nog {minimum} s"
+            return f"Tijdelijk geen bruikbare zonnestroom; wolkenbuffer nog {remaining} s"
         if self._import_since is not None and self.minimum_hold_active:
             remaining = math.ceil(max(0.0, self._effective_minimum_s() - (self._clock() - self._minimum_started)))
             return f"Minimumduur SG-aanvraag nog {remaining} s; tijdelijke netafname binnen veiligheidsgrenzen"
@@ -2323,6 +2323,16 @@ class SGBoostManager:
             elif hasattr(owner, "_sg_dispatch_rejection"):
                 del owner._sg_dispatch_rejection
 
+    @staticmethod
+    def _solar_report_times(value):
+        """Bounded original source clocks, without treating them as permission."""
+        if (not isinstance(value, dict) or not value or len(value) > 5
+                or not {"p1", "site", "pv"} <= set(value)
+                or not set(value) <= {"p1", "site", "pv", "hp", "ev"}):
+            return None
+        reports = {key: _strict_time(stamp) for key, stamp in value.items()}
+        return reports if all(stamp is not None and stamp > 0 for stamp in reports.values()) else None
+
     def _usable_solar(self, value):
         """Current usable pool, kept separate from physically measured export."""
         if not isinstance(value, dict) or value.get("valid") is not True:
@@ -2337,8 +2347,18 @@ class SGBoostManager:
                 or not isinstance(identity, (dict, tuple, list)) or not identity):
             return None
         signature = self._residual_source_signature(identity, None)
-        return {"watts": watts, "stamp": stamp, "report_stamp": report,
-                "source_signature": signature} if signature else None
+        if not signature:
+            return None
+        result = {"watts": watts, "stamp": stamp, "report_stamp": report,
+                  "source_signature": signature}
+        if "source_reports" in value:
+            reports = self._solar_report_times(value["source_reports"])
+            if (reports is None or reports.get("p1") != report or "pv" not in reports
+                    or any(not -5 <= self._wall_clock()-source <= float(self.settings["stale_s"])
+                           for source in reports.values())):
+                return None
+            result["source_reports"] = reports
+        return result
 
     def _current_usable_solar(self):
         getter = getattr(self.runtime, "sg_usable_solar_observation", None)
@@ -2367,9 +2387,6 @@ class SGBoostManager:
             "session_provenance": self._session_provenance,
             "binding_identity": self._binding_identity}))
 
-    def _joint_solar_threshold(self):
-        return max(0.0, float(self.settings["threshold_w"])-float(self.settings["hysteresis_w"]))
-
     def _joint_deficit_snapshot(self):
         record = self._joint_solar_deficit
         if not isinstance(record, dict) or self._joint_solar_deadline is None:
@@ -2387,6 +2404,7 @@ class SGBoostManager:
         delay = float(self.settings["stop_delay_s"])
         if (isinstance(value, dict) and value.get("schema") == 1
                 and all(number is not None for number in times.values())
+                and ("source_reports" not in value or self._solar_report_times(value["source_reports"]) is not None)
                 and session_started_at <= times["started_at"] <= times["observed_at"]
                 and 0 <= times["remaining_cap_s"] <= delay
                 and 0 <= times["deadline"]-times["started_at"] <= delay
@@ -2417,6 +2435,23 @@ class SGBoostManager:
         return max(0.0, min(record["remaining_cap_s"], record["deadline"]-wall,
             self._joint_solar_deadline-self._clock()))
 
+    @staticmethod
+    def _joint_sources_current(observation, record):
+        """Compare each original clock; the pool's minimum may change member."""
+        if (observation["source_signature"] != record["source_signature"]
+                or observation["report_stamp"] < record["report_stamp"]):
+            return False
+        current, previous = observation.get("source_reports"), record.get("source_reports")
+        if current is None:
+            # Compatibility for old injected observations, not a downgrade of
+            # a production record which already carries separate source proof.
+            return previous is None and observation["stamp"] >= record["stamp"]
+        if previous is None:
+            # A beta.111 checkpoint has no individual clocks to compare. The
+            # current proven sources may update it, keeping its first deadline.
+            return True
+        return all(stamp >= previous.get(key, stamp) for key, stamp in current.items())
+
     def _observe_joint_solar(self, *, at_boundary=False):
         """Keep the first observed joint-pool deficit, separately from P1 import."""
         if not self._automatic_solar_session():
@@ -2425,15 +2460,18 @@ class SGBoostManager:
         if observation is None:
             return False
         record = self._joint_solar_deficit
-        sufficient = observation["watts"] >= self._joint_solar_threshold()
+        # A running heat pump can modulate well below the start estimate.
+        # The pool already deducts site import, battery draw and the house
+        # reserve. Retain actual solar use; the independent raw-P1 timer
+        # decides whether present consumption draws too much from the grid.
+        sufficient = observation["watts"] > 0
         if sufficient:
             if record is None:
                 changed = not self._continuous_admitted
                 self._continuous_admitted = True
                 return changed
             # A replayed old sunny report cannot erase a later cloud deadline.
-            if (observation["source_signature"] == record["source_signature"]
-                    and observation["stamp"] >= record["stamp"]
+            if (self._joint_sources_current(observation, record)
                     and observation["report_stamp"] > record["report_stamp"]
                     and self._wall_clock() >= record["observed_at"]):
                 self._joint_solar_deficit = self._joint_solar_deadline = None
@@ -2451,13 +2489,16 @@ class SGBoostManager:
                 "stamp": observation["stamp"], "report_stamp": observation["report_stamp"],
                 "source_signature": observation["source_signature"],
                 "control_identity": self._control_identity()}
+            if "source_reports" in observation:
+                self._joint_solar_deficit["source_reports"] = dict(observation["source_reports"])
             self._joint_solar_deadline = now+delay
             self._joint_solar_needs_save = at_boundary
             return True
-        if (observation["source_signature"] == record["source_signature"]
-                and observation["stamp"] >= record["stamp"]
-                and observation["report_stamp"] >= record["report_stamp"]):
+        if self._joint_sources_current(observation, record):
             record.update(stamp=observation["stamp"], report_stamp=observation["report_stamp"])
+            if "source_reports" in observation:
+                # Retain an absent contributor's high watermark for its return.
+                record["source_reports"] = {**record.get("source_reports", {}), **observation["source_reports"]}
         return False
 
     def _joint_lease_deadline(self):
@@ -2479,16 +2520,14 @@ class SGBoostManager:
         record = self._joint_solar_deficit
         recovered = False
         if record is not None:
-            if (observation["source_signature"] != record["source_signature"]
-                    or observation["stamp"] < record["stamp"]
-                    or observation["report_stamp"] < record["report_stamp"]
+            if (not self._joint_sources_current(observation, record)
                     or self._wall_clock() < record["observed_at"]):
                 return None
-            recovered = (observation["watts"] >= self._joint_solar_threshold()
+            recovered = (observation["watts"] > 0
                 and observation["report_stamp"] > record["report_stamp"])
             if not recovered and not ((self._joint_remaining() or 0) > 0 or self.minimum_hold_active):
                 return None
-        elif observation["watts"] < self._joint_solar_threshold():
+        elif observation["watts"] <= 0:
             return None
         validity = min(observation["stamp"]+float(self.settings["stale_s"]),
             self._relay_observed_at+float(self.settings["stale_s"]), self._relay_valid_until,

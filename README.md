@@ -1,10 +1,10 @@
 # SolarPilot
 
-**Actuele bronversie: 1.0.0-beta.111.** SolarPilot verdeelt lokaal zonnestroom tussen je toestellen in Home Assistant.
+**Actuele bronversie: 1.0.0-beta.112.** SolarPilot verdeelt lokaal zonnestroom tussen je toestellen in Home Assistant.
 
-Automatisch algemeen SG-zonbedrijf mag een toegestaan AAN-contact behouden zolang de actuele zonne-, bron-, elektrische en overige voorwaarden passen. Er is geen verplichte uurstop en de oorspronkelijke starttijd wordt niet administratief vernieuwd. De warmtepomp heeft vaste toegang tot betrouwbaar bevestigd autonoom Wallbox-zonnelaadvermogen, ongeacht centrale of tijdelijke Wallboxkeuzes. Korte lokale toestemming wordt actueel gecontroleerd vernieuwd. Bij een al geopend oud sessieslot kan actueel bruikbaar P1-/HP-/EV-zonnebudget opnieuw starten zonder verplichte zonnedip of contextwissel; de startstabiliteit telt eenmaal. Geen toekomstige toestelreserves; 3000 W blijft een geraamd totaalvermogen.
+Een lopend automatisch algemeen SG-contact blijft aan zolang er actueel bruikbare zon is en de overige voorwaarden passen. De warmtepomp mag lager moduleren zonder opnieuw het volledige startvermogen te moeten halen. De vijftienminutenwolkenbuffer vangt tijdelijke tekorten op; de oorspronkelijke minimumduur van twintig minuten en de aparte grens van 600 W netafname blijven behouden. De warmtepomp heeft vaste toegang tot betrouwbaar bevestigd autonoom Wallbox-zonnelaadvermogen. SolarPilot bedient alleen de bevestigde SG-uitgang; Panasonic en Wallbox regelen hun eigen werking. De oude standaardbuffer van vijf minuten wordt eenmaal vijftien minuten; andere bewaarde aangepaste waarden en latere eigen keuzes blijven staan.
 
-[Actuele werking](docs/ACTUELE_WERKING.md) · [Installatie en rollback](docs/BETA111_INSTELLEN.md) · [Testverslag](docs/TESTRESULTATEN_BETA111.md) · [Changelog](CHANGELOG.md)
+[Actuele werking](docs/ACTUELE_WERKING.md) · [Installatie en rollback](docs/BETA112_INSTELLEN.md) · [Testverslag](docs/TESTRESULTATEN_BETA112.md) · [Changelog](CHANGELOG.md)
 
 Panasonic regelt de warmtepomp zelfstandig; SolarPilot bedient uitsluitend de bevestigde SG-uitgang. De afwasmachine behoudt haar beschermde cyclus. Net-, fase- en kwartiergrenzen blijven gelden.
 
@@ -21,7 +21,7 @@ Bij **Analyse nodig** maakt één klik een export van de beschikbare zeven dagen
 
 ## Herstel van de beta.62-opstartfout
 
-Update via HACS naar beta.111 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.91 vraagt geen herbevestiging alleen door de codeupdate.
+Update via HACS naar beta.112 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.91 vraagt geen herbevestiging alleen door de codeupdate.
 
 ## Upgrade vanaf beta.61
 

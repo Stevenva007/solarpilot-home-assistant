@@ -91,8 +91,12 @@ class Adapter:
 
 def fixture(*, enabled=True, mode="solar", **config):
     clock = Clock()
+    # These shared historical regressions exercise an explicitly chosen
+    # five-minute policy. Current defaults/migration and fifteen-minute runtime
+    # behavior have separate beta.112 coverage.
     settings = {**SG_DEFAULTS, "entity_id": "switch.sg_fixture", "enabled": enabled,
-                "commissioning_confirmed": True, "watchdog_confirmed": True, **config}
+                "commissioning_confirmed": True, "watchdog_confirmed": True,
+                "stop_delay_s": 300, **config}
     runtime = SimpleNamespace(entry=SimpleNamespace(options={"sg_boost": settings}),
                               mode=mode, hass=SimpleNamespace(), store=Store(), notes=[],
                               last_issued=0, last_issued_wall=0)

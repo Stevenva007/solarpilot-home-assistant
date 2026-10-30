@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.111",
+  "version": "1.0.0-beta.112",
   "language": "nl",
   "steps": {
     "init": {
@@ -1083,12 +1083,12 @@
     },
     "sg_advanced": {
       "title": "Zonneboost — stabiliteit en lokale terugval",
-      "description": "Automatisch algemeen zonbedrijf kan doorgaan zolang de actuele voorwaarden passen. Gewone ruwe netafname boven standaard 600 W en onvoldoende bruikbaar zonnebudget hebben afzonderlijke tekorttimers met standaard vijf minuten bevestiging, parallel aan de oorspronkelijke minimale aanvraagduur. De korte lokale timer, native voorwaarden en harde grenzen blijven afzonderlijk.",
+      "description": "Automatisch algemeen zonbedrijf kan doorgaan zolang de actuele voorwaarden passen. Ruwe netafname boven standaard 600 W en een geldig bruikbaar zonnebudget van nul hebben afzonderlijke tekorttimers met standaard vijftien minuten bevestiging, parallel aan de oorspronkelijke minimale aanvraagduur. Lager moduleren vraagt geen herhaling van het startvermogen. De korte lokale timer, native voorwaarden en harde grenzen blijven afzonderlijk.",
       "data": {
         "start_delay_s": "Stabiel overschot vóór starten (s)",
-        "stop_delay_s": "Aanhoudend tekort bevestigen (s)",
+        "stop_delay_s": "Wolkenbuffer bij aanhoudend tekort (s)",
         "import_threshold_w": "Toegestane netafname vóór stopvertraging (W)",
-        "hysteresis_w": "SG-zonnemarge en grens voor nieuwe zonneperiode (W)",
+        "hysteresis_w": "Grens nieuwe zonneperiode (W)",
         "rest_s": "SG-herhaalwacht na een aanvraag (s)",
         "min_session_s": "Minimale SG-aanvraagduur (s)",
         "max_session_s": "Maximale duur voor begrensde SG-bediening (s)",
@@ -1099,9 +1099,9 @@
       },
       "data_description": {
         "start_delay_s": "De gewone SG-startstabiliteit, standaard 120 seconden.",
-        "stop_delay_s": "Gewone tekortbevestiging, standaard 300 seconden.",
+        "stop_delay_s": "Duur van de gewone wolkenbuffers, standaard 900 seconden (15 minuten).",
         "import_threshold_w": "Wolkenbuffer voor ruwe actueel gemeten netafname, standaard 600 W.",
-        "hysteresis_w": "Marge onder de SG-startdrempel voor het bruikbare-zontekort in automatisch algemeen bedrijf: geldig gezamenlijk zonnebudget onder max(0, startdrempel - deze marge) start de eigen tekorttimer.",
+        "hysteresis_w": "Grens voor de alternatieve herstartroute via een nieuwe zonneperiode, standaard 300 W echte restinjectie.",
         "rest_s": "Standaard 900 seconden verzoekrust als terugval voor een nieuwe SG-aanvraag; een toegestaan doorlopend automatisch algemeen AAN-contact wordt niet eerst geopend om deze rust te starten.",
         "min_session_s": "Minimale SG-aanvraagduur, standaard 1200 seconden, voor gewone zachte tekortvrijgave.",
         "max_session_s": "Maximumduur voor tijdelijk handmatige en andere begrensde SG-routes, standaard 3600 seconden.",
@@ -4193,10 +4193,10 @@
       ]
     },
     "sg_advanced.stop_delay_s": {
-      "title": "Aanhoudend tekort bevestigen (s)",
-      "short": "Gewone tekortbevestiging, standaard 300 seconden.",
+      "title": "Wolkenbuffer bij aanhoudend tekort (s)",
+      "short": "Duur van de gewone wolkenbuffers, standaard 900 seconden (15 minuten).",
       "paragraphs": [
-        "Gewone tekortbevestiging, standaard 300 seconden. De ruwe P1-importbuffer houdt haar eigen timer. Automatisch algemeen zonbedrijf heeft daarnaast een eigen tekorttimer zodra geldig bruikbaar P1-/HP-/EV-zonnebudget onder max(0, startdrempel - hysteresis_w) komt, ook bij lage netafname. Vrijgave wacht op deze tekortduur en het oorspronkelijke effectieve minimum; die lopen parallel en hun begin wordt niet door leasevernieuwing verschoven. Daardoor kan het minimum een tekort nog begrensd overbruggen. Tijdelijke overbrugging vernieuwt alleen een korte lokale lease onder passende voorwaarden. Harde guards, onbruikbare noodzakelijke bronnen, native voorwaarden, handmatige overname en eindtijden van begrensde routes blijven leidend. De Wallboxreactie blijft afzonderlijk begrensd en verandert geen ruwe fase-, kwartier- of batterijmeting. Bij bruikbare-zontekort wordt de lokale toestemming ook binnen de oorspronkelijke tekort-/minimumdeadline en bevestigingsruimte gehouden; herstart, klokterugloop of een herhaald oud hoog sample geeft geen nieuwe gratieperiode.",
+        "Duur van de gewone wolkenbuffers, standaard 900 seconden (15 minuten). Meer dan de ingestelde netafnamegrens begint de ruwe-P1-importbuffer. Een geldig gezamenlijk P1-/HP-/EV-zonnebudget van nul begint afzonderlijk de zonnebuffer. Een lopend automatisch algemeen contact hoeft de startdrempel niet opnieuw te halen: lager moduleren op nog beschikbare zon is geen tekort. Actueel herstel wist de betreffende buffer. Tekortduur en oorspronkelijke minimumduur lopen parallel. De lokale timer houdt daarnaast terugmeldruimte over en kan daardoor iets eerder aflopen. De vroegere standaard van 300 seconden wordt bij deze update eenmaal 900; andere bewaarde aangepaste waarden en latere eigen keuzes blijven behouden. Een reeds vastgelegde lopende tekortdeadline krijgt geen extra tijd door de update. Leasevernieuwing en herstart geven geen nieuwe vijftien minuten. Verschillende rapporttijden worden op oorspronkelijke actualiteit beoordeeld. Harde grenzen, noodzakelijke bronkwaliteit, handmatige overname en eindtijden van begrensde routes blijven leidend. De Wallboxreactietijd staat hier los van.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
@@ -4205,16 +4205,16 @@
       "title": "Toegestane netafname vóór stopvertraging (W)",
       "short": "Wolkenbuffer voor ruwe actueel gemeten netafname, standaard 600 W.",
       "paragraphs": [
-        "Wolkenbuffer voor ruwe actueel gemeten netafname, standaard 600 W. Strikt hogere afname start de importtekorttimer, standaard 300 seconden; bij de grens of lager wordt die importtimer gewist. Het gewone minimum en tekortduur blijven parallel gelden. Automatisch algemeen SG-zonbedrijf controleert daarnaast bruikbaar gezamenlijk zonnebudget, zodat te weinig zon of nacht ook bij minder dan 600 W afname tot begrensde vrijgave kan leiden. Lage import alleen is geen bewijs van zon. Dit verruimt geen fysieke capaciteit of afzonderlijke grens.",
+        "Wolkenbuffer voor ruwe actueel gemeten netafname, standaard 600 W. Strikt hogere afname start de importtekorttimer, standaard 900 seconden; bij de grens of lager wordt die importtimer gewist. Het gewone minimum en tekortduur blijven parallel gelden. Automatisch algemeen SG-zonbedrijf controleert daarnaast of nog bruikbaar gezamenlijk zonnebudget overblijft na import, batterijcorrectie en huisbuffer. Een budget van nul begint de afzonderlijke zonnebuffer, zodat nacht ook bij lage netafname geen doorlopende toestemming geeft. De startdrempel wordt tijdens een lopende aanvraag niet opnieuw vereist. Dit verruimt geen fysieke capaciteit of afzonderlijke grens.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]
     },
     "sg_advanced.hysteresis_w": {
-      "title": "SG-zonnemarge en grens voor nieuwe zonneperiode (W)",
-      "short": "Marge onder de SG-startdrempel voor het bruikbare-zontekort in automatisch algemeen bedrijf: geldig gezamenlijk zonnebudget onder max(0, startdrempel - deze marge) start de eigen tekorttimer.",
+      "title": "Grens nieuwe zonneperiode (W)",
+      "short": "Grens voor de alternatieve herstartroute via een nieuwe zonneperiode, standaard 300 W echte restinjectie.",
       "paragraphs": [
-        "Marge onder de SG-startdrempel voor het bruikbare-zontekort in automatisch algemeen bedrijf: geldig gezamenlijk zonnebudget onder max(0, startdrempel - deze marge) start de eigen tekorttimer. Stopvertraging en de oorspronkelijke minimumduur blijven afzonderlijk gelden; een ontbrekende bron geeft geen doorlopend zonrecht. Dit veld behoudt ook zijn alternatieve nieuwe-zonneperioderoute, standaard 300 W echte restinjectie, met het bestaande vijfminutenbewijs van lage en later teruggekeerde zon. Een eerdere zonnedip is niet verplicht voor actuele herstart na een bewezen automatische sessielimiet of onbekende reactie. Dit is geen ruwe-P1-importbuffer of nieuwe toestemming uit alleen timerafloop.",
+        "Grens voor de alternatieve herstartroute via een nieuwe zonneperiode, standaard 300 W echte restinjectie. Die route gebruikt haar bestaande vijfminutenbewijs van lage en later teruggekeerde zon. Dit is geen behoudsdrempel voor een lopend automatisch algemeen SG-contact en geen ruwe-P1-importbuffer. Een eerdere zonnedip is niet verplicht voor de afzonderlijke actuele herstart na een bewezen automatische sessielimiet of onbekende reactie. Timerafloop alleen geeft geen nieuwe toestemming.",
         "Panasonic regelt zelfstandig comfort en beveiligingen. SolarPilot mag alleen de toegewezen SG-uitgang bedienen, na gecontroleerde mapping en lokale aflooptimer. Een aanvraag, gemeld contact en fysieke Panasonic-reactie zijn afzonderlijke bewijslagen.",
         "Wijzig dit bewust. Openen van deze uitleg bedient niets en slaat geen instelling op. In de configuratiewizard worden wijzigingen pas toegepast na de laatste bevestiging; directe dashboardbediening kan meteen actief zijn."
       ]

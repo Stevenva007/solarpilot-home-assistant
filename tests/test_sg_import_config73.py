@@ -12,17 +12,17 @@ from test_sg_migration62 import legacy
 
 
 @pytest.mark.parametrize("saved,expected", [
-    ({}, (600, 300)),
-    ({"entity_id": "switch.sg_contact"}, (600, 300)),
-    ({"hysteresis_w": 300, "stop_delay_s": 60}, (600, 300)),
-    ({"hysteresis_w": "300", "stop_delay_s": "60"}, (600, 300)),
+    ({}, (600, 900)),
+    ({"entity_id": "switch.sg_contact"}, (600, 900)),
+    ({"hysteresis_w": 300, "stop_delay_s": 60}, (600, 900)),
+    ({"hysteresis_w": "300", "stop_delay_s": "60"}, (600, 900)),
     ({"hysteresis_w": 450, "stop_delay_s": 60}, (450, 60)),
     ({"hysteresis_w": 300, "stop_delay_s": 90}, (300, 90)),
     ({"hysteresis_w": 450, "stop_delay_s": 90}, (450, 90)),
     ({"hysteresis_w": 0, "stop_delay_s": 60}, (0, 60)),
     ({"hysteresis_w": 450}, (450, 60)),
-    ({"hysteresis_w": 300}, (600, 300)),
-    ({"stop_delay_s": 60}, (600, 300)),
+    ({"hysteresis_w": 300}, (600, 900)),
+    ({"stop_delay_s": 60}, (600, 900)),
     ({"stop_delay_s": 90}, (300, 90)),
     ({"import_threshold_w": 300, "hysteresis_w": 300, "stop_delay_s": 60}, (300, 60)),
     ({"import_threshold_w": 0, "hysteresis_w": 300, "stop_delay_s": 60}, (0, 60)),
@@ -39,7 +39,7 @@ def test_legacy_effective_defaults_upgrade_once_and_custom_policy_remains(saved,
 
 def test_defaults_keep_twenty_minute_minimum_and_independent_solar_reset():
     assert normalize_config() == SG_DEFAULTS
-    assert (SG_DEFAULTS["import_threshold_w"], SG_DEFAULTS["stop_delay_s"]) == (600, 300)
+    assert (SG_DEFAULTS["import_threshold_w"], SG_DEFAULTS["stop_delay_s"]) == (600, 900)
     assert SG_DEFAULTS["hysteresis_w"] == 300
     assert (SG_DEFAULTS["min_session_s"], SG_DEFAULTS["max_session_s"]) == (1200, 3600)
 
@@ -59,7 +59,7 @@ def test_read_only_mapping_keeps_bindings_confirmations_and_other_settings_detac
     for key in saved:
         if key != "stop_delay_s":
             assert effective[key] == saved[key]
-    assert effective["import_threshold_w"] == 600 and effective["stop_delay_s"] == 300
+    assert effective["import_threshold_w"] == 600 and effective["stop_delay_s"] == 900
     assert saved == before and not validate_config(effective)
     effective["zone_entities"].append("climate.zone_b")
     assert saved["zone_entities"] == ["climate.zone_a"]
@@ -105,7 +105,7 @@ def test_completed_panasonic_archive_and_saved_options_are_not_rewritten_for_pol
     upgraded, journal, report = migrate_panasonic(options, stored)
     assert (upgraded, journal) == before and report["changed"] is False
     effective = normalize_config(upgraded["sg_boost"])
-    assert (effective["import_threshold_w"], effective["stop_delay_s"]) == (600, 300)
+    assert (effective["import_threshold_w"], effective["stop_delay_s"]) == (600, 900)
     assert (effective["min_session_s"], effective["max_session_s"]) == (1200, 300)
     assert effective["enabled"] is True and not validate_config(effective)
 
@@ -118,8 +118,8 @@ async def test_native_form_shows_separate_policy_fields_without_saving_legacy_op
     form = await flow.async_step_sg_advanced()
     assert form["data_schema"]["import_threshold_w"] == (0, 20000, 50)
     assert form["data_schema"]["hysteresis_w"] == (0, 5000, 50)
-    assert form["data_schema"]["stop_delay_s"] == (5, 600, 5)
-    assert (flow._sg_values()["import_threshold_w"], flow._sg_values()["stop_delay_s"]) == (600, 300)
+    assert form["data_schema"]["stop_delay_s"] == (5, 900, 5)
+    assert (flow._sg_values()["import_threshold_w"], flow._sg_values()["stop_delay_s"]) == (600, 900)
     assert flow.options == before and flow.saved is None and not flow.hass.services.calls
 
 

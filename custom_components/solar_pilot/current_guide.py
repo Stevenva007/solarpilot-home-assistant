@@ -3,12 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.111'
-GUIDE_UPDATED = '2026-10-28'
+GUIDE_VERSION = '1.0.0-beta.112'
+GUIDE_UPDATED = '2026-10-30'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.111',
- 'updated': '2026-10-28',
+ 'version': '1.0.0-beta.112',
+ 'updated': '2026-10-30',
  'intro': 'SolarPilot verdeelt het echte huidige zonneoverschot zonder toekomstige toestelpieken te reserveren. De warmtepomp heeft voor '
           'automatisch algemeen SG-zonbedrijf vaste voorrang op bevestigd autonoom Wallbox-zonneladen. Een toegestaan AAN-contact kan '
           'aanblijven zolang de actuele voorwaarden voldoen; er is geen verplichte uurstop of administratieve sessiereset. Korte lokale '
@@ -287,35 +287,51 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'zolang actueel bruikbaar zonnebudget en de overige voorwaarden passen. De instelling voor maximale duur, '
                               'standaard 3600 seconden, blijft gelden voor handmatige en andere begrensde routes; zij veroorzaakt geen uurstop '
                               'in dit automatische algemene zonbedrijf. De oorspronkelijke start en verstreken tijd worden niet administratief '
-                              'gereset. De gewone wolkenbuffer is standaard 600 W/300 seconden en de minimumduur standaard 1200 seconden. '
+                              'gereset. De gewone wolkenbuffer is standaard 600 W/900 seconden en de minimumduur standaard 1200 seconden. '
                               'Minimum beschermt gewone zachte tekortvrijgave, niet harde grenzen, handmatige overname, noodzakelijke '
                               'bronkwaliteit of afzonderlijke native voorwaarden. Panasonic bepaalt de compressorlooptijd.',
-                              'Beta.73 gebruikt afzonderlijk import_threshold_w, standaard 600 W, voor de wolkenbuffer; hysteresis_w behoudt de '
-                              'alternatieve zonne-resetgrens, standaard 300 W, en vormt daarnaast de marge onder de startdrempel voor het '
-                              'bruikbare-zontekort tijdens automatisch algemeen bedrijf. Ontbreekt het nieuwe importveld bij de oude '
-                              'standaardcombinatie 300 W/60 s, dan gebruikt de runtime effectief 600 W/300 s. Andere oude expliciete '
-                              'beleidscombinaties behouden hun importgrens en tekortvertraging; een aanwezige nieuwe importwaarde blijft staan. '
-                              'Nieuwe configuratie gebruikt 600 W/300 s. Dit is uitsluitend normalisatie bij uitlezen, zonder automatische '
-                              'write naar opgeslagen opties of reset van bevestigingen, minimum, maximum of andere waarden.',
-                              'Na een toegelaten automatische algemene start hoeft vrije injectie niet boven de startdrempel te blijven: HP en '
-                              'EV kunnen de beschikbare zon juist al gebruiken. De regeling beoordeelt daarom het gezamenlijke bruikbare '
-                              'zonnebudget én afzonderlijk echte ruwe P1-netafname. Daalt geldig bruikbaar budget onder max(0, startdrempel - '
-                              'hysteresis_w), dan begint een eigen bruikbare-zontekorttimer. Deze gebruikt de bestaande stop_delay_s, standaard '
-                              '300 seconden, naast de oorspronkelijke minimumduur; beide lopen parallel. Vrijgave volgt wanneer het tekort '
-                              'bevestigd is en het toepasselijke minimum verstreken is, ook bij P1-afname onder 600 W. De oorspronkelijke '
-                              'minimumdeadline wordt niet verschoven. Nacht houdt zo geen toestemming vast door alleen lage P1-afname. De eigen '
-                              'ruwe-P1-importtimer blijft afzonderlijk. Oude, ontbrekende, onbekende of tegenstrijdige bronnen geven geen recht '
-                              'op doorlopend zonbedrijf. Afzonderlijke harde, koel-, contact- en timercontroles blijven leidend.',
+                              'De gewone zonne- en importbuffers gebruiken vanaf beta.112 standaard vijftien minuten (stop_delay_s = 900). '
+                              'Bij de update wordt de vroegere standaardduur van 300 seconden eenmaal naar 900 seconden overgezet. Andere '
+                              'bewaarde aangepaste duurtijden blijven staan. Na deze eenmalige migratie blijven ook nieuwe eigen keuzes '
+                              'behouden; een later bewust ingestelde vijf minuten wordt niet bij iedere herstart opnieuw verhoogd. De '
+                              'lokale Shelly-toestemming blijft kort: standaard 300 seconden, actueel vernieuwd om de 60 seconden. De '
+                              'langere wolkenbuffer is dus geen vijftien minuten onbeheerde hardwaretoestemming. Een reeds vastgelegde '
+                              'lopende tekortdeadline wordt door de update niet verlengd.',
+                              'Sinds beta.73 heeft ruwe netafname een afzonderlijk import_threshold_w, standaard 600 W. De toenmalige '
+                              'standaard werd van 300 W/60 s naar 600 W/300 s genormaliseerd; beta.112 gebruikt vervolgens de nieuwe '
+                              'vijftienminutenstandaard. Andere oude expliciete importkeuzes blijven behouden. hysteresis_w behoudt alleen '
+                              'de alternatieve zonne-resetgrens, standaard 300 W, en vormt geen behoudsdrempel voor een lopend automatisch '
+                              'algemeen SG-contact. De afzonderlijke herstart-/bewijsroutes van vijf minuten veranderen niet.',
+                              'Een lopend automatisch algemeen SG-contact hoeft het startvermogen niet opnieuw te halen. Een modulerende '
+                              'warmtepomp kan bijvoorbeeld 1300 W gebruiken en volledig op zon draaien, terwijl het gezamenlijke zonnebudget '
+                              'lager is dan de startdrempel. Zolang na de bestaande import-, batterij- en huisbufferberekening nog bruikbare '
+                              'zon overblijft, veroorzaakt dat lagere vermogen geen zonne-tekortstop. Dit gezamenlijke budget gebruikt alleen '
+                              'actuele passende P1-/PV-, complete warmtepomp- en bevestigde autonome Wallboxmetingen. De startdrempel en '
+                              'startstabiliteit blijven wel nodig voor een werkelijk nieuwe aanvraag.',
+                              'De twee gewone tekortklokken lopen afzonderlijk. Meer dan de ingestelde 600 W ruwe P1-netafname begint de '
+                              'importbuffer; bij 600 W of minder wordt die klok gewist. Valt het geldige gezamenlijke bruikbare zonnebudget '
+                              'helemaal weg, dan begint de zonnebuffer, ook bij lage netafname. Beide gebruiken de ingestelde stopvertraging, '
+                              'standaard vijftien minuten. Nieuwe actuele bruikbare zon wist de zonnebuffer. Vrijgave wegens een gewoon tekort '
+                              'volgt de ingestelde buffer én de oorspronkelijke minimumduur, standaard twintig minuten. De korte lokale '
+                              'timer houdt daarbij terugmeldruimte over en kan daardoor iets eerder aflopen. Een '
+                              'korte wolk veroorzaakt zo geen UIT/AAN-cyclus; langdurig tekort of nacht kan wel tot vrijgave leiden. De '
+                              'minimumdeadline wordt niet verschoven en er komt geen extra buffer na een verstreken minimum.',
+                              'Vermogensmeters rapporteren niet tegelijk. Wanneer een nog actuele warmtepomp- of Wallboxmeting opnieuw bij de '
+                              'net-/PV-balans past, mag de oudste meettijd van het gezamenlijke budget teruggaan zonder dat dit een nieuwe '
+                              'storing of uitgeputte wolkenbuffer betekent. De regeling beoordeelt de oorspronkelijke bronactualiteit en '
+                              'nieuwe rapportvoortgang afzonderlijk. Uitlezen verjongt geen meting; herhaalde oude zonnige waarden, herstart '
+                              'en klokterugloop geven geen nieuwe tekorttijd. Onbruikbare noodzakelijke bronnen en afzonderlijke harde, '
+                              'koel-, contact- en timercontroles blijven leidend.',
                               'De minimumduur begint na bevestigde contact-AAN. Leasevernieuwing, reload of het passeren van een uur resetten '
                               'haar oorspronkelijke start niet. De gewone tekorttimer loopt tijdens het minimum door. Begint een tekort in '
-                              'minuut 18, dan is een vijfminutenbevestiging pas in minuut 23 voltooid; is de tekortduur al vóór minuut 20 '
+                              'minuut 18, dan is een vijftienminutenbevestiging pas in minuut 33 voltooid; is de tekortduur al vóór minuut 20 '
                               'voltooid en blijft het tekort bestaan, dan kan vrijgave bij het minimum volgen. Zonder tekort is het minimum '
                               'geen verplichte stop. Bij handmatige en andere begrensde routes past het effectieve minimum binnen hun '
                               'resterende harde maximum. Automatisch algemeen zonbedrijf heeft geen uurmaximum, maar behoudt de korte lokale '
                               'lease en actuele hercontrole. Native bewijs van voltooiing of geen opname en echte bron-, koel-, contact- of '
                               'transportvoorwaarden blijven afzonderlijk. Tijdens een bruikbare-zontekort past de korte lokale toestemming '
                               'binnen de oorspronkelijke tekort-/minimumdeadline en terugmeldruimte. Een herstart, klokterugloop of herhaald '
-                              'oud hoog sample geeft geen nieuwe vijfminutengratie.',
+                              'oud hoog sample geeft geen nieuwe vijftienminutengratie.',
                               'Een oude sessielimiet of een beëindigde aanvraag bewijst geen volle tank of voltooide native cyclus. Het huidige '
                               'automatische algemene zonbedrijf opent een toegestaan contact niet alleen omdat de vroegere maximale sessieduur '
                               'verstreken is. Een al opgeslagen UIT-wachtstand uit een oudere versie kan via de actuele bruikbare-zonroute '
@@ -414,7 +430,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'De gewone wolkenbuffer en de Wallbox-reactietijd lopen tegelijk. Het van de Wallbox overgenomen vermogen wordt '
                               'niet van de echte P1-netafname afgetrokken voor die wolkentimer, de fasebewaking, het kwartierbudget of '
                               'batterijontlading. Deze afzonderlijke controles kunnen SG eerder vrijgeven. Een verlopen reactie-eindtijd koopt '
-                              'geen extra vijf minuten wolkenbuffer en een minimumduur verlengt de uitzondering niet. Details tonen de actuele '
+                              'geen extra vijftien minuten wolkenbuffer en een minimumduur verlengt de uitzondering niet. Details tonen de actuele '
                               'overdracht en haar begrensde resterende tijd; een schermklok verleent geen toestemming. De reactietijd is een '
                               'venster voor de actieve Home Assistant-regeling. De bestaande korte lokale lease voor een eigen '
                               'SolarPilot-aanvraag blijft afzonderlijk, standaard 300 seconden. Bij Home Assistant-uitval garandeert het '
@@ -445,7 +461,7 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'de oorspronkelijke beschikbare bronwaarden. Een algemene melding dat voorwaarden gewijzigd zijn bewijst geen '
                               'handmatige ingreep. Oudere generieke stops blijven qua specifieke oorzaak onbekend. Een expliciet geregistreerde '
                               'onbereikbare SG-uitgang krijgt een bron-/contactcategorie. Stopbesluit, verzenduitkomst en werkelijk gemelde '
-                              'contactstand blijven afzonderlijke bewijzen; dit verandert geen vijfminutenbuffer, minimale sessieduur of lokale '
+                              'contactstand blijven afzonderlijke bewijzen; dit verandert geen ingestelde wolkenbuffer, minimale sessieduur of lokale '
                               'Shelly-timer.',
                               'De tijdelijke SG-bediening leest vanaf beta.100 uitsluitend de geconfigureerde beschikbaarheid en de bestaande '
                               'handmatige keuze met haar oorspronkelijke eindtijd. Daardoor herhaalt het tonen van die bediening geen volledige '
