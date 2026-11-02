@@ -24,6 +24,7 @@ from .unified_planner import UNIFIED_PLANNER_DEFAULTS
 from .pv_model import LOCAL_PV_DEFAULTS
 from .battery_analysis import BATTERY_ANALYSIS_DEFAULTS
 from .battery_fleet import BATTERY_DEFAULTS, BATTERY_FLEET_DEFAULTS
+from .battery_profiles import MARSTEK_PROFILE, normalize_battery_config, battery_source_error
 from .first_install import apply_first_install_suggestions
 from .private_bundle import build_private_import, private_bundle_overview, load_private_bundle, bundle_historical_seed
 from .water import WATER_DEFAULTS, normalize_config as normalize_water, source_errors as water_errors
@@ -822,7 +823,64 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
         return await self._sg_save_form("sg_advanced", user_input, schema)
 
     async def async_step_battery(self, user_input=None):
-        return self.async_show_menu(step_id="battery", menu_options=["battery_settings", "battery_add", "battery_edit", "battery_remove"])
+        return self.async_show_menu(step_id="battery", menu_options=["battery_marstek", "battery_settings", "battery_add", "battery_edit", "battery_remove"])
+
+    async def async_step_battery_marstek(self, user_input=None):
+        """One read-only monitor; no source discovery or control adapter."""
+        if self._battery.get("profile") != MARSTEK_PROFILE:
+            self._battery_editing = None
+            self._battery = {"id": uuid4().hex, "profile": MARSTEK_PROFILE,
+                             "name": "Marstek Venus E3", "power_sign": ""}
+        b = normalize_battery_config(self._battery)
+        errors = {}
+        if user_input is not None:
+            fields = {"name", "power_entity", "soc_entity", "power_sign", "ac_power_confirmed", "phase_hint"}
+            b.update({"soc_entity": "", "phase_hint": "unknown", "ac_power_confirmed": False})
+            b.update({key: value for key, value in user_input.items() if key in fields})
+            b = normalize_battery_config(b)
+            for key, units in (("power_entity", {"W", "kW"}), ("soc_entity", {"%"})):
+                if key == "soc_entity" and not b.get(key):
+                    continue
+                source = b.get(key)
+                if not isinstance(source, str) or not source.startswith("sensor."):
+                    errors[key] = "battery_source_scope"
+                    continue
+                obj = self.hass.states.get(source)
+                if obj is None or obj.attributes.get("unit_of_measurement") not in units:
+                    errors[key] = "power_unit" if key == "power_entity" else "soc_unit"
+                # An explicitly identified car measurement is not a home battery.
+                from homeassistant.helpers import entity_registry as er
+                registry = er.async_get(self.hass)
+                get_entry = getattr(registry, "async_get", None)
+                registered = get_entry(b.get(key)) if callable(get_entry) and b.get(key) else None
+                if getattr(registered, "platform", None) == "wallbox":
+                    errors[key] = "battery_source_scope"
+            if (not isinstance(user_input.get("power_sign"), str)
+                    or user_input["power_sign"] not in {"discharge_positive", "charge_positive"}):
+                errors["power_sign"] = "required"
+            if not isinstance(b.get("phase_hint"), str) or b["phase_hint"] not in {"unknown", "l1", "l2", "l3"}:
+                errors["phase_hint"] = "range"
+            rows = [row for row in self._base_options().get("batteries", []) if row.get("id") != b["id"]] + [b]
+            site = merged_site({**dict(self.config_entry.data), **self._base_options().get("settings", {})})
+            if not errors and battery_source_error(rows, site):
+                errors["base"] = "battery_source_scope"
+            self._battery = b
+            if not errors:
+                return await self._save_battery_profile(b)
+        sign = {"description": {"suggested_value": b["power_sign"]}} if b.get("power_sign") else {}
+        schema = vol.Schema({
+            vol.Required("name", default=b["name"]): selector.TextSelector(),
+            vol.Required("power_entity", description={"suggested_value": b.get("power_entity", "")}): entity(["sensor"]),
+            vol.Required("power_sign", **sign): selector.SelectSelector({"options": [
+                {"value": "discharge_positive", "label": "Positief = ontladen naar huis"},
+                {"value": "charge_positive", "label": "Positief = laden van de batterij"}]}),
+            vol.Required("ac_power_confirmed", default=b.get("ac_power_confirmed") is True): selector.BooleanSelector(),
+            optional("soc_entity", b): entity(["sensor"]),
+            optional("phase_hint", b): selector.SelectSelector({"options": [
+                {"value": "unknown", "label": "Onbekend"}, {"value": "l1", "label": "L1"},
+                {"value": "l2", "label": "L2"}, {"value": "l3", "label": "L3"}]}),
+        })
+        return self.async_show_form(step_id="battery_marstek", data_schema=schema, errors=errors)
 
     async def async_step_battery_settings(self, user_input=None):
         c = {**BATTERY_FLEET_DEFAULTS, **self._base_options().get("battery_fleet", {})}
@@ -868,6 +926,8 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
         if user_input is not None:
             self._battery_editing = user_input["battery_id"]
             self._battery = deepcopy(next(b for b in batteries if b["id"] == self._battery_editing))
+            if self._battery.get("profile") == MARSTEK_PROFILE:
+                return await self.async_step_battery_marstek()
             return await self.async_step_battery_profile()
         return self.async_show_form(step_id="battery_edit", data_schema=self._battery_choice_schema())
 
@@ -895,14 +955,20 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
         return errors
 
     async def _save_battery_profile(self, b):
+        b = normalize_battery_config(b)
         opts = deepcopy(dict(self._base_options()))
         rows = [x for x in opts.get("batteries", []) if x["id"] != b["id"]]
         rows.append(b)
         opts["batteries"] = rows
+        if b.get("profile") == MARSTEK_PROFILE:
+            # Reading this monitor does not change any other battery's control.
+            opts["battery_fleet"] = {**BATTERY_FLEET_DEFAULTS, **opts.get("battery_fleet", {}), "enabled": True}
         return await self._save(opts)
 
     async def async_step_battery_profile(self, user_input=None):
         """Battery identity and measurements; control adapter is a separate explicit step."""
+        if self._battery.get("profile") == MARSTEK_PROFILE:
+            return await self.async_step_battery_marstek(user_input)
         b = {**BATTERY_DEFAULTS, **self._battery}
         errors = {}
         if user_input is not None:
@@ -938,6 +1004,8 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
         return self.async_show_form(step_id="battery_profile", data_schema=schema, errors=errors)
 
     async def async_step_battery_control(self, user_input=None):
+        if self._battery.get("profile") == MARSTEK_PROFILE:
+            return await self.async_step_battery_marstek(user_input)
         b = {**BATTERY_DEFAULTS, **self._battery}
         errors = {}
         if user_input is not None:

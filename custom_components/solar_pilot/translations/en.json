@@ -303,7 +303,8 @@
           "battery_settings": "Fleet strategy and global permission",
           "battery_add": "Add battery",
           "battery_edit": "Edit battery",
-          "battery_remove": "Remove battery"
+          "battery_remove": "Remove battery",
+          "battery_marstek": "Marstek Venus E3 · monitor only"
         }
       },
       "battery_settings": {
@@ -755,6 +756,24 @@
           "rest_s": "Default request fallback wait: 900 seconds. Before expiry, proven original ended automatic session-limit or unknown-response evidence may replace this request wait with fresh OFF and at least two new usable-solar reports over the existing start stability once. After ordinary rest, current valid configuration and new stable sources can support a new request without an old policy hash blocking it permanently. Native need, manual OFF and uncertain commands keep their own conditions. This is not compressor rest.",
           "max_session_s": "Maximum duration for manual and other bounded SG routes, default 3600 seconds. Automatic general solar operation has no mandatory hourly stop: a permitted ON contact can remain while current usable solar and all other conditions hold. Short local permission is checked at each renewal; the original start and elapsed time are retained."
         }
+      },
+      "battery_marstek": {
+        "title": "Marstek Venus E3 · monitor only",
+        "description": "Marstek controls the battery. SolarPilot only reads the selected sensors. Select this battery’s signed AC power, not DC power, an absolute value or its CT/grid measurement. Verify the sign during charging and discharging. Profile capacity: 5.12 kWh. State of charge and phase are optional.",
+        "data": {
+          "name": "Name",
+          "power_entity": "Signed AC battery power (W/kW)",
+          "power_sign": "A positive value means",
+          "ac_power_confirmed": "This is the battery’s signed AC power",
+          "soc_entity": "State of charge / SoC (%) — optional",
+          "phase_hint": "Connected phase — optional"
+        },
+        "data_description": {
+          "power_entity": "In the Marstek integration, select \"Grid connection power\" (AC OnGrid). The CT meter’s \"Total power\" measures the home and is not suitable here. Select the sensor yourself.",
+          "power_sign": "Choose the direction after checking the actual sensor; SolarPilot does not assume its sign.",
+          "ac_power_confirmed": "This confirmation makes the measurement usable in the energy balance. It does not authorize battery control.",
+          "soc_entity": "Select this home battery’s state of charge, not the car’s. Valid AC power remains usable without fresh state of charge."
+        }
       }
     },
     "error": {
@@ -815,7 +834,8 @@
       "water_volume_source": "Select a cumulative volume sensor with supported volume units and counter metadata, not flow or an electricity meter.",
       "water_flow_source": "Select a current flow sensor with supported volume-per-time units, not a cumulative meter total.",
       "water_leak_source": "Select an existing water leak binary_sensor with device class moisture.",
-      "dishwasher_energy_meter": "Select a cumulative Wh/kWh sensor with state_class total or total_increasing."
+      "dishwasher_energy_meter": "Select a cumulative Wh/kWh sensor with state_class total or total_increasing.",
+      "battery_source_scope": "Choose a separate battery source. Grid, PV, car and duplicate battery meters must not overlap. Also check any existing central battery measurement."
     },
     "abort": {
       "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",

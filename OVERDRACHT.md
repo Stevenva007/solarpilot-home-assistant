@@ -1,9 +1,9 @@
 <!-- solarpilot-handoff-schema: 1 -->
-<!-- solarpilot-handoff-version: 1.0.0-beta.112 -->
+<!-- solarpilot-handoff-version: 1.0.0-beta.113 -->
 
 # OVERDRACHT — SolarPilot
 
-Laatst bijgewerkt: **30 oktober 2026**. Actuele bron: **v1.0.0-beta.112**. Bouwbasis: gepubliceerde beta.111 `6e16eff56da55eacbc43452411e2d708050bf551`. Installatie en rollback: `docs/BETA112_INSTELLEN.md`. Softwarebewijs en publicatievoorwaarden: `docs/TESTRESULTATEN_BETA112.md`.
+Laatst bijgewerkt: **2 november 2026**. Actuele bron: **v1.0.0-beta.113**. Bouwbasis: gepubliceerde beta.112 `7d77b08bc6f7ced6f12a5d68820a98351be69992`. Installatie en rollback: `docs/BETA113_INSTELLEN.md`. Softwarebewijs en publicatievoorwaarden: `docs/TESTRESULTATEN_BETA113.md`.
 
 ## 1. Projectdoel in gewone taal
 
@@ -11,16 +11,19 @@ SolarPilot verdeelt het echte huidige zonneoverschot lokaal zonder toekomstige t
 
 ## 2. Actuele basis
 
-Beta.112 corrigeert twee oorzaken van onnodig stoppen. De nieuwe beta.111-controle op gezamenlijk bruikbaar zonnebudget gebruikte ook tijdens lopend SG de startdrempel minus hysterese. Daardoor kon een warmtepomp op lager volledig door zon gedekt vermogen alsnog als tekort gelden. Voortzetting vraagt nu bruikbaar gezamenlijk budget groter dan nul na bestaande import-, batterij- en huisbuffercorrecties. De ruwe P1-importbuffer blijft apart bepalen of actuele opname te veel net vraagt. Een werkelijk nieuwe start houdt zijn eigen drempel, raming en stabiliteit.
+Beta.113 voegt een Marstek Venus E 3.0-monitor toe boven de bestaande Marstek-integratie in Home Assistant. Expliciete getekende AC-batterijpower, juiste tekenrichting en bevestigde meetdekking zijn nodig. SoC en fase zijn optioneel. Het profiel marstek_venus_e3 blijft hard read-only, ongeacht globale bediening of achtergebleven actuatorvelden. Geen automatische bronbinding, aanvullende UDP-/Modbus-/cloudpolling of SolarPilot-SoC-reserveprioriteit. 5,12 kWh is nominale fabrikantcapaciteit, geen gegarandeerd bruikbare AC-energie.
 
-Daarnaast kan de oudste meettijd van het gezamenlijke budget teruggaan wanneer een nog actuele HP- of EV-bijdrage na een kort verschil in rapportagetijd weer coherent wordt. Dit is geen uitgeputte tekortbuffer. Oorspronkelijke actualiteit en rapportvoortgang worden afzonderlijk gecontroleerd; oude rapporten, herstart en klokterugloop geven geen nieuwe tekorttijd.
+De ondersteunde native Marstek-entiteit wordt read-only aan haar bestaande coordinator gekoppeld. Oorspronkelijke ES-methodesuccessen, kwaliteitsvlaggen en werkelijk ontvangen AC-/SoC-velden van hetzelfde bronadres bepalen actualiteit. HA-herpublicatie of een gedeeltelijk antwoord zonder het veld verjongt geen waarde; een nieuw passend veld met onveranderde 0 W wel. Kort in geheugen bewaard veldbewijs overleeft de kortere routercache met de oorspronkelijke ontvangsttijd, hoogstens tot de ingestelde bronleeftijd, standaard 120 s. Falende bronstatus wordt meteen onbekend; gewijzigde binding/coordinator wist oud bewijs. SoC en power zijn onafhankelijk. Geen extra RPC of polling.
 
-Op uitdrukkelijk verzoek gebruikt beta.112 een standaardtekortbuffer van vijftien minuten (900 s) voor zowel zonne- als importtekort. De vroegere standaard van 300 s migreert eenmaal naar 900 s; andere bewaarde aangepaste duurtijden en latere eigen keuzes blijven behouden. Bestaande actieve tekortdeadlines worden niet verlengd. Twintig minuten minimumduur, 600 W zachte importgrens, vier minuten begrensde Wallboxreactie en de korte 300 s/60 s-lokale lease blijven behouden. Bij doorlopend AAN blijven oorspronkelijke start/elapsed staan. Automatisch algemeen zonbedrijf heeft geen verplichte uurstop; handmatige en andere begrensde routes houden hun eindtijden.
+Werkelijke actuele ontlading wordt eenmaal van het bruikbare zonneoverschot afgetrokken. Laden zit al in P1 en wordt niet extra bij het overschot geteld. Ontbrekende of oude power is onbekend, geen nul. Een geldige vermogensbron kan zonder SoC bruikbaar blijven; de laadtoestand blijft dan afzonderlijk onbekend.
 
-De beta.111-herstart na bewezen automatische sessielimiet of onbekende reactie, vaste SG-zonnevoorrang, firmwareverificatie en bewezen rebootherstel blijven behouden. De 3000 W blijft een geraamd totaalvermogen bij SG; alleen complete verse passende HP-meting verlaagt de mogelijke extra opname bij een nieuwe aanvraag.
+De waarschuwing na een gewone toestel-/vermogensoverdracht benoemt haar betrokken controle. Een oude herstelwacht of onzekere opdracht wordt niet automatisch gewist. Geen afleiding dat de volledige installatie fout is uit één lokale waarschuwing en geen fysieke herstelaanname uit één meting.
+
+Alle beta.112-SG-regels blijven behouden: geen startvermogensdrempel voor lopend moduleren, afzonderlijke bruikbare-zon- en ruwe-P1-tekortklokken, standaard vijftien minuten, minimum twintig minuten, zachte importgrens 600 W en korte lease 300 s/60 s. Bestaande deadlines, handmatige grenzen en vaste SG-zonnevoorrang blijven staan. Aquarea v1.9.1 is inhoudelijk beoordeeld; de nieuwe loginbackoff verandert geen native broncontract en geeft geen verse bronrechten.
 
 ## 3. Absolute ontwerpregels
 
+- Marstek-profiel marstek_venus_e3 is uitsluitend monitoring via bestaande HA-bronnen. Geen batterij-, modus- of reservebediening, geen extra polling en geen SoC-reserveprioriteit. Getekende AC-power met bevestigde dekking is nodig; SoC mag onbekend blijven. Geen automatische bronbinding of nulaanname bij bronverlies.
 - Panasonic-entiteiten en Wallbox blijven read-only. Alleen de bewust toegewezen bestaande fysieke SG-uitgang heeft haar aparte gecontroleerde schrijfroute. Geen native temperatuur-, programma-, heater-, AUTO/OFF-, laad- of tweede-Shelly-opdracht toevoegen.
 - Actuele P1 bevat alle huidige lasten. Geen toekomstig piekvermogen of ongebruikte nominale toestelvraag als extra reserve aftrekken. De ingestelde vaste huisbuffer is een afzonderlijke expliciete marge. Ontbrekend toestelvermogen is onbekend, geen gemeten nul.
 - Nieuwe opdrachten blijven geserialiseerd. Pending, opslagbewijs, echte terugmelding, stabilisatietijd en nieuwe oorspronkelijke netmeting blijven nodig. Een opgeslagen intentie is geen fysiek bewezen verbruik of vrij vermogen. Onzekere eigen SG-opdrachten behouden hun afzonderlijke herstelcontract.
@@ -50,17 +53,17 @@ De Wallboxreactie heeft haar eigen absolute eindtijd, standaard 240 seconden, en
 
 ## 5. Configuratie, integraties en belangrijke entiteiten
 
-Installatie-specifieke entiteiten blijven in privéconfiguratie, SolarPilot-opslag en userfiles. Nieuwe software wijzigt geen fysieke bronbinding, SG-capaciteit, native setpoint of lokale timerbevestiging op grond van een exportvermoeden. Het SG-ramingsgetal blijft bewaard; de nieuwe totaalbetekenis wordt in veldhulp en releasehandleiding expliciet vermeld.
+Installatie-specifieke entiteiten blijven uitsluitend in privéconfiguratie, SolarPilot-opslag en userfiles. De nieuwe Marstek wordt niet uit een bestaande export, apparaatnaam of softwareupdate automatisch gekoppeld. De gebruiker selecteert na installatie bewust de reeds aanwezige getekende AC-batterijvermogenssensor, richting en eventuele SoC-bron en bevestigt de AC-meetdekking. Geen woning-P1/CT, DC- of absolute vermogenswaarde.
 
-De frontend, manifest en backend horen bij dezelfde versie. Actuele Aquarea-semantiek, bruikbare providerpoll, passende HA-rapporten en bevestigde brondekking blijven afzonderlijke voorwaarden. Een label of versienummer bewijst geen bronkwaliteit.
+De frontend, manifest, backend en actuele uitleg horen bij dezelfde versie. De nominale Marstek-capaciteit is fabrikantinformatie; meetbronidentiteit en polariteit moeten lokaal kloppen. Actuele Aquarea-/SDK-semantiek en oorspronkelijke HA-rapporten blijven afzonderlijk vereist. Een label of versie bewijst geen bronkwaliteit.
 
 ## 6. Belangrijke ontwerpbeslissingen + waarom
 
-De startdrempel beschermt een nieuwe vraag met mogelijke extra opname. Hetzelfde vermogen blijven verlangen van een lopende, modulerende warmtepomp veroorzaakt onnodige UIT/AAN-cycli. Daarom controleert behoud alleen of actueel bruikbare zon aanwezig blijft; de werkelijke ruwe-P1-import bewaakt apart de dekking van de huidige opname. Een nulbudget start nog steeds een begrensde zonnebuffer zodat nacht met lage import geen eindeloze toestemming geeft. De reken- en bronfouten zijn afzonderlijk hersteld; daarnaast vraagt de gebruiker uitdrukkelijk vijftien minuten buffer om langere tijdelijke wolken te overbruggen.
+De gevraagde Marstek-koppeling is monitoring, terwijl andere generieke batterijprofielen eventueel actief regelbaar zijn. Daarom krijgt dit profiel een harde read-only-grens en geen reserve-/laadprioriteit: globale controlekeuzes of achtergebleven velden mogen het niet alsnog bedienbaar maken. De native Marstek-regelaar behoudt de werking.
 
-Het budget kiest dynamisch bruikbare bijdragen uit niet-gelijktijdige meters. De oudste nog geldige bijdrage mag daardoor opnieuw ouder zijn dan in de vorige evaluatie. Dat is niet hetzelfde als een teruggespeeld P1-rapport of klokterugloop. Actualiteit en rapportvoortgang worden afzonderlijk bewaakt zonder de eerste tekortdeadline te verschuiven.
+Een batterijmeter is geen woningmeter. Alleen getekend AC-vermogen van de batterij zelf kan eenmaal correct ontlading van het zonnebudget onderscheiden. Laden zit al in P1. SoC is apart optioneel, zodat een ontbrekende procentwaarde een geldige vermogensmeting niet verbergt en evenmin fictieve reserve creëert.
 
-Vaste SG-zonnevoorrang tegenover autonoom laden verandert geen gewone toestelrangen of eigen EV-rechten. De volledige actuele EV-balans wordt vóór bestaande import en marges beoordeeld; feitelijke overname blijft afzonderlijk begrensd. Firmwaremetadata blijft informatief op dezelfde bewezen uitgang. Geen Panasonic- of Wallboxwriter wordt toegevoegd.
+Een lokale overdrachtwaarschuwing moet de concrete betrokken controle benoemen. Tekstverbetering is geen toestemming om oud onzeker opdrachtbewijs te wissen. De bestaande herstelvoorwaarden blijven nodig. De SG-behouds- en bronherstelcorrecties uit beta.112 worden niet teruggedraaid.
 
 ## 7. Automatische processen
 
@@ -74,32 +77,38 @@ Tests en browserfixtures gebruiken uitsluitend fictieve bronnen. Diagnosebestand
 
 ## 9. Testprocedure + actuele teststatus
 
-De concrete nieuwe scenario’s gebruiken uitsluitend fictieve meters en de werkelijke runtime: lager modulerend zonnebedrijf, korte wolken, herstel en aanhoudende tekorten, nulbudget/nacht, herstelde niet-gelijktijdige HP/EV-bronnen en behoud van oorspronkelijke deadlines en starttijd. Bestaande handmatige, firmware-, lease-, klok-, fase-, kwartier-, batterij-, afwas-, recorder- en UI-regressies blijven gelden.
+Nieuwe regressies moeten het monitorprofiel onder normale en gemanipuleerde controlevelden read-only houden; beide powertekens, W/kW, ontbrekende SoC, nul/ontbrekende/oude bronnen, meetdekking en site-overlap toetsen; en actuele batterijflow eenmaal verwerken zonder SoC-reserveprioriteit. Waarschuwingstests behouden oude herstelwacht en onzekere opdrachten. De bestaande SG-, tijd-, firmware-, fase-, kwartier-, batterij-, afwas-, recorder- en UI-regressies blijven vereist.
 
-Op 30 oktober 2026 slaagde de definitieve volledige lokale suite: **9238 tests, 0 fouten, 0 overgeslagen**, in 237,83 seconden. De vijf nieuwe beta.112-bestanden bevatten 79 regressiegevallen. De echte Chromium-SG-controle slaagde op 320/390/768/1280 pixels, inclusief vijftienminutenbuffer en korte lokale toestemming. Uitleg/optiehulp, handoff, privacy/structuur, SG-opdrachtgrens, JavaScript-syntax, diffcontrole en online upstreamreview zijn groen. De actuele officiële HEADs en opgeloste stabiele tagcommits zijn ongewijzigd; guidehash `35bbe4479df8b4f4`. Zie `docs/TESTRESULTATEN_BETA112.md`. Dit is lokaal softwarebewijs; de exacte GitHub-controles en publicatiestatus blijven afzonderlijk te verifiëren.
+Op 2 november zijn de officiële Aquarea v1.9.1-diff en ongewijzigde SDK v1.5.0 beoordeeld. De bestaande source/poll/energieperiodetests slaagden met 131 gevallen; dit is geen volledige beta.113-suite. De uitgevoerde gerichte controles en het publicatiemechanisme staan in `docs/TESTRESULTATEN_BETA113.md`. Geen oude beta.112-uitslag als nieuw bewijs.
 
-De eerste PR #55-run op `9fb4c4` bevestigde repository/full-suite (9238), HACS, Hassfest en Chromium; de normale echte HA-start slaagde eveneens. De aanvullende SG-fixture had nog een oude verwachting van volledig ongewijzigde opties. De actuele fixture controleert nu exact de toegestane eenmalige 900 s/600 W-migratie plus `_sg_cloud_buffer_migration = 1`, met behoud van alle overige opties en het oorspronkelijke archief. Read-only uitlezen en herladen mogen daarna niets extra wijzigen. De volledige echte-HA-gate en alle overige gates moeten voor de gewijzigde commit opnieuw worden bevestigd.
+De 116 nieuwe Marstek-regressies zijn groen: provider 28, opdrachtgrens 21, SG 12, runtime 31, configuratie/UI 21 en fasebewaking 3. Echte Chromium-interacties op vier schermbreedtes en de historie-, timer- en gemengde kaartencontroles zijn groen. De actuele uitleg heeft hash 6b26f5854ba02df7 en 371 hulpvelden; uitleg-, overdrachts- en diffcontroles zijn groen. De volledige-suiteuitslag en HA-startup worden bewezen door de Actions-runs voor de exacte PR-HEAD en de uiteindelijke main-commit, niet door een uitslag op tussentijds gewijzigde bron.
 
-Alle vijf commitgebonden CI-gates blijven vereist: repository/full-suite, HACS, Hassfest, echte Chromium-interacties en echte Home Assistant-startup. Geen oudere groene head als vervanging voor de nieuwe exacte controles.
+Alle vijf commitgebonden CI-gates moeten groen zijn: repository/full-suite, HACS, Hassfest, echte Chromium-interacties en echte Home Assistant-startup. Publicatie vereist de volledige suite en alle overige gates opnieuw op de uiteindelijke main-commit; vervolgens worden de vier release-assets tegen tag en bron-SHA gecontroleerd.
 
 ## 10. Bekende problemen / beperkingen
 
-Softwaretests bewijzen geen fysieke bekabeling, kalibratie, werkelijke SG-opname, lokale timer of Wallboxreactie. De 3000 W is een raming, geen bewezen technisch maximum. Minimumduur en wolkenbuffers kunnen tijdelijk netafname toelaten; fysieke en afzonderlijke actuele grenzen blijven gelden. De lokale lease wordt binnen tekort-/minimumdeadline en terugmeldruimte gehouden en kan daardoor standaard maximaal 20 seconden vóór de beleidsgrens aflopen. Exact 900 seconden fysieke AAN is geen belofte.
+Er is geen fysieke Marstek-, SG-, warmtepomp- of laadproef uitgevoerd. Een nieuwe softwareversie bewijst geen werkelijke lokale batterijkoppeling of juiste AC-sensordekking. Nominale 5,12 kWh is geen gegarandeerde bruikbare AC-energie of reserve; fabrikantgrenzen blijven autonoom.
 
-De vierminuten-Wallboxreactie betreft actieve HA-policy. De lokale eigen SG-lease is standaard 300 seconden; bij HA-uitval is fysieke UIT exact op 240 seconden niet gegarandeerd. Extern AAN krijgt geen nieuw lokaal timerrecht. Een screenshot van taak-/contactgeschiedenis alleen bewijst geen concrete stopreden; daarvoor zijn oorspronkelijke bronmetingen en beslisgeschiedenis nodig.
+De Marstek-bron kan bij een gedeeltelijk geslaagde ES-statusreactie een eerder powerveld publiceren. Daarom vraagt SolarPilot afzonderlijk bewijs dat het veld werkelijk in een ontvangen antwoord stond; een ontbrekend veld vernieuwt de oorspronkelijke bewijstijd niet. Een niet-ondersteund native broncontract blijft onbekend. Ook passend ontvangen veldbewijs is geen onafhankelijke fysieke meetgarantie.
+
+Een getekende waarde alleen bewijst niet dat het batterij-AC betreft. De bestaande HA-bronbetekenis moet bewust worden gecontroleerd. Ontbrekende noodzakelijke power blijft onbekend. Private brongegevens, identiteit en waarschuwingsincidenten worden niet als openbare fixture opgenomen.
+
+De SG-wolkenbuffer is een policy met bestaande terugmeldmarge en onafhankelijke harde grenzen. Exact 900 seconden fysieke AAN is geen belofte; de korte lokale lease blijft 300 seconden.
 
 ## 11. Concrete openstaande ontwikkeling
 
-Controleer na normale installatie natuurlijk modulerend zonnebedrijf en korte wolken: geen contactonderbreking zolang bruikbare zon en de actuele overige voorwaarden passen. De oorspronkelijke starttijd moet blijven staan. Een concrete nieuwe onverklaarde stop vraagt een lokale analyse-export rond het moment, met echte P1/PV/HP/EV-rapporttijden, stopreden en timerbewijs. Geen geforceerde warmte- of laadproef als publicatiestap en geen privé-export publiceren.
+Controleer na normale installatie de bewust gekozen Marstek-bronnen bij natuurlijk laden en ontladen en de afzonderlijke SoC-weergave. Controleer dat geen batterijopdracht wordt aangeboden of verzonden. Beoordeel een eventuele volgende overdrachtwaarschuwing met oorspronkelijke lokale rapporten en opdrachtbewijs; laat oude herstelwacht niet automatisch vervallen. Geen geforceerde fysieke warmte-, laad- of ontlaadproef als publicatiestap.
 
 ## 12. Installatie/upgrade en rollback
 
-Werk na publicatie via HACS bij naar beta.112, herstart Home Assistant volledig en herlaad app/browser. Behoud entry, configuratie, modellen en privéopslag. Controleer backend- en kaartversie. Deze correctie vraagt geen nieuwe instelling of herbevestiging alleen wegens de softwareupdate. Maak vooraf een volledige privé-back-up inclusief userfiles en aanvullende historie.
+Werk na publicatie via HACS bij naar beta.113, herstart Home Assistant volledig en herlaad app/browser. Behoud entry, configuratie, modellen en privéopslag. De Marstek-monitor vraagt daarna bewuste bronkeuze en AC-bevestiging; de update zelf koppelt geen batterij. SG-instellingen blijven behouden. Maak vooraf een volledige privé-back-up.
 
-Rollback naar beta.111 behoudt gegevens, maar herstelt de te hoge behoudsdrempel en fout bij terugkerende oudere bronbijdragen. Daardoor kan SG opnieuw onnodig stoppen. Stel vóór rollback de tekortbuffer op een door beta.111 ondersteunde waarde in, bijvoorbeeld 300 s; die versie accepteert maximaal 600 s en kan 900 s niet valideren. Gebruik de normale versie- of pakketroute en wis integratie of opslag niet. Zie `docs/BETA112_INSTELLEN.md`.
+Rollback naar beta.112 verliest de nieuwe profielondersteuning en waarschuwingstekst. Verwijder vóór rollback de alleen-uitlezen-Marstekkoppeling uit SolarPilot en controleer dat geen generieke bedienbare batterijrepresentatie achterblijft. Native Marstek blijft autonoom. Beta.112 ondersteunt dezelfde SG-buffer; beta.111 accepteert hoogstens 600 s en vraagt vóór downgrade een ondersteunde buffer zoals 300 s. Zie `docs/BETA113_INSTELLEN.md`.
 
 ## 13. Belangrijkste bestanden
 
+- battery_fleet.py / battery_runtime.py: hard read-only Marstek-profiel, afzonderlijke SoC/powerkwaliteit en eenmaal batterijflow.
+- config_flow.py: bewuste Marstek AC-bronkeuze zonder actuatorvelden.
 - runtime.py en engine.py: actuele lastverdeling, geserialiseerde opdrachten en finale bron-/elektrische controles.
 - heatpump_budget.py: apart werkelijk restoverschot, compleet gemeten HP-bijdrage en voorwaardelijke EV-bijdrage; mogelijke SG-toename uit de totaalraming.
 - priority_board.py / wallbox_priority.py: gewone centrale/tijdelijke keuzes en kandidaat-eigen rechten; vaste SG-zonnevoorrang en SG uitgesloten van tijdelijke Wallboxvoorkeur.
@@ -113,12 +122,12 @@ Rollback naar beta.111 behoudt gegevens, maar herstelt de te hoge behoudsdrempel
 
 ## 14. Release-checklist
 
-Volledige suite en gerichte regressies; actuele uitleg, optiehulp en handoff; privacy/structuur; SG-opdrachtgrens; online upstreamreview; beide JS-syntaxcontroles; diffreview. Daarna vijf groene exacte PR-CI-gates. Pas vervolgens samenvoegen op main. Main herhaalt de gates en publiceert tag, HACS-ZIP, lokale ZIP en beide beta.112-release-documenten. Vergelijk alle vier gedownloade assets tegen exacte tag/bron-SHA. Geen manual-release-omweg, force-push of verplaatste oude tag.
+Volledige suite en gerichte regressies; actuele uitleg, optiehulp en handoff; privacy/structuur; SG-opdrachtgrens; online upstreamreview; beide JS-syntaxcontroles; diffreview. Daarna vijf groene exacte PR-CI-gates. Pas vervolgens samenvoegen op main. Main herhaalt de gates en publiceert tag, HACS-ZIP, lokale ZIP en beide beta.113-release-documenten. Vergelijk alle vier gedownloade assets tegen exacte tag/bron-SHA. Geen manual-release-omweg, force-push of verplaatste oude tag.
 
 ## 15. AI-handoff
 
-Begin bij de concrete gebruikersvraag, actuele bron en dit dossier. De gebruiker wil dat SG bij voldoende actuele zon blijft doorlopen en korte wolken overbrugt. Herstel geen startvermogensdrempel als behoudsvoorwaarde voor een lopend automatisch algemeen contact. Houd bruikbare zon groter dan nul en afzonderlijke ruwe-P1-importbuffer samen leidend, met dezelfde oorspronkelijke minimum- en tekortdeadlines. Geen toestemming uit alleen lage netafname wanneer het zonnebudget nul is.
+Begin bij de concrete gebruikersvraag, actuele bron en dit dossier. Marstek Venus E 3.0 is uitsluitend monitoring via bestaande HA-entiteiten. Geen native/API/pollingtoevoeging, geen automatische bronbinding, geen bedieningsrecht via algemene of achtergebleven velden en geen SolarPilot-SoC-reserveprioriteit. AC-batterijpower met richting is verplicht; SoC optioneel. Trek actuele ontlading eenmaal af, tel laden niet nogmaals bij P1 op en verzin geen nul bij bronverlies.
 
-Meetactualiteit en oorspronkelijke rapportvoortgang blijven apart. De oudste bijdragerstijd kan bij terugkerend coherent HP/EV-vermogen veranderen; dat geeft geen onmiddellijke tekortstop en evenmin nieuwe vijftien minuten. Behoud harde en native voorwaarden, fysieke handmatige UIT, onzekere opdrachten en begrensde eindtijden. Panasonic bepaalt compressorwerking.
+Benoem lokale overdrachtwaarschuwingen concreet, maar wis geen onzekere opdracht of oude herstelwacht zonder passend bestaand herstelbewijs. Publiceer geen privébronidentiteit, export of werkelijk huishoudincident.
 
-SG behoudt vaste toegang tot bevestigde autonome Wallbox-zonnestroom; gewone toestelrangen en hun EV-rechten veranderen niet. Geen toekomstige toestelreserveringen, geen nieuwe native writer en geen fysieke instellingen wijzigen. Bestaande bewezen herstart-/firmwareroutes behouden hun voorwaarden. Verzin geen ontbrekend hardware-/timerbewijs of fysieke testresultaten. Werk bij iedere wijziging de volledige actuele uitleg en overdracht bij; publiceer nooit privébronnen.
+Behoud alle beta.112-SG-regels, vijftienminutenbuffer, vaste zonnevoorrang, oorspronkelijke deadlines en korte lokale lease. Het inhoudelijk beoordeelde Aquarea-loginbackoff geeft geen nieuwe bronkwaliteit en vraagt geen automatische providerupgrade. Werk iedere wijziging bij in actuele uitleg en overdracht. Claims over suite, CI, publicatie en fysieke installatie blijven afzonderlijk bewezen.

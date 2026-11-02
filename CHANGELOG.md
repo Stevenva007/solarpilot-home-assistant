@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta.113 — Marstek-monitor en gerichte overdrachtwaarschuwing
+
+- Voegt een uitsluitend uitleesbaar profiel voor Marstek Venus E 3.0 toe via bestaande Home Assistant-entiteiten. Getekend AC-batterijvermogen, tekenrichting en bevestigde meetdekking zijn vereist; SoC en bekende fase zijn optioneel. Geen automatische bronbinding of nieuwe UDP-/Modbuspolling.
+- Controleert voor de ondersteunde native Marstek-bron de gekoppelde entiteit/coordinator, oorspronkelijke ES-statusuitlezing, bronkwaliteit en werkelijk ontvangen AC-/SoC-velden. HA-herpublicatie of een gedeeltelijk antwoord zonder het veld verjongt geen oude waarde; nieuw passend veldbewijs kan stabiele 0 W vernieuwen. Kort bewaard bewijs behoudt zijn oorspronkelijke ontvangsttijd en bronleeftijd. Geen extra RPC of polling.
+- Houdt het Marstek-profiel hard read-only, ongeacht algemene bedieningstoestemmingen of achtergebleven actuatorvelden. Geen laad-, ontlaad-, modus- of reserveopdracht en geen SolarPilot-SoC-reserveprioriteit.
+- Verrekent actuele ontlading eenmaal als batterijbijdrage; laden zit al in P1 en wordt niet extra bij zonneoverschot geteld. Ontbrekende of verouderde power is onbekend, geen nul. 5,12 kWh is de nominale fabrikantcapaciteit, geen gegarandeerde bruikbare AC-energie.
+- Benoemt de betrokken toestel-/vermogensoverdracht in de waarschuwing. Eerdere vastgehouden herstelwacht blijft apart; een tijdlijn of meetpunt verklaart geen onzekere opdracht automatisch hersteld.
+- Behoudt de SG-correcties, vijftienminutenwolkenbuffer, bestaande minimumduur en harde grenzen uit beta.112. Werkt actuele uitleg, optiehulp, installatie/rollback, bronreview en overdracht bij. Zie BETA113_INSTELLEN.md en TESTRESULTATEN_BETA113.md.
+
 ## 1.0.0-beta.112 — SG blijft doorlopen bij moduleren en korte wolken
 
 - Verwijdert de startvermogensdrempel uit het behoud van een lopend automatisch algemeen SG-contact. Nog actueel bruikbaar P1-/HP-/EV-zonnebudget na import, batterijcorrectie en huisbuffer kan een modulerende warmtepomp laten doorlopen; starten behoudt zijn eigen drempel en stabiliteit.

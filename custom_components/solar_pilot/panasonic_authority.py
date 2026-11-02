@@ -15,6 +15,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from .wallbox import protected_entity
 from .sg_config import finite
+from .battery_profiles import is_monitor_profile
 
 ENTITY = re.compile(r"^[a-z_]+\.[a-z0-9_]+$")
 TARGET_KEYS = frozenset({"entity_id", "device_id", "area_id", "floor_id", "label_id", "target"})
@@ -154,6 +155,29 @@ class PanasonicCommandAuthority:
     def is_wallbox(self, entity_id):
         return protected_entity(self.runtime.hass, getattr(self.runtime, "wallbox_settings", {}), entity_id)
 
+    def is_monitored_battery(self, entity_id):
+        """Explicit monitor bindings protect their device across every writer.
+
+        Read both persisted and effective profiles: disabling observation or
+        stripping obsolete actuator fields never grants another route control.
+        No manufacturer, entity-name or config-entry-wide guess is involved.
+        """
+        raw = _mapping(self.runtime.entry.options).get("batteries", ())
+        profiles = list(raw) if isinstance(raw, (list, tuple)) else []
+        effective = getattr(getattr(self.runtime, "battery_fleet", None), "configs", {})
+        if isinstance(effective, Mapping):
+            profiles.extend(effective.values())
+        refs = set()
+        for config in profiles:
+            if is_monitor_profile(config):
+                refs.update(_references(config))
+        if entity_id in refs:
+            return True
+        _registry, lookup = self._registry()
+        device_id = getattr(lookup(entity_id), "device_id", None)
+        return bool(device_id and any(
+            getattr(lookup(ref), "device_id", None) == device_id for ref in refs))
+
     def is_dishwasher(self, entity_id):
         """Generic routes never own a configured/native AEG appliance or plug."""
         from .dishwasher import REFERENCE_KEYS
@@ -186,7 +210,8 @@ class PanasonicCommandAuthority:
                 or not _entity(entity_id) or not entity_id.startswith("button.")
                 or cfg.get("start_button") != entity_id):
             raise HomeAssistantError("Afwasstart vereist de exact gekoppelde native START-knop")
-        if self.is_native(entity_id) or self.is_sg(entity_id) or self.is_wallbox(entity_id):
+        if (self.is_native(entity_id) or self.is_sg(entity_id) or self.is_wallbox(entity_id)
+                or self.is_monitored_battery(entity_id)):
             raise HomeAssistantError("Afwasprofiel verwijst naar een andere beschermde actuator")
         return {"entity_id": entity_id}
 
@@ -247,6 +272,8 @@ class PanasonicCommandAuthority:
             raise HomeAssistantError("SG-contact heeft één eigenaar; gewone toestel- en batterijbediening is geblokkeerd")
         if self.is_wallbox(entity_id):
             raise HomeAssistantError("Wallbox is alleen-lezen; gewone toestel- en batterijbediening is geblokkeerd")
+        if self.is_monitored_battery(entity_id):
+            raise HomeAssistantError("Deze batterij wordt alleen gemonitord; bediening is geblokkeerd")
         if self.is_dishwasher(entity_id):
             raise HomeAssistantError("AEG is beschermd; uitsluitend de eigen eenmalige native START-route mag starten")
         if domain == "script":
@@ -350,7 +377,8 @@ class PanasonicCommandAuthority:
             # A direct script.some_name invocation has no target payload.
             script_id = f"script.{service}"
             if (self.is_native(script_id) or self.is_sg(script_id)
-                    or self.is_wallbox(script_id) or self.is_dishwasher(script_id)):
+                    or self.is_wallbox(script_id) or self.is_dishwasher(script_id)
+                    or self.is_monitored_battery(script_id)):
                 raise HomeAssistantError("Script verwijst naar een beschermde actuator")
             self._inspect_script(script_id, visiting, budget)
             return
@@ -373,6 +401,8 @@ class PanasonicCommandAuthority:
                 raise HomeAssistantError("Script probeert Panasonic of het gereserveerde SG-contact te bedienen")
             if self.is_wallbox(eid):
                 raise HomeAssistantError("Wallbox is alleen-lezen; scriptbediening van de lader is geblokkeerd")
+            if self.is_monitored_battery(eid):
+                raise HomeAssistantError("Deze batterij wordt alleen gemonitord; scriptbediening is geblokkeerd")
             if self.is_dishwasher(eid):
                 raise HomeAssistantError("AEG is beschermd; scriptbediening buiten de native START-route is geblokkeerd")
             if routed_domain == "script":

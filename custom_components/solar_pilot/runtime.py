@@ -56,6 +56,7 @@ from .pv_forecast import PVForecast
 from .phase_learning import PhaseLearning, phase_allocation_from_hint, phase_total_headroom_w
 from .battery_analysis import BATTERY_ANALYSIS_DEFAULTS, BatteryOpportunitySimulator
 from .battery_runtime import BatteryFleetManager
+from .battery_profiles import battery_source_error, is_monitor_profile
 from .panasonic_monitor import PanasonicMonitor
 from .panasonic_migration import migrate_panasonic
 from .sg_boost import SGBoostManager
@@ -1185,10 +1186,17 @@ class SolarRuntime:
             if not cfg.get("power_entity"):
                 continue
             if cfg.get("is_battery"):
-                raw, _stamp = self._power(cfg.get("power_entity"), self.phase_settings.get("stale_s", 120))
-                if raw is None:
-                    continue
-                signed_discharge = raw if cfg.get("power_sign") == "discharge_positive" else -raw
+                if is_monitor_profile(cfg):
+                    reading = self.battery_fleet._read_one(cfg.get("id", device_id), cfg)
+                    if (not reading.power_valid or reading.power_w is None
+                            or not -5 <= time.time()-reading.power_stamp <= self.phase_settings.get("stale_s", 120)):
+                        continue
+                    signed_discharge = reading.power_w
+                else:
+                    raw, _stamp = self._power(cfg.get("power_entity"), self.phase_settings.get("stale_s", 120))
+                    if raw is None:
+                        continue
+                    signed_discharge = raw if cfg.get("power_sign") == "discharge_positive" else -raw
                 # Net contribution: charging increases import (+), discharging reduces import (-).
                 watts = -signed_discharge
             elif device_id in self.states:
@@ -1595,8 +1603,7 @@ class SolarRuntime:
                 "wallbox": {key: self.wallbox_settings.get(key) for key in ev_keys},
                 "sg": control_identity, "sg_wallbox_policy": "sg_solar_always_first_v111",
                 "battery_fleet_enabled": self.battery_fleet.settings.get("enabled"),
-                "battery_sources": sorted((key, value.get("power_entity"))
-                    for key, value in self.battery_fleet.configs.items()),
+                "battery_sources": self.battery_fleet.source_identity(),
                 "mode": self.mode}, sort_keys=True, allow_nan=False).encode()).hexdigest()
         except (TypeError, ValueError):
             identity, credit = "", 0.0
@@ -1691,8 +1698,7 @@ class SolarRuntime:
                 "wallbox": {key: self.wallbox_settings.get(key) for key in ev_keys},
                 "heatpump": {key: self.panasonic.settings.get(key) for key in hp_keys},
                 "battery_fleet_enabled": self.battery_fleet.settings.get("enabled"),
-                "battery_sources": sorted((key, value.get("power_entity"))
-                    for key, value in self.battery_fleet.configs.items())}}
+                "battery_sources": self.battery_fleet.source_identity()}}
 
     def _sg_import_observation(self):
         """Actual signed P1 and its original report time, independent of PV/HP.
@@ -1737,12 +1743,20 @@ class SolarRuntime:
         discharge = 0.0
         valid = grid is not None
         ready = True
-        if self.battery_fleet.settings.get("enabled") and self.battery_fleet.configured:
-            readings = self.battery_fleet.read()
+        active_batteries = {bid: cfg for bid, cfg in self.battery_fleet.configs.items()
+                            if cfg.get("enabled", True) is True}
+        if self.battery_fleet.settings.get("enabled") and active_batteries:
+            readings = [reading for reading in self.battery_fleet.read() if reading.id in active_batteries]
             good = [r for r in readings if r.valid]
-            valid = valid and bool(good)
+            # An unknown battery may still be discharging into P1. A healthy
+            # sibling cannot make that missing contribution zero or fresh.
+            valid = valid and len(good) == len(readings) and not battery_source_error(active_batteries.values(), self.settings)
+            stamps.extend(r.power_stamp for r in readings)
             discharge = sum(r.discharge_w for r in good)
-            ready = any(r.discharge_available_w > 0 for r in good) if good else False
+            policy_batteries = [r for r in readings if not r.monitor_only]
+            # A monitor has no reserve-SOC policy or permission to charge.
+            # Existing generic battery policies retain their prior meaning.
+            ready = any(r.discharge_available_w > 0 for r in policy_batteries) if policy_batteries else True
         else:
             if self.settings.get("battery_power_entity"):
                 value, stamp = self._power(self.settings["battery_power_entity"])
@@ -2243,7 +2257,7 @@ class SolarRuntime:
                 fleet = self.battery_fleet
                 agg = fleet.overview().get("aggregate", {}) if fleet.settings.get("enabled") else {}
                 readings = (fleet.last or fleet.read()) if agg.get("valid") else []
-                valid_readings = [r for r in readings if r.valid and r.capacity_kwh > 0]
+                valid_readings = [r for r in readings if r.valid and not r.monitor_only and r.capacity_kwh > 0]
                 capacity = sum(r.capacity_kwh for r in valid_readings)
                 # Unknown/missing members cannot become available stored energy.
                 complete = (capacity > 0 and len(valid_readings) == len(readings)
@@ -3203,7 +3217,9 @@ class SolarRuntime:
                 else "wallbox_wait")
             self.problem = wb.reason
         if not self.problem and self.reclaim_blocks:
-            self.problem = "Vermogensovername geblokkeerd: controleer het betrokken toestel en rond de foutcontrole af"
+            names = ", ".join(self.configs[i]["name"] for i in self.reclaim_blocks if i in self.configs)
+            self.problem = ("Overname van Wallbox-vermogen geblokkeerd voor " + (names or "het betrokken toestel")
+                + "; starten op zelfstandig zonneoverschot blijft mogelijk. Controleer het toestel en kies Controle afronden.")
         if not self.problem:
             overdue_cycles = [c["name"] for i, c in self.configs.items()
                               if c["non_interruptible"] and c["max_on_s"] > 0 and self.states[i].owned

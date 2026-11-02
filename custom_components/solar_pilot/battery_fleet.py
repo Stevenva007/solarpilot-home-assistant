@@ -25,6 +25,7 @@ BATTERY_FLEET_DEFAULTS = {
 }
 
 BATTERY_DEFAULTS = {
+    "profile": "generic",
     "name": "Thuisbatterij",
     "enabled": True,
     "capacity_kwh": 10.0,
@@ -74,6 +75,10 @@ class BatteryReading:
     controllable: bool = False
     phase_hint: str = "unknown"
     power_stamp: float = 0.0
+    monitor_only: bool = False
+    power_valid: bool | None = None
+    soc_valid: bool | None = None
+    soc_stamp: float = 0.0
 
     @property
     def discharge_w(self):
@@ -85,13 +90,13 @@ class BatteryReading:
 
     @property
     def discharge_available_w(self):
-        if not self.valid or self.soc_pct is None or self.soc_pct <= self.reserve_soc_pct:
+        if self.monitor_only or not self.valid or self.soc_pct is None or self.soc_pct <= self.reserve_soc_pct:
             return 0.0
         return max(0.0, self.max_discharge_w)
 
     @property
     def charge_available_w(self):
-        if not self.valid or self.soc_pct is None or self.soc_pct >= self.max_soc_pct:
+        if self.monitor_only or not self.valid or self.soc_pct is None or self.soc_pct >= self.max_soc_pct:
             return 0.0
         return max(0.0, self.max_charge_w)
 
@@ -115,13 +120,14 @@ def aggregate(readings):
             "discharge_available_w": 0.0, "charge_available_w": 0.0,
         }
     cap = sum(max(0.0, r.capacity_kwh) for r in valid)
+    soc_complete = all(r.soc_pct is not None for r in valid)
     weighted = sum((r.soc_pct or 0.0) * max(0.0, r.capacity_kwh) for r in valid)
     powers = [r.power_w for r in valid if r.power_w is not None]
     power = sum(powers) if len(powers) == len(valid) else None
     return {
         "valid": True, "count": len(readings), "valid_count": len(valid),
         "capacity_kwh": round(cap, 3),
-        "soc_pct": None if cap <= 0 else round(weighted / cap, 2),
+        "soc_pct": None if cap <= 0 or not soc_complete else round(weighted / cap, 2),
         "power_w": None if power is None else round(power, 1),
         "discharge_w": round(sum(r.discharge_w for r in valid), 1),
         "charge_w": round(sum(r.charge_w for r in valid), 1),
@@ -159,6 +165,9 @@ def recommend(settings, readings, grid_w, capacity_allowed_grid_w=None):
     c = {**BATTERY_FLEET_DEFAULTS, **(settings or {})}
     if not c["enabled"]:
         return BatteryFleetRecommendation(False, reason="Batterijvloot uitgeschakeld")
+    readings = [reading for reading in readings if not reading.monitor_only]
+    if not readings:
+        return BatteryFleetRecommendation(False, reason="Alleen monitoren; de batterij regelt zelf")
     grid = finite(grid_w)
     if grid is None:
         return BatteryFleetRecommendation(False, reason="Netmeting ongeldig; geen batterijadvies")

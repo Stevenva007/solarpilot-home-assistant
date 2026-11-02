@@ -459,7 +459,8 @@
           "battery_settings": "Vlootstrategie en globale toestemming",
           "battery_add": "Batterij toevoegen",
           "battery_edit": "Batterij aanpassen",
-          "battery_remove": "Batterij verwijderen"
+          "battery_remove": "Batterij verwijderen",
+          "battery_marstek": "Marstek Venus E3 · alleen monitoren"
         }
       },
       "battery_settings": {
@@ -1149,6 +1150,26 @@
           "ack_timeout_s": "Korte begrensde wachttijd voor fysieke relaisterugmelding, standaard 20 seconden.",
           "stale_s": "Maximale ouderdom van benodigde metingen, standaard 120 seconden."
         }
+      },
+      "battery_marstek": {
+        "title": "Marstek Venus E3 · alleen monitoren",
+        "description": "Marstek regelt zelf. SolarPilot leest alleen de gekozen sensoren. Kies het getekende AC-vermogen van deze batterij, niet DC-vermogen, een absolute waarde of de CT/netmeting. Controleer de tekenrichting tijdens laden en ontladen. Capaciteit van dit profiel: 5,12 kWh. Laadniveau en fase zijn optioneel.",
+        "data": {
+          "name": "Naam",
+          "power_entity": "Getekend AC-batterijvermogen (W/kW)",
+          "power_sign": "Positieve waarde betekent",
+          "ac_power_confirmed": "Dit is het getekende AC-vermogen van deze batterij",
+          "soc_entity": "Laadniveau / SoC (%) — optioneel",
+          "phase_hint": "Aansluitfase — optioneel"
+        },
+        "data_description": {
+          "name": "Herkenbare naam voor deze Marstek Venus E 3.0-monitor.",
+          "power_entity": "Kies de bestaande getekende batterij-AC-sensor, bij Marstek Vermogen netaansluiting (AC OnGrid), in W of kW.",
+          "power_sign": "Kies bewust welk teken bij de geselecteerde batterij-AC-sensor ontladen betekent.",
+          "ac_power_confirmed": "Bevestig alleen na controle dat de gekozen sensor het volledige getekende AC-vermogen van deze batterij zelf weergeeft.",
+          "soc_entity": "Optionele bestaande Marstek-laadtoestand in procent.",
+          "phase_hint": "Optionele bekende fysieke fase van de batterij."
+        }
       }
     },
     "error": {
@@ -1210,7 +1231,8 @@
       "water_volume_source": "Kies een cumulatieve volumesensor met passende volume-eenheid en tellerkenmerken, geen debiet of elektriciteitsmeter.",
       "water_flow_source": "Kies een actuele debietsensor met een ondersteunde volume-per-tijd-eenheid, geen cumulatieve meterstand.",
       "water_leak_source": "Kies een bestaande binary_sensor voor waterlekkage met apparaatklasse moisture.",
-      "dishwasher_energy_meter": "Kies een cumulatieve Wh/kWh-sensor met state_class total of total_increasing."
+      "dishwasher_energy_meter": "Kies een cumulatieve Wh/kWh-sensor met state_class total of total_increasing.",
+      "battery_source_scope": "Kies een afzonderlijke batterijbron. Net-, PV-, auto- en dubbele batterijmeters mogen niet overlappen. Controleer ook een bestaande centrale batterijmeting."
     },
     "abort": {
       "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",

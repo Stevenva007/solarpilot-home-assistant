@@ -3,12 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.112'
-GUIDE_UPDATED = '2026-10-30'
+GUIDE_VERSION = '1.0.0-beta.113'
+GUIDE_UPDATED = '2026-11-02'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.112',
- 'updated': '2026-10-30',
+ 'version': '1.0.0-beta.113',
+ 'updated': '2026-11-02',
  'intro': 'SolarPilot verdeelt het echte huidige zonneoverschot zonder toekomstige toestelpieken te reserveren. De warmtepomp heeft voor '
           'automatisch algemeen SG-zonbedrijf vaste voorrang op bevestigd autonoom Wallbox-zonneladen. Een toegestaan AAN-contact kan '
           'aanblijven zolang de actuele voorwaarden voldoen; er is geen verplichte uurstop of administratieve sessiereset. Korte lokale '
@@ -693,7 +693,12 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'en wordt geen gemeten nul of overneembaar EV-vermogen. Dit geldt ook voor SG-zonneboost, dat zonder geldig '
                               'bevestigde autonome zonnelaadsessie geen EV-krediet krijgt. Een verse bewezen laadvraag of laadsessie behoudt de '
                               'gekozen voorrang tegenover gewone toestellen; SG houdt zijn afzonderlijke vaste zonnevoorrang. Actuele '
-                              'net-/fase-/kwartiergrenzen, minimumtijden, beschermde cycli en apparaatvoorwaarden blijven gelden.'],
+                              'net-/fase-/kwartiergrenzen, minimumtijden, beschermde cycli en apparaatvoorwaarden blijven gelden.',
+                              'Een waarschuwing na overdracht van zonnevermogen benoemt het betrokken gewone toestel en de mislukte '
+                              'overdrachtscontrole. Nieuwe P1-metingen en het werkelijke verloop na de opdracht bepalen of overdracht is '
+                              'bevestigd; een uitgeschakelde stekker of korte momentopname alleen is geen bewijs van beschikbaar nieuw '
+                              'vermogen. Een eerder vastgehouden herstelwacht blijft apart herkenbaar en wordt door deze uitleg niet '
+                              'automatisch gewist. Een waarschuwing bij een toestel bewijst geen storing van de volledige installatie.'],
                'bullets': []},
               {'title': '8. Gewone flexibele toestellen en ontvochtiger',
                'paragraphs': ['Bestaande toestellen behouden hun adapter, deelname, centrale positie, meter, minimumlooptijd, rusttijd, '
@@ -866,7 +871,42 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Beveiligingen, tekenrichting en betrouwbare actuele bronnen blijven noodzakelijk.'],
                'bullets': []},
               {'title': '12. Thuisbatterij',
-               'paragraphs': ['Zonder gekoppelde hardware blijft de batterij-what-if adviserend. Fysieke batterijbediening vereist globale en '
+               'paragraphs': ['Marstek Venus E 3.0 heeft een afzonderlijk profiel voor uitsluitend uitlezen via de al aanwezige '
+                              'Marstek-integratie in Home Assistant. Voeg het profiel bewust toe onder Batterijen en kies de bestaande '
+                              'batterij-AC-vermogenssensor, de juiste tekenrichting en eventueel de SoC-sensor. Er is geen automatische '
+                              'bronbinding op naam en geen installatie of koppeling alleen doordat SolarPilot wordt bijgewerkt. De fabrikant '
+                              'vermeldt 5,12 kWh nominale batterijcapaciteit; dat is geen gegarandeerd bruikbare AC-energie of vrije reserve.',
+                              'De vermogensbron moet de getekende AC-stroom van de batterij zelf meten, in W of kW, zodat laden en ontladen '
+                              'uit elkaar blijven. In Marstek heet de AC OnGrid-bron Vermogen netaansluiting; Totaal vermogen van de CT is een '
+                              'woningmeting. Een P1-/CT-netmeting voor de hele woning, DC-batterijvermogen of een absolute waarde zonder '
+                              'richting is hiervoor ongeschikt. Controleer de betekenis bij werkelijk laden en ontladen en bevestig daarna '
+                              'de AC-meetdekking. Die bevestiging verleent geen bedieningsrecht. SoC is een afzonderlijke optionele weergave: '
+                              'zonder geldige procentmeting blijft de laadtoestand onbekend, terwijl een geldige vermogensbron bruikbaar kan '
+                              'blijven. Een ontbrekende of oude vermogensmeting wordt nooit als nul ontlading behandeld.',
+                              'Voor de ondersteunde native Marstek-bron controleert SolarPilot de werkelijk gekoppelde entiteit en haar '
+                              'bestaande coordinator, de oorspronkelijke geslaagde ES-statusuitlezing en de bronkwaliteit. Bovendien moet '
+                              'een al ontvangen antwoord van dezelfde batterij het gekozen vermogensveld werkelijk bevatten en met de '
+                              'gepubliceerde waarde overeenkomen. Een opnieuw gepubliceerd Home Assistant-bericht of gedeeltelijk '
+                              'antwoord zonder dat veld verjongt de waarde niet. Een nieuw geldig antwoord met dezelfde waarde, ook 0 W, '
+                              'kan de meting wel vernieuwen. Hiervoor wordt geen extra bronopvraag, RPC of netwerkverbinding gestart.',
+                              'SolarPilot bewaart dit ontvangen veldbewijs kort in het geheugen wanneer de bronintegratie haar kortere '
+                              'antwoordcache opruimt. De oorspronkelijke ontvangsttijd blijft gelden, maximaal tot de ingestelde '
+                              'bronleeftijd, standaard 120 seconden. Een gedeeltelijk antwoord verlengt die termijn niet. Mislukte '
+                              'bronstatus, ontbrekend passend veldbewijs of een gewijzigde koppeling geeft geen actuele meting. SoC '
+                              'heeft afzonderlijk bewijs; onbekende SoC maakt geldig AC-vermogen niet ongeldig. Dit controleert ontvangen '
+                              'brondata en is geen onafhankelijke fysieke meetgarantie.',
+                              'Het Marstek-profiel kan niet laden, ontladen, pauzeren, een reserve instellen of een modus wijzigen, ook niet '
+                              'door globale batterijbediening of achtergebleven actuatorvelden. SolarPilot gebruikt alleen de bestaande '
+                              'Home Assistant-rapporten en opent geen extra UDP-, Modbus- of cloudpolling. De autonome Marstek-regeling blijft '
+                              'eigenaar van laden, ontladen en de eigen reserve. Het profiel krijgt geen SolarPilot-SoC-reserve of '
+                              'batterijvoorrang die gewone toestellen kan laten wachten op een laaddoel.',
+                              'Werkelijke actuele batterijontlading wordt eenmaal van het bruikbare zonneoverschot afgetrokken: opgeslagen '
+                              'energie is geen nieuwe zon. Laden zit al in de P1-balans en wordt niet opnieuw als beschikbaar overschot '
+                              'bijgeteld. Een geldig nulpunt blijft nul; ontbrekende, oude, herstelde, verkeerd getekende of overlappende '
+                              'bronnen krijgen geen verzonnen vrijgave. Het toevoegen van het monitorprofiel verhoogt geen net-, fase- of '
+                              'kwartierlimiet en verandert de SG-wolkenbuffer van vijftien minuten niet.',
+                              'Zonder gekoppelde hardware blijft de batterij-what-if adviserend. Fysieke bediening van andere generieke '
+                              'batterijprofielen vereist globale en '
                               'individuele toestemming plus bevestigd exclusief eigenaarschap. Netladen en exportontladen staan standaard Uit. '
                               'De eigen batterijcommandobescherming blijft bestaan en wordt niet door verwijdering van oude warmtepompsturing '
                               'gereset.',

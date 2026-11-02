@@ -860,7 +860,11 @@ class SGBoostManager:
     def _transport(self):
         if self._adapter is None:
             from .sg_transport import ShellyLeaseAdapter
-            self._adapter = ShellyLeaseAdapter(self.runtime.hass, self.settings["entity_id"])
+            from .panasonic_authority import PanasonicCommandAuthority
+            entity_id = self.settings["entity_id"]
+            authority = PanasonicCommandAuthority(self.runtime)
+            self._adapter = ShellyLeaseAdapter(self.runtime.hass, entity_id,
+                before_write=lambda: not authority.is_monitored_battery(entity_id))
         return self._adapter
 
     def _fault(self, code, reason):
