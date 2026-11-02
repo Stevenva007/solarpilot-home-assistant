@@ -220,8 +220,13 @@ def sg_solar_budget(runtime):
     if runtime.settings.get("grid_sign") == "separate":
         actual_entities.add(runtime.settings.get("export_entity"))
     fleet = getattr(runtime, "battery_fleet", None)
+    source_problem = getattr(fleet, "source_problem", None)
+    battery_problem = source_problem() if callable(source_problem) else ""
+    if battery_problem:
+        result.update(reason=battery_problem, hp_credit_reason=battery_problem)
     if getattr(fleet, "settings", {}).get("enabled") and getattr(fleet, "configured", False):
-        actual_entities.update(config.get("power_entity") for config in getattr(fleet, "configs", {}).values())
+        actual_entities.update(config.get("power_entity") for config in getattr(fleet, "configs", {}).values()
+                               if isinstance(config.get("power_entity"), str))
     else:
         actual_entities.add(runtime.settings.get("battery_power_entity"))
     for entity in actual_entities:

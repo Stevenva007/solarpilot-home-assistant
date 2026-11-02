@@ -79,6 +79,10 @@ class BatteryReading:
     power_valid: bool | None = None
     soc_valid: bool | None = None
     soc_stamp: float = 0.0
+    source_code: str = ""
+    reason: str = ""
+    native_key: str | None = None
+    expected_native_key: str | None = None
 
     @property
     def discharge_w(self):

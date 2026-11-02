@@ -4,6 +4,7 @@ Build SolarPilot-voorbeeld.html before running this fixture. Screenshots are
 kept outside the repository, alongside the existing frontend browser gates.
 """
 import os
+import json
 from pathlib import Path
 import shutil
 
@@ -18,7 +19,7 @@ errors = []
 def assert_monitor_only(panel):
     assert "Alleen monitoren · Marstek regelt zelf" in panel.inner_text()
     assert panel.locator("input,select,[role=switch]").count() == 0
-    assert panel.locator("button:not([data-action=source_history])").count() == 0
+    assert panel.locator("button:not([data-action=source_history]):not([data-action=configure])").count() == 0
     for forbidden in ("Advies", "bestuurbaar", "BEDIENING TOEGESTAAN", "Batterijscenario", "doelvermogen"):
         assert forbidden not in panel.inner_text(), forbidden
 
@@ -35,6 +36,8 @@ with sync_playwright() as playwright:
     page.clock.install()
     page.set_content((ROOT / "SolarPilot-voorbeeld.html").read_text(encoding="utf-8"), wait_until="load")
     page.wait_for_selector("solar-pilot-card >> h1")
+    page.evaluate("help=>{window.SOLAR_PILOT_HELP_DATA=help;}", json.loads(
+        (ROOT / "custom_components/solar_pilot/frontend/option-help.json").read_text()))
     page.evaluate("""() => {
       window.c=document.querySelector('solar-pilot-card');
       window.controlWrites=[];window.sourceReads=[];window.nativeHistoryViews=[];
@@ -51,7 +54,7 @@ with sync_playwright() as playwright:
       };
       window.applyMonitor=(changes={},mixed=false,secondMonitor=null)=>{
         const a=structuredClone(c._last.attributes),now=Date.now()/1000;
-        a.config_entry_id='fictional-battery-entry';a.integration_version='1.0.0-beta.113';
+        a.config_entry_id='fictional-battery-entry';a.integration_version=window.SOLAR_PILOT_HELP_DATA.version;
         a.restored=false;
         const battery={id:'fictional-monitor',name:'Marstek Venus E3 · fictief',profile:'marstek_venus_e3',
           monitor_only:true,control_kind:'read_only',control_enabled:false,controllable:false,
@@ -122,6 +125,80 @@ with sync_playwright() as playwright:
         page.evaluate("changes=>applyMonitor(changes)", changes)
         assert panel.locator(".badge").inner_text() == "Onbekend", changes
         assert "Ontladen\nOnbekend" in panel.inner_text()
+
+    # A still-published zero and valid SoC must not conceal an unconfirmed or
+    # incorrectly selected AC source. The repair action opens only settings.
+    page.evaluate("""applyMonitor({power_w:0,power_valid:false,soc_valid:true,soc_pct:11,
+      soc_stamp:Date.now()/1000,source_code:'ac_unconfirmed',
+      reason:'AC-meetdekking nog niet bevestigd. Bewerk de Marstek-monitor.'})""")
+    assert "11%" in panel.inner_text()
+    assert "AC-meetdekking nog niet bevestigd" in panel.inner_text()
+    assert panel.locator("[data-action=configure]").inner_text() == "Batterijbron controleren"
+    assert_monitor_only(panel)
+    page.evaluate("""applyMonitor({power_w:0,power_valid:false,soc_valid:true,soc_pct:11,
+      soc_stamp:Date.now()/1000,source_code:'native_source_scope',
+      reason:'Verkeerde Marstek-meetbron. Kies Vermogen netaansluiting (AC OnGrid).'})""")
+    assert "Verkeerde Marstek-meetbron" in panel.inner_text()
+    assert "AC-meetdekking nog niet bevestigd" not in panel.inner_text()
+    page.evaluate("""() => {
+      window.settingsRequests=[];window.batterySettingsSaved=null;
+      const values={name:'Fictieve Marstek-monitor',power_entity:'sensor.fictional_battery_ac',
+        power_sign:'discharge_positive',ac_power_confirmed:false};
+      const marstekForm=(input={},errors={})=>{
+        const v={...values,...input};return{type:'form',flow_id:'fictional-source-flow',
+          step_id:'battery_marstek',errors,data_schema:[
+            {name:'name',required:true,selector:{text:{}},default:v.name},
+            {name:'power_entity',required:true,selector:{entity:{domain:'sensor'}},default:v.power_entity},
+            {name:'power_sign',required:true,selector:{select:{options:[
+              {value:'discharge_positive',label:'Positief = ontladen naar huis'},
+              {value:'charge_positive',label:'Positief = laden'}]}},default:v.power_sign},
+            {name:'ac_power_confirmed',required:true,selector:{boolean:{}},default:v.ac_power_confirmed}]};
+      };
+      c.hass={...c._hass,user:{id:'fictional-battery-user',is_admin:true},
+        states:{...c._hass.states,'sensor.fictional_battery_ac':{state:'0',attributes:{unit_of_measurement:'W'}},
+          'sensor.fictional_battery_dc':{state:'0',attributes:{unit_of_measurement:'W'}}},
+        callApi:async(method,path,data)=>{
+          settingsRequests.push({method,path,data});
+          if(method==='delete')return{};
+          if(path==='config/config_entries/options/flow')return{type:'menu',flow_id:'fictional-source-flow',step_id:'init',menu_options:['loads_hub']};
+          if(data.next_step_id==='loads_hub')return{type:'menu',flow_id:'fictional-source-flow',step_id:'loads_hub',menu_options:['battery']};
+          if(data.next_step_id==='battery')return{type:'menu',flow_id:'fictional-source-flow',step_id:'battery',menu_options:['battery_edit']};
+          if(data.next_step_id==='battery_edit')return{type:'form',flow_id:'fictional-source-flow',step_id:'battery_edit',errors:{},data_schema:[
+            {name:'battery_id',required:true,selector:{select:{options:[{value:'fictional-monitor',label:'Fictieve Marstek'}]}},default:'fictional-monitor'}]};
+          if(data.battery_id)return marstekForm();
+          if(data.ac_power_confirmed!==true)return marstekForm(data,{ac_power_confirmed:'battery_ac_confirmation'});
+          if(data.power_entity!=='sensor.fictional_battery_ac')return marstekForm(data,{power_entity:'battery_native_scope'});
+          if(data.power_sign!=='discharge_positive')return marstekForm(data,{power_sign:'battery_native_sign'});
+          batterySettingsSaved=data;return{type:'create_entry',title:'Opgeslagen',data:{}};
+        }};
+    }""")
+    panel.locator("[data-action=configure]").click()
+    options = card.locator("solar-pilot-options-dialog")
+    options.locator("[data-menu=battery_edit]").click()
+    options.locator("button[type=submit]").click()
+    options.locator("[name=ac_power_confirmed]").wait_for()
+    assert not options.locator("[name=ac_power_confirmed]").is_checked()
+    options.locator("button[type=submit]").click()
+    assert "Zonder bevestiging wordt de monitor niet opgeslagen" in options.locator(".inline-error").inner_text()
+    assert page.evaluate("batterySettingsSaved") is None
+    options.locator("[name=ac_power_confirmed]").check()
+    options.locator("[name=power_entity]").fill("sensor.fictional_battery_dc")
+    options.locator("button[type=submit]").click()
+    assert "Kies Vermogen netaansluiting" in options.locator(".inline-error").inner_text()
+    assert page.evaluate("batterySettingsSaved") is None
+    options.locator("[name=power_entity]").fill("sensor.fictional_battery_ac")
+    options.locator("[name=power_sign]").select_option("charge_positive")
+    options.locator("button[type=submit]").click()
+    assert "Positief = ontladen naar huis" in options.locator(".inline-error").inner_text()
+    assert page.evaluate("batterySettingsSaved") is None
+    options.locator("[name=power_sign]").select_option("discharge_positive")
+    options.locator("button[type=submit]").click()
+    page.wait_for_function("batterySettingsSaved!==null")
+    assert page.evaluate("batterySettingsSaved.ac_power_confirmed") is True
+    assert page.evaluate("settingsRequests.slice(0,3).map(r=>r.data)") == [
+        {"handler": "fictional-battery-entry"}, {"next_step_id": "loads_hub"}, {"next_step_id": "battery"}]
+    options.locator("[data-close]").click()
+    assert page.evaluate("controlWrites") == []
 
     # Every monitor action is a read-only source-history action. Opening it and
     # receiving new readings must not invoke any Home Assistant service.
@@ -197,4 +274,4 @@ with sync_playwright() as playwright:
     browser.close()
 
 assert not errors, errors
-print("Marstek Chromium: fresh/expired power, independent SoC, read-only history, mixed batteries and four widths passed")
+print("Marstek Chromium: source repair forms, native scope/sign errors, fresh/expired power, independent SoC, read-only history, mixed batteries and four widths passed")

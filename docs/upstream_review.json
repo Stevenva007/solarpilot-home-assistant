@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "reviewed_at": "2026-11-02T00:50:06Z",
+  "reviewed_at": "2026-11-02T19:47:36.227291Z",
   "assessment": {
     "status": "complete_no_unprocessed_changes",
-    "summary": "Beta.113 reviewed official Aquarea1.9.1 at76f7e84c98897a7ef354ea8f1e5a6f34d0a71b4b against1.9.0 d3867f4143f7e2c15b84ed67c6e7ace2561f5f96 on2026-11-02. Complete2commit7file comparison adds API_ERROR login retry backoff5/10/20/max30min; waiting raises UpdateFailed, successful update resets. Existing source-success checks reject failed/stale polls; device/zone/tank/action/energy contracts unchanged. Existing source/poll regressions131passed. SDK1.5.0 unchanged55da9428ddf43ed26f2386d79c43d50cf4d9da0c. No native writer or automatic provider update. See docs/UPSTREAM_BETA113.md including separate official Marstek capacity source. Source review is not compatibility or installation approval.",
+    "summary": "Beta.114 rechecked the official Aquarea/SDK default-branch HEADs, latest published stable releases and resolved tag commits on 2026-11-02. Aquarea1.9.1 remains76f7e84c98897a7ef354ea8f1e5a6f34d0a71b4b; SDK1.5.0 remains55da9428ddf43ed26f2386d79c43d50cf4d9da0c. Both are identical to the content-reviewed beta.113 checkpoint; no newly changed upstream source remains to process. Existing failed/cached-poll guards and native task/energy contracts remain. Battery source validation and diagnostics use the already pinned Marstek1.12.0 field contract without new polling or actuator permission. No automatic provider update or installation-compatibility claim. See docs/UPSTREAM_BETA114.md.",
     "compatibility_claim": false,
     "evidence_document": "docs/UPSTREAM_BRONNEN.md"
   },
@@ -19,8 +19,8 @@
         "published_at": "2026-11-01T18:52:58Z",
         "selection": "github_latest_published_stable"
       },
-      "reviewed_base_commit": "d3867f4143f7e2c15b84ed67c6e7ace2561f5f96",
-      "review_result": "relevant_changes_processed"
+      "reviewed_base_commit": "76f7e84c98897a7ef354ea8f1e5a6f34d0a71b4b",
+      "review_result": "no_additional_changes"
     },
     {
       "repository": "wpatrik14/aioaquarea",

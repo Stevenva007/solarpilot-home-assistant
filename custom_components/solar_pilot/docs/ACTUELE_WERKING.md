@@ -1,8 +1,8 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.113
+**Versie:** 1.0.0-beta.114
 **Bijgewerkt:** 2026-11-02
-**Regel-hash:** `6b26f5854ba02df7`
+**Regel-hash:** `4761dfab94d9b327`
 
 SolarPilot verdeelt het echte huidige zonneoverschot zonder toekomstige toestelpieken te reserveren. De warmtepomp heeft voor automatisch algemeen SG-zonbedrijf vaste voorrang op bevestigd autonoom Wallbox-zonneladen. Een toegestaan AAN-contact kan aanblijven zolang de actuele voorwaarden voldoen; er is geen verplichte uurstop of administratieve sessiereset. Korte lokale toestemming en actuele hercontrole blijven noodzakelijk. Panasonic regelt de warmtepomp zelfstandig.
 
@@ -295,6 +295,10 @@ Marstek Venus E 3.0 heeft een afzonderlijk profiel voor uitsluitend uitlezen via
 
 De vermogensbron moet de getekende AC-stroom van de batterij zelf meten, in W of kW, zodat laden en ontladen uit elkaar blijven. In Marstek heet de AC OnGrid-bron Vermogen netaansluiting; Totaal vermogen van de CT is een woningmeting. Een P1-/CT-netmeting voor de hele woning, DC-batterijvermogen of een absolute waarde zonder richting is hiervoor ongeschikt. Controleer de betekenis bij werkelijk laden en ontladen en bevestig daarna de AC-meetdekking. Die bevestiging verleent geen bedieningsrecht. SoC is een afzonderlijke optionele weergave: zonder geldige procentmeting blijft de laadtoestand onbekend, terwijl een geldige vermogensbron bruikbaar kan blijven. Een ontbrekende of oude vermogensmeting wordt nooit als nul ontlading behandeld.
 
+Een actief Marstek-profiel kan pas worden opgeslagen nadat de AC-meetdekking werkelijk is bevestigd. De bronkeuze moet bij de ondersteunde native koppeling ook het batterij-AC-veld en zijn bekende tekenrichting gebruiken. Een bestaande onbevestigde koppeling blijft zichtbaar als onvoltooid; een update bevestigt haar niet automatisch. Open Batterijen, pas het betreffende profiel aan, controleer de bestaande AC-sensor en tekenrichting en bevestig daarna de meetdekking.
+
+Bij een onbruikbare batterijbron tonen Overzicht, Opslag, SG en de analyse-export de concrete oorzaak. Ontbrekende AC-bevestiging, een verkeerde native meetsoort en ontbrekend actueel veldbewijs zijn afzonderlijke oorzaken. De veilige diagnostiek kan het verwachte en aangetroffen native veld noemen, zonder ruwe providerantwoorden of netwerkidentiteit over te nemen. Verhelp eerst de genoemde oorzaak en controleer daarna opnieuw de bronkwaliteit; een bevestiging alleen bewijst geen succesvolle actuele uitlezing.
+
 Voor de ondersteunde native Marstek-bron controleert SolarPilot de werkelijk gekoppelde entiteit en haar bestaande coordinator, de oorspronkelijke geslaagde ES-statusuitlezing en de bronkwaliteit. Bovendien moet een al ontvangen antwoord van dezelfde batterij het gekozen vermogensveld werkelijk bevatten en met de gepubliceerde waarde overeenkomen. Een opnieuw gepubliceerd Home Assistant-bericht of gedeeltelijk antwoord zonder dat veld verjongt de waarde niet. Een nieuw geldig antwoord met dezelfde waarde, ook 0 W, kan de meting wel vernieuwen. Hiervoor wordt geen extra bronopvraag, RPC of netwerkverbinding gestart.
 
 SolarPilot bewaart dit ontvangen veldbewijs kort in het geheugen wanneer de bronintegratie haar kortere antwoordcache opruimt. De oorspronkelijke ontvangsttijd blijft gelden, maximaal tot de ingestelde bronleeftijd, standaard 120 seconden. Een gedeeltelijk antwoord verlengt die termijn niet. Mislukte bronstatus, ontbrekend passend veldbewijs of een gewijzigde koppeling geeft geen actuele meting. SoC heeft afzonderlijk bewijs; onbekende SoC maakt geldig AC-vermogen niet ongeldig. Dit controleert ontvangen brondata en is geen onafhankelijke fysieke meetgarantie.
@@ -328,6 +332,10 @@ Dagelijkse EMS-cijfers houden de werkelijk gemeten PV-tijd, ontbrekende PV-tijd 
 ## 14. Meetkwaliteit en modelgegevens
 
 SolarPilot leert lokaal, zonder externe AI-dienst of het herschrijven van zijn code. Bruikbaar gemeten verbruik, basislast, PV-/weercorrectie, faseclassificatie en complete apparaatcycli kunnen analyse/planning verbeteren. Prioriteiten, deadlines, net-/fasegrenzen en fysieke toestemming veranderen niet autonoom door leren. Een vermogensprofiel uit een andere bronbinding telt niet mee. Faseleren vraagt volledige geïsoleerde metingen; een cyclus met onvoldoende werkelijke meetdekking wordt geen compleet leerprofiel. Beschadigde optionele velden worden afzonderlijk beoordeeld, zodat geldige buurrecords beschikbaar blijven.
+
+Basislastleren kan een ingeschakelde batterijvloot gebruiken wanneer iedere actieve batterij afzonderlijk een volledige bevestigde getekende AC-vermogensmeting levert. De energiebalans gebruikt net plus PV plus getekend batterijvermogen, verminderd met de werkelijk gemeten beheerde lasten en Wallbox. Ontladen is positief en laden negatief; dezelfde stroom telt eenmaal mee. De oorspronkelijke ontvangsttijd blijft leidend, maximaal 120 seconden oud voor deze leerwaarneming. Alle bronnen moeten bij elkaar passen.
+
+Een ontbrekende, oude, geschatte, herstelde, afgeleide of dubbele noodzakelijke bron maakt de basislastwaarneming onbekend. Onbekende overlap met een centrale batterijmeter wordt niet opgeteld of weggelaten. Een generiek profiel zonder expliciete AC-meetbevestiging levert hiervoor geen bewijs. Onbekende SoC bij een Marstek-monitor verhindert een afzonderlijk geldige AC-meting niet. Deze basislastcorrectie verbetert alleen leren en planning; een model creëert geen actuele vrije zonnestroom of nieuwe toesteltoestemming.
 
 Oude woning-/tankmodellen en hun bewijs blijven bewaard voor privé-analyse en rollback. Zij verlenen in deze versie geen ruimte- of tankopdrachtrecht. Er is geen modelreset of nieuw actief klimaatleerregelpad. Bewaarde modelkwaliteit is geen kans dat een fysieke actie juist is. Een onbekend schema voor kosten, PV-model, besparingen of advies blijft in zijn oorspronkelijke opgeslagen vorm behouden en geeft geen modelbewijs. Onleesbare of onbekende historie-/analyseopslag wordt niet automatisch vervangen. Eventuele nieuwe waarnemingen in geheugen bewijzen geen herstel van die oude opslag.
 

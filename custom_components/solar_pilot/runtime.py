@@ -3208,7 +3208,9 @@ class SolarRuntime:
         else:
             self.problem_kind, self.problem = self._owned_source_problem()
             if not self.problem and not valid:
-                self.problem = "Net- of batterijmeting ontbreekt, is te oud of heeft een verkeerde eenheid"
+                battery_problem = self.battery_fleet.source_problem()
+                self.problem_kind = "battery_source" if battery_problem else self.problem_kind
+                self.problem = battery_problem or "Net- of batterijmeting ontbreekt, is te oud of heeft een verkeerde eenheid"
         if not self.problem and wb.state == "unavailable":
             # Read-only charger telemetry is not a consumer command fault.
             # It must never offer a site-wide verified-OFF reset.

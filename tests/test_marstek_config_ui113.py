@@ -23,7 +23,8 @@ def flow(monkeypatch):
     cls = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "SolarPilotOptions")
     cls.bases = []
     cls.keywords = []
-    env = dict(deepcopy=deepcopy, uuid4=uuid4, BATTERY_DEFAULTS=BATTERY_DEFAULTS,
+    env = dict(__name__="custom_components.solar_pilot.config_flow",
+        __package__="custom_components.solar_pilot", deepcopy=deepcopy, uuid4=uuid4, BATTERY_DEFAULTS=BATTERY_DEFAULTS,
         BATTERY_FLEET_DEFAULTS=BATTERY_FLEET_DEFAULTS, MARSTEK_PROFILE=MARSTEK_PROFILE,
         normalize_battery_config=normalize_battery_config, battery_source_error=battery_source_error,
         merged_site=lambda values: values,
@@ -134,8 +135,10 @@ async def test_ambiguous_or_non_battery_sources_cannot_be_saved(flow, change):
 async def test_soc_optional_and_scope_confirmation_requires_literal_true(flow):
     await flow.async_step_battery_marstek()
     result = await flow.async_step_battery_marstek(inputs(ac_power_confirmed="true"))
-    battery = result["saved"]["batteries"][0]
-    assert battery["soc_entity"] == "" and battery["ac_power_confirmed"] is False
+    assert result["errors"] == {"ac_power_confirmed": "battery_ac_confirmation"}
+    assert flow.saved is None and flow._battery["ac_power_confirmed"] is False
+    result = await flow.async_step_battery_marstek(inputs())
+    assert result["saved"]["batteries"][0]["soc_entity"] == ""
 
 
 def render(**changes):

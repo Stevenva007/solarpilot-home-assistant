@@ -3,11 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.113'
+GUIDE_VERSION = '1.0.0-beta.114'
 GUIDE_UPDATED = '2026-11-02'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.113',
+ 'version': '1.0.0-beta.114',
  'updated': '2026-11-02',
  'intro': 'SolarPilot verdeelt het echte huidige zonneoverschot zonder toekomstige toestelpieken te reserveren. De warmtepomp heeft voor '
           'automatisch algemeen SG-zonbedrijf vaste voorrang op bevestigd autonoom Wallbox-zonneladen. Een toegestaan AAN-contact kan '
@@ -883,6 +883,16 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'de AC-meetdekking. Die bevestiging verleent geen bedieningsrecht. SoC is een afzonderlijke optionele weergave: '
                               'zonder geldige procentmeting blijft de laadtoestand onbekend, terwijl een geldige vermogensbron bruikbaar kan '
                               'blijven. Een ontbrekende of oude vermogensmeting wordt nooit als nul ontlading behandeld.',
+                              'Een actief Marstek-profiel kan pas worden opgeslagen nadat de AC-meetdekking werkelijk is bevestigd. '
+                              'De bronkeuze moet bij de ondersteunde native koppeling ook het batterij-AC-veld en zijn bekende tekenrichting '
+                              'gebruiken. Een bestaande onbevestigde koppeling blijft zichtbaar als onvoltooid; een update bevestigt haar '
+                              'niet automatisch. Open Batterijen, pas het betreffende profiel aan, controleer de bestaande AC-sensor en '
+                              'tekenrichting en bevestig daarna de meetdekking.',
+                              'Bij een onbruikbare batterijbron tonen Overzicht, Opslag, SG en de analyse-export de concrete oorzaak. '
+                              'Ontbrekende AC-bevestiging, een verkeerde native meetsoort en ontbrekend actueel veldbewijs zijn afzonderlijke '
+                              'oorzaken. De veilige diagnostiek kan het verwachte en aangetroffen native veld noemen, zonder ruwe '
+                              'providerantwoorden of netwerkidentiteit over te nemen. Verhelp eerst de genoemde oorzaak en controleer '
+                              'daarna opnieuw de bronkwaliteit; een bevestiging alleen bewijst geen succesvolle actuele uitlezing.',
                               'Voor de ondersteunde native Marstek-bron controleert SolarPilot de werkelijk gekoppelde entiteit en haar '
                               'bestaande coordinator, de oorspronkelijke geslaagde ES-statusuitlezing en de bronkwaliteit. Bovendien moet '
                               'een al ontvangen antwoord van dezelfde batterij het gekozen vermogensveld werkelijk bevatten en met de '
@@ -953,6 +963,17 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'vermogensprofiel uit een andere bronbinding telt niet mee. Faseleren vraagt volledige geïsoleerde metingen; een '
                               'cyclus met onvoldoende werkelijke meetdekking wordt geen compleet leerprofiel. Beschadigde optionele velden '
                               'worden afzonderlijk beoordeeld, zodat geldige buurrecords beschikbaar blijven.',
+                              'Basislastleren kan een ingeschakelde batterijvloot gebruiken wanneer iedere actieve batterij afzonderlijk '
+                              'een volledige bevestigde getekende AC-vermogensmeting levert. De energiebalans gebruikt net plus PV plus '
+                              'getekend batterijvermogen, verminderd met de werkelijk gemeten beheerde lasten en Wallbox. Ontladen is '
+                              'positief en laden negatief; dezelfde stroom telt eenmaal mee. De oorspronkelijke ontvangsttijd blijft '
+                              'leidend, maximaal 120 seconden oud voor deze leerwaarneming. Alle bronnen moeten bij elkaar passen.',
+                              'Een ontbrekende, oude, geschatte, herstelde, afgeleide of dubbele noodzakelijke bron maakt de '
+                              'basislastwaarneming onbekend. Onbekende overlap met een centrale batterijmeter wordt niet opgeteld of '
+                              'weggelaten. Een generiek profiel zonder expliciete AC-meetbevestiging levert hiervoor geen bewijs. '
+                              'Onbekende SoC bij een Marstek-monitor verhindert een afzonderlijk geldige AC-meting niet. Deze '
+                              'basislastcorrectie verbetert alleen leren en planning; een model creëert geen actuele vrije zonnestroom '
+                              'of nieuwe toesteltoestemming.',
                               'Oude woning-/tankmodellen en hun bewijs blijven bewaard voor privé-analyse en rollback. Zij verlenen in deze '
                               'versie geen ruimte- of tankopdrachtrecht. Er is geen modelreset of nieuw actief klimaatleerregelpad. Bewaarde '
                               'modelkwaliteit is geen kans dat een fysieke actie juist is. Een onbekend schema voor kosten, PV-model, '

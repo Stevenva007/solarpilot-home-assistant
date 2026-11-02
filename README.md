@@ -1,12 +1,12 @@
 # SolarPilot
 
-**Actuele bronversie: 1.0.0-beta.113.** SolarPilot verdeelt lokaal zonnestroom tussen je toestellen in Home Assistant.
+**Actuele bronversie: 1.0.0-beta.114.** SolarPilot verdeelt lokaal zonnestroom tussen je toestellen in Home Assistant.
 
-Marstek Venus E 3.0 kan nu als uitsluitend uitleesbare batterij worden toegevoegd via bestaande sensoren van de Marstek-integratie in Home Assistant. Kies bewust de getekende AC-batterijvermogensbron en tekenrichting; SoC is optioneel. SolarPilot bedient de batterij niet. Werkelijke ontlading telt eenmaal als batterijbijdrage en wordt niet als zonneoverschot gezien. De update koppelt geen bronnen automatisch.
+Een Marstek-bronmelding noemt nu de ontbrekende AC-meetbevestiging, verkeerde native meetsoort of ontbrekend actueel veldbewijs. Gebruik **Batterijbron controleren** om het bestaande profiel te openen. Een actief profiel vraagt vóór opslaan een bewuste AC-bevestiging; een update bevestigt of vervangt de bron niet automatisch. Marstek blijft uitsluitend monitoren, met afzonderlijke SoC en zonder extra polling of bediening.
 
-Waarschuwingen na vermogensoverdracht benoemen het betrokken toestel en de concrete overdrachtscontrole; eerdere herstelwacht wordt niet stil gewist. De SG-regeling met vijftien minuten wolkenbuffer en vaste zonnevoorrang op autonoom Wallboxladen blijft behouden.
+Basislastleren kan een batterijvloot meenemen wanneer alle actieve bronnen afzonderlijk volledige bevestigde getekende AC-metingen leveren. Oorspronkelijke rapporttijden, bronkwaliteit en overlapcontroles blijven nodig. Leren of planning creëert geen actuele vrije zonnestroom. SG behoudt zijn vijftienminutenbuffers en vaste zonnevoorrang op autonoom Wallboxladen.
 
-[Actuele werking](docs/ACTUELE_WERKING.md) · [Installatie en rollback](docs/BETA113_INSTELLEN.md) · [Testverslag](docs/TESTRESULTATEN_BETA113.md) · [Changelog](CHANGELOG.md)
+[Actuele werking](docs/ACTUELE_WERKING.md) · [Installatie en rollback](docs/BETA114_INSTELLEN.md) · [Testverslag](docs/TESTRESULTATEN_BETA114.md) · [Changelog](CHANGELOG.md)
 
 Panasonic regelt de warmtepomp zelfstandig; SolarPilot bedient uitsluitend de bevestigde SG-uitgang. De afwasmachine behoudt haar beschermde cyclus. Net-, fase- en kwartiergrenzen blijven gelden.
 
@@ -23,7 +23,7 @@ Bij **Analyse nodig** maakt één klik een export van de beschikbare zeven dagen
 
 ## Herstel van de beta.62-opstartfout
 
-Update via HACS naar beta.112 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.91 vraagt geen herbevestiging alleen door de codeupdate.
+Update via HACS naar beta.114 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.91 vraagt geen herbevestiging alleen door de codeupdate.
 
 ## Upgrade vanaf beta.61
 

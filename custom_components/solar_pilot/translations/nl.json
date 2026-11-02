@@ -1166,7 +1166,7 @@
           "name": "Herkenbare naam voor deze Marstek Venus E 3.0-monitor.",
           "power_entity": "Kies de bestaande getekende batterij-AC-sensor, bij Marstek Vermogen netaansluiting (AC OnGrid), in W of kW.",
           "power_sign": "Kies bewust welk teken bij de geselecteerde batterij-AC-sensor ontladen betekent.",
-          "ac_power_confirmed": "Bevestig alleen na controle dat de gekozen sensor het volledige getekende AC-vermogen van deze batterij zelf weergeeft.",
+          "ac_power_confirmed": "Controleer dat de gekozen sensor het volledige getekende AC-vermogen van deze batterij zelf weergeeft en bevestig daarna de meetdekking.",
           "soc_entity": "Optionele bestaande Marstek-laadtoestand in procent.",
           "phase_hint": "Optionele bekende fysieke fase van de batterij."
         }
@@ -1232,7 +1232,10 @@
       "water_flow_source": "Kies een actuele debietsensor met een ondersteunde volume-per-tijd-eenheid, geen cumulatieve meterstand.",
       "water_leak_source": "Kies een bestaande binary_sensor voor waterlekkage met apparaatklasse moisture.",
       "dishwasher_energy_meter": "Kies een cumulatieve Wh/kWh-sensor met state_class total of total_increasing.",
-      "battery_source_scope": "Kies een afzonderlijke batterijbron. Net-, PV-, auto- en dubbele batterijmeters mogen niet overlappen. Controleer ook een bestaande centrale batterijmeting."
+      "battery_source_scope": "Kies een afzonderlijke batterijbron. Net-, PV-, auto- en dubbele batterijmeters mogen niet overlappen. Controleer ook een bestaande centrale batterijmeting.",
+      "battery_ac_confirmation": "Bevestig na controle dat de gekozen sensor het getekende AC-vermogen van deze batterij meet. Zonder bevestiging wordt de monitor niet opgeslagen.",
+      "battery_native_scope": "Deze Marstek-sensor meet geen batterij-AC. Kies Vermogen netaansluiting (AC OnGrid).",
+      "battery_native_sign": "Voor deze Marstek AC-bron hoort Positief = ontladen naar huis."
     },
     "abort": {
       "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",

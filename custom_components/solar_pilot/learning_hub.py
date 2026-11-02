@@ -20,6 +20,7 @@ from .heatpump_learning import (
 )
 from .const import VERSION
 from .investigation import LocalInvestigation
+from .battery_profiles import battery_source_error
 
 
 BASELINE_SETTLING_S = 120.0
@@ -89,7 +90,7 @@ def measured_baseline(r, local_now, monotonic):
                 "sources": list(refs), "parts": dict(parts), "context": "unknown",
                 "checked_at": checked_at, **detail}
 
-    def power(entity, limit=120):
+    def power(entity, limit=120, *, original_stamp=None):
         if not entity or entity in refs:
             return None
         obj = r.hass.states.get(entity)
@@ -112,6 +113,13 @@ def measured_baseline(r, local_now, monotonic):
         value, stamp = r._power(entity, limit)
         if number(value) is None or stamp <= 0:
             return None
+        if original_stamp is not None:
+            original = number(original_stamp)
+            if original is None or original <= 0 or not -5 <= checked_at-original <= limit:
+                return None
+            # The fleet can prove an older native receipt than HA's latest
+            # publication. Learning keeps that original age and alignment.
+            stamp = min(stamp, original)
         refs.append(entity); stamps.append(stamp)
         return value
 
@@ -128,11 +136,36 @@ def measured_baseline(r, local_now, monotonic):
         grid = -grid
     parts.update(grid_w=grid, pv_w=pv)
     battery = 0.0
-    if r.battery_fleet.settings.get("enabled") and r.battery_fleet.configured:
-        # Multiple storage units need consistent, separately validated signed
-        # readings. Keep the sample unknown rather than credit partial totals.
-        return fail("battery_fleet", "Basislastcorrectie voor een batterijvloot nog niet gevalideerd; geen gedeeltelijk gemeten batterij aftrekken.")
-    if r.settings.get("battery_power_entity"):
+    fleet = r.battery_fleet
+    active = {bid: cfg for bid, cfg in fleet.configs.items()
+              if cfg.get("enabled", True) is True}
+    if fleet.settings.get("enabled") and active:
+        error = battery_source_error(active.values(), r.settings)
+        if error:
+            return fail("battery_fleet", error)
+        readings = [reading for reading in fleet.read() if reading.id in active]
+        status = fleet.source_status(readings=readings)
+        if not status["valid"]:
+            return fail("battery_fleet", status["reason"])
+        if len(readings) != len(active) or {reading.id for reading in readings} != set(active):
+            return fail("battery_fleet", "Niet iedere actieve batterij heeft een afzonderlijke betrouwbare vermogensmeting.")
+        for reading in readings:
+            cfg = active[reading.id]
+            if cfg.get("ac_power_confirmed") is not True:
+                return fail("battery_fleet", "Bevestig de AC-meetdekking van iedere actieve batterij voordat de basislast wordt geleerd.")
+            if (reading.valid is not True or reading.power_valid is not True
+                    or number(reading.power_w) is None
+                    or number(reading.power_stamp) is None
+                    or cfg.get("power_sign") not in ("discharge_positive", "charge_positive")):
+                return fail("battery_fleet", "Batterijvermogen ontbreekt of is niet als getekend AC-vermogen gevalideerd.")
+            value = power(cfg.get("power_entity"), original_stamp=reading.power_stamp)
+            signed = value if cfg.get("power_sign") == "discharge_positive" or value is None else -value
+            if signed is None or signed != reading.power_w:
+                return fail("battery_fleet", "Batterijmeting is oud, dubbel, geschat of past niet bij het oorspronkelijke bronbewijs.")
+            battery += signed
+            if number(battery) is None:
+                return fail("battery_fleet", "De gezamenlijke batterijmeting is niet eindig; geen basislastmeting leren.")
+    elif r.settings.get("battery_power_entity"):
         value = power(r.settings.get("battery_power_entity"))
         if value is None:
             return fail("battery_source", "Batterijmeting ontbreekt voor de energiebalans.")
