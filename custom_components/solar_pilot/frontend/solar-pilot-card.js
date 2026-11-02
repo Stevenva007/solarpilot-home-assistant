@@ -1,5 +1,5 @@
-/* SolarPilot 1.0.0-beta.113. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
-const SP_CARD_VERSION = '1.0.0-beta.113';
+/* SolarPilot 1.0.0-beta.114. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+const SP_CARD_VERSION = '1.0.0-beta.114';
 const SP_DIALOG_RELEASE = SP_CARD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g,'-');
 const SP_ANALYSIS_DIALOG_TAG = `solar-pilot-analysis-dialog-${SP_DIALOG_RELEASE}`;
 const SP_QUALITY_DIALOG_TAG = `solar-pilot-learning-dialog-${SP_DIALOG_RELEASE}`;
@@ -1459,12 +1459,15 @@ class SolarPilotCard extends HTMLElement {
     const r=this._marstekReading(b);
     return `<p>Alleen monitoren · Marstek regelt zelf</p>${this._reasonFacts([['Status',r.state],['Laadniveau',r.soc==null?'Onbekend':spPct(r.soc)],['Laden',r.known?spPower(Math.max(0,-r.power)):'Onbekend'],['Ontladen',r.known?spPower(Math.max(0,r.power)):'Onbekend']])}${!r.known?`<p class="note">${spEscape(b.reason||'Wacht op een actuele, bevestigde AC-vermogensmeting.')}</p>`:''}`;
   }
+  _marstekSourceButton(b){
+    return !this._marstekReading(b).known&&b.source_code?'<button type="button" class="mini" data-action="configure" data-config-step="battery">Batterijbron controleren</button>':'';
+  }
   _marstekBatteryRow(b){
     const r=this._marstekReading(b);
-    return `<section class="battery" data-marstek-monitor><div class="sectionhead"><h2>${spEscape(b.name||'Marstek Venus E3')}</h2><span class="badge">${r.state}</span></div>${this._marstekBatteryDetails(b)}${this._sourceHistoryButton('battery',b.id,'Bronhistorie in HA')}</section>`;
+    return `<section class="battery" data-marstek-monitor><div class="sectionhead"><h2>${spEscape(b.name||'Marstek Venus E3')}</h2><span class="badge">${r.state}</span></div>${this._marstekBatteryDetails(b)}${this._marstekSourceButton(b)}${this._sourceHistoryButton('battery',b.id,'Bronhistorie in HA')}</section>`;
   }
   _marstekDisplaySignature(c){
-    return JSON.stringify((c.batteryFleet?.batteries||[]).filter(b=>b.profile==='marstek_venus_e3').map(b=>[b.id,this._marstekReading(b)]));
+    return JSON.stringify((c.batteryFleet?.batteries||[]).filter(b=>b.profile==='marstek_venus_e3').map(b=>[b.id,this._marstekReading(b),b.source_code,b.reason]));
   }
   _refreshMarstekDisplay(c){
     if(!(c.batteryFleet?.batteries||[]).some(b=>b.profile==='marstek_venus_e3'))return;
@@ -1546,7 +1549,7 @@ class SolarPilotCard extends HTMLElement {
     if(c.batteryFleet?.enabled&&(c.batteryFleet.batteries||[]).length&&(c.batteryFleet.batteries||[]).every(b=>b.profile==='marstek_venus_e3')){
       for(const b of c.batteryFleet.batteries){
         const r=this._marstekReading(b);
-        rows.push(this._reasonRow({name:b.name||'Marstek Venus E3',state:r.state,reason:'Alleen monitoren · Marstek regelt zelf',view:'storage',key:'overview:battery:'+b.id,details:this._marstekBatteryDetails(b),footer:this._sourceHistoryButton('battery',b.id,'Bronhistorie in HA'),power:this._knownPower(r.power,{known:r.known,label:r.state}),activity:!r.known?'unknown':r.power!==0?'active':'inactive'}));
+        rows.push(this._reasonRow({name:b.name||'Marstek Venus E3',state:r.state,reason:!r.known&&b.reason?b.reason:'Alleen monitoren · Marstek regelt zelf',view:'storage',key:'overview:battery:'+b.id,details:this._marstekBatteryDetails(b),footer:this._marstekSourceButton(b)+this._sourceHistoryButton('battery',b.id,'Bronhistorie in HA'),power:this._knownPower(r.power,{known:r.known,label:r.state}),activity:!r.known?'unknown':r.power!==0?'active':'inactive'}));
       }
     }else if(c.batteryFleet?.enabled){
       const fleet=c.batteryFleet,aggregate=fleet.aggregate||{},powerKnown=aggregate.valid===true&&this._batteryMonitorCompleteness(fleet).power,charging=powerKnown&&Number(aggregate.charge_w)>50,discharging=powerKnown&&Number(aggregate.discharge_w)>50;

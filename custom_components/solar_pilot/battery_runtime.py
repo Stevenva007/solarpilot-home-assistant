@@ -19,6 +19,70 @@ from .ems import capacity_decision, phase_decision
 from .phase_learning import phase_allocation_from_hint, phase_total_headroom_w
 
 
+_SOURCE_REASONS = {
+    "ac_unconfirmed": "AC-meetdekking nog niet bevestigd. Bewerk de Marstek-monitor en bevestig de gekozen AC-vermogensbron.",
+    "native_source_scope": "Verkeerde Marstek-meetbron. Kies Vermogen netaansluiting (AC OnGrid) als batterijvermogen.",
+    "native_power_sign": "De Marstek AC-bron vereist Positief = ontladen naar huis.",
+    "native_provider_unavailable": "De gekozen Marstek-bron kan nog niet worden gecontroleerd. Controleer de bron in de Marstek-integratie.",
+    "native_provider_failed": "Marstek levert geen bevestigde actuele meting. Wacht op herstel van de Marstek-integratie.",
+    "native_source_stale": "De oorspronkelijke Marstek-status is te oud of heeft een ongeldige tijd.",
+    "native_field_unverified": "De actuele Marstek-meetwaarde is nog niet bevestigd. Wacht op een nieuwe geldige meting.",
+    "source_missing": "Kies een beschikbare vermogenssensor voor deze batterij.",
+    "source_unit": "De batterijvermogenssensor moet W of kW leveren.",
+    "source_unavailable": "De batterijvermogenssensor levert geen geldige actuele waarde.",
+    "source_stale": "De batterijvermogensmeting is te oud of heeft een ongeldige oorspronkelijke tijd.",
+    "source_estimated": "De batterijvermogensmeting is geschat of hersteld. Kies een actuele gemeten AC-bron.",
+    "source_sign": "Kies de tekenrichting van het batterijvermogen.",
+    "source_limits": "Controleer de batterijcapaciteit en ingestelde grenzen.",
+    "source_soc": "De benodigde batterijlaadstand ontbreekt of is ongeldig.",
+    "source_disabled": "Deze batterijmonitor is uitgeschakeld.",
+}
+_NATIVE_SOURCE_KEYS = frozenset({"ongrid_power", "battery_soc", "battery_power",
+                                 "em_total_power", "pv_power", "offgrid_power"})
+
+
+def monitor_source_identity(hass, entity_id, *, power_sign=None, role="power"):
+    """Read the selected native field's scope; never discover or poll a device.
+
+    Only categorical provider metadata is returned. Native keys are bounded
+    technical names, never a device identity, network address or raw payload.
+    A valid scope does not confirm AC coverage or prove a current measurement.
+    """
+    result = {"native": False, "code": "", "reason": "", "native_key": None,
+              "expected_native_key": None}
+    try:
+        from homeassistant.helpers import entity_registry as er
+        row = er.async_get(hass).async_get(entity_id)
+        if row is None or getattr(row, "platform", None) != "marstek":
+            return result
+        result.update(native=True, expected_native_key="ongrid_power" if role == "power" else "battery_soc")
+        from homeassistant.helpers.entity_component import DATA_INSTANCES
+        entry = hass.config_entries.async_get_entry(row.config_entry_id)
+        coordinator = getattr(getattr(entry, "runtime_data", None), "coordinator", None)
+        component = hass.data.get(DATA_INSTANCES, {}).get("sensor")
+        entity = component.get_entity(entity_id) if component is not None else None
+        if (getattr(entry, "domain", None) != "marstek" or coordinator is None
+                or type(coordinator).__module__ != "custom_components.marstek.coordinator"
+                or type(coordinator).__name__ != "MarstekDataUpdateCoordinator"
+                or entity is None or getattr(entity, "entity_id", None) != entity_id
+                or getattr(entity, "unique_id", None) != getattr(row, "unique_id", None)
+                or not getattr(row, "unique_id", None)
+                or getattr(entity, "coordinator", None) is not coordinator):
+            result["code"] = "native_provider_unavailable"
+        else:
+            key = getattr(getattr(entity, "entity_description", None), "key", None)
+            result["native_key"] = key if isinstance(key, str) and key in _NATIVE_SOURCE_KEYS else None
+            if key != result["expected_native_key"]:
+                result["code"] = "native_source_scope"
+            elif role == "power" and power_sign not in (None, "discharge_positive"):
+                result["code"] = "native_power_sign"
+    except (ImportError, AttributeError, KeyError, TypeError, ValueError, RuntimeError):
+        if result["native"]:
+            result["code"] = "native_provider_unavailable"
+    result["reason"] = _SOURCE_REASONS.get(result["code"], "")
+    return result
+
+
 class BatteryFleetManager:
     def __init__(self, runtime):
         self.runtime = runtime
@@ -29,6 +93,7 @@ class BatteryFleetManager:
         self.recommendation = None
         self.command_block_reason = ""
         self._native_source_proofs = {}
+        self._source_diagnostics = {}
 
     @property
     def configured(self):
@@ -69,9 +134,18 @@ class BatteryFleetManager:
         original receipt briefly when the provider evicts its shorter cache;
         neither HA heartbeats nor incomplete packets renew the proof.
         """
-        if finite(value) is None or finite(stamp) is None:
+        diagnostic = monitor_source_identity(self.runtime.hass, entity_id, power_sign=power_sign, role=role)
+        self._source_diagnostics[(entity_id if isinstance(entity_id, str) else None, role)] = diagnostic
+
+        def reject(code):
+            diagnostic.update(code=code, reason=_SOURCE_REASONS[code])
             return None
-        native = False
+
+        if finite(value) is None or finite(stamp) is None:
+            return reject("source_unavailable")
+        if diagnostic["code"]:
+            return None
+        native = diagnostic["native"]
         try:
             from homeassistant.helpers import entity_registry as er
             row = er.async_get(self.runtime.hass).async_get(entity_id)
@@ -79,7 +153,7 @@ class BatteryFleetManager:
                 return stamp
             native = True
             if role == "power" and power_sign not in (None, "discharge_positive"):
-                return None  # This exact native AC field has a known sign.
+                return reject("native_power_sign")
             from homeassistant.helpers.entity_component import DATA_INSTANCES
             entry = self.runtime.hass.config_entries.async_get_entry(row.config_entry_id)
             coordinator = getattr(getattr(entry, "runtime_data", None), "coordinator", None)
@@ -94,24 +168,24 @@ class BatteryFleetManager:
                     or not getattr(row, "unique_id", None)
                     or getattr(entity, "coordinator", None) is not coordinator
                     or getattr(getattr(entity, "entity_description", None), "key", None) != key):
-                return None
+                return reject("native_provider_unavailable")
             data = getattr(coordinator, "data", None)
             if (not isinstance(data, Mapping) or data.get("es_status_fresh") is not True
                     or data.get("has_fresh_data") is not True
                     or getattr(coordinator, "last_update_success", None) is not True
                     or getattr(coordinator, "consecutive_failures", None) != 0
                     or finite(data.get(key)) != value):
-                return None
+                return reject("native_provider_failed")
             stats = coordinator.udp_client.get_command_stats_for_ip(coordinator.device_ip)
             method = stats.get("ES.GetStatus") if isinstance(stats, Mapping) else None
             if not isinstance(method, Mapping) or method.get("last_success") is not True:
-                return None
+                return reject("native_provider_failed")
             original = finite(method.get("last_updated"))
             success = finite(coordinator.last_update_success_time.timestamp())
             now, stale = time.time(), float(self.runtime.settings.get("stale_s", 120))
             if (original is None or success is None or original > success
                     or not -5 <= now-original <= stale or not -5 <= now-success <= stale):
-                return None
+                return reject("native_source_stale")
             client = coordinator.udp_client
             native_now = finite(client.loop_time())
             completed = finite(data.get("last_update"))
@@ -125,10 +199,10 @@ class BatteryFleetManager:
             if (native_now is None or completed is None or min(native_now, completed) < 0 or completed > native_now
                     or not 0 <= native_now-completed <= stale
                     or (previous is not None and native_now < previous["mono"])):
-                return None
+                return reject("native_source_stale")
             cache = getattr(getattr(client, "_router", None), "cache", None)
             if not isinstance(cache, Mapping) or len(cache) > 100:
-                return None
+                return reject("native_field_unverified")
             raw_key = "ongrid_power" if role == "power" else "bat_soc"
             newest = None
             for cache_key, item in cache.items():
@@ -152,10 +226,10 @@ class BatteryFleetManager:
             if (previous is None or previous["value"] != value
                     or not 0 <= native_now-previous["mono"] <= stale
                     or not -5 <= now-previous["wall"] <= stale):
-                return None
+                return reject("native_field_unverified")
             return min(stamp, original, previous["wall"])
         except (ImportError, AttributeError, KeyError, TypeError, ValueError, RuntimeError, OverflowError):
-            return None if native else stamp
+            return reject("native_provider_unavailable") if native else stamp
 
     def _read_one(self, battery_id, cfg, *, include_faulted=False):
         monitor_only = is_monitor_profile(cfg)
@@ -172,6 +246,10 @@ class BatteryFleetManager:
         if not soc_valid:
             soc = None
         power_id = cfg.get("power_entity")
+        diagnostic_key = (power_id if isinstance(power_id, str) else None, "power")
+        diagnostic = (monitor_source_identity(self.runtime.hass, power_id, power_sign=cfg.get("power_sign"))
+                      if monitor_only else {})
+        self._source_diagnostics[diagnostic_key] = diagnostic
         power, stamp = self._source_number(power_id, {"W", "kW"})
         if power is not None:
             obj = self.runtime.hass.states.get(power_id)
@@ -188,7 +266,7 @@ class BatteryFleetManager:
         power_valid = bool(cfg.get("enabled", True) is True and power is not None
             and cfg.get("power_sign") in ("charge_positive", "discharge_positive"))
         if monitor_only:
-            obj = self.runtime.hass.states.get(power_id) if power_id else None
+            obj = self.runtime.hass.states.get(power_id) if isinstance(power_id, str) and power_id else None
             attrs = getattr(obj, "attributes", {}) or {}
             power_valid = bool(power_valid and cfg.get("ac_power_confirmed") is True
                 and isinstance(power_id, str) and power_id.startswith("sensor.")
@@ -202,6 +280,35 @@ class BatteryFleetManager:
                         and 0 <= values["min_soc_pct"] <= values["reserve_soc_pct"] < values["max_soc_pct"] <= 100
                         and values["max_charge_w"] >= 0 and values["max_discharge_w"] >= 0)
         valid = bool(power_valid and limits_valid and (monitor_only or soc_valid))
+        obj = self.runtime.hass.states.get(power_id) if isinstance(power_id, str) and power_id else None
+        attrs = getattr(obj, "attributes", {}) or {}
+        diagnostic = self._source_diagnostics.get(diagnostic_key, {})
+        code = ""
+        if cfg.get("enabled", True) is not True:
+            code = "source_disabled"
+        elif monitor_only and cfg.get("ac_power_confirmed") is not True:
+            code = "ac_unconfirmed"
+        elif cfg.get("power_sign") not in ("charge_positive", "discharge_positive"):
+            code = "source_sign"
+        elif monitor_only and (not isinstance(power_id, str) or not power_id.startswith("sensor.")):
+            code = "source_missing"
+        elif monitor_only and any(attrs.get(key) for key in ("estimated", "is_estimated", "restored")):
+            code = "source_estimated"
+        elif power is None:
+            if diagnostic.get("code"):
+                code = diagnostic["code"]
+            elif obj is None:
+                code = "source_missing"
+            elif attrs.get("unit_of_measurement") not in ("W", "kW"):
+                code = "source_unit"
+            elif stamp <= 0 or time.time()-stamp > self.runtime.settings.get("stale_s", 120):
+                code = "source_stale"
+            else:
+                code = "source_unavailable"
+        elif not limits_valid:
+            code = "source_limits"
+        elif not monitor_only and not soc_valid:
+            code = "source_soc"
         controllable = bool(cfg.get("enabled", True) is True and cfg.get("control_enabled") is True
                             and cfg.get("exclusive_control_confirmed") is True
                             and not monitor_only
@@ -218,12 +325,16 @@ class BatteryFleetManager:
             id=battery_id, name=cfg.get("name", battery_id), valid=valid, soc_pct=soc,
             power_w=power, **values,
             controllable=controllable, phase_hint=cfg.get("phase_hint", "unknown"), power_stamp=stamp,
-            monitor_only=monitor_only, power_valid=power_valid, soc_valid=soc_valid, soc_stamp=soc_stamp)
+            monitor_only=monitor_only, power_valid=power_valid, soc_valid=soc_valid, soc_stamp=soc_stamp,
+            source_code=code, reason=_SOURCE_REASONS.get(code, ""),
+            native_key=diagnostic.get("native_key"), expected_native_key=diagnostic.get("expected_native_key"))
 
     def read(self):
         bound = {cfg.get(key) for cfg in self.configs.values() if is_monitor_profile(cfg)
-                 for key in ("power_entity", "soc_entity") if cfg.get(key)}
+                 for key in ("power_entity", "soc_entity")
+                 if isinstance(cfg.get(key), str) and cfg.get(key)}
         self._native_source_proofs = {key: value for key, value in self._native_source_proofs.items() if key in bound}
+        self._source_diagnostics = {key: value for key, value in self._source_diagnostics.items() if key[0] in bound}
         self.last = [self._read_one(i, c) for i, c in self.configs.items()]
         return self.last
 
@@ -231,6 +342,33 @@ class BatteryFleetManager:
         return sorted((bid, cfg.get("enabled", True) is True, cfg.get("profile", "generic"),
                        cfg.get("power_entity"), cfg.get("power_sign"), cfg.get("ac_power_confirmed") is True)
                       for bid, cfg in self.configs.items())
+
+    def source_status(self, *, readings=None):
+        """Explain necessary source failures without granting any source rights."""
+        empty = {"valid": True, "code": "", "reason": "", "battery_id": None,
+                 "native_key": None, "expected_native_key": None}
+        if not self.settings.get("enabled"):
+            return empty
+        active = {bid: cfg for bid, cfg in self.configs.items() if cfg.get("enabled", True) is True}
+        readings = self.read() if readings is None else readings
+        by_id = {reading.id: reading for reading in readings}
+        for bid, cfg in active.items():
+            reading = by_id.get(bid)
+            if reading is not None and reading.valid:
+                continue
+            code = (reading.source_code or "source_unavailable") if reading is not None else "source_missing"
+            reason = (reading.reason or _SOURCE_REASONS[code]) if reading is not None else _SOURCE_REASONS[code]
+            return {**empty, "valid": False, "code": code, "battery_id": bid,
+                    "reason": f'{cfg.get("name", bid)}: {reason}',
+                    "native_key": reading.native_key if reading is not None else None,
+                    "expected_native_key": reading.expected_native_key if reading is not None else None}
+        overlap = battery_source_error(active.values(), self.runtime.settings)
+        if overlap:
+            return {**empty, "valid": False, "code": "source_overlap", "reason": overlap}
+        return empty
+
+    def source_problem(self):
+        return self.source_status()["reason"]
 
     def _target_matches(self, reading, target):
         tol = finite(self.settings.get("target_tolerance_w", 250))
@@ -709,6 +847,7 @@ class BatteryFleetManager:
         readings = self.last or self.read()
         agg = aggregate(readings)
         rec = self.recommendation
+        source = self.source_status(readings=readings)
         return {
             "enabled": bool(self.settings.get("enabled")),
             "control_enabled": bool(self.settings.get("control_enabled") and
@@ -716,8 +855,9 @@ class BatteryFleetManager:
             "strategy": self.settings.get("strategy", "loads_first"),
             "aggregate": agg,
             "recommendation_w": None if rec is None else round(rec.total_target_w, 1),
-            "reason": self.command_block_reason or battery_source_error(self.configs.values(), self.runtime.settings)
+            "reason": self.command_block_reason or source["reason"]
                 or ("Nog geen batterijadvies" if rec is None else rec.reason),
+            "source_status": source,
             "pending": self.state.pending,
             "faults": dict(self.state.faults),
             "batteries": [{
@@ -726,6 +866,8 @@ class BatteryFleetManager:
                 "profile": self.configs[r.id].get("profile", "generic"), "monitor_only": r.monitor_only,
                 "power_valid": r.power_valid, "soc_valid": r.soc_valid,
                 "power_stamp": r.power_stamp, "soc_stamp": r.soc_stamp,
+                "source_code": r.source_code, "reason": r.reason,
+                "native_key": r.native_key, "expected_native_key": r.expected_native_key,
                 "stale_s": self.runtime.settings.get("stale_s", 120),
                 "control_kind": "read_only" if r.monitor_only else self.configs[r.id].get("control_kind", "read_only"),
                 "control_enabled": bool(not r.monitor_only and self.configs[r.id].get("control_enabled")),

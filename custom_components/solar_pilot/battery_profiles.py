@@ -36,6 +36,9 @@ def battery_source_error(configs, site):
     adding it nor silently replacing it is justified by its entity name.
     """
     active = [config for config in configs if config.get("enabled", True) is True]
+    if any(config.get("power_entity") is not None and not isinstance(config.get("power_entity"), str)
+           for config in active):
+        return "De batterijvermogensbron is ongeldig; kies een sensorentiteit"
     powers = [config.get("power_entity") for config in active if config.get("power_entity")]
     if len(powers) != len(set(powers)):
         return "Een batterijvermogensbron is meermaals gekoppeld; kies afzonderlijke metingen"

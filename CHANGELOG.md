@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.114 — batterijbron herstellen en gevalideerd basislastleren
+
+- Laat een actief Marstek-profiel pas opslaan na expliciete bevestiging van de AC-meetdekking. Een bekende verkeerde native meetsoort of strijdige bekende tekenrichting krijgt een veldfout; een bestaande koppeling wordt niet automatisch bevestigd of vervangen.
+- Geeft in batterijoverzicht, algemene melding, SG en analyse-export een concrete bronoorzaak, met veilige metadata voor verwacht en aangetroffen native veld. Een nieuwe diagnose verruimt geen meetvoorwaarden, polling of bedieningsrecht.
+- Laat basislastleren een batterijvloot gebruiken wanneer alle actieve bronnen afzonderlijk volledige bevestigde getekende AC-metingen leveren. Behoudt oorspronkelijke ontvangsttijden, maximale bronleeftijd, bronalignment, overlap- en templatecontroles; onbekende of gedeeltelijke bronnen blijven onbekend. Een model geeft geen realtime vrij vermogen.
+- Behoudt de uitsluitend uitleesbare Marstek-regeling, onafhankelijke SoC, vijftienminuten-SG-buffers, bestaande prioriteiten en opdrachtgrenzen. Geen automatische PV-aftrek of huishoudaanpassing uit een analyse.
+- Werkt canonieke uitleg, optiehulp, installatie/rollback, bronreview en overdracht samen bij. Zie BETA114_INSTELLEN.md en TESTRESULTATEN_BETA114.md.
+
 ## 1.0.0-beta.113 — Marstek-monitor en gerichte overdrachtwaarschuwing
 
 - Voegt een uitsluitend uitleesbaar profiel voor Marstek Venus E 3.0 toe via bestaande Home Assistant-entiteiten. Getekend AC-batterijvermogen, tekenrichting en bevestigde meetdekking zijn vereist; SoC en bekende fase zijn optioneel. Geen automatische bronbinding of nieuwe UDP-/Modbuspolling.

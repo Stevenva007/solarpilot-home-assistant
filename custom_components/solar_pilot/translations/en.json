@@ -835,7 +835,10 @@
       "water_flow_source": "Select a current flow sensor with supported volume-per-time units, not a cumulative meter total.",
       "water_leak_source": "Select an existing water leak binary_sensor with device class moisture.",
       "dishwasher_energy_meter": "Select a cumulative Wh/kWh sensor with state_class total or total_increasing.",
-      "battery_source_scope": "Choose a separate battery source. Grid, PV, car and duplicate battery meters must not overlap. Also check any existing central battery measurement."
+      "battery_source_scope": "Choose a separate battery source. Grid, PV, car and duplicate battery meters must not overlap. Also check any existing central battery measurement.",
+      "battery_ac_confirmation": "After checking the source, confirm that it measures this battery’s signed AC power. The monitor cannot be saved without this confirmation.",
+      "battery_native_scope": "This Marstek sensor does not measure battery AC power. Choose On-grid power (AC OnGrid).",
+      "battery_native_sign": "For this Marstek AC source, choose Positive = discharging to the home."
     },
     "abort": {
       "busy": "Kies eerst Pauze en wacht tot beheerde toestellen zijn vrijgegeven. Rond eventuele herstartcontrole af. Bij een afgekoppeld toestel kan je expliciet Handmatig overnemen gebruiken; dit schakelt niets uit.",

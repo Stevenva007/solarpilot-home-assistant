@@ -838,6 +838,8 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
             b.update({"soc_entity": "", "phase_hint": "unknown", "ac_power_confirmed": False})
             b.update({key: value for key, value in user_input.items() if key in fields})
             b = normalize_battery_config(b)
+            if user_input.get("ac_power_confirmed") is not True:
+                errors["ac_power_confirmed"] = "battery_ac_confirmation"
             for key, units in (("power_entity", {"W", "kW"}), ("soc_entity", {"%"})):
                 if key == "soc_entity" and not b.get(key):
                     continue
@@ -858,6 +860,14 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
             if (not isinstance(user_input.get("power_sign"), str)
                     or user_input["power_sign"] not in {"discharge_positive", "charge_positive"}):
                 errors["power_sign"] = "required"
+            if "power_entity" not in errors and "power_sign" not in errors:
+                from .battery_runtime import monitor_source_identity
+                identity = monitor_source_identity(self.hass, b.get("power_entity"),
+                                                   power_sign=b.get("power_sign"))
+                if identity["code"] == "native_source_scope":
+                    errors["power_entity"] = "battery_native_scope"
+                elif identity["code"] == "native_power_sign":
+                    errors["power_sign"] = "battery_native_sign"
             if not isinstance(b.get("phase_hint"), str) or b["phase_hint"] not in {"unknown", "l1", "l2", "l3"}:
                 errors["phase_hint"] = "range"
             rows = [row for row in self._base_options().get("batteries", []) if row.get("id") != b["id"]] + [b]

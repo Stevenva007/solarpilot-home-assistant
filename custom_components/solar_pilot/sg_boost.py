@@ -2821,7 +2821,9 @@ class SGBoostManager:
         if validate_config(self.settings):
             reasons.append("SG-instellingen vragen controle")
         if data_fresh is not True:
-            reasons.append("Wachten op betrouwbare actuele net- en zonnemetingen")
+            source_problem = getattr(getattr(self.runtime, "battery_fleet", None), "source_problem", None)
+            battery_problem = source_problem() if callable(source_problem) else ""
+            reasons.append(battery_problem or "Wachten op betrouwbare actuele net- en zonnemetingen")
         if phase_allowed is not True or hard_limit:
             reasons.append(electrical_reason if isinstance(electrical_reason, str) and electrical_reason.strip()
                            else "Elektrische grens of fasebewaking laat geen extra SG-aanvraag toe")
