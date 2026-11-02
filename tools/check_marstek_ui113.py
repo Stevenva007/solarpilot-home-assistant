@@ -160,8 +160,8 @@ with sync_playwright() as playwright:
         callApi:async(method,path,data)=>{
           settingsRequests.push({method,path,data});
           if(method==='delete')return{};
-          if(path==='config/config_entries/options/flow')return{type:'menu',flow_id:'fictional-source-flow',step_id:'init',menu_options:['loads_hub']};
-          if(data.next_step_id==='loads_hub')return{type:'menu',flow_id:'fictional-source-flow',step_id:'loads_hub',menu_options:['battery']};
+          if(path==='config/config_entries/options/flow')return{type:'menu',flow_id:'fictional-source-flow',step_id:'init',menu_options:['storage_hub']};
+          if(data.next_step_id==='storage_hub')return{type:'menu',flow_id:'fictional-source-flow',step_id:'storage_hub',menu_options:['battery']};
           if(data.next_step_id==='battery')return{type:'menu',flow_id:'fictional-source-flow',step_id:'battery',menu_options:['battery_edit']};
           if(data.next_step_id==='battery_edit')return{type:'form',flow_id:'fictional-source-flow',step_id:'battery_edit',errors:{},data_schema:[
             {name:'battery_id',required:true,selector:{select:{options:[{value:'fictional-monitor',label:'Fictieve Marstek'}]}},default:'fictional-monitor'}]};
@@ -196,7 +196,7 @@ with sync_playwright() as playwright:
     page.wait_for_function("batterySettingsSaved!==null")
     assert page.evaluate("batterySettingsSaved.ac_power_confirmed") is True
     assert page.evaluate("settingsRequests.slice(0,3).map(r=>r.data)") == [
-        {"handler": "fictional-battery-entry"}, {"next_step_id": "loads_hub"}, {"next_step_id": "battery"}]
+        {"handler": "fictional-battery-entry"}, {"next_step_id": "storage_hub"}, {"next_step_id": "battery"}]
     options.locator("[data-close]").click()
     assert page.evaluate("controlWrites") == []
 

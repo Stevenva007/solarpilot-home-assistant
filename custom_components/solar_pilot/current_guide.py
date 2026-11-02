@@ -3,11 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.114'
+GUIDE_VERSION = '1.0.0-beta.115'
 GUIDE_UPDATED = '2026-11-02'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.114',
+ 'version': '1.0.0-beta.115',
  'updated': '2026-11-02',
  'intro': 'SolarPilot verdeelt het echte huidige zonneoverschot zonder toekomstige toestelpieken te reserveren. De warmtepomp heeft voor '
           'automatisch algemeen SG-zonbedrijf vaste voorrang op bevestigd autonoom Wallbox-zonneladen. Een toegestaan AAN-contact kan '
@@ -883,6 +883,11 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'de AC-meetdekking. Die bevestiging verleent geen bedieningsrecht. SoC is een afzonderlijke optionele weergave: '
                               'zonder geldige procentmeting blijft de laadtoestand onbekend, terwijl een geldige vermogensbron bruikbaar kan '
                               'blijven. Een ontbrekende of oude vermogensmeting wordt nooit als nul ontlading behandeld.',
+                              'Marstek-monitor openen laadt bij één bestaand monitorprofiel de opgeslagen waarden en behoudt dezelfde '
+                              'profielidentiteit. Bij meerdere Marstek-profielen kies je eerst welke je wilt aanpassen. Alleen Extra '
+                              'Marstek-monitor toevoegen begint bewust een nieuw profiel. De eerste installatie opent direct het formulier. '
+                              'Zoeken en een sensor selecteren is nog geen opgeslagen wijziging; ga met Verder naar het overzicht en bevestig '
+                              'daarna bewust met Wijzigingen opslaan. Open hetzelfde profiel opnieuw om de opgeslagen keuzes te controleren.',
                               'Een actief Marstek-profiel kan pas worden opgeslagen nadat de AC-meetdekking werkelijk is bevestigd. '
                               'De bronkeuze moet bij de ondersteunde native koppeling ook het batterij-AC-veld en zijn bekende tekenrichting '
                               'gebruiken. Een bestaande onbevestigde koppeling blijft zichtbaar als onvoltooid; een update bevestigt haar '
@@ -892,7 +897,9 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                               'Ontbrekende AC-bevestiging, een verkeerde native meetsoort en ontbrekend actueel veldbewijs zijn afzonderlijke '
                               'oorzaken. De veilige diagnostiek kan het verwachte en aangetroffen native veld noemen, zonder ruwe '
                               'providerantwoorden of netwerkidentiteit over te nemen. Verhelp eerst de genoemde oorzaak en controleer '
-                              'daarna opnieuw de bronkwaliteit; een bevestiging alleen bewijst geen succesvolle actuele uitlezing.',
+                              'daarna opnieuw de bronkwaliteit; een bevestiging alleen bewijst geen succesvolle actuele uitlezing. De globale '
+                              'batterijbronmelding opent de configuratie via Batterijbron controleren; Controle afronden is voor echte '
+                              'toestelfouten en herstelt geen ontbrekende AC-bronbevestiging.',
                               'Voor de ondersteunde native Marstek-bron controleert SolarPilot de werkelijk gekoppelde entiteit en haar '
                               'bestaande coordinator, de oorspronkelijke geslaagde ES-statusuitlezing en de bronkwaliteit. Bovendien moet '
                               'een al ontvangen antwoord van dezelfde batterij het gekozen vermogensveld werkelijk bevatten en met de '
@@ -1337,6 +1344,17 @@ CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
                'paragraphs': ['Configureren opent de bestaande HA-optiesflow met uitleg bij de velden. Alleen expliciet opslaan kan een '
                               'instelling veranderen; openen/renderen bedient niets. Gewone ongewijzigde toestellen behouden timers, listeners, '
                               'leerdata en modus. Een HACS-codeupdate vereist nog wel een HA-herstart.',
+                              'Verder bewaart de formulierinvoer alleen binnen de geopende optiesflow. Pas de laatste stap met het '
+                              'wijzigingsoverzicht, bewuste bevestiging en Wijzigingen opslaan legt de wijziging vast. Bij Annuleren blijft de '
+                              'bestaande configuratie staan. Een veldfout bewaart de lokale invoer zodat je die kunt verbeteren; een onzekere '
+                              'netwerkfout is geen bewezen opslag. Opnieuw openen leest de werkelijk opgeslagen configuratie. Een opgeslagen '
+                              'veiligheidsvoorstel kan nog wachten op de bestaande voorwaarden voordat het effectief wordt.',
+                              'De entiteitskiezer filtert op naam en entity_id binnen een eigen begrensde keuzelijst. Selecteer de bedoelde '
+                              'sensor uit de lijst; alleen een zoekterm is geen sensorbinding. Lange namen breken af binnen het formulier. '
+                              'De dialoog volgt de beschikbare schermhoogte bij een mobiel toetsenbord en laat de inhoud scrollen. '
+                              'Pijltjestoetsen, Enter en Escape ondersteunen de keuzelijst zonder automatisch het formulier op te slaan. '
+                              'Bij wisselen van account of SolarPilot-integratie wordt de geopende conceptsessie ongeldig; invoer en '
+                              'latere antwoorden uit de oude context worden niet voor de nieuwe context gebruikt.',
                               'Koppeling-/meter-/beschermingswijzigingen aan actief of onzeker beheerde toestellen blijven onder de bestaande '
                               'veilige voorstelroute staan. Naam en categorie kunnen zonder fysieke wijziging. Toestel vervangen geeft een '
                               'nieuwe identiteit met voorkeuren als voorstel, geen oude fysieke rechten of startticket. Conflicterende edits en '

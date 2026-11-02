@@ -1,8 +1,10 @@
 # SolarPilot starten of bijwerken
 
-Installeer **1.0.0-beta.114** via HACS, herstart Home Assistant volledig en herlaad de app of browser.
+Installeer **1.0.0-beta.115** via HACS, herstart Home Assistant volledig en herlaad de app of browser.
 
-Bij een batterijbronmelding kies je **Batterijbron controleren** en pas je onder Batterijen het bestaande profiel aan. Kies de getekende batterij-AC-sensor, bij de ondersteunde native Marstek-koppeling **Vermogen netaansluiting (AC OnGrid)** met **Positief = ontladen naar huis**. Controleer en bevestig de AC-meetdekking vóór opslaan. Een bestaande ontbrekende bevestiging wordt door de update niet aangezet. De nieuwe concrete melding laat ook zien wanneer een verkeerde native meetsoort of ontbrekend actueel veldbewijs nog aandacht vraagt. SoC is afzonderlijk optioneel; Marstek blijft autonoom regelen.
+Kies **Marstek-monitor openen** om een bestaande monitor aan te passen. Bij één monitor staan je opgeslagen waarden direct ingevuld; bij meerdere kies je eerst het profiel. **Extra Marstek-monitor toevoegen** is alleen voor een extra batterij. Zoek en selecteer de sensor uit de begrensde lijst. Kies **Verder**, controleer het overzicht en bevestig daarna met **Wijzigingen opslaan**. Open hetzelfde profiel opnieuw om de bewaarde keuzes te zien. Annuleren slaat niets op; een veldfout bewaart je invoer om haar te verbeteren.
+
+Bij een batterijbronmelding kies je **Batterijbron controleren**. Kies de getekende batterij-AC-sensor, bij de ondersteunde native Marstek-koppeling **Vermogen netaansluiting (AC OnGrid)** met **Positief = ontladen naar huis**. Controleer en bevestig de AC-meetdekking. De update zet een ontbrekende bevestiging niet aan. Verkeerde meetsoort of ontbrekend actueel veldbewijs blijven afzonderlijk zichtbaar. SoC is optioneel; Marstek blijft autonoom regelen.
 
 Volledig betrouwbare, afzonderlijk bevestigde AC-batterijmetingen kunnen nu worden meegenomen in het basislastleren. Alle actieve bronnen, oorspronkelijke rapporttijden en overlapcontroles blijven nodig. Een onvolledige bron wordt geen nul of modelbewijs.
 
@@ -16,4 +18,4 @@ Het echte huidige overschot blijft leidend, zonder toekomstige toestelreserverin
 
 Bij een upgrade uit een oudere versie wordt de vroegere standaardbuffer van 300 seconden eenmaal omgezet naar 900 seconden. Andere bewaarde aangepaste duurtijden en latere eigen keuzes blijven behouden. De lokale Shelly-toestemming blijft 300 seconden met actuele vernieuwing om de 60 seconden.
 
-[Installatie en rollback](docs/BETA114_INSTELLEN.md) · [Actuele werking](docs/ACTUELE_WERKING.md) · [Testverslag](docs/TESTRESULTATEN_BETA114.md) · [Overdracht](OVERDRACHT.md)
+[Installatie en rollback](docs/BETA115_INSTELLEN.md) · [Actuele werking](docs/ACTUELE_WERKING.md) · [Testverslag](docs/TESTRESULTATEN_BETA115.md) · [Overdracht](OVERDRACHT.md)

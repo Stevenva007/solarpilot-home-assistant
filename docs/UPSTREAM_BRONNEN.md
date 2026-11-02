@@ -1,5 +1,9 @@
 # Openbaar upstream-bronregister
 
+## Hercontrole beta.115 — 2 november 2026
+
+De acht officiële GitHub-records bevestigen ongewijzigde publieke defaultbranches, HEADs en stabiele tagcommits: Aquarea v1.9.1 en SDK v1.5.0. Er is geen nieuwe upstreamdiff te verwerken. Het openen/bewaren van het bestaande Marstek-profiel en de mobiele entiteitskiezer veranderen geen native meetcontract, bronactualiteit, polling of actuatorrecht. Het native Marstek v1.12.0-contract blijft vastgepind. Zie [UPSTREAM_BETA115.md](UPSTREAM_BETA115.md). Geen automatische providerupdate of claim van lokale installatiecompatibiliteit.
+
 ## Hercontrole beta.114 — 2 november 2026
 
 De officiële defaultbranch-HEADs, nieuwste gepubliceerde stabiele releases en opgeloste tagcommits zijn opnieuw online gecontroleerd en ongewijzigd: Aquarea v1.9.1 en SDK v1.5.0. Er is geen nieuwe upstreamdiff te verwerken. De batterijbronvalidatie en -diagnostiek gebruiken het reeds vastgepinde native Marstek v1.12.0-contract zonder nieuwe polling of fabrikantbediening. Zie [UPSTREAM_BETA114.md](UPSTREAM_BETA114.md). Geen automatische providerupdate of claim van lokale installatiecompatibiliteit.

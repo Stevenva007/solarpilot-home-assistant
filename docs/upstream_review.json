@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "reviewed_at": "2026-11-02T19:47:36.227291Z",
+  "reviewed_at": "2026-11-02T20:36:42.389900Z",
   "assessment": {
     "status": "complete_no_unprocessed_changes",
-    "summary": "Beta.114 rechecked the official Aquarea/SDK default-branch HEADs, latest published stable releases and resolved tag commits on 2026-11-02. Aquarea1.9.1 remains76f7e84c98897a7ef354ea8f1e5a6f34d0a71b4b; SDK1.5.0 remains55da9428ddf43ed26f2386d79c43d50cf4d9da0c. Both are identical to the content-reviewed beta.113 checkpoint; no newly changed upstream source remains to process. Existing failed/cached-poll guards and native task/energy contracts remain. Battery source validation and diagnostics use the already pinned Marstek1.12.0 field contract without new polling or actuator permission. No automatic provider update or installation-compatibility claim. See docs/UPSTREAM_BETA114.md.",
+    "summary": "Beta.115 rechecked both official public repository identities, default branches, current HEADs, latest published stable releases and resolved tag commits on 2026-11-02. Aquarea v1.9.1 remains 76f7e84c98897a7ef354ea8f1e5a6f34d0a71b4b; SDK v1.5.0 remains 55da9428ddf43ed26f2386d79c43d50cf4d9da0c. Both match the content-reviewed checkpoint; no new upstream source remains to process. Options persistence and mobile picker fixes do not alter native task/energy contracts, polling or actuator permission. Marstek v1.12.0 stays pinned. No automatic provider update or installation compatibility claim. See docs/UPSTREAM_BETA115.md.",
     "compatibility_claim": false,
     "evidence_document": "docs/UPSTREAM_BRONNEN.md"
   },

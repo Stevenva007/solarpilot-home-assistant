@@ -460,7 +460,8 @@
           "battery_add": "Batterij toevoegen",
           "battery_edit": "Batterij aanpassen",
           "battery_remove": "Batterij verwijderen",
-          "battery_marstek": "Marstek Venus E3 · alleen monitoren"
+          "battery_marstek": "Marstek Venus E3 · monitor openen",
+          "battery_marstek_add": "Extra Marstek-monitor toevoegen"
         }
       },
       "battery_settings": {
@@ -1008,7 +1009,7 @@
         },
         "data_description": {
           "request_scope": "Alleen volgende beurten behoudt de al opgeslagen dag, deadline en nettoestemming van de huidige APP-aanvraag.",
-          "confirm": "Controleer het overzicht vóór bevestigen."
+          "confirm": "Verder in het vorige formulier heeft nog niets opgeslagen."
         }
       },
       "pending_changes": {
@@ -1149,6 +1150,16 @@
           "renew_s": "Vernieuw de korte lokale toestemming standaard iedere 60 seconden zolang de huidige SG-voorwaarden dit toelaten.",
           "ack_timeout_s": "Korte begrensde wachttijd voor fysieke relaisterugmelding, standaard 20 seconden.",
           "stale_s": "Maximale ouderdom van benodigde metingen, standaard 120 seconden."
+        }
+      },
+      "battery_marstek_select": {
+        "title": "Marstek-monitor kiezen",
+        "description": "Kies de bestaande Marstek-monitor die je wilt aanpassen.",
+        "data": {
+          "battery_id": "Batterij"
+        },
+        "data_description": {
+          "battery_id": "Kies het bestaande Marstek-monitorprofiel dat je wilt aanpassen."
         }
       },
       "battery_marstek": {

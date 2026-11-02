@@ -21,7 +21,11 @@ def execute(body, *, options=False, old_aliases=False, include_helpers=False):
     prelude = """
 const assert=require('node:assert/strict');
 globalThis.HTMLElement=class {};
-globalThis.window={customCards:[]};
+HTMLElement.prototype.style={setProperty(){}};
+globalThis.window=Object.assign(new EventTarget(),{customCards:[],innerWidth:390,innerHeight:844});
+const frames=new Map();let frameId=0;
+globalThis.requestAnimationFrame=callback=>{frames.set(++frameId,callback);return frameId;};
+globalThis.cancelAnimationFrame=id=>frames.delete(id);
 const definitions=new Map();
 globalThis.customElements={get:key=>definitions.get(key),define:(key,value)=>definitions.set(key,value)};
 globalThis.document={visibilityState:'visible'};
@@ -67,7 +71,7 @@ let resolveOld;
 globalThis.SOLAR_PILOT_HELP_DATA=new Promise(resolve=>resolveOld=resolve);
 const calls=[];
 const dialog=Object.create(SolarPilotOptionsDialog.prototype);
-Object.assign(dialog,{_open:false,_busy:false,_seq:0,content:{innerHTML:''},error:{textContent:''},
+Object.assign(dialog,{_open:false,_busy:false,_seq:0,content:{innerHTML:'',querySelector:()=>null},error:{textContent:''},
   dialog:{open:false,showModal(){this.open=true;},close(){this.open=false;}},
   _request:async function(path,data){calls.push(data.handler);this.flow={flow_id:'flow-'+data.handler,type:'menu'};}});
 const hass={user:{is_admin:true},callApi:async()=>({})};
@@ -112,7 +116,7 @@ const newHass={user:{id:'fixture',is_admin:true},callApi:async(method,path)=>
   method==='delete'?cleanups.push(['current',path]):new Promise(resolve=>resolveCurrent=resolve)};
 const dialog=Object.create(Dialog.prototype);
 Object.assign(dialog,{_open:false,_busy:false,_seq:0,_controls:()=>{},_render:()=>{},
-  content:{innerHTML:''},error:{textContent:''},
+  content:{innerHTML:'',querySelector:()=>null},error:{textContent:''},
   dialog:{open:false,isModal:false,showModal(){
     if(this.open&&!this.isModal)throw new DOMException('Already open as non-modal','InvalidStateError');
     this.open=true;this.isModal=true;
@@ -148,7 +152,7 @@ const dialog=Object.create(SolarPilotOptionsDialog.prototype);
 Object.assign(dialog,{_open:true,_busy:false,_seq:0,_openEpoch:1,_menuPath:['energy_hub'],
   _formParent:[],_dirty:false,_draftStarted:false,hass,entryId:'entry-old',
   flow:{flow_id:'old-flow',step_id:'energy_hub',type:'menu'},_controls:()=>{},_render:()=>{},
-  content:{innerHTML:''},error:{textContent:''},
+  content:{innerHTML:'',querySelector:()=>null},error:{textContent:''},
   dialog:{open:true,showModal(){this.open=true;},close(){this.open=false;}}});
 const back=dialog._back();assert.equal(dialog._busy,true);
 dialog.disconnectedCallback();await dialog.open(hass,'entry-current');
