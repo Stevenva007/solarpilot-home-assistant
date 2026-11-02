@@ -1,5 +1,9 @@
 # Openbaar upstream-bronregister
 
+## Aanvullende bronreview beta.113 — 2 november 2026
+
+Aquarea v1.9.1 op `76f7e84c98897a7ef354ea8f1e5a6f34d0a71b4b` voegt loginwachttijd bij API_ERROR toe zonder wijziging van de bestaande taak-/energiecontracten. SolarPilot accepteert mislukte of oude polls reeds niet als nieuw bronbewijs. SDK v1.5.0 is ongewijzigd. De volledige diffreview, 131 bestaande regressies, het native meetcontract van Marstek v1.12.0 en de aparte officiële Marstek-productbron staan in [UPSTREAM_BETA113.md](UPSTREAM_BETA113.md). De native Marstek-broncontrole vraagt werkelijk ontvangen AC-/SoC-velden met oorspronkelijke tijden; behouden waarden uit gedeeltelijke reacties worden niet verjongd. Geen automatische providerupdate of installatiecompatibiliteitsclaim.
+
 ## Hercontrole beta.112 — 30 oktober 2026
 
 De online broncontrole bevestigde opnieuw dezelfde officiële defaultbranch-HEADs, nieuwste stabiele releases en opgeloste tagcommits. Zie [UPSTREAM_BETA112.md](UPSTREAM_BETA112.md). De correcties aan SG-behoud en niet-gelijktijdige bronrapporten wijzigen geen native Panasonic-/SDK-contract.

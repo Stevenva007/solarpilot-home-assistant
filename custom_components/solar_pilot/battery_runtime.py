@@ -6,11 +6,13 @@ no second controller writing the same setpoint.
 """
 from __future__ import annotations
 import asyncio
+from collections.abc import Mapping
 from copy import deepcopy
 import math
 import time
 from homeassistant.exceptions import HomeAssistantError
-from .battery_fleet import BATTERY_DEFAULTS, BATTERY_FLEET_DEFAULTS, BatteryReading, BatteryFleetState, aggregate, recommend, finite
+from .battery_fleet import BATTERY_FLEET_DEFAULTS, BatteryReading, BatteryFleetState, aggregate, recommend, finite
+from .battery_profiles import is_monitor_profile, normalize_battery_config, battery_source_error
 from .wallbox import protected_entity
 from .panasonic_authority import PanasonicCommandAuthority
 from .ems import capacity_decision, phase_decision
@@ -21,11 +23,12 @@ class BatteryFleetManager:
     def __init__(self, runtime):
         self.runtime = runtime
         self.settings = {**BATTERY_FLEET_DEFAULTS, **runtime.entry.options.get("battery_fleet", {})}
-        self.configs = {b["id"]: {**BATTERY_DEFAULTS, **b} for b in runtime.entry.options.get("batteries", [])}
+        self.configs = {b["id"]: normalize_battery_config(b) for b in runtime.entry.options.get("batteries", [])}
         self.state = BatteryFleetState()
         self.last = []
         self.recommendation = None
         self.command_block_reason = ""
+        self._native_source_proofs = {}
 
     @property
     def configured(self):
@@ -43,6 +46,7 @@ class BatteryFleetManager:
         self.state.expected_numbers = {
             bid: expected for bid, expected in self.state.expected_numbers.items()
             if bid in self.configs and self.configs[bid].get("control_kind") == "signed_number"
+            and not is_monitor_profile(self.configs[bid])
             and self.configs[bid].get("number_entity") == expected["entity_id"]
         }
 
@@ -55,27 +59,152 @@ class BatteryFleetManager:
             return None, stamp
         return finite(obj.state), stamp
 
+    def _monitor_source_stamp(self, entity_id, role, stamp, value, *, power_sign=None):
+        """Veto native cached Marstek data without polling or renewing its clock.
+
+        Reviewed against taurgis v1.12.0. Its coordinator can publish a new HA
+        report after partial failures while retaining old ES fields. Inspect
+        only the explicitly bound, loaded entity and its own coordinator. Its
+        received UDP cache also proves the individual field. Retain that
+        original receipt briefly when the provider evicts its shorter cache;
+        neither HA heartbeats nor incomplete packets renew the proof.
+        """
+        if finite(value) is None or finite(stamp) is None:
+            return None
+        native = False
+        try:
+            from homeassistant.helpers import entity_registry as er
+            row = er.async_get(self.runtime.hass).async_get(entity_id)
+            if row is None or getattr(row, "platform", None) != "marstek":
+                return stamp
+            native = True
+            if role == "power" and power_sign not in (None, "discharge_positive"):
+                return None  # This exact native AC field has a known sign.
+            from homeassistant.helpers.entity_component import DATA_INSTANCES
+            entry = self.runtime.hass.config_entries.async_get_entry(row.config_entry_id)
+            coordinator = getattr(getattr(entry, "runtime_data", None), "coordinator", None)
+            component = self.runtime.hass.data.get(DATA_INSTANCES, {}).get("sensor")
+            entity = component.get_entity(entity_id) if component is not None else None
+            key = "ongrid_power" if role == "power" else "battery_soc"
+            if (getattr(entry, "domain", None) != "marstek" or coordinator is None
+                    or type(coordinator).__module__ != "custom_components.marstek.coordinator"
+                    or type(coordinator).__name__ != "MarstekDataUpdateCoordinator"
+                    or entity is None or getattr(entity, "entity_id", None) != entity_id
+                    or getattr(entity, "unique_id", None) != getattr(row, "unique_id", None)
+                    or not getattr(row, "unique_id", None)
+                    or getattr(entity, "coordinator", None) is not coordinator
+                    or getattr(getattr(entity, "entity_description", None), "key", None) != key):
+                return None
+            data = getattr(coordinator, "data", None)
+            if (not isinstance(data, Mapping) or data.get("es_status_fresh") is not True
+                    or data.get("has_fresh_data") is not True
+                    or getattr(coordinator, "last_update_success", None) is not True
+                    or getattr(coordinator, "consecutive_failures", None) != 0
+                    or finite(data.get(key)) != value):
+                return None
+            stats = coordinator.udp_client.get_command_stats_for_ip(coordinator.device_ip)
+            method = stats.get("ES.GetStatus") if isinstance(stats, Mapping) else None
+            if not isinstance(method, Mapping) or method.get("last_success") is not True:
+                return None
+            original = finite(method.get("last_updated"))
+            success = finite(coordinator.last_update_success_time.timestamp())
+            now, stale = time.time(), float(self.runtime.settings.get("stale_s", 120))
+            if (original is None or success is None or original > success
+                    or not -5 <= now-original <= stale or not -5 <= now-success <= stale):
+                return None
+            client = coordinator.udp_client
+            native_now = finite(client.loop_time())
+            completed = finite(data.get("last_update"))
+            ip, port = coordinator.device_ip, coordinator.device_port
+            binding = (row.config_entry_id, getattr(row, "device_id", None), row.unique_id,
+                       coordinator, client, role, ip, port)
+            previous = self._native_source_proofs.get(entity_id)
+            if previous is not None and previous["binding"] != binding:
+                self._native_source_proofs.pop(entity_id, None)
+                previous = None
+            if (native_now is None or completed is None or min(native_now, completed) < 0 or completed > native_now
+                    or not 0 <= native_now-completed <= stale
+                    or (previous is not None and native_now < previous["mono"])):
+                return None
+            cache = getattr(getattr(client, "_router", None), "cache", None)
+            if not isinstance(cache, Mapping) or len(cache) > 100:
+                return None
+            raw_key = "ongrid_power" if role == "power" else "bat_soc"
+            newest = None
+            for cache_key, item in cache.items():
+                if (not isinstance(cache_key, tuple) or len(cache_key) != 2 or cache_key[0] != ip
+                        or not isinstance(item, Mapping)):
+                    continue
+                addr, response, received = item.get("addr"), item.get("response"), finite(item.get("timestamp"))
+                if (not isinstance(addr, (tuple, list)) or tuple(addr) != (ip, port)
+                        or not isinstance(response, Mapping) or response.get("error") is not None
+                        or received is None or received < 0 or received > completed or not 0 <= native_now-received <= stale):
+                    continue
+                result = response.get("result")
+                if not isinstance(result, Mapping) or finite(result.get(raw_key)) != value:
+                    continue
+                if newest is None or received > newest:
+                    newest = received
+            if newest is not None and (previous is None or newest > previous["mono"]):
+                previous = {"binding": binding, "value": value, "mono": newest,
+                            "wall": now-(native_now-newest)}
+                self._native_source_proofs[entity_id] = previous
+            if (previous is None or previous["value"] != value
+                    or not 0 <= native_now-previous["mono"] <= stale
+                    or not -5 <= now-previous["wall"] <= stale):
+                return None
+            return min(stamp, original, previous["wall"])
+        except (ImportError, AttributeError, KeyError, TypeError, ValueError, RuntimeError, OverflowError):
+            return None if native else stamp
+
     def _read_one(self, battery_id, cfg, *, include_faulted=False):
+        monitor_only = is_monitor_profile(cfg)
         soc_id = cfg.get("soc_entity", "")
-        soc, _soc_stamp = self._source_number(soc_id, {"%"},
+        soc, soc_stamp = self._source_number(soc_id, {"%"},
                                              fresh=not isinstance(soc_id, str) or not soc_id.startswith("input_number."))
+        if monitor_only and soc is not None:
+            native_stamp = self._monitor_source_stamp(soc_id, "soc", soc_stamp, soc)
+            if native_stamp is None:
+                soc = None
+            else:
+                soc_stamp = native_stamp
+        soc_valid = soc is not None and 0 <= soc <= 100
+        if not soc_valid:
+            soc = None
         power_id = cfg.get("power_entity")
         power, stamp = self._source_number(power_id, {"W", "kW"})
         if power is not None:
             obj = self.runtime.hass.states.get(power_id)
             power = finite(power * (1000 if obj.attributes.get("unit_of_measurement") == "kW" else 1))
+        if monitor_only and power is not None:
+            native_stamp = self._monitor_source_stamp(power_id, "power", stamp, power,
+                                                      power_sign=cfg.get("power_sign"))
+            if native_stamp is None:
+                power = None
+            else:
+                stamp = native_stamp
         if power is not None and cfg.get("power_sign") == "charge_positive":
             power = -power
+        power_valid = bool(cfg.get("enabled", True) is True and power is not None
+            and cfg.get("power_sign") in ("charge_positive", "discharge_positive"))
+        if monitor_only:
+            obj = self.runtime.hass.states.get(power_id) if power_id else None
+            attrs = getattr(obj, "attributes", {}) or {}
+            power_valid = bool(power_valid and cfg.get("ac_power_confirmed") is True
+                and isinstance(power_id, str) and power_id.startswith("sensor.")
+                and not any(attrs.get(key) for key in ("estimated", "is_estimated", "restored")))
+            if not power_valid:
+                power = None
         values = {key: finite(cfg.get(key)) for key in (
             "capacity_kwh", "min_soc_pct", "reserve_soc_pct", "max_soc_pct", "max_charge_w", "max_discharge_w")}
         limits_valid = (all(value is not None for value in values.values())
                         and values["capacity_kwh"] > 0
                         and 0 <= values["min_soc_pct"] <= values["reserve_soc_pct"] < values["max_soc_pct"] <= 100
                         and values["max_charge_w"] >= 0 and values["max_discharge_w"] >= 0)
-        valid = bool(cfg.get("enabled", True) is True and soc is not None and 0 <= soc <= 100
-                     and power is not None and limits_valid)
+        valid = bool(power_valid and limits_valid and (monitor_only or soc_valid))
         controllable = bool(cfg.get("enabled", True) is True and cfg.get("control_enabled") is True
                             and cfg.get("exclusive_control_confirmed") is True
+                            and not monitor_only
                             and cfg.get("control_kind") in ("signed_number", "scripts"))
         if not include_faulted:
             controllable = controllable and "restart" not in self.state.faults and battery_id not in self.state.faults
@@ -88,11 +217,20 @@ class BatteryFleetManager:
         return BatteryReading(
             id=battery_id, name=cfg.get("name", battery_id), valid=valid, soc_pct=soc,
             power_w=power, **values,
-            controllable=controllable, phase_hint=cfg.get("phase_hint", "unknown"), power_stamp=stamp)
+            controllable=controllable, phase_hint=cfg.get("phase_hint", "unknown"), power_stamp=stamp,
+            monitor_only=monitor_only, power_valid=power_valid, soc_valid=soc_valid, soc_stamp=soc_stamp)
 
     def read(self):
+        bound = {cfg.get(key) for cfg in self.configs.values() if is_monitor_profile(cfg)
+                 for key in ("power_entity", "soc_entity") if cfg.get(key)}
+        self._native_source_proofs = {key: value for key, value in self._native_source_proofs.items() if key in bound}
         self.last = [self._read_one(i, c) for i, c in self.configs.items()]
         return self.last
+
+    def source_identity(self):
+        return sorted((bid, cfg.get("enabled", True) is True, cfg.get("profile", "generic"),
+                       cfg.get("power_entity"), cfg.get("power_sign"), cfg.get("ac_power_confirmed") is True)
+                      for bid, cfg in self.configs.items())
 
     def _target_matches(self, reading, target):
         tol = finite(self.settings.get("target_tolerance_w", 250))
@@ -159,7 +297,7 @@ class BatteryFleetManager:
         changed = False
         for battery_id, expected in list(self.state.expected_numbers.items()):
             cfg = self.configs.get(battery_id)
-            if not cfg or cfg.get("number_entity") != expected["entity_id"]:
+            if not cfg or is_monitor_profile(cfg) or cfg.get("number_entity") != expected["entity_id"]:
                 self.state.expected_numbers.pop(battery_id, None)
                 continue
             target = self._number_target(cfg)
@@ -263,7 +401,7 @@ class BatteryFleetManager:
 
     async def _send(self, battery_id, target_w):
         cfg = self.configs[battery_id]
-        if (getattr(self.runtime, "_closed", False) or self.state.pending or "restart" in self.state.faults or battery_id in self.state.faults
+        if (is_monitor_profile(cfg) or getattr(self.runtime, "_closed", False) or self.state.pending or "restart" in self.state.faults or battery_id in self.state.faults
                 or self.settings.get("control_enabled") is not True or cfg.get("enabled", True) is not True
                 or cfg.get("control_enabled") is not True or cfg.get("exclusive_control_confirmed") is not True):
             return False
@@ -275,7 +413,7 @@ class BatteryFleetManager:
         if guard_sources and (dispatch_context["grid"][1] is None or not self._read_one(battery_id, cfg).valid):
             return False
         kind = cfg.get("control_kind", "read_only")
-        binding_keys = ("enabled", "control_enabled", "exclusive_control_confirmed", "control_kind",
+        binding_keys = ("profile", "ac_power_confirmed", "enabled", "control_enabled", "exclusive_control_confirmed", "control_kind",
                         "number_entity", "number_sign", "charge_script", "discharge_script", "idle_script",
                         "power_sign", "soc_entity", "power_entity", "min_soc_pct", "reserve_soc_pct",
                         "max_soc_pct", "max_charge_w", "max_discharge_w", "phase_hint")
@@ -367,6 +505,7 @@ class BatteryFleetManager:
         # selected binding and permission before dispatching the saved intent.
         current_cfg = self.configs.get(battery_id, {})
         unchanged = ({key: current_cfg.get(key) for key in binding_keys} == binding_snapshot
+                     and not is_monitor_profile(current_cfg)
                      and self.settings.get("control_enabled") is True
                      and current_cfg.get("enabled", True) is True
                      and current_cfg.get("control_enabled") is True
@@ -397,12 +536,16 @@ class BatteryFleetManager:
                 await self._save()
             return False
         self.runtime.note(f'{cfg.get("name",battery_id)}: batterijdoel {target_w:+.0f} W aangevraagd.')
+        # Persistence yielded: a script, registry scope or SG binding may have
+        # changed. A rejected authority check is not an attempted device write.
+        try:
+            data = authority.assert_allowed(domain, action, entity_id,
+                {key: value for key, value in data.items() if key != "entity_id"})
+        except HomeAssistantError as err:
+            await self._fault(battery_id, f"Batterijactuator niet toegestaan; niets verzonden: {err}")
+            return False
         try:
             async with asyncio.timeout(20):
-                # Persistence yielded: a script, registry scope or SG binding
-                # may have changed. Revalidate the exact target at dispatch.
-                data = authority.assert_allowed(domain, action, entity_id,
-                    {key: value for key, value in data.items() if key != "entity_id"})
                 await self.runtime.hass.services.async_call(domain, action, data, blocking=False)
         except (HomeAssistantError, TimeoutError, ValueError, TypeError) as err:
             await self._fault(battery_id, f"Onzekere batterijopdracht ({type(err).__name__}); controle vereist, geen herhaling")
@@ -568,19 +711,25 @@ class BatteryFleetManager:
         rec = self.recommendation
         return {
             "enabled": bool(self.settings.get("enabled")),
-            "control_enabled": bool(self.settings.get("control_enabled")),
+            "control_enabled": bool(self.settings.get("control_enabled") and
+                any(not is_monitor_profile(cfg) for cfg in self.configs.values())),
             "strategy": self.settings.get("strategy", "loads_first"),
             "aggregate": agg,
             "recommendation_w": None if rec is None else round(rec.total_target_w, 1),
-            "reason": self.command_block_reason or ("Nog geen batterijadvies" if rec is None else rec.reason),
+            "reason": self.command_block_reason or battery_source_error(self.configs.values(), self.runtime.settings)
+                or ("Nog geen batterijadvies" if rec is None else rec.reason),
             "pending": self.state.pending,
             "faults": dict(self.state.faults),
             "batteries": [{
                 "id": r.id, "name": r.name, "valid": r.valid, "soc_pct": r.soc_pct, "power_w": r.power_w,
                 "capacity_kwh": r.capacity_kwh, "controllable": r.controllable, "phase_hint": r.phase_hint,
-                "control_kind": self.configs[r.id].get("control_kind", "read_only"),
-                "control_enabled": bool(self.configs[r.id].get("control_enabled")),
-                "exclusive_control_confirmed": bool(self.configs[r.id].get("exclusive_control_confirmed")),
+                "profile": self.configs[r.id].get("profile", "generic"), "monitor_only": r.monitor_only,
+                "power_valid": r.power_valid, "soc_valid": r.soc_valid,
+                "power_stamp": r.power_stamp, "soc_stamp": r.soc_stamp,
+                "stale_s": self.runtime.settings.get("stale_s", 120),
+                "control_kind": "read_only" if r.monitor_only else self.configs[r.id].get("control_kind", "read_only"),
+                "control_enabled": bool(not r.monitor_only and self.configs[r.id].get("control_enabled")),
+                "exclusive_control_confirmed": bool(not r.monitor_only and self.configs[r.id].get("exclusive_control_confirmed")),
             } for r in readings],
             "note": "Positief batterijvermogen = ontladen naar huis; negatief = laden. Regeling blijft read-only tot dubbele expliciete toestemming.",
         }

@@ -635,8 +635,12 @@ class LiveOptions:
             r.sg_boost.update_config(value)
             r.panasonic.update_config(value)
         elif group in ("batteries","battery_fleet"):
-            from .battery_fleet import BATTERY_DEFAULTS, BATTERY_FLEET_DEFAULTS
-            if group=="batteries":r.battery_fleet.configs={b["id"]:{**BATTERY_DEFAULTS,**b} for b in (value or [])}
+            from .battery_fleet import BATTERY_FLEET_DEFAULTS
+            from .battery_profiles import normalize_battery_config
+            if group=="batteries":
+                r.battery_fleet.configs={b["id"]:normalize_battery_config(b) for b in (value or [])}
+                r.battery_fleet.last=[]
+                r.battery_fleet.recommendation=None
             else:r.battery_fleet.settings={**BATTERY_FLEET_DEFAULTS,**value}
         # _private_bundle is metadata. Existing import side-effects remain local.
 

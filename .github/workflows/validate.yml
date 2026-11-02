@@ -141,6 +141,10 @@ jobs:
         run: python tools/check_water_ui102.py "${{ runner.temp }}/solarpilot-browser-tests"
       - name: Validate both current heat pump task source contracts and mobile labels
         run: python tools/check_heatpump_status_ui103.py "${{ runner.temp }}/solarpilot-browser-tests"
+      - name: Validate read-only Marstek monitoring and mixed battery presentation
+        env:
+          SOLARPILOT_SCREENSHOT_DIR: ${{ runner.temp }}/solarpilot-browser-tests
+        run: python tools/check_marstek_ui113.py
       - name: Retain fictitious browser validation screenshots
         if: always()
         uses: actions/upload-artifact@v4

@@ -478,6 +478,12 @@ HELP_NOTES = {'participation': 'Automatisch laat dit toestel deelnemen aan de ge
                    'opgeslagen kan worden, niet hoe snel. Scenario’s blijven technische schattingen.',
  'powers_kw': 'Te vergelijken laad-/ontlaadvermogens in kW. Vermogen begrenst hoe snel een virtuele batterij '
               'overschot opvangt of import vermindert; het is niet de opslagcapaciteit.',
+ 'battery_marstek:name': 'Herkenbare naam voor deze Marstek Venus E 3.0-monitor. Het profiel leest alleen bestaande Home Assistant-bronnen en bedient de batterij niet.',
+ 'battery_marstek:power_entity': 'Kies de bestaande getekende batterij-AC-sensor, bij Marstek Vermogen netaansluiting (AC OnGrid), in W of kW. Totaal vermogen van de CT/woningnetmeting is geen batterijbron; kies ook geen DC-vermogen of absolute batteryPower zonder laad-/ontlaadrichting. Werkelijke ontlading wordt eenmaal van zonneoverschot afgetrokken; laden zit al in P1. Ontbrekende of oude power is onbekend, geen nul. Bij de ondersteunde native Marstek-bron worden gekoppelde entiteit, oorspronkelijke ES-statusuitlezing, bronkwaliteit en het werkelijk ontvangen AC-veld read-only gecontroleerd. Een herhaald HA-rapport of gedeeltelijk antwoord zonder dit veld verjongt geen power. Een nieuw geldig antwoord met dezelfde waarde kan ook stabiele 0 W vernieuwen. Bewaard veldbewijs behoudt zijn oorspronkelijke ontvangsttijd en verloopt na de ingestelde bronleeftijd, standaard 120 seconden. Geen extra bronopvraag of fysieke meetgarantie.',
+ 'battery_marstek:power_sign': 'Kies bewust welk teken bij de geselecteerde batterij-AC-sensor ontladen betekent. Controleer beide richtingen bij werkelijk laden en ontladen. SolarPilot wijzigt alleen de interpretatie van de meting en verstuurt geen batterijopdracht.',
+ 'battery_marstek:ac_power_confirmed': 'Bevestig alleen na controle dat de gekozen sensor het volledige getekende AC-vermogen van deze batterij zelf weergeeft. Geen woningmeter, DC- of absolute vermogenswaarde. Deze bevestiging gaat over meetdekking en tekenrichting; zij geeft nooit bedieningsrecht.',
+ 'battery_marstek:soc_entity': 'Optionele bestaande Marstek-laadtoestand in procent. Ontbrekende, oude of ongeldige SoC blijft onbekend en wordt geen nul. Een geldige AC-vermogensmeting kan afzonderlijk bruikbaar blijven. SolarPilot stelt voor dit monitorprofiel geen reserve of laaddoel in.',
+ 'battery_marstek:phase_hint': 'Optionele bekende fysieke fase van de batterij. Kies Onbekend als de aansluiting niet is gecontroleerd. Dit is informatie over de meting, geen nieuwe fasevrijgave of batterijbediening.',
  'capacity_kwh': 'Bruikbare energiecapaciteit van deze echte batterij. Gebruik de toepasselijke bruikbare '
                  'waarde, niet automatisch het commerciële bruto getal. BMS-grenzen blijven onaangeraakt.',
  'soc_entity': 'Actuele laadtoestand van dit batterijprofiel. Native sensoren vereisen %, een eindige waarde '
@@ -1314,6 +1320,7 @@ GROUP_NOTES = {'water': 'De watermonitor leest uitsluitend de geselecteerde bron
             'P1-restoverschot niet.',
  'phase': 'De meter kan import en injectie over fasen verrekenen, maar iedere fase behoudt haar eigen '
           'fysieke stroomgrens. Software is geen elektrische beveiliging.',
+ 'battery_marstek': 'Marstek Venus E 3.0 blijft uitsluitend uitleesbaar, ook wanneer algemene batterijbediening actief is. Geen extra polling, laad-/ontlaadopdracht of SolarPilot-SoC-reserve. Koppelingen worden bewust gekozen; 5,12 kWh is de nominale fabrikantcapaciteit.',
  'battery': 'Een simulatie is geen echte batterijbesturing. Echte regeling vereist passende bronnen, '
             'terugmelding, globale en individuele toestemming en exclusief extern eigenaarschap.',
  'local_pv': 'Forecast en leren zijn onzeker en geven nooit toestemming om actuele P1/PV, comfort of '

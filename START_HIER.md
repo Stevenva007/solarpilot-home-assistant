@@ -1,6 +1,8 @@
 # SolarPilot starten of bijwerken
 
-Installeer **1.0.0-beta.112** via HACS, herstart Home Assistant volledig en herlaad de app of browser.
+Installeer **1.0.0-beta.113** via HACS, herstart Home Assistant volledig en herlaad de app of browser.
+
+Voor de nieuwe Marstek Venus E 3.0-monitor kies je onder Batterijen het Marstek-profiel, selecteer je de bestaande getekende batterij-AC-vermogenssensor en tekenrichting, bevestig je de meetdekking en kies je eventueel de SoC-bron. Een woning-P1/CT, DC-vermogen of absolute batteryPower is geen vervanging. De batterij blijft autonoom regelen; SolarPilot leest alleen. Zonder deze bewuste koppeling is de nieuwe batterij nog niet in SolarPilot aangesloten.
 
 SG/warmtepomp heeft vaste toegang tot actueel coherent bevestigd autonoom Wallbox-zonnelaadvermogen. De centrale volgorde en tijdelijke Wallboxvoorkeuren van gewone toestellen veranderen niet, maar kunnen SG niet van die zonnestroom uitsluiten. De Wallbox regelt zelf terug; SolarPilot geeft geen laadcommando.
 
@@ -12,4 +14,4 @@ Het echte huidige overschot blijft leidend, zonder toekomstige toestelreserverin
 
 De update zet de vroegere standaardbuffer van 300 seconden eenmaal om naar 900 seconden. Andere bewaarde aangepaste duurtijden en latere eigen keuzes blijven behouden. De lokale Shelly-toestemming blijft 300 seconden met actuele vernieuwing om de 60 seconden.
 
-[Installatie en rollback](docs/BETA112_INSTELLEN.md) · [Actuele werking](docs/ACTUELE_WERKING.md) · [Testverslag](docs/TESTRESULTATEN_BETA112.md) · [Overdracht](OVERDRACHT.md)
+[Installatie en rollback](docs/BETA113_INSTELLEN.md) · [Actuele werking](docs/ACTUELE_WERKING.md) · [Testverslag](docs/TESTRESULTATEN_BETA113.md) · [Overdracht](OVERDRACHT.md)

@@ -124,10 +124,12 @@ def shelly_mapping_error(hass: Any, entity_id: str) -> str | None:
 class ShellyLeaseAdapter:
     """One selected Shelly 1 Gen4 switch:0, with explicit timed ON and OFF."""
 
-    def __init__(self, hass: Any, entity_id: str, *, before_on: Any = None) -> None:
+    def __init__(self, hass: Any, entity_id: str, *, before_on: Any = None,
+                 before_write: Any = None) -> None:
         self.hass = hass
         self.entity_id = entity_id
         self.before_on = before_on
+        self.before_write = before_write
         # Separate ownership proof from the existing electrical policy hook.
         # The manager may reject a manual timer/contact change observed during
         # asynchronous preflight without making an OFF write or a blind retry.
@@ -175,6 +177,18 @@ class ShellyLeaseAdapter:
         try:
             # Both the native library timeout and outer cancellation are bounded.
             async with asyncio.timeout(RPC_TIMEOUT_S):
+                if writing and self.before_write is not None:
+                    try:
+                        allowed = self.before_write()
+                    except Exception as err:
+                        raise ShellyLeaseError("dispatch_changed", "De gekozen uitgang is beschermd; niets verzonden.") from err
+                    if inspect.isawaitable(allowed):
+                        close = getattr(allowed, "close", None)
+                        if callable(close):
+                            close()
+                        allowed = False
+                    if allowed is not True:
+                        raise ShellyLeaseError("dispatch_changed", "De gekozen uitgang is beschermd; niets verzonden.")
                 if writing and params and params.get("on") is True and self.before_on is not None:
                     try:
                         allowed = self.before_on()

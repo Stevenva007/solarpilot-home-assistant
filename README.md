@@ -1,10 +1,12 @@
 # SolarPilot
 
-**Actuele bronversie: 1.0.0-beta.112.** SolarPilot verdeelt lokaal zonnestroom tussen je toestellen in Home Assistant.
+**Actuele bronversie: 1.0.0-beta.113.** SolarPilot verdeelt lokaal zonnestroom tussen je toestellen in Home Assistant.
 
-Een lopend automatisch algemeen SG-contact blijft aan zolang er actueel bruikbare zon is en de overige voorwaarden passen. De warmtepomp mag lager moduleren zonder opnieuw het volledige startvermogen te moeten halen. De vijftienminutenwolkenbuffer vangt tijdelijke tekorten op; de oorspronkelijke minimumduur van twintig minuten en de aparte grens van 600 W netafname blijven behouden. De warmtepomp heeft vaste toegang tot betrouwbaar bevestigd autonoom Wallbox-zonnelaadvermogen. SolarPilot bedient alleen de bevestigde SG-uitgang; Panasonic en Wallbox regelen hun eigen werking. De oude standaardbuffer van vijf minuten wordt eenmaal vijftien minuten; andere bewaarde aangepaste waarden en latere eigen keuzes blijven staan.
+Marstek Venus E 3.0 kan nu als uitsluitend uitleesbare batterij worden toegevoegd via bestaande sensoren van de Marstek-integratie in Home Assistant. Kies bewust de getekende AC-batterijvermogensbron en tekenrichting; SoC is optioneel. SolarPilot bedient de batterij niet. Werkelijke ontlading telt eenmaal als batterijbijdrage en wordt niet als zonneoverschot gezien. De update koppelt geen bronnen automatisch.
 
-[Actuele werking](docs/ACTUELE_WERKING.md) · [Installatie en rollback](docs/BETA112_INSTELLEN.md) · [Testverslag](docs/TESTRESULTATEN_BETA112.md) · [Changelog](CHANGELOG.md)
+Waarschuwingen na vermogensoverdracht benoemen het betrokken toestel en de concrete overdrachtscontrole; eerdere herstelwacht wordt niet stil gewist. De SG-regeling met vijftien minuten wolkenbuffer en vaste zonnevoorrang op autonoom Wallboxladen blijft behouden.
+
+[Actuele werking](docs/ACTUELE_WERKING.md) · [Installatie en rollback](docs/BETA113_INSTELLEN.md) · [Testverslag](docs/TESTRESULTATEN_BETA113.md) · [Changelog](CHANGELOG.md)
 
 Panasonic regelt de warmtepomp zelfstandig; SolarPilot bedient uitsluitend de bevestigde SG-uitgang. De afwasmachine behoudt haar beschermde cyclus. Net-, fase- en kwartiergrenzen blijven gelden.
 
