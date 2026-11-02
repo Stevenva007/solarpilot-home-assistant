@@ -1,5 +1,5 @@
-/* SolarPilot 1.0.0-beta.114. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
-const SP_CARD_VERSION = '1.0.0-beta.114';
+/* SolarPilot 1.0.0-beta.115. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+const SP_CARD_VERSION = '1.0.0-beta.115';
 const SP_DIALOG_RELEASE = SP_CARD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g,'-');
 const SP_ANALYSIS_DIALOG_TAG = `solar-pilot-analysis-dialog-${SP_DIALOG_RELEASE}`;
 const SP_QUALITY_DIALOG_TAG = `solar-pilot-learning-dialog-${SP_DIALOG_RELEASE}`;
@@ -1042,16 +1042,18 @@ class SolarPilotCard extends HTMLElement {
     this.shadowRoot.addEventListener("click",ev=>this._click(ev));
     this.shadowRoot.addEventListener("change",ev=>this._change(ev));
   }
-  setConfig(config){ this._invalidateSgManualRequest();this._invalidateWallboxPriorityRequest();this._config=config||{}; this._entity=this._config.entity; this._view=this._config.default_view||"overview"; this._last=null; }
+  setConfig(config){ this._optionsDialog?.invalidateContext?.();this._invalidateSgManualRequest();this._invalidateWallboxPriorityRequest();this._config=config||{}; this._entity=this._config.entity; this._view=this._config.default_view||"overview"; this._last=null; }
   set hass(hass){
     const previousUser=this._hass?.user;
     this._hass=hass;
     const userChanged=previousUser&&(previousUser.id!==hass.user?.id||previousUser.is_admin!==hass.user?.is_admin);
+    if(userChanged)this._optionsDialog?.invalidateContext?.();
     if(userChanged){this._historyDialog?.close();this._sourceHistoryDialog?.close();this._waterHistoryDialog?.close();this._nativeHistorySeq=(this._nativeHistorySeq||0)+1;this._invalidateWallboxPriorityRequest();this._invalidateSgManualRequest();this._heatpumpHistoryDialog?.close();this._analysisFeedbackReport=null;this._analysisFeedbackEntry='';this._analysisFeedbackSeq=(this._analysisFeedbackSeq||0)+1;this._analysisFeedbackReadSeq=(this._analysisFeedbackReadSeq||0)+1;this._analysisFeedbackBusy=false;this._analysisFeedbackReading=false;}
-    if(this._optionsDialog)this._optionsDialog.hass=hass;
     if(this._priorityDialog)this._priorityDialog.hass=hass;
     if(!this._entity || !hass.states[this._entity]) this._entity=this._config?.entity || Object.keys(hass.states).find(id=>hass.states[id].attributes?.solar_pilot===true);
     const state=hass.states[this._entity];
+    if(!userChanged&&this._last?.attributes?.config_entry_id!==state?.attributes?.config_entry_id)this._optionsDialog?.invalidateContext?.();
+    if(this._optionsDialog)this._optionsDialog.hass=hass;
     if(state===this._last&&!userChanged) return;
     if(this._last?.attributes?.config_entry_id!==state?.attributes?.config_entry_id){this._invalidateWallboxPriorityRequest();this._invalidateSgManualRequest();this._analysisFeedbackReport=null;this._analysisFeedbackEntry='';this._analysisFeedbackSeq=(this._analysisFeedbackSeq||0)+1;this._analysisFeedbackReadSeq=(this._analysisFeedbackReadSeq||0)+1;this._analysisFeedbackBusy=false;this._analysisFeedbackReading=false;}
     this._last=state;
@@ -1399,16 +1401,18 @@ class SolarPilotCard extends HTMLElement {
     const automaticRestart=a.restart_recovery_pending===true;
     const sourceWait=!automaticRestart&&a.problem_kind==='source_wait';
     const sourceConfiguration=!automaticRestart&&a.problem_kind==='source_configuration';
+    const batterySource=!automaticRestart&&a.problem_kind==='battery_source';
     const wallboxWait=!automaticRestart&&a.problem_kind==='wallbox_wait';
     const wallboxConfiguration=!automaticRestart&&a.problem_kind==='wallbox_configuration';
     const recoveryNames=Array.isArray(a.restart_recovery_devices)?a.restart_recovery_devices:[];
     const problem=a.problem||(automaticRestart?`Wacht op betrouwbare toestelstatus${recoveryNames.length?': '+recoveryNames.join(' · '):''}; SolarPilot controleert automatisch opnieuw.`:'');
-    const title=automaticRestart?'Automatische herstartcontrole':sourceWait?'Automatische broncontrole':sourceConfiguration?'Toestelgegevens controleren':wallboxWait?'Wallbox tijdelijk niet bereikbaar':wallboxConfiguration?'Wallboxkoppeling controleren':'Aandacht nodig';
-    const sourceNote=sourceWait?'SolarPilot controleert automatisch opnieuw zodra actuele gegevens beschikbaar zijn.':sourceConfiguration?'Controleer de gekoppelde bronnen en instellingen van dit toestel.':wallboxWait?'Dit blokkeert andere toestellen niet. Zij mogen actueel gemeten netoverschot gebruiken zodra hun eigen voorwaarden zijn gehaald. SolarPilot controleert de Wallbox automatisch opnieuw; onbekend laadvermogen wordt niet als vrij vermogen gerekend.':wallboxConfiguration?'Controleer de Wallboxkoppelingen. Controle afronden herstelt deze koppeling niet.':'';
-    const canReset=!automaticRestart&&!sourceWait&&!sourceConfiguration&&!wallboxWait&&!wallboxConfiguration&&a.reset_entity;
+    const title=automaticRestart?'Automatische herstartcontrole':sourceWait?'Automatische broncontrole':sourceConfiguration?'Toestelgegevens controleren':batterySource?'Batterijbron controleren':wallboxWait?'Wallbox tijdelijk niet bereikbaar':wallboxConfiguration?'Wallboxkoppeling controleren':'Aandacht nodig';
+    const sourceNote=sourceWait?'SolarPilot controleert automatisch opnieuw zodra actuele gegevens beschikbaar zijn.':sourceConfiguration?'Controleer de gekoppelde bronnen en instellingen van dit toestel.':batterySource?'Controleer de bron en instellingen van de bestaande batterijmonitor.':wallboxWait?'Dit blokkeert andere toestellen niet. Zij mogen actueel gemeten netoverschot gebruiken zodra hun eigen voorwaarden zijn gehaald. SolarPilot controleert de Wallbox automatisch opnieuw; onbekend laadvermogen wordt niet als vrij vermogen gerekend.':wallboxConfiguration?'Controleer de Wallboxkoppelingen. Controle afronden herstelt deze koppeling niet.':'';
+    const canReset=!automaticRestart&&!sourceWait&&!sourceConfiguration&&!batterySource&&!wallboxWait&&!wallboxConfiguration&&a.reset_entity;
+    const batteryAction=batterySource?'<br><button type="button" data-action="configure" data-config-step="battery" class="mini">Batterijbron controleren</button>':'';
     const isolatedNotice=isolated.length?this._notice(`<strong>${isolated.length===1?'Toestel tijdelijk apart gehouden':'Toestellen tijdelijk apart gehouden'}</strong><br>${isolated.map(d=>`${spEscape(d.name)}: ${spEscape(d.reason||'betrouwbare toestelgegevens ontbreken')}`).join('<br>')}<br>Deze toestellen worden tijdelijk niet bediend. SolarPilot controleert automatisch opnieuw.${a.mode==='solar'?'<br>Andere beschikbare toestellen kunnen automatisch verder zodra hun eigen voorwaarden zijn gehaald.':''}${Number(a.isolated_reserve_w)>0?`<br>Veiligheidsreserve voor mogelijk verbruik: ${spPower(a.isolated_reserve_w)}. Dit is geen gemeten verbruik.`:''}`):'';
     const isolatedWait=isolated.length&&(sourceWait||automaticRestart&&a.problem_kind==='restart_wait'&&a.restart_blocking!==true);
-    return `${!this._last?this._notice('Geen SolarPilot-status gevonden. Voeg eerst de integratie toe.',true):''}${this._versionWarning(a)}${problem&&!isolatedWait?this._notice(`<strong>${title}</strong><br>${spEscape(problem)}${sourceNote?'<br>'+sourceNote:''}${canReset?'<br><button data-action="reset" class="mini">Controle afronden</button>':''}`,!automaticRestart&&!sourceWait&&!wallboxWait):''}${isolatedNotice}${this._error?`<div role="alert" class="error">${spEscape(this._error)}</div>`:''}${this._feedback?`<div role="status" class="notice">${spEscape(this._feedback)}</div>`:''}${ems.legacy_conflicts?.length?this._notice(`<strong>Dubbele regeling geblokkeerd</strong><br>${ems.legacy_conflicts.map(x=>spEscape(x.name)).join(' · ')}<br>Automatisch regelen blijft geblokkeerd tot deze vervangen regelaars uit staan.`,true):''}`;
+    return `${!this._last?this._notice('Geen SolarPilot-status gevonden. Voeg eerst de integratie toe.',true):''}${this._versionWarning(a)}${problem&&!isolatedWait?this._notice(`<strong>${title}</strong><br>${spEscape(problem)}${sourceNote?'<br>'+sourceNote:''}${batteryAction}${canReset?'<br><button data-action="reset" class="mini">Controle afronden</button>':''}`,!automaticRestart&&!sourceWait&&!wallboxWait):''}${isolatedNotice}${this._error?`<div role="alert" class="error">${spEscape(this._error)}</div>`:''}${this._feedback?`<div role="status" class="notice">${spEscape(this._feedback)}</div>`:''}${ems.legacy_conflicts?.length?this._notice(`<strong>Dubbele regeling geblokkeerd</strong><br>${ems.legacy_conflicts.map(x=>spEscape(x.name)).join(' · ')}<br>Automatisch regelen blijft geblokkeerd tot deze vervangen regelaars uit staan.`,true):''}`;
   }
   _versionWarning(a){
     const version=String(a.integration_version||'');
@@ -2518,7 +2522,7 @@ class SolarPilotCard extends HTMLElement {
       const entryId=this._last?.attributes?.config_entry_id;
       if(!entryId){this._error='Config entry ontbreekt; open de HA-instellingen.';this._render();return;}
       if(!this._optionsDialog){this._optionsDialog=document.createElement(spDialogTag('solar-pilot-options-dialog',SP_OPTIONS_DIALOG_TAG));this._optionsDialog.uiHistory=this._uiHistory;this.shadowRoot.append(this._optionsDialog);}
-      const hub=['sg_boost','sg_sources','sg_advanced','panasonic_monitor','comfort'].includes(step)?'comfort_hub':'loads_hub';
+      const hub=['sg_boost','sg_sources','sg_advanced','panasonic_monitor','comfort'].includes(step)?'comfort_hub':['wallbox','battery','battery_analysis'].includes(step)?'storage_hub':['settings','power_policy','capacity','phase','economy'].includes(step)?'energy_hub':['pv_forecast','forecast','local_pv','planner'].includes(step)?'intelligence_hub':['timing','phase_learning','wallbox_advanced','analysis','private_bundle','system_info'].includes(step)?'advanced_hub':'loads_hub';
       const route=step==='water'?[{next_step_id:'water'}]:step?[{next_step_id:hub},{next_step_id:step}]:[];
       if(deviceId)route.push({device_id:deviceId,...(section?{section}:{})});
       await this._optionsDialog._spClosingPromise;if(!this.isConnected)return;const opened=this._optionsDialog.open(this._hass,entryId,route);this._uiHistory.track(this._optionsDialog,()=>this._optionsDialog.open(this._hass,this._last?.attributes?.config_entry_id));await opened;

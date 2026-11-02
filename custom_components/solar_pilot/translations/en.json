@@ -304,7 +304,8 @@
           "battery_add": "Add battery",
           "battery_edit": "Edit battery",
           "battery_remove": "Remove battery",
-          "battery_marstek": "Marstek Venus E3 · monitor only"
+          "battery_marstek": "Marstek Venus E3 · open monitor",
+          "battery_marstek_add": "Add another Marstek monitor"
         }
       },
       "battery_settings": {
@@ -755,6 +756,13 @@
           "stop_delay_s": "Ordinary cloud-buffer duration, default 900 seconds (15 minutes). Raw grid import and zero valid usable solar budget use separate timers. A running contact need not meet the starting threshold again. Deficit and the original minimum duration run in parallel; the local permission retains confirmation margin and can expire slightly earlier. The former 300-second default is migrated once to 900; other saved custom durations and later deliberate settings are retained. Hard limits and necessary source validity still apply.",
           "rest_s": "Default request fallback wait: 900 seconds. Before expiry, proven original ended automatic session-limit or unknown-response evidence may replace this request wait with fresh OFF and at least two new usable-solar reports over the existing start stability once. After ordinary rest, current valid configuration and new stable sources can support a new request without an old policy hash blocking it permanently. Native need, manual OFF and uncertain commands keep their own conditions. This is not compressor rest.",
           "max_session_s": "Maximum duration for manual and other bounded SG routes, default 3600 seconds. Automatic general solar operation has no mandatory hourly stop: a permitted ON contact can remain while current usable solar and all other conditions hold. Short local permission is checked at each renewal; the original start and elapsed time are retained."
+        }
+      },
+      "battery_marstek_select": {
+        "title": "Choose Marstek monitor",
+        "description": "Choose the existing Marstek monitor to edit.",
+        "data": {
+          "battery_id": "Battery"
         }
       },
       "battery_marstek": {

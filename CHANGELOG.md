@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0-beta.115 — Marstek bewaren en mobiele formulierinvoer
+
+- Opent een bestaande Marstek-monitor met de opgeslagen waarden en dezelfde profielidentiteit. Bij meerdere monitoren volgt eerst een profielkeuze. Een extra monitor toevoegen is een afzonderlijke expliciete menuactie; de gewone route maakt geen onbedoeld leeg duplicaat.
+- Vervangt de native datalist door een begrensde filterbare entiteitskeuzelijst met eigen achtergrond, scroll, toetsenbordbediening en aanpassing aan de mobiele toetsenbordhoogte. Een gekozen entity_id en zoektekst blijven afzonderlijk.
+- Bewaart formulierinvoer bij veldfouten en onderscheidt Verder van de laatste bewuste bevestiging met Wijzigingen opslaan. Alleen een geslaagde eindstap meldt opslag; annuleren verandert de bestaande configuratie niet.
+- Herstelt de route vanuit batterij-/Wallboxconfiguratie naar het bestaande backendmenu. Geeft een batterijbronmelding de passende knop Batterijbron controleren; Controle afronden blijft voor echte toestelstoringen.
+- Maakt een geopende conceptsessie ongeldig bij account- of integratiewissel, zodat invoer en oude antwoorden niet naar een andere context overgaan.
+- Behoudt expliciete AC-bron-/tekencontrole, uitsluitend uitleesbare Marstek, actuele oorspronkelijke metingen, basislastvoorwaarden, vijftienminuten-SG-buffers en overige opdrachtgrenzen.
+- Werkt de canonieke uitleg, optiehulp, installatie/rollback, bronreview en overdracht samen bij. Zie BETA115_INSTELLEN.md en TESTRESULTATEN_BETA115.md.
+
 ## 1.0.0-beta.114 — batterijbron herstellen en gevalideerd basislastleren
 
 - Laat een actief Marstek-profiel pas opslaan na expliciete bevestiging van de AC-meetdekking. Een bekende verkeerde native meetsoort of strijdige bekende tekenrichting krijgt een veldfout; een bestaande koppeling wordt niet automatisch bevestigd of vervangen.

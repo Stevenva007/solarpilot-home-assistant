@@ -823,14 +823,50 @@ class SolarPilotOptions(LiveOptionsMixin, DishwasherOptionsMixin, config_entries
         return await self._sg_save_form("sg_advanced", user_input, schema)
 
     async def async_step_battery(self, user_input=None):
-        return self.async_show_menu(step_id="battery", menu_options=["battery_marstek", "battery_settings", "battery_add", "battery_edit", "battery_remove"])
+        options = ["battery_marstek"]
+        if self._marstek_batteries():
+            options.append("battery_marstek_add")
+        options.extend(["battery_settings", "battery_add", "battery_edit", "battery_remove"])
+        return self.async_show_menu(step_id="battery", menu_options=options)
+
+    def _marstek_batteries(self):
+        return [b for b in self._base_options().get("batteries", [])
+                if b.get("profile") == MARSTEK_PROFILE]
+
+    async def async_step_battery_marstek_add(self, user_input=None):
+        """Only an explicit add action starts another monitor."""
+        self._battery_editing = None
+        self._battery = {"id": uuid4().hex, "profile": MARSTEK_PROFILE,
+                         "name": "Marstek Venus E3", "power_sign": ""}
+        return await self.async_step_battery_marstek()
+
+    async def async_step_battery_marstek_select(self, user_input=None):
+        """Choose between configured monitors, without discovering sources."""
+        batteries = self._marstek_batteries()
+        if not batteries:
+            return await self.async_step_battery_marstek_add()
+        errors = {}
+        if user_input is not None:
+            battery = next((b for b in batteries if b["id"] == user_input.get("battery_id")), None)
+            if battery is not None:
+                self._battery_editing = battery["id"]
+                self._battery = deepcopy(battery)
+                return await self.async_step_battery_marstek()
+            errors["battery_id"] = "required"
+        schema = vol.Schema({vol.Required("battery_id"): selector.SelectSelector({"options": [
+            {"value": b["id"], "label": b.get("name", b["id"])} for b in batteries]})})
+        return self.async_show_form(step_id="battery_marstek_select", data_schema=schema, errors=errors)
 
     async def async_step_battery_marstek(self, user_input=None):
         """One read-only monitor; no source discovery or control adapter."""
         if self._battery.get("profile") != MARSTEK_PROFILE:
-            self._battery_editing = None
-            self._battery = {"id": uuid4().hex, "profile": MARSTEK_PROFILE,
-                             "name": "Marstek Venus E3", "power_sign": ""}
+            batteries = self._marstek_batteries()
+            if len(batteries) > 1:
+                return await self.async_step_battery_marstek_select()
+            if not batteries:
+                return await self.async_step_battery_marstek_add()
+            self._battery_editing = batteries[0]["id"]
+            self._battery = deepcopy(batteries[0])
         b = normalize_battery_config(self._battery)
         errors = {}
         if user_input is not None:
