@@ -135,10 +135,13 @@ class BatteryFleetManager:
         neither HA heartbeats nor incomplete packets renew the proof.
         """
         diagnostic = monitor_source_identity(self.runtime.hass, entity_id, power_sign=power_sign, role=role)
+        evidence = {"checked_at_wall": time.time(), "ha_reported_at_wall": finite(stamp)}
+        diagnostic["evidence"] = evidence
         self._source_diagnostics[(entity_id if isinstance(entity_id, str) else None, role)] = diagnostic
 
-        def reject(code):
+        def reject(code, detail=None):
             diagnostic.update(code=code, reason=_SOURCE_REASONS[code])
+            evidence["detail_code"] = detail or code
             return None
 
         if finite(value) is None or finite(stamp) is None:
@@ -170,6 +173,9 @@ class BatteryFleetManager:
                     or getattr(getattr(entity, "entity_description", None), "key", None) != key):
                 return reject("native_provider_unavailable")
             data = getattr(coordinator, "data", None)
+            evidence.update(coordinator_success=getattr(coordinator, "last_update_success", None) is True,
+                es_status_fresh=data.get("es_status_fresh") is True if isinstance(data, Mapping) else False,
+                has_fresh_data=data.get("has_fresh_data") is True if isinstance(data, Mapping) else False)
             if (not isinstance(data, Mapping) or data.get("es_status_fresh") is not True
                     or data.get("has_fresh_data") is not True
                     or getattr(coordinator, "last_update_success", None) is not True
@@ -178,17 +184,20 @@ class BatteryFleetManager:
                 return reject("native_provider_failed")
             stats = coordinator.udp_client.get_command_stats_for_ip(coordinator.device_ip)
             method = stats.get("ES.GetStatus") if isinstance(stats, Mapping) else None
+            evidence["es_command_success"] = method.get("last_success") is True if isinstance(method, Mapping) else False
             if not isinstance(method, Mapping) or method.get("last_success") is not True:
                 return reject("native_provider_failed")
             original = finite(method.get("last_updated"))
             success = finite(coordinator.last_update_success_time.timestamp())
             now, stale = time.time(), float(self.runtime.settings.get("stale_s", 120))
-            if (original is None or success is None or original > success
+            evidence.update(es_reported_at_wall=original, coordinator_success_at_wall=success)
+            if (original is None or success is None
                     or not -5 <= now-original <= stale or not -5 <= now-success <= stale):
-                return reject("native_source_stale")
+                return reject("native_source_stale", "status_time_invalid_or_stale")
             client = coordinator.udp_client
             native_now = finite(client.loop_time())
             completed = finite(data.get("last_update"))
+            evidence.update(completed_age_s=(native_now-completed if native_now is not None and completed is not None else None))
             ip, port = coordinator.device_ip, coordinator.device_port
             binding = (row.config_entry_id, getattr(row, "device_id", None), row.unique_id,
                        coordinator, client, role, ip, port)
@@ -196,6 +205,9 @@ class BatteryFleetManager:
             if previous is not None and previous["binding"] != binding:
                 self._native_source_proofs.pop(entity_id, None)
                 previous = None
+            if previous is not None:
+                evidence.update(field_reported_at_wall=previous["wall"],
+                    last_verified_reported_at_wall=previous.get("accepted_wall"))
             if (native_now is None or completed is None or min(native_now, completed) < 0 or completed > native_now
                     or not 0 <= native_now-completed <= stale
                     or (previous is not None and native_now < previous["mono"])):
@@ -203,6 +215,23 @@ class BatteryFleetManager:
             cache = getattr(getattr(client, "_router", None), "cache", None)
             if not isinstance(cache, Mapping) or len(cache) > 100:
                 return reject("native_field_unverified")
+            if original > success:
+                # Command stats update while the provider still awaits the rest
+                # of its poll. Only an already validated completed observation
+                # may bridge that normal asynchronous gap. Its deadline never
+                # moves, and a new binding, failed command, changed value or
+                # completed snapshot cannot borrow this older proof.
+                if (previous is not None and previous["value"] == value
+                        and previous.get("completed") == completed
+                        and previous.get("success_wall") == success
+                        and finite(previous.get("accepted_wall")) is not None
+                        and 0 <= native_now-previous["mono"] <= stale
+                        and -5 <= now-previous["accepted_wall"] <= stale):
+                    evidence.update(detail_code="inflight_previous_completed",
+                        field_reported_at_wall=previous["wall"],
+                        accepted_reported_at_wall=min(stamp, previous["accepted_wall"]))
+                    return min(stamp, previous["accepted_wall"])
+                return reject("native_source_stale", "status_after_completed_poll")
             raw_key = "ongrid_power" if role == "power" else "bat_soc"
             newest = None
             for cache_key, item in cache.items():
@@ -227,7 +256,11 @@ class BatteryFleetManager:
                     or not 0 <= native_now-previous["mono"] <= stale
                     or not -5 <= now-previous["wall"] <= stale):
                 return reject("native_field_unverified")
-            return min(stamp, original, previous["wall"])
+            accepted = min(stamp, original, previous["wall"])
+            previous.update(completed=completed, success_wall=success, accepted_wall=accepted)
+            evidence.update(detail_code="completed_field_confirmed",
+                field_reported_at_wall=previous["wall"], accepted_reported_at_wall=accepted)
+            return accepted
         except (ImportError, AttributeError, KeyError, TypeError, ValueError, RuntimeError, OverflowError):
             return reject("native_provider_unavailable") if native else stamp
 
@@ -327,7 +360,8 @@ class BatteryFleetManager:
             controllable=controllable, phase_hint=cfg.get("phase_hint", "unknown"), power_stamp=stamp,
             monitor_only=monitor_only, power_valid=power_valid, soc_valid=soc_valid, soc_stamp=soc_stamp,
             source_code=code, reason=_SOURCE_REASONS.get(code, ""),
-            native_key=diagnostic.get("native_key"), expected_native_key=diagnostic.get("expected_native_key"))
+            native_key=diagnostic.get("native_key"), expected_native_key=diagnostic.get("expected_native_key"),
+            source_evidence=deepcopy(diagnostic.get("evidence", {})))
 
     def read(self):
         bound = {cfg.get(key) for cfg in self.configs.values() if is_monitor_profile(cfg)
@@ -868,6 +902,7 @@ class BatteryFleetManager:
                 "power_stamp": r.power_stamp, "soc_stamp": r.soc_stamp,
                 "source_code": r.source_code, "reason": r.reason,
                 "native_key": r.native_key, "expected_native_key": r.expected_native_key,
+                "source_evidence": deepcopy(r.source_evidence),
                 "stale_s": self.runtime.settings.get("stale_s", 120),
                 "control_kind": "read_only" if r.monitor_only else self.configs[r.id].get("control_kind", "read_only"),
                 "control_enabled": bool(not r.monitor_only and self.configs[r.id].get("control_enabled")),

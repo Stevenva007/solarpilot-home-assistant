@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "reviewed_at": "2026-11-02T20:36:42.389900Z",
+  "reviewed_at": "2026-11-06T20:05:21.525815Z",
   "assessment": {
     "status": "complete_no_unprocessed_changes",
-    "summary": "Beta.115 rechecked both official public repository identities, default branches, current HEADs, latest published stable releases and resolved tag commits on 2026-11-02. Aquarea v1.9.1 remains 76f7e84c98897a7ef354ea8f1e5a6f34d0a71b4b; SDK v1.5.0 remains 55da9428ddf43ed26f2386d79c43d50cf4d9da0c. Both match the content-reviewed checkpoint; no new upstream source remains to process. Options persistence and mobile picker fixes do not alter native task/energy contracts, polling or actuator permission. Marstek v1.12.0 stays pinned. No automatic provider update or installation compatibility claim. See docs/UPSTREAM_BETA115.md.",
+    "summary": "Beta.116 reviewed all eight official public repository/default-branch/release/tag records on 2026-11-06. Aquarea v1.10.0 raises its floor to HA2026.3/Python3.14 and changes annotation/except syntax, CI and version only; full diff from reviewed v1.9.1 contains no task/status/poll/energy-contract change. SDK v1.5.0 is unchanged. Existing loaded-source checks remain required; no provider update, new polling or installation compatibility claim. Marstek v1.12.0 remains pinned; bounded prior field proof never gains a new original timestamp. See docs/UPSTREAM_BETA116.md.",
     "compatibility_claim": false,
     "evidence_document": "docs/UPSTREAM_BRONNEN.md"
   },
@@ -11,16 +11,16 @@
     {
       "repository": "wpatrik14/home-assistant-aquarea",
       "default_branch": "main",
-      "head_commit": "76f7e84c98897a7ef354ea8f1e5a6f34d0a71b4b",
+      "head_commit": "5d6a5a1fcdd36df5baf077741901e95357fc9bdc",
       "latest_release": {
-        "tag": "v1.9.1",
-        "commit": "76f7e84c98897a7ef354ea8f1e5a6f34d0a71b4b",
+        "tag": "v1.10.0",
+        "commit": "5d6a5a1fcdd36df5baf077741901e95357fc9bdc",
         "target_commitish": "main",
-        "published_at": "2026-11-01T18:52:58Z",
+        "published_at": "2026-11-03T20:53:17Z",
         "selection": "github_latest_published_stable"
       },
       "reviewed_base_commit": "76f7e84c98897a7ef354ea8f1e5a6f34d0a71b4b",
-      "review_result": "no_additional_changes"
+      "review_result": "relevant_changes_processed"
     },
     {
       "repository": "wpatrik14/aioaquarea",

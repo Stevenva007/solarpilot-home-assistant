@@ -83,6 +83,7 @@ class BatteryReading:
     reason: str = ""
     native_key: str | None = None
     expected_native_key: str | None = None
+    source_evidence: dict | None = None  # Frozen adapter check, never raw provider objects.
 
     @property
     def discharge_w(self):

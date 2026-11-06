@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta.116 — SG-herstel zonder herhaald kort schakelen
+
+- Laat de tijdelijke handmatige AAN-route na een stop door onbetrouwbare noodzakelijke energiemetingen de bronstoprust behouden. Daarna zijn actuele bevestigde UIT en meerdere nieuwe oorspronkelijke bronrapporten gedurende startstabiliteit nodig; wisselende bronnen geven geen nieuwe pulsen.
+- Bewaart de bronherstelwacht na herstart of een nieuwe bedieningskeuze, zonder oude stabiliteit te herhalen of bij automatisch herstel de oorspronkelijke handmatige eindtijd te verlengen. Een eerste bewuste handmatige AAN-keuze zonder eerdere bronstop houdt haar aparte gedrag; harde controles blijven leidend.
+- Onderscheidt herkenbare lopende Marstek-polls van expliciete fouten. Eerder volledig bevestigd bewijs voor dezelfde bron behoudt uitsluitend zijn oorspronkelijke geldigheid; geen nieuwe tijd, nulaanname, polling of batterijbediening.
+- Voegt begrensde oorspronkelijke batterijbrondiagnostiek toe en houdt gekozen programma/veiligheidscontext en native bedrijfsactie in SG-gebeurtenissen apart. Geen nieuwe meet- of schakelrechten.
+- Verwerkt de publieke Aquarea v1.10.0-bronreview (HA-minimum 2026.3/Python 3.14; geen gewijzigd taak-/energiecontract). Behoudt SDK v1.5.0, uitsluitend uitleesbare providers, vijftienminutenbuffers, minimumduur en fysieke grenzen. Geen automatische PV-correctie.
+- Werkt canonieke uitleg, optiehulp, installatie/rollback, testverslag, upstreamreview en overdracht samen bij. Zie BETA116_INSTELLEN.md en TESTRESULTATEN_BETA116.md.
+
 ## 1.0.0-beta.115 — Marstek bewaren en mobiele formulierinvoer
 
 - Opent een bestaande Marstek-monitor met de opgeslagen waarden en dezelfde profielidentiteit. Bij meerdere monitoren volgt eerst een profielkeuze. Een extra monitor toevoegen is een afzonderlijke expliciete menuactie; de gewone route maakt geen onbedoeld leeg duplicaat.

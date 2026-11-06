@@ -1,15 +1,23 @@
 <!-- solarpilot-handoff-schema: 1 -->
-<!-- solarpilot-handoff-version: 1.0.0-beta.115 -->
+<!-- solarpilot-handoff-version: 1.0.0-beta.116 -->
 
 # OVERDRACHT — SolarPilot
 
-Laatst bijgewerkt: **2 november 2026**. Actuele bron: **v1.0.0-beta.115**. Bouwbasis: gepubliceerde beta.114 `0e3bdb9d24c1129fd32f08399aa337a8c10a9a9a`. Installatie en rollback: `docs/BETA115_INSTELLEN.md`. Softwarebewijs en publicatievoorwaarden: `docs/TESTRESULTATEN_BETA115.md`.
+Laatst bijgewerkt: **6 november 2026**. Actuele bron: **v1.0.0-beta.116**. Bouwbasis: gepubliceerde beta.115 `23efb68f8951a6269b1b56db08ef4b8de35d8b34`. Installatie en rollback: `docs/BETA116_INSTELLEN.md`. Softwarebewijs en publicatievoorwaarden: `docs/TESTRESULTATEN_BETA116.md`.
 
 ## 1. Projectdoel in gewone taal
 
 SolarPilot verdeelt het echte huidige zonneoverschot lokaal zonder toekomstige toestelpieken te reserveren. SG/warmtepomp heeft vaste toegang tot actueel coherent bevestigd autonoom Wallbox-zonnelaadvermogen. Gewone toestelvolgorde en eigen overnamerechten blijven apart. Panasonic regelt comfort, warm water, koeling en sterilisatie zelfstandig. Een toegestaan automatisch algemeen SG-contact blijft aan zolang nog bruikbare zon en actuele overige voorwaarden aanwezig zijn. Lager moduleren vraagt geen herhaling van het startvermogen; korte wolken vallen onder de bestaande tekortbuffers.
 
 ## 2. Actuele basis
+
+Beta.116 voorkomt herhaald kort SG-inschakelen na verlies van noodzakelijke energiemetingen. Een bestaande bronstoprust kan niet door een tijdelijke handmatige AAN-keuze worden vervangen. Na de ingestelde rust volgen bevestigde actuele UIT en meerdere nieuwe oorspronkelijke rapporten over de ingestelde startstabiliteit. Herstart bewaart de bronherstelwacht maar hergebruikt geen opgebouwde stabiliteit. Een nieuwe keuze of Automatisch wist deze wacht niet. Automatisch herstel verlengt de oorspronkelijke handmatige eindtijd niet; bewust een nieuwe tijdsduur kiezen blijft een nieuwe vraag binnen het oorspronkelijke harde sessiemaximum. Een eerste bewuste handmatige AAN-keuze zonder voorafgaande bronstop blijft mogelijk onder de bestaande actuele voorwaarden.
+
+Een herkenbare lopende Marstek-providerpoll mag alleen eerder volledig bevestigd bewijs voor dezelfde binding en waarde binnen zijn oorspronkelijke maximale leeftijd van 120 seconden behouden. Een eerste uitlezing zonder eerder voltooid bewijs voldoet niet. Expliciete fout, ongeldige kwaliteit, gewijzigd bronobject en verlopen veldbewijs blijven afwijzingen. Geen extra polling, bronbinding of batterijbediening. Begrensde batterijbrondiagnostiek bewaart oorspronkelijke tijden/afwijsreden; SG-gebeurtenissen benoemen gekozen programma en native taak afzonderlijk. De exacte velden en regressies volgen de actuele implementatie.
+
+De online Aquarea-review is bijgewerkt naar v1.10.0: HA-minimum 2026.3/Python 3.14 en syntaxis/CI, zonder gewijzigde taak-, status-, poll- of energiecontracten. SDK v1.5.0 is ongewijzigd. Zie UPSTREAM_BETA116.md. Dit installeert geen provider en claimt geen lokale compatibiliteit.
+
+De onderstaande beta.115- en beta.114-werking blijft behouden.
 
 Beta.115 herstelt de route naar de bestaande Marstek-monitor: nul bestaande monitoren opent eerste configuratie, één laadt dezelfde profielidentiteit en opgeslagen velden, meerdere geven een afzonderlijke Marstek-keuze. Alleen Extra Marstek-monitor toevoegen start bewust een nieuw profiel. De algemene batterijbronmelding biedt configuratie via Batterijbron controleren in plaats van een niet toepasselijke foutreset.
 
@@ -23,10 +31,11 @@ De bestaande native broncontrole blijft de werkelijk gekoppelde entiteit/coordin
 
 Basislastleren weigert een ingeschakelde batterijvloot niet meer alleen wegens haar aanwezigheid. Alle actieve profielen moeten afzonderlijk volledige expliciet bevestigde getekende AC-metingen leveren. De balans is net + PV + getekend batterijvermogen − gemeten Wallbox − gemeten beheerde lasten. Laden is negatief; ontladen positief. Oorspronkelijke brontijden blijven nodig, voor deze leerwaarneming hoogstens 120 seconden oud en onderling passend. Templates, schattingen, restored, dubbele rollen en onbekende centrale-meteroverlap geven geen leerbewijs. Generieke profielen zonder AC-bevestiging blijven onbekend en behouden overige bestaande voorwaarden. Marstek mag onbekende SoC hebben bij afzonderlijk bewezen power. Geen retroactieve historiecorrectie of realtime vrij vermogen uit een model.
 
-De uitsluitend uitleesbare Marstek-grens, vijftienminuten-SG-buffers, minimumduur, oorspronkelijke deadlines, korte lease, vaste SG-zonnevoorrang en overige opdrachtgrenzen blijven behouden. Geen PV-aftrek of huishoudinstelling wordt automatisch uit een analyse toegepast. De online Aquarea-/SDK-hercontrole bevestigt ongewijzigde beoordeelde bronnen: v1.9.1 en v1.5.0.
+De uitsluitend uitleesbare Marstek-grens, vijftienminuten-SG-buffers, minimumduur, oorspronkelijke deadlines, korte lease, vaste SG-zonnevoorrang en overige opdrachtgrenzen blijven behouden. Geen PV-aftrek of huishoudinstelling wordt automatisch uit een analyse toegepast. Het historische beta.115-checkpoint gebruikte Aquarea v1.9.1 en SDK v1.5.0; de actuele beta.116-review hierboven vervangt dat checkpoint met Aquarea v1.10.0.
 
 ## 3. Absolute ontwerpregels
 
+- Een SG-stop wegens onbetrouwbare noodzakelijke energiebronnen krijgt een blijvende bronherstelwacht. Tijdelijk handmatig Aan vervangt deze wacht niet. Nieuwe stabiliteit begint pas na de bestaande rust, actuele bevestigde UIT en passend nieuw oorspronkelijk bronbewijs; bronverlies wist de kandidaat. Herstart herhaalt geen stabiliteit of oude opdracht en de oorspronkelijke handmatige eindtijd blijft staan.
 - De gewone Marstek-route bewerkt de bestaande monitor; nieuw aanmaken blijft een expliciete afzonderlijke route. Geen automatisch duplicaat, AC-vinkje, sensorbinding of stilzwijgende bevestiging. Een zoekterm is geen entiteitsidentiteit.
 - Verder is geen opslag. De laatste bevestiging blijft verplicht. Meld opgeslagen alleen na een geslaagde eindrespons; bewaarde veiligheidsvoorstellen en effectief toegepaste opties blijven afzonderlijk. Annuleren en fouten verlenen geen apparaatopdracht.
 - Een actief Marstek-profiel vraagt bewuste AC-bevestiging vóór opslaan. Een bestaande onbevestigde bron wordt niet automatisch bevestigd, vervangen of als nul gelezen. Concrete bronredenen geven geen nieuwe meting of controlerecht.
@@ -91,6 +100,8 @@ Tests en browserfixtures gebruiken uitsluitend fictieve bronnen. Diagnosebestand
 
 ## 9. Testprocedure + actuele teststatus
 
+Beta.116 toetst bronstoprust, bevestigde UIT, meerdere nieuwe oorspronkelijke rapporten, stabiel herstel, reset bij flapperende bronnen, herstart en handmatige eindtijd. De Marstek-overlapproef onderscheidt lopende polling van falen en toetst dezelfde binding/waarde, oorspronkelijke leeftijd, eerste uitlezing, partiële antwoorden en verlopen bewijs. Begrensde batterijbrondiagnostiek en programma/native-actie zijn afzonderlijke regressies. Zie docs/TESTRESULTATEN_BETA116.md voor actuele resultaten en bewijsgrenzen.
+
 Nieuwe regressies toetsen nul/één/meerdere bestaande Marstek-monitoren, gerichte profielselectie, dezelfde profielidentiteit, expliciet extra toevoegen en geen duplicaat na bewerken. Opslagtests onderscheiden een tussenformulier van de finale confirmstap en controleren annuleren, veldfouten en teruglezen. Een afzonderlijke echte-HA-optiesflowproef toetst opslag en opnieuw openen met werkelijke ConfigEntries en immutable opties.
 
 Echte Chromium-interacties met fictieve bronnen toetsen de eigen keuzelijst, exacte geselecteerde entity_id, lange waarden, filtering, toetsenbordbediening, validatiefouten, focus en gesimuleerde mobiele toetsenbordhoogte. Een globale battery_source-melding mag geen Controle afronden-knop krijgen; een echte toestelfout houdt haar resetroute. Geen fysieke Android/WebViewproef of huishoudinstallatieclaim.
@@ -99,9 +110,9 @@ Nieuwe regressies toetsen een letterlijke AC-bevestiging en bekende native meets
 
 Basislasttests toetsen volledige afzonderlijke fleetmetingen, getekend laden/ontladen, gemengde profielen, oorspronkelijke native ontvangsttijd en maximaal 120 seconden actualiteit, bronalignment, templates/estimated/restored, ontbrekende leden, dubbele rollen en centrale-meteroverlap. Marstek-SoC is onafhankelijk; generieke profielen houden hun bestaande voorwaarden en hebben voor deze fleetcorrectie expliciete AC-bevestiging nodig.
 
-De actuele Aquarea-/SDK-HEADs, stabiele releases en opgeloste tagcommits zijn op 2 november 2026 opnieuw online gecontroleerd en identiek aan het inhoudelijk beoordeelde beta.113-checkpoint. Er is geen nieuwe upstreamdiff te verwerken. Zie docs/UPSTREAM_BETA115.md en het machineleesbare checkpoint.
+De actuele Aquarea-/SDK-HEADs, stabiele releases en opgeloste tagcommits zijn op 6 november 2026 online gecontroleerd. De volledige Aquarea v1.9.1→v1.10.0-diff is inhoudelijk verwerkt als nieuw HA 2026.3/Python 3.14-minimum en syntaxis/CI, zonder nieuw taak-/poll-/energiecontract. SDK v1.5.0 is ongewijzigd. Zie docs/UPSTREAM_BETA116.md en het machineleesbare checkpoint.
 
-Passende regressies, echte Chromium-interacties, canonieke uitleg/optiehulp, handoff, privacy/structuur, commandogrenzen, JS-syntax en volledige testsuite worden gecontroleerd. De uitgevoerde resultaten en het publicatiemechanisme staan in docs/TESTRESULTATEN_BETA115.md. De volledige-suiteuitslag en HA-startup worden bewezen door Actions-runs voor de exacte PR-HEAD en uiteindelijke main-commit; een oudere groene head is geen vervanging.
+Passende regressies, echte Chromium-interacties, canonieke uitleg/optiehulp, handoff, privacy/structuur, commandogrenzen, JS-syntax en volledige testsuite worden gecontroleerd. De uitgevoerde resultaten en het publicatiemechanisme staan in docs/TESTRESULTATEN_BETA116.md. De volledige-suiteuitslag en HA-startup worden bewezen door Actions-runs voor de exacte PR-HEAD en uiteindelijke main-commit; een oudere groene head is geen vervanging.
 
 Alle vijf commitgebonden Validate-gates moeten groen zijn vóór samenvoegen. Main herhaalt de volledige suite en alle overige gates vóór automatische publicatie. Daarna worden de vier gedownloade release-assets tegen de exacte tag en bron-SHA gecontroleerd.
 
@@ -127,7 +138,9 @@ Nieuwe volledige geldige fleetmetingen mogen toekomstige basislastwaarnemingen o
 
 ## 12. Installatie/upgrade en rollback
 
-Werk na publicatie via HACS bij naar beta.115, herstart Home Assistant volledig en herlaad app/browser. Behoud entry, configuratie, modellen en privéopslag. Maak vooraf een volledige privéback-up. Open bij een bronmelding de bestaande Marstek-monitor, controleer de daadwerkelijke AC-sensor en richting, bevestig bewust de dekking, ga Verder en rond de laatste opslagbevestiging af. Open dezelfde monitor opnieuw om de opgeslagen waarden te controleren. De update bevestigt of vervangt geen bron en wordt niet op afstand op de huishoudinstallatie toegepast.
+Beta.116 vereist geen nieuwe koppeling of YAML. Zie BETA116_INSTELLEN.md. Rollback naar beta.115 mist de nieuwe bronherstelwacht en kan bij tijdelijke handmatige AAN-keuzes het oude herhaalde schakelen terugbrengen. Een huidige bronfout blijft ook met deze update onbekend; de update repareert geen fysieke verbinding.
+
+Werk na publicatie via HACS bij naar beta.116, herstart Home Assistant volledig en herlaad app/browser. Behoud entry, configuratie, modellen en privéopslag. Maak vooraf een volledige privéback-up. Open bij een bronmelding de bestaande Marstek-monitor, controleer de daadwerkelijke AC-sensor en richting, bevestig bewust de dekking, ga Verder en rond de laatste opslagbevestiging af. Open dezelfde monitor opnieuw om de opgeslagen waarden te controleren. De update bevestigt of vervangt geen bron en wordt niet op afstand op de huishoudinstallatie toegepast.
 
 Rollback naar beta.114 behoudt de opgeslagen monitoropties maar mist de nieuwe beheerroute, mobiele kiezer en duidelijke knoplabels. Gebruik daar Batterij aanpassen voor het bestaande profiel en rond de finale bevestiging af; de directe Marstek-route kan weer een nieuw leeg profiel voorstellen. Maak geen duplicaten en wis geen configuratie/opslag. Beta.113 mist bovendien de bronvalidatie, redenen en basislast-fleetcorrectie uit beta.114. Beta.112 of ouder vraagt de profiel-/buffercompatibiliteit uit BETA113_INSTELLEN.md. Zie docs/BETA115_INSTELLEN.md.
 
@@ -150,9 +163,11 @@ Rollback naar beta.114 behoudt de opgeslagen monitoropties maar mist de nieuwe b
 
 ## 14. Release-checklist
 
-Volledige suite en gerichte regressies; actuele uitleg, optiehulp en handoff; privacy/structuur; SG-opdrachtgrens; online upstreamreview; beide JS-syntaxcontroles; diffreview. Daarna vijf groene exacte PR-CI-gates. Pas vervolgens samenvoegen op main. Main herhaalt de gates en publiceert tag, HACS-ZIP, lokale ZIP en beide beta.115-release-documenten. Vergelijk alle vier gedownloade assets tegen exacte tag/bron-SHA. Geen manual-release-omweg, force-push of verplaatste oude tag.
+Volledige suite en gerichte regressies; actuele uitleg, optiehulp en handoff; privacy/structuur; SG-opdrachtgrens; online upstreamreview; beide JS-syntaxcontroles; diffreview. Daarna vijf groene exacte PR-CI-gates. Pas vervolgens samenvoegen op main. Main herhaalt de gates en publiceert tag, HACS-ZIP, lokale ZIP en beide beta.116-release-documenten. Vergelijk alle vier gedownloade assets tegen exacte tag/bron-SHA. Geen manual-release-omweg, force-push of verplaatste oude tag.
 
 ## 15. AI-handoff
+
+Actuele wijziging beta.116: SG-bronstopherstel blijft gelden voor handmatig/automatisch en na herstart. Behoud niet-vervangbare rust, actuele UIT, meerdere nieuwe oorspronkelijke rapporten en startstabiliteit zonder oorspronkelijke handmatige eindtijd te verlengen. Een herkenbare lopende Marstek-poll verjongt geen bewaard veldbewijs; fouten blijven ongeldig. De bronherstel- en historische batterijdiagnostiek geeft geen bevoegdheid om oude waarden als actueel te verklaren. De inhoudelijke Aquarea v1.10.0-review is verwerkt; bronactualiteit blijft online te toetsen.
 
 Begin bij de concrete gebruikersvraag, actuele bron en dit dossier. Beta.115 herstelt de route naar het bestaande Marstek-profiel, de mobiele entiteitskeuzelijst en de onduidelijke tussen-/eindopslag. Behoud dezelfde profielidentiteit bij bewerken; voeg alleen expliciet een extra monitor toe. Verder is niet opgeslagen. De laatste expliciete bevestiging blijft nodig. Fouten bewaren lokale invoer; een zoekterm is geen sensorbinding. De beta.114-bronvalidatie en basislast-fleetcorrectie blijven behouden. Een actief Marstek-profiel vraagt bewuste AC-bevestiging bij opslaan; bestaande onbevestigde koppelingen worden niet automatisch bevestigd of vervangen. Benoem concrete bronoorzaken en neem alleen veilige bekende native veldlabels in diagnostiek op.
 
