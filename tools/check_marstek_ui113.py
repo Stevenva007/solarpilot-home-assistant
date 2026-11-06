@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import shutil
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = Path(os.environ.get("SOLARPILOT_SCREENSHOT_DIR", "/tmp/solarpilot-browser-tests"))
@@ -178,19 +178,33 @@ with sync_playwright() as playwright:
     options.locator("button[type=submit]").click()
     options.locator("[name=ac_power_confirmed]").wait_for()
     assert not options.locator("[name=ac_power_confirmed]").is_checked()
-    options.locator("button[type=submit]").click()
-    assert "Zonder bevestiging wordt de monitor niet opgeslagen" in options.locator(".inline-error").inner_text()
-    assert page.evaluate("batterySettingsSaved") is None
+
+    def submit_source_error(submitted, expected_text):
+        # A previous inline error remains visible until the asynchronous flow
+        # response replaces the form. Assert this submission's exact payload,
+        # then wait for its mapped error rather than reading that older text.
+        requests_before = page.evaluate("settingsRequests.length")
+        options.locator("button[type=submit]").click()
+        page.wait_for_function("count=>settingsRequests.length>count", arg=requests_before)
+        assert page.evaluate("settingsRequests.length") == requests_before + 1
+        assert page.evaluate("settingsRequests.at(-1)") == {
+            "method": "post", "path": "config/config_entries/options/flow/fictional-source-flow",
+            "data": submitted,
+        }
+        expect(options.locator(".inline-error")).to_contain_text(expected_text)
+        assert page.evaluate("batterySettingsSaved") is None
+
+    values = {"name": "Fictieve Marstek-monitor", "power_entity": "sensor.fictional_battery_ac",
+              "power_sign": "discharge_positive", "ac_power_confirmed": False}
+    submit_source_error(values, "Zonder bevestiging wordt de monitor niet opgeslagen")
     options.locator("[name=ac_power_confirmed]").check()
     options.locator("[name=power_entity]").fill("sensor.fictional_battery_dc")
-    options.locator("button[type=submit]").click()
-    assert "Kies Vermogen netaansluiting" in options.locator(".inline-error").inner_text()
-    assert page.evaluate("batterySettingsSaved") is None
+    submit_source_error({**values, "power_entity": "sensor.fictional_battery_dc", "ac_power_confirmed": True},
+                        "Kies Vermogen netaansluiting")
     options.locator("[name=power_entity]").fill("sensor.fictional_battery_ac")
     options.locator("[name=power_sign]").select_option("charge_positive")
-    options.locator("button[type=submit]").click()
-    assert "Positief = ontladen naar huis" in options.locator(".inline-error").inner_text()
-    assert page.evaluate("batterySettingsSaved") is None
+    submit_source_error({**values, "power_sign": "charge_positive", "ac_power_confirmed": True},
+                        "Positief = ontladen naar huis")
     options.locator("[name=power_sign]").select_option("discharge_positive")
     options.locator("button[type=submit]").click()
     page.wait_for_function("batterySettingsSaved!==null")

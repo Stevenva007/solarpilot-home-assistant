@@ -3,17 +3,37 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.115'
-GUIDE_UPDATED = '2026-11-02'
+GUIDE_VERSION = '1.0.0-beta.116'
+GUIDE_UPDATED = '2026-11-06'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.115',
- 'updated': '2026-11-02',
+ 'version': '1.0.0-beta.116',
+ 'updated': '2026-11-06',
  'intro': 'SolarPilot verdeelt het echte huidige zonneoverschot zonder toekomstige toestelpieken te reserveren. De warmtepomp heeft voor '
           'automatisch algemeen SG-zonbedrijf vaste voorrang op bevestigd autonoom Wallbox-zonneladen. Een toegestaan AAN-contact kan '
           'aanblijven zolang de actuele voorwaarden voldoen; er is geen verplichte uurstop of administratieve sessiereset. Korte lokale '
           'toestemming en actuele hercontrole blijven noodzakelijk. Panasonic regelt de warmtepomp zelfstandig.',
- 'sections': [{'title': 'Geschiedenis en Wallbox-metingen',
+ 'sections': [{'title': 'SG-herstel na ontbrekende energiemetingen',
+               'paragraphs': ['Na het stoppen van een SG-aanvraag wegens onbetrouwbare noodzakelijke energiemetingen voorkomt '
+                              'SolarPilot herhaald kort inschakelen. Ook tijdelijk handmatig Aan wacht dan eerst de ingestelde '
+                              'rusttijd, standaard vijftien minuten, af. Daarna zijn actuele bevestigde UIT en meerdere nieuwe '
+                              'oorspronkelijke bronrapporten gedurende de ingestelde startstabiliteit nodig. Een nieuwe bronuitval '
+                              'begint het stabiliteitsbewijs opnieuw; herpublicatie zonder een nieuwe oorspronkelijke rapporttijd '
+                              'telt niet als nieuw bronbewijs.',
+                              'De bronherstelwacht blijft na herstart behouden, maar opgebouwde stabiliteit wordt niet herhaald. Een '
+                              'nieuwe handmatige keuze of terugkeer naar Automatisch wist de bronherstelwacht niet. Automatisch '
+                              'herstel of herstart verlengt de oorspronkelijke handmatige eindtijd niet. Bewust opnieuw een tijdsduur '
+                              'kiezen blijft een nieuwe gebruikersvraag, maar wist de bronherstelwacht en het oorspronkelijke harde '
+                              'sessiebegin niet. Een eerste bewuste handmatige Aan-keuze zonder eerdere bronstop houdt haar bestaande '
+                              'gedrag.',
+                              'Een Marstek-poll die nog bezig is, verjongt geen eerder bewijs. Alleen al volledig bevestigd bewijs '
+                              'voor dezelfde binding en waarde blijft binnen zijn oorspronkelijke maximale leeftijd van 120 seconden '
+                              'bruikbaar tijdens een herkenbare lopende poll. Een eerste uitlezing levert geen dergelijk oud bewijs; '
+                              'expliciete fout, verbindingsverlies, verkeerde binding, onbekende kwaliteit of een verlopen bron '
+                              'blijven ongeldig. Batterijmonitoring voegt geen polling of bediening toe.',
+                              'Diagnostiek houdt oorspronkelijke batterijrapporten, concrete afwijsredenen en SG-herstel apart. Programmakeuze en koel-/veiligheidscontext zijn geen native bedrijfsactie. Een SG-aanvraag of elektrisch vermogen bewijst geen compressorstart, warmteproductie of extra door SG veroorzaakt verbruik.'],
+               'bullets': []},
+              {'title': 'Geschiedenis en Wallbox-metingen',
                'paragraphs': ['De laadvermogensensor publiceert alleen het oorspronkelijke laadvermogen als klein attribuut. De aparte '
                               'Wallbox-statussensor behoudt uitgebreide profielen en diagnostiek voor de actuele weergave. Grote laadprofielen, '
                               'activiteitsdetails, reserveringsblokkades en prioriteitsgegevens worden niet bij iedere statuswijziging in de '

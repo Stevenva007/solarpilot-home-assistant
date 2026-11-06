@@ -1,14 +1,14 @@
 # SolarPilot
 
-**Actuele bronversie: 1.0.0-beta.115.** SolarPilot verdeelt lokaal zonnestroom tussen je toestellen in Home Assistant.
+**Actuele bronversie: 1.0.0-beta.116.** SolarPilot verdeelt lokaal zonnestroom tussen je toestellen in Home Assistant.
 
-Marstek-monitor openen toont nu de opgeslagen waarden van het bestaande profiel. Een extra batterij toevoegen is een afzonderlijke keuze. **Verder** gaat naar de controle; pas de laatste bevestiging met **Wijzigingen opslaan** slaat op. Veldfouten bewaren je invoer. De mobiele sensorzoeker gebruikt een begrensde keuzelijst en een scrollbare dialoog bij het toetsenbord.
+Beta.116 voorkomt herhaald kort SG-inschakelen na onbetrouwbare energiemetingen, ook bij tijdelijk handmatig Aan. Eerst geldt de bronstoprust, daarna bevestigd UIT en meerdere nieuwe oorspronkelijke bronrapporten gedurende de startstabiliteit. Herstart of opnieuw kiezen wist deze wacht niet; automatisch herstel verlengt de oorspronkelijke handmatige eindtijd niet.
 
-Een batterijbronmelding biedt **Batterijbron controleren**. Kies en bevestig de werkelijke getekende AC-bron bewust; een update bevestigt of vervangt niets automatisch. Marstek blijft uitsluitend monitoren, met afzonderlijke SoC en zonder extra polling of bediening.
+Een herkenbare lopende Marstek-poll kan alleen eerder volledig bevestigd bewijs voor dezelfde binding en waarde behouden, binnen de oorspronkelijke maximale leeftijd van 120 seconden. Een eerste uitlezing, fout of verlopen bron krijgt daardoor geen meetbewijs. Begrensde diagnostiek bewaart de oorspronkelijke bron- en controletijden; gekozen programma en werkelijke native taak blijven apart.
 
-Basislastleren kan een batterijvloot meenemen wanneer alle actieve bronnen afzonderlijk volledige bevestigde getekende AC-metingen leveren. Oorspronkelijke rapporttijden, bronkwaliteit en overlapcontroles blijven nodig. Leren of planning creëert geen actuele vrije zonnestroom. SG behoudt zijn vijftienminutenbuffers en vaste zonnevoorrang op autonoom Wallboxladen.
+De bestaande Marstek-beheerroute, mobiele sensorzoeker, expliciete AC-bronbevestiging en basislast-fleetcontrole blijven behouden. Marstek wordt uitsluitend uitgelezen zonder extra polling of bediening. SG behoudt zijn vijftienminutenbuffers en vaste zonnevoorrang op autonoom Wallboxladen.
 
-[Actuele werking](docs/ACTUELE_WERKING.md) · [Installatie en rollback](docs/BETA115_INSTELLEN.md) · [Testverslag](docs/TESTRESULTATEN_BETA115.md) · [Changelog](CHANGELOG.md)
+[Actuele werking](docs/ACTUELE_WERKING.md) · [Installatie en rollback](docs/BETA116_INSTELLEN.md) · [Testverslag](docs/TESTRESULTATEN_BETA116.md) · [Changelog](CHANGELOG.md)
 
 Panasonic regelt de warmtepomp zelfstandig; SolarPilot bedient uitsluitend de bevestigde SG-uitgang. De afwasmachine behoudt haar beschermde cyclus. Net-, fase- en kwartiergrenzen blijven gelden.
 
@@ -25,7 +25,7 @@ Bij **Analyse nodig** maakt één klik een export van de beschikbare zeven dagen
 
 ## Herstel van de beta.62-opstartfout
 
-Update via HACS naar beta.115 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.91 vraagt geen herbevestiging alleen door de codeupdate.
+Update via HACS naar beta.116 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.91 vraagt geen herbevestiging alleen door de codeupdate.
 
 ## Upgrade vanaf beta.61
 

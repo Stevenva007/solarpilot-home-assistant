@@ -105,6 +105,8 @@ class SGBoostManager:
         self._session_finishing = False
         self._rest_until = 0.0
         self._rest_until_wall = None
+        self._source_recovery = None
+        self._source_recovery_candidate = None
         self._request_rest_policy = None
         self._legacy_session_limit_rest = False
         self._suppress_saves = False
@@ -438,6 +440,7 @@ class SGBoostManager:
                 "session_finishing": self._session_finishing,
                 "rest_until_wall": self._rest_until_wall,
                 "request_rest_policy": self._request_rest_policy,
+                "source_recovery": deepcopy(self._source_recovery),
                 "request_rest_schema": 2,
                 "legacy_session_limit_rest": self._legacy_session_limit_rest,
                 "fault_code": self.fault_code, "last_session": deepcopy(self._last_session),
@@ -554,10 +557,44 @@ class SGBoostManager:
             remaining = max(0.0, min(float(self.settings["rest_s"]), rest - self._wall_clock()))
             self._rest_until = self._clock() + remaining
             self._rest_until_wall = rest
+        recovery = stored.get("source_recovery")
+        if recovery is not None:
+            stopped = _strict_time(recovery.get("stopped_at")) if isinstance(recovery, dict) else None
+            valid = (isinstance(recovery, dict) and type(recovery.get("schema")) is int and recovery["schema"] == 1
+                and recovery.get("control_identity") == self._control_identity()
+                and stopped is not None and 0 < stopped <= self._wall_clock())
+            # An invalid checkpoint cannot erase the recovery requirement or
+            # restore accumulated stability. New live proof is always required.
+            self._source_recovery = {"schema": 1, "control_identity": self._control_identity(),
+                "stopped_at": stopped if valid else self._wall_clock()}
+            self._source_recovery_candidate = None
         rest_policy = stored.get("request_rest_policy")
         self._request_rest_policy = rest_policy if rest_policy in ("request", "protected") else None
         last = stored.get("last_session")
         self._last_session = deepcopy(last) if isinstance(last, dict) else None
+        if ("source_recovery" not in stored and self.manual_mode == "on"
+                and self._request_rest_policy == "protected" and isinstance(last, dict)):
+            ended = _strict_time(last.get("ended_at"))
+            created = _strict_time(self._manual_control.get("created_at"))
+            stop = clean_dispatch_rejection(last.get("stop_evidence"))
+            # beta.115 did not journal source recovery. A still-current manual
+            # choice that already ended under protected rest cannot replay ON
+            # merely because the upgrade supplies one healthy source sample.
+            legacy_unknown = last.get("stop_evidence") is None
+            if (ended is not None and created is not None and 0 < created <= ended <= self._wall_clock()
+                    and (legacy_unknown or stop is not None
+                         and stop.get("code") in {"site_source", "phase_source", "capacity_source"})):
+                self._source_recovery = {"schema": 1, "control_identity": self._control_identity(),
+                    "stopped_at": ended}
+        if self._source_recovery is not None:
+            # A release-intent checkpoint may still contain the old live lease
+            # if HA stopped before OFF finished. It permits closing OFF only.
+            self._restart_resume = None
+            self._request_rest_policy = "protected"
+            recovery_rest = self._source_recovery["stopped_at"] + float(self.settings["rest_s"])
+            self._rest_until = max(self._rest_until,
+                self._clock() + max(0.0, recovery_rest-self._wall_clock()))
+            self._rest_until_wall = max(self._rest_until_wall or 0.0, recovery_rest)
         # Evidence never grants ownership or supplies restart permission. In
         # particular, a pre-provenance journal stays historically unknown.
         self._session_provenance = self._historical_provenance(stored.get("session_provenance"))
@@ -1441,6 +1478,9 @@ class SGBoostManager:
         if not self._on_permission_current(generation):
             self._capture_dispatch_rejection("permission_changed", renewal)
             return False
+        if not renewal and not self._source_recovery_current():
+            self._capture_dispatch_rejection("permission_changed", renewal)
+            return False
         if renewal and not self._confirmed_request_current():
             self._capture_dispatch_rejection("lease_unconfirmed", renewal)
             return False
@@ -1496,6 +1536,10 @@ class SGBoostManager:
 
     def _capture_dispatch_rejection(self, code, renewal, *, evidence=None):
         """Attach the exact rejected check; never reread it during safe OFF."""
+        if not renewal and self._source_recovery is not None:
+            # A failed final live check invalidates the recovered window too;
+            # an OFF/source return on the next tick cannot reuse that proof.
+            self._source_recovery_candidate = None
         try:
             cleaned = clean_dispatch_rejection(evidence)
             if cleaned is None or cleaned["renewal"] != (renewal is True):
@@ -1811,6 +1855,7 @@ class SGBoostManager:
                 stop_evidence=self._dispatch_rejection)
             return False
         self.owned = True
+        self._source_recovery = self._source_recovery_candidate = None
         self._usable_rearm_proof = None
         if self._firmware_reboot_waiting():
             self._firmware_reboot["state"] = "resumed"
@@ -1866,7 +1911,19 @@ class SGBoostManager:
         parts = []
         context = value.get("context")
         if context in RELEVANT_NATIVE_CONTEXTS | {"normal", "heatpump_unknown"}:
-            parts.append("native " + context)
+            parts.append("regelcontext " + context)
+        # The safety context/selected programme is not the reported execution
+        # action. Keep both explicit without promoting meter watts to heat or
+        # compressor evidence, or making an old native action current again.
+        native = value.get("native_task")
+        if isinstance(native, dict):
+            action = native.get("function")
+            stamp = _strict_time(native.get("observed_at"))
+            stale = _strict_time(native.get("stale_s"))
+            if (action in RELEVANT_NATIVE_CONTEXTS and stamp is not None
+                    and stale is not None and stale > 0
+                    and -5 <= self._wall_clock()-stamp <= stale):
+                parts.append("gemelde actie " + action)
         power = finite(value.get("power_w"))
         if power is not None and value.get("power_kind") == "measured":
             parts.append(f"gemeten {power:g} W")
@@ -1900,7 +1957,7 @@ class SGBoostManager:
             self._low_uptake_noted = True
             self._note("SG-contact actief; extra warmteopname nog niet aangetoond")
 
-    async def _release(self, reason, *, rest=True, preserve_fault=False, policy_hold=True, stop_evidence=None):
+    async def _release(self, reason, *, rest=True, preserve_fault=False, policy_hold=True, stop_evidence=None, source_loss=False):
         cancelled = None
         frozen_stop = clean_dispatch_rejection(stop_evidence)
         if frozen_stop is not None:
@@ -1909,6 +1966,21 @@ class SGBoostManager:
         self._stable_since = self._import_since = None
         self._import_observation = self._import_policy = None
         had_authority = self.owned or self._possibly_owned
+        source_stop = bool(had_authority and (source_loss or frozen_stop is not None
+                and frozen_stop.get("code") in {"site_source", "phase_source", "capacity_source"}))
+        if source_stop:
+            self._source_recovery = {"schema": 1, "stopped_at": self._wall_clock(),
+                "control_identity": self._control_identity()}
+            self._source_recovery_candidate = None
+            if rest:
+                self._begin_rest()
+            # Persist the release intent before transport: a crash just after
+            # successful OFF must not restore an apparently live manual lease.
+            # Storage failure must never withhold the existing safe release.
+            try:
+                await asyncio.wait_for(self._save(), float(self.settings["ack_timeout_s"]))
+            except (Exception, asyncio.CancelledError) as err:
+                cancelled = err if isinstance(err, asyncio.CancelledError) else None
         release_confirmed = False
         if (policy_hold and self.settings.get("profile") == "general"
                 and self._session_started is not None and not self.completion_hold):
@@ -1969,7 +2041,7 @@ class SGBoostManager:
                     self.fault_code = self.fault = ""
             except (Exception, asyncio.CancelledError) as err:
                 self._record_transport("off", error=err)
-                cancelled = err if isinstance(err, asyncio.CancelledError) else None
+                cancelled = err if isinstance(err, asyncio.CancelledError) else cancelled
                 ownership_withdrawn = (getattr(err, "code", "") == "dispatch_changed"
                     and getattr(err, "command_attempted", False) is False
                     and not self.owned and not self._possibly_owned)
@@ -1983,7 +2055,7 @@ class SGBoostManager:
                 if (adapter is not None and supports_off_callback
                         and getattr(adapter, "before_off_status", None) is off_callback):
                     adapter.before_off_status = None
-        if rest:
+        if rest and not source_stop:
             self._begin_rest(request_reassessment=bool(policy_hold and release_confirmed
                 and self.settings.get("profile") == "general" and self._hold_reason in {"response_unknown", "session_limit"}
                 and self._session_started is not None and self.manual_mode == "auto"
@@ -2962,8 +3034,9 @@ class SGBoostManager:
             residual_allowed = not self._gates(data_fresh=data_fresh, phase_allowed=phase_allowed,
                 priority_allowed=priority_allowed, hard_limit=hard_limit,
                 electrical_reason=electrical_reason, include_completion_hold=False)
-            rearmed = self._usable_reassessment(allowed=residual_allowed)
-            if not rearmed:
+            recovery_ready = self._source_recovery_step(allowed=residual_allowed)
+            rearmed = recovery_ready and self._usable_reassessment(allowed=residual_allowed)
+            if not rearmed and recovery_ready:
                 rearmed = self._general_reassessment(residual_allowed=residual_allowed)
             if rearmed or previous_reference != self._general_reference:
                 await self._save()
@@ -2989,7 +3062,8 @@ class SGBoostManager:
                     self._reset_start_window()
                 if self.owned or self._possibly_owned:
                     self._generation += 1
-                    await self._release(gates[0], preserve_fault=bool(self.fault))
+                    await self._release(gates[0], preserve_fault=bool(self.fault),
+                        source_loss=not data_fresh or start_wait_source_gap is True)
                 self._set_state("blocked" if self.auto_enabled or self.fault or self.manual_hold else "normal", gates[0])
                 return self.sent_this_tick
             if self._restart_release or raw is None or not self.relay_confirmed:
@@ -3045,6 +3119,13 @@ class SGBoostManager:
                     if self.manual_mode == "on" or imported <= float(self.settings["import_threshold_w"]) or self.minimum_hold_active or self.cloud_hold_active:
                         await self._issue_on(renewal=True)
                 return self.sent_this_tick
+            if not recovery_ready:
+                self._reset_start_window()
+                reason = ("SG-contact vrijgegeven na bronuitval; beschermde rusttijd loopt"
+                    if now < self._rest_until else
+                    "Na bronuitval wachten op stabiele actuele metingen en bevestigde UIT")
+                self._set_state("rest", reason)
+                return self.sent_this_tick
             if self.manual_mode == "on" and not self._firmware_reboot_waiting():
                 await self._issue_on()
                 return self.sent_this_tick
@@ -3072,6 +3153,65 @@ class SGBoostManager:
                         "required_w": float(self.settings["threshold_w"])}
             await self._issue_on()
             return self.sent_this_tick
+
+    def _source_recovery_observation(self):
+        observation = self._current_usable_solar()
+        if observation is None:
+            return None
+        # Production supplies per-source clocks. The oldest site clock also
+        # bounds all necessary battery readings; a new P1 alone cannot advance it.
+        reports = observation.get("source_reports")
+        if not isinstance(reports, dict):
+            return None
+        return observation
+
+    def _source_recovery_current(self):
+        if self._source_recovery is None:
+            return True
+        candidate = self._source_recovery_candidate
+        current = self._source_recovery_observation()
+        contact_stamp = _strict_time(self._relay_observed_at)
+        if (not isinstance(candidate, dict) or not candidate.get("ready")
+                or current is None or self._clock() < self._rest_until
+                or not self.relay_confirmed or self.relay_on is not False
+                or contact_stamp is None or contact_stamp < self._source_recovery["stopped_at"]
+                or not 0 <= self._wall_clock()-contact_stamp <= float(self.settings["stale_s"])
+                or candidate["source_signature"] != current["source_signature"]
+                or set(candidate["source_reports"]) != set(current["source_reports"])):
+            return False
+        return all(current["source_reports"][key] >= stamp
+            for key, stamp in candidate["source_reports"].items())
+
+    def _source_recovery_step(self, *, allowed):
+        if self._source_recovery is None:
+            return True
+        current = self._source_recovery_observation()
+        now = self._clock()
+        if (not allowed or current is None or not self._request_rest_off_current
+                or now < self._rest_until
+                or min(current["source_reports"].values()) <= self._source_recovery["stopped_at"]):
+            self._source_recovery_candidate = None
+            return False
+        candidate = self._source_recovery_candidate
+        reports = current["source_reports"]
+        if (candidate is None or candidate["source_signature"] != current["source_signature"]
+                or set(candidate["source_reports"]) != set(reports)
+                or any(reports[key] < stamp for key, stamp in candidate["source_reports"].items())
+                or now-candidate["last_checked"] > float(self.settings["stale_s"])):
+            self._source_recovery_candidate = {"source_signature": current["source_signature"],
+                "source_reports": deepcopy(reports), "first_reports": deepcopy(reports),
+                "first_seen": now, "last_checked": now, "ready": False}
+            return False
+        candidate["last_checked"] = now
+        candidate["source_reports"] = deepcopy(reports)
+        # All original clocks must progress, including a slower site/battery
+        # report, across the whole window. Two early reports followed only by
+        # cached rereads do not prove sustained source recovery.
+        required = float(self.settings["start_delay_s"])
+        candidate["ready"] = (all(reports[key] > stamp and reports[key]-stamp >= required
+            for key, stamp in candidate["first_reports"].items())
+            and now-candidate["first_seen"] >= required)
+        return candidate["ready"]
 
     def _reset_start_window(self):
         self._stable_since = self._start_soft_since = None

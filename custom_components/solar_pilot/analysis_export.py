@@ -410,6 +410,43 @@ def electrical_context_evidence(runtime, wall):
     return site, wallbox
 
 
+
+def battery_context_evidence(runtime, wall):
+    """Freeze the adapter's last decision beside current HA reports, read-only.
+
+    No adapter reread: diagnostics must not collect new field proof or replace
+    the controller observation. Whitelist only categorical fields and clocks;
+    never retain coordinator/device objects, network identity or raw replies.
+    """
+    manager = getattr(runtime, "battery_fleet", None)
+    if manager is None:
+        return {"enabled": False, "batteries": [], "truncated": False}
+    readings = list(getattr(manager, "last", ()) or ())
+    configs = getattr(manager, "configs", {})
+    evidence_fields = ("checked_at_wall", "ha_reported_at_wall", "es_reported_at_wall",
+        "coordinator_success_at_wall", "field_reported_at_wall", "accepted_reported_at_wall",
+        "last_verified_reported_at_wall",
+        "completed_age_s", "coordinator_success", "es_status_fresh", "has_fresh_data",
+        "es_command_success", "detail_code")
+    rows = []
+    for reading in readings[:32]:
+        config = configs.get(reading.id, {})
+        original = getattr(reading, "source_evidence", None) or {}
+        # Do not use a dataclass repr or arbitrary native diagnostics here.
+        evidence = {key: original.get(key) for key in evidence_fields if key in original}
+        rows.append({"id": reading.id, "valid": reading.valid,
+            "power_valid": reading.power_valid, "power_w": reading.power_w if reading.power_valid else None,
+            "power_reported_at_wall": reading.power_stamp if reading.power_valid else None,
+            "source_code": reading.source_code, "native_key": reading.native_key,
+            "expected_native_key": reading.expected_native_key, "stale_s": runtime.settings["stale_s"],
+            "adapter_check": evidence,
+            "ha_power": electrical_source_evidence(runtime, config.get("power_entity"), wall,
+                runtime.settings["stale_s"], power=True)})
+    return {"enabled": getattr(manager, "settings", {}).get("enabled") is True,
+        "batteries": rows, "truncated": len(readings) > 32,
+        "scope": "Laatste adaptercontrole en actuele HA-rapporten zijn afzonderlijk; HA-publicatie bewijst geen nieuw native veld."}
+
+
 def consumer_evidence(runtime, device_id, wall=None, now=None):
     """Read original feedback separately from controller accounting values."""
     wall = time.time() if wall is None else wall
@@ -599,6 +636,7 @@ class AnalysisRecorder:
         self.last_decision = None
         self.last_heatpump_state = None
         self.last_sg_transfer_state = None
+        self.last_battery_source_state = None
         self.last_effective_settings = None
         self.dropped = {"samples": 0, "changes": 0, "events": 0}
         self.loaded = False
@@ -741,6 +779,7 @@ class AnalysisRecorder:
                                   "reason": r.result.reasons.get(i), "estimated": not bool(r.configs[i].get("power_entity"))}
                             for i, s in r.states.items()}, "cycle_ms": round(elapsed_ms, 3)}
         fast["electrical_sources"], fast["wallbox"] = electrical_context_evidence(r, wall)
+        fast["battery_sources"] = safe(battery_context_evidence(r, wall))
         transfer_reader = getattr(r, "sg_wallbox_transfer_overview", None)
         try:
             fast["sg_wallbox_transfer"] = safe(transfer_reader()) if callable(transfer_reader) else None
@@ -775,7 +814,7 @@ class AnalysisRecorder:
                 # Keep the original electrical reports at a request/contact
                 # transition beyond the RAM-only two-hour fast-log window.
                 event_data["electrical_context"] = {key: fast[key] for key in
-                    ("ts", "grid_w", "pv_w", "source_policy", "electrical_sources", "wallbox", "sg_wallbox_transfer")}
+                    ("ts", "grid_w", "pv_w", "source_policy", "electrical_sources", "wallbox", "sg_wallbox_transfer", "battery_sources")}
             self.event("heatpump_change", "Warmtepomp-/SG-meldingen of meetdrempel gewijzigd",
                        event_data)
             self.last_heatpump_state = heatpump_state
@@ -790,8 +829,17 @@ class AnalysisRecorder:
                 # or original anchor change in the existing bounded event log.
                 self.event("sg_wallbox_transfer", "SG-Wallbox-overdracht waargenomen",
                     {"transfer": transfer, "electrical_context": {key: fast[key] for key in
-                        ("ts", "grid_w", "pv_w", "source_policy", "electrical_sources", "wallbox", "sg_wallbox_transfer")}})
+                        ("ts", "grid_w", "pv_w", "source_policy", "electrical_sources", "wallbox", "sg_wallbox_transfer", "battery_sources")}})
             self.last_sg_transfer_state = transfer_state
+        battery_state = (fast["battery_sources"]["enabled"], tuple(
+            (row["id"], row["valid"], row["power_valid"], row["source_code"],
+             row["native_key"], row["expected_native_key"])
+            for row in fast["battery_sources"]["batteries"]))
+        if battery_state != self.last_battery_source_state:
+            if self.last_battery_source_state is not None or battery_state[0]:
+                self.event("battery_source_change", "Batterijbronkwaliteit gewijzigd",
+                    {"battery_sources": fast["battery_sources"]})
+            self.last_battery_source_state = battery_state
         effective_settings = safe({"settings": r.settings, "devices": r.configs, "sg_boost": r.sg_boost.config,
                                    "wallbox": r.wallbox_settings, "pv_forecast": r.pv_forecast.settings,
                                    "analysis": self.settings})
