@@ -1,5 +1,9 @@
 # Openbaar upstream-bronregister
 
+## Hercontrole beta.117 — 11 november 2026
+
+Aquarea v2.0.1 staat met `main` en stabiele tag op `2ff80459a219330daf8c38341221075aaf9bfef8`; de daadwerkelijk vereiste SDK heeft v1.6.0 en `main` op `58bdd9bc3662950225fc1afc35ab7d084d5789b8`. Aquarea migreert pompstatus van `sensor` naar `binary_sensor`, maakt richting een kleine enum en voegt lifetime/vandaag-energie toe. SolarPilot beta.117 herstelt alleen de exact gebonden read-only pompstatusrol en blijft gesloten bij dubbele migratie. De SDK-wijziging betreft consumptierapportfout/retry; taakparser en LIVE/CACHED-contract zijn ongewijzigd. Beide repositories hebben geen open PR's; twee bestaande Aquarea-issues zijn geen gepubliceerde correctie. Zie [UPSTREAM_BETA117.md](UPSTREAM_BETA117.md). Geen automatische providerupgrade, bronbinding of installatiecompatibiliteitsclaim.
+
 ## Hercontrole beta.116 — 6 november 2026
 
 De acht officiële bronrecords zijn opnieuw gecontroleerd. Aquarea v1.10.0 verhoogt haar minimum naar HA 2026.3/Python 3.14; de volledige diff vanaf v1.9.1 wijzigt geen taak-, status-, poll- of energieperiodecontract. SDK v1.5.0 blijft ongewijzigd. De actuele pins en inhoudelijke impact staan in [UPSTREAM_BETA116.md](UPSTREAM_BETA116.md). Geen automatische providerupgrade, pollingtoevoeging of installatiecompatibiliteitsclaim.

@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "reviewed_at": "2026-11-06T20:05:21.525815Z",
+  "reviewed_at": "2026-11-11T18:47:44Z",
   "assessment": {
     "status": "complete_no_unprocessed_changes",
-    "summary": "Beta.116 reviewed all eight official public repository/default-branch/release/tag records on 2026-11-06. Aquarea v1.10.0 raises its floor to HA2026.3/Python3.14 and changes annotation/except syntax, CI and version only; full diff from reviewed v1.9.1 contains no task/status/poll/energy-contract change. SDK v1.5.0 is unchanged. Existing loaded-source checks remain required; no provider update, new polling or installation compatibility claim. Marstek v1.12.0 remains pinned; bounded prior field proof never gains a new original timestamp. See docs/UPSTREAM_BETA116.md.",
+    "summary": "Beta.117 reviewed all eight official public repository/default-branch/release/tag records on 2026-11-11. Aquarea v2.0.1 migrates pump status from sensor to binary_sensor and direction to a lowercase enum; SolarPilot now accepts either exact registered role while duplicate migration states fail closed. New lifetime/today energy is not relabelled as an old period source. SDK v1.6.0 changes consumption report retry/error handling only; inspected task/status/LIVE semantics are unchanged. No provider install, binding or new actuator right. See docs/UPSTREAM_BETA117.md.",
     "compatibility_claim": false,
     "evidence_document": "docs/UPSTREAM_BRONNEN.md"
   },
@@ -11,30 +11,30 @@
     {
       "repository": "wpatrik14/home-assistant-aquarea",
       "default_branch": "main",
-      "head_commit": "5d6a5a1fcdd36df5baf077741901e95357fc9bdc",
+      "head_commit": "2ff80459a219330daf8c38341221075aaf9bfef8",
       "latest_release": {
-        "tag": "v1.10.0",
-        "commit": "5d6a5a1fcdd36df5baf077741901e95357fc9bdc",
+        "tag": "v2.0.1",
+        "commit": "2ff80459a219330daf8c38341221075aaf9bfef8",
         "target_commitish": "main",
-        "published_at": "2026-11-03T20:53:17Z",
+        "published_at": "2026-11-10T20:08:44Z",
         "selection": "github_latest_published_stable"
       },
-      "reviewed_base_commit": "76f7e84c98897a7ef354ea8f1e5a6f34d0a71b4b",
+      "reviewed_base_commit": "5d6a5a1fcdd36df5baf077741901e95357fc9bdc",
       "review_result": "relevant_changes_processed"
     },
     {
       "repository": "wpatrik14/aioaquarea",
       "default_branch": "main",
-      "head_commit": "55da9428ddf43ed26f2386d79c43d50cf4d9da0c",
+      "head_commit": "58bdd9bc3662950225fc1afc35ab7d084d5789b8",
       "latest_release": {
-        "tag": "v1.5.0",
-        "commit": "55da9428ddf43ed26f2386d79c43d50cf4d9da0c",
+        "tag": "v1.6.0",
+        "commit": "58bdd9bc3662950225fc1afc35ab7d084d5789b8",
         "target_commitish": "main",
-        "published_at": "2026-10-23T15:00:23Z",
+        "published_at": "2026-11-09T00:33:45Z",
         "selection": "github_latest_published_stable"
       },
       "reviewed_base_commit": "55da9428ddf43ed26f2386d79c43d50cf4d9da0c",
-      "review_result": "no_additional_changes"
+      "review_result": "relevant_changes_processed"
     }
   ]
 }

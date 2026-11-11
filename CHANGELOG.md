@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-beta.117 — Aquarea 2.0-pompstatus
+
+- Herkent de door Aquarea v2.0.0/v2.0.1 gemigreerde pompstatus onder `binary_sensor` met behoud van dezelfde native unieke identiteit, config-entry en apparaatbinding.
+- Accepteert de nieuwe kleine richting-enumweergave zonder de getypeerde SDK-status, LIVE-poll, bronactualiteit of waardeovereenkomst te versoepelen.
+- Blijft gesloten bij gelijktijdige oude en nieuwe pompstatusentiteiten; voegt geen sensorbinding, providerupgrade, polling of Panasonic-opdracht toe.
+- Beoordeelt Aquarea v1.11.0→v2.0.1 en de werkelijk vereiste SDK v1.6.0, inclusief lifetime/vandaag-energie, migratie, privacycorrecties, open issues en PR-status. Nieuwe energietypen worden niet als oude dag-/maandperioden herlabeld.
+- Werkt canonieke uitleg, installatie/rollback, testverslag, openbaar upstreamregister en overdracht bij. Zie BETA117_INSTELLEN.md, TESTRESULTATEN_BETA117.md en UPSTREAM_BETA117.md.
+
 ## 1.0.0-beta.116 — SG-herstel zonder herhaald kort schakelen
 
 - Laat de tijdelijke handmatige AAN-route na een stop door onbetrouwbare noodzakelijke energiemetingen de bronstoprust behouden. Daarna zijn actuele bevestigde UIT en meerdere nieuwe oorspronkelijke bronrapporten gedurende startstabiliteit nodig; wisselende bronnen geven geen nieuwe pulsen.
