@@ -1,5 +1,5 @@
-/* SolarPilot 1.0.0-beta.117. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
-const SP_CARD_VERSION = '1.0.0-beta.117';
+/* SolarPilot 1.0.0-beta.118. Central priorities, start explanations and evidence-based reliability; no external dependencies. */
+const SP_CARD_VERSION = '1.0.0-beta.118';
 const SP_DIALOG_RELEASE = SP_CARD_VERSION.toLowerCase().replace(/[^a-z0-9]+/g,'-');
 const SP_ANALYSIS_DIALOG_TAG = `solar-pilot-analysis-dialog-${SP_DIALOG_RELEASE}`;
 const SP_QUALITY_DIALOG_TAG = `solar-pilot-learning-dialog-${SP_DIALOG_RELEASE}`;
@@ -1035,6 +1035,30 @@ class SolarPilotWallboxPriorityDialog extends HTMLElement {
 }
 if(!customElements.get(SP_WALLBOX_PRIORITY_DIALOG_TAG))customElements.define(SP_WALLBOX_PRIORITY_DIALOG_TAG,SolarPilotWallboxPriorityDialog);
 
+// A bounded server-time sample aligns display checks without making any source
+// newer. Elapsed time uses a monotonic clock, never a sensor's receipt time.
+const spMonotonicSeconds=()=>typeof performance!=='undefined'?performance.now()/1000:NaN;
+class SolarPilotDisplayClock {
+  clear(){this._sample=null;}
+  accept(data,entry,started,finished){
+    const number=value=>typeof value==='number'&&Number.isFinite(value),elapsed=finished-started;
+    if(!data||data.schema!==1||data.read_only!==true||data.config_entry_id!==entry||
+      !number(data.server_time)||data.server_time<=0||!Number.isFinite(new Date(data.server_time*1000).getTime())||
+      !number(started)||!number(finished)||elapsed<0||elapsed>5)return false;
+    // The complete round trip is a conservative upper bound: never retain a
+    // lease or source longer merely because the response took time to arrive.
+    this._sample={server:data.server_time+elapsed,monotonic:finished,wall:Date.now()/1000};
+    return true;
+  }
+  now(){
+    const sample=this._sample;if(!sample)return NaN;
+    const elapsed=spMonotonicSeconds()-sample.monotonic,wallElapsed=Date.now()/1000-sample.wall;
+    // Also detect suspension on platforms where performance.now pauses in sleep.
+    if(!Number.isFinite(elapsed)||elapsed<0||elapsed>180||!Number.isFinite(wallElapsed)||Math.abs(wallElapsed-elapsed)>5)return NaN;
+    return sample.server+elapsed;
+  }
+}
+
 class SolarPilotCard extends HTMLElement {
   constructor(){
     super(); this.attachShadow({mode:"open"}); this._busy=false; this._error=""; this._feedback=""; this._view="overview"; this._renderSignature=""; this._lastRenderedView="";
@@ -1042,7 +1066,7 @@ class SolarPilotCard extends HTMLElement {
     this.shadowRoot.addEventListener("click",ev=>this._click(ev));
     this.shadowRoot.addEventListener("change",ev=>this._change(ev));
   }
-  setConfig(config){ this._optionsDialog?.invalidateContext?.();this._invalidateSgManualRequest();this._invalidateWallboxPriorityRequest();this._config=config||{}; this._entity=this._config.entity; this._view=this._config.default_view||"overview"; this._last=null; }
+  setConfig(config){ this._optionsDialog?.invalidateContext?.();this._invalidateSgManualRequest();this._invalidateWallboxPriorityRequest();this._invalidateDisplayClock();this._config=config||{}; this._entity=this._config.entity; this._view=this._config.default_view||"overview"; this._last=null; }
   set hass(hass){
     const previousUser=this._hass?.user;
     this._hass=hass;
@@ -1052,11 +1076,13 @@ class SolarPilotCard extends HTMLElement {
     if(this._priorityDialog)this._priorityDialog.hass=hass;
     if(!this._entity || !hass.states[this._entity]) this._entity=this._config?.entity || Object.keys(hass.states).find(id=>hass.states[id].attributes?.solar_pilot===true);
     const state=hass.states[this._entity];
+    const clockContextChanged=this._setDisplayClockContext(state);
     if(!userChanged&&this._last?.attributes?.config_entry_id!==state?.attributes?.config_entry_id)this._optionsDialog?.invalidateContext?.();
     if(this._optionsDialog)this._optionsDialog.hass=hass;
-    if(state===this._last&&!userChanged) return;
+    if(state===this._last&&!userChanged&&!clockContextChanged){this._syncDisplayClock();return;}
     if(this._last?.attributes?.config_entry_id!==state?.attributes?.config_entry_id){this._invalidateWallboxPriorityRequest();this._invalidateSgManualRequest();this._analysisFeedbackReport=null;this._analysisFeedbackEntry='';this._analysisFeedbackSeq=(this._analysisFeedbackSeq||0)+1;this._analysisFeedbackReadSeq=(this._analysisFeedbackReadSeq||0)+1;this._analysisFeedbackBusy=false;this._analysisFeedbackReading=false;}
     this._last=state;
+    this._syncDisplayClock();
     this._anchorWallboxPriorityClock();this._wallboxPriorityDialog?.update();
     if(this._deviceManager){this._deviceManager.hass=hass;this._deviceManager.update(state?.attributes?.device_management);}
     this._historyDialog?.setContext(hass,this._device(this._historyDialog._deviceId),state?.attributes?.config_entry_id);
@@ -1068,8 +1094,34 @@ class SolarPilotCard extends HTMLElement {
     if(!userChanged&&signature && signature===this._renderSignature) return;
     this._render();
   }
-  connectedCallback(){this._uiHistory.connect();clearInterval(this._observationTimer);this._observationTimer=setInterval(()=>this._refreshObservationDisplay(),10000);clearInterval(this._wallboxPriorityTimer);this._wallboxPriorityTimer=setInterval(()=>this._refreshWallboxPriorityClocks(),1000);}
-  disconnectedCallback(){this._invalidateWallboxPriorityRequest();clearInterval(this._wallboxPriorityTimer);this._wallboxPriorityTimer=null;this._invalidateSgManualRequest();clearInterval(this._observationTimer);this._observationTimer=null;this._uiHistory.disconnect();this._priorityDialog?.close(true);this._deviceManager?.close();this._pvDialog?.close();this._learningDialog?.close();this._analysisDialog?.close();this._historyDialog?.close();this._sourceHistoryDialog?.close();this._waterHistoryDialog?.close();this._nativeHistorySeq=(this._nativeHistorySeq||0)+1;this._heatpumpHistoryDialog?.close();this._helpDialog?.close();this._optionsDialog?.close(true);}
+  connectedCallback(){this._uiHistory.connect();this._syncDisplayClock();clearInterval(this._observationTimer);this._observationTimer=setInterval(()=>{this._syncDisplayClock();this._refreshObservationDisplay();},10000);clearInterval(this._wallboxPriorityTimer);this._wallboxPriorityTimer=setInterval(()=>this._refreshWallboxPriorityClocks(),1000);}
+  disconnectedCallback(){this._invalidateDisplayClock();this._invalidateWallboxPriorityRequest();clearInterval(this._wallboxPriorityTimer);this._wallboxPriorityTimer=null;this._invalidateSgManualRequest();clearInterval(this._observationTimer);this._observationTimer=null;this._uiHistory.disconnect();this._priorityDialog?.close(true);this._deviceManager?.close();this._pvDialog?.close();this._learningDialog?.close();this._analysisDialog?.close();this._historyDialog?.close();this._sourceHistoryDialog?.close();this._waterHistoryDialog?.close();this._nativeHistorySeq=(this._nativeHistorySeq||0)+1;this._heatpumpHistoryDialog?.close();this._helpDialog?.close();this._optionsDialog?.close(true);}
+  _invalidateDisplayClock(){
+    this._displayClockSeq=(this._displayClockSeq||0)+1;this._displayClock?.clear();
+    this._displayClockContext=null;this._displayClockPending=null;this._displayClockAttempt=null;
+  }
+  _setDisplayClockContext(state){
+    const previous=this._displayClockContext,entry=state?.attributes?.config_entry_id,user=this._hass?.user?.id,connection=this._hass?.connection,connected=connection?.connected!==false;
+    if(previous&&previous.entry===entry&&previous.user===user&&previous.connection===connection&&previous.connected===connected)return false;
+    this._invalidateDisplayClock();this._displayClockContext={entry,user,connection,connected};return true;
+  }
+  _usesDisplayClock(){const value=this._last?.attributes?.display_clock;return value?.schema===1&&value.read_only===true;}
+  _displayNow(){return this._usesDisplayClock()?(this._hass?.connection?.connected===false?NaN:this._displayClock?.now()??NaN):Date.now()/1000;}
+  async _syncDisplayClock(){
+    if(!this.isConnected||!this._usesDisplayClock()||this._hass?.connection?.connected===false||typeof document!=='undefined'&&document.visibilityState==='hidden')return;
+    const context=this._displayClockContext,started=spMonotonicSeconds();
+    if(!context?.entry||!Number.isFinite(started)||this._displayClockPending||typeof this._displayClockAttempt==='number'&&started-this._displayClockAttempt>=0&&started-this._displayClockAttempt<30)return;
+    const send=this._hass?.callWS?msg=>this._hass.callWS(msg):this._hass?.connection?.sendMessagePromise?msg=>this._hass.connection.sendMessagePromise(msg):null;
+    if(!send)return;
+    const seq=(this._displayClockSeq||0)+1;this._displayClockSeq=seq;this._displayClockPending=seq;this._displayClockAttempt=started;let timer;
+    try{
+      const data=await Promise.race([send({type:'solar_pilot/display_clock',config_entry_id:context.entry}),new Promise((_,reject)=>timer=setTimeout(()=>reject(new Error('Tijdsafstemming niet beschikbaar')),10000))]);
+      if(seq!==this._displayClockSeq||context!==this._displayClockContext||!this.isConnected)return;
+      this._displayClock??=new SolarPilotDisplayClock();
+      this._displayClock.accept(data,context.entry,started,spMonotonicSeconds());
+    }catch{/* Keep only a previously confirmed, unexpired sample. No source refresh. */}
+    finally{clearTimeout(timer);if(seq===this._displayClockSeq){this._displayClockPending=null;this._refreshObservationDisplay();}}
+  }
   _activityObservationsCurrent(){return this._last?.attributes?.restored!==true&&typeof this._last?.state==='string'&&!!this._last.state&&!['unknown','unavailable'].includes(this._last.state.toLowerCase());}
   _refreshObservationDisplay(){
     if(!this.isConnected)return;
@@ -1219,7 +1271,7 @@ class SolarPilotCard extends HTMLElement {
   }
   _tile(label,value,note="",cls="") { return `<div class="tile ${cls}"><span>${spEscape(label)}</span><strong>${value}</strong>${note?`<small>${spEscape(note)}</small>`:''}</div>`; }
   _waterFacts(c){
-    const w=c.water||{},now=Date.now()/1000,valid=w.schema===1&&w.read_only===true&&w.configured===true,current=valid&&w.enabled===true&&this._activityObservationsCurrent();
+    const w=c.water||{},now=this._displayNow(),valid=w.schema===1&&w.read_only===true&&w.configured===true,current=valid&&w.enabled===true&&this._activityObservationsCurrent();
     return{w,valid,flow:current?spWaterReading(w.flow,now,{unit:'L/min',current:true}):null,volume:current?spWaterReading(w.volume,now,{unit:'L',current:true}):null,leak:current?spWaterReading(w.native_leak,now,{flag:true,current:true}):null,today:valid?spWaterNumber(w.today?.volume_l):null};
   }
   _waterDiagnostic(c){
@@ -1231,7 +1283,7 @@ class SolarPilotCard extends HTMLElement {
     if(w.schema!==1||w.read_only!==true||typeof w.enabled!=='boolean'||!raw||typeof raw!=='object'||Array.isArray(raw)||Object.keys(raw).length!==fields.length||Object.keys(raw).some(key=>!fields.includes(key))||raw.schema!==1||raw.read_only!==true||!Object.hasOwn(codes,raw.state)||raw.code!==codes[raw.state]||typeof raw.summary!=='string'||!raw.summary.trim()||raw.summary.length>1200||typeof raw.note!=='string'||raw.note.length>1600||typeof raw.continuous_flow_ready!=='boolean'||typeof raw.native_leak_ready!=='boolean'||!channel(raw.flow_monitoring)||!channel(raw.native_leak_monitoring))return invalid;
     const declared=[raw.flow_monitoring,raw.native_leak_monitoring].filter(row=>row.configured),stateFor=rows=>!w.enabled?'disabled':!rows.length?'not_configured':rows.every(row=>row.current)?'current':rows.some(row=>row.current)?'incomplete':'unavailable';
     if(raw.state!==stateFor(declared)||raw.continuous_flow_ready!==(w.enabled&&raw.flow_monitoring.current)||raw.native_leak_ready!==(w.enabled&&raw.native_leak_monitoring.current))return invalid;
-    const now=Date.now()/1000,active=this._activityObservationsCurrent(),fresh=(row,reading,options)=>row.current&&active&&row.reported_at===reading?.reported_at&&row.valid_until===reading?.valid_until&&spWaterReading(reading,now,{...options,current:true})!==null;
+    const now=this._displayNow(),active=this._activityObservationsCurrent(),fresh=(row,reading,options)=>row.current&&active&&row.reported_at===reading?.reported_at&&row.valid_until===reading?.valid_until&&spWaterReading(reading,now,{...options,current:true})!==null;
     const project=(row,reading,options)=>{const current=fresh(row,reading,options);return{...row,current,reason:row.current&&!current?(typeof row.valid_until==='number'&&row.valid_until<now?'stale':'invalid'):row.reason};};
     const flow=project(raw.flow_monitoring,w.flow,{unit:'L/min'}),leak=project(raw.native_leak_monitoring,w.native_leak,{flag:true}),state=stateFor([flow,leak].filter(row=>row.configured));
     const changed={incomplete:'Een deel van de gekoppelde waterbewaking heeft geen actueel bruikbaar rapport.',unavailable:'Geen gekoppelde bewakingsbron is nu actueel bevestigd.'};
@@ -1263,7 +1315,7 @@ class SolarPilotCard extends HTMLElement {
   _energyTile(kind,a){
     const meta=a.energy_display||{},source=meta[kind]||{},solar=kind==='pv';
     const number=v=>typeof v==='number'&&Number.isFinite(v),clamp=v=>Math.max(0,Math.min(1,v));
-    const watts=source.value_w,stamp=source.reported_at,age=number(stamp)?Date.now()/1000-stamp:Infinity;
+    const watts=source.value_w,stamp=source.reported_at,age=number(stamp)?this._displayNow()-stamp:Infinity;
     const stale=number(meta.stale_s)&&meta.stale_s>0?meta.stale_s:120;
     const available=number(watts)&&number(stamp)&&age>=-5&&age<=stale&&(!solar||watts>=0)
       &&this._last?.state!=='unavailable'&&this._last?.state!=='unknown'&&!this._last?.attributes?.restored;
@@ -1296,7 +1348,8 @@ class SolarPilotCard extends HTMLElement {
     const finite=value=>typeof value==='number'&&Number.isFinite(value);
     if(!finite(retry.next_check_wall)||retry.next_check_wall<=0||!finite(retry.remaining_s)||retry.remaining_s<0||retry.remaining_s>300)return null;
     if(d.start_requirements?.availability_and_fault?.fault)return null;
-    const remaining=Math.max(0,Math.min(300,Math.ceil(retry.next_check_wall-Date.now()/1000)));
+    const remaining=Math.max(0,Math.min(300,Math.ceil(retry.next_check_wall-this._displayNow())));
+    if(!finite(remaining))return null;
     const check=remaining>0?`Opnieuw controleren over ${remaining<60?remaining+' s':spDuration(remaining)}.`:'Nieuwe controle gepland; wacht op de volgende terugmelding.';
     return {
       label:retry.state==='source_wait'?'Tijdelijk niet bereikbaar':'Wacht op terugmelding',
@@ -1358,7 +1411,7 @@ class SolarPilotCard extends HTMLElement {
     if(typeof observed==='number'&&Number.isFinite(observed)&&observed>0&&observed!==this._wallboxPriorityObserved){this._wallboxPriorityObserved=observed;this._wallboxPriorityReceivedAt=performance.now();}
   }
   _wallboxPriorityNow(){
-    return typeof this._wallboxPriorityObserved==='number'&&typeof this._wallboxPriorityReceivedAt==='number'?this._wallboxPriorityObserved+Math.max(0,(performance.now()-this._wallboxPriorityReceivedAt)/1000):Date.now()/1000;
+    return typeof this._wallboxPriorityObserved==='number'&&typeof this._wallboxPriorityReceivedAt==='number'?this._wallboxPriorityObserved+Math.max(0,(performance.now()-this._wallboxPriorityReceivedAt)/1000):this._displayNow();
   }
   _refreshWallboxPriorityClocks(){
     if(!this.isConnected||document.visibilityState==='hidden')return;
@@ -1445,7 +1498,7 @@ class SolarPilotCard extends HTMLElement {
   }
   _powerReadingKnown(power){
     if(power?.valid!==true||power.value_w==null||!Number.isFinite(Number(power.value_w))||Number(power.value_w)<0)return false;
-    const stamp=Number(power.measured_wall),limit=Number(power.stale_s),age=Date.now()/1000-stamp;
+    const stamp=Number(power.measured_wall),limit=Number(power.stale_s),age=this._displayNow()-stamp;
     return Number.isFinite(stamp)&&stamp>0&&Number.isFinite(limit)&&limit>0&&age>=-5&&age<=limit;
   }
   _reasonFacts(facts){
@@ -1759,7 +1812,7 @@ class SolarPilotCard extends HTMLElement {
   _freshObservation(stamp,stale=120){
     if(this._last?.attributes?.restored===true||['unknown','unavailable'].includes(String(this._last?.state||'').toLowerCase()))return false;
     if(typeof stamp!=='number'||!Number.isFinite(stamp)||stamp<=0||typeof stale!=='number'||!Number.isFinite(stale)||stale<=0)return false;
-    const age=Date.now()/1000-stamp;
+    const age=this._displayNow()-stamp;
     return age>=-5&&age<=stale;
   }
   _panasonicSourceFresh(p,role){
@@ -1847,7 +1900,7 @@ class SolarPilotCard extends HTMLElement {
   _heatpumpDisplayOperation(c){
     const p=c.panasonic||{},value=p.operation_display;
     if(value===undefined)return null;
-    const deadline=(stamp,until,limit)=>typeof until==='number'&&Number.isFinite(until)&&until> Date.now()/1000&&this._freshObservation(stamp,limit);
+    const deadline=(stamp,until,limit)=>typeof until==='number'&&Number.isFinite(until)&&until> this._displayNow()&&this._freshObservation(stamp,limit);
     const valid=value&&value.read_only===true&&value.model_eligible===false&&['confirmed','derived','inactive','unknown'].includes(value.tier);
     if(!valid)return {known:false,taskKnown:false,active:null,tier:'unknown',function:null,label:'Werking onbekend',support:{active:null}};
     const contract=p.source_contract||{},provider=contract.provider||{},compatibility=contract.compatibility||{};
@@ -1958,7 +2011,7 @@ class SolarPilotCard extends HTMLElement {
         add(`${sourceLabel}: normalisatie`,`Bron ${quality.source_value.slice(0,128)} ${quality.source_unit} → toegepast 0 W${fresh?'':' · bron niet actueel'}`);
       }
       if(typeof quality.source_reported_wall==='number'&&Number.isFinite(quality.source_reported_wall)){
-        const age=Math.floor(Date.now()/1000-quality.source_reported_wall);
+        const age=Math.floor(this._displayNow()-quality.source_reported_wall);
         const ageLabel=age<0?`rapportagetijd ${-age} s in de toekomst`:`${age} s geleden`;
         add(`${sourceLabel}: laatste bronrapport`,`${ageLabel} · ${quality.source_timestamp_kind||'bron'}${quality.source_unit?' · '+quality.source_unit:''}`);
       }
@@ -1988,7 +2041,7 @@ class SolarPilotCard extends HTMLElement {
     return `<div data-sg-goal-setup><p class="note"><b>SG-doel:</b> ${spEscape(reason)} De getoonde ingestelde waarde is het normale Panasonic-doel.</p><button type="button" class="mini" data-action="configure" data-config-step="sg_sources">SG-doel voor weergave instellen</button></div>`;
   }
   _heatpumpCalculatedGoal(c,{diagnostic=false}={}){
-    const p=c.panasonic||{},row=p.sg_tank_goal,tank=p.display_tank,goal=spCalculatedTankGoal(row,{stale:p.source_stale_s??120});
+    const p=c.panasonic||{},row=p.sg_tank_goal,tank=p.display_tank,goal=spCalculatedTankGoal(row,{now:this._displayNow(),stale:p.source_stale_s??120});
     if(!goal||tank?.available!==true||tank.target_c!==goal.normal||tank.target_stamp!==row.normal_target_reported_at||!this._freshObservation(tank.target_stamp,p.source_stale_s??120))return null;
     const state=this._sgDisplayStates(c).relay.state;
     return {...goal,label:state==='active'?'SG-doel · berekend':'SG-doel bij AAN · berekend'};
@@ -1996,6 +2049,7 @@ class SolarPilotCard extends HTMLElement {
   _heatpumpReason(c){
     const s=c.sgBoost||{};
     if(!s.configured)return 'Panasonic regelt zelfstandig; SG-zonneboost is nog niet gekoppeld.';
+    if(this._usesDisplayClock()&&!Number.isFinite(this._displayNow()))return 'Wacht op tijdsafstemming met Home Assistant; de actuele SG-weergave is nog niet bevestigd.';
     if(!this._freshObservation(s.observed_at,s.relay_stale_s??120))return 'Wacht op actuele SolarPilot-status; de laatste SG-beslisreden is verouderd.';
     if(s.fault_code==='firmware_changed')return s.commissioning_diagnostic?.firmware_only===false?'De SG-uitgang wijkt af van de bevestigde koppeling. Controleer de toegewezen uitgang bij Zonneboost instellen.':'SolarPilot controleert de SG-uitgang automatisch opnieuw; een firmwareversiewijziging vereist geen handmatige herbevestiging.';
     if(s.reason==='SG-contact actief; Panasonic-reactie niet afzonderlijk bevestigd'&&this._sgDisplayStates(c).received.state==='unknown')return 'SG-contact actief.';
@@ -2013,7 +2067,7 @@ class SolarPilotCard extends HTMLElement {
     const requestKnown=snapshotFresh&&typeof s.desired_on==='boolean'&&!sessionElapsed;
     const timerReported=s.relay_valid_until!=null;
     const contactTimerExpired=s.relay_on===true&&timerReported&&
-      (typeof s.relay_valid_until!=='number'||!Number.isFinite(s.relay_valid_until)||Date.now()/1000>=s.relay_valid_until);
+      (typeof s.relay_valid_until!=='number'||!Number.isFinite(s.relay_valid_until)||this._displayNow()>=s.relay_valid_until);
     const relayKnown=s.relay_confirmed===true&&typeof s.relay_on==='boolean'&&!contactTimerExpired&&this._freshObservation(s.relay_observed_at,s.relay_stale_s??120);
     const receivedKnown=p.sg_status_confirmed===true&&['active','inactive'].includes(p.sg_status)&&this._panasonicSourceFresh(p,'received');
     return {request:{state:requestKnown?(s.desired_on?'active':'inactive'):'unknown',label:requestKnown?(s.desired_on?'Aangevraagd':'Niet aangevraagd'):'Onbekend'},
@@ -2021,7 +2075,7 @@ class SolarPilotCard extends HTMLElement {
       received:{state:receivedKnown?p.sg_status:'unknown',label:receivedKnown?(p.sg_status==='active'?'Actief · afzonderlijk bevestigd':'Niet actief · afzonderlijk bevestigd'):'Onbekend'}};
   }
   _sgContinuousSolar(c){
-    const s=c.sgBoost||{},now=Date.now()/1000,number=value=>typeof value==='number'&&Number.isFinite(value);
+    const s=c.sgBoost||{},now=this._displayNow(),number=value=>typeof value==='number'&&Number.isFinite(value);
     const stale=s.relay_stale_s??120,until=s.continuous_solar_valid_until,lease=this._sgCountdown(s,'lease_remaining_s');
     return s.continuous_solar===true&&s.remaining_s===null&&s.profile==='general'&&s.enabled===true&&c.a?.mode==='solar'&&c.a?.restored!==true&&this._sgManualState(c).mode==='auto'&&s.manual_hold!==true&&s.completion_hold!==true&&!s.fault&&s.desired_on===true&&s.owner==='solarpilot'&&s.lease_confirmed===true&&s.relay_confirmed===true&&s.relay_on===true&&number(s.observed_at)&&this._freshObservation(s.observed_at,stale)&&number(until)&&now<until&&until<=s.relay_observed_at+stale&&number(s.relay_observed_at)&&this._freshObservation(s.relay_observed_at,stale)&&number(s.relay_valid_until)&&now<s.relay_valid_until&&lease>0&&lease<=600;
   }
@@ -2042,7 +2096,7 @@ class SolarPilotCard extends HTMLElement {
     const fresh=this._freshObservation(s.observed_at,s.relay_stale_s??120),mode=object&&['auto','on','off'].includes(value.mode)?value.mode:null;
     const external=s.external_control;
     if(fresh&&external?.active===true&&typeof external.expires_at==='number'&&Number.isFinite(external.expires_at)&&external.duration_s===900){
-      const remaining=Math.ceil(Math.max(0,Math.min(900,external.expires_at-Date.now()/1000)));
+      const remaining=Math.ceil(Math.max(0,Math.min(900,external.expires_at-this._displayNow())));
       return {mode:'external',label:'Handmatig aan · automatische overname',remaining,duration:900,reason:''};
     }
     const reason=fresh&&typeof value?.reason==='string'?value.reason.slice(0,600):'';
@@ -2050,7 +2104,7 @@ class SolarPilotCard extends HTMLElement {
     if(mode==='auto')return {mode,label:'Automatisch',remaining:null,duration:null,reason};
     const duration=[1800,3600].includes(value.duration_s)?value.duration_s:null;
     const valid=duration!=null&&typeof value.expires_at==='number'&&Number.isFinite(value.expires_at)&&value.expires_at>0&&typeof value.remaining_s==='number'&&Number.isFinite(value.remaining_s)&&value.remaining_s>=0&&value.remaining_s<=duration&&value.expires_at-s.observed_at<=duration+1;
-    const remaining=valid?Math.ceil(Math.max(0,Math.min(value.expires_at-Date.now()/1000,value.remaining_s-Math.max(0,Date.now()/1000-s.observed_at)))):null;
+    const remaining=valid?Math.ceil(Math.max(0,Math.min(value.expires_at-this._displayNow(),value.remaining_s-Math.max(0,this._displayNow()-s.observed_at)))):null;
     return {mode,label:mode==='on'?'Handmatig AAN · aanvraag':'Handmatig UIT',remaining,duration,reason};
   }
   _sgManualControl(c){
@@ -2066,19 +2120,19 @@ class SolarPilotCard extends HTMLElement {
   _sgCountdown(s,key){
     const value=s[key];
     if(typeof value!=='number'||!Number.isFinite(value)||!this._freshObservation(s.observed_at,s.relay_stale_s??120))return null;
-    return Math.max(0,value-Math.max(0,Date.now()/1000-s.observed_at));
+    return Math.max(0,value-Math.max(0,this._displayNow()-s.observed_at));
   }
   _sgWaitTime(value){const seconds=Math.max(0,Math.ceil(value)),minutes=Math.floor(seconds/60);return minutes?`${minutes} min${seconds%60?' '+seconds%60+' s':''}`:`${seconds} s`;}
   _sgWaitCountdown(s,key){
     const value=s[key],until=s[({start_remaining_s:'start_valid_until',start_cloud_remaining_s:'start_cloud_valid_until'})[key]||'reassessment_valid_until'];
-    if(typeof value!=='number'||!Number.isFinite(value)||value<0||typeof until!=='number'||!Number.isFinite(until)||Date.now()/1000>until||!this._freshObservation(s.observed_at,s.relay_stale_s??120))return null;
-    return Math.ceil(Math.max(0,value-Math.max(0,Date.now()/1000-s.observed_at)));
+    if(typeof value!=='number'||!Number.isFinite(value)||value<0||typeof until!=='number'||!Number.isFinite(until)||this._displayNow()>until||!this._freshObservation(s.observed_at,s.relay_stale_s??120))return null;
+    return Math.ceil(Math.max(0,value-Math.max(0,this._displayNow()-s.observed_at)));
   }
   _sgRequestRest(c){
     const s=c.sgBoost||{},rearm=s.rearm_wait||{},raw=rearm.request_rest_remaining_s;
     const reported=Number.isInteger(raw)&&raw>=0?raw:s.rest_remaining_s;
     const fresh=this._freshObservation(s.observed_at,s.relay_stale_s??120)&&c.a?.restored!==true;
-    const remaining=fresh&&typeof reported==='number'&&Number.isFinite(reported)&&reported>=0?Math.ceil(Math.max(0,reported-Math.max(0,Date.now()/1000-s.observed_at))):null;
+    const remaining=fresh&&typeof reported==='number'&&Number.isFinite(reported)&&reported>=0?Math.ceil(Math.max(0,reported-Math.max(0,this._displayNow()-s.observed_at))):null;
     const usable=s.usable_reassessment_available===true;
     const replaceable=fresh&&remaining>0&&Number.isInteger(raw)&&raw>0&&rearm.request_rest_replaceable===true&&s.profile==='general'&&s.completion_hold===true&&(s.policy_hold_reason==='response_unknown'||usable&&s.policy_hold_reason==='session_limit')&&s.desired_on===false&&s.manual_hold!==true&&!s.fault&&this._sgDisplayStates(c).relay.state==='inactive';
     return {remaining,replaceable,label:replaceable?(usable?`Bij geldige bevestiging van dit zonnebudget en het open SG-contact vervalt de resterende SG-herhaalwacht. Er volgt geen tweede startvertraging.`:`SG-herhaalwacht: nog ${this._sgWaitTime(remaining)}. Kan eerder vervallen na 5 min verse echte restinjectie, een bevestigd open SG-contact en alle actuele voorwaarden. Daarna geldt de gewone startvertraging.`):''};
@@ -2094,7 +2148,7 @@ class SolarPilotCard extends HTMLElement {
       const waitingNew=fresh&&s.reassessment_state==='waiting_new_evidence'&&s.reassessment_source_current===true;
       const residual=s.reassessment_kind==='fresh_residual_surplus',usable=s.reassessment_kind==='fresh_usable_solar',number=value=>typeof value==='number'&&Number.isFinite(value)&&value>=0;
       const residualProof=residual&&valid&&remaining!=null&&number(s.real_residual_surplus_w)&&number(s.residual_reassessment_threshold_w)?` Restoverschot ${spPower(s.real_residual_surplus_w)} · nodig ${spPower(s.residual_reassessment_threshold_w)}.`:'';
-      const usableCurrent=usable&&valid&&remaining!=null&&number(s.usable_solar_w)&&number(s.usable_reassessment_threshold_w??s.residual_reassessment_threshold_w)&&this._freshObservation(s.usable_solar_reported_at,s.relay_stale_s??120)&&number(s.usable_solar_valid_until)&&Date.now()/1000<s.usable_solar_valid_until;
+      const usableCurrent=usable&&valid&&remaining!=null&&number(s.usable_solar_w)&&number(s.usable_reassessment_threshold_w??s.residual_reassessment_threshold_w)&&this._freshObservation(s.usable_solar_reported_at,s.relay_stale_s??120)&&number(s.usable_solar_valid_until)&&this._displayNow()<s.usable_solar_valid_until;
       const usableProof=usableCurrent&&number(s.usable_solar_w)&&number(s.usable_reassessment_threshold_w??s.residual_reassessment_threshold_w)?` Bruikbaar zonnevermogen ${spPower(s.usable_solar_w)} · nodig ${spPower(s.usable_reassessment_threshold_w??s.residual_reassessment_threshold_w)}. Dit omvat bevestigde warmtepomp- en Wallbox-zonnestroom; vrije injectie blijft apart.`:'';
       const requestRest=this._sgRequestRest(c),restNote=requestRest.replaceable?' '+requestRest.label:'';
       return{phase:'reassessment',title:usable?'Nieuwe SG-sessie · zonnebudget bevestigen':residual?'Nieuwe SG-sessie · restoverschot herbevestigen':'Nieuwe SG-sessie · herbevestiging',remaining:usable&&!usableCurrent?null:remaining,required:typeof required==='number'&&Number.isFinite(required)&&(usable?required>=0:required>0)?required:null,
@@ -2104,9 +2158,9 @@ class SolarPilotCard extends HTMLElement {
       const required=s.start_required_s,valid=typeof required==='number'&&Number.isFinite(required)&&required>=0&&typeof s.start_remaining_s==='number'&&Number.isFinite(s.start_remaining_s)&&s.start_remaining_s>=0&&s.start_remaining_s<=required;
       if(s.start_cloud_active===true){
         const kind=['cloud','measurement_gap'].includes(s.start_cloud_kind)?s.start_cloud_kind:null;
-        const graceValid=fresh&&kind&&typeof s.start_cloud_remaining_s==='number'&&Number.isFinite(s.start_cloud_remaining_s)&&s.start_cloud_remaining_s>=0&&s.start_cloud_remaining_s<=300&&typeof s.start_cloud_valid_until==='number'&&Number.isFinite(s.start_cloud_valid_until)&&Date.now()/1000<=s.start_cloud_valid_until;
+        const graceValid=fresh&&kind&&typeof s.start_cloud_remaining_s==='number'&&Number.isFinite(s.start_cloud_remaining_s)&&s.start_cloud_remaining_s>=0&&s.start_cloud_remaining_s<=300&&typeof s.start_cloud_valid_until==='number'&&Number.isFinite(s.start_cloud_valid_until)&&this._displayNow()<=s.start_cloud_valid_until;
         const grace=graceValid?this._sgWaitCountdown(s,'start_cloud_remaining_s'):null;
-        const remaining=graceValid&&valid?Math.ceil(Math.max(0,s.start_remaining_s-Math.max(0,Date.now()/1000-s.observed_at))):null;
+        const remaining=graceValid&&valid?Math.ceil(Math.max(0,s.start_remaining_s-Math.max(0,this._displayNow()-s.observed_at))):null;
         const title=kind==='cloud'?'Wolkendip · inschakelwachttijd loopt door':kind==='measurement_gap'?'Korte meetonderbreking · inschakelwachttijd loopt door':'Inschakelwachttijd · bronstatus onbekend';
         const wait=remaining==null?'Resterende inschakelwachttijd onbekend.':remaining===0?'Wachttijd verstreken · '+(kind==='cloud'?'wacht op voldoende zon.':'wacht op actuele meting.'):`Nog ${this._sgWaitTime(remaining)} inschakelwachttijd.`;
         const buffer=grace==null?'Resterende overbrugging onbekend.':grace===0?'Overbrugging verstreken · wacht op actuele beoordeling.':`Nog ${this._sgWaitTime(grace)} van maximaal 5 min overbrugging.`;
@@ -2123,8 +2177,8 @@ class SolarPilotCard extends HTMLElement {
     const s=c.sgBoost||{},number=value=>typeof value==='number'&&Number.isFinite(value)&&value>=0;
     if(s.desired_on!==true||!number(s.min_session_s))return null;
     const states=this._sgDisplayStates(c),required=number(s.effective_min_session_s)&&s.effective_min_session_s<=s.min_session_s?s.effective_min_session_s:null;
-    const valid=states.request.state==='active'&&states.relay.state==='active'&&s.lease_confirmed===true&&s.owner==='solarpilot'&&this._sgCountdown(s,'lease_remaining_s')>0&&number(s.minimum_valid_until)&&Date.now()/1000<s.minimum_valid_until&&required!=null&&number(s.minimum_remaining_s)&&s.minimum_remaining_s<=Math.ceil(required)&&(s.minimum_remaining_s===0||s.minimum_active===true);
-    const remaining=valid?Math.ceil(Math.max(0,s.minimum_remaining_s-Math.max(0,Date.now()/1000-s.observed_at))):null;
+    const valid=states.request.state==='active'&&states.relay.state==='active'&&s.lease_confirmed===true&&s.owner==='solarpilot'&&this._sgCountdown(s,'lease_remaining_s')>0&&number(s.minimum_valid_until)&&this._displayNow()<s.minimum_valid_until&&required!=null&&number(s.minimum_remaining_s)&&s.minimum_remaining_s<=Math.ceil(required)&&(s.minimum_remaining_s===0||s.minimum_active===true);
+    const remaining=valid?Math.ceil(Math.max(0,s.minimum_remaining_s-Math.max(0,this._displayNow()-s.observed_at))):null;
     return{configured:s.min_session_s,required,remaining,limited:s.minimum_limited_by_max===true,importHold:remaining>0&&s.minimum_import_hold===true,
       label:remaining==null?'Resterende minimumduur onbekend · wacht op actuele SG-status.':remaining===0?'Minimum verstreken · actuele regeling bepaalt het vrijgeven.':`Nog ${this._sgWaitTime(remaining)} · alleen de SG-aanvraag.`};
   }
@@ -2136,8 +2190,8 @@ class SolarPilotCard extends HTMLElement {
     const manual=this._sgManualState(c);if(['on','off'].includes(manual.mode)&&manual.remaining!==0)return null;
     const s=c.sgBoost||{},number=value=>typeof value==='number'&&Number.isFinite(value)&&value>=0;
     if(s.desired_on!==true||!number(s.import_threshold_w)||!number(s.stop_delay_s))return null;
-    const states=this._sgDisplayStates(c),current=states.request.state==='active'&&states.relay.state==='active'&&s.lease_confirmed===true&&s.owner==='solarpilot'&&this._sgCountdown(s,'lease_remaining_s')>0&&number(s.cloud_valid_until)&&Date.now()/1000<s.cloud_valid_until;
-    const remaining=current&&number(s.cloud_remaining_s)&&s.cloud_remaining_s<=Math.ceil(s.stop_delay_s)&&(s.cloud_active===true||s.cloud_remaining_s===0)?Math.ceil(Math.max(0,s.cloud_remaining_s-Math.max(0,Date.now()/1000-s.observed_at))):null;
+    const states=this._sgDisplayStates(c),current=states.request.state==='active'&&states.relay.state==='active'&&s.lease_confirmed===true&&s.owner==='solarpilot'&&this._sgCountdown(s,'lease_remaining_s')>0&&number(s.cloud_valid_until)&&this._displayNow()<s.cloud_valid_until;
+    const remaining=current&&number(s.cloud_remaining_s)&&s.cloud_remaining_s<=Math.ceil(s.stop_delay_s)&&(s.cloud_active===true||s.cloud_remaining_s===0)?Math.ceil(Math.max(0,s.cloud_remaining_s-Math.max(0,this._displayNow()-s.observed_at))):null;
     const idle=current&&s.cloud_active===false&&s.cloud_remaining_s===null;
     return{threshold:s.import_threshold_w,required:s.stop_delay_s,remaining,idle,
       label:remaining!=null?(remaining===0?'Wolkenbuffer verstreken · actuele regeling bepaalt het vrijgeven.':`Netafname boven ${spPower(s.import_threshold_w)} · nog ${this._sgWaitTime(remaining)}.`):idle?'Geen lopende importbuffer.':'Resterende wolkenbuffer onbekend · wacht op actuele net- en SG-status.'};
@@ -2147,7 +2201,7 @@ class SolarPilotCard extends HTMLElement {
     return `<p class="note sg-cloud" data-sg-cloud><b>Wolkenbuffer · ${spEscape(spPower(cloud.threshold))} / ${spEscape(this._sgWaitTime(cloud.required))}</b><br>${spEscape(cloud.label)}<br>Minimumduur en wolkenbuffer lopen tegelijk; harde beveiligingen kunnen SG eerder vrijgeven.</p>`;
   }
   _sgSolarDeficitProgress(c){
-    const s=c.sgBoost||{},now=Date.now()/1000,number=value=>typeof value==='number'&&Number.isFinite(value)&&value>=0;
+    const s=c.sgBoost||{},now=this._displayNow(),number=value=>typeof value==='number'&&Number.isFinite(value)&&value>=0;
     if(s.desired_on!==true||s.profile!=='general'||this._sgManualState(c).mode!=='auto'||s.joint_solar_deficit_active!==true||!number(s.stop_delay_s))return null;
     const states=this._sgDisplayStates(c),until=s.joint_solar_deficit_valid_until,lease=this._sgCountdown(s,'lease_remaining_s');
     const current=c.a?.restored!==true&&states.request.state==='active'&&states.relay.state==='active'&&s.lease_confirmed===true&&s.owner==='solarpilot'&&lease>0&&lease<=600&&number(until)&&now<until&&until<=s.relay_observed_at+(s.relay_stale_s??120)&&number(s.joint_solar_deficit_remaining_s)&&s.joint_solar_deficit_remaining_s<=Math.ceil(s.stop_delay_s);
@@ -2159,7 +2213,7 @@ class SolarPilotCard extends HTMLElement {
     return `<p class="note sg-cloud" data-sg-solar-deficit><b>Wolkenbuffer voor te weinig zonnestroom</b><br>${spEscape(deficit.label)}<br>Deze klok loopt naast de netafnamebuffer en de minimumduur; er volgt geen extra buffer achteraf.</p>`;
   }
   _sgWallboxTransferProgress(c){
-    const electrical=this._electricalLimits(c),value=electrical?.sg_wallbox_transfer,s=c.sgBoost||{},now=Date.now()/1000;
+    const electrical=this._electricalLimits(c),value=electrical?.sg_wallbox_transfer,s=c.sgBoost||{},now=this._displayNow();
     const number=value=>typeof value==='number'&&Number.isFinite(value);
     if(!value||typeof value!=='object'||Array.isArray(value)||value.applicable!==true||value.active!==true||value.state!=='active')return null;
     const stale=electrical.source_stale_s??120;
@@ -2223,7 +2277,7 @@ class SolarPilotCard extends HTMLElement {
     if(!value)return null;
     const fresh=c.a?.restored!==true&&value.source_valid===true&&this._freshObservation(value.source_observed_at,value.source_stale_s??120);
     const solarFresh=c.a?.restored!==true&&value.sg_solar_valid===true&&this._freshObservation(value.sg_solar_observed_at,value.source_stale_s??120);
-    const incrementFresh=fresh&&solarFresh&&this._freshObservation(value.sg_increment_observed_at,value.source_stale_s??120)&&typeof value.sg_increment_valid_until==='number'&&Number.isFinite(value.sg_increment_valid_until)&&Date.now()/1000<value.sg_increment_valid_until;
+    const incrementFresh=fresh&&solarFresh&&this._freshObservation(value.sg_increment_observed_at,value.source_stale_s??120)&&typeof value.sg_increment_valid_until==='number'&&Number.isFinite(value.sg_increment_valid_until)&&this._displayNow()<value.sg_increment_valid_until;
     return {...value,instantaneous_headroom_w:fresh?value.instantaneous_headroom_w:null,
       sg_estimated_extra_w:incrementFresh?value.sg_estimated_extra_w:null,
       sg_eligible_solar_w:solarFresh?value.sg_eligible_solar_w:null,
@@ -2235,7 +2289,7 @@ class SolarPilotCard extends HTMLElement {
   _sgCoolingState(c){
     const s=c.sgBoost||{},p=c.panasonic||{},value=s.cooling_diagnostic?.schema===1?s.cooling_diagnostic:p.cooling_context_diagnostic;
     if(!value||value.schema!==1||value.read_only!==true||!Array.isArray(value.sources))return null;
-    const untilCurrent=(stamp,until,stale)=>this._freshObservation(stamp,stale)&&typeof until==='number'&&Number.isFinite(until)&&Date.now()/1000<=until;
+    const untilCurrent=(stamp,until,stale)=>this._freshObservation(stamp,stale)&&typeof until==='number'&&Number.isFinite(until)&&this._displayNow()<=until;
     const rows=value.sources.slice(0,16).filter(row=>row&&typeof row==='object').map(row=>({...row,
       current:row.fresh===true&&untilCurrent(row.observed_at,row.valid_until,row.stale_s??value.stale_s??120),
       nativeCurrent:row.native_fresh===true&&untilCurrent(row.native_observed_at,row.native_valid_until,row.native_stale_s??value.stale_s??120)}));

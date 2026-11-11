@@ -1,15 +1,19 @@
 <!-- solarpilot-handoff-schema: 1 -->
-<!-- solarpilot-handoff-version: 1.0.0-beta.117 -->
+<!-- solarpilot-handoff-version: 1.0.0-beta.118 -->
 
 # OVERDRACHT — SolarPilot
 
-Laatst bijgewerkt: **11 november 2026**. Actuele bron: **v1.0.0-beta.117**. Bouwbasis: gepubliceerde beta.116 `92da7f292d78210a2fa44f93dac147f58cbcd9df`. Installatie en rollback: `docs/BETA117_INSTELLEN.md`. Softwarebewijs en publicatievoorwaarden: `docs/TESTRESULTATEN_BETA117.md`.
+Laatst bijgewerkt: **11 november 2026**. Actuele bron: **v1.0.0-beta.118**. Bouwbasis: gepubliceerde beta.117 `651caedba2f4d16b7dab85a22b90123746f5f3ca`. Installatie en rollback: `docs/BETA118_INSTELLEN.md`. Softwarebewijs en publicatievoorwaarden: `docs/TESTRESULTATEN_BETA118.md`.
 
 ## 1. Projectdoel in gewone taal
 
 SolarPilot verdeelt het echte huidige zonneoverschot lokaal zonder toekomstige toestelpieken te reserveren. SG/warmtepomp heeft vaste toegang tot actueel coherent bevestigd autonoom Wallbox-zonnelaadvermogen. Gewone toestelvolgorde en eigen overnamerechten blijven apart. Panasonic regelt comfort, warm water, koeling en sterilisatie zelfstandig. Een toegestaan automatisch algemeen SG-contact blijft aan zolang nog bruikbare zon en actuele overige voorwaarden aanwezig zijn. Lager moduleren vraagt geen herhaling van het startvermogen; korte wolken vallen onder de bestaande tekortbuffers.
 
 ## 2. Actuele basis
+
+Beta.118 voorkomt flikkerende SG-bediening door de kaarttijd met Home Assistant af te stemmen. De korte, uitsluitend uitleesbare tijdsaanvraag verandert geen bronrapport, lokale toestemming, handmatige eindtijd of backendregeling. Een onbruikbare tijdsreferentie blijft expliciet onbekend.
+
+De kaart gebruikt een hoogstens 180 seconden oude server-tijdreferentie, monotoon verloop en een conservatieve retourtijdgrens van vijf seconden. Vernieuwing wordt begrensd tot hoogstens eenmaal per dertig seconden per kaart. Oorspronkelijke bronrapporten en deadlines blijven staan. Contextwissel en een laat antwoord kunnen geen oude klok overnemen. De read-only `solar_pilot/display_clock`-WS-route vereist een ingelogde gebruiker en een geladen eigen SolarPilot-entry; zij heeft geen save- of controleroute.
 
 Beta.117 herkent de door Aquarea v2.0 gemigreerde pompstatus als `binary_sensor` op dezelfde native unique-id, config-entry en apparaatbinding. De historische `sensor`-vorm blijft ondersteund. Gelijktijdige oude en nieuwe rollen blijven ambigu en dus onbekend. De getypeerde pompwaarde, LIVE-poll, richting, zones, tankcontext en oorspronkelijke rapporttijden blijven vereist. Er is geen nieuwe bronbinding, providerinstallatie of Panasonic-opdracht.
 
@@ -37,6 +41,7 @@ De uitsluitend uitleesbare Marstek-grens, vijftienminuten-SG-buffers, minimumduu
 
 ## 3. Absolute ontwerpregels
 
+- De weergaveklok is geen bronbewijs. Geen oorspronkelijke rapporttijd, backendtijd, bronleeftijd, SG-lease of handmatige eindtijd aanpassen om een schermklok te compenseren. Alleen een begrensd read-only antwoord van dezelfde actuele gebruikers-/verbindings-/entrycontext mag de kaarttijd afstemmen.
 - Een SG-stop wegens onbetrouwbare noodzakelijke energiebronnen krijgt een blijvende bronherstelwacht. Tijdelijk handmatig Aan vervangt deze wacht niet. Nieuwe stabiliteit begint pas na de bestaande rust, actuele bevestigde UIT en passend nieuw oorspronkelijk bronbewijs; bronverlies wist de kandidaat. Herstart herhaalt geen stabiliteit of oude opdracht en de oorspronkelijke handmatige eindtijd blijft staan.
 - De gewone Marstek-route bewerkt de bestaande monitor; nieuw aanmaken blijft een expliciete afzonderlijke route. Geen automatisch duplicaat, AC-vinkje, sensorbinding of stilzwijgende bevestiging. Een zoekterm is geen entiteitsidentiteit.
 - Verder is geen opslag. De laatste bevestiging blijft verplicht. Meld opgeslagen alleen na een geslaagde eindrespons; bewaarde veiligheidsvoorstellen en effectief toegepaste opties blijven afzonderlijk. Annuleren en fouten verlenen geen apparaatopdracht.
@@ -102,6 +107,8 @@ SolarPilot uploadt geen exports automatisch en voert geen achtergrond-AI of prov
 Tests en browserfixtures gebruiken uitsluitend fictieve bronnen. Diagnosebestanden blijven buiten Git. Geen tokens, huisadressen, installatie-URLs, privé-entiteitslijsten, recorderbestanden of ruwe huishouddatasets in repository of release-ZIPs. Opslag en leermodellen blijven lokaal; publieke loguitvoer bevat geen geheime foutbodies of headers.
 
 ## 9. Testprocedure + actuele teststatus
+
+Beta.118 heeft regressies voor voor- en achterlopende schermklokken, herhaalde actuele publicaties, bronveroudering, toekomstige rapporten, lokale en handmatige eindtijden, trage/ongeldige antwoorden, slaap/kloksprong en contextwissels. De echte Chromium-gate controleert de zichtbare knoppen over 453 fictieve live-updates; de echte-HA-gate controleert de geregistreerde WS-schema/authenticatiegrens. Zie docs/TESTRESULTATEN_BETA118.md voor uitgevoerde resultaten en grenzen.
 
 Beta.117 toetst de Aquarea v2-binaire pompstatus, kleine richting-enum, behoud van de oude sensorvorm en gesloten gedrag bij een dubbele/onvoltooide migratie. De bestaande contracttests blijven LIVE/CACHED, getypeerde waarden, bindingen, conflicten en oorspronkelijke tijden bewaken. Zie docs/TESTRESULTATEN_BETA117.md voor resultaten en bewijsgrenzen.
 

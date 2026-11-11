@@ -1,10 +1,18 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.117
+**Versie:** 1.0.0-beta.118
 **Bijgewerkt:** 2026-11-11
-**Regel-hash:** `04b521c117ff2c33`
+**Regel-hash:** `03b1f8c99574fbc8`
 
 SolarPilot verdeelt het echte huidige zonneoverschot zonder toekomstige toestelpieken te reserveren. De warmtepomp heeft voor automatisch algemeen SG-zonbedrijf vaste voorrang op bevestigd autonoom Wallbox-zonneladen. Een toegestaan AAN-contact kan aanblijven zolang de actuele voorwaarden voldoen; er is geen verplichte uurstop of administratieve sessiereset. Korte lokale toestemming en actuele hercontrole blijven noodzakelijk. Panasonic regelt de warmtepomp zelfstandig.
+
+## Stabiele SG-weergave met de tijd van Home Assistant
+
+De kaart stemt haar tijd af via een kleine, uitsluitend uitleesbare Home Assistant-aanvraag. Daardoor wisselt de SG-bediening niet tussen Automatisch en onbekend wanneer de klok van de pc of het wallpanel enkele seconden afwijkt. De fysieke contactstand en de gekozen bediening blijven afzonderlijk.
+
+De kaart laat tijd daarna monotoon verstrijken. Een tijdsantwoord met meer dan vijf seconden retourtijd wordt geweigerd; een bevestigde tijdsreferentie is hoogstens drie minuten bruikbaar. Zonder tijdsafstemming toont de kaart dit expliciet. Een andere gebruiker, verbinding of SolarPilot-configuratie krijgt geen oude referentie of laat antwoord uit de vorige context.
+
+Tijdsafstemming maakt een bronrapport niet nieuwer. Oorspronkelijke bronleeftijden, toekomstcontrole, lokale contacteindtijden en handmatige eindtijden blijven gelden. Dit is alleen weergave; de backendregeling, SG-toestemming en apparaatopdrachten veranderen niet.
 
 ## Aquarea 2.0-pompstatus blijft zichtbaar
 

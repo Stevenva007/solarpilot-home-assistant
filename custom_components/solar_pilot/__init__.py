@@ -20,6 +20,7 @@ from .learning_api import async_register_learning_api
 from .pv_forecast_api import async_register_pv_api
 from .priority_api import async_register_priority_api
 from .wallbox_priority_api import async_register_wallbox_priority_api, SERVICE_WALLBOX_PRIORITY_CONTROL
+from .display_clock_api import async_register_display_clock_api
 from .pv_forecast import PV_SENSOR_DEFINITIONS
 from .analysis_export import storage_key as analysis_storage_key
 from .feedback_store import storage_key as feedback_storage_key
@@ -133,6 +134,7 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async_register_pv_api(hass)
     async_register_priority_api(hass)
     async_register_wallbox_priority_api(hass)
+    async_register_display_clock_api(hass)
     try:
         await async_register_frontend(hass)
     except Exception:  # Frontend convenience must never disable the EMS core.

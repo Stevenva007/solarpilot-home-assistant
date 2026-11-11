@@ -1,6 +1,8 @@
 # SolarPilot starten of bijwerken
 
-Installeer **1.0.0-beta.117** via HACS, herstart Home Assistant volledig en herlaad de app of browser.
+Installeer **1.0.0-beta.118** via HACS, herstart Home Assistant volledig en herlaad de app of browser.
+
+Beta.118 voorkomt flikkerende SG-bediening door de kaarttijd met Home Assistant af te stemmen. De korte, uitsluitend uitleesbare tijdsaanvraag verandert geen bronrapport, lokale toestemming, handmatige eindtijd of backendregeling. Een onbruikbare tijdsreferentie blijft expliciet onbekend.
 
 Aquarea 2.0.1 verplaatst de pompstatus naar een binaire sensor. SolarPilot beta.117 volgt die upstreammigratie read-only op dezelfde unieke bronidentiteit en apparaatbinding. De getypeerde LIVE-poll, richting, zones, tankcontext en oorspronkelijke rapporttijden blijven verplicht; bij een dubbele of onvoltooide migratie blijft de taak onbekend.
 
@@ -20,4 +22,4 @@ Het echte huidige overschot blijft leidend, zonder toekomstige toestelreserverin
 
 Bij een upgrade uit een oudere versie wordt de vroegere standaardbuffer van 300 seconden eenmaal omgezet naar 900 seconden. Andere bewaarde aangepaste duurtijden en latere eigen keuzes blijven behouden. De lokale Shelly-toestemming blijft 300 seconden met actuele vernieuwing om de 60 seconden.
 
-[Installatie en rollback](docs/BETA117_INSTELLEN.md) · [Actuele werking](docs/ACTUELE_WERKING.md) · [Testverslag](docs/TESTRESULTATEN_BETA117.md) · [Overdracht](OVERDRACHT.md)
+[Installatie en rollback](docs/BETA118_INSTELLEN.md) · [Actuele werking](docs/ACTUELE_WERKING.md) · [Testverslag](docs/TESTRESULTATEN_BETA118.md) · [Overdracht](OVERDRACHT.md)

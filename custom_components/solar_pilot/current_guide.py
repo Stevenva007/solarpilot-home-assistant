@@ -3,17 +3,30 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.117'
+GUIDE_VERSION = '1.0.0-beta.118'
 GUIDE_UPDATED = '2026-11-11'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.117',
+ 'version': '1.0.0-beta.118',
  'updated': '2026-11-11',
  'intro': 'SolarPilot verdeelt het echte huidige zonneoverschot zonder toekomstige toestelpieken te reserveren. De warmtepomp heeft voor '
           'automatisch algemeen SG-zonbedrijf vaste voorrang op bevestigd autonoom Wallbox-zonneladen. Een toegestaan AAN-contact kan '
           'aanblijven zolang de actuele voorwaarden voldoen; er is geen verplichte uurstop of administratieve sessiereset. Korte lokale '
           'toestemming en actuele hercontrole blijven noodzakelijk. Panasonic regelt de warmtepomp zelfstandig.',
- 'sections': [{'title': 'Aquarea 2.0-pompstatus blijft zichtbaar',
+ 'sections': [{'title': 'Stabiele SG-weergave met de tijd van Home Assistant',
+               'paragraphs': ['De kaart stemt haar tijd af via een kleine, uitsluitend uitleesbare Home Assistant-aanvraag. '
+                              'Daardoor wisselt de SG-bediening niet tussen Automatisch en onbekend wanneer de klok van de pc '
+                              'of het wallpanel enkele seconden afwijkt. De fysieke contactstand en de gekozen bediening '
+                              'blijven afzonderlijk.',
+                              'De kaart laat tijd daarna monotoon verstrijken. Een tijdsantwoord met meer dan vijf seconden '
+                              'retourtijd wordt geweigerd; een bevestigde tijdsreferentie is hoogstens drie minuten bruikbaar. '
+                              'Zonder tijdsafstemming toont de kaart dit expliciet. Een andere gebruiker, verbinding of '
+                              'SolarPilot-configuratie krijgt geen oude referentie of laat antwoord uit de vorige context.',
+                              'Tijdsafstemming maakt een bronrapport niet nieuwer. Oorspronkelijke bronleeftijden, '
+                              'toekomstcontrole, lokale contacteindtijden en handmatige eindtijden blijven gelden. Dit is '
+                              'alleen weergave; de backendregeling, SG-toestemming en apparaatopdrachten veranderen niet.'],
+               'bullets': []},
+              {'title': 'Aquarea 2.0-pompstatus blijft zichtbaar',
                'paragraphs': ['Aquarea 2.0.1 verplaatst de bestaande pompstatus van een gewone sensor naar een binaire sensor en '
                               'publiceert de pomprichting als kleine enumwaarde. SolarPilot herkent beide gecontroleerde domeinen op '
                               'dezelfde native unieke identiteit en hetzelfde Aquarea-apparaat. Daardoor kan de read-only '
