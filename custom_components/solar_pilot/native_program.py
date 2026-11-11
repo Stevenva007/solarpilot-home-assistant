@@ -330,7 +330,8 @@ class NativeClimateProgram:
                 eid = getattr(row, "entity_id", "")
                 role = ("tank_entity" if eid.startswith("water_heater.") and uid == f"{native_id}_tank" else
                         "direction_entity" if eid.startswith("sensor.") and uid == f"{native_id}_direction" else
-                        "pump_status_entity" if eid.startswith("sensor.") and uid == f"{native_id}_pump_status" else
+                        "pump_status_entity" if (eid.startswith("sensor.") or eid.startswith("binary_sensor."))
+                        and uid == f"{native_id}_pump_status" else
                         "defrost_entity" if eid.startswith("binary_sensor.") and uid == f"{native_id}_defrost" else
                         "zone_entities" if eid.startswith("climate.") and uid.startswith(f"{native_id}_climate_")
                         and uid[len(f"{native_id}_climate_"):].isdigit() else None)

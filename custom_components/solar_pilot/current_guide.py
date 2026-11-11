@@ -3,17 +3,27 @@ from __future__ import annotations
 import hashlib
 import json
 
-GUIDE_VERSION = '1.0.0-beta.116'
-GUIDE_UPDATED = '2026-11-06'
+GUIDE_VERSION = '1.0.0-beta.117'
+GUIDE_UPDATED = '2026-11-11'
 
 CURRENT_GUIDE = {'title': 'SolarPilot · Actuele werking',
- 'version': '1.0.0-beta.116',
- 'updated': '2026-11-06',
+ 'version': '1.0.0-beta.117',
+ 'updated': '2026-11-11',
  'intro': 'SolarPilot verdeelt het echte huidige zonneoverschot zonder toekomstige toestelpieken te reserveren. De warmtepomp heeft voor '
           'automatisch algemeen SG-zonbedrijf vaste voorrang op bevestigd autonoom Wallbox-zonneladen. Een toegestaan AAN-contact kan '
           'aanblijven zolang de actuele voorwaarden voldoen; er is geen verplichte uurstop of administratieve sessiereset. Korte lokale '
           'toestemming en actuele hercontrole blijven noodzakelijk. Panasonic regelt de warmtepomp zelfstandig.',
- 'sections': [{'title': 'SG-herstel na ontbrekende energiemetingen',
+ 'sections': [{'title': 'Aquarea 2.0-pompstatus blijft zichtbaar',
+               'paragraphs': ['Aquarea 2.0.1 verplaatst de bestaande pompstatus van een gewone sensor naar een binaire sensor en '
+                              'publiceert de pomprichting als kleine enumwaarde. SolarPilot herkent beide gecontroleerde domeinen op '
+                              'dezelfde native unieke identiteit en hetzelfde Aquarea-apparaat. Daardoor kan de read-only '
+                              'warmtepomptaak na de upstreammigratie opnieuw worden getoond wanneer ook de getypeerde LIVE-poll, '
+                              'richting, zones, tankcontext, oorspronkelijke tijden en overige bestaande voorwaarden overeenkomen.',
+                              'Een half afgemaakte migratie met twee gelijktijdige pompstatusentiteiten blijft onbekend. De nieuwe '
+                              'lifetime- en vandaag-energiesensoren worden niet automatisch als een bestaande dag- of maandbron '
+                              'herlabeld. De update installeert Aquarea niet, koppelt geen sensor en geeft geen Panasonic-opdracht.'],
+               'bullets': []},
+              {'title': 'SG-herstel na ontbrekende energiemetingen',
                'paragraphs': ['Na het stoppen van een SG-aanvraag wegens onbetrouwbare noodzakelijke energiemetingen voorkomt '
                               'SolarPilot herhaald kort inschakelen. Ook tijdelijk handmatig Aan wacht dan eerst de ingestelde '
                               'rusttijd, standaard vijftien minuten, af. Daarna zijn actuele bevestigde UIT en meerdere nieuwe '

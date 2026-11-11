@@ -1,10 +1,16 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.116
-**Bijgewerkt:** 2026-11-06
-**Regel-hash:** `131ea0df14f9ed2e`
+**Versie:** 1.0.0-beta.117
+**Bijgewerkt:** 2026-11-11
+**Regel-hash:** `04b521c117ff2c33`
 
 SolarPilot verdeelt het echte huidige zonneoverschot zonder toekomstige toestelpieken te reserveren. De warmtepomp heeft voor automatisch algemeen SG-zonbedrijf vaste voorrang op bevestigd autonoom Wallbox-zonneladen. Een toegestaan AAN-contact kan aanblijven zolang de actuele voorwaarden voldoen; er is geen verplichte uurstop of administratieve sessiereset. Korte lokale toestemming en actuele hercontrole blijven noodzakelijk. Panasonic regelt de warmtepomp zelfstandig.
+
+## Aquarea 2.0-pompstatus blijft zichtbaar
+
+Aquarea 2.0.1 verplaatst de bestaande pompstatus van een gewone sensor naar een binaire sensor en publiceert de pomprichting als kleine enumwaarde. SolarPilot herkent beide gecontroleerde domeinen op dezelfde native unieke identiteit en hetzelfde Aquarea-apparaat. Daardoor kan de read-only warmtepomptaak na de upstreammigratie opnieuw worden getoond wanneer ook de getypeerde LIVE-poll, richting, zones, tankcontext, oorspronkelijke tijden en overige bestaande voorwaarden overeenkomen.
+
+Een half afgemaakte migratie met twee gelijktijdige pompstatusentiteiten blijft onbekend. De nieuwe lifetime- en vandaag-energiesensoren worden niet automatisch als een bestaande dag- of maandbron herlabeld. De update installeert Aquarea niet, koppelt geen sensor en geeft geen Panasonic-opdracht.
 
 ## SG-herstel na ontbrekende energiemetingen
 

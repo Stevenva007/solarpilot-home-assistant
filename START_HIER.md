@@ -1,8 +1,8 @@
 # SolarPilot starten of bijwerken
 
-Installeer **1.0.0-beta.116** via HACS, herstart Home Assistant volledig en herlaad de app of browser.
+Installeer **1.0.0-beta.117** via HACS, herstart Home Assistant volledig en herlaad de app of browser.
 
-Na een noodzakelijke SG-stop door ontbrekende energiemetingen wacht ook tijdelijk handmatig Aan eerst de ingestelde bronstoprust, standaard vijftien minuten. Daarna zijn actuele UIT en meerdere nieuwe oorspronkelijke bronrapporten gedurende de startstabiliteit nodig. Herstart of opnieuw kiezen wist die wacht niet. Automatisch herstel verlengt de oorspronkelijke handmatige eindtijd niet. Een herkenbare lopende Marstek-poll houdt eerder volledig bewezen dezelfde veldwaarde alleen binnen de oorspronkelijke maximale leeftijd bruikbaar.
+Aquarea 2.0.1 verplaatst de pompstatus naar een binaire sensor. SolarPilot beta.117 volgt die upstreammigratie read-only op dezelfde unieke bronidentiteit en apparaatbinding. De getypeerde LIVE-poll, richting, zones, tankcontext en oorspronkelijke rapporttijden blijven verplicht; bij een dubbele of onvoltooide migratie blijft de taak onbekend.
 
 Kies **Marstek-monitor openen** om een bestaande monitor aan te passen. Bij één monitor staan je opgeslagen waarden direct ingevuld; bij meerdere kies je eerst het profiel. **Extra Marstek-monitor toevoegen** is alleen voor een extra batterij. Zoek en selecteer de sensor uit de begrensde lijst. Kies **Verder**, controleer het overzicht en bevestig daarna met **Wijzigingen opslaan**. Open hetzelfde profiel opnieuw om de bewaarde keuzes te zien. Annuleren slaat niets op; een veldfout bewaart je invoer om haar te verbeteren.
 
@@ -20,4 +20,4 @@ Het echte huidige overschot blijft leidend, zonder toekomstige toestelreserverin
 
 Bij een upgrade uit een oudere versie wordt de vroegere standaardbuffer van 300 seconden eenmaal omgezet naar 900 seconden. Andere bewaarde aangepaste duurtijden en latere eigen keuzes blijven behouden. De lokale Shelly-toestemming blijft 300 seconden met actuele vernieuwing om de 60 seconden.
 
-[Installatie en rollback](docs/BETA116_INSTELLEN.md) · [Actuele werking](docs/ACTUELE_WERKING.md) · [Testverslag](docs/TESTRESULTATEN_BETA116.md) · [Overdracht](OVERDRACHT.md)
+[Installatie en rollback](docs/BETA117_INSTELLEN.md) · [Actuele werking](docs/ACTUELE_WERKING.md) · [Testverslag](docs/TESTRESULTATEN_BETA117.md) · [Overdracht](OVERDRACHT.md)

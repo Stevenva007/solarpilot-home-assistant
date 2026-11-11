@@ -177,7 +177,9 @@ def loaded_semantic_identity():
 
 
 # Canonical executable body fingerprints reviewed from the primary SDK source,
-# wpatrik14/aioaquarea@893065a81c014cb9aa1d3350446d61c01bccf3b9.
+# wpatrik14/aioaquarea@893065a81c014cb9aa1d3350446d61c01bccf3b9,
+# rechecked unchanged for these functions at v1.6.0
+# (58bdd9bc3662950225fc1afc35ab7d084d5789b8).
 # These identify loaded semantics, not a release/version allowlist. Comments,
 # docstrings, source locations and annotations do not affect this comparison.
 _SPLIT_BODIES = {
