@@ -285,6 +285,50 @@ async def verify_source_history(hass, runtime, entry, commands):
     return {"handler": handler, "message": schema(message), "connection": admin}
 
 
+async def verify_display_clock(hass, runtime, entry):
+    """Real Core registration/schema: the viewer clock has no write operation."""
+    import time
+    from homeassistant.auth.const import GROUP_ID_USER
+    from homeassistant.components import websocket_api
+    from custom_components.solar_pilot.display_clock_api import COMMAND
+
+    class Connection:
+        def __init__(self, user):
+            self.user, self.results, self.errors = user, [], []
+
+        def send_result(self, message_id, result):
+            self.results.append(result)
+
+        def send_error(self, message_id, code, message):
+            self.errors.append(code)
+
+    reader = await hass.auth.async_create_user('Synthetic clock viewer', group_ids=[GROUP_ID_USER])
+    assert not reader.is_admin
+    handler, schema = hass.data[websocket_api.DOMAIN][COMMAND]
+    message = {'id': 118, 'type': COMMAND, 'config_entry_id': entry.entry_id}
+    baseline = (deepcopy(dict(entry.options)), deepcopy(runtime.sg_boost.snapshot()))
+    connection = Connection(reader)
+    before = time.time()
+    handler(hass, connection, schema(message))
+    after = time.time()
+    assert not connection.errors and len(connection.results) == 1
+    result = connection.results[0]
+    assert set(result) == {'schema', 'read_only', 'config_entry_id', 'server_time'}
+    assert result['schema'] == 1 and result['read_only'] is True
+    assert result['config_entry_id'] == entry.entry_id and before <= result['server_time'] <= after
+    anonymous = Connection(None)
+    handler(hass, anonymous, schema(message))
+    assert anonymous.errors == ['unauthorized'] and not anonymous.results
+    for field in ('save', 'server_time', 'entity_id'):
+        try:
+            schema({**message, field: 'rejected'})
+        except Exception:
+            pass
+        else:
+            raise AssertionError('Clock schema accepted an unsolicited field')
+    assert baseline == (dict(entry.options), runtime.sg_boost.snapshot())
+
+
 async def verify_water_history(hass, runtime, entry, commands):
     """Real Core schemas, source READ policies and synthetic water heartbeats."""
     from homeassistant.auth.const import GROUP_ID_ADMIN, GROUP_ID_USER
@@ -1076,6 +1120,7 @@ async def check(source: Path, expected_failure: bool, current_sg: bool = False):
             heatpump_baseline = verify_heatpump_history(hass, runtime, entry, history_commands, metered=current_sg)
             source_history = await verify_source_history(hass, runtime, entry, source_commands)
             water_history = await verify_water_history(hass, runtime, entry, water_commands)
+            await verify_display_clock(hass, runtime, entry)
             verify_learning_enablement(runtime)
             feedback_report = await verify_analysis_feedback(hass, runtime, entry)
             registry = er.async_get(hass)

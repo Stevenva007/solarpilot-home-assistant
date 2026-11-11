@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0-beta.118 — stabiele SG-bediening bij klokverschil
+
+- Stemt de kaarttijd uitsluitend uitleesbaar af met Home Assistant, zodat een voor- of achterlopende pc-/wallpanelklok de SG-bediening niet laat wisselen tussen Automatisch en onbekend.
+- Begrenst retourtijd, levensduur en vernieuwfrequentie; laat antwoorden uit een vorige gebruiker, verbinding of integratiecontext worden genegeerd.
+- Behoudt oorspronkelijke bronrapporttijden, toekomst-/ouderdomscontroles, lokale contacteindtijden en handmatige eindtijden. De backendregeling en alle apparaatopdrachten blijven ongewijzigd.
+- Voegt gerichte regressies, echte Chromium-interacties en een echte-HA-schema-/authenticatieproef toe. Zie BETA118_INSTELLEN.md en TESTRESULTATEN_BETA118.md.
+
 ## 1.0.0-beta.117 — Aquarea 2.0-pompstatus
 
 - Herkent de door Aquarea v2.0.0/v2.0.1 gemigreerde pompstatus onder `binary_sensor` met behoud van dezelfde native unieke identiteit, config-entry en apparaatbinding.

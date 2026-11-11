@@ -121,6 +121,7 @@ class SolarSensor(SolarEntity, SensorEntity):
         "power_source_quality", "history", "operation_display", "sg_tank_goal", "source_contract",
         "compressor_frequency_observed_at", "sg_status_observed_at", "water",
         "charging_profile", "activity_details", "reclaim_blocks", "consumer_priority",
+        "display_clock",
     })
 
     def __init__(self, runtime, suffix, name, device_id=None):
@@ -322,6 +323,7 @@ class SolarSensor(SolarEntity, SensorEntity):
             isolated = [{"id": device_id, **details}
                         for device_id, details in getattr(r, "source_isolated_devices", {}).items()]
             return {"solar_pilot": True, "mode": r.mode, "problem": r.problem,
+                    "display_clock": {"schema": 1, "read_only": True},
                     "energy_display": energy_display(r),
                     "water": r.water.overview() if hasattr(r, "water") else {},
                     "problem_kind": r.problem_kind,
