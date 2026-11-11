@@ -31,7 +31,7 @@ with sync_playwright() as playwright:
           Object.defineProperty(performance,'now',{configurable:true,value:()=>1000*(mono+elapsed)});
           const calls=[],connection={connected:true},source=structuredClone(c._last.attributes);
           source.display_clock={schema:1,read_only:true};source.mode='solar';
-          Object.assign(source.sg_boost,{enabled:true,configured:true,desired_on:false,relay_on:false,
+          Object.assign(source.sg_boost,{enabled:true,configured:true,desired_on:false,relay_on:false,relay_stale_s:120,
             relay_confirmed:true,relay_valid_until:null,manual_hold:false,fault:'',owner:'none',
             manual_control:{mode:'auto',active:false,duration_s:null,expires_at:null,remaining_s:null,reason:''}});
           const hass={...c._hass,user:{id:'fictional-reader',is_admin:false},connection,
@@ -63,7 +63,7 @@ with sync_playwright() as playwright:
           c._refreshObservationDisplay();
         }''')
         control = page.locator('solar-pilot-card >> [data-sg-manual-control]')
-        assert control.get_attribute('data-sg-manual-control') == 'unknown'
+        assert control.get_attribute('data-sg-manual-control') == 'unknown', control.inner_text()
         assert 'Bedieningskeuze onbekend' in control.inner_text()
         assert 'Actief' not in page.locator('solar-pilot-card >> [data-sg-stage=relay]').inner_text()
         page.evaluate('''async()=>{
