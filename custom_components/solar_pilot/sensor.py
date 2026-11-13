@@ -177,6 +177,32 @@ class SolarSensor(SolarEntity, SensorEntity):
         reader = getattr(self.runtime, "sensor_overview", None)
         return reader("ems") if callable(reader) else self.runtime.ems_overview()
 
+    def _ems_attributes(self):
+        """Publish related details once per family, keeping the complete hub view.
+
+        Copying the full EMS view onto every scalar sensor makes unrelated
+        device reports change all of them. HA broadcasts those state changes
+        to connected dashboards, including dashboards without a SolarPilot
+        card. Keep native values and the cached source frame untouched.
+        """
+        data = self._ems()
+        if self.suffix == "ems_status":
+            return data
+        if self.suffix.startswith("capacity_"):
+            keys = ("capacity", "phase", "electrical_limits")
+        elif self.suffix.startswith("phase_"):
+            keys = ("phase", "phase_learning", "phase_attribution", "historical_phase_profile")
+        elif self.suffix.startswith("local_pv_"):
+            keys = ("local_pv", "forecast")
+        elif self.suffix.startswith("battery_fleet_"):
+            keys = ("battery_fleet",)
+        elif self.suffix in ("battery_analysis_status", "battery_10_5_avoided"):
+            keys = ("battery_analysis", "economy")
+        else:  # The three daily EMS sensors.
+            keys = ("today", "economy", "savings", "electricity_today")
+        keys += ("ready", "warnings", "legacy_conflicts")
+        return {key: data[key] for key in keys if key in data}
+
     def _learning(self):
         reader = getattr(self.runtime, "sensor_overview", None)
         return reader("learning") if callable(reader) else self.runtime.learning_overview()
@@ -305,7 +331,7 @@ class SolarSensor(SolarEntity, SensorEntity):
             "local_pv_status", "local_pv_corrected_power", "local_pv_confidence", "battery_analysis_status",
             "battery_10_5_avoided", "battery_fleet_status", "battery_fleet_soc", "battery_fleet_power",
         }:
-            return self._ems()
+            return self._ems_attributes()
         if self.suffix == "learning":
             return self._learning()
         if self.suffix == "wallbox_power":

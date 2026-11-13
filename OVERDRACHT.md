@@ -1,15 +1,17 @@
 <!-- solarpilot-handoff-schema: 1 -->
-<!-- solarpilot-handoff-version: 1.0.0-beta.118 -->
+<!-- solarpilot-handoff-version: 1.0.0-beta.119 -->
 
 # OVERDRACHT — SolarPilot
 
-Laatst bijgewerkt: **11 november 2026**. Actuele bron: **v1.0.0-beta.118**. Bouwbasis: gepubliceerde beta.117 `651caedba2f4d16b7dab85a22b90123746f5f3ca`. Installatie en rollback: `docs/BETA118_INSTELLEN.md`. Softwarebewijs en publicatievoorwaarden: `docs/TESTRESULTATEN_BETA118.md`.
+Laatst bijgewerkt: **14 november 2026**. Actuele bron: **v1.0.0-beta.119**. Bouwbasis: gepubliceerde beta.118 `5ea04556e4915ed2d71289a84fe69cbd3093d49b`. Installatie en rollback: `docs/BETA119_INSTELLEN.md`. Softwarebewijs en publicatievoorwaarden: `docs/TESTRESULTATEN_BETA119.md`.
 
 ## 1. Projectdoel in gewone taal
 
 SolarPilot verdeelt het echte huidige zonneoverschot lokaal zonder toekomstige toestelpieken te reserveren. SG/warmtepomp heeft vaste toegang tot actueel coherent bevestigd autonoom Wallbox-zonnelaadvermogen. Gewone toestelvolgorde en eigen overnamerechten blijven apart. Panasonic regelt comfort, warm water, koeling en sterilisatie zelfstandig. Een toegestaan automatisch algemeen SG-contact blijft aan zolang nog bruikbare zon en actuele overige voorwaarden aanwezig zijn. Lager moduleren vraagt geen herhaling van het startvermogen; korte wolken vallen onder de bestaande tekortbuffers.
 
 ## 2. Actuele basis
+
+Beta.119 beperkt de herhaling van grote EMS-attributen op afzonderlijke sensoren. Elke deelsensor houdt de details van zijn eigen onderwerp; het complete overzicht blijft op EMS status, op de algemene Status-sensor en in de analyse-export beschikbaar. Dit vermindert statusverkeer naar verbonden schermen zonder sensorwaarden, bronactualiteit of apparaatregeling te veranderen.
 
 Beta.118 voorkomt flikkerende SG-bediening door de kaarttijd met Home Assistant af te stemmen. De korte, uitsluitend uitleesbare tijdsaanvraag verandert geen bronrapport, lokale toestemming, handmatige eindtijd of backendregeling. Een onbruikbare tijdsreferentie blijft expliciet onbekend.
 
@@ -108,7 +110,9 @@ Tests en browserfixtures gebruiken uitsluitend fictieve bronnen. Diagnosebestand
 
 ## 9. Testprocedure + actuele teststatus
 
-Beta.118 heeft regressies voor voor- en achterlopende schermklokken, herhaalde actuele publicaties, bronveroudering, toekomstige rapporten, lokale en handmatige eindtijden, trage/ongeldige antwoorden, slaap/kloksprong en contextwissels. De echte Chromium-gate controleert de zichtbare knoppen over 453 fictieve live-updates; de echte-HA-gate controleert de geregistreerde WS-schema/authenticatiegrens. Zie docs/TESTRESULTATEN_BETA118.md voor uitgevoerde resultaten en grenzen.
+Beta.119 toetst de gezamenlijke telemetrieomvang met fictieve grote forecasts en plannergegevens, behoud van het complete hub-overzicht, onveranderde native waarden en oorspronkelijke ongeldige brongegevens, isolatie van niet-gerelateerde updates en vernieuwing van passende fasedetails. De gerichte sensorregressies slagen met 31 tests. De volledige suite en alle vijf commitgebonden gates blijven verplicht; actuele resultaten staan in docs/TESTRESULTATEN_BETA119.md.
+
+Beta.118 heeft regressies voor voor- en achterlopende schermklokken, herhaalde actuele publicaties, bronveroudering, toekomstige rapporten, lokale en handmatige eindtijden, trage/ongeldige antwoorden, slaap/kloksprong en contextwissels. De echte Chromium-gate controleert de zichtbare knoppen over 453 fictieve live-updates; de echte-HA-gate controleert de geregistreerde WS-schema/authenticatiegrens. Zie docs/TESTRESULTATEN_BETA119.md voor uitgevoerde resultaten en grenzen.
 
 Beta.117 toetst de Aquarea v2-binaire pompstatus, kleine richting-enum, behoud van de oude sensorvorm en gesloten gedrag bij een dubbele/onvoltooide migratie. De bestaande contracttests blijven LIVE/CACHED, getypeerde waarden, bindingen, conflicten en oorspronkelijke tijden bewaken. Zie docs/TESTRESULTATEN_BETA117.md voor resultaten en bewijsgrenzen.
 

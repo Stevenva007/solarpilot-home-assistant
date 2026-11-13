@@ -1,10 +1,18 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.118
-**Bijgewerkt:** 2026-11-11
-**Regel-hash:** `03b1f8c99574fbc8`
+**Versie:** 1.0.0-beta.119
+**Bijgewerkt:** 2026-11-14
+**Regel-hash:** `e9546af263f32e56`
 
 SolarPilot verdeelt het echte huidige zonneoverschot zonder toekomstige toestelpieken te reserveren. De warmtepomp heeft voor automatisch algemeen SG-zonbedrijf vaste voorrang op bevestigd autonoom Wallbox-zonneladen. Een toegestaan AAN-contact kan aanblijven zolang de actuele voorwaarden voldoen; er is geen verplichte uurstop of administratieve sessiereset. Korte lokale toestemming en actuele hercontrole blijven noodzakelijk. Panasonic regelt de warmtepomp zelfstandig.
+
+## Kleinere statusberichten voor verbonden schermen
+
+Afzonderlijke EMS-sensoren publiceren alleen de details van hun eigen onderwerp: kwartierpiek, fasen, lokale PV, batterij, batterijanalyse of dagtellingen. Daardoor worden grote plannings-, warmtepomp- en forecastoverzichten niet meer op elke afzonderlijke sensor herhaald. Een wijziging in een ander onderwerp verandert die sensor niet onnodig.
+
+Het volledige actuele EMS-overzicht blijft op EMS status en onder ems van de algemene Status-sensor beschikbaar. Het SolarPilot-dashboard en de analyse-export houden hun complete gegevens. Bestaande templates die een niet-gerelateerd detail van een deelsensor lazen, kunnen daarvoor de EMS-statussensor gebruiken.
+
+Dit beperkt de Home Assistant-berichtenstroom ook naar dashboards zonder SolarPilot-kaart. Het is een softwareverbetering, geen bewijs dat iedere trage of verbroken paneelverbinding daarmee is opgelost. Sensorwaarden, oorspronkelijke rapporttijden, bronkwaliteit, instellingen, opslag en alle apparaatopdrachten blijven gelijk.
 
 ## Stabiele SG-weergave met de tijd van Home Assistant
 

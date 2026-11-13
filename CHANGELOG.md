@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0-beta.119 — minder herhaalde live-attributen
+
+- Publiceert op 23 EMS-deelsensoren alleen passende onderwerpdetails en bestaande algemene kwaliteitsmeldingen, zodat een niet-gerelateerde wijziging niet overal grote attributen vernieuwt.
+- Behoudt het complete actuele EMS-overzicht op EMS status en op de algemene Status-sensor, inclusief alle dashboard- en exportgegevens. Niet-gerelateerde details op deelsensoren verhuizen naar die bestaande complete bronnen.
+- Behoudt native waarden, originele rapporttijden, onbekende gegevens, modellen/opslag en alle SG-, Panasonic-, Wallbox- en batterijgrenzen.
+- Voegt regressies voor telemetrieomvang, gegevensbehoud en publicatie-isolatie toe. Een kleiner bericht bewijst op zichzelf geen herstelde fysieke paneelverbinding. Zie BETA119_INSTELLEN.md en TESTRESULTATEN_BETA119.md.
+
 ## 1.0.0-beta.118 — stabiele SG-bediening bij klokverschil
 
 - Stemt de kaarttijd uitsluitend uitleesbaar af met Home Assistant, zodat een voor- of achterlopende pc-/wallpanelklok de SG-bediening niet laat wisselen tussen Automatisch en onbekend.
