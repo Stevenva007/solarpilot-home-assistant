@@ -17,6 +17,7 @@ import math
 import time
 import sys
 
+from .const import AQUAREA_INTEGRATION_DOMAINS
 from .operation_source_evidence import (CONTRACT_ID, OPERATION_CONTRACT_ID, OPERATION_SEMANTIC_CONTRACT_ID,
     inspect_loaded_aquarea_semantics, loaded_semantic_identity, valid_semantic_contract)
 
@@ -33,6 +34,14 @@ _ACTIONS = {"OFF": (0, "off"), "IDLE": (1, "idle"),
             "HEATING_WATER": (4, "tapwater_heating")}
 _DISPLAY_METADATA_REFRESH_S = 300
 _DISPLAY_METADATA_REFRESH_GRACE_S = 30
+
+
+def _loaded_aquarea_provider():
+    """Return one exact loaded provider domain/module; parallel copies are ambiguous."""
+    loaded = [(domain, sys.modules.get(f"custom_components.{domain}"))
+              for domain in AQUAREA_INTEGRATION_DOMAINS
+              if sys.modules.get(f"custom_components.{domain}") is not None]
+    return loaded[0] if len(loaded) == 1 else (None, None)
 
 
 def _native_mode(device):
@@ -159,6 +168,7 @@ class NativeClimateProgram:
         self._display_contract_watches = {}
         self._source_quality_rejected = {}
         self._display_metadata = {}
+        self._display_metadata_domain = None
         self._display_metadata_module = None
         self._display_semantic_identity = loaded_semantic_identity()
         self._display_metadata_checked = None
@@ -177,7 +187,7 @@ class NativeClimateProgram:
             from .analysis_export import installed_aquarea_metadata
             executor = getattr(self.runtime.hass, "async_add_executor_job", None)
             if callable(executor):
-                loaded = sys.modules.get("custom_components.aquarea")
+                loaded_domain, loaded = _loaded_aquarea_provider()
                 semantic_identity = loaded_semantic_identity()
                 def inspect_metadata():
                     return {**installed_aquarea_metadata(), **inspect_loaded_aquarea_semantics()}
@@ -185,15 +195,23 @@ class NativeClimateProgram:
                 if self._display_closed:
                     return
                 self._display_metadata = metadata
+                self._display_metadata_domain = loaded_domain
                 self._display_metadata_module = loaded
                 self._display_semantic_identity = semantic_identity
-                if (loaded is not sys.modules.get("custom_components.aquarea")
+                current_domain, current_module = _loaded_aquarea_provider()
+                if (loaded_domain != current_domain or loaded is not current_module
                         or semantic_identity != loaded_semantic_identity()):
                     self._display_metadata = {}
+                    self._display_metadata_domain = None
+                    self._display_metadata_module = None
             else:
                 self._display_metadata = {}
+                self._display_metadata_domain = None
+                self._display_metadata_module = None
         except (ImportError, OSError, AttributeError, TypeError, ValueError, RuntimeError):
             self._display_metadata = {}
+            self._display_metadata_domain = None
+            self._display_metadata_module = None
         finally:
             self._display_metadata_checked = time.monotonic()
             self._display_metadata_task = None
@@ -201,10 +219,11 @@ class NativeClimateProgram:
     def _contract_metadata(self):
         if self._display_closed:
             return {}
-        loaded = sys.modules.get("custom_components.aquarea")
+        loaded_domain, loaded = _loaded_aquarea_provider()
         checked = self._display_metadata_checked
         age = time.monotonic()-checked if checked is not None else None
-        same_implementation = (loaded is self._display_metadata_module
+        same_implementation = (loaded_domain == self._display_metadata_domain
+                               and loaded is self._display_metadata_module
                                and self._display_semantic_identity == loaded_semantic_identity())
         current = (checked is not None and age is not None and 0 <= age <= _DISPLAY_METADATA_REFRESH_S
                    and same_implementation)
@@ -235,6 +254,8 @@ class NativeClimateProgram:
             self._display_metadata_task.cancel()
             self._display_metadata_task = None
         self._display_metadata = {}
+        self._display_metadata_domain = None
+        self._display_metadata_module = None
         for watch in watches.values():
             self._unsubscribe(watch)
 
@@ -242,7 +263,8 @@ class NativeClimateProgram:
         """Exact native registry identity, independent of control bindings."""
         from homeassistant.helpers import device_registry as dr
         hass = self.runtime.hass
-        if row is None or getattr(row, "platform", None) != "aquarea" or getattr(row, "disabled_by", None) is not None:
+        domain = getattr(row, "platform", None)
+        if row is None or domain not in AQUAREA_INTEGRATION_DOMAINS or getattr(row, "disabled_by", None) is not None:
             return None
         entry_id, uid = getattr(row, "config_entry_id", None), getattr(row, "unique_id", None)
         entry = hass.config_entries.async_get_entry(entry_id) if isinstance(entry_id, str) else None
@@ -251,14 +273,14 @@ class NativeClimateProgram:
         owner = getattr(device, "config_entry_id", missing)
         same_entry = (owner == entry_id if owner is not missing else
                       entry_id in getattr(device, "config_entries", ()))
-        if (entry is None or getattr(entry, "domain", None) != "aquarea" or device is None
+        if (entry is None or getattr(entry, "domain", None) != domain or device is None
                 or not same_entry or not isinstance(uid, str)):
             return None
-        matches = [native_id for domain, native_id in getattr(device, "identifiers", ())
-                   if domain == "aquarea" and isinstance(native_id, str) and native_id]
+        matches = [native_id for identifier_domain, native_id in getattr(device, "identifiers", ())
+                   if identifier_domain == domain and isinstance(native_id, str) and native_id]
         if len(matches) != 1:
             return None
-        return entry_id, getattr(row, "device_id", None), matches[0], uid
+        return entry_id, getattr(row, "device_id", None), matches[0], uid, domain
 
     def source_is_live(self, entity_id):
         """Veto cached native siblings, without granting observation freshness.
@@ -272,19 +294,19 @@ class NativeClimateProgram:
         try:
             from homeassistant.helpers import entity_registry as er
             row = er.async_get(self.runtime.hass).async_get(entity_id)
-            if row is None or getattr(row, "platform", None) != "aquarea":
+            if row is None or getattr(row, "platform", None) not in AQUAREA_INTEGRATION_DOMAINS:
                 return True
             native = True
             identity = self._display_identity(row)
             if identity is None:
                 return False
-            entry_id, _registry_id, native_id, uid = identity
+            entry_id, _registry_id, native_id, uid, domain = identity
             if not uid.startswith(f"{native_id}_"):
                 return False
             entry = self.runtime.hass.config_entries.async_get_entry(entry_id)
             coordinators = getattr(entry, "runtime_data", None)
             if not isinstance(coordinators, dict):
-                coordinators = self._legacy_coordinators(entry_id)
+                coordinators = self._legacy_coordinators(entry_id, domain)
             coordinator = coordinators.get(native_id) if isinstance(coordinators, dict) else None
             device = getattr(coordinator, "device", None)
             info = getattr(coordinator, "device_info", None) or getattr(coordinator, "_device_info", None)
@@ -326,7 +348,7 @@ class NativeClimateProgram:
                 identity = self._display_identity(row)
                 if identity is None:
                     continue
-                entry_id, device_id, native_id, uid = identity
+                entry_id, device_id, native_id, uid, _domain = identity
                 eid = getattr(row, "entity_id", "")
                 role = ("tank_entity" if eid.startswith("water_heater.") and uid == f"{native_id}_tank" else
                         "direction_entity" if eid.startswith("sensor.") and uid == f"{native_id}_direction" else
@@ -366,7 +388,8 @@ class NativeClimateProgram:
         metadata = self._contract_metadata()
         metadata = metadata if isinstance(metadata, dict) else {}
         provider = {key: metadata.get(key) for key in ("integration_domain", "integration_version", "library_distribution", "library_version")}
-        known = (metadata.get("integration_loaded") is True and provider["integration_domain"] == "aquarea"
+        known = (metadata.get("integration_loaded") is True
+                 and provider["integration_domain"] in AQUAREA_INTEGRATION_DOMAINS
                  and valid_semantic_contract(metadata.get("compatibility")))
         split = known and metadata["compatibility"]["contract"] == OPERATION_SEMANTIC_CONTRACT_ID
         reason_code = "known_operation_status_action_mapping" if split else "known_special_status_action_mapping"
@@ -402,7 +425,7 @@ class NativeClimateProgram:
             if identity is None:
                 return {**result, "reason_code": "native_source_mapping_unverified"}
             result["native_device_registered"] = True
-            if not known:
+            if not known or identity[4] != provider["integration_domain"]:
                 return result
             required_ids = [pump_id, direction_id, *zones, *([tank_id] if tank_id else [])]
             if (not pump_id or not direction_id or not zones
@@ -539,7 +562,9 @@ class NativeClimateProgram:
         This does not relax the legacy/control verifier's binding checks.
         """
         kind = type(coordinator)
-        if (kind.__module__ != "custom_components.aquarea.coordinator"
+        domain = getattr(entry, "domain", None)
+        if (domain not in AQUAREA_INTEGRATION_DOMAINS
+                or kind.__module__ != f"custom_components.{domain}.coordinator"
                 or kind.__name__ != "AquareaDataUpdateCoordinator"
                 or getattr(coordinator, "_entry", None) is not entry
                 or getattr(coordinator, "hass", None) is not self.runtime.hass):
@@ -809,10 +834,10 @@ class NativeClimateProgram:
                 watches.pop(key)
                 self._unsubscribe(watch)
 
-    def _legacy_coordinators(self, entry_id):
+    def _legacy_coordinators(self, entry_id, domain="aquarea"):
         """Read only the verified legacy provider's exact entry namespace."""
         data = getattr(self.runtime.hass, "data", {})
-        provider = data.get("aquarea", {}) if isinstance(data, dict) else {}
+        provider = data.get(domain, {}) if isinstance(data, dict) and domain in AQUAREA_INTEGRATION_DOMAINS else {}
         native_entry = provider.get(entry_id, {}) if isinstance(provider, dict) else {}
         return native_entry.get("devices") if isinstance(native_entry, dict) else None
 
@@ -825,7 +850,9 @@ class NativeClimateProgram:
         never gain programme permission through this compatibility route.
         """
         kind = type(coordinator)
-        if (kind.__module__ != "custom_components.aquarea.coordinator"
+        domain = getattr(entry, "domain", None)
+        if (domain not in AQUAREA_INTEGRATION_DOMAINS
+                or kind.__module__ != f"custom_components.{domain}.coordinator"
                 or kind.__name__ != "AquareaDataUpdateCoordinator"
                 or getattr(coordinator, "_entry", None) is not entry
                 or getattr(coordinator, "hass", None) is not self.runtime.hass):
@@ -904,7 +931,8 @@ class NativeClimateProgram:
             from homeassistant.helpers import entity_registry as er
             hass = self.runtime.hass
             row = er.async_get(hass).async_get(entity_id)
-            if (row is None or getattr(row, "platform", None) != "aquarea"
+            domain = getattr(row, "platform", None)
+            if (row is None or domain not in AQUAREA_INTEGRATION_DOMAINS
                     or getattr(row, "disabled_by", None) is not None):
                 return None
             entry_id = getattr(row, "config_entry_id", None)
@@ -912,13 +940,13 @@ class NativeClimateProgram:
             if not isinstance(entry_id, str) or not isinstance(unique_id, str):
                 return None
             entry = hass.config_entries.async_get_entry(entry_id)
-            if entry is None or getattr(entry, "domain", None) != "aquarea":
+            if entry is None or getattr(entry, "domain", None) != domain:
                 self._prune_entry(entry_id)
                 return None
             coordinators = getattr(entry, "runtime_data", None)
             legacy = not isinstance(coordinators, dict)
             if legacy:
-                coordinators = self._legacy_coordinators(entry_id)
+                coordinators = self._legacy_coordinators(entry_id, domain)
             if not isinstance(coordinators, dict):
                 self._prune_entry(entry_id)
                 return None
@@ -947,7 +975,7 @@ class NativeClimateProgram:
             # A durable ownership journal can compare this opaque identity
             # across real polls without exporting device or entry identifiers.
             binding_key = hashlib.sha256(json.dumps(
-                ["aquarea", entry_id, unique_id], separators=(",", ":")
+                [domain, entry_id, unique_id], separators=(",", ":")
             ).encode()).hexdigest()
             return matches[0], binding_key, entry_id
         except (ImportError, AttributeError, KeyError, TypeError, ValueError, RuntimeError):
@@ -967,7 +995,8 @@ class NativeClimateProgram:
             from homeassistant.helpers import entity_registry as er
             hass = self.runtime.hass
             row = er.async_get(hass).async_get(entity_id)
-            if (row is None or getattr(row, "platform", None) != "aquarea"
+            domain = getattr(row, "platform", None)
+            if (row is None or domain not in AQUAREA_INTEGRATION_DOMAINS
                     or getattr(row, "disabled_by", None) is not None):
                 return None
             obj = hass.states.get(entity_id)
@@ -979,14 +1008,14 @@ class NativeClimateProgram:
             if not isinstance(entry_id, str) or not isinstance(unique_id, str):
                 return None
             entry = hass.config_entries.async_get_entry(entry_id)
-            if entry is None or getattr(entry, "domain", None) != "aquarea":
+            if entry is None or getattr(entry, "domain", None) != domain:
                 self._prune_entry(entry_id, watches=self._tank_watches)
                 return None
             coordinators = getattr(entry, "runtime_data", None)
             if not isinstance(coordinators, dict):
                 # Verified cjaliaga Aquarea layout; never inspect unrelated
                 # entries, discover devices by name or call a cloud endpoint.
-                coordinators = self._legacy_coordinators(entry_id)
+                coordinators = self._legacy_coordinators(entry_id, domain)
             if not isinstance(coordinators, dict):
                 self._prune_entry(entry_id, watches=self._tank_watches)
                 return None
@@ -1011,7 +1040,7 @@ class NativeClimateProgram:
                 self._prune_entry(entry_id, watches=self._tank_watches)
                 return None
             binding_key = hashlib.sha256(json.dumps(
-                ["aquarea_tank", entry_id, unique_id], separators=(",", ":")
+                [domain, "tank", entry_id, unique_id], separators=(",", ":")
             ).encode()).hexdigest()
             return matches[0], binding_key, entry_id
         except (ImportError, AttributeError, KeyError, TypeError, ValueError, RuntimeError):

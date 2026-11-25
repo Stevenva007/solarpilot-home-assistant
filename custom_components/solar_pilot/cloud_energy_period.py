@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import math
 
+from .const import AQUAREA_INTEGRATION_DOMAINS
 
 _KEYS = {
     "energy_consumption": ("day", "total"),
@@ -55,7 +56,7 @@ def period_evidence(provider, key, *, period_start, fetched_at, reported_at, cap
     provider = provider if isinstance(provider, dict) else {}
     # The observed native period, not a release label, identifies the aggregate.
     known = (provider.get("integration_loaded") is True
-             and provider.get("integration_domain") == "aquarea"
+             and provider.get("integration_domain") in AQUAREA_INTEGRATION_DOMAINS
 )
     start, fetched, reported, captured = map(_aware, (period_start, fetched_at, reported_at, captured_at))
     period, scope = _KEYS[key]
@@ -115,13 +116,14 @@ def cloud_energy_periods(hass, refs, provider, *, captured_at=None):
                 continue
             try:
                 row = registry.async_get(eid)
-                if (row is None or row.platform != "aquarea" or row.disabled_by is not None
+                domain = getattr(row, "platform", None)
+                if (row is None or domain not in AQUAREA_INTEGRATION_DOMAINS or row.disabled_by is not None
                         or not isinstance(row.unique_id, str)):
                     continue
                 entity = component.get_entity(eid)
                 kind = type(entity)
                 key = getattr(getattr(entity, "entity_description", None), "key", None)
-                if (key not in _KEYS or kind.__module__ != "custom_components.aquarea.sensor"
+                if (key not in _KEYS or kind.__module__ != f"custom_components.{domain}.sensor"
                         or kind.__name__ != ("EnergyConsumptionSensor" if _KEYS[key][0] == "day"
                                             else "EnergyAccumulatedConsumptionSensor")):
                     continue
@@ -133,9 +135,10 @@ def cloud_energy_periods(hass, refs, provider, *, captured_at=None):
                 owner = getattr(device, "config_entry_id", None)
                 owns_device = (owner == row.config_entry_id if owner is not None else
                                row.config_entry_id in getattr(device, "config_entries", ()))
-                if (entry is None or entry.domain != "aquarea" or device is None or not owns_device
-                        or {value for domain, value in device.identifiers if domain == "aquarea"} != {native_id}
-                        or type(coordinator).__module__ != "custom_components.aquarea.coordinator"
+                if (entry is None or entry.domain != domain or device is None or not owns_device
+                        or {value for identifier_domain, value in device.identifiers
+                            if identifier_domain == domain} != {native_id}
+                        or type(coordinator).__module__ != f"custom_components.{domain}.coordinator"
                         or type(coordinator).__name__ != "AquareaDataUpdateCoordinator"
                         or coordinator.hass is not hass or coordinator._entry is not entry
                         or not isinstance(entry.runtime_data, dict) or entry.runtime_data.get(native_id) is not coordinator

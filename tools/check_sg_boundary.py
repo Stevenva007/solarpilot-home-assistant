@@ -19,7 +19,7 @@ for path in CODE.glob('*.py'):
             continue
         if node.func.attr == 'async_call' and node.args:
             domain = node.args[0]
-            if isinstance(domain, ast.Constant) and domain.value in {'climate', 'water_heater', 'aquarea', 'panasonic_cc'}:
+            if isinstance(domain, ast.Constant) and domain.value in {'climate', 'water_heater', 'aquarea', 'aquarea_smart_cloud', 'panasonic_cc'}:
                 errors.append('Native service writer: ' + path.name)
         if node.func.attr == 'call_rpc' and path.name != 'sg_transport.py':
             errors.append('Unreviewed native contact RPC route: ' + path.name)

@@ -23,7 +23,7 @@ import time
 from pathlib import Path
 
 from homeassistant.helpers.storage import Store
-from .const import DOMAIN, VERSION
+from .const import AQUAREA_INTEGRATION_DOMAINS, DOMAIN, VERSION
 
 ANALYSIS_DEFAULTS = {"enabled": True, "retention_days": 7, "sample_interval_s": 300,
                      "extra_entities": [], "include_related_entities": True}
@@ -79,12 +79,15 @@ MAX_ARCHIVE_JSON_DEPTH = 128  # Leave stack room for pseudonyms, deepcopy and JS
 
 def installed_aquarea_metadata():
     """Read fixed local package metadata in the export worker, never fetch online."""
-    result = {"integration_domain": "aquarea", "integration_version": None,
+    loaded = [(domain, sys.modules.get(f"custom_components.{domain}"))
+              for domain in AQUAREA_INTEGRATION_DOMAINS
+              if sys.modules.get(f"custom_components.{domain}") is not None]
+    domain, module = loaded[0] if len(loaded) == 1 else (None, None)
+    result = {"integration_domain": domain, "integration_version": None,
               "library_distribution": None, "library_version": None,
               "scope": "Current installed provider at export time; not historical installation metadata."}
-    module = sys.modules.get("custom_components.aquarea")
     filename = getattr(module, "__file__", None)
-    result["integration_loaded"] = module is not None
+    result["integration_loaded"] = len(loaded) == 1
     distributions = ("aioaquarea-ng", "aioaquarea")
     if filename:
         try:

@@ -1,6 +1,8 @@
 # SolarPilot starten of bijwerken
 
-Installeer **1.0.0-beta.119** via HACS, herstart Home Assistant volledig en herlaad de app of browser.
+Installeer **1.0.0-beta.120** via HACS, herstart Home Assistant volledig en herlaad de app of browser.
+
+Beta.120 ondersteunt read-only broncontrole voor zowel het stabiele Aquarea-domein `aquarea` als het exact gepubliceerde prereleasedomein `aquarea_smart_cloud`. De werkelijk geladen provider en alle vaste identiteits-, SDK-, LIVE-, waarde- en tijdsbewijzen moeten overeenkomen. Een dubbele of gemengde installatie blijft onbekend. De update kiest of installeert de Aquarea-prerelease niet.
 
 Beta.119 beperkt de herhaling van grote EMS-attributen op afzonderlijke sensoren. Elke deelsensor houdt de details van zijn eigen onderwerp; het complete overzicht blijft op EMS status, op de algemene Status-sensor en in de analyse-export beschikbaar. Dit vermindert statusverkeer naar verbonden schermen zonder sensorwaarden, bronactualiteit of apparaatregeling te veranderen.
 
@@ -24,4 +26,4 @@ Het echte huidige overschot blijft leidend, zonder toekomstige toestelreserverin
 
 Bij een upgrade uit een oudere versie wordt de vroegere standaardbuffer van 300 seconden eenmaal omgezet naar 900 seconden. Andere bewaarde aangepaste duurtijden en latere eigen keuzes blijven behouden. De lokale Shelly-toestemming blijft 300 seconden met actuele vernieuwing om de 60 seconden.
 
-[Installatie en rollback](docs/BETA119_INSTELLEN.md) · [Actuele werking](docs/ACTUELE_WERKING.md) · [Testverslag](docs/TESTRESULTATEN_BETA119.md) · [Overdracht](OVERDRACHT.md)
+[Installatie en rollback](docs/BETA120_INSTELLEN.md) · [Actuele werking](docs/ACTUELE_WERKING.md) · [Testverslag](docs/TESTRESULTATEN_BETA120.md) · [Overdracht](OVERDRACHT.md)

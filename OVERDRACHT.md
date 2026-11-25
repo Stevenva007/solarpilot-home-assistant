@@ -1,15 +1,17 @@
 <!-- solarpilot-handoff-schema: 1 -->
-<!-- solarpilot-handoff-version: 1.0.0-beta.119 -->
+<!-- solarpilot-handoff-version: 1.0.0-beta.120 -->
 
 # OVERDRACHT — SolarPilot
 
-Laatst bijgewerkt: **14 november 2026**. Actuele bron: **v1.0.0-beta.119**. Bouwbasis: gepubliceerde beta.118 `5ea04556e4915ed2d71289a84fe69cbd3093d49b`. Installatie en rollback: `docs/BETA119_INSTELLEN.md`. Softwarebewijs en publicatievoorwaarden: `docs/TESTRESULTATEN_BETA119.md`.
+Laatst bijgewerkt: **25 november 2026**. Actuele bron: **v1.0.0-beta.120**. Bouwbasis: gepubliceerde beta.119 `9c056563d948cda962a9917860e7bb7fcd2275b4`. Installatie en rollback: `docs/BETA120_INSTELLEN.md`. Softwarebewijs en publicatievoorwaarden: `docs/TESTRESULTATEN_BETA120.md`.
 
 ## 1. Projectdoel in gewone taal
 
 SolarPilot verdeelt het echte huidige zonneoverschot lokaal zonder toekomstige toestelpieken te reserveren. SG/warmtepomp heeft vaste toegang tot actueel coherent bevestigd autonoom Wallbox-zonnelaadvermogen. Gewone toestelvolgorde en eigen overnamerechten blijven apart. Panasonic regelt comfort, warm water, koeling en sterilisatie zelfstandig. Een toegestaan automatisch algemeen SG-contact blijft aan zolang nog bruikbare zon en actuele overige voorwaarden aanwezig zijn. Lager moduleren vraagt geen herhaling van het startvermogen; korte wolken vallen onder de bestaande tekortbuffers.
 
 ## 2. Actuele basis
+
+Beta.120 volgt één werkelijk geladen officiële Aquarea-provider read-only onder `aquarea` of het exact gepubliceerde v3-prereleasedomein `aquarea_smart_cloud`. Alle vaste registry-, config-entry-, apparaat-, coordinator-, unique-id-, SDK-, LIVE-, waarde- en rapporttijdbewijzen moeten hetzelfde domein en apparaat bevestigen. Twee geladen domeinen, een gemengde identiteit of een onbekende variant blijft onbekend. SolarPilot installeert, selecteert of migreert Aquarea niet en voegt geen bronbinding, polling of Panasonic-opdracht toe.
 
 Beta.119 beperkt de herhaling van grote EMS-attributen op afzonderlijke sensoren. Elke deelsensor houdt de details van zijn eigen onderwerp; het complete overzicht blijft op EMS status, op de algemene Status-sensor en in de analyse-export beschikbaar. Dit vermindert statusverkeer naar verbonden schermen zonder sensorwaarden, bronactualiteit of apparaatregeling te veranderen.
 
@@ -23,7 +25,7 @@ Beta.116 voorkomt herhaald kort SG-inschakelen na verlies van noodzakelijke ener
 
 Een herkenbare lopende Marstek-providerpoll mag alleen eerder volledig bevestigd bewijs voor dezelfde binding en waarde binnen zijn oorspronkelijke maximale leeftijd van 120 seconden behouden. Een eerste uitlezing zonder eerder voltooid bewijs voldoet niet. Expliciete fout, ongeldige kwaliteit, gewijzigd bronobject en verlopen veldbewijs blijven afwijzingen. Geen extra polling, bronbinding of batterijbediening. Begrensde batterijbrondiagnostiek bewaart oorspronkelijke tijden/afwijsreden; SG-gebeurtenissen benoemen gekozen programma en native taak afzonderlijk. De exacte velden en regressies volgen de actuele implementatie.
 
-De online review is bijgewerkt naar Aquarea v2.0.1 en SDK v1.6.0. Aquarea voegt lifetime/vandaag-energie toe en migreert pompstatus/richting; SDK v1.6.0 verandert consumptierapportfout/retry, niet de gecontroleerde taakparser of LIVE/CACHED-semantiek. Nieuwe energietypen worden niet als oude dag-/maandbron herlabeld. Zie UPSTREAM_BETA117.md. Dit installeert geen provider en claimt geen lokale compatibiliteit.
+De online review onderscheidt stabiele Aquarea v2.0.1, prerelease v3.0.0, de actuele defaultbranch na de domeinrevert en ongewijzigde SDK v1.6.0. De v3-tag verplaatst dezelfde uitleescode naar `aquarea_smart_cloud`; actuele `main` verschilt netto van stabiel alleen door README-documentatie. Nieuwe energietypen worden niet als oude dag-/maandbron herlabeld. Zie UPSTREAM_BETA120.md. Dit installeert geen provider en bewijst niet wat lokaal geladen is.
 
 De onderstaande beta.115- en beta.114-werking blijft behouden.
 
@@ -39,7 +41,7 @@ De bestaande native broncontrole blijft de werkelijk gekoppelde entiteit/coordin
 
 Basislastleren weigert een ingeschakelde batterijvloot niet meer alleen wegens haar aanwezigheid. Alle actieve profielen moeten afzonderlijk volledige expliciet bevestigde getekende AC-metingen leveren. De balans is net + PV + getekend batterijvermogen − gemeten Wallbox − gemeten beheerde lasten. Laden is negatief; ontladen positief. Oorspronkelijke brontijden blijven nodig, voor deze leerwaarneming hoogstens 120 seconden oud en onderling passend. Templates, schattingen, restored, dubbele rollen en onbekende centrale-meteroverlap geven geen leerbewijs. Generieke profielen zonder AC-bevestiging blijven onbekend en behouden overige bestaande voorwaarden. Marstek mag onbekende SoC hebben bij afzonderlijk bewezen power. Geen retroactieve historiecorrectie of realtime vrij vermogen uit een model.
 
-De uitsluitend uitleesbare Marstek-grens, vijftienminuten-SG-buffers, minimumduur, oorspronkelijke deadlines, korte lease, vaste SG-zonnevoorrang en overige opdrachtgrenzen blijven behouden. Geen PV-aftrek of huishoudinstelling wordt automatisch uit een analyse toegepast. Het beta.116-checkpoint gebruikte Aquarea v1.10.0 en SDK v1.5.0; de actuele beta.117-review vervangt dat checkpoint met Aquarea v2.0.1 en SDK v1.6.0.
+De uitsluitend uitleesbare Marstek-grens, vijftienminuten-SG-buffers, minimumduur, oorspronkelijke deadlines, korte lease, vaste SG-zonnevoorrang en overige opdrachtgrenzen blijven behouden. Geen PV-aftrek of huishoudinstelling wordt automatisch uit een analyse toegepast. Het beta.116-checkpoint gebruikte Aquarea v1.10.0 en SDK v1.5.0; beta.117 verving dat met Aquarea v2.0.1 en SDK v1.6.0, waarna beta.120 de v3-prereleasedomeinwijziging en de latere defaultbranch-revert afzonderlijk beoordeelde.
 
 ## 3. Absolute ontwerpregels
 
@@ -51,6 +53,7 @@ De uitsluitend uitleesbare Marstek-grens, vijftienminuten-SG-buffers, minimumduu
 - Basislast-fleetcorrectie vereist alle actieve afzonderlijke bevestigde AC-metingen met oorspronkelijke tijd, kwaliteit en eenduidige dekking. Geen gedeeltelijke som, onbekende overlap, afgeleide bron of model als actuele vrije ruimte.
 - Marstek-profiel marstek_venus_e3 is uitsluitend monitoring via bestaande HA-bronnen. Geen batterij-, modus- of reservebediening, geen extra polling en geen SoC-reserveprioriteit. Getekende AC-power met bevestigde dekking is nodig; SoC mag onbekend blijven. Geen automatische bronbinding of nulaanname bij bronverlies.
 - Panasonic-entiteiten en Wallbox blijven read-only. Alleen de bewust toegewezen bestaande fysieke SG-uitgang heeft haar aparte gecontroleerde schrijfroute. Geen native temperatuur-, programma-, heater-, AUTO/OFF-, laad- of tweede-Shelly-opdracht toevoegen.
+- Een Aquarea-uitleesroute gebruikt precies één geladen officieel domein. Registryplatform, config-entry, apparaatidentifier, coordinator-module en gerapporteerde providermetadata moeten hetzelfde domein bewijzen. Gemengde of parallel geladen domeinen blijven onbekend; een prerelease wordt niet automatisch gekozen of geïnstalleerd.
 - De Aquarea-pompstatusrol mag de historische sensor of de officiële v2-binaire sensor zijn, maar alleen met exact dezelfde native unique-id, config-entry en apparaatbinding. Twee kandidaten, gewijzigde identiteit, oude of conflicterende waarde blijven onbekend. De rol verleent geen bediening.
 - Actuele P1 bevat alle huidige lasten. Geen toekomstig piekvermogen of ongebruikte nominale toestelvraag als extra reserve aftrekken. De ingestelde vaste huisbuffer is een afzonderlijke expliciete marge. Ontbrekend toestelvermogen is onbekend, geen gemeten nul.
 - Nieuwe opdrachten blijven geserialiseerd. Pending, opslagbewijs, echte terugmelding, stabilisatietijd en nieuwe oorspronkelijke netmeting blijven nodig. Een opgeslagen intentie is geen fysiek bewezen verbruik of vrij vermogen. Onzekere eigen SG-opdrachten behouden hun afzonderlijke herstelcontract.
@@ -110,9 +113,11 @@ Tests en browserfixtures gebruiken uitsluitend fictieve bronnen. Diagnosebestand
 
 ## 9. Testprocedure + actuele teststatus
 
-Beta.119 toetst de gezamenlijke telemetrieomvang met fictieve grote forecasts en plannergegevens, behoud van het complete hub-overzicht, onveranderde native waarden en oorspronkelijke ongeldige brongegevens, isolatie van niet-gerelateerde updates en vernieuwing van passende fasedetails. De gerichte sensorregressies slagen met 31 tests. De volledige suite en alle vijf commitgebonden gates blijven verplicht; actuele resultaten staan in docs/TESTRESULTATEN_BETA119.md.
+Beta.120 toetst het exacte v3-prereleasedomein met fictieve registry-, config-entry-, apparaat-, coordinator- en SDK-objecten. Dezelfde LIVE-, identiteit-, bronwaarde- en rapporttijdvoorwaarden als voor stabiel `aquarea` blijven verplicht; een gemengd of dubbel geladen domein faalt gesloten en bestaande UTC-energieperioden blijven gelijk. De gerichte set slaagt met 657 tests en de volledige lokale suite met 9624 tests; exacte resultaten en CI-voorwaarden staan in docs/TESTRESULTATEN_BETA120.md.
 
-Beta.118 heeft regressies voor voor- en achterlopende schermklokken, herhaalde actuele publicaties, bronveroudering, toekomstige rapporten, lokale en handmatige eindtijden, trage/ongeldige antwoorden, slaap/kloksprong en contextwissels. De echte Chromium-gate controleert de zichtbare knoppen over 453 fictieve live-updates; de echte-HA-gate controleert de geregistreerde WS-schema/authenticatiegrens. Zie docs/TESTRESULTATEN_BETA119.md voor uitgevoerde resultaten en grenzen.
+Beta.119 toetst de gezamenlijke telemetrieomvang met fictieve grote forecasts en plannergegevens, behoud van het complete hub-overzicht, onveranderde native waarden en oorspronkelijke ongeldige brongegevens, isolatie van niet-gerelateerde updates en vernieuwing van passende fasedetails. De gerichte sensorregressies slagen met 31 tests. De volledige suite en alle vijf commitgebonden gates blijven verplicht; actuele resultaten staan in docs/TESTRESULTATEN_BETA120.md.
+
+Beta.118 heeft regressies voor voor- en achterlopende schermklokken, herhaalde actuele publicaties, bronveroudering, toekomstige rapporten, lokale en handmatige eindtijden, trage/ongeldige antwoorden, slaap/kloksprong en contextwissels. De echte Chromium-gate controleert de zichtbare knoppen over 453 fictieve live-updates; de echte-HA-gate controleert de geregistreerde WS-schema/authenticatiegrens. Zie docs/TESTRESULTATEN_BETA120.md voor uitgevoerde resultaten en grenzen.
 
 Beta.117 toetst de Aquarea v2-binaire pompstatus, kleine richting-enum, behoud van de oude sensorvorm en gesloten gedrag bij een dubbele/onvoltooide migratie. De bestaande contracttests blijven LIVE/CACHED, getypeerde waarden, bindingen, conflicten en oorspronkelijke tijden bewaken. Zie docs/TESTRESULTATEN_BETA117.md voor resultaten en bewijsgrenzen.
 
@@ -124,9 +129,9 @@ Nieuwe regressies toetsen een letterlijke AC-bevestiging en bekende native meets
 
 Basislasttests toetsen volledige afzonderlijke fleetmetingen, getekend laden/ontladen, gemengde profielen, oorspronkelijke native ontvangsttijd en maximaal 120 seconden actualiteit, bronalignment, templates/estimated/restored, ontbrekende leden, dubbele rollen en centrale-meteroverlap. Marstek-SoC is onafhankelijk; generieke profielen houden hun bestaande voorwaarden en hebben voor deze fleetcorrectie expliciete AC-bevestiging nodig.
 
-De actuele Aquarea-/SDK-HEADs, stabiele releases en opgeloste tagcommits zijn op 11 november 2026 online gecontroleerd. Aquarea v1.10.0→v2.0.1 en SDK v1.5.0→v1.6.0 zijn inhoudelijk beoordeeld. De relevante entiteitsmigratie is verwerkt; nieuwe energie-entiteiten worden niet automatisch hergebruikt. Zie docs/UPSTREAM_BETA117.md en het machineleesbare checkpoint.
+De actuele Aquarea-/SDK-defaultbranches, stabiele releases, Aquarea v3-prereleasetag en relevante PR-/issuestatus zijn op 25 november 2026 online gecontroleerd. De v3-domeinverplaatsing en latere main-revert zijn afzonderlijk verwerkt; SDK v1.6.0 is ongewijzigd. Zie docs/UPSTREAM_BETA120.md en het machineleesbare checkpoint.
 
-Passende regressies, echte Chromium-interacties, canonieke uitleg/optiehulp, handoff, privacy/structuur, commandogrenzen, JS-syntax en volledige testsuite worden gecontroleerd. De uitgevoerde resultaten en het publicatiemechanisme staan in docs/TESTRESULTATEN_BETA117.md. De volledige-suiteuitslag en HA-startup worden bewezen door Actions-runs voor de exacte PR-HEAD en uiteindelijke main-commit; een oudere groene head is geen vervanging.
+Passende regressies, echte Chromium-interacties, canonieke uitleg/optiehulp, handoff, privacy/structuur, commandogrenzen, JS-syntax en volledige testsuite worden gecontroleerd. De uitgevoerde resultaten en het publicatiemechanisme staan in docs/TESTRESULTATEN_BETA120.md. De volledige-suiteuitslag en HA-startup worden bewezen door Actions-runs voor de exacte PR-HEAD en uiteindelijke main-commit; een oudere groene head is geen vervanging.
 
 Alle vijf commitgebonden Validate-gates moeten groen zijn vóór samenvoegen. Main herhaalt de volledige suite en alle overige gates vóór automatische publicatie. Daarna worden de vier gedownloade release-assets tegen de exacte tag en bron-SHA gecontroleerd.
 
@@ -152,9 +157,9 @@ Nieuwe volledige geldige fleetmetingen mogen toekomstige basislastwaarnemingen o
 
 ## 12. Installatie/upgrade en rollback
 
-Beta.117 vereist geen nieuwe koppeling of YAML. Zie BETA117_INSTELLEN.md. Rollback naar beta.116 mist de v2-binaire pompstatusherkenning; na een voltooide Aquarea-migratie kan taakcontext dan opnieuw onbekend worden. Een actuele bronfout blijft ook met deze update onbekend.
+Beta.120 vereist geen nieuwe koppeling of YAML. Zie BETA120_INSTELLEN.md. Rollback naar beta.119 mist herkenning van `aquarea_smart_cloud`; bij een lokaal geïnstalleerde v3-prerelease kan de read-only taakcontext dan onbekend worden. Stabiel `aquarea` blijft werken en een actuele bronfout blijft ook met deze update onbekend.
 
-Werk na publicatie via HACS bij naar beta.117, herstart Home Assistant volledig en herlaad app/browser. Behoud entries, configuratie, modellen en privéopslag. Maak vooraf een volledige privéback-up. Voeg geen pompstatusbron toe en wijzig geen Aquarea-entity-id voor deze correctie. De update bevestigt of vervangt geen bron en wordt niet op afstand op de huishoudinstallatie toegepast.
+Werk na publicatie via HACS bij naar beta.120, herstart Home Assistant volledig en herlaad app/browser. Behoud entries, configuratie, modellen en privéopslag. Maak vooraf een volledige privéback-up. Voeg geen pompstatusbron toe, wijzig geen Aquarea-entity-id en installeer geen prerelease alleen voor deze correctie. De update bevestigt of vervangt geen bron en wordt niet op afstand op de huishoudinstallatie toegepast.
 
 Rollback naar beta.114 behoudt de opgeslagen monitoropties maar mist de nieuwe beheerroute, mobiele kiezer en duidelijke knoplabels. Gebruik daar Batterij aanpassen voor het bestaande profiel en rond de finale bevestiging af; de directe Marstek-route kan weer een nieuw leeg profiel voorstellen. Maak geen duplicaten en wis geen configuratie/opslag. Beta.113 mist bovendien de bronvalidatie, redenen en basislast-fleetcorrectie uit beta.114. Beta.112 of ouder vraagt de profiel-/buffercompatibiliteit uit BETA113_INSTELLEN.md. Zie docs/BETA115_INSTELLEN.md.
 
@@ -171,17 +176,18 @@ Rollback naar beta.114 behoudt de opgeslagen monitoropties maar mist de nieuwe b
 - sg_boost.py / sg_transport.py: afzonderlijke bruikbare-zonherstart, oorspronkelijke deadlines, eigendom, lokale SG-grens en firmwarediagnose.
 - sg_wallbox_transfer.py: oorspronkelijk episodeplafond, absolute eindtijd, herstelbewijs en conservatieve herstart.
 - analysis_export.py: oorspronkelijke brontelemetrie en begrensde SG-/Wallboxovergangen; geen aftelseconde-eventstroom of nieuw controlrecht.
+- const.py / native_program.py / cloud_energy_period.py / display_operation.py / operation_source_evidence.py: gesloten Aquarea-domeinset, exacte identiteitsketen en ongewijzigde read-only taak-/energiebetekenis.
 - sensor.py: compacte Wallbox-recorderattributen met volledige actuele status.
 - frontend/solar-pilot-card.js: concrete bronreden, Batterijbron controleren, actuele metingen en bestaande status-/overdrachtdiagnostiek.
 - current_guide.py / option_help.py: canonieke actuele uitleg en veldhulp met gegenereerde mirrors.
 
 ## 14. Release-checklist
 
-Volledige suite en gerichte regressies; actuele uitleg, optiehulp en handoff; privacy/structuur; SG-opdrachtgrens; online upstreamreview; beide JS-syntaxcontroles; diffreview. Daarna vijf groene exacte PR-CI-gates. Pas vervolgens samenvoegen op main. Main herhaalt de gates en publiceert tag, HACS-ZIP, lokale ZIP en beide beta.117-release-documenten. Vergelijk alle vier gedownloade assets tegen exacte tag/bron-SHA. Geen manual-release-omweg, force-push of verplaatste oude tag.
+Volledige suite en gerichte regressies; actuele uitleg, optiehulp en handoff; privacy/structuur; SG-opdrachtgrens; online upstreamreview; beide JS-syntaxcontroles; diffreview. Daarna vijf groene exacte PR-CI-gates. Pas vervolgens samenvoegen op main. Main herhaalt de gates en publiceert tag, HACS-ZIP, lokale ZIP en beide beta.120-release-documenten. Vergelijk alle vier gedownloade assets tegen exacte tag/bron-SHA. Geen manual-release-omweg, force-push of verplaatste oude tag.
 
 ## 15. AI-handoff
 
-Actuele wijziging beta.117: behoud beide officiële Aquarea-pompstatusdomeinen uitsluitend onder dezelfde native identiteit en apparaatbinding; kies niet bij dubbele kandidaten. Kleine richting-enumwaarden vervangen de getypeerde SDK-status niet. De Aquarea v2.0.1- en SDK v1.6.0-review is verwerkt; nieuwe lifetime/vandaag-energie krijgt geen oude periodebetekenis. Beta.116 SG-bronstopherstel en alle actuatorgrenzen blijven ongewijzigd.
+Actuele wijziging beta.120: volg exact één werkelijk geladen officieel Aquarea-domein, `aquarea` of `aquarea_smart_cloud`, uitsluitend read-only en onder één overeenkomende identiteitsketen. Kies niet bij gemengde of parallel geladen domeinen. De stabiele v2.0.1-, prerelease v3.0.0-, main-revert- en ongewijzigde SDK v1.6.0-bronreview is verwerkt; installeer of migreer geen provider. De pompstatusmigratie, energieperioden, SG-bronstopherstel en alle actuatorgrenzen blijven ongewijzigd.
 
 Begin bij de concrete gebruikersvraag, actuele bron en dit dossier. Beta.115 herstelt de route naar het bestaande Marstek-profiel, de mobiele entiteitskeuzelijst en de onduidelijke tussen-/eindopslag. Behoud dezelfde profielidentiteit bij bewerken; voeg alleen expliciet een extra monitor toe. Verder is niet opgeslagen. De laatste expliciete bevestiging blijft nodig. Fouten bewaren lokale invoer; een zoekterm is geen sensorbinding. De beta.114-bronvalidatie en basislast-fleetcorrectie blijven behouden. Een actief Marstek-profiel vraagt bewuste AC-bevestiging bij opslaan; bestaande onbevestigde koppelingen worden niet automatisch bevestigd of vervangen. Benoem concrete bronoorzaken en neem alleen veilige bekende native veldlabels in diagnostiek op.
 
