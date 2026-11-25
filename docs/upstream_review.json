@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "reviewed_at": "2026-11-11T18:47:44Z",
+  "reviewed_at": "2026-11-25T19:00:26Z",
   "assessment": {
     "status": "complete_no_unprocessed_changes",
-    "summary": "Beta.117 reviewed all eight official public repository/default-branch/release/tag records on 2026-11-11. Aquarea v2.0.1 migrates pump status from sensor to binary_sensor and direction to a lowercase enum; SolarPilot now accepts either exact registered role while duplicate migration states fail closed. New lifetime/today energy is not relabelled as an old period source. SDK v1.6.0 changes consumption report retry/error handling only; inspected task/status/LIVE semantics are unchanged. No provider install, binding or new actuator right. See docs/UPSTREAM_BETA117.md.",
+    "summary": "Beta.120 reviewed the current default branches, stable releases, resolved tags and the published Aquarea v3.0.0 prerelease on 2026-11-25. The v3 tag moves unchanged read-only provider code to aquarea_smart_cloud; main reverted that move and now differs from stable v2.0.1 only by coexistence documentation. SolarPilot accepts either exact official domain while mixed identities fail closed. Stable Aquarea remains v2.0.1 and SDK v1.6.0 is unchanged. No provider install, binding or new actuator right. See docs/UPSTREAM_BETA120.md.",
     "compatibility_claim": false,
     "evidence_document": "docs/UPSTREAM_BRONNEN.md"
   },
@@ -11,7 +11,7 @@
     {
       "repository": "wpatrik14/home-assistant-aquarea",
       "default_branch": "main",
-      "head_commit": "2ff80459a219330daf8c38341221075aaf9bfef8",
+      "head_commit": "8d5180c5323ff25cd9eab3baf39261ad25969d9f",
       "latest_release": {
         "tag": "v2.0.1",
         "commit": "2ff80459a219330daf8c38341221075aaf9bfef8",

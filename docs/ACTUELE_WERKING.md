@@ -1,10 +1,18 @@
 # SolarPilot · Actuele werking
 
-**Versie:** 1.0.0-beta.119
-**Bijgewerkt:** 2026-11-14
-**Regel-hash:** `e9546af263f32e56`
+**Versie:** 1.0.0-beta.120
+**Bijgewerkt:** 2026-11-25
+**Regel-hash:** `462c21ea53fc3dfb`
 
 SolarPilot verdeelt het echte huidige zonneoverschot zonder toekomstige toestelpieken te reserveren. De warmtepomp heeft voor automatisch algemeen SG-zonbedrijf vaste voorrang op bevestigd autonoom Wallbox-zonneladen. Een toegestaan AAN-contact kan aanblijven zolang de actuele voorwaarden voldoen; er is geen verplichte uurstop of administratieve sessiereset. Korte lokale toestemming en actuele hercontrole blijven noodzakelijk. Panasonic regelt de warmtepomp zelfstandig.
+
+## Aquarea-domeinwijziging blijft read-only herkenbaar
+
+Aquarea heeft v3.0.0 als prerelease gepubliceerd met het nieuwe integratiedomein aquarea_smart_cloud en die wijziging daarna op de defaultbranch teruggedraaid. SolarPilot kan zowel het stabiele domein aquarea als dit exact gepubliceerde prereleasedomein uitlezen. De werkelijk geladen provider bepaalt de route; een versienummer of entiteitsnaam alleen geeft geen compatibiliteitsbewijs.
+
+Registryplatform, config-entry, apparaatidentifier, coordinator-module, unique-id, geladen SDK-capability, LIVE-status en oorspronkelijke rapporttijd moeten hetzelfde domein en apparaat bevestigen. Gemengde identiteiten of twee gelijktijdig geladen Aquarea-domeinen blijven onbekend. Dag- en maandenergie behouden hun eigen oorspronkelijke UTC-periode; vandaag- en lifetime-energie krijgen geen oudere betekenis.
+
+SolarPilot installeert, verwijdert, migreert of hernoemt Aquarea niet en selecteert de prerelease niet. Er komt geen nieuwe bronbinding, polling of Panasonic-opdracht bij. Publieke releases bewijzen niet welke provider of SDK lokaal geladen is; de analyse-export vermeldt alleen de daadwerkelijk geladen vaste manifest- en pakketmetadata.
 
 ## Kleinere statusberichten voor verbonden schermen
 

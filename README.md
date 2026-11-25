@@ -1,6 +1,8 @@
 # SolarPilot
 
-**Actuele bronversie: 1.0.0-beta.119.** SolarPilot verdeelt lokaal zonnestroom tussen je toestellen in Home Assistant.
+**Actuele bronversie: 1.0.0-beta.120.** SolarPilot verdeelt lokaal zonnestroom tussen je toestellen in Home Assistant.
+
+Beta.120 kan naast het stabiele Aquarea-domein ook het exact gepubliceerde `aquarea_smart_cloud`-domein van de Aquarea v3.0.0-prerelease read-only herkennen. Alle registry-, config-entry-, apparaat-, coordinator-, SDK-, LIVE-, waarde- en tijdsbewijzen moeten hetzelfde domein bevestigen; gemengde of dubbele providers blijven onbekend. SolarPilot installeert of migreert Aquarea niet en geeft hierdoor geen nieuwe Panasonic-opdracht.
 
 Beta.119 beperkt de herhaling van grote EMS-attributen op afzonderlijke sensoren. Elke deelsensor houdt de details van zijn eigen onderwerp; het complete overzicht blijft op EMS status, op de algemene Status-sensor en in de analyse-export beschikbaar. Dit vermindert statusverkeer naar verbonden schermen zonder sensorwaarden, bronactualiteit of apparaatregeling te veranderen.
 
@@ -12,7 +14,7 @@ Een herkenbare lopende Marstek-poll kan alleen eerder volledig bevestigd bewijs 
 
 De bestaande Marstek-beheerroute, mobiele sensorzoeker, expliciete AC-bronbevestiging en basislast-fleetcontrole blijven behouden. Marstek wordt uitsluitend uitgelezen zonder extra polling of bediening. SG behoudt zijn vijftienminutenbuffers en vaste zonnevoorrang op autonoom Wallboxladen.
 
-[Actuele werking](docs/ACTUELE_WERKING.md) · [Installatie en rollback](docs/BETA119_INSTELLEN.md) · [Testverslag](docs/TESTRESULTATEN_BETA119.md) · [Changelog](CHANGELOG.md)
+[Actuele werking](docs/ACTUELE_WERKING.md) · [Installatie en rollback](docs/BETA120_INSTELLEN.md) · [Testverslag](docs/TESTRESULTATEN_BETA120.md) · [Changelog](CHANGELOG.md)
 
 Panasonic regelt de warmtepomp zelfstandig; SolarPilot bedient uitsluitend de bevestigde SG-uitgang. De afwasmachine behoudt haar beschermde cyclus. Net-, fase- en kwartiergrenzen blijven gelden.
 
@@ -29,7 +31,7 @@ Bij **Analyse nodig** maakt één klik een export van de beschikbare zeven dagen
 
 ## Herstel van de beta.62-opstartfout
 
-Update via HACS naar beta.118 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.91 vraagt geen herbevestiging alleen door de codeupdate.
+Update via HACS naar beta.120 na geslaagde publicatie en herstart Home Assistant volledig. Verwijder SolarPilot niet en wis geen configuratie, modellen of opslag. De herstelupdate ondersteunt de onveranderbare opties die Home Assistant zelf aanbiedt en houdt geneste instellingen intact. In een lokale proef met de onveranderbare mappingvorm van HA-opties ontstond de beta.62-fout vóór migratie en opslag; de toestand van jouw eigen installatie is niet uitgelezen. De beta.63-opstartfix blijft behouden. Nieuwe algemene profiel- en meetkeuzes vereisen hun eigen bewuste lokale bevestiging. Ongewijzigde geldige SG-bevestigingen uit beta.69 blijven behouden; beta.91 vraagt geen herbevestiging alleen door de codeupdate.
 
 ## Upgrade vanaf beta.61
 

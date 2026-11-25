@@ -11,6 +11,7 @@ import time
 
 from .heatpump_learning import ACTIVE_CONTEXTS
 from .operation_source_evidence import OPERATION_CONTRACT_ID, known_source_contract
+from .const import AQUAREA_INTEGRATION_DOMAINS
 
 LABELS = {"space_heating": "Verwarmen", "space_cooling": "Koelen",
           "tapwater_heating": "Boiler opwarmen", "sterilization": "Sterilisatie",
@@ -142,7 +143,7 @@ def classify_display_operation(snapshot, *, now_wall=None):
         known = (type(contract.get("schema")) is int and contract["schema"] == 1
                  and contract.get("read_only") is True and contract.get("status") == "verified"
                  and contract.get("provider_loaded") is True
-                 and provider.get("integration_domain") == "aquarea"
+                 and provider.get("integration_domain") in AQUAREA_INTEGRATION_DOMAINS
                  and known_source_contract(contract))
         def unknown(code, reason, action, *, skew=None, measurement_skew=None):
             return {**result, "reason_code": code, "reason": reason, "action": action,

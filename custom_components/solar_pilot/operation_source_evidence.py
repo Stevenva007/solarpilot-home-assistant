@@ -16,6 +16,8 @@ import sys
 import textwrap
 from types import CodeType
 
+from .const import AQUAREA_INTEGRATION_DOMAINS
+
 CONTRACT_ID = "aioaquarea_ng_1_3_1_special_status"
 # Only old stored records lack capability evidence. These labels validate that
 # old historical format; they never admit a current loaded provider.
@@ -421,13 +423,13 @@ def _project(raw, captured_at, stale_s, *, retained=False):
                 "native_observed_at":native, "native_fresh":fresh(native)}
 
     provider_raw = _dict(raw.get("provider"))
-    provider = {"integration_domain":_enum(provider_raw.get("integration_domain"), {"aquarea"}),
+    provider = {"integration_domain":_enum(provider_raw.get("integration_domain"), AQUAREA_INTEGRATION_DOMAINS),
                 "integration_version":_version(provider_raw.get("integration_version")),
                 "library_distribution":_enum(provider_raw.get("library_distribution"), {"aioaquarea-ng"}),
                 "library_version":_version(provider_raw.get("library_version"))}
     provider_loaded = raw.get("provider_loaded") is True
     known = (type(raw.get("schema")) is int and raw["schema"] == 1 and raw.get("read_only") is True and provider_loaded
-             and provider["integration_domain"] == "aquarea" and known_source_contract(raw))
+             and provider["integration_domain"] in AQUAREA_INTEGRATION_DOMAINS and known_source_contract(raw))
     split = known and raw.get("contract_id") == OPERATION_CONTRACT_ID
     pump_raw, direction_raw, program_raw, tank_raw = (_dict(raw.get(key)) for key in ("pump","direction","program","tank"))
     pump = {"state":_enum(pump_raw.get("state"), {"on","off"}, "unknown"), **observed(pump_raw)}

@@ -1,7 +1,8 @@
 """SolarPilot constants. No network or third-party Python dependencies."""
 DOMAIN = "solar_pilot"
 NAME = "SolarPilot"
-VERSION = "1.0.0-beta.119"
+VERSION = "1.0.0-beta.120"
+AQUAREA_INTEGRATION_DOMAINS = frozenset({"aquarea", "aquarea_smart_cloud"})
 PLATFORMS = ["sensor", "binary_sensor", "select", "number", "button", "switch"]
 MODES = ["observe", "solar", "paused"]
 DEVICE_MODES = ["auto", "disabled"]

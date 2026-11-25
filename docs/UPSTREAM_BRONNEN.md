@@ -1,5 +1,13 @@
 # Openbaar upstream-bronregister
 
+## Bronreview beta.120 — 25 november 2026
+
+Aquarea publiceerde [v3.0.0](https://github.com/wpatrik14/home-assistant-aquarea/releases/tag/v3.0.0) om 12:41:56 UTC als **prerelease** met het nieuwe domein `aquarea_smart_cloud`. PR189 en PR190 zijn gemerged, maar PR192 draaide de domeinwijziging dezelfde dag terug. De actuele `main`-HEAD `8d5180c5323ff25cd9eab3baf39261ad25969d9f` verschilt daardoor netto van stabiele v2.0.1 alleen door documentatie over samenleven met Heishamon. De nieuwste gepubliceerde **stabiele** release blijft v2.0.1 op `2ff80459a219330daf8c38341221075aaf9bfef8`. PR193 is gemerged; PR191 is zonder merge gesloten; er zijn geen open Aquarea-PR's. Issue 165 blijft open en bevat geen nieuwe gepubliceerde broncorrectie.
+
+De werkelijk vereiste bibliotheek in zowel v2.0.1 als de v3-prerelease blijft `aioaquarea-ng>=1.6.0`. SDK-`main` en de laatste stabiele v1.6.0 staan ongewijzigd op `58bdd9bc3662950225fc1afc35ab7d084d5789b8`; er zijn geen open SDK-issues of PR's. SolarPilot beta.120 accepteert de twee exact officieel gepubliceerde integratiedomeinen alleen onder dezelfde geladen SDK-capability en volledige overeenstemming van registryplatform, config-entry, apparaatidentifier, coordinator-module, unique-id, LIVE-status en oorspronkelijke tijden. Gemengde of dubbele provideridentiteit blijft onbekend. Zie [UPSTREAM_BETA120.md](UPSTREAM_BETA120.md).
+
+De prerelease wordt niet geïnstalleerd, niet als stabiel vastgezet en niet gebruikt als bewijs van lokaal geïnstalleerde software. SolarPilot voegt geen providerpoll, bronbinding of Panasonic-opdracht toe. De publieke GitHub-status kan niet aantonen welke Aquarea- of SDK-versie op een Home Assistant-installatie werkelijk geladen is; de lokale analyse-export rapporteert alleen de daadwerkelijk geladen vaste manifest-/pakketmetadata.
+
 ## Hercontrole beta.117 — 11 november 2026
 
 Aquarea v2.0.1 staat met `main` en stabiele tag op `2ff80459a219330daf8c38341221075aaf9bfef8`; de daadwerkelijk vereiste SDK heeft v1.6.0 en `main` op `58bdd9bc3662950225fc1afc35ab7d084d5789b8`. Aquarea migreert pompstatus van `sensor` naar `binary_sensor`, maakt richting een kleine enum en voegt lifetime/vandaag-energie toe. SolarPilot beta.117 herstelt alleen de exact gebonden read-only pompstatusrol en blijft gesloten bij dubbele migratie. De SDK-wijziging betreft consumptierapportfout/retry; taakparser en LIVE/CACHED-contract zijn ongewijzigd. Beide repositories hebben geen open PR's; twee bestaande Aquarea-issues zijn geen gepubliceerde correctie. Zie [UPSTREAM_BETA117.md](UPSTREAM_BETA117.md). Geen automatische providerupgrade, bronbinding of installatiecompatibiliteitsclaim.

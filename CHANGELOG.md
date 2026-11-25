@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0-beta.120 — Aquarea v3-domein veilig uitlezen
+
+- Herkent naast het stabiele Aquarea-domein ook het exact gepubliceerde `aquarea_smart_cloud`-domein van de v3.0.0-prerelease, uitsluitend voor bestaande read-only warmtepompbroncontrole.
+- Vereist dat geladen provider, registryplatform, config-entry, apparaatidentifier, coordinator-module, unique-id, SDK-capability, LIVE-status, bronwaarde en oorspronkelijke rapporttijd hetzelfde domein en apparaat bewijzen. Gemengde of gelijktijdig geladen domeinen blijven onbekend.
+- Installeert, selecteert of migreert Aquarea niet en voegt geen bronbinding, polling of Panasonic-opdracht toe. Stabiele v2.0.1, de v3-prereleasetag, de latere defaultbranch-revert en de ongewijzigde SDK v1.6.0 zijn afzonderlijk beoordeeld.
+- Behoudt energieperioden, pompstatusmigratie, alle apparaatgrenzen, instellingen, historie en privacy. Zie BETA120_INSTELLEN.md, TESTRESULTATEN_BETA120.md en UPSTREAM_BETA120.md.
+
 ## 1.0.0-beta.119 — minder herhaalde live-attributen
 
 - Publiceert op 23 EMS-deelsensoren alleen passende onderwerpdetails en bestaande algemene kwaliteitsmeldingen, zodat een niet-gerelateerde wijziging niet overal grote attributen vernieuwt.
